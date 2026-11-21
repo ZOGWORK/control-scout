@@ -26,11 +26,11 @@ export const ALLIANCE_HUES = [
 const hue = (alliance: number) => ALLIANCE_HUES[(alliance - 1 + ALLIANCE_HUES.length) % ALLIANCE_HUES.length];
 // v8 (docs/design/v8-revamp-brief.md principle 3): no rainbow of alliance hues. Chips are neutral, odds numbers white,
 // odds bars a quiet white; red and blue appear only on a series' red and blue sides.
-const V8_CHIP = "v8:bg-white/[0.06] v8:text-text-base";
+const V8_CHIP = "v8:bg-ink/[0.06] v8:text-text-base";
 const V8_TEXT = "v8:text-text-base";
 const V8_BAR = "v8:bg-text-base/60";
 const V8_BOX = "v8:border-line";
-const V8_FINAL = "v8:border-white/[0.12]";
+const V8_FINAL = "v8:border-ink/[0.12]";
 
 /** `muted`: a series' loser, in neutral grey rather than faded (a faded chip fell under 4.5:1). */
 export function AllianceChip({ alliance, className, muted }: { alliance: number; className?: string; muted?: boolean }) {
@@ -67,7 +67,7 @@ export function BracketAccuracyNote() {
 /** One alliance's championship odds, final odds and danger match, around its team chips. */
 export function AllianceOddsCard({ odds, children }: { odds: BracketAllianceOdds | undefined; children: ReactNode }) {
   return (
-    <div className={cn("rounded-xl border border-border bg-card p-4 max-sm:p-3", V8_BOX, odds?.status === "champion" && "border-accent/60 bg-accent/[0.06] v8:border-white/[0.12] v8:bg-card", odds?.status === "out" && "border-dashed bg-transparent")} data-alliance-card>
+    <div className={cn("rounded-xl border border-border bg-card p-4 max-sm:p-3", V8_BOX, odds?.status === "champion" && "border-accent/60 bg-accent/[0.06] v8:border-ink/[0.12] v8:bg-card", odds?.status === "out" && "border-dashed bg-transparent")} data-alliance-card>
       {children}
       {odds && (
         <div className="mt-3">
@@ -291,7 +291,7 @@ function BracketTree({ bracket, layout, bySeries, roster }: { bracket: BracketOd
   return (
     <div className="-mx-1 overflow-x-auto px-1 pb-2" data-testid="bracket-tree">
       <div ref={ref} className="relative grid w-max gap-x-6 gap-y-2" style={{ gridTemplateColumns: `repeat(${rounds + 1}, 13rem)` }}>
-        <svg className="pointer-events-none absolute inset-0 size-full overflow-visible text-border v8:text-white/[0.12] v8:[&_path]:[stroke-width:1]" aria-hidden>
+        <svg className="pointer-events-none absolute inset-0 size-full overflow-visible text-border v8:text-ink/[0.12] v8:[&_path]:[stroke-width:1]" aria-hidden>
           {paths.map((p) => <path key={p.key} d={p.d} fill="none" stroke="currentColor" strokeWidth={1.5} />)}
         </svg>
         <p className={label} style={{ gridColumn: `1 / span ${rounds}`, gridRow: 1 }}>Upper bracket</p>

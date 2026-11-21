@@ -40,13 +40,13 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { askDue, forgetSettled, laneJobMs, laneResults, readCallMs, laneStep, needsRebuild, overLimit, parseLanes, parseShard, parseSkip, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes } from "./lib/autopilotRun";
+import { askDue, forgetSettled, laneJobMs, laneResults, readCallMs, laneStep, needsRebuild, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
 import { prGate } from "./lib/autopilotPr";
 import { mainQuiet, mainStill, pickMerge, servesMerge } from "./lib/autopilotMergeStep";
 import { streamRun } from "./lib/streamRun";
-import { eventLimitMs } from "./lib/videoFrames";
+import { eventLimitMs, readFailed as readFailedExit } from "./lib/videoFrames";
 import type { ClipCheck } from "../server/data/clipChecks";
 
 const argv = process.argv.slice(2);
@@ -75,6 +75,10 @@ if (typeof LANES === "string") { console.error(`--lanes: ${LANES}`); process.exi
 if (LANE && (LANES.length || DRY || DB)) { console.error("--lane: a lane reads only the job it was sent (no --lanes, --dry or --db)"); process.exit(2); }
 
 const DIR = ".data/autopilot", STAMP = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+/** Reader lanes (a browser and OCR each) per read call: the start sets AUTOPILOT_LANES by the memory free (3 over 6 GB,
+ *  else 2). Not the coordinator's --lanes (other computers' lanes).
+ *  Declared up here: a lane's run (if (LANE), below) reads (readSeason) before the rest of the file runs. */
+const READER_LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process.env.AUTOPILOT_LANES! : "2";
 mkdirSync(join(DIR, "runs"), { recursive: true });
 const LOG = join(DIR, "runs", `${STAMP}.log`);
 const log = (s: string) => { const line = `${new Date().toISOString()} ${s}`; console.log(line); appendFileSync(LOG, `${line}\n`); };
@@ -561,9 +565,6 @@ async function eventLimits(season: number): Promise<Map<string, number>> {
     return new Map();
   }
 }
-/** Reader lanes (a browser and OCR each) per read call: the start sets AUTOPILOT_LANES by the memory free (3 over 6 GB,
- *  else 2). Not the coordinator's --lanes (other computers' lanes). */
-const READER_LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process.env.AUTOPILOT_LANES! : "2";
 /** Reads `codes` of `season` into its file (those not read yet, then those with rows already whole, then --verify and
  *  --bounds), and puts the file back: the rows the read changed, whether a read failed, and the events the reader
  *  stopped at its per-event limit (and the video each was on). This computer's reads and a lane's alike. */
@@ -580,12 +581,14 @@ async function readSeason(season: number, codes: string[]): Promise<{ changed: R
   // none to keep (and the reader refuses an empty --live file).
   const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", READER_LANES];
   // A read that crashed, timed out or was killed read nothing for sure: its events aren't counted as tried (remember).
+  // The reader's UNDETAILED_EXIT (an event left unread for want of details a fetch would give) isn't one: it read the
+  // rest, so the season's events are remembered as usual instead of re-picked every run (readFailedExit).
   let readFailed = false;
   // Events the reader stopped at its per-event limit, and the video each was on (overLimit).
   const stopped = new Map<string, string | undefined>();
   const pass = async (args: string[], ms: number, what: string) => {
     const r = await reader([...base, ...args], ms);
-    if (r.code) readFailed = true;
+    if (readFailedExit(r.code)) readFailed = true;
     for (const [c, v] of overLimit(r.err)) stopped.set(c, v);
     log(`${season} ${what}: exit ${r.code}`);
   };
@@ -610,12 +613,14 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
   for (const m of await all<{ code: string; label: string }>(`SELECT code, label FROM matches WHERE season = ? AND played = 1 AND time IS NOT NULL AND code IN (${codes.map(() => "?").join(",")}) ORDER BY code, time`, [season, ...codes])) {
     (order.get(String(m.code)) ?? order.set(String(m.code), []).get(String(m.code))!).push(String(m.label));
   }
-  const good: Row[] = [], heldOther: Row[] = [];
+  const good: Row[] = [], heldOther: Row[] = [], blind: Row[] = [];
   // An event another PR took up while this one was read waits for it (as an open PR's lines do): no second PR for it.
   const other = othersHold();
   for (const r of read.changed) {
     const problems = rowProblems(r, live.get(rowKey(r)), order.get(r.code)), held = other.get(`${season}/${r.code}`);
-    if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`);
+    // The player showed nothing (nothingRead): a failed read, never a row that marks every match read.
+    if (nothingRead(r)) { blind.push(r); log(`  ${r.code} ${r.videoId}: left out, no frame of the video could be read (the player showed nothing): a failed read, the event read again later`); }
+    else if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`);
     else if (held != null) { heldOther.push(r); log(`  ${r.code} ${r.videoId}: waits, #${held} (another open PR) carries ${r.code}`); }
     else good.push(r);
   }
@@ -630,7 +635,8 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
   for (const code of codes) {
     const e = { code }, key = `${season}/${code}`, readFailed = read.readFailed, stopped = read.stopped;
     const changed = count(read.changed, code);
-    const outcome = readOutcome({ rows: count(good, e.code), opened: count(opened, e.code), waiting: count(later, e.code) + count(heldOther, e.code), tooBig: count(tooBig, e.code), readFailed, timedOut: stopped.has(e.code), changed });
+    // A video the player showed nothing of is a failed read for its event (when nothing else of it shipped or waits).
+    const outcome = readOutcome({ rows: count(good, e.code), opened: count(opened, e.code), waiting: count(later, e.code) + count(heldOther, e.code), tooBig: count(tooBig, e.code), readFailed: readFailed || count(blind, e.code) > 0, timedOut: stopped.has(e.code), changed });
     if (outcome === "timed out") {
       const video = stopped.get(e.code), counted = rememberTimeout(memory, key, video) === "counted";
       stoppedAtLimit.push(`${key}${video ? ` (video ${video})` : ""}${counted ? ": nothing new again, counted as a try" : ""}`);

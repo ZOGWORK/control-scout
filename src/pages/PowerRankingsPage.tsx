@@ -43,7 +43,7 @@ function useInAppLinks() {
 function MovementBadge({ m, comparedWith }: { m: Movement | null; comparedWith: string | null }) {
   if (!m) return null;
   const since = comparedWith ? ` since week ${Number(comparedWith.slice(6))}` : "";
-  if (m.kind === "new") return <span className="inline-flex items-center rounded-md border border-accent/30 bg-accent/15 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-accent-text v8:rounded-full v8:border-white/[0.12] v8:bg-transparent v8:text-[0.6875rem] v8:font-medium v8:text-text-muted" aria-label={`New to the top 25${since}`}>New</span>;
+  if (m.kind === "new") return <span className="inline-flex items-center rounded-md border border-accent/30 bg-accent/15 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-accent-text v8:rounded-full v8:border-ink/[0.12] v8:bg-transparent v8:text-[0.6875rem] v8:font-medium v8:text-text-muted" aria-label={`New to the top 25${since}`}>New</span>;
   if (m.kind === "same") return <span className="inline-flex items-center text-text-muted" aria-label={`Same place${since}`} title={`Same place${since}`}><Minus className="size-3.5" aria-hidden /></span>;
   const up = m.kind === "up";
   const Icon = up ? ArrowUp : ArrowDown;
@@ -111,7 +111,7 @@ function Archive({ archive, current }: { archive: PowerRankingsSummary[]; curren
         {archive.map((a) => (
           <li key={a.week}>
             <Link to={`/power-rankings/${a.week}`} aria-current={a.week === current ? "page" : undefined}
-              className={cn("flex min-h-14 flex-col justify-center gap-0.5 px-4 py-3 hover:bg-text-base/[0.04] sm:flex-row sm:items-center sm:justify-between sm:gap-4", "v8:min-h-11 v8:px-0 v8:py-2 v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]", a.week === current && "bg-accent/[0.07] v8:bg-white/[0.05] v8:shadow-[inset_2px_0_0_var(--color-accent)] v8:pl-3")}>
+              className={cn("flex min-h-14 flex-col justify-center gap-0.5 px-4 py-3 hover:bg-text-base/[0.04] sm:flex-row sm:items-center sm:justify-between sm:gap-4", "v8:min-h-11 v8:px-0 v8:py-2 v8:transition-colors v8:duration-150 v8:hover:bg-ink/[0.03]", a.week === current && "bg-accent/[0.07] v8:bg-ink/[0.05] v8:shadow-[inset_2px_0_0_var(--color-accent)] v8:pl-3")}>
               <span className="min-w-0">
                 <span className="block text-sm font-medium text-foreground">{a.title}</span>
                 <span className={cn("block text-xs text-text-muted", V8_CAPTION)}>{weekLabel(a.week)} · {seasonLabel(a.season)}</span>

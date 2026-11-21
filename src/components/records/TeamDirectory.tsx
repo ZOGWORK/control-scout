@@ -304,7 +304,7 @@ function Row({ t, readiness, season }: { t: DirectoryTeam; readiness: SeasonRead
   const flags = useTeamFlags(t.team);
   const where = place(t.city, t.state, t.country);
   return (
-    <tr className="border-t border-line hover:bg-text-base/[0.03] v8:h-11 v8:border-white/[0.08] v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]">
+    <tr className="border-t border-line hover:bg-text-base/[0.03] v8:h-11 v8:border-ink/[0.08] v8:transition-colors v8:duration-150 v8:hover:bg-ink/[0.03]">
       <td className="px-3 py-2 v8:py-1">
         <Link to={season == null ? `/teams/${t.team}` : `/teams/${t.team}?season=${season}`} className="group inline-flex min-h-9 flex-col justify-center">
           <span><span className="font-semibold tabular-nums text-accent-text v8:font-medium v8:text-accent">{t.team}</span> <span className="font-medium group-hover:underline v8:font-normal v8:text-text-muted v8:group-hover:text-text-base">{t.name ?? `Team ${t.team}`}</span></span>
@@ -314,7 +314,7 @@ function Row({ t, readiness, season }: { t: DirectoryTeam; readiness: SeasonRead
       <td className="px-3 py-2 text-text-muted max-md:hidden">{where || <span className="italic">Not reported</span>}</td>
       <td className="px-3 py-2 tabular-nums text-text-muted max-sm:hidden">{t.rookieYear ?? "—"}</td>
       <td className="px-3 py-2">
-        {t.hasResults ? <Badge variant="success" className="v8:border-white/[0.12] v8:bg-transparent v8:font-medium v8:text-text-base"><Trophy /> Has results</Badge>
+        {t.hasResults ? <Badge variant="success" className="v8:border-ink/[0.12] v8:bg-transparent v8:font-medium v8:text-text-base"><Trophy /> Has results</Badge>
           : readiness.state === "ready" ? <Badge variant="outline">No results yet</Badge>
           : <Badge variant="outline" className="border-warning/40 text-warning"><Hourglass /> {readiness.state === "preparing" ? "Being prepared" : "None counted yet"}</Badge>}
       </td>
