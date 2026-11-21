@@ -292,8 +292,12 @@ let lastAnswerAt = 0, answeredSinceFail = false;
 /** A search slower than OFFLINE_TIMEOUT_MS while the server answers everything else is a slow search, not "no
  *  signal": it gets this long, then one more try, then says so (SEARCH_SLOW). Saved data never answers it then.
  *  The server answers 99 searches in 100 within a second (scripts/search-bench.ts), so a try this long only runs out
- *  when the server or the connection is stuck; one more try gets past a stall that has cleared. */
-export const SEARCH_SLOW_MS = 10_000;
+ *  when the server or the connection is stuck; one more try gets past a stall that has cleared.
+ *  25 s, not 10: a deploy holds requests about 20 s in the server's socket while the new process warms up, and the
+ *  server's event loop stood still for 10 to 20 s at a time on a busy event day (measured live, 2026-11-21). A try
+ *  given up at 10 s was given up just before its answer came, and the try after it queued behind the one abandoned,
+ *  so both ran out and the search said "slow" for a question answered in a tenth of a second. Under nginx's 60 s. */
+export const SEARCH_SLOW_MS = 25_000;
 /** A page's first search that ran out of time (respond): retried once (searchOnline), never shown as slow before. */
 const SEARCH_RETRY = "search-slow-retry";
 export const SEARCH_SLOW = "Search is slow right now. Try again.";
