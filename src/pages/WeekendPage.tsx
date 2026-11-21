@@ -68,7 +68,7 @@ export default function WeekendPage() {
           <div className="flex flex-wrap items-center gap-2 pb-2 max-sm:pb-0 sm:ml-auto [&_svg]:text-text-faint">
             <PlacePicker info={places.data} loading={places.loading} value={region ? [region] : []} onChange={(keys) => go({ region: keys.at(-1) ?? null })} />
             {mine && (
-              <button type="button" onClick={() => go({ region: mineOn ? null : mine })} aria-pressed={mineOn} className={cn(trigger, mineOn ? "border-white/20 bg-white/[0.08]" : "border-white/[0.12] bg-transparent still-hover:bg-white/[0.04]")} title={`Events in ${placeName(mine)}, where team ${myTeam} is from`}>
+              <button type="button" onClick={() => go({ region: mineOn ? null : mine })} aria-pressed={mineOn} className={cn(trigger, mineOn ? "border-ink/20 bg-ink/[0.08]" : "border-ink/[0.12] bg-transparent still-hover:bg-ink/[0.04]")} title={`Events in ${placeName(mine)}, where team ${myTeam} is from`}>
                 <Star className="size-4" />My region<span className="text-text-muted max-sm:hidden">· {placeName(mine)}</span>
               </button>
             )}
@@ -166,7 +166,7 @@ const GROUP = { live: "Live now", upcoming: "Upcoming", finished: "Finished" } a
 function EventRowV8({ e }: { e: WeekendEvent }) {
   return (
     <li className="flex items-center" data-weekend-event={e.code}>
-      <Link to={e.href} className="flex min-h-14 min-w-0 flex-1 items-center gap-4 px-4 py-2.5 transition-colors duration-150 still-hover:bg-white/[0.03]">
+      <Link to={e.href} className="flex min-h-14 min-w-0 flex-1 items-center gap-4 px-4 py-2.5 transition-colors duration-150 still-hover:bg-ink/[0.03]">
         <span className="w-[4.75rem] shrink-0 text-sm tabular-nums text-text-muted max-sm:hidden">{shortDates(e.start, e.end)}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium text-text-base" title={e.name}>{e.name}</span>
@@ -174,7 +174,7 @@ function EventRowV8({ e }: { e: WeekendEvent }) {
         </span>
         {e.status === "live" && <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-live"><LiveDot />Live</span>}
       </Link>
-      {e.recording && <a href={e.recording} target="_blank" rel="noreferrer" className="tap-44 mr-3 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm text-text-muted transition-colors duration-150 still-hover:bg-white/[0.06] still-hover:text-text-base"><PlayCircle className="size-4" aria-hidden /> Recording</a>}
+      {e.recording && <a href={e.recording} target="_blank" rel="noreferrer" className="tap-44 mr-3 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm text-text-muted transition-colors duration-150 still-hover:bg-ink/[0.06] still-hover:text-text-base"><PlayCircle className="size-4" aria-hidden /> Recording</a>}
     </li>
   );
 }

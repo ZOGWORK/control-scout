@@ -8,7 +8,7 @@ import { cn } from "./cn";
 
 const CHIP = "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold leading-none whitespace-nowrap";
 // v8 (docs/design/v8-revamp-brief.md §5 Status): quiet outlined pills with no fill or colour; live alone is red, with its dot.
-const V8_CHIP = "v8:gap-1.5 v8:bg-transparent v8:font-medium v8:text-text-muted v8:ring-1 v8:ring-inset v8:ring-white/[0.12]";
+const V8_CHIP = "v8:gap-1.5 v8:bg-transparent v8:font-medium v8:text-text-muted v8:ring-1 v8:ring-inset v8:ring-ink/[0.12]";
 
 export function EventStatusChip({ status, className }: { status: EventSummary["status"]; className?: string }) {
   if (status === "live") return (

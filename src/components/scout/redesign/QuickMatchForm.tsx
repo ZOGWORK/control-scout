@@ -123,7 +123,7 @@ function QuickRow({ t, q, onChange, onOpenFull, disabled }: { t: TeamState; q: Q
             <button type="button" aria-label={`${team} ${c.label}: ${range.n}. Add one`} disabled={disabled || range.n >= range.hi}
               onClick={() => set(c.id, Math.min(range.hi, range.n + 1))}
               className={cn(tap, "flex h-[44px] min-w-0 items-center justify-between gap-2 rounded-lg border border-input px-3 text-left hover:bg-text-base/[0.04] active:border-accent/60 active:bg-accent/10",
-                "v8:h-12 v8:transition-[background-color,border-color,scale] v8:duration-150 v8:ease-out v8:active:scale-[0.97] v8:active:border-white/25 v8:active:bg-white/[0.08] motion-reduce:v8:active:scale-100")}>
+                "v8:h-12 v8:transition-[background-color,border-color,scale] v8:duration-150 v8:ease-out v8:active:scale-[0.97] v8:active:border-ink/25 v8:active:bg-ink/[0.08] motion-reduce:v8:active:scale-100")}>
               <span className="truncate text-xs font-semibold">{c.label}</span>
               <span className="font-mono text-xl font-bold tabular-nums" aria-hidden>{range.n}</span>
             </button>
@@ -150,7 +150,7 @@ function QuickRow({ t, q, onChange, onOpenFull, disabled }: { t: TeamState; q: Q
                 return (
                   <button key={o} type="button" role="radio" aria-checked={on} disabled={disabled} tabIndex={i === stop ? 0 : -1} data-index={i}
                     onClick={() => set(q.choice!.id, on ? undefined : o)}
-                    className={cn(tap, pill, on ? "border-accent/60 bg-accent/10 text-foreground v8:border-white/30 v8:bg-white/10" : "border-border text-muted-foreground hover:text-foreground v8:border-white/[0.12]")}>{o}</button>
+                    className={cn(tap, pill, on ? "border-accent/60 bg-accent/10 text-foreground v8:border-ink/30 v8:bg-ink/10" : "border-border text-muted-foreground hover:text-foreground v8:border-ink/[0.12]")}>{o}</button>
                 );
               })}
             </div>

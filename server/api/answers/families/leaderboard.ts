@@ -77,7 +77,7 @@ export function boardStatFor(id: string, season: number): BoardStat | undefined 
   return { id: parts.join("+"), label: `${parts.map((x) => PHASE_LABEL[x]).join(" + ")} OPR`, sql: `(${parts.map((x) => BOARD_STATS[x].sql).join(" + ")})`, unit: "", teamsSort: null, digits: 1 };
 }
 
-export type BoardKind = "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best" | "career" | "oldest";
+export type BoardKind = "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best" | "career" | "oldest" | "number";
 /** `best`: "best team in New Jersey by OPR", one team asked for: titled so, the next few listed under it. */
 export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
   /** `city` is a school's name: its teams. */
@@ -150,7 +150,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const regionArgs = [...(b.region ? [b.region.country, ...(b.region.state ? [b.region.state] : [])] : []), ...(b.town ? [b.town] : [])];
   const chips = b.teams ? [`${b.teams.length} teams named`, seasonLabel(season)] : [...(b.town ? [b.town] : []), b.region?.name ?? "Worldwide", seasonLabel(season)];
   if (b.kind === "improved") return improvedAnswer(b, season, where, regionSql, regionArgs, chips, why);
-  if (b.kind === "career" || b.kind === "oldest") return careerAnswer(b, where, regionSql, regionArgs);
+  if (b.kind === "career" || b.kind === "oldest" || b.kind === "number") return careerAnswer(b, where, regionSql, regionArgs);
   if (b.kind === "steady") return steadyAnswer(b, season, where, regionSql, regionArgs, chips, why);
   if (b.kind === "phases") return phasesAnswer(b, season, where, regionSql, regionArgs, chips, why);
   if (b.kind === "gain") return b.stat.id === "rating" ? ratingGainAnswer(b, season, where, regionSql, regionArgs, chips, why) : gainAnswer(b, season, where, regionSql, regionArgs, chips, why);
@@ -219,7 +219,8 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
 const FTC_FIRST_SEASON = 2005;
 /** An every-season board's title, the same on its card and as the page's heading (search's boardSearch), so the page
  *  never says it twice in two wordings. */
-export function careerBoardTitle(b: Pick<BoardQuestion, "kind" | "stat">, where: string): string {
+export function careerBoardTitle(b: Pick<BoardQuestion, "kind" | "stat" | "asc">, where: string): string {
+  if (b.kind === "number") return `${b.asc ? "Lowest" : "Highest"} team numbers still active${where}`;
   return b.kind === "oldest" ? `Oldest teams still active${where}, by rookie year` : `Team${where} with the most ${CAREER[b.stat.id]?.label.toLowerCase() ?? statWords(b.stat)}, every season`;
 }
 
@@ -235,6 +236,7 @@ const CAREER: Record<string, { label: string; sql: string; rule: string }> = {
 /** Every season counted: the team with the most matches, events, wins or seasons on record; or the oldest
  *  teams still active (a match in the latest season played), the earliest rookie year first. */
 async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, regionArgs: string[]): Promise<StatAnswer> {
+  if (b.kind === "number") return numberAnswer(b, where, regionSql, regionArgs);
   const oldest = b.kind === "oldest";
   const c = CAREER[oldest ? "seasons" : b.stat.id];
   const span = await get<{ first: number | null; last: number | null }>("SELECT MIN(season) first, MAX(season) last FROM team_season_stats WHERE matches > 0");
@@ -279,6 +281,38 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
         location: place(r.city, r.state, r.country && r.country !== "USA" ? r.country : null) || null,
         // OPR: the team's latest season with a match, as its team page shows it.
         record: record(r), opr: r.opr == null ? null : Number(r.opr), value: oldest ? r.rookie : Number(r.v), display: shown(r), parts: null })),
+    }],
+  };
+}
+
+/** "Team with the lowest team number": the active teams (a match on record in one of the two latest seasons played, as
+ *  the oldest teams are counted) by their team number as FIRST lists it, the lowest first (or the highest, asked so). */
+async function numberAnswer(b: BoardQuestion, where: string, regionSql: string, regionArgs: string[]): Promise<StatAnswer> {
+  const title = careerBoardTitle(b, where);
+  const intent = b.asc ? "lowest-number" : "highest-number";
+  const last = (await get<{ last: number | null }>("SELECT MAX(season) last FROM team_season_stats WHERE matches > 0"))?.last;
+  const rule = "Team number: the number FIRST lists for the team. Still active: a match on record in one of the two latest seasons played.";
+  if (last == null) return { family: "leaderboard", intent, title, scope: [b.region?.name ?? "Worldwide"], definition: rule, source: `Every season on record${where}`, blocks: [], none: `No team${where} has a match on record yet.` };
+  const active = `${seasonLabel(Number(last) - 1)} or ${seasonLabel(Number(last))}`;
+  const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; rookie: number | null; wins: number; losses: number; ties: number; lastPlayed: number; opr: number | null }>(
+    `SELECT t.number team, t.name, t.city, t.state, t.country, t.rookie_year rookie, COALESCE(SUM(s.wins), 0) wins, COALESCE(SUM(s.losses), 0) losses, COALESCE(SUM(s.ties), 0) ties,
+            MAX(CASE WHEN s.matches > 0 THEN s.season END) lastPlayed,
+            (SELECT x.opr_np FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0 ORDER BY x.season DESC LIMIT 1) opr
+     FROM teams t JOIN team_season_stats s ON s.team = t.number
+     WHERE ${teamPageSql("t.number", "t.name")}${regionSql}
+     GROUP BY t.number HAVING lastPlayed >= ?
+     ORDER BY t.number ${b.asc ? "ASC" : "DESC"} LIMIT ?`, [...regionArgs, Number(last) - 1, b.n]);
+  const base = { family: "leaderboard" as const, intent, title, scope: [b.region?.name ?? "Worldwide", `Active in ${active}`], definition: `${rule} OPR: each team's in its latest season with a match.`, source: `Teams${where} with a match in ${active}` };
+  if (!rows.length) return { ...base, blocks: [], none: `No team${where} has a match in ${active}.` };
+  const top = rows[0];
+  return {
+    ...base,
+    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${b.asc ? "Lowest" : "Highest"} team number still active${top.rookie ? ` · rookie year ${top.rookie}` : ""}${top.city ? ` · ${top.city}` : ""}`, sub: `Active in ${active}${where}`, href: teamHref(Number(top.team), top.lastPlayed) },
+    blocks: [{
+      kind: "leaderboard", title: `${rows.length} ${b.asc ? "lowest" : "highest"} team numbers`, stat: { id: "team-number", label: "Team number" }, note: `Active in ${active}${where}`,
+      rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), r.lastPlayed) },
+        location: place(r.city, r.state, r.country && r.country !== "USA" ? r.country : null) || null,
+        record: record(r), opr: r.opr == null ? null : Number(r.opr), value: Number(r.team), display: String(r.team), parts: null })),
     }],
   };
 }
@@ -478,7 +512,7 @@ async function improvedAnswer(b: BoardQuestion, season: number, where: string, r
   const title = c ? `Teams${where} that climbed ${climb}` : `Most improved team${b.n > 1 ? "s" : ""}${where}`;
   const base = {
     family: "leaderboard" as const, intent: "most-improved", title: `${title} · ${seasonLabel(season)}`, scope: chips,
-    definition: `Most improved: the biggest climb in worldwide OPR standing (OPR rank as a share of all ranked teams) from ${seasonLabel(season - 1)} to ${seasonLabel(season)}. OPR in points isn't compared, since every season is a different game.${c ? ` Only teams ranked #${c.from.toLocaleString("en-US")} or below worldwide in ${seasonLabel(season - 1)} and #${c.to.toLocaleString("en-US")} or better in ${seasonLabel(season)}.` : ""} ${RANKED}${why}`,
+    definition: `Most improved: the biggest climb in worldwide OPR standing (OPR rank as a share of all ranked teams) from ${seasonLabel(season - 1)} to ${seasonLabel(season)}. Each season's OPR in points is shown beside it but not compared, since every season is a different game.${c ? ` Only teams ranked #${c.from.toLocaleString("en-US")} or below worldwide in ${seasonLabel(season - 1)} and #${c.to.toLocaleString("en-US")} or better in ${seasonLabel(season)}.` : ""} ${RANKED}${why}`,
     source: `From the ${seasonLabel(season - 1)} and ${seasonLabel(season)} season numbers`,
   };
   if (!rows.length) return { ...base, blocks: [], none: c ? `No team${where} climbed ${climb} from ${seasonLabel(season - 1)} to ${seasonLabel(season)}.` : `No team${where} has ${RANKED_MIN_MATCHES}+ matches in both ${seasonLabel(season - 1)} and ${seasonLabel(season)}.` };
@@ -489,8 +523,10 @@ async function improvedAnswer(b: BoardQuestion, season: number, where: string, r
     blocks: [{
       kind: "table", title: "Biggest climbs",
       // Numbers only, so a phone shows the climb beside the team; the shares are on the headline.
-      columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "climb", label: "OPR rank", num: true }, { key: "opr", label: "OPR now", num: true }],
-      rows: rows.map((r, i) => ({ cells: { rank: i + 1, team: `${r.team} ${r.name ?? ""}`.trim(), climb: `#${r.r0} → #${r.r1}`, opr: r.o1 == null ? "–" : (Math.round(r.o1 * 10) / 10).toFixed(1) }, href: teamHref(Number(r.team), season), strong: i === 0 })),
+      // The OPR then and now, as the rank is ("12.3 → 30.5"): one column, so a phone still fits the row. Each season is a
+      // different game, so the two are shown, never subtracted.
+      columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "climb", label: "OPR rank", num: true }, { key: "opr", label: "OPR", num: true }],
+      rows: rows.map((r, i) => ({ cells: { rank: i + 1, team: `${r.team} ${r.name ?? ""}`.trim(), climb: `#${r.r0} → #${r.r1}`, opr: `${f1(r.o0)} → ${f1(r.o1)}` }, href: teamHref(Number(r.team), season), strong: i === 0 })),
     }],
   };
 }

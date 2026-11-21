@@ -99,7 +99,7 @@ function Count({ label, value, bar }: { label: string; value: React.ReactNode; b
     <div className="min-w-0 rounded-xl border border-line bg-card px-3 py-2.5">
       <dt className="flex items-center gap-1 truncate text-xs text-text-faint">{label}{bar === 100 && <Check className="size-3 text-text-muted" aria-label="all done" />}</dt>
       <dd className="mt-0.5 text-lg font-semibold leading-tight tabular-nums text-text-base">{value}</dd>
-      {bar != null && <div aria-hidden className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full origin-left rounded-full bg-accent" style={{ transform: `scaleX(${bar / 100})` }} /></div>}
+      {bar != null && <div aria-hidden className="mt-2 h-1 overflow-hidden rounded-full bg-ink/[0.06]"><div className="h-full origin-left rounded-full bg-accent" style={{ transform: `scaleX(${bar / 100})` }} /></div>}
     </div>
   );
 }

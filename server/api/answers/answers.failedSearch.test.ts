@@ -320,6 +320,16 @@ describe("a rating change with no team", () => {
   it("with a team, \"predicted change\" is its rating change (4215, 6980, 23268)", async () => {
     for (const [t] of NJ_TEAMS) expect((await full(`${t} predicted change`)).intent?.kind).toBe("stat-rating-change");
   });
+  it("the stat said before the team reads the same (failed search #2038: \"predict hypnotic changes\"; 4215, 6980, 23268)", async () => {
+    for (const [t, name] of NJ_TEAMS) {
+      for (const q of [...(t === 4215 ? ["predict hypnotic changes"] : []), `predict ${name.toLowerCase()} changes`, `predict ${t} changes`, `prediction ${name.toLowerCase()} change`]) {
+        const box = await searchAnswer(q, { limit: 25 });
+        expect(box.step, q).toBe("deterministic");
+        expect(box.understood?.label, q).toMatch(new RegExp(`\\(${t}\\) · Prediction rating change, `));
+        expect((await full(q)).intent?.kind, q).toBe("stat-rating-change");
+      }
+    }
+  });
 });
 
 describe("an event the team didn't play: the reason, and its real events", () => {
