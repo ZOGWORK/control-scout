@@ -54,7 +54,7 @@ export function usePreferKey(): string {
   ])].slice(0, 100).join(","), [state.myTeam, state.tracked, state.bookmarks]);
 }
 
-/* *  `season`: the season the answer's picker chose (/search?in=), sent as ?season= (server/api/answers/season.ts
+/** `season`: the season the answer's picker chose (/search?in=), sent as ?season= (server/api/answers/season.ts
  *  withSeason); results remember it with their query.
  *  `thread`: this answer is a question asked (the results page's), so it becomes the thread's latest (./thread.ts). A
  *  box's dropdown answers the words as they are typed, a letter at a time, and none of those is a question asked. */
