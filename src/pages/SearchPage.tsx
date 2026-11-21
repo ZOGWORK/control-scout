@@ -48,6 +48,7 @@ import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
 import { BOOT_HITS } from "../lib/searchBoot";
+import { handedAnswer } from "../components/search/handoff";
 import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta";
 import { useApi, qs } from "../lib/api";
 import { cn } from "../components/cn";
@@ -64,7 +65,11 @@ export default function SearchPage() {
   // about that season. A step Back undoes; the address shares it.
   const held = useMeta()?.seasons.map((s) => s.season) ?? [];
   const picked = pickedSeason(params.get("in"), held);
-  const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false, picked);
+  // What the page already has for these words: the server's first paint when /search was opened cold, else the answer
+  // the search box's dropdown had when Enter was pressed (src/components/search/handoff.ts). Drawn at once, so a
+  // submitted search never starts on a loading screen; this page's own request replaces it as soon as it answers.
+  const initial = BOOT_HITS && BOOT_HITS.q.trim() === query ? BOOT_HITS : handedAnswer(query);
+  const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, initial, false, picked);
   const seasonPick = useMemo<SeasonPick>(() => ({
     picked, pending: reseason,
     pick: (s) => setParams((p) => { const next = new URLSearchParams(p); next.set("in", String(s)); return next; }),
