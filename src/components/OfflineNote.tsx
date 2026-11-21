@@ -12,7 +12,7 @@ export function useSavedWords(): { offline: boolean; lead: string; tail: string 
     ? { offline, lead: "Offline", tail: "It refreshes when you're back online." }
     : { offline, lead: "Slow connection, showing saved data", tail: "The live data replaces it as soon as it arrives." };
 }
-import { SignalLow, WifiOff } from "lucide-react";
+import { Hourglass, WifiOff } from "lucide-react";
 import { shownOffline, useConnection } from "../lib/connection";
 import { Link } from "react-router-dom";
 import { offlineSource } from "../lib/offline/saved";
@@ -31,7 +31,7 @@ export function keptClock(ms: number, now = new Date()): string {
  *  as of Nov 13, 8:09 PM, from your saved 2026–27 data." */
 export function OfflineNote({ data, className, what, at }: { data: unknown; className?: string; what?: string; at?: string | null }) {
   const words = useSavedWords();
-  const Icon = words.offline ? WifiOff : SignalLow;
+  const Icon = words.offline ? WifiOff : Hourglass;
   const src = offlineSource(data);
   if (!src) return null;
   if (what && !src.bundle) {

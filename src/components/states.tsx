@@ -1,7 +1,7 @@
 // Loading / error / empty states — every page uses these, so no page ever
 // shows a blank screen or a raw error.
 import type { ReactNode } from "react";
-import { AlertTriangle, PowerOff, RefreshCw, Search, SearchX, ServerOff, SignalLow, WifiOff } from "lucide-react";
+import { AlertTriangle, PowerOff, RefreshCw, Search, SearchX, ServerOff, Hourglass, WifiOff } from "lucide-react";
 import { useSearch } from "./layout/Search";
 import { Button } from "./ui/button";
 import { EmptyState } from "./page";
@@ -61,7 +61,7 @@ function FetchErrorState({ error, onRetry, className }: { error: ApiError | Erro
   return (
     <EmptyState
       className={className}
-      icon={slow ? SignalLow : noNetwork ? WifiOff : offline ? ServerOff : missing ? SearchX : AlertTriangle}
+      icon={slow ? Hourglass : noNetwork ? WifiOff : offline ? ServerOff : missing ? SearchX : AlertTriangle}
       title={portal ? "No internet on this Wi-Fi" : slow ? "Slow connection" : noNetwork ? "You're offline" : offline ? "Can't reach the server" : status === 404 ? "Not found" : status === 400 ? "That isn't valid" : "Couldn't load this"}
       description={portal ? "This Wi-Fi isn't giving internet. It may need you to sign in: open any website to see its sign-in page. This page needs a connection."
         : slow ? "Still waiting for the server. This shows by itself as soon as it arrives."
