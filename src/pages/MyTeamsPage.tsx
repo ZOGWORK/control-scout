@@ -339,7 +339,7 @@ function V8Workspace({ w }: { w: WorkspaceSpace }) {
   const body = <>{workspaceLabel(w)}<span className="text-text-faint">{w.role === "admin" ? "Admin" : "Member"}</span></>;
   const pill = "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-line px-2.5 text-xs text-text-muted pointer-coarse:min-h-[44px]";
   if (!scouting) return <span className={pill}>{body}</span>;
-  return <Link to={scoutSpaceHref(w.id)} className={cn(pill, "transition-colors hover:bg-white/[0.04] hover:text-text-base")}><ClipboardList className="size-3.5" aria-hidden />{body}<span className="sr-only"> (open its scout space)</span></Link>;
+  return <Link to={scoutSpaceHref(w.id)} className={cn(pill, "transition-colors hover:bg-ink/[0.04] hover:text-text-base")}><ClipboardList className="size-3.5" aria-hidden />{body}<span className="sr-only"> (open its scout space)</span></Link>;
 }
 
 /** v8 colours the owner asked for on this strip (Nov 19): OPR in soft gold, the rating in the slate-blue accent, wins
@@ -350,7 +350,7 @@ const LOSS = "text-[#fb7185] [html.light_&]:text-rose-700";
 
 /** A thin line under a figure (no box): the classic tiles' bars, drawn as hairlines. */
 function Line({ children, label }: { children: ReactNode; label?: string }) {
-  return <span className="mt-1.5 flex h-1 overflow-hidden rounded-full bg-white/[0.06] [html.light_&]:bg-black/[0.06]" role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} data-glance-line>{children}</span>;
+  return <span className="mt-1.5 flex h-1 overflow-hidden rounded-full bg-ink/[0.06] [html.light_&]:bg-black/[0.06]" role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} data-glance-line>{children}</span>;
 }
 
 /** The rating's ± as a marker: a band as wide as its uncertainty (relative to the rating) around a tick at the

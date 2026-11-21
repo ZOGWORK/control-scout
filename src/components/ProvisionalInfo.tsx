@@ -69,7 +69,7 @@ function TeamCards({ teams, season, team, label }: { teams: CardTeam[]; season: 
             <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
           </span>
         );
-        return <li key={t.team}>{t.known ? <Link to={`/teams/${t.team}?season=${season}`} className={cn(!isV8() && "lift", box, "v8:transition-colors v8:duration-150 v8:still-hover:bg-white/[0.03]")}>{body}</Link> : <div className={box} data-team-unknown>{body}</div>}</li>;
+        return <li key={t.team}>{t.known ? <Link to={`/teams/${t.team}?season=${season}`} className={cn(!isV8() && "lift", box, "v8:transition-colors v8:duration-150 v8:still-hover:bg-ink/[0.03]")}>{body}</Link> : <div className={box} data-team-unknown>{body}</div>}</li>;
       })}
     </ul>
   );

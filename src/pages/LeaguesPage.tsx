@@ -97,7 +97,7 @@ function ConferenceButton({ season, leagues }: { season: number; leagues: League
   if (!conferenceShown(CONFERENCE_REGION, my)) return null;
   const mine = my.info?.league && leagues.find((l) => l.region === my.info!.league!.region && l.code === my.info!.league!.code);
   // v8: an outline button (no accent fill).
-  const btn = "inline-flex h-9 items-center rounded-lg border border-accent/60 bg-accent/10 px-3 text-sm font-medium text-accent-text hover:bg-accent/15 max-sm:h-[44px] v8:border-white/[0.12] v8:bg-transparent v8:text-text-base v8:transition-[background-color,scale] v8:duration-150 v8:hover:bg-white/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
+  const btn = "inline-flex h-9 items-center rounded-lg border border-accent/60 bg-accent/10 px-3 text-sm font-medium text-accent-text hover:bg-accent/15 max-sm:h-[44px] v8:border-ink/[0.12] v8:bg-transparent v8:text-text-base v8:transition-[background-color,scale] v8:duration-150 v8:hover:bg-ink/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
   if (mine) return <Link to={conferenceHref(season, mine.region, mine.code, { slug: my.info!.conference?.slug, team: my.team })} className={btn} data-conference-button>View Conference Rankings</Link>;
   return (
     <div className="flex flex-wrap items-center gap-2" data-conference-button>
