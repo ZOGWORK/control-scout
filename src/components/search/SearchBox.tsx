@@ -22,6 +22,7 @@ import { SEARCH_EXAMPLES, addRecentSearch, clearRecentSearches, useRecentSearche
 import { dateRange, seasonLabel } from "../../lib/format";
 import { EventStatusChip } from "../EventChips";
 import { directHit, markDirect } from "./direct";
+import { handOffAnswer } from "./handoff";
 import { dropdownNotes, dropdownSections, groupCount, teamOpr, type DropId } from "./dropdown";
 import { compareSides, compareTeams, eventFacts, teamParts } from "./page/results";
 import { answerSections, isAnswer, plainSections, type AnswerNotes, type AnswerRow, type AnswerSection, type SectionId } from "../../shared/searchSections";
@@ -30,7 +31,6 @@ export type HitKind = SearchHit["kind"];
 
 export { hitHref } from "../../shared/search";
 
-/** How long typing pauses before search asks (each key doesn't send a request). */
 /** How long typing must pause before results are asked for: nothing is searched letter by letter. Enter skips it. */
 export const SEARCH_DEBOUNCE_MS = 1000;
 
@@ -502,7 +502,10 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const count = query ? ordered.length + (full ? 1 : 0) : suggestions.length;
   /** The full results page for a query: the one typed, or a recent search or example tapped. */
   const runQuery = (text: string) => { if (remember) addRecentSearch(text); go(searchPagePick(text.trim())); };
-  const openFull = () => runQuery(query);
+  // Enter, the magnifier and "See all results" open /search with the answer already on screen handed to it, so the page
+  // draws those teams, events and cards at once instead of its loading screen; its own answer replaces them when it
+  // arrives (src/components/search/handoff.ts). A picker's own list is not what /search shows, so it never hands one on.
+  const openFull = () => { if (!busy && !stale && !kinds && answer) handOffAnswer(answer); runQuery(query); };
   // A query that names one thing exactly (a team number, "team 6980", one team's whole name, an event code), as the
   // server's answer for it reads: straight to its page. Anything else, the full results page. With the answer not in
   // yet, /search at once (never a wait here), which goes on to that one page itself when its answer names one (direct.ts).
