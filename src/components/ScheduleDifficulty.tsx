@@ -4,6 +4,7 @@
 // rating against the field's, and where that puts it ("3rd-hardest of 24"). Mid-event, what's left of the
 // schedule leads and the full schedule sits next to it.
 import { Link } from "react-router-dom";
+import { CalendarRange } from "lucide-react";
 import type { TeamEventRow, TeamSchedule, TeamScheduleAnswer } from "../shared/api";
 import { isFeatureDisabled, useApi } from "../lib/api";
 import { Async } from "./states";
@@ -101,7 +102,7 @@ export function TeamScheduleSection({ team, season, events }: { team: number; se
   const on = useFlag("scheduleDifficulty");
   if (!on) return null;
   return (
-    <Section collapsible id="schedule-difficulty" title="Schedule difficulty" summary="How hard each event's qualification draw was"
+    <Section collapsible id="schedule-difficulty" title="Schedule difficulty" summary="How hard each event's qualification draw was" icon={CalendarRange}
       tint={['var(--color-info)', 'var(--color-danger)']} description="How hard this team's qualification draw is at each event, next to the rest of the field">
       <TeamScheduleBody team={team} season={season} events={events} />
     </Section>
@@ -137,8 +138,8 @@ function TeamRow({ s, ev, team }: { s: TeamSchedule; ev: TeamEventRow | undefine
   const w = scheduleWord(lead.z);
   const href = ev ? `/events/${ev.season}/${encodeURIComponent(s.code)}?team=${team}&tab=rankings` : null;
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border bg-card p-4" data-team-schedule-row={s.code}>
-      <div aria-hidden className={cn("pointer-events-none absolute -right-10 -top-14 size-36 rounded-full opacity-15 blur-2xl", WORD_TONE[w].bar)} />
+    <div className="relative overflow-hidden rounded-xl border border-border bg-card p-4 v8:border-line" data-team-schedule-row={s.code}>
+      <div aria-hidden className={cn("pointer-events-none absolute -right-10 -top-14 size-36 rounded-full opacity-15 blur-2xl v8:hidden", WORD_TONE[w].bar)} />
       <div className="relative">
         <p className="truncate text-sm font-medium text-foreground">{href ? <Link to={href} className="hover:text-accent-text">{ev?.name ?? s.code}</Link> : s.code}</p>
         <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
