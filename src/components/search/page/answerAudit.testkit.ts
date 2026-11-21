@@ -13,12 +13,12 @@
 //     relaxed time, "No 2026–27 matches yet …; showing 2025–26") nowhere else on the card, its method included;
 //   - no meta or debug text, no number glued to a word in a heading;
 //   - contrast: every visible piece of text (aria-hidden included: it's still seen) at 4.5:1 on its surface, every
-//     tint from the card in blended in, in Light, Dim, Dark and Midnight.
+//     tint from the card in blended in, in Light, Dim and Dark.
 import { contrast as ratio, over, toHex, type RGBA } from "../../../lib/contrast";
 import { utility, value, type Theme } from "../../../lib/themeTokens.testkit";
 import { SEARCH_PALETTE } from "../../../lib/textTones";
 
-const THEMES: Theme[] = ["light", "dim", "dark", "midnight"];
+const THEMES: Theme[] = ["light", "dim", "dark"];
 const NEUTRAL = new Set(["foreground", "muted", "muted-foreground", "background", "card", "card-foreground", "border", "line", "primary", "secondary",
   "input", "ring", "popover", "popover-foreground", "elevated", "transparent", "current", "inherit", "white", "black", "text-base", "text-muted", "scrollbar", "scrollbar-hover"]);
 const TEAM = /^team-[abc](-text)?$/;

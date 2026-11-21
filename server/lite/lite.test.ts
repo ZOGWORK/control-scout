@@ -213,7 +213,9 @@ describe("the app's theme and text size (cookies)", () => {
   it("draws each theme as the app does: a class on <html>, System following the device", async () => {
     expect(await page("")).toMatch(/<html lang="en"><head>/);
     expect(await page("cs-theme=dark")).toMatch(/<html lang="en"><head>/);
-    for (const t of ["light", "dim", "midnight"]) expect(await page(`a=1; cs-theme=${t}`)).toContain(`<html lang="en" class="${t}">`);
+    for (const t of ["light", "dim"]) expect(await page(`a=1; cs-theme=${t}`)).toContain(`<html lang="en" class="${t}">`);
+    // The retired Midnight draws as Dark, the default.
+    expect(await page("cs-theme=midnight")).toMatch(/<html lang="en"><head>/);
     const sys = await page("cs-theme=system");
     expect(sys).toContain(`<html lang="en" class="sys">`);
     expect(sys).toContain(`<meta name="color-scheme" content="dark light">`);
@@ -560,12 +562,13 @@ describe("the rest of Lite: the same answers as the API", () => {
     expect(v8).not.toContain(`href="/lite/theme?set=`);
     const { html, r } = await lightPage("/lite/settings?v8=0", "/settings");
     expect(r.headers.get("cache-control")).toBe("private, no-store");
-    for (const t of ["light", "dim", "dark", "midnight", "system"]) expect(html).toContain(`href="/lite/theme?set=${t}&amp;next=%2Flite%2Fsettings"`);
+    for (const t of ["light", "dim", "dark", "system"]) expect(html).toContain(`href="/lite/theme?set=${t}&amp;next=%2Flite%2Fsettings"`);
     expect(html).toContain(`<a class="chip cur" href="/lite/theme?set=dark&amp;next=%2Flite%2Fsettings" aria-current="true">Dark</a>`);
     expect(html).toContain(`<a class="chip cur" href="/lite/size?set=m&amp;next=%2Flite%2Fsettings" aria-current="true">Default</a>`);
     expect(html).toContain(`<a class="btn" href="/lite/network">Network &amp; offline</a>`);
-    const lit = await (await get("/lite/settings", { headers: { cookie: "cs-v8=0; cs-theme=midnight; cs-text-size=xl; cs-lite=1" } })).text();
-    expect(lit).toContain(`<a class="chip cur" href="/lite/theme?set=midnight&amp;next=%2Flite%2Fsettings" aria-current="true">Midnight</a>`);
+    const lit = await (await get("/lite/settings", { headers: { cookie: "cs-v8=0; cs-theme=dim; cs-text-size=xl; cs-lite=1" } })).text();
+    expect(lit).toContain(`<a class="chip cur" href="/lite/theme?set=dim&amp;next=%2Flite%2Fsettings" aria-current="true">Dim</a>`);
+    expect(lit).not.toContain("Midnight");
     expect(lit).toContain(`aria-current="true">Largest</a>`);
     expect(lit).toContain(`href="/lite/network"`);
     const t = await get("/lite/theme?set=light&next=%2Flite%2Fsettings");
