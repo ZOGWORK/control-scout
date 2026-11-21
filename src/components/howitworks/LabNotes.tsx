@@ -1,6 +1,7 @@
 // Section 06: lab notes. What was tried on the shared engine, and what made the cut.
 import { useId, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
+import { REPO_URL } from "../../shared/footer";
 import { cn } from "../cn";
 import { HBars } from "./charts";
 import { E2 } from "./math";
@@ -10,7 +11,7 @@ const n0 = (x: number) => x.toLocaleString("en-US");
 
 type Verdict = "ship" | "no" | "off";
 const TAG: Record<Verdict, { text: string; cls: string }> = {
-  ship: { text: "Shipped", cls: "text-success" },
+  ship: { text: "Shipped", cls: "text-success v8:text-emerald-400" },
   no: { text: "Rejected", cls: "text-red-alliance" },
   off: { text: "Built, switched off", cls: "hiw-gold-text" },
 };
@@ -163,8 +164,8 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
   },
 ];
 
-/** The public repository the lab notes' reports live in. */
-export const REPO_URL = "https://github.com/ZOGWORK/control-scout";
+/** The public repository the lab notes' reports live in (src/shared/footer.ts, shared with the sidebar's links). */
+export { REPO_URL };
 /** A report path the notes cite (docs/…), without the sentence's closing full stop. */
 const DOC_PATH = /\bdocs\/[A-Za-z0-9_./-]*[A-Za-z0-9_/-]/g;
 

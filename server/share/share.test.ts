@@ -258,9 +258,9 @@ describe("link previews for a shared matchup", () => {
   it("anything else keeps the site card", async () => {
     for (const [p, q] of [["/predict", ""], ["/predict", "?red=101,102"], ["/predict", "?mode=advancement&red=101,102&blue=103,104"], ["/predict", "?season=2021&red=101,102&blue=103,104"],
       ["/predict", "?red=101,101&blue=103,104"], ["/events/2025/SHARE1", "?match=nope"], ["/events/2025/SHARE1", "?match=qual:0:77"], ["/teams/101", "?red=1,2&blue=3,4"]] as const) {
-      expect(meta(await renderIndex(file, p, qs(q)), "og:image"), `${p}${q}`).toBe("https://controlscout.org/og-image.png?v=2");
+      expect(meta(await renderIndex(file, p, qs(q)), "og:image"), `${p}${q}`).toBe("https://controlscout.org/og-image.png?v=3");
     }
     // Express can parse a parameter into an object (red[a]=1): ignored, never a crash.
-    expect(meta(await renderIndex(file, "/predict", { red: { a: "101" }, blue: "103,104" }), "og:image")).toBe("https://controlscout.org/og-image.png?v=2");
+    expect(meta(await renderIndex(file, "/predict", { red: { a: "101" }, blue: "103,104" }), "og:image")).toBe("https://controlscout.org/og-image.png?v=3");
   });
 });

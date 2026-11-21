@@ -30,6 +30,7 @@ import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
+import { searchRead } from "./searchReads.js";
 import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
 import { ftsQuery, search, searchIntent, teamAtEventAnswer } from "./search.js";
 import { rerank } from "./searchLearn.js";
@@ -319,7 +320,34 @@ async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer>
     const b = await searchAnswer(years, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
+  // Singular "state" after a region asks for its rankings; plural "states" or an explicit
+  // championship still asks for results at that event.
+  if (/\b(?:rank|ranking|rankings|ranked)\b/i.test(said) && /\bstate\b/i.test(said) && !/\bchamp(?:ionships?|s)?\b/i.test(said)) {
+    const it = parseIntent(said);
+    if (it?.ranking && it.region) {
+      const base = await searchAnswer(it.core, { ...opts, intents: false, learn: false });
+      const ranked = await intentAnswer(said, it, base);
+      if (ranked) return ranked;
+    }
+  }
   const a = await numberedAnswer(raw, opts);
+  // An exact stored event name typed with different word boundaries ("long horn
+  // round up scrimmage"). Only a whole contiguous name qualifies, never partial words.
+  if (!a.stat && !a.card && !a.hits.length) {
+    const tokens = said.split(/\s+/);
+    const compact = (s: string) => normalize(s).replace(/\s/g, "");
+    const events = await searchRead<{ name: string }>("SELECT DISTINCT name FROM events WHERE name IS NOT NULL");
+    const names = new Map(events.map((e) => [compact(e.name), e.name]));
+    for (let start = 0; start < tokens.length; start++) for (let end = tokens.length; end > start + 1; end--) {
+      const span = tokens.slice(start, end).join(" ");
+      const name = names.get(compact(span));
+      if (name && compact(span).length >= 8 && normalize(name) !== normalize(span)) {
+        const q = [...tokens.slice(0, start), name, ...tokens.slice(end)].join(" ");
+        const b = await searchAnswer(q, opts);
+        if (b.stat || b.card || b.hits.some((h) => h.kind === "event")) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+      }
+    }
+  }
   // Teams compared with "highlights" said ("4215 vs 6980 highlights"): the side by side, then each team's own
   // highlights of the season compared, the same standout matches its highlights page lists.
   const shown = !!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT);
@@ -357,7 +385,7 @@ async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer>
     const bySeason = seasonByGame(said);
     if (bySeason !== said) {
       const b = await searchAnswer(bySeason, opts);
-      if (b.stat || b.card) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+      if (b.stat || b.card || b.hits.some((h) => h.kind === "event")) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
     }
   }
   // Then its spelling (./spelling.ts): a misspelled query is read again corrected, and the better answer kept. Never
