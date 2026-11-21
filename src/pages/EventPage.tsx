@@ -55,6 +55,8 @@ import { HeaderActions, LivestreamButton, OfflineVideoNote, TrackEventButton } f
 import { offlineSource } from "../lib/offline/saved";
 import { EventStatusChip, EventTypeChip, LiveDot } from "../components/EventChips";
 import { WatchLive } from "../components/WatchLive";
+import { EventRecordingsOwner } from "../components/owner/EventRecordingsOwner";
+import { watchParam } from "../shared/stream";
 import { HighlightVideos } from "../components/HighlightVideos";
 import { ClipsGallery, EventClipsProvider, WatchClipsButton } from "../components/contributors/EventClips";
 import { RecordingCoverageLine, RecordingGaps } from "../components/contributors/RecordingGaps";
@@ -104,7 +106,11 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const saved = !!offlineSource(d);
   // The recording the coverage line and gaps read: linked, playable or not (a private one still says why), and its videos.
   const rec = { season: e.season, code: e.code, recorded: !!e.stream || !!e.recordingUnavailable?.length, matches: d.matches, videos: e.stream?.days?.map((x) => x.videoId) ?? (e.stream ? [e.stream.videoId] : e.recordingUnavailable ?? []) };
-  const { state: personal, update } = usePersonal();
+  const { state: personal, update, user } = usePersonal();
+  // ?watch (watchHref): opened to watch its recording or live stream, in the page's own player.
+  const watch = watchParam(sp);
+  // The site owner corrects the event's recordings right here (components/owner/EventRecordingsOwner.tsx).
+  const ownerRecordings = user?.isOwner && !saved ? <EventRecordingsOwner season={e.season} code={e.code} eventPath={path} /> : null;
   const ref = `${e.season}:${e.code}`;
   const tracked = personal.tracked.events.includes(ref);
   const teamParam = Number(sp.get("team")) || null;
@@ -352,7 +358,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
 
       {/* The owner-set stream with the model's calls beside it, above the matches (components/WatchLive.tsx). */}
       {/* Keyed by event and video: moving to another event, or a new stream, starts the player and the rail afresh. */}
-      {e.stream && <WatchLive key={`${e.season}:${e.code}:${e.stream.videoId}`} d={d} stream={e.stream} />}
+      {e.stream ? <WatchLive key={`${e.season}:${e.code}:${e.stream.videoId}`} d={d} stream={e.stream} watch={watch} owner={ownerRecordings} />
+        : ownerRecordings && <section className="mb-8" aria-label="Recordings">{ownerRecordings}</section>}
       {/* The organiser's highlight videos, as highlights only (components/HighlightVideos.tsx). */}
       {d.highlightVideos && <HighlightVideos videos={d.highlightVideos} />}
       <div ref={tabsRef} className="scroll-mt-bar-4" />

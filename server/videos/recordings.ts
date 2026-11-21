@@ -17,7 +17,7 @@ import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { youtubeId } from "../../src/shared/personal.js";
 import { countryOf } from "../../src/shared/countries.js";
-import { linkAiredOff, linkTooShort, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
+import { linkAiredOff, linkTooShort, localDate, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameOpen, frameStart, hasFrames } from "../data/frameTimings.js";
 import { clipPulled } from "../data/clipChecks.js";
@@ -41,7 +41,7 @@ export interface Recording extends RecordingVideo {
 }
 
 const TTL_MS = 60_000;
-type SeasonData = { first: Map<string, string>; /** FIRST's own link (or its short link's video), by event. */ link: Map<string, string>; more: Map<string, string[]>; daily: Set<string>; official: Set<string>; meta: Map<string, VideoMeta>; extra: Map<string, { day: string | null; part: string | null }>; failed: string[] };
+type SeasonData = { first: Map<string, string>; /** FIRST's own link (or its short link's video), by event. */ link: Map<string, string>; more: Map<string, string[]>; daily: Set<string>; official: Set<string>; meta: Map<string, VideoMeta>; extra: Map<string, { day: string | null; part: string | null }>; failed: string[]; /** The owner's event-page corrections (ownerPicks). */ picks: Map<string, OwnerPicks> };
 
 /** Maps read without one of their sources (the owner's streams, the official recordings): online they're shown as
  *  they are (and the failure is logged); the season pack's events board refuses them (isPartial, api/reads.ts). */
@@ -144,7 +144,7 @@ function seasonData(season: number, now = Date.now()) {
       const part = ids.slice(i, i + 200);
       for (const r of await all<any>(`SELECT ${META_COLUMNS} FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) meta.set(String(r.video_id), metaOf(r));
     }
-    return { first, link, more, daily, official: new Set(official.map((o) => String(o.code))), meta, extra, failed };
+    return { first, link, more, daily, official: new Set(official.map((o) => String(o.code))), meta, extra, failed, picks: await soft("owner's picks", season, failed, ownerPicks(season), () => new Map<string, OwnerPicks>()) };
   })();
   // A map read before keeps being given while its next read runs (search reads these on its answer path: a read
   // costs a season's matches); forgetRecordings drops it at once when the links change.
@@ -155,6 +155,34 @@ function seasonData(season: number, now = Date.now()) {
   return entry.v;
 }
 
+/** The owner's corrections to an event's recordings, made on its page (server/videos/ownerRecordings.ts): the videos
+ *  taken off it, and the days a video was picked for, with the event's time zone to read other videos' days in. */
+export interface OwnerPicks { blocked: Set<string>; days: Map<string, string>; timezone: string | null }
+export async function ownerPicks(season: number): Promise<Map<string, OwnerPicks>> {
+  const rows = await all<{ code: string; video_id: string; day: string | null; removed_at: string | null; timezone: string | null }>(
+    `SELECT o.code, o.video_id, o.day, o.removed_at, e.timezone FROM official_videos o LEFT JOIN events e ON e.season = o.season AND e.code = o.code
+     WHERE o.season = ? AND o.source = 'owner-page' AND o.kind = 'recording'`, [season]);
+  const out = new Map<string, OwnerPicks>();
+  for (const r of rows) {
+    const p = out.get(String(r.code)) ?? out.set(String(r.code), { blocked: new Set(), days: new Map(), timezone: r.timezone ?? null }).get(String(r.code))!;
+    if (r.removed_at) p.blocked.add(String(r.video_id));
+    else if (r.day) p.days.set(String(r.day), String(r.video_id));
+  }
+  return out;
+}
+
+/** An event's videos with the owner's picks applied: one taken off is left out, and a day the owner picked a video for
+ *  keeps that video only (another read as that day's, by its listed day or YouTube's broadcast start at the venue, is
+ *  left out). A video whose day isn't known stays. */
+export function picked(videos: RecordingVideo[], p: OwnerPicks | undefined): RecordingVideo[] {
+  if (!p) return videos;
+  return videos.filter((v) => {
+    if (p.blocked.has(v.videoId)) return false;
+    const day = v.day ?? (v.meta?.start ? localDate(v.meta.start, p.timezone) : null);
+    return !day || !p.days.has(day) || p.days.get(day) === v.videoId;
+  });
+}
+
 /** When a recording's video was broadcast, for ordering its days: the broadcast's start, else the list's day. */
 const dayKey = (v: RecordingVideo) => v.meta?.start ?? (v.day ? `${v.day}T12:00:00Z` : "9999");
 
@@ -162,18 +190,21 @@ const dayKey = (v: RecordingVideo) => v.meta?.start ?? (v.day ? `${v.day}T12:00:
  *  kept, for the coverage check, server/videos/coverage.ts, which names it as the reason its day has no clips). */
 export async function seasonRecordings(season: number, keepUnavailable = false): Promise<Map<string, Recording>> {
   const failed: string[] = [];
-  const [{ first, link, more, daily, meta, extra, failed: dataFailed }, owner] = await Promise.all([seasonData(season), soft("owner streams", season, failed, seasonStreams(season), () => new Map<string, EventStream>())]);
+  const [{ first, link, more, daily, meta, extra, failed: dataFailed, picks }, owner] = await Promise.all([seasonData(season), soft("owner streams", season, failed, seasonStreams(season), () => new Map<string, EventStream>())]);
   const out = new Map<string, Recording>();
   if (failed.length || dataFailed.length) partial.add(out);
   for (const [code, videoId] of first) {
     // Every day YouTube still plays, in order: the first of them is the event's video (a day made private leaves the others).
-    const all = [videoId, ...(more.get(code) ?? [])].map((id): RecordingVideo => ({ videoId: id, meta: meta.get(id) ?? null, ...(extra.get(id) ?? {}) })).filter((d) => keepUnavailable || d.meta?.status !== "unavailable");
+    // The owner's corrections on the event page come first of all (ownerPicks): what they took off is left out, and a
+    // day they picked a video for plays theirs alone.
+    const all = picked([videoId, ...(more.get(code) ?? [])].map((id): RecordingVideo => ({ videoId: id, meta: meta.get(id) ?? null, ...(extra.get(id) ?? {}) })), picks.get(code)).filter((d) => keepUnavailable || d.meta?.status !== "unavailable");
     // A day at a time: in the order they were broadcast (FIRST's link can be any of the days).
     if (all.length > 1) all.sort((a, b) => dayKey(a).localeCompare(dayKey(b)));
     const [main, ...days] = all;
     if (main) out.set(code, { ...main, code, source: extra.has(main.videoId) && link.get(code) !== main.videoId ? "official" : "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
   }
-  for (const [code, s] of owner) out.set(code, { videoId: s.videoId, code, source: "owner", meta: meta.get(s.videoId) ?? null });
+  // The owner portal's stream, unless the owner's event-page picks say otherwise (taken off, or days picked there).
+  for (const [code, s] of owner) if (!picks.get(code)?.blocked.has(s.videoId) && !picks.get(code)?.days.size) out.set(code, { videoId: s.videoId, code, source: "owner", meta: meta.get(s.videoId) ?? null });
   if (!keepUnavailable) for (const [code, r] of out) if (r.meta?.status === "unavailable") out.delete(code);
   return out;
 }
