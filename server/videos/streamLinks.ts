@@ -248,9 +248,10 @@ const saveLink = (r: LinkRow, id: string | null, now: number) => { const w = lin
  * started on the event's dates, with the days found before by the same link (a page can drop a day). Kept in
  * event_broadcasts, the first also the link's video, so the event's recording holds each day's matches in that day's
  * video (recordings.ts). A video not started yet waits for its start (the next follow); one YouTube couldn't be read
- * for, when no day is found, leaves the event's videos as they were. Returns whether they changed.
+ * for, when no day is found, leaves the event's videos as they were (`noteFailed` false: the try isn't noted either, so
+ * it doesn't use up a follow that comes only once). Returns whether they changed.
  */
-async function keepDays(r: LinkRow, videos: LinkVideo[], now: number, facts: Facts): Promise<boolean> {
+async function keepDays(r: LinkRow, videos: LinkVideo[], now: number, facts: Facts, noteFailed = true): Promise<boolean> {
   const sameLink = r.url === r.livestream;
   const before = sameLink ? await all<{ video_id: string; start: string }>("SELECT video_id, start FROM event_broadcasts WHERE season = ? AND code = ? AND url = ?", [r.season, r.code, r.livestream]) : [];
   const titles = await auditTitles(videos.filter((v) => !v.title).map((v) => v.videoId));
@@ -267,6 +268,7 @@ async function keepDays(r: LinkRow, videos: LinkVideo[], now: number, facts: Fac
   const keep = onDates([...days.values()], r);
   if (unread && !keep.length) {
     // Nothing found and a video unread: the event keeps what it had, the try noted.
+    if (!noteFailed) return false;
     await saveLink(r, sameLink ? r.video_id : null, now);
     return !sameLink && !!r.video_id;
   }
@@ -365,13 +367,17 @@ async function resolveLate(now: number, opts: { max?: number; hop?: Hop; facts: 
   let changed = 0;
   for (const r of todo) {
     // A failed request (the link's or YouTube's) keeps no new video but notes the try, so it waits its turn (linkDue).
+    // An event with a video kept gets its one follow after its dates only from an answer: a failed one isn't noted, so
+    // it's tried again on the next run.
+    const once = r.url === r.livestream && !!r.video_id;
     const got = await resolveLink(r.livestream, opts.hop);
+    if (got === "error" && once) continue;
     if (got !== "error" && await byDays(got, r)) {
-      if (await keepDays(r, got.videos, now, opts.facts)) changed++;
+      if (await keepDays(r, got.videos, now, opts.facts, !once)) changed++;
       continue;
     }
     // A video a redirect led to on the event's dates stays: the link has moved on to the next meet's since.
-    if (r.url === r.livestream && r.video_id) { await saveLink(r, r.video_id, now); continue; }
+    if (once) { await saveLink(r, r.video_id, now); continue; }
     let id: string | null = got === "error" ? null : got.videos[0]?.videoId ?? null;
     if (id && await broadcastOnDates(id, r, opts.facts) !== true) id = null;
     // Another event already keeps this broadcast for the same link (back-to-back meets): theirs, not this one's.
