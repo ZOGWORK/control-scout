@@ -5,6 +5,7 @@
 // Used by the event Rankings and Insights tabs, /teams and /matches.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { onBackOnline } from "../../lib/connection";
 import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, Columns3, Download, FileSpreadsheet, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
@@ -156,8 +157,7 @@ export function RecordsTable(p: RecordsTableProps) {
   useEffect(() => {
     if (!offline) return;
     const fn = () => api.reload();
-    window.addEventListener("online", fn);
-    return () => window.removeEventListener("online", fn);
+    return onBackOnline(fn);
   }, [offline, api.reload]);
 
   const [builder, setBuilder] = useState(false);

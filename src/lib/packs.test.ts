@@ -118,9 +118,15 @@ describe("fetchManifest and navigator.onLine", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ version: "2026-10-23.9", seasons: [] }), { status: 200 })));
     expect(await fetchManifest()).toMatchObject({ version: "2026-10-23.9" });
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    const failed = await fetchManifest().catch((e) => e);
+    expect(failed).toBeInstanceOf(ManifestError);
+    expect(failed.message).not.toMatch(/offline/); // the browser's word alone isn't believed
+    // Once the connection check finds no internet: offline, said so.
+    const { checkInternet, resetConnection } = await import("./connection");
+    await checkInternet();
     const err = await fetchManifest().catch((e) => e);
-    expect(err).toBeInstanceOf(ManifestError);
     expect(err.message).toMatch(/You're offline/);
+    resetConnection();
   });
 
   it("reads 403 feature_disabled (the owner's offline packs toggle) as paused, in the server's words; an older server's 503 too", async () => {

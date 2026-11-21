@@ -154,7 +154,7 @@ export interface ThreadState {
 
 /** What to say about a failed request. Offline only when the device knows it is; a dropped connection otherwise. */
 const message = (e: unknown, fallback: string) => (e instanceof ApiError
-  ? (e.offline ? (typeof navigator !== "undefined" && navigator.onLine === false ? "You're offline. Comments need a connection." : "Couldn't reach the server. Check your connection and try again.") : e.message)
+  ? (e.offline ? (knownOffline() ? "You're offline. Comments need a connection." : "Couldn't reach the server. Check your connection and try again.") : e.message)
   : fallback);
 
 /**

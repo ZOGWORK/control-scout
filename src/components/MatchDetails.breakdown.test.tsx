@@ -5,6 +5,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { markOffline } from "../lib/offline/saved";
+import { checkInternet, noteServerAnswer, resetConnection } from "../lib/connection";
 import type { MatchDetail } from "../shared/api";
 import { BonusRows, Breakdown, Headline, breakdownRows, groupRows, rowLead } from "./MatchDetails";
 import { MemoryRouter } from "react-router-dom";
@@ -175,15 +176,25 @@ describe("a match video", () => {
     expect(screen.getByTestId("breakdown-margin").textContent).toContain("124");
   });
 
-  it("says the same when the browser is offline, and plays again once it's back", () => {
+  it("the browser saying offline alone (iOS gets it wrong) leaves the videos playable", () => {
     const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
     render(<MemoryRouter><TooltipProvider><Headline d={withClip()} /></TooltipProvider></MemoryRouter>);
-    expect(screen.getByTestId("match-video-buttons").textContent).toContain("Needs a connection");
-    online.mockReturnValue(true);
-    act(() => { window.dispatchEvent(new Event("online")); });
     const box = screen.getByTestId("match-video-buttons");
     expect(box.querySelectorAll("a")).toHaveLength(2);
     expect(box.textContent).toContain("Watch the match · 12:34");
     online.mockRestore();
+  });
+
+  it("says the same once the connection check finds no internet, and plays again once it's back", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    await checkInternet();
+    render(<MemoryRouter><TooltipProvider><Headline d={withClip()} /></TooltipProvider></MemoryRouter>);
+    expect(screen.getByTestId("match-video-buttons").textContent).toContain("Needs a connection");
+    act(() => { noteServerAnswer(); });
+    const box = screen.getByTestId("match-video-buttons");
+    expect(box.querySelectorAll("a")).toHaveLength(2);
+    expect(box.textContent).toContain("Watch the match · 12:34");
+    vi.unstubAllGlobals();
+    resetConnection();
   });
 });

@@ -16,6 +16,7 @@
 // ever shows the signed-in one's.
 import { useSyncExternalStore } from "react";
 import { ApiError } from "./api";
+import { offlineNow } from "./connection";
 
 export type SaveState = "draft" | "saving" | "saved" | "attention";
 
@@ -128,5 +129,7 @@ export function outcomeUnknown(e: unknown, offlineBefore: boolean): boolean {
   return e.status === 0 || (e.status >= 200 && e.status < 300) || (e.status >= 500 && e.status !== 503);
 }
 
-/** Is the device known to be offline right now? */
-export const knownOffline = () => typeof navigator !== "undefined" && navigator.onLine === false;
+/** Is the device known to be offline right now: the connection check found no internet (lib/connection.ts)? Never
+ *  navigator.onLine alone, which iOS gets wrong: a send is always tried, and this only says whether a failed one is
+ *  sure to have not gone. */
+export const knownOffline = (): boolean => offlineNow();

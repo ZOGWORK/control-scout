@@ -4,6 +4,7 @@
 // data into the account so nothing is lost.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "./api";
+import { onBackOnline } from "./connection";
 import type { OrphanState } from "../shared/orphaned";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
 import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, setScoutViewer, storedScoutEntry } from "./scouting";
@@ -359,7 +360,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       if (!readyRef.current) connect(u); // the sign-in sync didn't finish (e.g. offline): redo it
       else if (Object.keys(pending()).length) push();
     };
-    window.addEventListener("online", retry);
+    const offBack = onBackOnline(retry); // the online event, or the connection check finding internet again
     const t = setInterval(retry, 30_000);
     // Another tab changed something: reload it.
     const onStorage = (e: StorageEvent) => {
@@ -367,7 +368,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       if (k && e.newValue) { try { const s = JSON.parse(e.newValue); stamped.current[k] = s; setState((p) => ({ ...p, [k]: s.value })); } catch { /* ignore */ } }
     };
     window.addEventListener("storage", onStorage);
-    return () => { window.removeEventListener("online", retry); window.removeEventListener("storage", onStorage); clearInterval(t); };
+    return () => { offBack(); window.removeEventListener("storage", onStorage); clearInterval(t); };
   }, [connect, push]);
 
   const set = useCallback(<K extends PersonalKey>(key: K, value: PersonalState[K]) => {
