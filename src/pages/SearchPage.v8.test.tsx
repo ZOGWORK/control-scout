@@ -86,7 +86,7 @@ describe("search page, v8 on", () => {
     expect(within(group).getByRole("button", { name: "Show 3 more" }).getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("opens the next ranking at its top 5 again after Show all on the last one", () => {
+  it("shows all requested ranking rows immediately, including after another search", () => {
     const lb = (base: number) => ({
       family: "leaderboard", intent: "top-opr", title: "Top 10 teams by OPR", scope: [], source: "From the season", definition: "",
       blocks: [{ kind: "leaderboard", title: "Top 10 by OPR", stat: { id: "opr", label: "OPR" }, note: "",
@@ -94,11 +94,11 @@ describe("search page, v8 on", () => {
     }) as unknown as SearchAnswer["stat"];
     state.answer = { ...answer([]), stat: lb(100) };
     const { container, rerender } = show("/search?q=top%20teams");
-    fireEvent.click(within(container.querySelector('[data-block="leaderboard"]') as HTMLElement).getByRole("button", { name: "Show all 10" }));
     expect(container.querySelectorAll("[data-team-row]")).toHaveLength(10);
+    expect(within(container.querySelector('[data-block="leaderboard"]') as HTMLElement).queryByRole("button", { name: "Show all 10" })).toBeNull();
     state.answer = { ...answer([]), stat: lb(500) };
     rerender(<MemoryRouter initialEntries={["/search?q=top%20teams"]}><SearchPage /></MemoryRouter>);
-    expect([...container.querySelectorAll("[data-team-row]")].map((r) => r.getAttribute("data-team-row"))).toEqual(["500", "501", "502", "503", "504"]);
+    expect([...container.querySelectorAll("[data-team-row]")].map((r) => r.getAttribute("data-team-row"))).toEqual(Array.from({length:10}, (_,i)=>String(500+i)));
   });
 
   it("gives the results column its one entrance stagger, CSS only, none under reduced motion", () => {

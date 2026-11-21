@@ -381,6 +381,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const outcome = p.symbols.includes("outcome:L") || (p.symbols.includes("metric:loss") && intent !== "losses") ? "L" : p.symbols.includes("outcome:W") || (p.symbols.includes("metric:win") && OUTCOME_IDS.has(intent) && intent !== "average-margin") ? "W" : null;
     const it: StatQuestion = {
       id, family: d.family, defaultSeason: d.alone && !named ? d.alone : d.season, scope,
+      ...(id === "event-opr" ? { phase: p.symbols.map((s) => PERIOD_OF[s]).find(Boolean) } : {}),
       leadEvent: id === "highest-score" && p.symbols.includes("thing:event"),
       n: id === "match-lookup" ? p.matchNumber : p.n ?? (id === "last-matches" ? 5 : null), outcome: OUTCOME_IDS.has(id) ? outcome : null,
       count: p.agg === "count", noTeam: false, core: String(team.number),

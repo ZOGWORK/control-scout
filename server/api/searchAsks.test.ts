@@ -71,6 +71,14 @@ describe("reading", () => {
 });
 
 describe("test 16: each intent returns its stated surface", () => {
+  it("reads good teams rn as the best-teams ranking, not event names (#2025)", async () => {
+    for (const q of ["good teams rn", "good teams right now", "good teams in new jersey rn"]) {
+      const a = await ask(q);
+      expect(a.q).toBe(q);
+      expect(a.card?.kind === "leaderboard" || a.stat?.family === "leaderboard", q).toBe(true);
+      expect(a.hits.some(h => h.kind === "event"), q).toBe(false);
+    }
+  });
   it("4215 record: its record", async () => {
     const a = await ask("4215 record");
     expect(a.hits[0]).toMatchObject({ kind: "team", ref: "4215" });

@@ -330,6 +330,14 @@ async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer>
       if (ranked) return ranked;
     }
   }
+  // Conversational quality request, not a team/event whose name merely contains
+  // "good". Reuse the established best-teams reader only when it recognizes the
+  // whole rewritten question (including its place/time words).
+  const bestTeams = said.replace(/^good(?=\s+(?:teams?|robots?)\b)/i, "best");
+  if (bestTeams !== said && readAsk(bestTeams)?.kind === "leaderboard") {
+    const b = await searchAnswer(bestTeams, opts);
+    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
   const a = await numberedAnswer(raw, opts);
   // An exact stored event name typed with different word boundaries ("long horn
   // round up scrimmage"). Only a whole contiguous name qualifies, never partial words.

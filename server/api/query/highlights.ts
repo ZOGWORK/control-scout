@@ -18,7 +18,7 @@ import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
 import { EVENT_FIT } from "./context.js";
 import { names } from "./names.js";
 import { initialismEvent } from "./initialisms.js";
-import { FROM, MARGIN, NP, where, type MatchScope } from "./matchFind.js";
+import { FROM, MARGIN, NP, videoKeys, where, type MatchScope } from "./matchFind.js";
 import { withoutPenalties } from "../../../src/shared/seasonRecord.js";
 
 export interface HighlightFind extends MatchScope {
@@ -29,13 +29,13 @@ export interface HighlightFind extends MatchScope {
   eventName?: Map<number, { name: string; when: string | null; where: string | null }>;
   /** A count asked for ("top 3 highlights"): at most that many. */
   n?: number;
-  /** A video page asked for ("recap", "videos", "watch"): every match's video first, led by the latest playoff match;
+  /** A video page asked for ("recap", "videos", "watch"): the video gallery without a score headline;
    *  else the highlights, every match's video after them. */
   videos?: boolean;
 }
 
-/** Most matches a video page lists: a scope with more lists its playoff matches, and with more still none (its
- *  highlights stand alone). Most events whose own stream it offers. */
+/** Most matches a gallery lists. Large explicit video requests select known clips;
+ *  highlights galleries can list playoffs only. Most events whose own stream it offers. */
 export const GALLERY = 200;
 const STREAMS = 8;
 
@@ -270,7 +270,22 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
     const unplayed = !!ev && !f.window && !!events?.length && await playedAt(f.season, events) === 0;
     return { ...base, blocks: [], none: unplayed ? NO_EVENT_HIGHLIGHTS : `No played matches${f.named ? "" : " at official events"}${where2} yet.` };
   }
-  const gallery = await galleryOf(whole ? scored : null, events, f.videos ? (f.named && ev ? "No recording for this event — stats only." : `No match videos${where2} yet.`) : null, ev ? f.eventName : undefined);
+  const emptyVideo = f.named && ev ? "No recording for this event — stats only." : `No match videos${where2} yet.`;
+  // A season-sized video request must not lose every recording at the whole-read
+  // threshold. Read a bounded set of matches with known clips, using all the same
+  // scope filters, instead of listing thousands of unrecorded matches.
+  let gallery: StatBlock;
+  if (f.videos && count > GALLERY) {
+    const recorded = where({ ...f, video: true, videoKeys: await videoKeys(f, !!f.ever) });
+    const rs = await all<Row>(`SELECT ${COLS} ${FROM} WHERE ${recorded.sql} ORDER BY ${ORDER} LIMIT ?`, [...recorded.args, GALLERY + 1]);
+    gallery = await galleryOf(rs.slice(0, GALLERY).map((r, at) => ({ ...r, at, p_red: null })), events, emptyVideo, ev ? f.eventName : undefined);
+    if (gallery.kind === "videos") {
+      gallery.title = "Match videos";
+      if (rs.length > GALLERY) gallery.more = `Showing the first ${GALLERY} matches with video; open an event for more.`;
+    }
+  } else {
+    gallery = await galleryOf(whole ? scored : null, events, f.videos ? emptyVideo : null, ev ? f.eventName : undefined);
+  }
   // A video page leads with the scope's latest playoff match (a recap ends on the final, whatever reason it was
   // listed under), highlights with the best score.
   const last = f.videos ? (scored?.filter((r) => r.level === "playoff").at(-1) ?? picks.find((p) => p.note === "Latest playoff match")?.r) : undefined;
