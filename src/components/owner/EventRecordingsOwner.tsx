@@ -74,16 +74,16 @@ function VideoRow({ v, days, busy, send }: { v: OwnerEventRecordings["videos"][n
       {v.owner && <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-xs text-text-muted">Your pick</span>}
       {!replacing ? (
         <span className="ml-auto flex gap-1">
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setReplacing(true)} data-owner-replace><RefreshCw /> Replace</Button>
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setReplacing(true)} data-owner-replace><RefreshCw className="size-4" aria-hidden /> Replace</Button>
           <Button variant="ghost" size="sm" disabled={busy} data-owner-remove
-            onClick={() => { if (window.confirm(`Remove ${v.videoId} from this event? It won't come back on its own.`)) void send("remove", { videoId: v.videoId }, "Recording removed."); }}><Trash2 /> Remove</Button>
+            onClick={() => { if (window.confirm(`Remove ${v.videoId} from this event? It won't come back on its own.`)) void send("remove", { videoId: v.videoId }, "Recording removed."); }}><Trash2 className="size-4" aria-hidden /> Remove</Button>
         </span>
       ) : (
         <form className="flex basis-full flex-wrap items-center gap-2" onSubmit={async (e) => { e.preventDefault(); if (await send("replace", { from: v.videoId, video, day }, "Recording replaced.")) { setReplacing(false); setVideo(""); } }}>
           <Input value={video} onChange={(e) => setVideo(e.target.value)} placeholder="YouTube link or video id" aria-label="The right video" className="h-9 min-w-0 flex-1 basis-56" autoComplete="off" autoFocus />
           {!v.day && <DayPick days={days} value={day} onChange={setDay} label="Its day" />}
-          <Button type="submit" size="sm" className="h-9" disabled={busy || !video.trim() || !day}><Check /> Save</Button>
-          <Button type="button" variant="ghost" size="sm" className="h-9" onClick={() => setReplacing(false)}><X /> Cancel</Button>
+          <Button type="submit" size="sm" className="h-9" disabled={busy || !video.trim() || !day}><Check className="size-4" aria-hidden /> Save</Button>
+          <Button type="button" variant="ghost" size="sm" className="h-9" onClick={() => setReplacing(false)}><X className="size-4" aria-hidden /> Cancel</Button>
         </form>
       )}
     </li>
@@ -101,7 +101,7 @@ function AddRow({ days, taken, busy, send }: { days: string[]; taken: Set<string
       <span className="text-text-muted">Add a recording for</span>
       <DayPick days={free} value={pick} onChange={setDay} label="Day" />
       <Input value={video} onChange={(e) => setVideo(e.target.value)} placeholder="YouTube link or video id" aria-label="The video" className="h-9 min-w-0 flex-1 basis-56" autoComplete="off" />
-      <Button type="submit" size="sm" className="h-9" disabled={busy || !video.trim()}><Plus /> Add</Button>
+      <Button type="submit" size="sm" className="h-9" disabled={busy || !video.trim()}><Plus className="size-4" aria-hidden /> Add</Button>
     </form>
   );
 }
