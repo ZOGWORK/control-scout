@@ -91,7 +91,7 @@ export function MergeScreen({ user, added, onDone }: { user: AccountUser; added:
           const active = i === step && !done;
           return (
             <li key={i} className={cn("flex items-center gap-2 text-sm transition-opacity", i > step && "opacity-35")}>
-              <span className={cn("flex size-5 shrink-0 items-center justify-center rounded-full", done ? "bg-success/15 text-success" : "bg-accent/15 text-accent")}>
+              <span className={cn("flex size-5 shrink-0 items-center justify-center rounded-full", done ? "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" : "bg-accent/15 text-accent")}>
                 {done ? <Check className="size-3.5" /> : active ? <Loader2 className="size-3.5 animate-spin" /> : <span className="size-1.5 rounded-full bg-current" />}
               </span>
               {s}

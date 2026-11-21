@@ -251,7 +251,7 @@ function StepWelcome() {
   const tiles: { icon: LucideIcon; title: string; text: string; tone: string }[] = [
     { icon: Users, title: "Every team and event", text: "Stats, rankings and results, updated through event days.", tone: "bg-info/12 text-info-text" },
     { icon: Sparkles, title: "Win odds for any match", text: "Who's likely to win, and by how much.", tone: "bg-accent/15 text-accent-text" },
-    { icon: ClipboardList, title: "Scouting at your event", text: "Notes and pick lists, on your phone.", tone: "bg-success/12 text-success-text" },
+    { icon: ClipboardList, title: "Scouting at your event", text: "Notes and pick lists, on your phone.", tone: "bg-success/12 v8:bg-emerald-400/12 text-success-text v8:text-emerald-400" },
   ];
   return (
     <div>
@@ -406,10 +406,10 @@ function StepSearch({ team, onRun }: { team: number | null; onRun: (q: string) =
   const first: Example[] = team != null
     ? [
       { icon: CalendarDays, text: `${team} next match`, tone: "text-info-text" },
-      { icon: Trophy, text: `${team} awards`, tone: "text-success-text" },
+      { icon: Trophy, text: `${team} awards`, tone: "text-success-text v8:text-emerald-400" },
     ]
     : [
-      { icon: Trophy, text: "Who won Worlds", tone: "text-success-text" },
+      { icon: Trophy, text: "Who won Worlds", tone: "text-success-text v8:text-emerald-400" },
       { icon: Zap, text: "Best auto OPR", tone: "text-accent-text" },
     ];
   const history: Example[] = (own ?? []).map((x) => ({ ...TEAM_ICON[x.kind], text: x.q, ...(x.kind === "worlds-season" ? { tag: "Worlds season" } : {}) }));
@@ -467,7 +467,7 @@ function OrDivider() {
 function StepPlaces() {
   const places: { icon: LucideIcon; name: string; text: string; tone: string }[] = [
     { icon: CalendarDays, name: "Events", text: "Schedules, results, live matches", tone: "text-info-text" },
-    { icon: Users, name: "Teams", text: "Every team's stats", tone: "text-success-text" },
+    { icon: Users, name: "Teams", text: "Every team's stats", tone: "text-success-text v8:text-emerald-400" },
     { icon: ListOrdered, name: "Rankings", text: "Who's best this season", tone: "text-rose-500 dark:text-rose-300" },
     { icon: Sparkles, name: "Predict", text: "Odds for any match", tone: "text-accent-text" },
     { icon: Star, name: "My team", text: "Your team's next match", tone: "text-accent-text" },
@@ -487,7 +487,7 @@ function StepPlaces() {
           </li>
         ))}
       </ul>
-      <p className="mt-4 flex items-center gap-2 text-[15px] text-text-muted"><Check className="size-4 shrink-0 text-success-text" aria-hidden /> That's it. Settings can show this again.</p>
+      <p className="mt-4 flex items-center gap-2 text-[15px] text-text-muted"><Check className="size-4 shrink-0 text-success-text v8:text-emerald-400" aria-hidden /> That's it. Settings can show this again.</p>
     </div>
   );
 }

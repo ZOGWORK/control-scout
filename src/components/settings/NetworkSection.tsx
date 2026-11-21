@@ -73,7 +73,7 @@ export function NetworkSection() {
       <section aria-labelledby="net-status" className="mb-8 max-sm:mb-5 rounded-xl border border-border bg-card p-4 sm:p-5" data-net-status={conn.internet}>
         <div className="flex items-start gap-3">
           <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl",
-            tone === "ok" ? "bg-success/15 text-success" : tone === "warn" ? "bg-warning/15 text-warning" : tone === "off" ? "bg-info/15 text-info" : "bg-muted text-muted-foreground")} aria-hidden>
+            tone === "ok" ? "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" : tone === "warn" ? "bg-warning/15 text-warning" : tone === "off" ? "bg-info/15 text-info" : "bg-muted text-muted-foreground")} aria-hidden>
             {tone === "ok" ? <Wifi className="size-5" /> : <WifiOff className="size-5" />}
           </span>
           <div className="min-w-0 flex-1">
@@ -311,7 +311,7 @@ function CleanUp({ seasons, bundles, lite }: { seasons: SavedSeason[]; bundles: 
       <Row label="Clear cache" description={<>
         Removes old copies of the app's files. Your downloads, scouting notes and settings stay, and the app still opens offline.
         {failed && <span role="status" className="mt-1 block text-warning">Couldn't measure the cache. Clear still works.</span>}
-        {freed != null && <span role="status" className="mt-1 flex items-center gap-1 text-success"><CheckCircle2 className="size-3.5" /> {freed ? `Freed ${fmtBytes(freed)}` : "Old files cleared"}</span>}
+        {freed != null && <span role="status" className="mt-1 flex items-center gap-1 text-success v8:text-emerald-400"><CheckCircle2 className="size-3.5" /> {freed ? `Freed ${fmtBytes(freed)}` : "Old files cleared"}</span>}
       </>}>
         <Button variant="outline" className="h-11 sm:h-9" onClick={clear} disabled={busy || plan === undefined || (!items && !failed)} data-net-clear>
           <Trash2 /> {plan === undefined ? "Measuring…" : failed ? "Clear cache" : plan === null ? "Nothing cached" : bytes ? `Clear ${fmtBytes(bytes)}` : items ? "Clear old files" : "Nothing to clear"}

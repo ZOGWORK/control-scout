@@ -9,7 +9,7 @@ export type Tone = "accent" | "info" | "success" | "warning" | "danger";
 const TONES: Record<Tone, string> = {
   accent: "bg-accent-soft text-accent-text",
   info: "bg-info/12 text-info",
-  success: "bg-success/12 text-success",
+  success: "bg-success/12 v8:bg-emerald-400/12 text-success v8:text-emerald-400",
   warning: "bg-warning/12 text-warning",
   danger: "bg-danger/12 text-danger",
 };

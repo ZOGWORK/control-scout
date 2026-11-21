@@ -24,7 +24,7 @@ const AGE: Record<DuplicateAge, string> = {
 
 type Tone = "success" | "info" | "danger" | "muted";
 const TONE: Record<Tone, string> = {
-  success: "border-success/35 bg-success/10 text-success",
+  success: "border-success/35 v8:border-emerald-400/35 bg-success/10 v8:bg-emerald-400/10 text-success v8:text-emerald-400",
   info: "border-info/35 bg-info/10 text-info",
   danger: "border-danger/35 bg-danger/10 text-danger",
   muted: "border-line bg-text-base/[0.04] text-text-muted",
@@ -123,13 +123,13 @@ export function ImportPreviewDialog({ open, fileName, preview, onCancel, onImpor
         <section aria-label="What Import will do" className="rounded-xl border border-line bg-text-base/[0.03] p-3">
           <h3 className="text-sm font-semibold text-text-base">Import will</h3>
           <ul className="mt-2 grid gap-1.5 text-sm">
-            <li className="flex items-center gap-2"><Plus className="size-4 text-success" aria-hidden /><span><b className="tabular-nums">Add {plan.add}</b> new {plan.add === 1 ? "entry" : "entries"}</span></li>
+            <li className="flex items-center gap-2"><Plus className="size-4 text-success v8:text-emerald-400" aria-hidden /><span><b className="tabular-nums">Add {plan.add}</b> new {plan.add === 1 ? "entry" : "entries"}</span></li>
             <li className="flex items-center gap-2"><RefreshCw className="size-4 text-info" aria-hidden /><span><b className="tabular-nums">Update {plan.update}</b> already here{plan.update ? ", replacing the copy on this device" : ""}</span></li>
             <li className="flex items-center gap-2"><AlertTriangle className={cn("size-4", plan.skip ? "text-warning" : "text-text-muted")} aria-hidden /><span><b className="tabular-nums">Skip {plan.skip}</b>
               {plan.skip ? ` (${[p.invalid.length && `${p.invalid.length} invalid`, plan.keep && `${plan.keep} kept as here`, p.deletedInFile.length && `${p.deletedInFile.length} deleted in the file`].filter(Boolean).join(", ")})` : ""}</span></li>
           </ul>
           <p className="mt-3 flex items-start gap-2 text-xs text-text-muted">
-            <ShieldCheck className="mt-px size-3.5 shrink-0 text-success" aria-hidden />
+            <ShieldCheck className="mt-px size-3.5 shrink-0 text-success v8:text-emerald-400" aria-hidden />
             <span>Import merges. {p.untouched ? `Your ${n(p.untouched, "other entry", "other entries")} on this device ${p.untouched === 1 ? "isn't" : "aren't"} in the file and ${p.untouched === 1 ? "stays" : "stay"} as ${p.untouched === 1 ? "it is" : "they are"}.` : "Nothing here is removed."} Entries go to your personal notes; workspace entries aren't touched.</span>
           </p>
         </section>
@@ -140,7 +140,7 @@ export function ImportPreviewDialog({ open, fileName, preview, onCancel, onImpor
               <b>{n(plan.update, "entry", "entries")}</b> on this device will be replaced. A backup lets you put {plan.update === 1 ? "it" : "them"} back.
             </p>
             <Button variant="outline" size="sm" className="self-start sm:self-auto" onClick={() => { downloadScoutBackup(); setBackedUpFor(preview); }}>
-              {backedUp ? <><Check className="text-success" /> Backup downloaded</> : <><Download /> Download a backup first</>}
+              {backedUp ? <><Check className="text-success v8:text-emerald-400" /> Backup downloaded</> : <><Download /> Download a backup first</>}
             </Button>
           </div>
         )}

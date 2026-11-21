@@ -24,7 +24,7 @@ export function SaveStatus({ state, what, className, text }: {
           state === "attention" ? "rounded-full bg-warning/15 px-1.5 py-px font-medium text-warning ring-1 ring-warning/50" : "text-text-muted")}>
           {state === "draft" ? <PencilLine className="size-3 shrink-0" aria-hidden />
             : state === "saving" ? <Loader2 className="size-3 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
-            : state === "saved" ? <Check className="size-3 shrink-0 text-success" aria-hidden />
+            : state === "saved" ? <Check className="size-3 shrink-0 text-success v8:text-emerald-400" aria-hidden />
             : <CircleAlert className="size-3 shrink-0" aria-hidden />}
           <span className="sr-only">{what}: </span>
           <span className="truncate">{text ?? SAVE_STATE_TEXT[state]}</span>

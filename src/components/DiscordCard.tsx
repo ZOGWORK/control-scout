@@ -52,7 +52,7 @@ function CopyCommand({ text }: { text: string }) {
   const copy = async () => { if (await copyText(text, "Command copied: paste it in Discord", "Couldn't copy the command", text)) { setDone(true); setTimeout(() => setDone(false), 1500); } };
   return (
     <button type="button" onClick={copy} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 font-mono text-sm hover:border-accent/50" aria-label={`Copy ${text}`}>
-      {text}{done ? <Check className="size-3.5 text-success" aria-hidden /> : <Copy className="size-3.5 text-muted-foreground" aria-hidden />}
+      {text}{done ? <Check className="size-3.5 text-success v8:text-emerald-400" aria-hidden /> : <Copy className="size-3.5 text-muted-foreground" aria-hidden />}
       <span className="sr-only" aria-live="polite">{done ? "Copied" : ""}</span>
     </button>
   );

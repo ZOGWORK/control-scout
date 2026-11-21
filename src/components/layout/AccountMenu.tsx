@@ -32,8 +32,8 @@ const SYNC_LABEL: Record<string, string> = { synced: "Synced", syncing: "Syncing
 
 /** The footer row's status line and dot. "Online" only while syncing works; a device that can't reach the account reads "Offline". */
 const STATUS: Record<SyncStatus, { label: string; dot: string }> = {
-  synced: { label: "Online", dot: "bg-success" },
-  syncing: { label: "Syncing…", dot: "bg-success" },
+  synced: { label: "Online", dot: "bg-success v8:bg-emerald-400" },
+  syncing: { label: "Syncing…", dot: "bg-success v8:bg-emerald-400" },
   offline: { label: "Offline", dot: "bg-text-muted" },
   error: { label: "Sync error", dot: "bg-warning" },
   local: { label: "Connecting…", dot: "bg-text-muted" },
@@ -350,10 +350,10 @@ function SignedInPanel({ user, onClose, onSignOut }: { user: AccountUser; onClos
         </div>
       </div>
       {cp ? (
-        <div className={cn("rounded-lg border p-3 text-sm", cp.member ? "border-success/40 bg-success/[0.06]" : "border-border")}>
+        <div className={cn("rounded-lg border p-3 text-sm", cp.member ? "border-success/40 v8:border-emerald-400/40 bg-success/[0.06] v8:bg-emerald-400/[0.06]" : "border-border")}>
           {cp.member ? (
             <>
-              <p className="flex items-center gap-1.5 font-medium"><CheckCircle2 className="size-4 text-success" /> Control Point account found</p>
+              <p className="flex items-center gap-1.5 font-medium"><CheckCircle2 className="size-4 text-success v8:text-emerald-400" /> Control Point account found</p>
               <p className="mt-1 text-xs text-muted-foreground">It's the same account: this email signs in to both apps.</p>
               {cp.teams.length > 0 && (
                 <ul className="mt-2 space-y-0.5 text-xs">

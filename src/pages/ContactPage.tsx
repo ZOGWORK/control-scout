@@ -107,7 +107,7 @@ export default function ContactPage() {
         <div className="self-start rounded-2xl border border-line bg-card/70 p-4 sm:p-6">
           {status === "sent" ? (
             <m.div role="status" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center py-8 max-sm:py-5 text-center">
-              <span className="mb-4 flex size-14 items-center justify-center rounded-full bg-success/12 text-success"><CheckCircle2 className="size-7" aria-hidden /></span>
+              <span className="mb-4 flex size-14 items-center justify-center rounded-full bg-success/12 v8:bg-emerald-400/12 text-success v8:text-emerald-400"><CheckCircle2 className="size-7" aria-hidden /></span>
               <h2 className="font-display text-xl font-semibold text-foreground">Message sent. Thank you!</h2>
               <p className="mt-2 max-w-md text-sm text-text-muted">We've got it. If it needs an answer, we'll reply to <strong className="text-foreground">{sentTo}</strong>.</p>
               <div className="mt-6 max-sm:mt-4 flex flex-wrap justify-center gap-2">
@@ -183,7 +183,7 @@ export default function ContactPage() {
           <OtherWay icon={ExternalLink} tone="text-accent-text bg-accent-soft" title="Control Point">
             Accounts are shared with our sister app for FTC team workspaces. <a className="underline underline-offset-2 hover:text-foreground" href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener">tryctrlpoint.org</a>
           </OtherWay>
-          <OtherWay icon={MessageCircle} tone="text-success bg-success/12" title="Before you write">
+          <OtherWay icon={MessageCircle} tone="text-success v8:text-emerald-400 bg-success/12 v8:bg-emerald-400/12" title="Before you write">
             The <Link className="underline underline-offset-2 hover:text-foreground" to="/faq">FAQ</Link> answers the common questions. <Link className="underline underline-offset-2 hover:text-foreground" to="/methodology">How it works</Link> explains every number and prediction. The <Link className="underline underline-offset-2 hover:text-foreground" to="/privacy">privacy policy</Link> and <Link className="underline underline-offset-2 hover:text-foreground" to="/terms">terms</Link> cover your data and the rules.
           </OtherWay>
         </aside>
