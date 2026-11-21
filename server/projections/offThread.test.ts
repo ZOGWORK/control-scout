@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { PROJECTION_FLOOR, PROJECTION_RUNS } from "../../src/shared/projections";
 import { simulateProjection, textSeed } from "./core";
 import { deserializeInput, type FixtureEvent } from "./fixture";
-import { simulateOffThread, workerEntry } from "./offThread";
+import { liveWorkers, simulateOffThread, workerEntry } from "./offThread";
 import { BUDGET_MS, jobSimulate } from "./job";
 
 const fx = JSON.parse(readFileSync(join(__dirname, "__fixtures__", "midpoint.json"), "utf8")) as { season: number; events: FixtureEvent[] };
@@ -34,6 +34,13 @@ describe("simulateOffThread", () => {
 
   it("rejects with the worker's error", async () => {
     await expect(simulateOffThread({ ...input(), ratings: null as never }, { runs: 10, floor: 10, budgetMs: Infinity, seed: 1 })).rejects.toThrow();
+  }, 60_000);
+
+  it("rejects at once, and stops its worker, when the input can't be cloned", async () => {
+    const t0 = performance.now();
+    await expect(simulateOffThread({ ...input(), pick: (() => 1) as never }, { runs: 10, floor: 10, budgetMs: Infinity, seed: 1 }, 60_000)).rejects.toThrow(/clone/i);
+    expect(performance.now() - t0).toBeLessThan(5_000); // not the timeout
+    expect(liveWorkers()).toBe(0);
   }, 60_000);
 
   it("leaves the event loop free while a big event simulates", async () => {
