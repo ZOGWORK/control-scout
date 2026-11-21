@@ -2,14 +2,17 @@
 // and a hook that gives every page the same loading / error / data states.
 //
 // Offline data (the lite pack, saved seasons and event-day bundles, lib/packs + lib/offline) only
-// ever RUNS with no signal: while the server answers, every read comes from it
+// ever RUNS when the server's answer isn't here: while the server answers, every read comes from it
 // and nothing here opens, decodes or queries a pack (sql.js and the engine
 // aren't even loaded; they're dynamic imports). The pack is used only when the
-// browser says it's offline, or a request the pack could answer fails for want
-// of a network: a network error, or no answer within OFFLINE_TIMEOUT_MS (venue
-// wifi that "connects" but carries nothing). An HTTP error from a server that
-// answered is never replaced. The first server answer afterwards (or the
-// browser coming back online) switches back. Downloading the pack in the
+// connection check found no internet, or a request the pack could answer fails for want
+// of a network (a network error), or is slow: no answer within OFFLINE_TIMEOUT_MS (a weak
+// phone signal, a busy server, or venue wifi that "connects" but carries nothing). Slow is
+// not offline: the saved answer shows MEANWHILE and the request keeps going (awaitLate);
+// its answer replaces the saved one the moment it arrives. Only the connection check
+// (lib/connection.ts) ever says "offline", never navigator.onLine or a slow request alone.
+// An HTTP error from a server that answered is never replaced. Writes are never held or
+// refused here: they always go to the server. Downloading the pack in the
 // background (packSync.tsx) is separate: that only stores bytes for later.
 //
 // Once the connection check (lib/connection.ts) knows there's no internet (or a Wi-Fi sign-in page), nothing waits:
@@ -25,7 +28,7 @@ import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { isUnavailableAnswer, markUnavailable, UNAVAILABLE_CODE } from "./shutdown";
 import { noteArrived, watchRequest } from "./liteSuggest";
-import { connection, freshInternet, noteRequestFailed, noteServerAnswer, offlineNow, onInternetChange, onInternetConfirmed } from "./connection";
+import { connection, freshInternet, noteRequestFailed, noteServerAnswer, noteWaiting, offlineNow, onInternetChange, onInternetConfirmed, SLOW_MS } from "./connection";
 
 /**
  * A failed call. `code`: the answer's `error` when it's a machine code (`feature_disabled`), so callers can tell a
@@ -51,8 +54,14 @@ export const isAccessDenied = (e: unknown): boolean => (e as { status?: unknown 
 const OFFLINE_PATHS = /^\/api\/(teams\/\d+(\/matches|\/schedule)?|events\/\d{4}\/[^/?]+|projections\/\d{4}\/[^/?]+|search|events|rankings(\/places)?|records\/\d{4}\/(high-score|regions|teams|matches)|leagues\/\d{4}\/[^/?]+\/[^/?]+|power-rankings(\/[^/?]+)?)(\?|$)/;
 /** The read the lite pack can answer (the Predict page runs the engine on it: PredictPage's useOfflineFallback). */
 const PACK_PREDICT_PATH = /^\/api\/predict\/match(\?|$)/;
-/** No answer in this long, for a read this device could answer itself: treat it as no signal. */
-export const OFFLINE_TIMEOUT_MS = 4000;
+/** No answer in this long, for a read this device could answer itself: its saved answer shows meanwhile, labelled as
+ *  a slow connection, and the server's answer still replaces it when it comes (awaitLate). Never "offline" by itself. */
+export const OFFLINE_TIMEOUT_MS = SLOW_MS;
+/** A slow read whose saved answer is on screen is waited for this long in all (nginx gives up at 60 s anyway). */
+export const LATE_MS = 60_000;
+/** A read that is slow, not failed: what a page that keeps its own copy (the Predict page's lite pack, a match
+ *  report's snapshot) gets meanwhile. `offline` is true so the page shows its copy; the code says it's only slow. */
+export const SLOW_CODE = "slow";
 
 /**
  * Could data saved on this device answer this read if the server can't be reached? "saved": a saved
@@ -179,9 +188,54 @@ async function offlineOr<T>(path: string, method: string | undefined, error: Api
   return data as T;
 }
 
+// "You're offline" only when the connection check found no internet: navigator.onLine says so wrongly on iOS.
 const unreachable = () => new ApiError(0,
   connection().internet === "portal" ? "This Wi-Fi isn't giving internet."
-    : navigator.onLine === false || offlineNow() ? "You're offline." : "Can't reach the server right now.", true);
+    : offlineNow() ? "You're offline." : "Can't reach the server right now.", true);
+/** A read still on its way after OFFLINE_TIMEOUT_MS, for a page that shows its own copy meanwhile (SLOW_CODE). */
+export const SLOW_MESSAGE = "Slow connection: still waiting for the server.";
+const slowError = () => (offlineNow() ? unreachable() : new ApiError(0, SLOW_MESSAGE, true, SLOW_CODE));
+/** The error is only a slow read (still on its way), not a failed one. */
+export const isSlowError = (e: unknown): boolean => (e as { code?: unknown } | null)?.code === SLOW_CODE;
+
+/** Slow reads still on their way after their saved answer (or a page's own copy) went on screen, by path: one each. */
+const late = new Map<string, AbortController>();
+
+/**
+ * Keep waiting for a slow read whose saved answer (or slow error) is already on screen: its answer, when it comes,
+ * replaces what the cache holds for the path (unless a newer server answer is there already), and saved-data mode ends
+ * once nothing on screen is saved. Given up after LATE_MS. A newer late read for the same path takes its place.
+ */
+function awaitLate(path: string, request: Promise<Response>, ctrl: AbortController, asker: string | undefined) {
+  late.get(path)?.abort();
+  late.set(path, ctrl);
+  const waiting = noteWaiting(0); // already slow: the connection reads as slow until it settles
+  const t = setTimeout(() => ctrl.abort(), LATE_MS);
+  void request.then(async (res) => {
+    if (!res.ok) return; // an error answer never replaces data (the next retry asks again)
+    const text = await res.text();
+    const body: unknown = JSON.parse(text);
+    lastAnswerAt = Date.now();
+    answeredSinceFail = true;
+    if (answeredNow(res)) noteServerAnswer();
+    if (body === null || typeof body !== "object") return;
+    if (asker !== undefined) void keepAnswer(path, body, asker);
+    lateArrived(path, body);
+  }).catch(() => {}).finally(() => {
+    clearTimeout(t);
+    waiting();
+    if (late.get(path) === ctrl) late.delete(path);
+  });
+}
+
+/** A slow read's answer arrived: it replaces the saved answer (or slow error) cached for its path. */
+function lateArrived(path: string, body: unknown) {
+  const cur = cache.get(path);
+  // A newer server answer is already there: it stands.
+  if (cur?.data !== undefined && !offlineSource(cur.data) && !cur.error) return;
+  prime(path, body);
+  if (!offlineOnScreen().length) setUsingSaved(false);
+}
 
 /** The server sent this answer within the last few seconds (its Date header), so it came over the network now, not
  *  from the browser's HTTP cache. A device clock far off just means answers don't count: the checks still do. */
@@ -220,12 +274,13 @@ async function answerOffline<T>(path: string, init: (RequestInit & { json?: unkn
 const TIMED_OUT = Symbol("timed out");
 
 /**
- * The response, or no signal. A read saved data could answer gets OFFLINE_TIMEOUT_MS for the server's
- * headers (once they arrive, the server has answered: its status stands however slow the body is).
- * Past that, a prediction counts as no signal at once (the page runs the lite pack); a saved-season read
- * races the server against the saved answer, and keeps waiting for the server if they can't answer.
+ * The response, or a saved answer to show meanwhile. A read saved data could answer gets OFFLINE_TIMEOUT_MS for the
+ * server's headers (once they arrive, the server has answered: its status stands however slow the body is).
+ * Past that it is slow, not offline: a prediction or a frozen report fails as slow (SLOW_CODE: the page shows its own
+ * copy), a saved-season read races the server against the saved answer (and keeps waiting for the server if they
+ * can't answer). Either way the request goes on (awaitLate), and its answer replaces the copy when it arrives.
  */
-async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "snapshot", path: string, ctrl: AbortController): Promise<Response | { saved: T }> {
+async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "snapshot", path: string, ctrl: AbortController, asker: string | undefined): Promise<Response | { saved: T }> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), OFFLINE_TIMEOUT_MS); });
   const first = await Promise.race([request, deadline]).finally(() => clearTimeout(timer));
@@ -243,7 +298,8 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
     throw new ApiError(0, SEARCH_SLOW, false, SEARCH_RETRY);
   };
   noteRequestFailed(); // no answer in time: the connection check finds out whether there's any internet
-  if (kind === "lite" || kind === "snapshot") { ctrl.abort(); throw unreachable(); }
+  // Kept going: its answer replaces the page's copy when it comes (a weak signal answers in 2 to 6 s).
+  if (kind === "lite" || kind === "snapshot") { awaitLate(path, request, ctrl, asker); throw slowError(); }
   // A search asked before anything else answered (the page's first request), while the server has answered
   // something since: slow, not offline. It gets up to SEARCH_SLOW_MS in all, then one more try as any search while
   // the server is up (apiFetch, searchOnline); saved data never answers.
@@ -279,7 +335,8 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
     const more = await slowRest();
     if (more !== TIMED_OUT) return more;
   }
-  ctrl.abort();
+  // Shown meanwhile; the server's answer still comes and replaces it.
+  awaitLate(path, request, ctrl, asker);
   return { saved: won.data as T };
 }
 
@@ -309,9 +366,9 @@ function summaryWhole(path: string, data: unknown): boolean {
   const got = new Set(((data as { teams?: Pick<TeamSummary, "team">[] }).teams ?? []).map((t) => String(t.team)));
   return asked.every((t) => got.has(String(Number(t))));
 }
-/** The server is up: the browser says it's online and the server answered within the last minute, since the last
- *  request that failed for want of a network. */
-const serverUp = () => navigator.onLine !== false && answeredSinceFail && Math.abs(Date.now() - lastAnswerAt) < 60_000;
+/** The server is up: it answered within the last minute, since the last request that failed for want of a network
+ *  (whatever navigator.onLine says: iOS can say offline while online). */
+const serverUp = () => answeredSinceFail && Math.abs(Date.now() - lastAnswerAt) < 60_000;
 
 /** A search while the server is up: SEARCH_SLOW_MS a try, two tries. Twice no network at all is no signal after all
  *  (saved data answers, as for any read); a server error of 500+ stands after the retry; slow is said plainly.
@@ -379,6 +436,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   const asker = keepable(path, rest.method) ? keptOwner() : undefined;
   let res: Response;
   let answered = false;
+  // Waiting long makes the connection read as slow (never offline) until the headers arrive or it fails.
+  const waiting = noteWaiting();
   try {
     const request = fetch(path, {
       credentials: "same-origin",
@@ -388,15 +447,19 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
       body: json !== undefined ? JSON.stringify(json) : rest.body,
     });
     request.catch(() => {}); // aborted once a saved answer is used: nobody waits on it then
-    const got = kind && ctrl ? await respond<T>(request, kind, path, ctrl) : await request;
+    const got = kind && ctrl ? await respond<T>(request, kind, path, ctrl, asker) : await request;
+    waiting();
     // The caller let it go (a newer search): nobody waits on an answer, so none is made from saved data either.
     if (outer?.aborted) throw callerAborted();
-    if (!(got instanceof Response)) { answeredSinceFail = false; setUsingSaved(true); return got.saved; }
+    // Slow, not failed: the saved answer shows meanwhile (the request goes on, awaitLate), and the server still counts
+    // as up.
+    if (!(got instanceof Response)) { setUsingSaved(true); return got.saved; }
     res = got;
     answered = true;
     lastAnswerAt = Date.now();
     answeredSinceFail = true;
   } catch (e) {
+    waiting();
     // Let go because the connection check found no internet: the offline answer, now.
     if (flipped && !outer?.aborted) { stopWatching(); watch.failed(); return answerOffline<T>(path, init); }
     // The page's first search ran out its first try while the server answered other requests: one more try.
@@ -548,25 +611,33 @@ function offlineOnScreen(): string[] {
 }
 
 /** Ask the server again for whatever is on screen from saved data, or showing a no-signal error (not
- *  already being asked; a quiet retry: it stays on screen until answered). */
-function refetchOffline() {
-  for (const path of offlineOnScreen()) if (!cache.get(path)?.promise) load(path, true, true).catch(() => {});
+ *  already being asked; a quiet retry: it stays on screen until answered). A slow read still on its way (awaitLate)
+ *  is left to answer, so a line slower than the retries still gets its answer; `fresh` (the line came back after
+ *  none): asked again anyway, as a read sent before the line went may never answer. */
+function refetchOffline(fresh = false) {
+  for (const path of offlineOnScreen()) {
+    if (cache.get(path)?.promise) continue;
+    if (late.has(path)) { if (!fresh) continue; late.get(path)!.abort(); late.delete(path); }
+    load(path, true, true).catch(() => {});
+  }
 }
 
 // Back online: whatever is on screen from saved seasons is fetched fresh (its answer switches offline
 // mode off); with nothing on screen from them, offline mode simply ends.
 if (typeof window !== "undefined") {
-  window.addEventListener("online", () => { if (offlineOnScreen().length) refetchOffline(); else setUsingSaved(false); });
+  window.addEventListener("online", () => { if (offlineOnScreen().length) refetchOffline(true); else setUsingSaved(false); });
 }
 // The connection check found the internet again (lib/connection.ts): the same, in the background (each entry keeps
 // its saved data on screen until the server's answer replaces it).
 // A check confirmed internet while the pill was on for a saved answer (a slow read answered from saved data while
 // the server was up): nothing changed for onInternetChange, so this clears it once nothing saved is on screen.
 onInternetConfirmed(() => { if (!offlineOnScreen().length) setUsingSaved(false); });
-onInternetChange((now) => {
+onInternetChange((now, before) => {
   if (now === "no" || now === "portal") warmOffline();
   if (now !== "yes") return;
-  if (offlineOnScreen().length) refetchOffline(); else setUsingSaved(false);
+  // Back after none: reads sent before may never answer, so they're asked again. After "unknown" (the first check),
+  // a slow read still on its way is left to answer.
+  if (offlineOnScreen().length) refetchOffline(before === "no" || before === "portal"); else setUsingSaved(false);
 });
 
 type IdleWindow = Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };

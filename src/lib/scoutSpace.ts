@@ -13,6 +13,7 @@
 //   (useQueuedScoutSync, moveQueuedToPersonal).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { onBackOnline } from "./connection";
 import { useFlag } from "./flags";
 import { usePersonal, type AccountUser } from "./personal";
 import { ACCOUNT_STALE, moveQueuedToPersonal, pendingScoutCounts, pullScouting, SCOUT_DENIED, SCOUT_READ_ONLY, syncQueuedScouting, syncScouting, type ScoutSpace } from "./scouting";
@@ -212,9 +213,9 @@ export function useQueuedScoutSync(): void {
     };
     const tick = () => { const p = pendingScoutCounts(); if (p.personal || list.some((w) => p.workspaces[w]) || left().length || stuck().length) run(); };
     tick();
-    window.addEventListener("online", run);
+    const offBack = onBackOnline(run); // the browser's online event, or the connection check finding internet again
     const t = setInterval(tick, QUEUE_RETRY_MS);
-    return () => { alive = false; window.removeEventListener("online", run); clearInterval(t); };
+    return () => { alive = false; offBack(); clearInterval(t); };
   }, [syncReady, ids, readOnly, memberOf]);
   useEffect(() => {
     // A refusal (403: removed; 423: read-only) or a live notice that the account's spaces changed: re-read it now.

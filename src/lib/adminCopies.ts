@@ -3,6 +3,7 @@
 // comes before the entry syncs, so the line says where it's going, not that it's there yet; the server's own answer
 // (`copiedTo` on each sync result) is what's confirmed.
 import { usePersonal } from "./personal";
+import { shownOffline, useConnection } from "./connection";
 import { workspaceLabel } from "./scoutSpace";
 import { workspaceFlagOn } from "./flags";
 import type { ScoutSpace } from "./scouting";
@@ -34,6 +35,6 @@ export function savedToLine(workspaces: readonly Space[], space: ScoutSpace,
 export function useSavedToLine(space: ScoutSpace, author?: number | null): string | null {
   const { user } = usePersonal();
   const cp = user?.controlPoint;
-  const online = typeof navigator === "undefined" ? true : navigator.onLine;
+  const online = !shownOffline(useConnection());
   return savedToLine(cp?.workspaces ?? [], space, { me: cp?.accountId ?? null, author, online, paused: (id) => !workspaceFlagOn("workspaceScouting", id) });
 }

@@ -131,7 +131,7 @@ These keys never leave the device (`DEVICE_ONLY_KEYS`):
 | `cs-install` | The add-to-home-screen nudge on this device (`src/lib/installNudge.ts`): `{v, lastShown: "YYYY-MM-DD", dismissed?, installed?}`. See "Add-to-home-screen nudge" below |
 | `cs-install-demo` | `"1"` lets a browser driven by automation see the nudge (`npm run shots -- --install`); real visitors never have it |
 | `cs-lite-demo` | `"1"` shows the slow-connection card at once, as if the page had waited 9 s (`npm run shots -- --storage lite-demo.json /teams/4215`, where `lite-demo.json` holds `{"cs-lite-demo":"1"}`); real visitors never have it |
-| `cs-connection-demo` | `"offline"` or `"portal"` shows the Offline pill (or the Wi-Fi sign-in wording) at once, for screenshots; real visitors never have it |
+| `cs-connection-demo` | `"offline"`, `"portal"` or `"slow"` shows the Offline pill (or the Wi-Fi sign-in wording, or Slow connection) at once, for screenshots; real visitors never have it |
 | `cs-recent-searches` | This device's recent searches (`src/components/search/discover.tsx`): up to 6 query strings, newest first, shown in an empty search box's list with one tap to run again. "Clear" removes them all |
 
 The queue's entries go up as entries (that is the queue's job). The queue key

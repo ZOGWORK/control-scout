@@ -1,11 +1,11 @@
 // Loading / error / empty states — every page uses these, so no page ever
 // shows a blank screen or a raw error.
 import type { ReactNode } from "react";
-import { AlertTriangle, PowerOff, RefreshCw, Search, SearchX, ServerOff, WifiOff } from "lucide-react";
+import { AlertTriangle, PowerOff, RefreshCw, Search, SearchX, ServerOff, SignalLow, WifiOff } from "lucide-react";
 import { useSearch } from "./layout/Search";
 import { Button } from "./ui/button";
 import { EmptyState } from "./page";
-import { isFeatureDisabled, type ApiError, type ApiState } from "../lib/api";
+import { isFeatureDisabled, isSlowError, type ApiError, type ApiState } from "../lib/api";
 import { useConnection } from "../lib/connection";
 import { featureOffMessage, type Flag } from "../shared/flags";
 import { cn } from "./cn";
@@ -51,16 +51,20 @@ function FetchErrorState({ error, onRetry, className }: { error: ApiError | Erro
   // "Offline" only when there's no internet (the device says so, or the connection check found none or a Wi-Fi
   // sign-in page, src/lib/connection.ts); online with no answer is the server's fault, not yours.
   const portal = offline && conn.internet === "portal";
-  const noNetwork = offline && (conn.internet === "no" || portal || (typeof navigator !== "undefined" && navigator.onLine === false));
+  // Never navigator.onLine: iOS says offline while online.
+  const noNetwork = offline && (conn.internet === "no" || portal);
+  // Only slow (still on its way, lib/api.ts awaitLate): its answer shows by itself when it arrives.
+  const slow = !noNetwork && isSlowError(error);
   const status = (error as ApiError).status;
   const search = useSearch();
   const missing = status === 404 || status === 400;
   return (
     <EmptyState
       className={className}
-      icon={noNetwork ? WifiOff : offline ? ServerOff : missing ? SearchX : AlertTriangle}
-      title={portal ? "No internet on this Wi-Fi" : noNetwork ? "You're offline" : offline ? "Can't reach the server" : status === 404 ? "Not found" : status === 400 ? "That isn't valid" : "Couldn't load this"}
+      icon={slow ? SignalLow : noNetwork ? WifiOff : offline ? ServerOff : missing ? SearchX : AlertTriangle}
+      title={portal ? "No internet on this Wi-Fi" : slow ? "Slow connection" : noNetwork ? "You're offline" : offline ? "Can't reach the server" : status === 404 ? "Not found" : status === 400 ? "That isn't valid" : "Couldn't load this"}
       description={portal ? "This Wi-Fi isn't giving internet. It may need you to sign in: open any website to see its sign-in page. This page needs a connection."
+        : slow ? "Still waiting for the server. This shows by itself as soon as it arrives."
         : noNetwork ? "This page needs a connection. Predictions still work offline from a downloaded lite pack (see Download)."
         : offline ? "Control Scout didn't answer. Try again in a moment; predictions still work from a downloaded lite pack (see Download)." : error.message}
       // A bad or missing address won't fix itself: no "Try again" for 400/404.

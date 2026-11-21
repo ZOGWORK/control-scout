@@ -15,7 +15,7 @@ vi.mock("./offline/predict", () => { loaded.push("predict"); return {}; });
 vi.mock("./packs", () => { loaded.push("packs"); return {}; });
 vi.mock("sql.js/dist/sql-wasm-browser.js", () => { loaded.push("sql.js"); return {}; });
 
-import { ApiError, OFFLINE_TIMEOUT_MS, SEARCH_SLOW, SEARCH_SLOW_MS, apiFetch, load, noteOfflineAnswer, useApi, useOfflineMode } from "./api";
+import { ApiError, OFFLINE_TIMEOUT_MS, SEARCH_SLOW, SEARCH_SLOW_MS, SLOW_CODE, apiFetch, isSlowError, load, noteOfflineAnswer, useApi, useOfflineMode } from "./api";
 import { markOffline, offlineSource, writeSaved, type SavedSeason } from "./offline/saved";
 import { PACK_META_KEY } from "./packPolicy";
 
@@ -210,7 +210,7 @@ describe("no signal: the packs answer", () => {
     expect(mode.result.current).toBe(false);
   });
 
-  it("no answer within the timeout counts as no signal, for a read a saved season can answer", async () => {
+  it("no answer within the timeout: a read a saved season can answer shows it meanwhile (slow, not offline)", async () => {
     vi.useFakeTimers();
     writeSaved([saved]);
     vi.stubGlobal("fetch", hanging());
@@ -277,20 +277,82 @@ describe("no signal: the packs answer", () => {
 });
 
 describe("recovery: back to the server", () => {
-  it("after a timeout, the next server answer switches back and refetches what's on screen", async () => {
+  /** A fetch whose answers the test hands out: each call waits until answered, failed, or aborted. */
+  const scripted = () => {
+    const calls: { ok: (r: Response) => void; fail: (e: unknown) => void }[] = [];
+    const fetch = vi.fn((_p: string, init?: RequestInit) => new Promise<Response>((ok, fail) => {
+      init?.signal?.addEventListener("abort", () => fail(new DOMException("aborted", "AbortError")));
+      calls.push({ ok, fail });
+    }));
+    vi.stubGlobal("fetch", fetch);
+    return { fetch, calls };
+  };
+
+  it("slow, not offline: saved data shows meanwhile, the request goes on, and its answer replaces it", async () => {
     vi.useFakeTimers();
     writeSaved([saved]);
-    vi.stubGlobal("fetch", hanging());
+    const net = scripted();
     const path = "/api/teams/777";
     const view = renderHook(() => useApi<{ path?: string; from?: string }>(path));
     await act(() => vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS));
     expect(offlineSource(view.result.current.data)).toEqual(src);
     expect(mode.result.current).toBe(true);
-    // Signal's back (the browser never said it was gone): the next retry gets the server's answer.
+    // Six seconds in all (a weak phone signal): the server's answer arrives and takes over. Nothing was let go.
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    expect(net.fetch).toHaveBeenCalledTimes(1);
+    await act(async () => { net.calls[0].ok(ok({ from: "server" })); await vi.advanceTimersByTimeAsync(0); });
+    expect(view.result.current.data).toEqual({ from: "server" });
+    expect(offlineSource(view.result.current.data)).toBeNull();
+    expect(mode.result.current).toBe(false);
+    view.unmount();
+  });
+
+  it("a slow request that then fails is asked again by the background retry, whose answer replaces the saved data", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]);
+    const net = scripted();
+    const path = "/api/teams/778";
+    const view = renderHook(() => useApi<{ path?: string; from?: string }>(path));
+    await act(() => vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS));
+    expect(offlineSource(view.result.current.data)).toEqual(src);
+    await act(async () => { net.calls[0].fail(new TypeError("Failed to fetch")); await vi.advanceTimersByTimeAsync(0); });
+    // No online event ever comes (the network never said it went): the retry asks again.
     vi.stubGlobal("fetch", vi.fn(async () => ok({ from: "server" })));
     await act(() => vi.advanceTimersByTimeAsync(15_000));
     expect(view.result.current.data).toEqual({ from: "server" });
-    expect(offlineSource(view.result.current.data)).toBeNull();
+    expect(mode.result.current).toBe(false);
+    view.unmount();
+  });
+
+  it("the retries leave a slow request still on its way alone (a line slower than they are still gets its answer)", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]);
+    const net = scripted();
+    const path = "/api/teams/779";
+    const view = renderHook(() => useApi<{ path?: string; from?: string }>(path));
+    await act(() => vi.advanceTimersByTimeAsync(20_000)); // past a background retry
+    expect(net.fetch).toHaveBeenCalledTimes(1);
+    await act(async () => { net.calls[0].ok(ok({ from: "server" })); await vi.advanceTimersByTimeAsync(0); });
+    expect(view.result.current.data).toEqual({ from: "server" });
+    view.unmount();
+  });
+
+  it("a slow prediction with a lite pack saved: a slow error meanwhile (the page shows the pack's call), then the server's answer", async () => {
+    vi.useFakeTimers();
+    localStorage.setItem(PACK_META_KEY, JSON.stringify({ version: "v", seasons: [2025] }));
+    const net = scripted();
+    const path = "/api/predict/match?season=2025&red=1,2&blue=3,4";
+    const view = renderHook(() => useApi(path));
+    await act(() => vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS));
+    expect(view.result.current.error).toMatchObject({ offline: true, code: SLOW_CODE });
+    expect(isSlowError(view.result.current.error)).toBe(true);
+    act(() => noteOfflineAnswer()); // what the page does once it shows the lite pack's prediction
+    await act(() => vi.advanceTimersByTimeAsync(15_000)); // a background retry: the slow request is left alone
+    expect(net.fetch).toHaveBeenCalledTimes(1);
+    expect(view.result.current.loading).toBe(false); // still the page's own copy, never a loading block
+    await act(async () => { net.calls[0].ok(ok({ pRed: 0.5 })); await vi.advanceTimersByTimeAsync(0); });
+    expect(view.result.current.data).toEqual({ pRed: 0.5 });
+    expect(view.result.current.error).toBeUndefined();
     expect(mode.result.current).toBe(false);
     view.unmount();
   });
@@ -298,43 +360,23 @@ describe("recovery: back to the server", () => {
   it("background retries keep an offline error on screen (the Predict page's lite-pack answer stays) until the server answers", async () => {
     vi.useFakeTimers();
     localStorage.setItem(PACK_META_KEY, JSON.stringify({ version: "v", seasons: [2025] }));
-    vi.stubGlobal("fetch", hanging());
-    const path = "/api/predict/match?season=2025&red=1,2&blue=3,4";
-    const view = renderHook(() => useApi(path));
-    await act(() => vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS));
-    expect(view.result.current.error?.offline).toBe(true);
-    act(() => noteOfflineAnswer()); // what the page does once it shows the lite pack's prediction
-    const seen: boolean[] = [];
-    view.rerender();
-    await act(() => vi.advanceTimersByTimeAsync(15_000)); // a retry goes out (and hangs)
-    seen.push(!!view.result.current.error?.offline, view.result.current.loading);
-    expect(seen).toEqual([true, false]); // still the offline error, never a loading block
-    vi.stubGlobal("fetch", vi.fn(async () => ok({ pRed: 0.5 })));
-    await act(() => vi.advanceTimersByTimeAsync(15_000));
-    expect(view.result.current.data).toEqual({ pRed: 0.5 });
-    expect(mode.result.current).toBe(false);
-    view.unmount();
-  });
-
-  it("an unrelated answer mid-retry doesn't stop the retries: the offline prediction still recovers", async () => {
-    vi.useFakeTimers();
-    localStorage.setItem(PACK_META_KEY, JSON.stringify({ version: "v", seasons: [2025] }));
-    const fetch = vi.fn(hanging());
-    vi.stubGlobal("fetch", fetch);
+    networkDown();
     const path = "/api/predict/match?season=2025&red=5,6&blue=7,8";
     const view = renderHook(() => useApi(path));
-    await act(() => vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS));
-    act(() => noteOfflineAnswer());
-    await act(() => vi.advanceTimersByTimeAsync(15_000)); // a quiet retry goes out and hangs
-    // Meanwhile an unrelated request gets an answer: offline mode ends while the retry is still out.
-    vi.stubGlobal("fetch", vi.fn(async (p: string) => (p === "/api/meta" ? ok({}) : fetch(p, { signal: new AbortController().signal }))));
-    await act(async () => { await apiFetch("/api/meta"); });
-    await act(() => vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS)); // that retry times out again
+    await act(() => vi.advanceTimersByTimeAsync(0));
     expect(view.result.current.error?.offline).toBe(true);
-    // The connection really comes back: the next retry still happens and gets the answer.
+    act(() => noteOfflineAnswer());
+    const net = scripted();
+    await act(() => vi.advanceTimersByTimeAsync(15_000)); // a retry goes out (and waits)
+    expect(net.fetch).toHaveBeenCalledTimes(1);
+    expect([!!view.result.current.error?.offline, view.result.current.loading]).toEqual([true, false]);
+    // Meanwhile an unrelated request gets an answer: the retry still stands and its answer is used.
+    await act(async () => { net.calls[0].fail(new TypeError("Failed to fetch")); await vi.advanceTimersByTimeAsync(0); });
     vi.stubGlobal("fetch", vi.fn(async () => ok({ pRed: 0.4 })));
+    await act(async () => { await apiFetch("/api/meta"); });
     await act(() => vi.advanceTimersByTimeAsync(15_000));
     expect(view.result.current.data).toEqual({ pRed: 0.4 });
+    expect(mode.result.current).toBe(false);
     view.unmount();
   });
 

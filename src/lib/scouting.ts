@@ -9,6 +9,7 @@
 // workspace's entries are pulled by the server's cursor.
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch, isAccessDenied, isFeatureDisabled } from "./api";
+import { onBackOnline } from "./connection";
 import type { EntryPhoto } from "../shared/photos";
 import { dropRestored, exportLostEdits, LOST_PREFIX, lostBackupFailed, mergeLostLists, recordLostEdit, SCOUT_OVERWRITTEN } from "./lostEdits";
 import { READ_ONLY_STATUS } from "../shared/orphaned";
@@ -866,7 +867,8 @@ export function useScouting(filter: { season?: number; team?: number }, signedIn
     window.addEventListener(EVT, refresh);
     window.addEventListener("storage", refresh);
     const online = () => run();
-    window.addEventListener("online", online);
+    // Back online: the browser's event, or the connection check finding internet again (iOS sends no event).
+    const offBack = onBackOnline(online);
     const t = setInterval(() => { if (dirty(space).size) run(); }, 30_000);
     // A save in this space goes up at once (a burst of saves, together), not at the next 30 s tick.
     let soon: ReturnType<typeof setTimeout> | null = null;
@@ -886,7 +888,7 @@ export function useScouting(filter: { season?: number; team?: number }, signedIn
     window.addEventListener(SAVED, saved);
     run();
     return () => {
-      window.removeEventListener(EVT, refresh); window.removeEventListener("storage", refresh); window.removeEventListener("online", online); window.removeEventListener(SAVED, saved);
+      window.removeEventListener(EVT, refresh); window.removeEventListener("storage", refresh); offBack(); window.removeEventListener(SAVED, saved);
       clearInterval(t); if (soon) clearTimeout(soon);
     };
   }, [read, run, space, signedIn]);

@@ -621,7 +621,8 @@ function Matches({ d, team, live }: { d: EventDetail; team: number | null; live:
 /** Rankings tab columns (FTC Scout's: RS, TBP, played, record, np OPR / AVG / MAX) plus Control Scout's win % and odds. */
 const RANKING_COLS = ["rank", "rp", "tb1", "qualMatchesPlayed", "wins", "losses", "ties", "scheduleDifficulty", "totalPointsNpOpr", "swing", "totalPointsNpAvg", "totalPointsNpMax", "predictedWinPctAvg", "advancementOdds"];
 const NOTE_NO_RECORDS = "Filters, every stat and CSV export arrive here after the next stats update. Until then, the official ranking:";
-const NOTE_OFFLINE = "You're offline, so here is the ranking saved on this device. Filters, every stat and export need a connection.";
+// Said the same whether the line is gone or only slow: the live ranking replaces it by itself either way.
+const NOTE_OFFLINE = "This is the ranking saved on this device. Filters, every stat and export need the live data, which loads by itself.";
 /** An unofficial event (a scrimmage…): its records are real, but the ratings never learn from them. */
 function UnofficialNote({ text }: { text: string }) {
   return <p className="mb-3 flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs text-muted-foreground v8:border-line v8:bg-card" data-unofficial-note><Info className="mt-0.5 size-3.5 shrink-0 text-info v8:text-text-faint" aria-hidden /><span>{text}</span></p>;
