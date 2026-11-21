@@ -21,7 +21,7 @@ import { AnswerSeason, useSeasonPick } from "./SeasonPick";
 
 export { TAP };
 /** A secondary action on an answer: underlined text, gold only on hover; the page's one primary action is the button. */
-export const SECONDARY = "inline-flex items-center gap-1 text-sm font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text";
+export const SECONDARY = "inline-flex items-center gap-1 text-sm font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text v8:hover:text-foreground";
 
 /** The H3 of a part inside an answer card. */
 export const PART = "mb-2 text-sm font-semibold text-foreground";
@@ -103,7 +103,7 @@ function TeamHeader({ who, profile, season }: { who: Who; profile?: TeamProfile 
     <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-4 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:p-6" data-answer-team={who.number}>
       <div className="min-w-0">
         <Link to={`/teams/${who.number}${season != null ? `?season=${season}` : ""}`} className="group block max-w-full rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
-          <span className="block font-display text-4xl font-semibold leading-none tracking-tight text-foreground transition-colors group-hover:text-accent-text">{who.number}</span>
+          <span className="block font-display text-4xl font-semibold leading-none tracking-tight text-foreground transition-colors group-hover:text-accent-text v8:text-accent v8:group-hover:text-accent-hover">{who.number}</span>
           <span className="mt-1.5 block break-words text-lg text-foreground/90">{name ?? "Name not on file"}</span>
         </Link>
         {/* While the team's facts are read: their line's place, held. */}
@@ -144,7 +144,7 @@ function TeamsHeader({ teams, split, season }: { teams: Who[]; split?: number; s
               <div className={cn("min-w-0 space-y-2", i === 1 && "col-start-3 text-right")} aria-label={side.map((t) => t.name ? `${t.name} (${t.number})` : `Team ${t.number}`).join(" and ")}>
                 {side.map((t) => (
                   <Link key={t.number} to={`/teams/${t.number}${q}`} className={cn("group block min-w-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60", TAP)}>
-                    <span className="block font-display text-2xl font-semibold leading-none tracking-tight tabular-nums text-foreground transition-colors group-hover:text-accent-text sm:text-3xl">{t.number}</span>
+                    <span className="block font-display text-2xl font-semibold leading-none tracking-tight tabular-nums text-foreground transition-colors group-hover:text-accent-text v8:text-accent v8:group-hover:text-accent-hover sm:text-3xl">{t.number}</span>
                     <span className="mt-1 block break-words text-sm text-foreground/90 sm:text-base">{t.name ?? "Name not on file"}</span>
                   </Link>
                 ))}
@@ -170,7 +170,7 @@ function TeamsHeader({ teams, split, season }: { teams: Who[]; split?: number; s
       </div>
       {teams.length > 2 && (
         <p className="mt-3 flex flex-wrap gap-x-4 text-sm">
-          {teams.slice(2).map((t) => <Link key={t.number} to={`/teams/${t.number}${q}`} className={cn("inline-flex items-center font-medium text-foreground hover:text-accent-text", TAP)}>{t.name ? `${t.name} (${t.number})` : `Team ${t.number}`}</Link>)}
+          {teams.slice(2).map((t) => <Link key={t.number} to={`/teams/${t.number}${q}`} className={cn("inline-flex items-center font-medium text-foreground hover:text-accent-text v8:hover:text-foreground", TAP)}>{t.name ? `${t.name} (${t.number})` : `Team ${t.number}`}</Link>)}
         </p>
       )}
     </header>
@@ -181,7 +181,7 @@ function TeamSide({ t, q, right, first, i }: { t: Who; q: string; right: boolean
   return (
     <>
       <Link to={`/teams/${t.number}${q}`} aria-label={t.name ? `${t.name} (${t.number})` : `Team ${t.number}`} className={cn("group block min-w-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60", right && "col-start-3 text-right")}>
-        <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground transition-colors group-hover:text-accent-text sm:text-4xl">{t.number}</span>
+        <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground transition-colors group-hover:text-accent-text v8:text-accent v8:group-hover:text-accent-hover sm:text-4xl">{t.number}</span>
         <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{t.name ?? "Name not on file"}</span>
         <span aria-hidden className={cn("mt-2 block h-1 w-10 rounded-full", teamFill(i), right && "ml-auto")} data-side-mark={i} />
       </Link>

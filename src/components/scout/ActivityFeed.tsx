@@ -12,7 +12,7 @@ import { Button } from "../ui/button";
 import { cn } from "../cn";
 
 const LOOK: Record<string, { icon: ComponentType<{ className?: string }>; tone: string }> = {
-  "entry.added": { icon: Plus, tone: "bg-success/15 text-success" },
+  "entry.added": { icon: Plus, tone: "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" },
   "entry.edited": { icon: Pencil, tone: "bg-accent/15 text-accent-text" },
   "entry.deleted": { icon: Trash2, tone: "bg-destructive/15 text-destructive" },
   "entry.restored": { icon: RotateCcw, tone: "bg-info/15 text-info" },
@@ -20,10 +20,10 @@ const LOOK: Record<string, { icon: ComponentType<{ className?: string }>; tone: 
   "photo.added": { icon: Camera, tone: "bg-info/15 text-info" },
   "photo.removed": { icon: ImageMinus, tone: "bg-muted text-muted-foreground" },
   "template.changed": { icon: LayoutList, tone: "bg-warning/15 text-warning" },
-  "member.joined": { icon: UserPlus, tone: "bg-success/15 text-success" },
+  "member.joined": { icon: UserPlus, tone: "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" },
   "member.left": { icon: UserMinus, tone: "bg-muted text-muted-foreground" },
   "assignment.created": { icon: ClipboardCheck, tone: "bg-sky-500/15 text-sky-600 dark:text-sky-400" },
-  "assignment.completed": { icon: CircleCheck, tone: "bg-success/15 text-success" },
+  "assignment.completed": { icon: CircleCheck, tone: "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" },
   "assignment.reopened": { icon: RotateCcw, tone: "bg-warning/15 text-warning" },
   "assignment.deleted": { icon: ClipboardX, tone: "bg-muted text-muted-foreground" },
   "assignment.match_created": { icon: ClipboardCheck, tone: "bg-sky-500/15 text-sky-600 dark:text-sky-400" },

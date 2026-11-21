@@ -38,7 +38,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, ReadHung, onceMoreIfHung } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
@@ -424,6 +424,12 @@ const READ_LIMIT_S = 120;
  *  counts. Per page, so lanes reading side by side never spend each other's budget. */
 const pageReads = new WeakMap<Page, number>();
 function readAt(page: Page, t: number, labelOnly = false): Promise<Read> {
+  return onceMoreIfHung(() => readAtLimited(page, t, labelOnly), async () => {
+    await (renewing ?? renewOcr());
+    return !ocrBroken;
+  });
+}
+function readAtLimited(page: Page, t: number, labelOnly: boolean): Promise<Read> {
   const due = pageDeadline.get(page);
   if (due && Date.now() > due.at) return Promise.reject(new EventOverTime(due.code, due.ms));
   pageReads.set(page, (pageReads.get(page) ?? 0) + 1);
@@ -433,7 +439,7 @@ function readAt(page: Page, t: number, labelOnly = false): Promise<Read> {
       if (TRACE) console.error(`    read ${Math.round(t)} s: ${r.label ?? "-"}${r.start != null ? ` from ${r.start}` : ""}${r.division ? ` (${r.division} division)` : ""}${r.why ? `: ${r.why}` : ""}`);
       return r;
     }),
-    new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new Error(`a frame read at ${Math.round(t)} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
+    new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new ReadHung(`a frame read at ${Math.round(t)} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
   ]);
 }
 
@@ -538,7 +544,9 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   const ctx = divisions.get(page);
   const teams = (text: string) => (ctx?.teams ? teamsSay(text, ctx.teams.own.get(label), ctx.teams.others.map((m) => m.get(label))) : null);
   let byTeams = false;
+  const seen = new Set<number>();
   for (const after of CONFIRM_AFTER) {
+    seen.add(after);
     const at = await readAt(page, start + after);
     if (at.division === "other") return `${after} s on the overlay named another division`;
     const team = teams(at.text);
@@ -586,7 +594,18 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
     }
     if (!read) return `the card read nothing ${COUNTDOWN_CHECK.join(", ")} s before it, so no countdown through it was ruled out`;
   }
-  if (divisions.has(page) && !own && !byTeams) return "no read of it showed its division's name (the stream carries another division too)";
+  if (divisions.has(page) && !own && !byTeams) {
+    // The bar scrolls the division's name off for most of a match: before giving up, more of the same match is read
+    // for it (DIVISION_AFTER). Any frame of it naming the other division, or showing its teams, still rules it out.
+    for (const after of DIVISION_AFTER) {
+      if (seen.has(after)) continue;
+      const at = await readAt(page, start + after);
+      const says = frameDivision(at, label, teams(at.text));
+      if (says === "other") return `${after} s on the overlay named another division or showed its teams`;
+      if (says === "own") { own = true; break; }
+    }
+    if (!own) return "no read of it showed its division's name (the stream carries another division too)";
+  }
   return null;
 }
 /** Seconds before a start read off an audience display's card that the card is read for a countdown running through it.

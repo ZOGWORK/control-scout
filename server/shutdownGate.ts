@@ -25,7 +25,7 @@ const ALWAYS = [
   /^\/api\/(auth\/.+|flags|health|digest\/(unsubscribe|webhook))\/?$/,
   new RegExp(`^${CSP_REPORT_PATH}/?$`),
   /^\/(assets|fonts)\/[A-Za-z0-9._/-]+$/,
-  /^\/(mark\.webp|mark-white\.webp|logo-56\.webp|favicon\.ico|favicon-48\.png|apple-touch-icon\.png|icon-(192|512)\.png|manifest\.webmanifest|sw\.js|robots\.txt)$/,
+  /^\/(mark\.webp|mark-white\.webp|logo-56\.webp|legacy\/(logo-56|mark)\.webp|favicon\.ico|favicon-48\.png|apple-touch-icon\.png|icon-(192|512)\.png|manifest\.webmanifest|sw\.js|robots\.txt)$/,
   /^\/[A-Za-z0-9-]{8,128}\.txt$/,
 ];
 const alwaysThrough = (path: string) => !/\.\.|%|\\/.test(path) && ALWAYS.some((re) => re.test(path));

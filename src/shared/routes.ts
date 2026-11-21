@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "StatusPage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "ConferencePage" | "RegionsPage" | "RegionRankingsPage" | "LeaguesPage" | "TeamHighlightsPage" | "TeamRecordSplitPage" | "EventHighlightsPage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "WeekendPage" | "PreviewHomePage" | "NotFound";
+  | "KitPage" | "LegacyPage" | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "StatusPage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "ConferencePage" | "RegionsPage" | "RegionRankingsPage" | "LeaguesPage" | "TeamHighlightsPage" | "TeamRecordSplitPage" | "EventHighlightsPage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "WeekendPage" | "PreviewHomePage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -22,6 +22,8 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/events\/?$/i, "EventsPage"],
   [/^\/weekend\/?$/i, "WeekendPage"],
   [/^\/preview\/home\/?$/i, "PreviewHomePage"], // the v8 sample Home: noindex, linked from nowhere
+  [/^\/legacy\/?$/i, "LegacyPage"], // switch between the new look and the classic one, on this device
+  [/^\/preview\/kit\/?$/i, "KitPage"], // every v8 token and component (docs/design/v8-revamp-brief.md): noindex
   // A season alone (/events/2025) is no event: the page not found, as EventCodeRedirect renders it.
   [/^\/events\/(?!\d{4}\/?$)[^/]+\/?$/i, "EventCodeRedirect"],
   [/^\/events\/[^/]+\/[^/]+\/?$/i, "EventPage"],
@@ -81,7 +83,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/(settings|network)$/, "Settings"], [/^\/(methodology|predict\/how-it-works|how-it-works)$/, "How it works"], [/^\/how-it-works\/search$/, "How FTC One Search works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/(donate|support)$/, "Donate"], [/^\/supporters$/, "Supporters"], [/^\/status$/, "Status"], [/^\/faq$/, "FAQ"], [/^\/rules$/, "Rules"],
   [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"], [/^\/digest\/unsubscribed$/, "Email digest"], [/^\/search$/, "Search"], [/^\/related-searches$/, "Related searches"],
   [/^\/leagues$/, "Leagues"], [/^\/leagues\/[^/]+\/[^/]+\/[^/]+$/, "League"], [/^\/leagues\/[^/]+\/[^/]+\/[^/]+\/conferences$/, "Conference rankings"],
-  [/^\/contributors\/[^/]+$/, "Contributor"], [/^\/get-verified$/, "Get Verified"], [/^\/verify-video$/, "Contributor invite"],
+  [/^\/preview\/kit$/, "Kit"], [/^\/legacy$/, "Classic look"], [/^\/contributors\/[^/]+$/, "Contributor"], [/^\/get-verified$/, "Get Verified"], [/^\/verify-video$/, "Contributor invite"],
 ];
 
 /** The page's short name in the top bar ("Control Scout / Events"); any other path is the not-found page.

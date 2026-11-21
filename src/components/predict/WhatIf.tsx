@@ -53,7 +53,9 @@ function useOfflineSwap(q: { season: number; red: number[]; blue: number[]; leve
   return out.key === key ? out : {};
 }
 
-export function WhatIf({ base, offline }: { base: MatchExplanationView;
+export function WhatIf({ base, offline, bare }: { base: MatchExplanationView;
+  /** Drawn inside a disclosure (v8's Predict): no card of its own, and the heading is the disclosure's. */
+  bare?: boolean;
   /** The snapshot an offline match was predicted from: the swap is predicted from it too, on this device. */
   offline?: OfflineSource | null }) {
   const [sp, setSp] = useSearchParams();
@@ -99,9 +101,9 @@ export function WhatIf({ base, offline }: { base: MatchExplanationView;
   };
   const side = (t: number) => (base.red.includes(t) ? "red" : "blue");
   return (
-    <section id="what-if" aria-labelledby="what-if-title" data-testid="what-if" className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
-      <h2 id="what-if-title" className="flex items-center gap-2 text-base font-semibold"><FlaskConical className="size-4 text-accent" aria-hidden /> What if?</h2>
-      <p className="mt-1 text-sm text-muted-foreground">Swap one robot for another, a different partner or opponent, and see how the call and the margin move. Same ratings, same engine.</p>
+    <section id="what-if" aria-labelledby="what-if-title" data-testid="what-if" className={bare ? undefined : "rounded-2xl border border-border bg-card p-5 max-sm:p-4"}>
+      <h2 id="what-if-title" className={bare ? "sr-only" : "flex items-center gap-2 text-base font-semibold"}>{!bare && <FlaskConical className="size-4 text-accent" aria-hidden />} What if?</h2>
+      <p className={cn("text-sm text-muted-foreground", !bare && "mt-1")}>Swap one robot for another, a different partner or opponent, and see how the call and the margin move. Same ratings, same engine.</p>
       <form onSubmit={(e) => { e.preventDefault(); run(); }} noValidate className="mt-3 flex flex-wrap items-end gap-3">
         <div role="radiogroup" aria-label="Robot to swap out" className="flex flex-wrap gap-1.5">
           {lineUp.map((t, i) => (
@@ -114,7 +116,7 @@ export function WhatIf({ base, offline }: { base: MatchExplanationView;
         </div>
         <ArrowRight className="mb-3.5 size-4 text-muted-foreground max-sm:hidden" aria-hidden />
         <div className="w-44 max-sm:w-full"><TeamInput label={`Instead of ${out}`} tone={side(out)} value={into} onChange={(v) => { setInto(v); setError(null); asked.current = ""; }} error={error} /></div>
-        <Button type="submit" disabled={!into.trim() || checking} className="h-11">Try it</Button>
+        <Button type="submit" variant={bare ? "outline" : "default"} disabled={!into.trim() || checking} className="h-11">Try it</Button>
         {swap && <Button type="button" variant="ghost" onClick={() => { asked.current = ""; set(null); }} className="h-11"><Undo2 /> Undo</Button>}
       </form>
       {swap && (after.error ? <p role="alert" className="mt-3 text-sm text-destructive">{after.error.message}</p>
