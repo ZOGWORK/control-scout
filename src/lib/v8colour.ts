@@ -5,7 +5,7 @@
 // - What you looked for (a page's headline number): the slate-blue accent, `V8_NUM` in lib/v8.ts.
 // - Alliances: the `--color-*-alliance` tokens (text-red-alliance / text-blue-alliance), never faded.
 // - Outcome: won / right / rising green, lost / upset / falling red, tied / steady a neutral grey.
-//   (v8's `success` token is white, so wins use emerald directly.)
+//   (The shared success token is green too, including Right badges.)
 // - Stat categories: purple OPR / rating, blue Auto, orange TeleOp (DC), green Endgame, red Penalty: `V8_PHASE` /
 //   `V8_CATEGORY` in lib/records/describe.ts.
 // - Awards gold; ranks #1 gold, #2 silver, #3 bronze.
