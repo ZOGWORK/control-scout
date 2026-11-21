@@ -1,5 +1,8 @@
 // The pure parts of scripts/video-frames.ts: reading FTC Live's overlay text, the timer's elapsed time, and placing a
 // video's matches from the frames read. Kept apart so they can be tested without a browser.
+// The constants the server's row rules share (server/data/frameRowRules.ts): one definition, re-exported here.
+import { NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText } from "../../server/data/frameRowRules.js";
+export { NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText };
 
 /** A played match: its label and its real start (epoch seconds, from FIRST's actual start time). */
 /** A match the video holds: its label and its start (epoch seconds). `scheduled`: FIRST gives only its scheduled time
@@ -52,8 +55,6 @@ export function enteredLater(
   });
 }
 
-/** Two reads closer than this (seconds) are the same distance: the timer reads to the second, and the frame read lags it. */
-export const SAME_S = 6;
 /** The most frames read looking for one match. */
 export const TRIES = 7;
 /** Reads a match between two reads gets of its own once the video's budget is spent: each side's tries and a confirm. */
@@ -361,25 +362,12 @@ export type Judged = {
   opens: Map<string, number>;
 };
 
-/** Why a match is missing when no frame of its video could be read at all. */
-export const NOTHING_READ = "no frame of the video could be read";
 /** A match FIRST gives only a scheduled time for (M.scheduled) that no frame walked through the video showed running. */
 export const SCHEDULED_UNREAD = "no start time from FIRST, and no frame of it read";
 
 /** The least a match can take in a video: 30 s Auto, 8 s switch, 2:00 TeleOp. Two placed starts closer than this
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
-/** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match.
- *  The 2 and 0 open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
- *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. The last two open
- *  just after it, where nothing before the start names the match: an upload cut from one match's results straight into
- *  the next match's first second (USMOKSKCM2 2021 Q15: Q14's results at 4651 s, Q15's Auto running at 4657 s), so the
- *  clip opens 2 or 4 s into its match rather than not at all. Still only on a frame that names it. */
-export const OPEN_LEADS = [20, 12, 5, 2, 0, -2, -4];
-/** OPEN_LEADS in words, for checks and summaries. */
-export const OPEN_LEADS_TEXT = "20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it";
-/** Where a clip opens against its match's start, in words: "12 s before its start", "2 s after its start". */
-export const leadText = (lead: number): string => (lead >= 0 ? `${lead} s before its start` : `${-lead} s after its start`);
 
 /** Where a clip opens: OPEN_LEADS in order, the first second whose frame names the match (`names` reads it: true names
  *  it, false doesn't, "stop" when the read failed and no more are tried). Every lead-in second (20 … 0 s before) is
