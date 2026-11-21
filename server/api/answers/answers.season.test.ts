@@ -265,6 +265,11 @@ describe("how a number changed", () => {
   });
   it("the rating across this season: its earliest and last stored weeks, the change, the team page's rating beside", async () => {
     expect(readChange("how much did 4215's rating change this season")).toEqual({ stat: "rating", core: "4215", from: null, to: 2026, defaulted: true });
+    // The stat before the team (failed search #2038), and never a stat's own word read as the team.
+    expect(readChange("predict hypnotic changes")).toEqual(readChange("hypnotic prediction changes"));
+    expect(readChange("predict hypnotic changes")).toMatchObject({ stat: "rating", core: "hypnotic" });
+    expect(readChange("opr 4215 change from 2025-26 to 2024-25")).toEqual(readChange("4215 opr change from 2025-26 to 2024-25"));
+    expect(readChange("prediction rating change")).toMatchObject({ stat: "rating", core: "" });
     const a = (await searchAnswer("how much did 4215's rating change this season", { limit: 25, full: true })).stat;
     expect(a?.title).toBe("Prediction rating change in 2025–26");
     expect(a?.headline).toMatchObject({ value: "−22.4", sub: "4 weeks on record" });

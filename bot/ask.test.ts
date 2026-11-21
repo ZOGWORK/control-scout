@@ -4,6 +4,7 @@ import type { SearchAnswer, SearchHit } from "../src/shared/api";
 import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, chatPost, fitLines, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 import { SORRY_SENTENCE } from "../src/shared/search";
+import { NO_CHAT } from "./smallTalk";
 
 const SITE = "https://controlscout.org";
 const hit = (n: number, extra: Partial<SearchHit> = {}): SearchHit => ({ kind: "team", ref: String(n), title: `${n} | Team ${n}`, subtitle: "Oradell, NJ", season: 2025, ...extra });
@@ -279,31 +280,25 @@ describe("ungrounded numbers", () => {
   });
 });
 
-describe("small talk when the search finds nothing", () => {
+describe("when no chat can answer", () => {
   const nothing = (q: string) => base({ q, hits: [], step: "recovery", recovery: { understood: ["no team, event or match"], closest: [], browse: [] } });
   /** Search finds nothing and Bruno's rewrite finds nothing either: the card is the website's sorry. */
   const plain = (q: string) => deps(nothing(q), { refine: vi.fn(async () => null) });
 
-  it("a mention with a favourite asks the bot, not the search: a chat reply credited to Control Scout", async () => {
-    const q = "who's your favorite person in this server";
-    const r = await ask(q, plain(q), SITE);
-    expect(r.chat?.by).toBe("scout");
-    expect(r.chat?.text).toMatch(/don't have favourites/);
-    expect(r.chat?.text).not.toMatch(/\d/);
-    const post = chatPost(q, r.chat!, { quote: true });
-    expect(post).toContain("-# Control Scout · [more on controlscout.org]");
-    expect(post).not.toContain("Bruno AI");
+  it("a favourite, a greeting and thanks all get the one honest fallback, credited to Control Scout", async () => {
+    for (const q of ["who's your favorite person in this server", "hi", "thanks!"]) {
+      const r = await ask(q, plain(q), SITE);
+      expect(r.chat?.by).toBe("scout");
+      expect(r.chat?.text).toBe(NO_CHAT);
+      expect(r.chat?.text).not.toMatch(/\d/);
+      // What posts is the fallback, not the card (the card only stands in for a chat that didn't happen).
+      expect(r.meta.chat).toBe(true);
+      expect(chatPost(q, r.chat!, { quote: true })).toContain("-# Control Scout · [more on controlscout.org]");
+      expect(chatPost(q, r.chat!, { quote: true })).not.toContain("Bruno AI");
+    }
   });
 
-  it("a greeting with no model gets a greeting, never the sorry card", async () => {
-    const r = await ask("hi", plain("hi"), SITE);
-    expect(r.chat?.text).toMatch(/I'm Control Scout/);
-    // What posts is the chat, not the card (the card only stands in for a chat that didn't happen).
-    expect(r.meta.chat).toBe(true);
-    expect(chatPost("hi", r.chat!, { quote: false })).not.toContain(SORRY_SENTENCE);
-  });
-
-  it("the model's chat still speaks first when it has something to say", async () => {
+  it("the model's chat speaks first when it has something to say, fallback or not", async () => {
     const facts = vi.fn(async () => []);
     const chat = vi.fn(async () => ({ text: "Hey! Ask me about a team.", search: false }));
     const r = await ask("hi", deps(nothing("hi"), { chat, facts, refine: vi.fn(async () => null) }), SITE);
@@ -312,10 +307,25 @@ describe("small talk when the search finds nothing", () => {
     expect(r.chat?.text).toBe("Hey! Ask me about a team.");
   });
 
-  it("a real question search couldn't answer keeps the honest card", async () => {
-    const q = "what is the meaning of a clean sweep in this game";
+  it("a records question search couldn't answer keeps the honest card", async () => {
+    // A number makes it a records question however short: it never gets the chat fallback.
+    const q = "who had the highest score at 2025 worlds";
     const r = await ask(q, plain(q), SITE);
     expect(r.chat).toBeUndefined();
     expect(r.embed.title).toBe(SORRY_SENTENCE);
+  });
+});
+
+describe("a chat first", () => {
+  it("a weak answer goes to the chat before search's rewrite: no refine or sentence when he replies", async () => {
+    const d = deps(base({ step: "recovery", hits: [] }), {
+      facts: vi.fn(async () => []),
+      chat: vi.fn(async () => ({ text: "I couldn't find that one — try a team number.", search: false })),
+    });
+    const r = await ask("hypnotic trophies", d, SITE);
+    expect(r.chat?.text).toBe("I couldn't find that one — try a team number.");
+    expect(r.chat?.by).toBeUndefined();
+    expect(d.refine).not.toHaveBeenCalled();
+    expect(d.bruno).not.toHaveBeenCalled();
   });
 });
