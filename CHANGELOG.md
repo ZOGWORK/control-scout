@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.7.1 — 2026-11-21
+
+Enter opens the results page with what the search box already found, instead of a loading screen.
+
+### Highlights
+- [speed] Enter shows the results the box already found, with no loading screen
+- [speed] The page then confirms them with the server's own answer
+- [speed] Typing still waits a second, so no request goes out per keystroke
+
+### Search
+- The results page starts from the answer the box's dropdown already had when Enter was pressed (`src/components/search/handoff.ts`), so a submitted search draws its teams, events and cards at once; the page's own answer replaces it as soon as it arrives. The typing pause is unchanged at one second (`SEARCH_DEBOUNCE_MS`); only Enter is served instantly.
+
 ## 7.7.0 — 2026-11-19
 
 A new look for Control Scout: calmer and darker, with each page built around what you came for. The classic look is one click away at Settings › Display › Look.
