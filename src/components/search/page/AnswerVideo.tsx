@@ -5,6 +5,7 @@
 // video dialog (components/VideoDialog.tsx, lib/streamSeek.ts), never away from search. No video: nothing is drawn.
 // Never wider than the results column (680px, the search display spec); a phone gets the card's full width at 16:9.
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { ExternalLink, Play, PlayCircle } from "lucide-react";
 import type { SearchAnswer, SearchVideo, SearchVideoItem } from "../../../shared/api";
 import type { StatAnswer } from "../../../shared/searchStat";
@@ -53,9 +54,16 @@ export function AnswerVideo({ className, only }: { className?: string; only?: st
   return (
     <p className={cn("my-3 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground", className)} data-answer-watch>
       {w.match && <span>No clip of {w.match}.</span>}
-      <a href={watchUrl(w.videoId)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-4 hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">
-        Watch the {w.day ? `${w.day} ` : ""}{what} <ExternalLink className="size-3.5" aria-hidden />
-      </a>
+      {/* On the event page's own player (watchHref), never YouTube; an older server's answer has no href. */}
+      {w.href ? (
+        <Link to={w.href} className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-4 hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-answer-watch-link>
+          <PlayCircle className="size-3.5" aria-hidden /> Watch the {w.day ? `${w.day} ` : ""}{what}
+        </Link>
+      ) : (
+        <a href={watchUrl(w.videoId)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-4 hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">
+          Watch the {w.day ? `${w.day} ` : ""}{what} <ExternalLink className="size-3.5" aria-hidden />
+        </a>
+      )}
     </p>
   );
 }

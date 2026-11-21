@@ -30,6 +30,14 @@ const video: SearchVideo = {
 const draw = (v?: SearchVideo | null) => render(<MemoryRouter><AnswerVideoProvider video={v}><StatAnswerCard stat={stat} /></AnswerVideoProvider></MemoryRouter>).container;
 
 describe("AnswerVideo", () => {
+  it("a headline match without a clip links to the recording on the event page's own player, never YouTube", () => {
+    const c = draw({ watch: { videoId: "xnQFL9T27fY", t: 0, kind: "stream", match: "M10", href: "/events/2025/USMACMP?watch=xnQFL9T27fY" }, mainRow: M10 });
+    const a = c.querySelector<HTMLAnchorElement>("[data-answer-watch] a")!;
+    expect(a.getAttribute("href")).toBe("/events/2025/USMACMP?watch=xnQFL9T27fY");
+    expect(a.getAttribute("target")).toBeNull();
+    expect(a.textContent).toBe(" Watch the recording");
+  });
+
   it("is a play button until clicked; the click loads the player at the match's second", () => {
     const c = draw(video);
     expect(c.querySelector("iframe")).toBeNull();

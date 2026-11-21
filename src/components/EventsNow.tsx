@@ -7,7 +7,7 @@ import { CalendarClock } from "lucide-react";
 import type { EventListItem } from "../shared/api";
 import { cn } from "./cn";
 import { LiveDot } from "./EventChips";
-import { RowStatus, shortDates, where } from "./EventBrowse";
+import { EventWatch, RowStatus, shortDates, where } from "./EventBrowse";
 import { nowAndNext, NOW_ROWS, NOW_ROWS_PHONE } from "../pages/eventsList";
 
 const ROW = "flex h-14 min-w-0 items-center gap-3 px-4";
@@ -50,16 +50,18 @@ export function EventsNow({ events, loading, onLive, className }: {
       </div>
       <ul className="grid border-t border-line lg:grid-cols-2">
         {items.map((e, i) => (
-          <li key={e.code} className={cn("min-w-0 border-b border-line lg:odd:border-r", phoneHidden(i))}>
-            <Link to={`/events/${e.season}/${e.code}`} className={cn(ROW, "transition-colors duration-150 still-hover:bg-ink/[0.03]")} data-now-row={e.status}>
+          <li key={e.code} className={cn("flex min-w-0 items-center border-b border-line lg:odd:border-r", phoneHidden(i))}>
+            <Link to={`/events/${e.season}/${e.code}`} className={cn(ROW, "min-w-0 flex-1 transition-colors duration-150 still-hover:bg-ink/[0.03]")} data-now-row={e.status}>
               <span className="w-[4.75rem] shrink-0 text-sm tabular-nums text-text-muted max-sm:hidden">{shortDates(e.start, e.end)}</span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-text-base" title={e.name}>{e.name}</span>
                 <span className="block truncate text-xs text-text-faint"><span className="sm:hidden">{shortDates(e.start, e.end)} · </span>{e.typeLabel} · {where(e)}</span>
               </span>
               {/* The title says "Coming up": only live, finished and video say anything here. */}
-              {e.status !== "upcoming" && <span className="shrink-0"><RowStatus e={e} /></span>}
+              {e.status !== "upcoming" && <span className="shrink-0"><RowStatus e={e} chip /></span>}
             </Link>
+            {/* A stream or recording on record: the event page's own player, beside the row's link (never YouTube). */}
+            <EventWatch e={e} className="mr-3" />
           </li>
         ))}
       </ul>
