@@ -22,7 +22,7 @@ export const V8_SOFT = {
   green: { fill: "v8:bg-emerald-400/10 v8:text-emerald-300", text: "v8:text-emerald-300", bar: "v8:bg-emerald-400", edge: "v8:border-l-emerald-400/70", stroke: "v8:stroke-emerald-400", icon: "v8:[&_svg]:text-emerald-300" },
   red: { fill: "v8:bg-rose-400/10 v8:text-rose-300", text: "v8:text-rose-300", bar: "v8:bg-rose-400", edge: "v8:border-l-rose-400/70", stroke: "v8:stroke-rose-400", icon: "v8:[&_svg]:text-rose-300" },
   live: { fill: "v8:bg-live/10 v8:text-live", text: "v8:text-live", bar: "v8:bg-live", edge: "v8:border-l-live/70", stroke: "v8:stroke-live", icon: "v8:[&_svg]:text-live" },
-  neutral: { fill: "v8:bg-white/[0.08] v8:text-foreground", text: "v8:text-foreground", bar: "v8:bg-white/30", edge: "v8:border-l-white/15", stroke: "v8:stroke-white/30", icon: "v8:[&_svg]:text-text-faint" },
+  neutral: { fill: "v8:bg-ink/[0.08] v8:text-foreground", text: "v8:text-foreground", bar: "v8:bg-ink/30", edge: "v8:border-l-ink/15", stroke: "v8:stroke-ink/30", icon: "v8:[&_svg]:text-text-faint" },
 } as const satisfies Record<string, Soft>;
 export type SoftColour = keyof typeof V8_SOFT;
 
@@ -75,8 +75,8 @@ export const V8_STAGGER = [
  *  accent: the #1 rank), 2 and 3 plain words on a hairline. Never a fill behind text. */
 export const V8_PODIUM: Record<number, string> = {
   1: "v8:bg-transparent v8:text-accent v8:ring-1 v8:ring-inset v8:ring-accent/40",
-  2: "v8:bg-transparent v8:text-foreground v8:ring-1 v8:ring-inset v8:ring-white/12",
-  3: "v8:bg-transparent v8:text-foreground v8:ring-1 v8:ring-inset v8:ring-white/12",
+  2: "v8:bg-transparent v8:text-foreground v8:ring-1 v8:ring-inset v8:ring-ink/12",
+  3: "v8:bg-transparent v8:text-foreground v8:ring-1 v8:ring-inset v8:ring-ink/12",
 };
 
 /** v8: a stat tile's colour by what its number is (owner 11-19), or null for the row's own (kpiSwatches):
@@ -98,7 +98,7 @@ export function v8Tile(c: SoftColour | null) {
 /** v8: an event's status as a quiet hint (never a banner or a coloured strip): a soft tint chip and a small dot.
  *  Finished a soft green, upcoming the slate-blue accent, live the live red. Wins stay white elsewhere. */
 export const V8_STATUS = {
-  finished: { chip: "v8:bg-[#8fd3a6]/10 v8:text-[#a9dcba] v8:ring-[#8fd3a6]/25", dot: "v8:bg-[#8fd3a6]" },
+  finished: { chip: "v8:bg-[#8fd3a6]/10 v8:text-[#a9dcba] v8:ring-[#8fd3a6]/25 v8light:bg-[#047857]/10 v8light:text-[#047857] v8light:ring-[#047857]/25", dot: "v8:bg-[#8fd3a6] v8light:bg-[#059669]" },
   upcoming: { chip: "v8:bg-accent/10 v8:text-accent v8:ring-accent/30", dot: "v8:bg-accent" },
   live: { chip: "v8:bg-live/10 v8:text-live v8:ring-live/35", dot: "v8:bg-live" },
 } as const;
