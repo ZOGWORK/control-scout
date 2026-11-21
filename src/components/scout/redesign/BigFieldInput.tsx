@@ -108,7 +108,7 @@ export function BigFieldInput({ f, value, onChange, tone = "default", disabled, 
         <button type="button" aria-label={`${f.label}: ${n}. Add one`} disabled={disabled || n >= hi} onClick={() => onChange(Math.min(hi, n + 1))}
           className={cn(card, tap, "flex min-h-[72px] items-center justify-between gap-3 border-input px-4 text-left hover:bg-text-base/[0.04] active:border-accent/60 active:bg-accent/10",
             // v8: the press is the 0.97 shrink on a white fill, never a coloured flash (brief §4.2, forms matter most).
-            "v8:transition-[background-color,border-color,scale] v8:duration-150 v8:ease-out v8:active:scale-[0.97] v8:active:border-white/25 v8:active:bg-white/[0.08] motion-reduce:v8:active:scale-100")}>
+            "v8:transition-[background-color,border-color,scale] v8:duration-150 v8:ease-out v8:active:scale-[0.97] v8:active:border-ink/25 v8:active:bg-ink/[0.08] motion-reduce:v8:active:scale-100")}>
           <span className="min-w-0">
             <span className="block font-semibold leading-snug">{f.label}</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">{n >= hi ? `Most is ${hi}` : "Tap to add 1"}</span>
@@ -160,7 +160,7 @@ export function BigFieldInput({ f, value, onChange, tone = "default", disabled, 
               <button key={o.key} type="button" role="radio" aria-checked={on} disabled={disabled} onClick={() => onChange(on ? undefined : o.v)}
                 tabIndex={i === stop ? 0 : -1} data-index={i}
                 className={cn(tap, "min-h-[44px] rounded-lg border px-2 text-sm font-semibold break-words v8:min-h-12 v8:active:scale-[0.97] motion-reduce:v8:active:scale-100 v8:transition-[color,background-color,border-color,scale]",
-                  on ? "border-accent/60 bg-accent/10 text-foreground v8:border-white/30 v8:bg-white/10" : "border-border text-muted-foreground hover:text-foreground v8:border-white/[0.12]")}>{o.key}</button>
+                  on ? "border-accent/60 bg-accent/10 text-foreground v8:border-ink/30 v8:bg-ink/10" : "border-border text-muted-foreground hover:text-foreground v8:border-ink/[0.12]")}>{o.key}</button>
             );
           })}
         </div>
