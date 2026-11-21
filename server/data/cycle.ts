@@ -120,10 +120,13 @@ export function childArgs(execArgv: readonly string[], script: string): string[]
   return [...flags, script];
 }
 
-/** Run a TypeScript script in a child Node process from the app's folder (exported for its test). */
-export function runScriptInChild(script: string, what: string, timeoutMs: number, execArgv: readonly string[] = process.execArgv, args: readonly string[] = []): Promise<void> {
+/** Run a TypeScript script in a child Node process from the app's folder (exported for its test).
+ *  `onMessage`: the child gets an IPC channel (process.send), and each message it sends is handed over. */
+export function runScriptInChild(script: string, what: string, timeoutMs: number, execArgv: readonly string[] = process.execArgv, args: readonly string[] = [],
+  o: { onMessage?: (m: unknown) => void } = {}): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [...childArgs(execArgv, script), ...args], { cwd: APP_ROOT, env: process.env, stdio: ["ignore", "inherit", "inherit"] });
+    const child = spawn(process.execPath, [...childArgs(execArgv, script), ...args], { cwd: APP_ROOT, env: process.env, stdio: o.onMessage ? ["ignore", "inherit", "inherit", "ipc"] : ["ignore", "inherit", "inherit"] });
+    if (o.onMessage) child.on("message", o.onMessage);
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.once("error", (e) => { clearTimeout(timer); reject(e); });
     child.once("exit", (code, signal) => {
