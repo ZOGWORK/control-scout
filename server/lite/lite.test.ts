@@ -204,7 +204,7 @@ describe("light pages", () => {
 });
 
 describe("the app's theme and text size (cookies)", () => {
-  // The classic look (a device that picked /legacy) draws the app's five themes; v8 is dark only (below).
+  // The classic look (a device that picked /legacy) draws the app's themes; v8 draws them too (below).
   const page = async (cookie: string) => {
     const r = await get(`/lite/teams/10005`, { headers: { cookie: `cs-v8=0; ${cookie}` } });
     expect(r.headers.get("vary")).toMatch(/Cookie/);
@@ -235,7 +235,7 @@ describe("the app's theme and text size (cookies)", () => {
 
 describe("the look: v8 unless this device picked the classic one", () => {
   const html = async (path: string, cookie = "") => (await get(path, cookie ? { headers: { cookie } } : {})).text();
-  it("draws v8 by default: dark only, its own stylesheet, no gold anywhere", async () => {
+  it("draws v8 by default: its own stylesheet, no gold anywhere", async () => {
     const v8 = await html("/lite/teams/10005");
     expect(v8).toMatch(/<html lang="en" data-v8><head>/);
     expect(v8).toContain(`<meta name="theme-color" content="#0a0a0b">`);
@@ -250,8 +250,20 @@ describe("the look: v8 unless this device picked the classic one", () => {
     expect(LITE_V8_STYLE).toContain(".brand path{fill:var(--fg)}");
     // No yellow, mint or teal in what v8 paints (the mark's inline gold is painted over).
     for (const c of ["#ffc700", "#eab308", "#7fd1ae", "#14b8a6", "#2dd4bf"]) expect(LITE_V8_STYLE, c).not.toContain(c);
-    // The theme cookie waits (v8 is dark only, as in the app); the text size still applies.
-    expect(await html("/lite/teams/10005", "cs-theme=light; cs-text-size=l")).toContain(`<html lang="en" data-v8 data-text-size="l">`);
+    // The theme cookie applies in v8 too, as in the app: Light near-white with ink text and the deeper slate blue.
+    const light = await html("/lite/teams/10005", "cs-theme=light; cs-text-size=l");
+    expect(light).toContain(`<html lang="en" class="light" data-v8 data-text-size="l">`);
+    expect(light).toContain(`<meta name="theme-color" content="#fafafa">`);
+    expect(LITE_V8_STYLE).toMatch(/html\.light\{color-scheme:light;--bg:#fafafa;--fg:#18181b;[^}]*--acc:#3f5a96/);
+    expect(await html("/lite/teams/10005", "cs-theme=dim")).toContain(`<html lang="en" class="dim" data-v8>`);
+    expect(LITE_V8_STYLE).toContain("@media(prefers-color-scheme:light){html.sys{");
+    // Every light-only value is set for Light and for System on a light device alike: the live red included.
+    const lightBlock = /html\.light\{--wn[^}]*\}/.exec(LITE_V8_STYLE)![0].replace("html.light", "");
+    expect(LITE_V8_STYLE).toContain(`@media(prefers-color-scheme:light){html.sys${lightBlock}}`);
+    expect(lightBlock).toContain("--lv:#c81e1e");
+    expect(LITE_V8_STYLE).toContain(".lv{color:var(--lv)}");
+    // The retired Midnight is Dark.
+    expect(await html("/lite/teams/10005", "cs-theme=midnight")).toMatch(/<html lang="en" data-v8><head>/);
   });
   it("the classic look from the app's cookie, or ?v8= for this load", async () => {
     const classic = await html("/lite/teams/10005", "cs-v8=0");
@@ -558,8 +570,8 @@ describe("the rest of Lite: the same answers as the API", () => {
 
   it("settings: theme and text size as links that set the app's cookies, Lite on or off, and the network settings", async () => {
     const { html: v8 } = await lightPage("/lite/settings", "/settings");
-    expect(v8).toContain("The new look is dark only for now.");
-    expect(v8).not.toContain(`href="/lite/theme?set=`);
+    expect(v8).not.toContain("dark only");
+    for (const t of ["light", "dim", "dark", "system"]) expect(v8).toContain(`href="/lite/theme?set=${t}&amp;next=%2Flite%2Fsettings"`);
     const { html, r } = await lightPage("/lite/settings?v8=0", "/settings");
     expect(r.headers.get("cache-control")).toBe("private, no-store");
     for (const t of ["light", "dim", "dark", "system"]) expect(html).toContain(`href="/lite/theme?set=${t}&amp;next=%2Flite%2Fsettings"`);
