@@ -2,7 +2,8 @@
 
 Every event with an official recording gets frame-checked per-match clips without anyone running the frame reader
 (docs/frame-timings.md) by hand. A recording the official-videos watcher links (every 6 h) is in the queue within one
-coverage check (5 minutes), and the next autopilot run reads it and opens the data PR.
+coverage check (5 minutes), and the next autopilot run reads it and hands what it read to the live server, which puts
+it on the site at once or, when it breaks a rule, holds it for the owner's approval. No PR, no review, no deploy.
 
 ## The queue (`server/videos/frameQueue.ts`)
 
@@ -25,22 +26,18 @@ YouTube shows data-centre addresses a "Sign in to confirm you're not a bot" page
 GitHub-hosted runner (the embed never loads) and already seen on the VM (#1445). So the runner is a scheduled job on a
 computer at home, in a clone kept for it alone. Each run:
 
-1. brings the clone to main, and rebuilds its own open PRs on main only when main changed one of their rows since they
-   branched, they conflict, or they still carry a release (opened before data PRs dropped theirs): never to renumber.
-   Its rows are applied to main's season file again and any CHANGELOG.md or package.json/lock put back to main's. A
-   row main changed meanwhile (another read got there first) is checked again; one that no longer passes is left out,
-   and a PR with none left is closed. Every open PR, rebuilt or not, gets the `no-changelog` label if it lacks it and a
-   Loopy review request for its head unless Loopy's summary already names that head (at most once a head a day:
-   `.data/autopilot/asked.json`), so a step that failed once is done on the next run;
+1. brings the clone to main (its start, below);
 2. takes a read-only snapshot of the live database (`VACUUM INTO` over ssh, copied down, removed from the VM);
-3. takes the queue from it; skips events already in an open PR (the autopilot's, or any other PR adding rows for the
-   event to a season's frame-read file: `heldElsewhere`, read again just before PRs open, where such an event's rows
+3. lays the rows the live server serves from its database (`auto_reads`, below) over main's season files and clip
+   checks, in memory and on disk for the reader (put back when the run ends), so an event whose rows live only in the
+   database counts as read; takes the queue from that; skips events another session's open PR adds rows for to a
+   season's frame-read file (`heldElsewhere`, read again just before a read is handed over, where such an event's rows
    wait), events listed in `.data/autopilot/skip.txt` (one `season/code` a line, `#` comments: left by hand to a session
    reading them with no PR open yet), events read lately with nothing new
    (tried again after 3 days, left after 3 such reads until their recording or matches change), and events whose good
    rows waited last time (read again after 6 h, doubling each wait in a row up to 3 days; waits never count toward
    the 3);
-4. reads up to `--max` events (12) with `scripts/video-frames.ts --season N --codes … --live <main's season file>`
+4. reads up to `--max` events (12) with `scripts/video-frames.ts --season N --codes … --live <the season file as live>`
    (`--all` for an event with rows already), then `--verify`, then `--bounds`. The reader's output goes into the run's
    log as it comes (lines starting `  | `, one when each video starts and when it's done), so a long read shows it's
    working. One event may take at most as long as its videos' summed length, and never less than 3 hours (`--event-limit`,
@@ -54,62 +51,76 @@ computer at home, in a clone kept for it alone. Each run:
    event stopped that way and the video it was on, to look at by hand. A whole
    reader call past its own limit (a backstop over the events' own: a day a read, or the sum of its events' limits and an hour when that's more; 3 for `--verify` and `--bounds`) is stopped with its whole process
    tree (`scripts/lib/streamRun.ts`);
-5. checks every row it changed against main's (`rowProblems`, scripts/lib/autopilotRows.ts) and leaves out, with its
-   reasons in the run's log, any that breaks a rule:
+5. checks every row it changed against what's live (`rowProblems`, server/data/frameRowRules.ts, the one definition
+   the server checks with too; scripts/lib/autopilotRows.ts re-exports it) and logs any rule a row breaks:
    - every start plausible (in order, a match apart: the server's own `plausibleStarts`);
    - every start placed or moved opens 20, 12, 5, 2 or 0 s before it (or, where nothing before it names the match, 2 or 4 s after it) on a paused frame naming the match (`opens`);
    - no new placement `unconfirmed` (only a live clip whose opening frame named nothing stays so);
    - a live clip leaves only when a frame at its opening names another match;
-   - a re-read is dated after the live row;
-6. opens data PRs per season file, each changing that file only: no CHANGELOG entry, no version (owner's rule,
-   2026-11-17), labelled `clip-autopilot` and `no-changelog`. A changed row stays on its own line and a new row goes
-   just before the first row whose event code sorts after its own, so PRs from different sources don't conflict.
-   Rows whose changes touch (one gap, neighbouring lines) go in one PR, and each PR's diff stays under 12 KB
-   (`prChunks`, scripts/lib/autopilotRows.ts). Rows that would touch an open PR's lines, and those that don't fit under
-   12 KB, wait for a later run, on the main those PRs leave; their events aren't counted as tried. A group too big
-   for one PR is split at whole events. A single row whose own diff is too big for Loopy (16 KB) is never shipped:
-   it's logged for the owner, and its event counts a try. Each PR gets a review request. It merges once Loopy gives 5/5 on the exact head and CI is
-   green: by the runner itself at a later run (below), or by the main session.
+   - a re-read is dated after the live row.
 
-## Merging its own PRs
+   A row whose video showed the reader nothing (`nothingRead`: no start, and every match missing because no frame
+   could be read or the video couldn't be played) is a failed read: never handed over, its event read again later;
+6. hands the rest to the live server, one delivery per season (below). An event whose rows went live is done; one
+   whose rows wait for the owner counts a try (read again after 3 days, left after 3), so it isn't read every run while
+   it waits;
+7. sweeps up to `--sweep` events' clock-placed clips by their first frame (`video-frames.ts --clips`, shard 0 only)
+   and hands the changed `server/data/clipChecks.ts` rows over the same way, checked by `clipCheckProblems`.
 
-At the start of each run, after rebuilding any of its PRs whose rows main changed (a rebuilt PR waits for the review
-of its new head), the runner merges at most one of its own data PRs (its label, branch and mark; it runs as the
-owner's GitHub account, so who opened a PR is no safeguard: the gate is), and only when nothing stops it (`scripts/lib/autopilotPr.ts` and `scripts/lib/autopilotMerge.ts`):
+## On the live server (`server/videos/autoReads.ts`)
 
-- Loopy's latest summary says `Confidence: 5/5` and last reviewed the PR's exact head; every check passed (5 or more);
-- it changes its data file only: data PRs carry no CHANGELOG entry and no version (owner's rule, 2026-11-17), so
-  there's no version to check; one opened before, still carrying CHANGELOG.md or package.json/lock, waits;
-- its rows, measured from where it branched and checked against main's now: no row removed; no live start moved more
-  than 2 s or dropped; a new start only where the live row had the match missing or for review; every opening 20, 12,
-  5, 2 or 0 s before its start; no opening or end edge read more than 120 s from the recording's edge unless every
-  frame between was clear; no video already filed under another season; starts in order within each group (quals,
-  each semifinal series, a double-elimination bracket with replays after their own match, finals); every clip the
-  site plays now still plays (a row gaining its first openings stops playing every start left without one). A sweep
-  PR keeps the sweep's rules (`clipCheckProblems`);
-- main's last commit is at least 605 s old (every merge deploys; the same spacing the main driver keeps).
+A delivery is one JSON file, `{ kind: "frames" | "clips", season, rows, source }`, written over ssh as the app's own
+user (`sudo -u controlscout`) to a dot-file in `<DATA_DIR>/auto-reads-inbox/` on the VM
+(`/opt/control-scout/shared/data/auto-reads-inbox/`), then renamed to `*.json`, so the server never reads half a file.
+The VM key the snapshot already uses is the only credential. The server makes the inbox at boot and looks at it once a
+minute (`startAutoReadsInbox`; off with the rest of the schedule under `CS_NO_SCHEDULER`):
 
-It merges with `gh pr merge --merge --match-head-commit <head>` (never deleting the branch), then waits up to 20
-minutes for `/api/health` to serve the merge: `ready`, and its `release` the merge commit or a main commit after it.
-Gating takes minutes, so main is read again just before the merge: if it moved since the gate read it, or isn't 605 s
-quiet any more (when main last moved is GitHub's record of the push, not a commit's own date), nothing merges this
-run. Those last seconds are closed by the merge lock every merger to main takes (`scripts/merge-lock.mjs`, the ref
-`refs/locks/merge`): the runner takes it as `clip-autopilot` after the pick, waits 15 s, reads main again, merges, and
-releases it once the live site serves the merge (or nothing merged). GitHub creates a ref only once, so of two takers
-one gets it; a lock held over 45 minutes (its holder died) is taken over. Another holder's lock means nothing merges
-this run. The main session's driver takes it once per pass of merges (`node scripts/merge-lock.mjs take main-driver 0`:
-it merges on exit 0 only; 3 is held, 1 not taken), renews it before each merge (`renew main-driver`, so a pass longer
-than 45 minutes isn't taken over; 3 means it isn't the driver's any more), and releases it at the end, whatever
-happened (`release main-driver`). `status` says who holds it. A PR whose gate can't be read (gh, git, a malformed file) waits without
-stopping the PRs after it. A PR the gate stops waits, its reasons in the run's log, for the next run or the owner. `npx tsx scripts/autopilot-merge-check.ts <PR…>` prints the same gate for any PR, changing nothing;
-`--no-merge` runs the autopilot without merging.
+- each file is claimed by renaming it into `claimed/`: during a zero-gap deploy two server processes run at once, and
+  only one rename of a file succeeds, so a delivery is applied once. A claim left over 30 minutes (its server stopped
+  mid-file) is put back for the next poll;
+- the claimed files are applied under the data lock (`withDataLock`, one writer at a time, across processes and the
+  sync cycle), each row against the row the site serves now (the database's, else the code's), with the event's played
+  matches in played order for the order check:
+  - **no problem**: live at once (`auto_reads.live_json`), no PR, no deploy. Every reader of the frame rows and clip
+    checks (frameStart, frameRow, coverage, the queue) sees it: the database's rows are laid over the code's
+    (`setAutoFrameRows`, `setAutoClipChecks`; a database row replaces the code's row of the same video and event unless
+    the code's was read later, `dbRowWins`), and every cache is cleared;
+  - **any problem**: waits for the owner (`pending_json`, with its problems in plain words). A later read of the same
+    video and event replaces it (a clean one clears it);
+  - **nothing read** (`nothingRead`): dropped, logged, never shown to the owner;
+- each delivery is audited (`autoReads.delivery`: what went live, what waits, what was dropped), and its file
+  removed. A file that isn't a delivery goes to `rejected/`, with why beside it; one whose rows couldn't be written
+  goes back into the inbox for the next poll.
+
+**Owner › Clip coverage › Waiting for approval** lists what waits, newest first: the event, its video (opening just
+before the first change), what the read changes against what's live (matches added, moved and pulled, as chips that
+play that second, and the clip counts), and the rules it broke. **Approve** puts it live as read; **Reject** drops it
+(what's live stays, and the event can be read again). Both name the read the owner saw, so one replaced meanwhile is
+refused ("look again"), and both are audited (`autoReads.approve`, `autoReads.reject`). Every owner decision is written under the same data lock as the inbox (busy over 15 s: "try again"). The menu's Clip coverage badge
+counts what waits. Rows live in the database are never in the shipped snapshot (`auto_reads` is private).
+
+Below them, **Seen in the video, kept off the site** lists every frame row's `review` entry: a match the frames saw at
+second `t` that a rule kept from being a clip (its opening frame shows another match, one frame read only, out of order
+or overlapping, played twice). They're listed from the frame rows themselves, code and database alike (not through
+Clip coverage, which checks videos only for some matches, so none is hidden), less those already served and those
+rejected at that second. Each shows the event, the match, a button that plays the video at `t` in the app's player,
+and the reason. **Approve** (`approveReview`) writes `t` into the event's live row in the database as the match's start
+(the code's row copied there first), with an opening `CLIP_LEAD_S` before it where the row checks openings, out of
+`review` and `missing`, and marks it `approved` (with the reason approved over, `approvedWhy`). An approved start is
+served whatever the plausibility check says and never makes a neighbour implausible (`playableStarts`). A later re-read
+keeps it (`carryApproved`, server/data/frameRowRules.ts, which the autopilot runs too): a re-read that drops it or
+leaves it for review again gets it back, unless a frame at its opening names another match, other than the one the
+owner approved it over. A read can't mark a start approved itself. **Reject** records the decision
+(`review_decisions`), and the entry isn't listed again at that second. Both are audited (`autoReads.reviewApprove`,
+`autoReads.reviewReject`).
 
 Logs: `.data/autopilot/runs/<time>.log` in the clone (every command and its output), `.data/autopilot/task.log` (the
 schedule's). What it remembers between runs: `.data/autopilot/memory.json`.
 
 ## Setting it up (Windows)
 
-Once, on a computer at home that can play YouTube, with `git`, `gh` (signed in), `node` 24 and the VM's ssh key
+Once, on a computer at home that can play YouTube, with `git`, `gh` (signed in: it reads other sessions' open PRs),
+`node` 24 and the VM's ssh key
 (`~/.ssh/oracle-controlpoint`, or `AUTOPILOT_SSH_KEY`):
 
 ```bash
@@ -129,15 +140,14 @@ its coordinator) and only reads. Each coordinator run, for every lane, over ssh:
 
 - **collects** a finished (or failed) job: the rows each season's read changed, whether a read failed, and the events
   stopped at their limit (`.data/lane/results/<job>` there, copied to `.data/autopilot/lanes/<K>/` here). They're checked
-  and shipped as the coordinator's own reads (`settle`: `rowProblems`, `prChunks`, its memory), so every PR opens in
+  and handed over as the coordinator's own reads (`settle`: `rowProblems`, its memory), so every delivery is sent from
   one place;
 - **sends** an idle lane its next job: up to `--max` events of its shard (`pickEvents`, with the coordinator's memory),
-  a copy of this run's snapshot (gzipped), and `job.json`, then starts it. Events in a job not yet collected are held
-  like an open PR's;
+  a copy of this run's snapshot (gzipped), and `job.json`, then starts it. The lane lays the snapshot's live rows over
+  main's files as the coordinator does. Events in a job not yet collected are held;
 - **waits** on one still reading, and starts again a job not started within an hour (`laneStep`).
 
-The coordinator keeps (rebuilds, labels, asks reviews for) the open PRs of its own shard and its lanes' (`prShard`: the
-shard of a PR's first event), and alone runs the clip sweep. A lane needs its own clone, node, Playwright's Chromium
+The coordinator alone hands reads to the server and runs the clip sweep. A lane needs its own clone, node, Playwright's Chromium
 and tesseract.js, and the coordinator's ssh key; nothing else. With no flags, a computer reads the whole queue alone.
 
 A real run always goes through `scripts/clip-autopilot-start.mjs` (plain Node). It first waits, up to 30 minutes, for 3 GB
@@ -148,5 +158,6 @@ back to main (a killed run can leave files changed), and runs `npm ci` when main
 anything runs from `node_modules`. The runner refuses a real run its start didn't begin: on Windows, `npm ci` can't
 replace `node_modules` under the running tsx (its `esbuild.exe` is held open).
 
-To try it without opening PRs, in any checkout: `npx tsx scripts/clip-autopilot.ts --dry --max 1` reads and checks,
-prints the PRs it would open, and leaves the files as they were.
+To try it without handing anything over, in any checkout: `npx tsx scripts/clip-autopilot.ts --dry --max 1` reads and
+checks, prints what it would hand the server, and leaves the files as they were. `--no-merge` is accepted and ignored
+(nothing merges any more).
