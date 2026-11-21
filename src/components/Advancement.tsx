@@ -319,7 +319,7 @@ function AlliancePanel({ season, code, fc, team, mode, nameOf, onPeek }: { seaso
         {data.options.map((o, i) => {
           const delta = o.pAdvance - data.baseline.pAdvance;
           return (
-            <StaggerItem as="li" key={o.team} className={cn("rounded-xl border border-border bg-card p-4 v8:border-line", i === 0 && "border-accent/50 ring-1 ring-accent/20 v8:border-white/[0.12] v8:ring-0")}>
+            <StaggerItem as="li" key={o.team} className={cn("rounded-xl border border-border bg-card p-4 v8:border-line", i === 0 && "border-accent/50 ring-1 ring-accent/20 v8:border-ink/[0.12] v8:ring-0")}>
               <div className="flex items-start gap-3">
                 <span className="font-display text-2xl font-semibold tabular-nums text-muted-foreground/70">{i + 1}</span>
                 <div className="min-w-0 flex-1">
@@ -370,8 +370,8 @@ function Field({ fc, team, nameOf, field, season, onPick, onPrefetch, onPeek }: 
           return (
             <li key={t.team} className={cn("border-b border-border last:border-b-0", t.team === team && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent")}>
               <button type="button" aria-expanded={isOpen} aria-controls={id} onClick={() => toggle(t.team)}
-                className={cn("group/f flex w-full items-center gap-3 px-4 py-3 text-left transition-colors max-sm:px-3 hover:bg-accent/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 v8:hover:bg-white/[0.03]",
-                  isOpen && "bg-accent/[0.05] v8:bg-white/[0.03]")}>
+                className={cn("group/f flex w-full items-center gap-3 px-4 py-3 text-left transition-colors max-sm:px-3 hover:bg-accent/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 v8:hover:bg-ink/[0.03]",
+                  isOpen && "bg-accent/[0.05] v8:bg-ink/[0.03]")}>
                 <span className="min-w-0 flex-1">
                   <span className="flex min-w-0 items-baseline gap-2">
                     <span className="shrink-0 text-sm font-semibold tabular-nums">{t.team}</span>
