@@ -237,7 +237,9 @@ sweep reads the overlay at each one's first frame, recorded in `server/data/clip
 - **noOverlay**: no frame of the video showed a readable overlay (older seasons' layouts). Its clips can't be checked
   by frame; they're counted and never pulled.
 
-The sweep runs season by season, newest first, and each data PR reports its measured counts (`clipCheckTotals`).
+The sweep runs season by season, newest first. The clip autopilot hands what it found to the live server
+(docs/clip-autopilot.md), which puts a row live at once, or holds one that breaks a rule for the owner; Owner › Clip
+coverage reports the measured counts (`clipCheckTotals`).
 
 ## Not covered
 

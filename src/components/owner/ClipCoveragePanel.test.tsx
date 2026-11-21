@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { CoverageMatch, CoverageTriage, OwnerClipCoverage, OwnerCoverageEvent } from "../../shared/api";
+import type { CoverageMatch, CoverageTriage, OwnerAutoReads, OwnerClipCoverage, OwnerCoverageEvent } from "../../shared/api";
 import { onVideoDialog, type MatchPlay } from "../../lib/streamSeek";
 import { resetOptimistic } from "../../lib/optimistic";
 import { kindOf, kindTotals, secondOf } from "./clipReview";
@@ -44,14 +44,29 @@ const page = (list: string): OwnerClipCoverage => ({
   seasons: [{ season: 2026, open: 2, actionable: 0 }, { season: 2025, open: 3, actionable: 1 }],
   totals: { events: 1392, played: 45695, withClip: 29333, full: 708 },
 });
+/** The clip autopilot's reads waiting for approval (AutoReadsPanel, on top of the panel). */
+const AUTO = (): OwnerAutoReads => ({
+  total: 1,
+  lastDelivery: { at: new Date().toISOString(), source: "amelia 2026-11-21T10-00-00", kind: "frames", live: 5, pending: 1, dropped: 0 },
+  pending: [{
+    kind: "frames", videoId: "autoVideo01", season: 2025, code: "USCOLIQ", eventName: "Colorado League Qualifier", pendingAt: "2026-11-21T10:05:00.000Z",
+    source: "amelia 2026-11-21T10-00-00", checked: "2026-11-21", problems: ["Q7: a live clip dropped without a frame naming another match"],
+    changes: [{ label: "Q7", what: "pulled", from: 4200, to: null }, { label: "Q12", what: "added", from: null, to: 6000 }], before: 20, after: 20, at: 4195, liveFrom: "code",
+  }],
+});
 vi.mock("../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../lib/api")>()),
-  useApi: (path: string) => { h.paths.push(path); return { data: page(new URL(path, "http://x").searchParams.get("list") ?? "actionable"), error: undefined, loading: false, reload: () => {} }; },
+  useApi: (path: string) => {
+    if (path.startsWith("/api/owner/auto-reads")) return { data: AUTO(), error: undefined, loading: false, reload: () => {} };
+    h.paths.push(path);
+    return { data: page(new URL(path, "http://x").searchParams.get("list") ?? "actionable"), error: undefined, loading: false, reload: () => {} };
+  },
   prime: () => {},
   markStale: () => {},
   apiFetch: async (path: string, init: { json: unknown }) => {
     h.sent.push({ path, json: init.json });
     if (h.fail) throw new Error("The list changed");
+    if (path.startsWith("/api/owner/auto-reads")) return { ...AUTO(), pending: [], total: 0 };
     return { ...page("actionable"), marked: 2 };
   },
 }));
@@ -92,6 +107,17 @@ describe("clipReview kinds", () => {
 });
 
 describe("ClipCoveragePanel, a review screen", () => {
+  it("shows the autopilot's reads waiting for approval on top: what changes, the rules broken, Approve sends the read seen", async () => {
+    show();
+    const card = document.querySelector("[data-auto-read]")!;
+    expect(card.getAttribute("data-auto-read")).toBe("frames/autoVideo01/USCOLIQ");
+    expect(card.textContent).toContain("Colorado League Qualifier");
+    expect([...card.querySelectorAll("[data-change]")].map((c) => `${c.textContent}:${c.getAttribute("data-change")}`)).toEqual(["Q7 pulled:pulled", "Q12 added:added"]);
+    expect(card.querySelector("[data-auto-read-problems]")!.textContent).toBe("Q7: a live clip dropped without a frame naming another match");
+    expect(document.querySelector("[data-auto-reads-last]")!.textContent).toContain("5 rows live");
+    fireEvent.click(card.querySelector("[data-auto-read-approve]")!);
+    await waitFor(() => expect(h.sent.at(-1)).toEqual({ path: "/api/owner/auto-reads/approve", json: { kind: "frames", videoId: "autoVideo01", code: "USCOLIQ", pendingAt: "2026-11-21T10:05:00.000Z" } }));
+  });
   it("shows the two meters and opens on To review, one card per event with a chip per missing match", () => {
     show();
     expect(h.paths[0]).toBe("/api/owner/clip-coverage?list=actionable");

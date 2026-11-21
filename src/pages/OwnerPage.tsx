@@ -101,13 +101,14 @@ export default function OwnerPage() {
   // The official-video watcher's review queue (docs/official-videos.md).
   const ov = useApi<{ pending: number }>("/api/owner/official-videos/counts").data;
   // Recorded events with played matches missing a clip, not yet reviewed (server/videos/coverageCheck.ts).
-  const cc = useApi<{ open: number }>("/api/owner/clip-coverage/counts").data;
+  // And the clip autopilot's reads waiting for approval (server/videos/autoReads.ts).
+  const cc = useApi<{ open: number; approvals?: number }>("/api/owner/clip-coverage/counts").data;
   const badges: Partial<Record<PanelId, { n: number; what: string; urgent?: boolean }[]>> = o ? {
     feedback: [{ n: o.inbox.openFeedback, what: "open feedback" }, { n: o.inbox.errorReports, what: "error reports", urgent: true }],
     accounts: [{ n: o.orphanedWorkspaces ?? 0, what: "orphaned spaces" }],
     moderation: [{ n: o.commonsReports ?? 0, what: "reported commons entries", urgent: true }],
     ...(ov ? { officialVideos: [{ n: ov.pending, what: "to review" }] } : {}),
-    ...(cc ? { clipCoverage: [{ n: cc.open, what: "actionable events to review" }] } : {}),
+    ...(cc ? { clipCoverage: [{ n: cc.approvals ?? 0, what: "autopilot reads waiting for approval", urgent: true }, { n: cc.open, what: "actionable events to review" }] } : {}),
     ...(vc ? { contributors: [{ n: vc.requests, what: "verification requests" }, { n: vc.reports, what: "reported videos", urgent: true }] } : {}),
   } : {};
   // Phones and tablets: keep the open section's chip in view in the scrolling row.
