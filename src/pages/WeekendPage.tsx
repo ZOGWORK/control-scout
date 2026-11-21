@@ -5,7 +5,7 @@
 // readings search answers from, so the page and search never list different events or a different match.
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarDays, CalendarX2, PlayCircle, Radio, Search, Star } from "lucide-react";
+import { CalendarDays, CalendarX2, Radio, Search, Star } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -22,6 +22,9 @@ import type { Weekend } from "../shared/query/time";
 import { useIsV8 } from "../lib/v8";
 import { LiveDot } from "../components/EventChips";
 import { shortDates } from "../components/EventBrowse";
+import { WatchChip } from "../components/WatchChip";
+import { watchHref } from "../shared/stream";
+import { youtubeId } from "../shared/personal";
 
 const WHICH: { id: Weekend; label: string }[] = [{ id: "last", label: "Last weekend" }, { id: "this", label: "This weekend" }, { id: "next", label: "Next weekend" }];
 
@@ -68,7 +71,7 @@ export default function WeekendPage() {
           <div className="flex flex-wrap items-center gap-2 pb-2 max-sm:pb-0 sm:ml-auto [&_svg]:text-text-faint">
             <PlacePicker info={places.data} loading={places.loading} value={region ? [region] : []} onChange={(keys) => go({ region: keys.at(-1) ?? null })} />
             {mine && (
-              <button type="button" onClick={() => go({ region: mineOn ? null : mine })} aria-pressed={mineOn} className={cn(trigger, mineOn ? "border-white/20 bg-white/[0.08]" : "border-white/[0.12] bg-transparent still-hover:bg-white/[0.04]")} title={`Events in ${placeName(mine)}, where team ${myTeam} is from`}>
+              <button type="button" onClick={() => go({ region: mineOn ? null : mine })} aria-pressed={mineOn} className={cn(trigger, mineOn ? "border-ink/20 bg-ink/[0.08]" : "border-ink/[0.12] bg-transparent still-hover:bg-ink/[0.04]")} title={`Events in ${placeName(mine)}, where team ${myTeam} is from`}>
                 <Star className="size-4" />My region<span className="text-text-muted max-sm:hidden">· {placeName(mine)}</span>
               </button>
             )}
@@ -162,11 +165,16 @@ export default function WeekendPage() {
 
 const GROUP = { live: "Live now", upcoming: "Upcoming", finished: "Finished" } as const;
 
+/** The row's recording on the event page's own player: the server's in-app link, or (an older server's YouTube link,
+ *  a saved answer) the event page's player all the same, never YouTube. */
+const inApp = (e: Pick<WeekendEvent, "season" | "code" | "recording">) =>
+  e.recording?.startsWith("/") ? e.recording : watchHref(e.season, e.code, e.recording ? youtubeId(e.recording) : null);
+
 /** v8's row: day, name with kind, place and teams; live is the red dot, a recording is its own link beside the row. */
 function EventRowV8({ e }: { e: WeekendEvent }) {
   return (
     <li className="flex items-center" data-weekend-event={e.code}>
-      <Link to={e.href} className="flex min-h-14 min-w-0 flex-1 items-center gap-4 px-4 py-2.5 transition-colors duration-150 still-hover:bg-white/[0.03]">
+      <Link to={e.href} className="flex min-h-14 min-w-0 flex-1 items-center gap-4 px-4 py-2.5 transition-colors duration-150 still-hover:bg-ink/[0.03]">
         <span className="w-[4.75rem] shrink-0 text-sm tabular-nums text-text-muted max-sm:hidden">{shortDates(e.start, e.end)}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium text-text-base" title={e.name}>{e.name}</span>
@@ -174,7 +182,7 @@ function EventRowV8({ e }: { e: WeekendEvent }) {
         </span>
         {e.status === "live" && <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-live"><LiveDot />Live</span>}
       </Link>
-      {e.recording && <a href={e.recording} target="_blank" rel="noreferrer" className="tap-44 mr-3 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm text-text-muted transition-colors duration-150 still-hover:bg-white/[0.06] still-hover:text-text-base"><PlayCircle className="size-4" aria-hidden /> Recording</a>}
+      {e.recording && <WatchChip href={inApp(e)} status={e.status} name={e.name} className="mr-3" />}
     </li>
   );
 }
@@ -188,7 +196,7 @@ function EventRow({ e }: { e: WeekendEvent }) {
       </Link>
       <span className="flex shrink-0 items-center gap-2">
         {e.status === "live" && <Link to={e.href} className="inline-flex h-8 items-center gap-1 rounded-full bg-danger/10 px-2.5 text-xs font-semibold text-danger max-sm:h-10"><Radio className="size-3.5" aria-hidden /> Live now</Link>}
-        {e.recording && <a href={e.recording} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-full border border-line px-2.5 text-xs font-medium max-sm:h-10"><PlayCircle className="size-3.5" aria-hidden /> Recording</a>}
+        {e.recording && <WatchChip href={inApp(e)} status={e.status} name={e.name} pill />}
         {e.status === "finished" && !e.recording && <span className="text-xs text-text-muted">Finished</span>}
         {e.status === "upcoming" && <span className="inline-flex items-center gap-1 text-xs text-text-muted"><CalendarDays className="size-3.5" aria-hidden /> Upcoming</span>}
       </span>

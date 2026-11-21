@@ -6,6 +6,7 @@
 // its width; the rail's button opens the full labelled menu.
 import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Ambient } from "./Ambient";
+import { PageEndGlow } from "./PageEndGlow";
 import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
@@ -107,7 +108,7 @@ function RailTip({ on, label, children }: { on?: boolean; label: string; childre
 function RowInner({ item, on, pill = on, collapsed, dense }: { item: NavItem; on: boolean; pill?: boolean; collapsed?: boolean; dense?: boolean }) {
   return (
     <>
-      {pill && (isV8() ? <span data-nav-pill className="absolute inset-0 rounded-lg bg-white/[0.07]" />
+      {pill && (isV8() ? <span data-nav-pill className="absolute inset-0 rounded-lg bg-ink/[0.07]" />
         : <m.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />)}
       <item.icon className={cn("relative shrink-0", dense ? "size-[18px]" : "size-5", on && "text-accent v8:text-text-base")} />
       <span className={collapsed ? "sr-only" : "relative truncate"}>{item.label}</span>
@@ -202,6 +203,8 @@ function NavRowLit({ item, collapsed, dense, onNavigate, lit, roomForArrow }: Ro
   );
 }
 
+/** Home ("/", a trailing slash or query aside). */
+export const isHomePath = (path: string) => path.replace(/\/+$/, "") === "";
 const MORE_KEY = "cs-nav-more";
 const isUnder = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
 
@@ -333,7 +336,7 @@ function V8Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: bool
         <Tooltip>
           <TooltipTrigger asChild>
             <button type="button" data-fold onClick={(e) => (wide ? onToggle() : onMenu(e.currentTarget))} aria-label={label}
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-text-muted outline-none transition-[color,background-color,scale] duration-150 ease-out hover:bg-white/[0.1] hover:text-text-base active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring/60">
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ink/[0.06] text-text-muted outline-none transition-[color,background-color,scale] duration-150 ease-out hover:bg-ink/[0.1] hover:text-text-base active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring/60">
               <PanelLeft className="size-[1.125rem]" />
             </button>
           </TooltipTrigger>
@@ -393,6 +396,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState(false);
   // The owner's dog theme (dogTheme, off by default): the dog's photo faintly across the page (src/index.css).
   const dog = useFlag("dogTheme");
+  // The glow at the page's end (pageEndGlow, on by default): the owner can switch it off for everyone.
+  const glow = useFlag("pageEndGlow");
   // The menu sheet and anything opened from it (What's new) hand focus back to the button that opened it (the
   // phone's menu button, or the narrow desktop's rail button) when they close, even when their own opener has
   // gone (a row in the closed sheet) or never had focus (Safari doesn't focus a tapped button).
@@ -436,7 +441,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {!bare && (v8 ? <V8Sidebar rail={collapsed || !wide} wide={wide} onToggle={toggle} onMenu={openMenu} />
             : <Sidebar rail={collapsed || !wide} wide={wide} onToggle={toggle} onMenu={openMenu} />)}
           <div className="relative flex min-w-0 flex-1 flex-col">
-            {/* v8's only texture: the wash across the top, under the bar (tall on a top-level page, short inside one). */}
+            {/* The top wash sits under the bar; a separate glow marks the page's end below. */}
             {!bare && v8 && <Wash size={washSize(loc.pathname)} />}
             {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). */}
             {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-1 border-b border-line bg-primary px-3 sm:px-6 md:gap-3 lg:px-8 v8:relative v8:h-14 v8:border-transparent v8:bg-transparent">
@@ -449,7 +454,8 @@ export function Shell({ children }: { children: ReactNode }) {
                 </button>
                 <GlobalSearch part="button" />
               </div>
-              {offline ? <ConnectionPill place="phone" /> : <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>}
+              {/* v8 Home has its own big mark above the search box, so the bar leaves the centred one out there. */}
+              {offline ? <ConnectionPill place="phone" /> : !(v8 && isHomePath(loc.pathname)) && <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>}
               <p className="hidden truncate text-sm text-text-muted md:block v8:md:hidden"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
               {/* Far right, against the bar's edge: connection, clock · weather, Report a bug, the light/dark switch and the
@@ -466,6 +472,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </div>
             </header>}
             <div className="relative flex-1">
+              {!bare && v8 && glow && <PageEndGlow />}
               {/* The ambient layer fills the screen under the top bar and stays there while the page scrolls
                   over it (sticky, and pulled out of the flow by its negative margin). svh, not dvh: a phone's
                   toolbar folding away must not resize it mid-scroll. */}

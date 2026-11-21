@@ -68,8 +68,9 @@ export default function SearchPage() {
   // What the page already has for these words: the server's first paint when /search was opened cold, else the answer
   // the search box's dropdown had when Enter was pressed (src/components/search/handoff.ts). Drawn at once, so a
   // submitted search never starts on a loading screen; this page's own request replaces it as soon as it answers.
+  // `thread`: this question, once answered, is what a follow-up refers back to (src/components/search/thread.ts).
   const initial = BOOT_HITS && BOOT_HITS.q.trim() === query ? BOOT_HITS : handedAnswer(query);
-  const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, initial, false, picked);
+  const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, initial, false, picked, true);
   const seasonPick = useMemo<SeasonPick>(() => ({
     picked, pending: reseason,
     pick: (s) => setParams((p) => { const next = new URLSearchParams(p); next.set("in", String(s)); return next; }),
@@ -569,7 +570,7 @@ function V8Group({ s, statuses, summaries, skip, fuzzyWord, picks, onPick, phone
       return (
         <div key={h.ref} data-team-group={h.ref}>
           {card}
-          <ul className="mb-2 ml-10 border-l border-white/[0.12] pl-1" data-team-events>
+          <ul className="mb-2 ml-10 border-l border-ink/[0.12] pl-1" data-team-events>
             {subs.map((e) => <li key={e.ref}><EventRow h={e} onOpen={() => onOpen(e)} /></li>)}
           </ul>
         </div>

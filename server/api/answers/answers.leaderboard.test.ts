@@ -124,6 +124,11 @@ describe("the lists", () => {
     expect(t.more).toEqual({ label: "View more detail on the Teams page (qualification matches)", href: "/teams?view=season&season=2025&country=US&state=NJ&sort=totalPointsNpOpr&filter=and-qualMatchesPlayed.gte.3-" });
     expect(a.pages[0]).toMatchObject({ href: t.more!.href });
   });
+  it("a count said is shown whole; a list with no count opens short (bug report #2026)", async () => {
+    const whole = async (q: string) => (await searchAnswer(q, { limit: 25, full: true })).stat?.blocks.find((b) => b.kind === "leaderboard");
+    for (const q of ["top 10 team", "Top 10 teams by OPR in NJ", "top 3 teams in nj"]) expect(await whole(q), q).toMatchObject({ whole: true });
+    for (const q of ["top teams in nj", "Top teams by OPR in NJ"]) expect(await whole(q), q).not.toHaveProperty("whole");
+  });
   it("win rate, rookies, the most improved by standing", async () => {
     const w = await searchAnswer("Top teams by win rate in New Jersey", { limit: 25 });
     expect(w.stat!.headline).toMatchObject({ value: "31814 Quantum Core", label: "Win rate 83%, 20-4-0 · Hillsborough" });
@@ -323,6 +328,14 @@ describe("a climb in rank from one season to the next", () => {
     expect(t.rows.map((r) => r.cells.team)).toEqual(["23268 Ultraviolet"]);
     const none = await searchAnswer("which nj teams climbed from rank 7000 to the top 50 in 2025-26", { limit: 25, full: true });
     expect(none.stat?.none).toBe("No team in New Jersey climbed from OPR rank 7,000+ to the top 50 from 2024–25 to 2025–26.");
+  });
+  it("shows last season's OPR beside this one's, each under its season (bug report #2039)", async () => {
+    const a = await searchAnswer("Most improved teams in nj 2025-26", { limit: 25, full: true });
+    const t = a.stat!.blocks[0];
+    if (t.kind !== "table") throw new Error(t.kind);
+    expect(t.columns.map((c) => c.label)).toEqual(["#", "Team", "OPR rank", "OPR"]);
+    // 23268: OPR 80 → 157.9 (#6000 → #30), the biggest climb in New Jersey: the OPR then and now, as the rank.
+    expect(t.rows[0].cells).toMatchObject({ team: "23268 Ultraviolet", climb: "#6000 → #30", opr: "80.0 → 157.9" });
   });
 });
 

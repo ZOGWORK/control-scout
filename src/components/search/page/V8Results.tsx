@@ -12,6 +12,7 @@ import { useApi } from "../../../lib/api";
 import { dateRange, seasonLabel } from "../../../lib/format";
 import { cn } from "../../cn";
 import { RecordText } from "./answerCells";
+import { V8_SOFT, v8Tile, type SoftColour } from "./v8tone";
 import { eventFacts, teamParts } from "./results";
 import type { SeasonSummary } from "./ResultCards";
 
@@ -45,7 +46,7 @@ export function FollowChips({ ask, related, seeAll, className }: { ask: SearchFo
     <nav aria-label="Ask next" className={cn("flex flex-wrap items-center gap-2", className)} data-follow-chips>
       {chips.map((x) => (
         <Link key={x.q} to={searchHref(x.q)} title={x.preview}
-          className="inline-flex min-h-9 max-w-full items-center rounded-full border border-white/12 px-3.5 text-sm text-foreground transition-[background-color,border-color,transform] duration-150 ease-out hover:border-white/25 hover:bg-white/[0.06] active:scale-[0.97] motion-reduce:active:scale-100 max-md:min-h-[44px]"
+          className="inline-flex min-h-9 max-w-full items-center rounded-full border border-ink/12 px-3.5 text-sm text-foreground transition-[background-color,border-color,transform] duration-150 ease-out hover:border-ink/25 hover:bg-ink/[0.06] active:scale-[0.97] motion-reduce:active:scale-100 max-md:min-h-[44px]"
           data-follow-chip>
           <span className="truncate">{x.q}</span>
         </Link>
@@ -77,12 +78,17 @@ function when(m: MatchView): string | null {
   return m.time;
 }
 
+/** Each fact tile's soft colour on the team card (issue #2014: the classic KPI tiles were coloured, each its own;
+ *  v8 had drawn them all plain): the record's wins green, OPR in its purple (as on every answer), the rank in the
+ *  slate-blue accent, the best score orange, so no two tiles share one. Text, a thin bracket and nothing else. */
+export const TEAM_FACT_COLOUR: Record<string, SoftColour> = { Record: "green", OPR: "purple", "OPR rank": "accent", "Best score": "orange" };
+
 /** A team asked for by itself: its summary in one compact card, its next match (else its last) in it, the team page a tap away. */
 export function V8TeamAnswer({ team, name, place, summary, stat }: { team: number; name: string; place?: string; summary?: SeasonSummary; stat?: StatAnswer }) {
   const s = summary?.s;
   const next = useNextMatch(team, summary?.season ?? null);
   const facts: { label: string; value: ReactNode }[] = [];
-  if (s?.record) facts.push({ label: "Record", value: <RecordText text={s.record} /> });
+  if (s?.record) facts.push({ label: "Record", value: <RecordText text={s.record} win={V8_SOFT.green.text} /> });
   if (s?.opr != null) facts.push({ label: "OPR", value: s.opr.toFixed(1) });
   if (s?.oprRank != null) facts.push({ label: "OPR rank", value: <>#{s.oprRank.toLocaleString()}{s.of != null && <span className="text-text-faint"> of {s.of.toLocaleString()}</span>}</> });
   if (stat?.intent === "team-highlights" && stat.headline) facts.push({ label: "Best score", value: stat.headline.value.replace(/\s*points?$/i, "") });
@@ -97,22 +103,22 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
           <p className="mt-1.5 break-words text-base font-medium text-foreground">{name}</p>
           {(place || s?.place) && <p className="mt-0.5 flex items-center gap-1 text-sm text-text-muted"><MapPin className="size-3.5 shrink-0" aria-hidden />{place || s?.place}</p>}
         </div>
-        <Link to={`/teams/${team}${summary ? `?season=${summary.season}` : ""}`} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 text-sm text-foreground hover:bg-white/[0.06] max-md:min-h-[44px]" data-team-page>
+        <Link to={`/teams/${team}${summary ? `?season=${summary.season}` : ""}`} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 text-sm text-foreground hover:bg-ink/[0.06] max-md:min-h-[44px]" data-team-page>
           Team page<ArrowRight className="size-4" aria-hidden />
         </Link>
       </div>
       {facts.length > 0 && (
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line pt-4 sm:grid-cols-4" data-team-facts>
           {facts.map((f) => (
-            <div key={f.label} className="min-w-0">
+            <div key={f.label} className={cn("min-w-0 pl-3", v8Tile(TEAM_FACT_COLOUR[f.label] ?? "neutral").tile)} data-fact={f.label} data-colour={TEAM_FACT_COLOUR[f.label] ?? "neutral"}>
               <dt className="text-xs text-text-faint">{f.label}{f.label === "Record" && summary ? `, ${seasonLabel(summary.season)}` : ""}</dt>
-              <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">{f.value}</dd>
+              <dd className={cn("mt-0.5 text-lg font-semibold tabular-nums text-foreground", v8Tile(TEAM_FACT_COLOUR[f.label] ?? "neutral").value)}>{f.value}</dd>
             </div>
           ))}
         </dl>
       )}
       {next && (
-        <Link to={`/events/${next.m.season}/${next.m.code}?match=${next.m.key}`} className="-mx-2 mt-3 flex min-h-[44px] items-center gap-3 rounded-lg border-t border-line px-2 pt-3 text-sm hover:bg-white/[0.04]" data-next-match={next.kind}>
+        <Link to={`/events/${next.m.season}/${next.m.code}?match=${next.m.key}`} className="-mx-2 mt-3 flex min-h-[44px] items-center gap-3 rounded-lg border-t border-line px-2 pt-3 text-sm hover:bg-ink/[0.04]" data-next-match={next.kind}>
           <Swords className="size-4 shrink-0 text-text-muted" aria-hidden />
           <span className="min-w-0 flex-1 truncate">
             <span className="text-text-faint">{next.kind === "next" ? "Next match" : "Last match"} </span>
@@ -120,11 +126,21 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
             <span className="text-text-muted"> · {at}{next.kind === "next" && when(next.m) ? ` · ${when(next.m)}` : ""}</span>
           </span>
           {next.kind === "last" && next.m.red.score && next.m.blue.score && us && (
-            <span className="shrink-0 tabular-nums text-foreground">{(us === "red" ? next.m.red : next.m.blue).score!.total}–{(us === "red" ? next.m.blue : next.m.red).score!.total}</span>
+            <LastScore own={(us === "red" ? next.m.red : next.m.blue).score!.total} opp={(us === "red" ? next.m.blue : next.m.red).score!.total} />
           )}
         </Link>
       )}
     </section>
+  );
+}
+
+/** The last match's score in its result's soft tint: won green, lost red, tied plain. */
+export function LastScore({ own, opp }: { own: number; opp: number }) {
+  const c = own > opp ? "green" : own < opp ? "red" : null;
+  return (
+    <span className="shrink-0 tabular-nums text-foreground" data-last-result={c === "green" ? "won" : c === "red" ? "lost" : "tied"}>
+      <span className={cn("font-semibold", c && V8_SOFT[c].text)}>{own}</span><span className="text-text-muted">–{opp}</span>
+    </span>
   );
 }
 
@@ -139,7 +155,7 @@ export function MatchRows({ rows }: { rows: StatMatchRow[] }) {
     <ul className="divide-y divide-line">
       {rows.map((r) => (
         <li key={`${r.href}-${r.label}`}>
-          <Link to={r.href} className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-sm hover:bg-white/[0.04]" data-match-row>
+          <Link to={r.href} className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-sm hover:bg-ink/[0.04]" data-match-row>
             <Swords className="size-4 shrink-0 text-text-muted" aria-hidden />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-foreground">{r.note && <span className="text-text-muted">{r.note}: </span>}{r.label} at {r.event.label}</span>
@@ -165,7 +181,7 @@ export function RowGroup({ title, count, children, cap = 5, id }: { title: strin
         <ul className="divide-y divide-line">{shown.map((c, i) => <li key={i}>{c}</li>)}</ul>
         {rest > 0 && (
           <button type="button" onClick={() => setAll((a) => !a)} aria-expanded={all}
-            className="flex min-h-[44px] w-full items-center gap-1.5 border-t border-line px-3 text-sm text-text-muted hover:bg-white/[0.04] hover:text-foreground" data-show-more>
+            className="flex min-h-[44px] w-full items-center gap-1.5 border-t border-line px-3 text-sm text-text-muted hover:bg-ink/[0.04] hover:text-foreground" data-show-more>
             <ChevronDown className={cn("size-4 transition-transform duration-200 ease-out", all && "rotate-180")} aria-hidden />{all ? "Show fewer" : `Show ${rest} more`}
           </button>
         )}
@@ -174,7 +190,7 @@ export function RowGroup({ title, count, children, cap = 5, id }: { title: strin
   );
 }
 
-const ROW = "flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-sm hover:bg-white/[0.04]";
+const ROW = "flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-sm hover:bg-ink/[0.04]";
 
 /** A team as a plain row: number and name, its place, its record and OPR on the right. */
 export function TeamRow({ h, summary, onOpen }: { h: SearchHit; summary?: SeasonSummary; onOpen: () => void }) {

@@ -104,7 +104,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     let fresh = false;
     const k = [question, ...history.map((t) => `${t.role}:${t.text}`)].join("\u0000").trim().replace(/\s+/g, " ").toUpperCase();
     const r = await asks.get(k, () => { fresh = true; return lookups.ask(question, history); });
-    const bruno = [r.meta.chat ? "chat" : null, r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
+    // The bot's own fallback (bot/smallTalk.ts) is a chat too, but not Bruno's: the log says `talk`.
+    const bruno = [r.chat?.by === "scout" ? "talk" : r.meta.chat ? "chat" : null, r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
     log(`${key} step=${r.meta.step} bruno=${bruno}${history.length ? ` thread=${history.length}` : ""}${r.content || r.chat?.video ? " video" : ""} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
     return r;
   }
@@ -115,7 +116,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   /** The thread a post of the bot's carries on, by its message id: every turn up to and including that answer. */
   const threads = new Map<string, BrunoChatTurn[]>();
   function remember(id: string | undefined, history: BrunoChatTurn[], question: string, r: AskReply) {
-    if (!id || !r.chat) return;
+    // The bot's own words aren't his: a reply to the fallback starts a new thread instead of handing the model turns
+    // it never said (bot/smallTalk.ts).
+    if (!id || !r.chat || r.chat.by === "scout") return;
     if (threads.size >= THREADS_MAX) threads.delete(threads.keys().next().value!);
     threads.set(id, [...history, turn("user", question), turn("bruno", r.chat.text)].slice(-THREAD_TURNS));
   }
@@ -244,15 +247,20 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         await card({ title: "Ask me anything", description: "Write your question after the mention, like the website's search box:\n`@Control Scout who won decode` · `@Control Scout 4215 vs 6980`\nOr use `/ask question:`. Reply to my answer to keep talking.", color: VOLT, footer: FOOTER });
         return;
       }
+      // Typing lasts about 10 s and a model reply can take 30: keep it up while the chat is written.
       void m.channel.sendTyping?.().catch(() => {});
+      const typing = setInterval(() => { void m.channel.sendTyping?.().catch(() => {}); }, 8_000);
+      typing.unref?.();
       let r: AskReply;
       try {
         r = await askReply(q, `@mention question=${q.toUpperCase().slice(0, 100)}`, history);
       } catch (e) {
+        clearInterval(typing);
         log(`@mention ask failed: ${(e as Error)?.message ?? String(e)}`);
         await card(unavailableEmbed());
         return;
       }
+      clearInterval(typing);
       // The reply quotes the message it answers: no need to repeat the question.
       const sent = await send(askPost(q, r, false));
       remember((sent as { id?: string } | undefined)?.id, history, q, r);

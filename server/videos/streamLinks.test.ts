@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import { eventRecording } from "./recordings";
-import { followable, linkDue, publicAddress, resolveShortLink, resolveStreamLinks, type Facts, type Hop } from "./streamLinks";
+import { followable, linkDue, pageVideos, namesOnly, practiceOnly, publicAddress, resolveLink, resolveShortLink, resolveStreamLinks, type Facts, type Hop, type HopAnswer } from "./streamLinks";
 
 const S = 2026;
 const NOW = Date.parse("2026-10-31T19:00:00Z"); // noon on Oct 31 in Seattle
@@ -13,7 +13,7 @@ const DAY_MS = 86_400_000;
 const VIDEO = "1h77FVxAbQQ", NEXT = "WQUBVjbh-hM", THIRD = "dQw4w9WgXcQ";
 
 // Each link's redirect (null: a page, "error": the request failed).
-let hops: Record<string, string | null | "error"> = {};
+let hops: Record<string, HopAnswer> = {};
 const asked: string[] = [];
 const hop: Hop = async (u) => { asked.push(u.href); return hops[u.href] ?? null; };
 const LINK = "https://ftcwa.live/bardeen";
@@ -179,5 +179,150 @@ describe("resolveStreamLinks after the event", () => {
     expect(asked).not.toContain(SOON);
     await resolve(AFTER + 3 * 3600_000);
     expect(await kept("SOON")).toBe(VIDEO);
+  });
+});
+
+// FIRST in Michigan's per-event live page (fimav.us/live/<season>/<code>): one YouTube link a day, a practice day's
+// first. 2026 USMIFRQ2 (Fruitport, 20 to 21 Nov) kept its Practice Day stream and never got Saturday's Day 1.
+describe("a stream link page that lists a broadcast a day", () => {
+  const PRACTICE = "h5MlvyXQvK4", DAY1 = "wW1FrvaVe4E", DAY2 = "Xq3oLnCk2uA";
+  const fimav = (code: string) => `https://fimav.us/live/2026/${code}`;
+  const button = (id: string, name: string) => `<a class="watch-button" href="https://youtube.com/watch?v=${id}">2026 MI FTC Fruitport Qualifier - ${name} (Youtube)</a>`;
+  const page = (...videos: [string, string][]) => ({ page: `<html><body><article><h1>Fruitport Qualifier</h1>\n${videos.map(([id, n]) => button(id, n)).join("\n")}\n</article></body></html>` });
+  const FRI = Date.parse("2026-11-20T16:00:00Z"), SAT = Date.parse("2026-11-21T14:00:00Z"), SUN = Date.parse("2026-11-22T15:00:00Z");
+  const STARTS: Record<string, string> = { [PRACTICE]: "2026-11-20T13:00:00Z", [DAY1]: "2026-11-21T12:30:00Z", [DAY2]: "2026-11-22T12:30:00Z" };
+  async function mi(code: string, start: string, end: string, name = "Fruitport Qualifier") {
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (?, ?, ?, 'Qualifier', ?, ?, 'America/New_York', 0, 0, ?, 'test')", [S, code, name, start, end, fimav(code)]);
+  }
+  const days = async (code: string) => (await all<{ video_id: string }>("SELECT video_id FROM event_broadcasts WHERE season = ? AND code = ? ORDER BY start", [S, code])).map((r) => r.video_id);
+  const recording = async (code: string) => { clearAllCaches(); return eventRecording(S, code); };
+  const follow = (at: number) => resolveStreamLinks(() => {}, { hop, now: () => at, facts });
+
+  it("reads every video a page lists, with the words it's listed under", () => {
+    expect(pageVideos(page([PRACTICE, "Practice Day"], [DAY1, "Day 1"]).page)).toEqual([
+      { videoId: PRACTICE, title: "2026 MI FTC Fruitport Qualifier - Practice Day" },
+      { videoId: DAY1, title: "2026 MI FTC Fruitport Qualifier - Day 1" },
+    ]);
+    // A player embedded on the page counts; a channel's page, another site's link or a repeat doesn't.
+    expect(pageVideos(`<iframe title="Day 2 &amp; Awards" src="https://www.youtube.com/embed/${DAY2}"></iframe><a href="https://www.youtube.com/@FiMAV/live">Channel</a><a href="https://firstinmichigan.us/">FiM</a><a href='https://youtu.be/${DAY2}'>again</a>`))
+      .toEqual([{ videoId: DAY2, title: "Day 2 & Awards" }]);
+  });
+
+  it("knows a practice day's title from a match day's", () => {
+    for (const t of ["2026 MI FTC Fruitport Qualifier - Practice Day", "Practice", "Practice Session - Field 1"]) expect(practiceOnly(t), t).toBe(true);
+    for (const t of ["2026 MI FTC Fruitport Qualifier - Day 1", "Practice and Quals", "Fruitport Qualifier", "", null]) expect(practiceOnly(t), String(t)).toBe(false);
+  });
+
+  it("a listed video's title must name this event and no other around its dates", () => {
+    const me = { code: "USMIFRQ2", name: "Fruitport Qualifier" };
+    const others = [{ code: "USMINOQ", name: "Novi Qualifier" }, { code: "USMIMHQ", name: "Madison Hts Qualifier" }];
+    expect(namesOnly("2026 MI FTC Fruitport Qualifier - Day 1", me, others)).toBe(true);
+    expect(namesOnly("USMIFRQ2 Day 1", me, others)).toBe(true);
+    expect(namesOnly("2026 MI FTC Novi Qualifier - Day 1", me, others)).toBe(false);
+    expect(namesOnly("Fruitport and Novi Qualifiers - Day 1", me, others)).toBe(false);
+    expect(namesOnly("2026 MI FTC Qualifier - Day 1", me, others)).toBe(false);
+    expect(namesOnly("Max Verstappen Vs 100 Amateur Kart Racers", me, others)).toBe(false);
+    expect(namesOnly(undefined, me, others)).toBe(false);
+  });
+
+  it("a redirect to a YouTube watch link is that one video: YouTube's own page (its recommendations) is never read", async () => {
+    const MID = "JuY3LaTPy1g", NOVI = "O_tqi3z2pgU", MADHTS = "VGDE3YH6c7I";
+    const watch = `https://youtube.com/watch?v=${MID}`;
+    const recommendations = `<html><body>${[[NOVI, "2026 MI FTC Novi Qualifier - Day 1"], [MADHTS, "2026 MI FTC Madison Hts Qualifier - Day 1"], ["dQw4w9WgXcQ", "Max Verstappen Vs 100 Amateur Kart Racers"]].map(([id, t]) => `<a href="https://www.youtube.com/watch?v=${id}">${t}</a>`).join("")}</body></html>`;
+    hops = { [fimav("USMIMIQ2")]: watch, [watch]: { page: recommendations }, [`https://www.youtube.com/watch?v=${MID}`]: { page: recommendations } };
+    asked.length = 0;
+    expect(await resolveLink(fimav("USMIMIQ2"), hop)).toEqual({ videos: [{ videoId: MID }], page: false });
+    expect(asked).toEqual([fimav("USMIMIQ2")]);
+
+    // On its dates, alongside another qualifier the same weekend: Midland keeps its own stream only.
+    await mi("MIQ2", "2026-11-20", "2026-11-21", "Midland Qualifier");
+    await mi("NOQ", "2026-11-20", "2026-11-21", "Novi Qualifier");
+    hops = { [fimav("MIQ2")]: watch, [watch]: { page: recommendations } };
+    started = { [MID]: "2026-11-21T12:30:00Z", [NOVI]: "2026-11-21T12:30:00Z", [MADHTS]: "2026-11-21T12:30:00Z" };
+    await follow(SAT);
+    expect(await recording("MIQ2")).toMatchObject({ videoId: MID });
+    expect((await recording("MIQ2"))?.more).toBeUndefined();
+    expect(await days("MIQ2")).toEqual([]);
+  });
+
+  it("a region's list page that also links another event's stream (or an untitled one) keeps only this event's", async () => {
+    const NOVI = "O_tqi3z2pgU", UNTITLED = "Xq3oLnCk2uB";
+    await mi("FRQ6", "2026-11-20", "2026-11-21");
+    if (!(await all("SELECT 1 FROM events WHERE code = 'NOQ'")).length) await mi("NOQ", "2026-11-20", "2026-11-21", "Novi Qualifier");
+    hops = { [fimav("FRQ6")]: { page: `${page([PRACTICE, "Practice Day"], [DAY1, "Day 1"]).page}<a href="https://youtube.com/watch?v=${NOVI}">2026 MI FTC Novi Qualifier - Day 1 (Youtube)</a><iframe src="https://www.youtube.com/embed/${UNTITLED}"></iframe>` } };
+    started = { ...STARTS, [NOVI]: "2026-11-21T12:31:00Z", [UNTITLED]: "2026-11-21T12:32:00Z" };
+    await follow(SAT);
+    expect(await days("FRQ6")).toEqual([DAY1]);
+    expect(await recording("FRQ6")).toMatchObject({ videoId: DAY1, daily: true });
+  });
+
+  it("never keeps the practice day's video, and places Day 1 on Saturday when the page adds it", async () => {
+    await mi("FRQ2", "2026-11-20", "2026-11-21");
+    started = STARTS;
+    // Friday: the page lists only the practice day's stream. No match is played in it: nothing kept.
+    hops = { [fimav("FRQ2")]: page([PRACTICE, "Practice Day"]) };
+    await follow(FRI);
+    expect(await recording("FRQ2")).toBeNull();
+    // Saturday morning the page adds Day 1: followed again (every 15 minutes on its dates), Day 1 is the event's video.
+    hops = { [fimav("FRQ2")]: page([PRACTICE, "Practice Day"], [DAY1, "Day 1"]) };
+    expect(await follow(SAT)).toBe(1);
+    expect(await days("FRQ2")).toEqual([DAY1]);
+    const rec = await recording("FRQ2");
+    expect(rec).toMatchObject({ videoId: DAY1, daily: true, source: "first" });
+    expect(rec?.more).toBeUndefined();
+  });
+
+  it("an event that kept the practice video (a redirect to it on Friday) gets Day 1 in its place", async () => {
+    await mi("FRQ3", "2026-11-20", "2026-11-21");
+    await run("INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (?, 'FRQ3', ?, ?, '2026-11-21T13:00:00.000Z')", [S, fimav("FRQ3"), PRACTICE]);
+    started = STARTS;
+    hops = { [fimav("FRQ3")]: page([PRACTICE, "Practice Day"], [DAY1, "Day 1"]) };
+    await follow(SAT);
+    expect(await recording("FRQ3")).toMatchObject({ videoId: DAY1, daily: true });
+    expect(await all("SELECT video_id FROM event_stream_links WHERE code = 'FRQ3'")).toEqual([{ video_id: DAY1 }]);
+  });
+
+  it("a day added later joins the days found before; one not started yet waits for its start", async () => {
+    await mi("FRQ4", "2026-11-20", "2026-11-22");
+    hops = { [fimav("FRQ4")]: page([PRACTICE, "Practice Day"], [DAY1, "Day 1"]) };
+    started = STARTS;
+    await follow(SAT);
+    expect(await days("FRQ4")).toEqual([DAY1]);
+    // Sunday before its stream starts: listed, scheduled, no start yet.
+    hops = { [fimav("FRQ4")]: page([PRACTICE, "Practice Day"], [DAY1, "Day 1"], [DAY2, "Day 2"]) };
+    started = { [PRACTICE]: STARTS[PRACTICE], [DAY1]: STARTS[DAY1] };
+    await follow(SUN - 3 * 3600_000);
+    expect(await days("FRQ4")).toEqual([DAY1]);
+    started = STARTS;
+    expect(await follow(SUN)).toBeGreaterThanOrEqual(1);
+    expect(await days("FRQ4")).toEqual([DAY1, DAY2]);
+    expect(await recording("FRQ4")).toMatchObject({ videoId: DAY1, daily: true, more: [{ videoId: DAY2 }] });
+    // The page dropping a day, or failing, keeps the days found.
+    hops = { [fimav("FRQ4")]: page([DAY2, "Day 2"]) };
+    await follow(SUN + 20 * 60_000);
+    hops = { [fimav("FRQ4")]: "error" };
+    await follow(SUN + 40 * 60_000);
+    expect(await days("FRQ4")).toEqual([DAY1, DAY2]);
+  });
+
+  it("an event over with the practice video kept is followed once more and gets Day 1", async () => {
+    await mi("FRQ5", "2026-11-20", "2026-11-21");
+    await run("INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (?, 'FRQ5', ?, ?, '2026-11-22T01:30:00.000Z')", [S, fimav("FRQ5"), PRACTICE]); // 8:30 pm on the 21st in Fruitport, the 22nd in UTC
+    started = STARTS;
+    const MON = Date.parse("2026-11-23T15:00:00Z");
+    // A failed follow (the page down, or YouTube unread) doesn't use up the one follow after the dates.
+    hops = { [fimav("FRQ5")]: "error" };
+    await follow(MON - 2 * 3600_000);
+    hops = { [fimav("FRQ5")]: page([PRACTICE, "Practice Day"], [DAY1, "Day 1"]) };
+    started = { [PRACTICE]: STARTS[PRACTICE], [DAY1]: "error" };
+    await follow(MON - 3600_000);
+    expect(await recording("FRQ5")).toMatchObject({ videoId: PRACTICE });
+    started = STARTS;
+    await follow(MON);
+    expect(await recording("FRQ5")).toMatchObject({ videoId: DAY1, daily: true });
+    // Once: its follow after the dates was the last.
+    asked.length = 0;
+    await follow(MON + 3 * 3600_000);
+    expect(asked).not.toContain(fimav("FRQ5"));
   });
 });

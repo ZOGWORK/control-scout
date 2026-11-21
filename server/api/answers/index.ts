@@ -40,7 +40,7 @@ import { readOverview } from "./families/overview.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, resolveChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
-import { BOARD_STATS, LEADERBOARD_MAX, boardFilterWords, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
+import { BOARD_STATS, LEADERBOARD_MAX, boardFilterWords, conferenceGroup, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
 import { readTime } from "../query/time.js";
 import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
 import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
@@ -495,7 +495,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
     // No season said: the current one, then the one before when nobody has played it there yet, said on the card,
     // as the asked boards and the pipeline's read it (the one season rule, ./season.ts).
     // Boards over every season (careers, the oldest active) and a city's (its own "now") have no season to step.
-    if (board.season != null || !opts.full || ["career", "oldest", "city", "city-best"].includes(board.kind)) return a;
+    if (board.season != null || !opts.full || ["career", "oldest", "number", "city", "city-best"].includes(board.kind)) return a;
     const season = currentSeason();
     return relaxed(a, defaultSteps(season, board.region ? ` in ${board.region.name}` : "", board.undefeated ? "undefeated teams" : "ranked teams"), (s) => boardSearch(q, { ...board, season: s }, opts));
   }
@@ -768,7 +768,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   if (it.id === "never-played") return neverPlayedAnswer(team, ms, scope);
   if (scope.event) {
     const evs = (await teamEventSet(team.number)).events.filter((e) => e.season === scope.event!.season && (scope.event!.codes ?? [scope.event!.code]).includes(e.code));
-    const at = await eventScopeAnswer(it.id, team, ms, evs.find((e) => e.code === scope.event!.code), scope, { n: it.n, each: evs });
+    const at = await eventScopeAnswer(it.id, team, ms, evs.find((e) => e.code === scope.event!.code), scope, { n: it.n, each: evs, phase: it.phase });
     if (at) return at;
   }
   // A match by its number with no event named ("<team> Q6", "<team> M14 at worlds"): each event's in the scope, of
@@ -1271,6 +1271,9 @@ async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, 
   return teamSetAnswer(q, found, found0, season, set.season, opts.pages, opts.full ? await compareAnswer(teams, { season: set.season }) : undefined);
 }
 
+/** A list's length said in the question: "top 10", "best 5", "the 3 best", "bottom 10". */
+const COUNT_SAID = /\b(?:top|best|bottom|worst|lowest|highest|strongest|first)\s+\d{1,2}\b|\b\d{1,2}\s+(?:best|top|worst|strongest|highest)\b/i;
+
 /** The asks' own leaderboards ("top teams in the world", "best auto team", "highest opr in texas": ../searchAsks.ts
  *  readAsk) drawn as this leaderboard: the world's or a place's rankings by prediction rating, as Rankings orders
  *  them, or a stat's leaders; the top 10 unless a number is asked. */
@@ -1306,8 +1309,10 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
   if (isCity && !city) return null;
   const st = boardStatFor(b.stat, b.season ?? defaultSeason());
   if (!st) return null;
-  const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
-  let label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "oldest" || b.kind === "career" ? careerBoardTitle({ kind: b.kind, stat: st }, where || " worldwide"): b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.kind === "gain" ? `Most ${st.id === "rating" ? "prediction rating" : "OPR"} gained${where} between first and last event`: b.undefeated && b.atKind ? `Teams${where} unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.teams ? `${b.teams.length} teams by ${statWords(st)}` : b.undefeated ? `Undefeated teams${where}` : (st.count || b.window) && b.best ? `Team${where} with the most ${statWords(st)}${b.window ? ` ${b.window.label}` : ""}` : b.window ? `Top ${b.n} teams${where} by ${statWords(st)} ${b.window.label}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? (b.climb ? `Teams${where} that climbed from OPR rank ${b.climb.from}+ to the top ${b.climb.to}` : `Most improved teams${where}`) : b.kind === "steady" ? `Most stable OPR${where}: the fewest ups and downs` : b.kind === "phases" ? `Strongest in every phase${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  // Conferences as the place ("nj bergen"): named as the card names them, in the board's season.
+  const group = b.conference ? await conferenceGroup(b.conference, b.season ?? defaultSeason()) : null;
+  const where = group ? ` in ${group.label}` : b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
+  let label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "oldest" || b.kind === "career" || b.kind === "number" ? careerBoardTitle({ kind: b.kind, stat: st, asc: b.asc }, where || " worldwide"): b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.kind === "gain" ? `Most ${st.id === "rating" ? "prediction rating" : "OPR"} gained${where} between first and last event`: b.undefeated && b.atKind ? `Teams${where} unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.teams ? `${b.teams.length} teams by ${statWords(st)}` : b.undefeated ? `Undefeated teams${where}` : (st.count || b.window) && b.best ? `Team${where} with the most ${statWords(st)}${b.window ? ` ${b.window.label}` : ""}` : b.window ? `Top ${b.n} teams${where} by ${statWords(st)} ${b.window.label}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? (b.climb ? `Teams${where} that climbed from OPR rank ${b.climb.from}+ to the top ${b.climb.to}` : `Most improved teams${where}`) : b.kind === "steady" ? `Most stable OPR${where}: the fewest ups and downs` : b.kind === "phases" ? `Strongest in every phase${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   // A filter on the teams ("name includes “Robot”", "no award ever won") is said in the heading, as on the card.
   const filters = boardFilterWords(b);
   if (filters) label = `${label}: ${filters}`;
@@ -1318,7 +1323,9 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
   };
   // The search box gets a link to the answer page, never an empty answer.
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };
-  const stat = await leaderboardAnswer({ ...b, stat: st });
+  const board = await leaderboardAnswer({ ...b, stat: st });
+  // A count said ("top 10 teams", "best 5 rookies") sizes the list: every row shown at once (bug report #2026).
+  const stat = COUNT_SAID.test(q) ? { ...board, blocks: board.blocks.map((x) => (x.kind === "leaderboard" ? { ...x, whole: true } : x)) } : board;
   // An event's board is headed by its card's own title less its season (what it's ranked by is said there), so the
   // page says it once: the card's title under a heading that holds it is hidden.
   const heading = b.event ? stat.title.replace(/ · [^·]+$/, "") : null;

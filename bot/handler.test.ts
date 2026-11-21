@@ -409,6 +409,19 @@ describe("a chat with Bruno in Discord", () => {
     await h.mention(message("", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
     expect(ask).toHaveBeenCalledTimes(n);
   });
+
+  it("the bot's own small talk isn't remembered as Bruno's: a reply to it starts a new thread", async () => {
+    const ask = vi.fn(async (q: string) => ({
+      embed: ok(`ask ${q}`),
+      meta: { step: "recovery" as const, refined: false, sentence: false, chat: true },
+      chat: { text: "Hey — I'm Control Scout.", by: "scout" as const },
+    }));
+    const h = createHandler(() => {}, lookups({ ask }), { cooldownMs: 0 });
+    await h.mention(message(`<@${BOT}> hi`, {}, "bot-1").m, BOT);
+    const follow = message("who won decode", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }, "bot-2");
+    await h.mention(follow.m, BOT);
+    expect(ask).toHaveBeenLastCalledWith("who won decode", []);
+  });
 });
 
 describe("answers ping nobody", () => {

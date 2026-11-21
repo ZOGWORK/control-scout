@@ -55,6 +55,8 @@ import { HeaderActions, LivestreamButton, OfflineVideoNote, TrackEventButton } f
 import { offlineSource } from "../lib/offline/saved";
 import { EventStatusChip, EventTypeChip, LiveDot } from "../components/EventChips";
 import { WatchLive } from "../components/WatchLive";
+import { EventRecordingsOwner } from "../components/owner/EventRecordingsOwner";
+import { watchParam } from "../shared/stream";
 import { HighlightVideos } from "../components/HighlightVideos";
 import { ClipsGallery, EventClipsProvider, WatchClipsButton } from "../components/contributors/EventClips";
 import { RecordingCoverageLine, RecordingGaps } from "../components/contributors/RecordingGaps";
@@ -104,7 +106,11 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const saved = !!offlineSource(d);
   // The recording the coverage line and gaps read: linked, playable or not (a private one still says why), and its videos.
   const rec = { season: e.season, code: e.code, recorded: !!e.stream || !!e.recordingUnavailable?.length, matches: d.matches, videos: e.stream?.days?.map((x) => x.videoId) ?? (e.stream ? [e.stream.videoId] : e.recordingUnavailable ?? []) };
-  const { state: personal, update } = usePersonal();
+  const { state: personal, update, user } = usePersonal();
+  // ?watch (watchHref): opened to watch its recording or live stream, in the page's own player.
+  const watch = watchParam(sp);
+  // The site owner corrects the event's recordings right here (components/owner/EventRecordingsOwner.tsx).
+  const ownerRecordings = user?.isOwner && !saved ? <EventRecordingsOwner season={e.season} code={e.code} eventPath={path} /> : null;
   const ref = `${e.season}:${e.code}`;
   const tracked = personal.tracked.events.includes(ref);
   const teamParam = Number(sp.get("team")) || null;
@@ -352,7 +358,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
 
       {/* The owner-set stream with the model's calls beside it, above the matches (components/WatchLive.tsx). */}
       {/* Keyed by event and video: moving to another event, or a new stream, starts the player and the rail afresh. */}
-      {e.stream && <WatchLive key={`${e.season}:${e.code}:${e.stream.videoId}`} d={d} stream={e.stream} />}
+      {e.stream ? <WatchLive key={`${e.season}:${e.code}:${e.stream.videoId}`} d={d} stream={e.stream} watch={watch} owner={ownerRecordings} />
+        : ownerRecordings && <section className="mb-8" aria-label="Recordings">{ownerRecordings}</section>}
       {/* The organiser's highlight videos, as highlights only (components/HighlightVideos.tsx). */}
       {d.highlightVideos && <HighlightVideos videos={d.highlightVideos} />}
       <div ref={tabsRef} className="scroll-mt-bar-4" />
@@ -443,7 +450,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
 // behind it); the name is the page title; chips and stat tags carry no colour of their own.
 const V8_HEADER = "v8:overflow-visible v8:rounded-none v8:border-0 v8:bg-transparent v8:p-0 v8:sm:p-0";
 const V8_TITLE = "v8:font-sans v8:text-[1.375rem] v8:font-semibold v8:leading-7 v8:tracking-tight v8:sm:text-[1.375rem]";
-const V8_STAT_CHIP = "v8:bg-white/[0.05] v8:text-text-muted";
+const V8_STAT_CHIP = "v8:bg-ink/[0.05] v8:text-text-muted";
 
 /** Google Maps' search for a place, the address form that opens the Maps app on a phone. */
 export const mapsUrl = (q: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
@@ -506,7 +513,7 @@ function LiveBar({ live, r }: { live: NonNullable<EventDetail["live"]>; r: Retur
   const { busy, note } = r;
   return (
     <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-      <span className="inline-flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1 text-xs font-medium text-foreground v8:border-white/[0.12] v8:bg-transparent">
+      <span className="inline-flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1 text-xs font-medium text-foreground v8:border-ink/[0.12] v8:bg-transparent">
         <LiveDot />
         {live.checkedAt ? <>Results updated <time dateTime={live.checkedAt} className="tabular-nums">{agoSeconds(live.checkedAt, now)}</time></> : "Results not checked yet today"}
       </span>
@@ -781,11 +788,11 @@ function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt
         <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((t) => (
             <li key={t.team}>
-              <TeamPageLink team={t.team} name={t.name} season={season} className={cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3 v8:border-line v8:transition-colors v8:duration-150 v8:still-hover:bg-white/[0.03]", hasTeamPage(t.team, t.name) && !v8 && "lift", t.team === team && "border-accent/60 bg-accent/[0.06] v8:bg-card")}>
+              <TeamPageLink team={t.team} name={t.name} season={season} className={cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3 v8:border-line v8:transition-colors v8:duration-150 v8:still-hover:bg-ink/[0.03]", hasTeamPage(t.team, t.name) && !v8 && "lift", t.team === team && "border-accent/60 bg-accent/[0.06] v8:bg-card")}>
                 {/* Registrations have no rank yet: no empty rank box. */}
                 {/* v8: no column of empty rank boxes before anyone is ranked. */}
                 {!registered && (!v8 || anyRank) && (
-                  <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center v8:bg-white/[0.04]">
+                  <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center v8:bg-ink/[0.04]">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground v8:text-[0.6875rem] v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint">Rank</span>
                     {/* v8: gold, silver and bronze for the top three ranks, white below (lib/v8colour.ts). */}
                     <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent-text", "v8:text-text-base", v8Rank(t.rank))}>{t.rank ?? "–"}</span>
@@ -870,7 +877,7 @@ function Playoffs({ d }: { d: EventDetail }) {
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground v8:text-text-faint">{bracket ? <AllianceChip alliance={a.number} /> : null}Alliance {a.number}</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {[a.captain, a.pick1, a.pick2, a.backup].filter((t): t is number => t != null).map((t, i) => (
-                  <TeamPageLink key={t} team={t} name={d.field.find((f) => f.team === t)?.name} season={d.event.season} className={cn("rounded-md px-2 py-0.5 font-mono text-sm", i === 0 ? "bg-accent text-accent-ink v8:bg-white/10 v8:font-semibold v8:text-text-base" : "bg-muted v8:bg-white/[0.04]")}>{t}</TeamPageLink>
+                  <TeamPageLink key={t} team={t} name={d.field.find((f) => f.team === t)?.name} season={d.event.season} className={cn("rounded-md px-2 py-0.5 font-mono text-sm", i === 0 ? "bg-accent text-accent-ink v8:bg-ink/10 v8:font-semibold v8:text-text-base" : "bg-muted v8:bg-ink/[0.04]")}>{t}</TeamPageLink>
                 ))}
               </div>
             </AllianceOddsCard>
@@ -900,7 +907,7 @@ function LegacyBracket({ d, bySeries }: { d: EventDetail; bySeries: Map<number, 
           const winnerAl = last && last.red.score && last.blue.score ? allianceOf((last.red.score.total > last.blue.score.total ? last.red : last.blue).teams.map((t) => t.number)) : null;
           const isFinal = i === bracket.matches.length - 1;
           return (
-            <div key={i} className={cn("rounded-xl border border-border bg-card p-3 v8:border-line", isFinal && "border-accent/40 v8:border-white/[0.12]")}>
+            <div key={i} className={cn("rounded-xl border border-border bg-card p-3 v8:border-line", isFinal && "border-accent/40 v8:border-ink/[0.12]")}>
               <p className="text-xs font-medium text-muted-foreground">M{i + 1}{isFinal ? " · Grand final" : ""}</p>
               <p className="mt-1 text-sm">{slotLabel(bm.red)} <span className="text-muted-foreground">vs</span> {slotLabel(bm.blue)}</p>
               {ms.length ? ms.map((m) => (

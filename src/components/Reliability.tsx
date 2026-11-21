@@ -60,7 +60,7 @@ export function ReliabilitySection({ r, notes, workspaceName }: { r: Reliability
                 </div>
               ))}
             </dl>
-            <p className={cn("mt-3 rounded-lg p-2 text-xs text-muted-foreground v8:bg-white/[0.03]", r.matches < RELIABILITY_SMALL ? "bg-warning/[0.08]" : "bg-muted/40")}>
+            <p className={cn("mt-3 rounded-lg p-2 text-xs text-muted-foreground v8:bg-ink/[0.03]", r.matches < RELIABILITY_SMALL ? "bg-warning/[0.08]" : "bg-muted/40")}>
               Every part is pulled toward the season average as if the team had {RELIABILITY_PRIOR} more matches at it{r.matches < RELIABILITY_SMALL ? ": with this few matches, the index says more about the field than about this team" : ""}. Last {r.recent.matches}: {plural(r.recent.noShows, "no-show")}, {plural(r.recent.nearZero, "near-zero match", )}.
             </p>
           </div>
@@ -86,5 +86,5 @@ export function BlendedTile({ r, notes, workspaceName }: { r: Reliability; notes
 /** Compact "84" for tables and pick rows, with the sample in its title. */
 export function ReliabilityCell({ index, matches, className }: { index: number | null | undefined; matches?: number | null; className?: string }) {
   if (index == null) return <span className={className}>—</span>;
-  return <span className={cn("tabular-nums text-success", className)} title={`Reliability estimate ${index}/100 from ${matches ?? 0} qualification matches`}>{index}</span>;
+  return <span className={cn("tabular-nums text-success v8:text-emerald-400", className)} title={`Reliability estimate ${index}/100 from ${matches ?? 0} qualification matches`}>{index}</span>;
 }

@@ -10,12 +10,20 @@
 # installed with and stops the socket; otherwise the port would already be
 # taken and the server couldn't start. The next normal deploy (oracle-vm-setup.sh)
 # switches back to socket activation.
+#
+# With the zero-gap lanes on (deploy/lanes.sh, `bin/lanes enable`), the target release starts in the idle lane
+# and takes over from the live one without a gap, as a deploy does. A release from before socket activation
+# turns the lanes off.
 set -euo pipefail
 
 APP_DIR=/opt/control-scout
 SHARED="$APP_DIR/shared"
 UNIT=/etc/systemd/system/control-scout.service
 [ "$(id -u)" = 0 ] || { echo "Run with sudo"; exit 1; }
+# The zero-gap lanes (deploy/lanes.sh), installed beside this script; without it they count as off.
+LANES_LIB="$(dirname "$(readlink -f "$0")")/lanes.sh"
+# shellcheck source=deploy/lanes.sh
+if [ -f "$LANES_LIB" ]; then . "$LANES_LIB"; else lanes_on() { false; }; fi
 
 TARGET="${1:-}"
 if [ -z "$TARGET" ]; then
@@ -43,7 +51,28 @@ if [ -f "$REL_DIR/server/listen.ts" ]; then
          -e '/^Requires=control-scout.socket$/d' \
          -e 's#^After=.*#After=network-online.target control-scout.socket\nRequires=control-scout.socket#' "$UNIT"
   systemctl daemon-reload
-  if systemctl is-active --quiet control-scout.socket; then
+  PREVIOUS="$(readlink "$APP_DIR/current" 2>/dev/null || true)"
+  if lanes_on; then
+    # The lanes (deploy/lanes.sh): the template follows the unit just rewritten, and the target release takes over
+    # from the live lane without a gap. A rollback goes to an older release, whose migrations and search index the
+    # database already has, so there's nothing for it to change at start that the live server would mind.
+    lanes_write_template
+    systemctl daemon-reload
+    MODE=handoff
+    systemctl is-active --quiet control-scout.socket || { systemctl stop control-scout@a control-scout@b 2>/dev/null || true; systemctl start control-scout.socket; MODE=restart; }
+    ln -sfn "releases/$TARGET" "$APP_DIR/current.new"
+    mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
+    if ! lanes_switch "$MODE"; then
+      if [ "$MODE" = handoff ] && [ -n "$PREVIOUS" ] && [ -n "$(lanes_live)" ]; then
+        ln -sfn "$PREVIOUS" "$APP_DIR/current.new"
+        mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
+        echo "$TARGET never got ready; $PREVIOUS is still serving"
+      else
+        echo "$TARGET never got ready: journalctl -u 'control-scout@*' -n 50"
+      fi
+      exit 1
+    fi
+  elif systemctl is-active --quiet control-scout.socket; then
     ln -sfn "releases/$TARGET" "$APP_DIR/current.new"
     mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
     systemctl restart control-scout
@@ -56,6 +85,15 @@ if [ -f "$REL_DIR/server/listen.ts" ]; then
     systemctl start control-scout
   fi
 else
+  # A release that opens the port itself can't share the socket, so this also turns the lanes off (the single
+  # service again, as before `bin/lanes enable`; run that again once a newer release is live).
+  if lanes_on; then
+    systemctl stop control-scout@a control-scout@b 2>/dev/null || true
+    systemctl disable --quiet control-scout@a control-scout@b 2>/dev/null || true
+    rm -f "$(lanes_template_file)"
+    sed -i '/^Service=control-scout@a.service$/d' /etc/systemd/system/control-scout.socket
+    systemctl enable --quiet control-scout
+  fi
   sed -i -e 's#^ExecStart=.*#ExecStart='"$(command -v npx)"' tsx server/index.ts#' \
          -e '/^Requires=control-scout.socket$/d' \
          -e 's#^After=.*#After=network-online.target#' "$UNIT"

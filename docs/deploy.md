@@ -142,7 +142,9 @@ https://controlscout.org.
   the build succeeds, and the existing certificate is re-applied.
 - **Custom port:** set `PORT` in `shared/.env`; every deploy reads it from there.
 - **Schedule (built in):** current-season sync daily, and on event days every 15 min on the VM (`DATA_CYCLE=child`; hourly on Render; `EVENT_DAY_SYNC_MINUTES` overrides);
-  stats + prediction ledger after each sync; offline packs rebuilt daily.
+  stats + prediction ledger after each sync; offline packs rebuilt daily. The live lane's follow-up after new
+  results (stats, records, live calls, report cards, coin flips) runs in a child process too with `DATA_CYCLE=child`
+  (`LIVE_FOLLOW_UP=inline` keeps it in the server process).
 - **Usage statistics** (anonymous page views from visitors who chose "Allow"; daily
   aggregates in `analytics_daily`, no IPs, user agents, cookies or IDs): on the VM,
   `cd /opt/control-scout/current && sudo -u controlscout bash -c 'set -a; . /opt/control-scout/shared/.env; set +a; npm run stats:report'`
@@ -183,17 +185,62 @@ https://controlscout.org.
   service's private /tmp or a new release folder), and every deploy's visitors waited that long.
   The build itself runs niced (CPU and disk) so it doesn't slow the live site while it runs.
   Because a request to the open socket starts the server, **stopping the site needs both units**:
-  `sudo systemctl stop control-scout.socket control-scout`, then `start` both again.
+  `sudo systemctl stop control-scout.socket control-scout`, then `start` both again (with the lanes on,
+  `sudo systemctl stop control-scout.socket 'control-scout@*'`, then `start control-scout.socket control-scout@a`).
+  A restart still makes requests wait while the new server warms up (it takes the socket only once it's ready,
+  about 20 s with the full data); the hand-off below removes that wait.
+- **Zero-gap hand-off (lanes).** Once turned on (one-time step below), the server runs as one of two instances of
+  a template, `control-scout@a` or `control-scout@b`, both handed the same listening socket (`Sockets=`; systemd
+  passes one socket to several services at once, and both can accept on it). A deploy starts the idle lane from the
+  new release while the live one keeps serving; the new lane takes the socket once it's warm, both accept for a
+  moment, and then the old lane is stopped, finishing its requests in progress first. The socket never closes and
+  no request waits on a warm-up. Logic in `deploy/lanes.sh`; `deploy/lanes.test.sh` tests it with a fake systemctl.
+  - **Why the overlap is safe.** Writers that must never run twice take the writer lease (`server/data/lock.ts`):
+    the data cycle (also from its child process) and the live lane. Everything else on the schedule in
+    `server/index.ts` (push, digest, power rankings, IndexNow, recordings, prunes, the first cycle) starts a minute
+    or more after the new server is ready, and the old lane is gone within 30 s of that (`TimeoutStopSec`).
+    Projections start sooner but skip a run whose state is already stored, and the same state gives the same numbers.
+    The Discord bot is its own unit and only reads.
+  - **When it restarts instead.** Before anything changes, `deploy/handoff-gate.mjs` (run from the new release, as the
+    app user) checks the two things a new server does before it's ready that the old one would mind: a migration the
+    database doesn't have yet, and a search index rebuild (`SEARCH_INDEX_SCHEMA` above the stored one). Either one, a
+    port change, or anything it can't read means a plain restart: the live lane stops first, then lane a starts, and
+    requests wait in the socket's queue meanwhile, as without lanes. The deploy log says which (`hand-off: …`).
+  - **If the new lane never gets ready** (300 s), it's stopped, `current` goes back to the release still serving, and
+    the deploy fails; the site stays on the old release.
+  - **Live streams** (scout entries, inbox, projections) are in-process: when the old lane stops, its streams end and
+    clients reconnect to the new one, catching up from their cursor. Only a live-only event (an activity item, a
+    pick list change) published in the second or two both lanes are up can miss a client still on the old lane.
+  - **Turn it on, once** (after a release with this has deployed; no gap: lane a warms beside `control-scout.service`
+    and takes over from it):
+
+    ```bash
+    ssh -i ~/.ssh/oracle-controlpoint ubuntu@132.145.202.89 'sudo /opt/control-scout/bin/lanes enable && sudo /opt/control-scout/bin/lanes status'
+    ```
+
+    It writes `/etc/systemd/system/control-scout@.service` (made from `control-scout.service`, plus `Sockets=`), makes
+    lane a the socket's own service (`Service=control-scout@a.service`, applied by a daemon-reload: the socket keeps its
+    port), starts lane a, then stops and disables `control-scout.service` and enables lane a for boot. If lane a never
+    gets ready it undoes all that and `control-scout.service` keeps serving. Logs: `journalctl -u 'control-scout@*' -f`.
+    Until this is run, deploys restart `control-scout.service` exactly as before.
+  - **Turn it off:** `sudo /opt/control-scout/bin/lanes disable` (also without a gap). A rollback to a release from
+    before socket activation turns it off too.
+  - **Proven on the VM** (2026-11-21) against throwaway units on another port (`zgtest.socket` on 39123, a test
+    server that waits 15 s before taking the socket, requests every 20 ms throughout): `lanes enable` from the single
+    service, hand-offs a → b → a, a lane that never got ready, `lanes disable` and `enable` again: 2,695 requests, none
+    failed, the slowest 14 ms, the same socket throughout. Both lanes were seen answering while both were up.
 - **Live scout stream:** `GET /api/scout/stream` is server-sent events (server/scout/stream.ts). The nginx
   site gives it its own `location` with `proxy_buffering off` and a 1 h `proxy_read_timeout` (the server
   sends a heartbeat every 25 s), written by `deploy/oracle-vm-setup.sh` on every update. A stopping server
   ends its streams first, and clients reconnect to the next one from where they were. The live updates
-  are in-process: this works because the VM runs **one** server process. A deploy with several server
+  are in-process: this works because the VM runs **one** server process (two for a moment during a hand-off, see
+  above; reconnecting clients catch up from their cursor). A deploy with several server
   instances would need a shared bus behind `server/scout/bus.ts` (Redis pub/sub, Postgres LISTEN/NOTIFY).
 - **Rollback:** on the VM, `sudo /opt/control-scout/bin/rollback` lists the installed releases, and
   `sudo /opt/control-scout/bin/rollback <release>` switches to one and waits until it's up. For a release
   from before socket activation, it also puts back the service that release expects (the server opening
-  the port itself) and stops the socket; the next deploy switches back. Don't switch `current` by hand:
+  the port itself) and stops the socket; the next deploy switches back. With the lanes on, the release starts in
+  the idle lane and takes over without a gap. Don't switch `current` by hand:
   an older release can't start while the socket holds the port.
 - **Docker** (for the Mac mini cluster later): `docker build -t control-scout .`
   then `docker run -p 3000:3000 -v scout-data:/app/.data --env-file .env control-scout`.
@@ -302,7 +349,8 @@ ssh -i ~/.ssh/oracle-controlpoint ubuntu@132.145.202.89 'ls -1t /opt/control-sco
 ssh -i ~/.ssh/oracle-controlpoint ubuntu@132.145.202.89 'sudo ln -sfn releases/<older> /opt/control-scout/current && sudo systemctl restart control-scout'
 ```
 
-The data directory is shared by every release, so a rollback keeps all data.
+The data directory is shared by every release, so a rollback keeps all data. With the zero-gap lanes on, use
+`sudo /opt/control-scout/bin/rollback <older>` instead (there is no `control-scout.service` running to restart).
 
 ## Uptime alerts
 

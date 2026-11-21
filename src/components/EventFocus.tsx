@@ -72,7 +72,7 @@ export function ProgressLine({ played, total }: { played: number; total: number 
         <span><span className="text-sm font-semibold tabular-nums text-text-base">{played}</span> / <span className="tabular-nums">{total}</span> matches played</span>
         <span className="tabular-nums">{Math.round(pc)}%</span>
       </p>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]" role="progressbar" aria-label="Matches played" aria-valuemin={0} aria-valuemax={total} aria-valuenow={played}>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink/[0.06]" role="progressbar" aria-label="Matches played" aria-valuemin={0} aria-valuemax={total} aria-valuenow={played}>
         <div className="h-full rounded-full bg-accent" style={{ width: `${pc}%` }} />
       </div>
     </div>
@@ -104,7 +104,7 @@ export function TopStandings({ field, season, mine, n = 8 }: { field: FieldRow[]
       {shown.map(({ r, s }, i) => {
         const yours = mine.has(r.team);
         return (
-          <li key={r.team} className={cn("grid h-11 grid-cols-[2rem_minmax(0,1fr)_auto_3.5rem] items-center gap-3 px-4 text-sm", yours && "bg-accent/[0.08] shadow-[inset_2px_0_0_var(--color-accent)]", i === n && "border-t border-white/[0.12]")} data-team={r.team}>
+          <li key={r.team} className={cn("grid h-11 grid-cols-[2rem_minmax(0,1fr)_auto_3.5rem] items-center gap-3 px-4 text-sm", yours && "bg-accent/[0.08] shadow-[inset_2px_0_0_var(--color-accent)]", i === n && "border-t border-ink/[0.12]")} data-team={r.team}>
             <span className={cn("text-right tabular-nums text-text-muted", s.rank != null && s.rank <= 3 && "font-semibold", v8Rank(s.rank))}>{s.rank}</span>
             <span className="flex min-w-0 items-center gap-2">{yours && <YoursMark />}<TeamName team={r.team} name={r.name} season={season} yours={yours} /></span>
             <span className="text-xs tabular-nums text-text-faint">{s.wins != null ? `${s.wins}-${s.losses ?? 0}-${s.ties ?? 0}` : ""}</span>

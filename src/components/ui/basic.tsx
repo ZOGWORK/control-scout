@@ -75,7 +75,7 @@ export const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: 'border-transparent bg-accent text-accent-ink v8:bg-white/10 v8:text-text-base',
+        default: 'border-transparent bg-accent text-accent-ink v8:bg-ink/10 v8:text-text-base',
         soft: 'border-accent/30 bg-accent/15 text-accent-text',
         secondary: 'border-line bg-text-base/[0.06] text-text-muted',
         outline: 'border-text-base/20 text-text-muted',
@@ -97,7 +97,7 @@ export function Badge({ className, variant, ...props }: React.ComponentProps<'sp
 // --- Skeleton / Separator ---------------------------------------------------
 
 export function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div data-slot="skeleton" className={cn('animate-pulse rounded-xl bg-text-base/[0.06] v8:animate-none v8:bg-white/[0.05]', className)} {...props} />;
+  return <div data-slot="skeleton" className={cn('animate-pulse rounded-xl bg-text-base/[0.06] v8:animate-none v8:bg-ink/[0.05]', className)} {...props} />;
 }
 export function Separator({ className, orientation = 'horizontal', decorative = true, ...props }: React.ComponentProps<typeof SeparatorPrimitive.Root>) {
   return (
@@ -127,7 +127,7 @@ export function TableBody({ className, ...props }: React.ComponentProps<'tbody'>
   return <tbody data-slot="table-body" className={cn('[&_tr:last-child]:border-0', className)} {...props} />;
 }
 export function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
-  return <tr data-slot="table-row" className={cn('border-b border-line transition-colors hover:bg-text-base/[0.03] data-[state=selected]:bg-accent/[0.08] v8:data-[state=selected]:bg-white/[0.06]', className)} {...props} />;
+  return <tr data-slot="table-row" className={cn('border-b border-line transition-colors hover:bg-text-base/[0.03] data-[state=selected]:bg-accent/[0.08] v8:data-[state=selected]:bg-ink/[0.06]', className)} {...props} />;
 }
 export function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
   return <th data-slot="table-head" className={cn('h-10 px-3 text-left align-middle text-[10px] font-bold uppercase tracking-wider text-text-muted whitespace-nowrap v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint', className)} {...props} />;

@@ -267,8 +267,8 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
           {b.title && <figcaption className={H3}>{b.title}</figcaption>}
           <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={recordWords(b.wins, b.losses, b.ties)}>
             <span className={TEAM_BAR} style={{ width: w(b.wins) }} data-bar data-value={b.wins} data-scale={n} />
-            <span className="bg-team-a/40 v8:bg-white/30" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
-            <span className="bg-team-a/20 v8:bg-white/15" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />
+            <span className="bg-team-a/40 v8:bg-ink/30" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
+            <span className="bg-team-a/20 v8:bg-ink/15" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />
           </div>
           <p className="mt-1.5 flex flex-wrap gap-x-4 text-xs tabular-nums text-foreground" aria-hidden>
             <span><b>{b.wins}</b> won</span><span><b>{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
@@ -396,6 +396,10 @@ function RecordSplit({ split, bar = INK_BAR }: { split: { quals: StatRecord; pla
  *  teams side by side (columns `a` and `b`): each row's better number is bold with a trophy (no hue). */
 function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
   const first = b.columns[0];
+  // A list's place ("#") first is a narrow index: the next column (the team, the event) leads the row, wide and linked,
+  // so the numbers line up under the card's own left edge (bug report #2040).
+  const index = first.key === "rank" && !!first.num && b.columns.length > 1;
+  const lead = index ? 1 : 0;
   const max = new Map(b.columns.map((c) => [c.key, columnMax(c, b.rows.map((r) => r.cells[c.key]))]));
   const folded = b.columns.filter((c) => foldsOnPhone(c, first));
   const vs = b.columns.some((c) => c.key === "a") && b.columns.some((c) => c.key === "b");
@@ -407,7 +411,7 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
       <div className={cn("overflow-x-auto rounded-lg border border-border", V8_TABLE.frame)}>
         <table className="w-full text-sm">
           <thead className={cn("bg-muted/50 text-left text-[11px] text-muted-foreground v8:bg-transparent v8:text-[0.75rem] v8:text-text-faint", V8_TABLE.head)}>
-            <tr>{b.columns.map((c) => <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", V8_TABLE.cell, "v8:h-9 v8:py-0", c.num && "text-right", c !== first && "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden")}>{c.label}</th>)}{plays && <th scope="col" className="w-0 px-1"><span className="sr-only">Video</span></th>}</tr>
+            <tr>{b.columns.map((c) => <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", V8_TABLE.cell, "v8:h-9 v8:py-0", c.num && "text-right", c !== first && "whitespace-nowrap max-md:px-1.5", index && c === first && "w-px whitespace-nowrap", folded.includes(c) && "max-md:hidden")}>{c.label}</th>)}{plays && <th scope="col" className="w-0 px-1"><span className="sr-only">Video</span></th>}</tr>
           </thead>
           <tbody>
             {b.rows.map((r, i) => {
@@ -419,12 +423,12 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                     const v = r.cells[c.key];
                     const won = win === c.key;
                     return (
-                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", V8_TABLE.cell, c.num && "text-right tabular-nums", j === 0 && meaningOf(String(v ?? "")) && cn("border-l-[6px]", swatchOf(String(v)).edge), j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
+                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", V8_TABLE.cell, c.num && "text-right tabular-nums", j === 0 && meaningOf(String(v ?? "")) && cn("border-l-[6px]", swatchOf(String(v)).edge), j === lead ? "min-w-[4.5rem] md:min-w-[8rem]" : cn("whitespace-nowrap max-md:px-1.5", index && j === 0 && "w-px"), folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
                         {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-team-a v8:text-accent" aria-label="Best" />}
-                        {j === 0 && r.href
+                        {j === lead && r.href
                           ? <Link to={r.href} className={cn("text-foreground hover:text-accent-text v8:hover:text-foreground hover:underline max-md:inline-flex max-md:items-center pointer-coarse:inline-flex pointer-coarse:items-center", TAP)}>{c.key === "award" && v != null ? <AwardChip name={String(v)} /> : (v ?? "–")}</Link>
                           : j === 0 && c.key === "award" && v != null ? <AwardChip name={String(v)} />
-                          : j === 0 ? (v ?? "–") : <Cell col={c} value={v} max={max.get(c.key)} />}
+                          : j <= lead ? (v ?? "–") : <Cell col={c} value={v} max={max.get(c.key)} />}
                         {j === 0 && first.key === "event" && !!r.type && <EventMarker type={r.type} chip />}
                         {won && <Trophy className="ml-1 inline size-3 align-[-1px] text-team-a v8:text-muted-foreground" aria-label="Better" />}
                         {j === 0 && !!folded.length && (
@@ -626,7 +630,8 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
   // Another answer in the same place (the page stays mounted from one search to the next) opens short again.
   const [shownFor, setShownFor] = useState(b);
   if (shownFor !== b) { setShownFor(b); setAll(false); }
-  const short = v8 && !all && table.rows.length > V8_TOP;
+  // A count asked for ("top 10 teams") is shown whole: the question sized it.
+  const short = v8 && !all && !b.whole && table.rows.length > V8_TOP;
   return (
     <figure data-block="leaderboard">
       <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -634,9 +639,9 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
         <span className="text-[11px] text-muted-foreground" data-note>{b.note}</span>
       </figcaption>
       <TeamTable table={table} label={b.title} limit={short ? V8_TOP : undefined} />
-      {v8 && table.rows.length > V8_TOP && (
+      {v8 && !b.whole && table.rows.length > V8_TOP && (
         <button type="button" onClick={() => setAll((a) => !a)} aria-expanded={all}
-          className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm text-text-muted hover:bg-white/[0.06] hover:text-foreground max-md:min-h-[44px]" data-show-all>
+          className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm text-text-muted hover:bg-ink/[0.06] hover:text-foreground max-md:min-h-[44px]" data-show-all>
           {all ? "Show top 5" : `Show all ${table.rows.length}`}
         </button>
       )}

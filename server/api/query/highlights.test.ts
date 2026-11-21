@@ -172,7 +172,8 @@ describe("highlights over a scope", () => {
     // Across divisions: each tile says its event; the divisions before the finals they feed.
     expect(v.tiles.map((t) => `${t.event} ${t.label}`)).toEqual(["Worlds · Jackson Division Q16", "Worlds · Jackson Division Q17", "Worlds · Ross Division Q3", "Worlds · Ross Division M1", "Worlds finals F1"]);
     expect(v.streams?.map((l) => l.label)).toEqual(["Worlds · Jackson Division", "Worlds · Ross Division", "Worlds finals"]);
-    expect(v.empty?.text).toBe("No match videos at Worlds in 2024–25 yet.");
+    // Q16 has a video: no line saying there are none.
+    expect(v.empty).toBeUndefined();
   });
 
   it("a calendar year with Worlds is the Worlds held that year", async () => {

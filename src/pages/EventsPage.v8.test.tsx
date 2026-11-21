@@ -56,7 +56,7 @@ beforeEach(() => {
     events: [
       { season: 2026, code: "U1", name: "Upcoming One", type: "Qualifier", place: "Edison, NJ, USA", city: null, state: null, country: null, start: day(1), end: day(1), timezone: null, dates: "x", teams: 30, status: "upcoming", href: "/events/2026/U1" },
       { season: 2026, code: "L1", name: "Live One", type: "LeagueMeet", place: "Austin, TX, USA", city: null, state: null, country: null, start: day(0), end: day(0), timezone: null, dates: "x", teams: 12, status: "live", href: "/events/2026/L1" },
-      { season: 2026, code: "F1", name: "Done One", type: "Scrimmage", place: null, city: null, state: null, country: null, start: day(0), end: day(0), timezone: null, dates: "x", teams: 0, status: "finished", href: "/events/2026/F1", recording: "https://example.test/rec" },
+      { season: 2026, code: "F1", name: "Done One", type: "Scrimmage", place: null, city: null, state: null, country: null, start: day(0), end: day(0), timezone: null, dates: "x", teams: 0, status: "finished", href: "/events/2026/F1", recording: "/events/2026/F1?watch=qualDay1BBB" },
     ],
   };
   v8(true);
@@ -126,6 +126,27 @@ describe("Events page in v8", () => {
     expect(document.querySelector('[data-event-row="EV4"] [data-video="clips"]')).toBeTruthy();
   });
 
+  it("gives an event with a stream or recording a chip to the event page's own player, and no other event one", () => {
+    EVENTS = [...EVENTS, ev(5, "finished", day(-2), { stream: true, video: "recording" }), ev(6, "upcoming", day(1), { stream: true })];
+    for (const on of [true, false]) {
+      v8(on);
+      mount(<EventsPage />);
+      const chips = [...document.querySelectorAll<HTMLAnchorElement>("[data-watch-chip]")];
+      // Live with a stream: Watch live; finished with a recording: Recording; upcoming or without one: none.
+      const list = on ? chips.filter((c) => !c.closest("[data-events-now]")) : chips;
+      expect(list.map((c) => [c.textContent?.trim(), c.getAttribute("href")]).sort()).toEqual([["Recording", "/events/2026/EV5?watch"], ["Watch live", "/events/2026/EV2?watch"]]);
+      if (on) {
+        // The On now strip too, beside the row's link (never inside it); the row still opens the event page.
+        const strip = document.querySelector("[data-events-now]")!;
+        expect(strip.querySelector('[data-watch-chip="live"]')!.getAttribute("href")).toBe("/events/2026/EV2?watch");
+        expect(strip.querySelector('[data-now-row] [data-watch-chip]')).toBeNull();
+        expect(document.querySelector('[data-event-row="EV2"]')!.getAttribute("href")).toBe("/events/2026/EV2");
+      }
+      expect([...document.querySelectorAll("a")].some((a) => /youtube\.com|youtu\.be/.test(a.getAttribute("href") ?? ""))).toBe(false);
+      cleanup();
+    }
+  });
+
   it("draws the classic cards with v8 off", () => {
     v8(false);
     mount(<EventsPage />);
@@ -145,7 +166,23 @@ describe("This weekend in v8", () => {
     const tab = screen.getByRole("tab", { name: "This weekend" });
     expect(tab.className).toContain("after:bg-accent");
     expect(tab.className.split(" ")).not.toContain("bg-accent");
-    expect(screen.getByRole("link", { name: /Recording/ }).getAttribute("href")).toBe("https://example.test/rec");
+    // The Recording chip opens the event page's own player, never YouTube.
+    expect(screen.getByRole("link", { name: /Recording/ }).getAttribute("href")).toBe("/events/2026/F1?watch=qualDay1BBB");
+  });
+
+  it("keeps a recording on the site even from an older server's YouTube link, and says Watch live while it's on", () => {
+    WEEKEND = { ...WEEKEND, events: WEEKEND.events.map((e) => (e.code === "F1" ? { ...e, recording: "https://www.youtube.com/watch?v=qualDay1BBB" } : e.code === "L1" ? { ...e, recording: "/events/2026/L1?watch=liveStreamA" } : e)) };
+    for (const on of [true, false]) {
+      v8(on);
+      mount(<WeekendPage />, "/weekend");
+      const links = [...document.querySelectorAll("a")].map((a) => a.getAttribute("href") ?? "");
+      expect(links.filter((h) => /youtube\.com|youtu\.be/.test(h))).toEqual([]);
+      expect(screen.getByRole("link", { name: /Recording: Done One/ }).getAttribute("href")).toBe("/events/2026/F1?watch=qualDay1BBB");
+      expect(screen.getByRole("link", { name: /Watch live: Live One/ }).getAttribute("href")).toBe("/events/2026/L1?watch=liveStreamA");
+      // The row itself still opens the event page.
+      expect(document.querySelector('[data-weekend-event="L1"] a')!.getAttribute("href")).toBe("/events/2026/L1");
+      cleanup();
+    }
   });
 
   it("shows one empty card with a way to the calendar on a weekend with none", () => {
