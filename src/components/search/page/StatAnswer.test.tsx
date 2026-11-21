@@ -250,3 +250,22 @@ describe("each fact printed once (the guide's §8)", () => {
     expect(c.querySelector("[data-definition]")!.textContent).not.toContain("How this is counted:");
   });
 });
+
+describe("a leaderboard in v8", () => {
+  const rows = Array.from({ length: 10 }, (_, i) => ({ rank: i + 1, team: { label: `${100 + i} Team ${i + 1}`, href: `/teams/${100 + i}` }, location: null, record: "1-0-0", opr: 100 - i, value: 100 - i, display: (100 - i).toFixed(1), parts: null }));
+  const board = (whole?: boolean): StatAnswer => ({
+    family: "leaderboard", intent: "top", title: "Top 10 teams", scope: ["2026–27"], definition: "", source: "From the season numbers",
+    blocks: [{ kind: "leaderboard", title: "Top 10 by OPR", stat: { id: "opr", label: "OPR" }, note: "2026–27", rows, ...(whole ? { whole } : {}) }],
+  });
+  afterEach(() => document.documentElement.removeAttribute("data-v8"));
+  it("shows its top five with Show all, but every row when the question said how many (bug report #2026)", () => {
+    document.documentElement.setAttribute("data-v8", "");
+    const short = draw(board());
+    expect(short.querySelectorAll("[data-block=leaderboard] tbody tr")).toHaveLength(5);
+    expect(short.querySelector("[data-show-all]")).not.toBeNull();
+    cleanup();
+    const whole = draw(board(true));
+    expect(whole.querySelectorAll("[data-block=leaderboard] tbody tr")).toHaveLength(10);
+    expect(whole.querySelector("[data-show-all]")).toBeNull();
+  });
+});
