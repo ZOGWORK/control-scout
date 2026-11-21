@@ -2830,6 +2830,19 @@ export async function inSnapshot<T>(fn: (read: <R = Row>(sql: string, args?: InA
   }
 }
 
+const filePaths = new WeakMap<Client, string | null>();
+/** The file the database is, when it is a local file of its own that another connection (a worker thread's) can open
+ *  and see the same data: null in memory, as an embedded replica, or remote. Kept once known per client. */
+export async function localDbFile(c: Client = db()): Promise<string | null> {
+  if (filePaths.has(c)) return filePaths.get(c)!;
+  if (!(await fileOfItsOwn(c))) { filePaths.set(c, null); return null; }
+  const main = (await c.execute("PRAGMA database_list").catch(() => null))?.rows.find((r) => r.name === "main");
+  if (!main) return null; // the probe failed: asked again next time
+  const path = String(main.file ?? "") || null;
+  filePaths.set(c, path);
+  return path;
+}
+
 let primaryClient: Client | null = null;
 /**
  * The database itself, bypassing the embedded replica: for the few small reads that must see another
