@@ -17,6 +17,7 @@ import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
 import { loadManualStarts } from "./videos/manualStarts.js";
+import { loadAutoReads, startAutoReadsInbox } from "./videos/autoReads.js";
 import { packsDir } from "./packs/routes.js";
 import { backfillDue } from "./data/cycle.js";
 import { childCycle, cycleRunning, runDataCycle } from "./data/jobs.js";
@@ -89,6 +90,9 @@ await openReplicaIfRemote(log);
 await migrate();
 // The owner's typed match starts (Owner › Official videos) into memory before any page plays a clip.
 await loadManualStarts().catch((e) => console.warn(`manual starts: ${(e as Error).message}`));
+// The clip autopilot's reads the server put live (server/videos/autoReads.ts), laid over the code's frame rows and
+// clip checks, before any page plays a clip.
+await loadAutoReads().catch((e) => console.warn(`auto reads: ${(e as Error).message}`));
 // Clip coverage rows from before triage get their category from what they hold, in the background (a few hundred rows).
 void triageUntriaged(log).catch((e) => log(`clip coverage triage: ${(e as Error).message}`));
 
@@ -192,6 +196,9 @@ if (!process.env.CS_NO_SCHEDULER) {
   startSearchFailureJobs(log);
   // The public /status page's checks, every 2 minutes (server/uptime.ts). No alerts.
   startUptimeChecks(log);
+  // The clip autopilot's deliveries (server/videos/autoReads.ts): its inbox read every minute, each row put live or held
+  // for the owner; the live rows loaded again when another server process wrote them.
+  startAutoReadsInbox(log);
   setInterval(() => { photoSchedulerTick(log).catch((e) => log(`photos: ${(e as Error).message}`)); }, 15 * 60_000).unref();
   // Workspace activity feeds keep 90 days (server/scout/activityLog.ts): a small indexed delete, every 6 hours, and once soon after boot.
   const prune = () => { pruneActivity().then((n) => { if (n) log(`activity: pruned ${n} items older than 90 days`); }).catch((e) => log(`activity: ${(e as Error).message}`)); };
