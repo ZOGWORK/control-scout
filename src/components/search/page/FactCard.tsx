@@ -14,7 +14,8 @@ import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
 import { AnswerVideo, useClips, videoCaption } from "./AnswerVideo";
 import { thumbnailUrl } from "../../../shared/stream";
-import { SEARCH_PALETTE, meaningOf, type Meaning } from "../../../lib/textTones";
+import { meaningOf, type Meaning } from "../../../lib/textTones";
+import { TONE } from "./v8tone";
 import { ResultPill, RichText, TEAM_BAR, TEAM_SWATCH, TEAM_TEXT, type Swatch } from "./answerCells";
 import { AnswerFrame, PART, RelatedQuestions, SeasonEvents, SeasonTiles, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 
@@ -53,7 +54,7 @@ export function lineSwatch(kind: SearchCard["kind"], line: Pick<SearchCardLine, 
   const award = kind === "awards" || kind === "event-awards" || kind === "wins" ? meaningOf(line.text) : null;
   // One team's best scores are that team's records: its hue (a blue too), never Record's info blue beside it.
   const m = award ?? (kind === "info" && COUNT.test(line.text) ? "count" : kind === "high-scores" && team ? "team" : CARD_MEANING[kind]);
-  return m === "team" ? TEAM_SWATCH[0] : SEARCH_PALETTE[m];
+  return m === "team" ? TEAM_SWATCH[0] : TONE[m];
 }
 
 const ICON: Partial<Record<SearchCard["kind"], LucideIcon>> = { rule: BookOpen, "next-event": CalendarDays, "next-match": CalendarDays, awards: Medal, "event-awards": Medal, info: Info };
@@ -89,15 +90,15 @@ export function FactCard({ card, heading, season: asked }: { card: CardExtra; he
       sub={facts.length ? "As FIRST's team listing gives it" : SOURCE[card.kind]} data={{ "data-fact-card": facts.length ? "" : undefined, "data-card-kind": card.kind }}>
       {!!card.count && (
         <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatTile tone="neutral" icon={ICON[card.kind] ?? Trophy} label={card.title} chip={SEARCH_PALETTE.count.fill} className={cn("border-l-[6px]", SEARCH_PALETTE.count.edge, SEARCH_PALETTE.count.tint)}
-            value={<span className={SEARCH_PALETTE.count.text} data-kpi>{card.count}</span>} hint={card.count === 1 ? "time" : "times"} />
+          <StatTile tone="neutral" icon={ICON[card.kind] ?? Trophy} label={card.title} chip={TONE.count.fill} className={cn("border-l-[6px]", TONE.count.edge, TONE.count.tint)}
+            value={<span className={TONE.count.text} data-kpi>{card.count}</span>} hint={card.count === 1 ? "time" : "times"} />
         </div>
       )}
       {!!facts.length && <FactTiles facts={facts} />}
       {card.none && (
         // Nothing found is the answer "no": No's slate, a thick bar and a filled chip.
-        <p className={cn("flex items-start gap-3 rounded-xl border border-l-[6px] border-border px-4 py-3 text-sm font-semibold text-foreground", SEARCH_PALETTE.no.edge, SEARCH_PALETTE.no.tint)} data-none>
-          <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", SEARCH_PALETTE.no.fill)} data-line-icon><Info className="size-4" aria-hidden /></span><span className="mt-1">{card.none}</span>
+        <p className={cn("flex items-start gap-3 rounded-xl border border-l-[6px] border-border px-4 py-3 text-sm font-semibold text-foreground", TONE.no.edge, TONE.no.tint)} data-none>
+          <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", TONE.no.fill)} data-line-icon><Info className="size-4" aria-hidden /></span><span className="mt-1">{card.none}</span>
         </p>
       )}
       {card.table?.rows.length ? <TeamTable table={card.table} label={card.title} />
@@ -253,7 +254,7 @@ function Lines({ lines, kind, icon: Icon, team }: { lines: SearchCardLine[]; kin
       {lines.map((l, i) => {
         const sw = lineSwatch(kind, l, team);
         // A count's or a record's line leads with its number, drawn big.
-        const n = sw === SEARCH_PALETTE.count || kind === "high-scores" ? COUNT.exec(l.text) : null;
+        const n = sw === TONE.count || kind === "high-scores" ? COUNT.exec(l.text) : null;
         const body = (
           <>
             {Icon && <span className={cn("mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg", sw.fill)} data-line-icon><Icon className="size-5" aria-hidden /></span>}
@@ -266,7 +267,7 @@ function Lines({ lines, kind, icon: Icon, team }: { lines: SearchCardLine[]; kin
               {l.detail && <span className="mt-0.5 block text-xs text-muted-foreground"><RichText text={l.detail} /></span>}
               {!!l.results?.length && (
                 <span className="mt-2 flex flex-wrap gap-1.5" data-results>
-                  {l.results.map((r, j) => <ResultPill key={j} text={r} record={sw === SEARCH_PALETTE.record} />)}
+                  {l.results.map((r, j) => <ResultPill key={j} text={r} record={sw === TONE.record} />)}
                 </span>
               )}
             </span>

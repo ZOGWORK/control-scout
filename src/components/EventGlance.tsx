@@ -17,6 +17,7 @@ import { TierMark } from "./predict";
 import { cn } from "./cn";
 import { topSeed } from "../lib/eventRankingNotes";
 import { hasTeamPage } from "../shared/teamPages";
+import { useIsV8 } from "../lib/v8";
 
 const PHASE: Record<Phase, string> = { upcoming: "Not started", quals: "Qualification", playoffs: "Playoffs", done: "Complete" };
 
@@ -33,7 +34,7 @@ function Cell({ label, children, hint, wide, tone, testId, term }: { label: stri
   return (
     <div data-glance={testId} className={cn("grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 border-t border-border/60 py-1.5 @min-[22rem]:grid-cols-1 @min-[22rem]:content-start @min-[22rem]:pb-0 @min-[22rem]:pt-2", wide && "@min-[22rem]:col-span-full")}>
       <dt className="flex items-center gap-1.5 text-xs text-muted-foreground" title={term}>
-        {tone && <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", TONES[tone].bar)} />}{label}
+        {tone && <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full v8:hidden", TONES[tone].bar)} />}{label}
       </dt>
       <dd className="min-w-0 text-right text-sm font-semibold tabular-nums text-foreground [overflow-wrap:anywhere] @min-[22rem]:mt-0.5 @min-[22rem]:text-left">{children}</dd>
       {hint && <dd className="col-span-full min-w-0 text-right text-xs text-muted-foreground [overflow-wrap:anywhere] @min-[22rem]:text-left">{hint}</dd>}
@@ -113,12 +114,13 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   </Cell>);
 
   // Match predictions need a schedule: with none yet (and no advancement odds) the button led to an empty tab.
+  const v8 = useIsV8();
   const oddsButton = predictable && e.status !== "finished" && !(d.forecastUnsupported && !s.progress);
   return (
-    <div className="@container flex min-w-0 flex-col rounded-xl border border-border/70 bg-background/40 p-4 backdrop-blur-sm" data-glance-card>
+    <div className="@container flex min-w-0 flex-col rounded-xl border border-border/70 bg-background/40 p-4 backdrop-blur-sm v8:border-line v8:bg-card v8:backdrop-blur-none" data-glance-card>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">At a glance</p>
-        <span data-glance="phase" className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint">At a glance</p>
+        <span data-glance="phase" className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground v8:border-line v8:text-xs">
           {s.ended ? `Ended ${dateRange(s.ended)}` : PHASE[s.phase]}
         </span>
       </div>
@@ -127,7 +129,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
         <button type="button" onClick={() => onTab("matches")} className="mt-2 block w-full space-y-1 text-left">
           {s.record.map((x, i) => (
             <span key={x.kind} className="block">
-              <span className={cn("font-display font-semibold tabular-nums", i === 0 ? "text-3xl text-accent-text" : "text-lg")}>{Math.round((x.right / x.n) * 100)}%</span>
+              <span className={cn("font-display font-semibold tabular-nums", i === 0 ? "text-3xl text-accent-text v8:text-accent" : "text-lg")}>{Math.round((x.right / x.n) * 100)}%</span>
               <span className="ml-2 text-sm text-muted-foreground">of {x.n} {x.kind === "live" ? "calls made before the match" : "matches predicted from earlier data (replayed)"}</span>
             </span>
           ))}
@@ -151,7 +153,8 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
       {cells.length > 0 && <dl className="mt-3 grid grid-cols-1 gap-x-4 @min-[22rem]:grid-cols-2 @min-[22rem]:gap-y-2.5 @min-[25rem]:grid-cols-3">{cells}</dl>}
       {oddsButton && (
         <div className="mt-auto pt-3">
-          <Button size="sm" className="w-full" onClick={() => onTab("odds")}>
+          {/* v8: the header keeps the one primary (watch), so this is an outline button. */}
+          <Button size="sm" variant={v8 ? "outline" : "default"} className="w-full" onClick={() => onTab("odds")}>
             <Trophy /> {d.forecastUnsupported ? "See the match predictions" : "Who advances? See the odds"}
           </Button>
         </div>

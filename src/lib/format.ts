@@ -3,7 +3,7 @@
 import { DEVICE_LATEST } from "../shared/scoutEntry";
 
 import { dateRange } from "../shared/format";
-export { pct, oddsPct, num, int, rankPct, dateRange, place, matchTime, matchDateTime, seasonLabel, awardLabel } from "../shared/format";
+export { pct, oddsPct, num, int, rankPct, dateRange, place, matchTime, matchDateTime, seasonLabel, awardLabel, awardTitle, plainText } from "../shared/format";
 
 export function ago(iso: string | null | undefined): string {
   if (!iso) return "never";

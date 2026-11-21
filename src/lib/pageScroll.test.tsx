@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { BrowserRouter, MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
 import { StrictMode, useRef } from "react";
-import { chase, entryKey, HEADER_ID, jumpPageTo, pageScroller, pageTop, planScroll, scrollToElement, smoothBehavior, SMOOTH_SCROLL_QUERY, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, SCROLLING_BY_TOUCH, SCROLLING_POINTER_MOVED, ScrollPositions, usePageScroll } from "./pageScroll";
+import { chase, entryKey, HEADER_ID, jumpPageTo, pageScroller, pageTop, planScroll, scrollToElement, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, SCROLLING_BY_TOUCH, SCROLLING_POINTER_MOVED, ScrollPositions, usePageScroll } from "./pageScroll";
 
 describe("planScroll", () => {
   const base = { prevPath: "/events", path: "/teams/4215", hash: "", saved: undefined };
@@ -79,9 +79,9 @@ function fakeScroller(el: HTMLElement, height: { current: number }, viewport = 8
 
 beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("ResizeObserver", FakeResizeObserver); observers.clear(); sessionStorage.clear(); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
-// A screen for matchMedia: "desktop" (wide, mouse), "phone" (touch, narrow) or "reduced" (desktop asking for reduced motion).
-function onScreen(kind: "desktop" | "phone" | "reduced") {
-  vi.stubGlobal("matchMedia", (q: string) => ({ matches: q === SMOOTH_SCROLL_QUERY ? kind === "desktop" : q.includes("reduce") && kind === "reduced" }));
+// A desktop screen for matchMedia (wide, a mouse that hovers, no reduced motion): where smooth scrolling used to run.
+function onScreen(kind: "desktop") {
+  vi.stubGlobal("matchMedia", (q: string) => ({ matches: kind === "desktop" && !q.includes("reduce") }));
 }
 
 describe("chase", () => {
@@ -136,7 +136,7 @@ describe("usePageScroll", () => {
     expect(page.scrollTop).toBe(300);
   });
 
-  it("jumps on a route change and a back/forward, though the page glides to in-page targets (scroll-behavior: smooth)", () => {
+  it("jumps on a route change and a back/forward, whatever scroll-behavior the root has", () => {
     height.current = 5000;
     // Each write to the page's scroll position, with the scroll-behavior in force on the root as it happens.
     const writes: string[] = [];
@@ -326,14 +326,15 @@ describe("usePageScroll", () => {
     // A link the page itself took over (preventDefault) is left to it: nothing is followed.
     follow();
     expect(page.scrollTop).toBe(500);
-    // Followed for real: the click is heard (not cancelled) and the browser adds the #sec entry. It glides there.
+    // Followed for real: the click is heard (not cancelled) and the browser adds the #sec entry. It jumps there,
+    // never gliding, even on a desktop.
     onScreen("desktop");
     const glide = vi.fn((o: ScrollToOptions) => { page.scrollTop = o.top ?? 0; });
     vi.stubGlobal("scrollTo", glide);
     act(() => { link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); });
     arrive("/privacy#sec");
     expect(page.scrollTop).toBe(1928);
-    expect(glide).toHaveBeenCalledWith({ top: 1928, behavior: "smooth" });
+    expect(glide).not.toHaveBeenCalled();
     glide.mockClear();
     scrollTo(2600); // read on past the section
     arrive("/privacy"); // Back: restored at once, never glided
@@ -423,7 +424,7 @@ describe("scrollToElement", () => {
     expect(document.documentElement.scrollTop).toBe(2105);
   });
 
-  it("never goes above the top, and glides when asked to", () => {
+  it("never goes above the top, and jumps even on a desktop: nothing glides", () => {
     const el = target();
     placeAt("t", 40, "48px");
     scrollToElement(el);
@@ -432,42 +433,14 @@ describe("scrollToElement", () => {
     vi.stubGlobal("scrollTo", to);
     onScreen("desktop");
     placeAt("t", 900, "48px");
-    scrollToElement(el, "smooth");
-    expect(to).toHaveBeenCalledWith({ top: 852, behavior: "smooth" });
-  });
-
-  it("jumps instead of gliding on a phone or tablet: smooth scrolling is desktop only", () => {
-    const el = target();
-    const to = vi.fn();
-    vi.stubGlobal("scrollTo", to);
-    onScreen("phone");
-    placeAt("t", 900, "48px");
-    scrollToElement(el, "smooth");
+    scrollToElement(el);
     expect(to).not.toHaveBeenCalled();
     expect(document.documentElement.scrollTop).toBe(852);
-    expect(smoothBehavior()).toBe("auto");
-    // No matchMedia at all (an old browser): native, instant jumps.
-    vi.stubGlobal("matchMedia", undefined);
-    expect(smoothBehavior()).toBe("auto");
   });
 
-  it("asks for a wide screen with a hovering mouse or trackpad, and no reduced motion", () => {
-    expect(SMOOTH_SCROLL_QUERY).toContain("(min-width: 1024px)");
-    expect(SMOOTH_SCROLL_QUERY).toContain("(hover: hover)");
-    expect(SMOOTH_SCROLL_QUERY).toContain("(pointer: fine)");
-    expect(SMOOTH_SCROLL_QUERY).toContain("(prefers-reduced-motion: no-preference)");
-  });
-
-  it("is the same query index.css puts html's scroll-behavior: smooth under, and html glides nowhere else", () => {
+  it("has no smooth scrolling anywhere: no smooth rule in index.css, no scroll call asking for \"smooth\", no eased wheel", () => {
     const css = readFileSync("src/index.css", "utf8");
-    const at = css.indexOf(`@media ${SMOOTH_SCROLL_QUERY} {`);
-    expect(at).toBeGreaterThan(-1);
-    expect(css.slice(at, css.indexOf("}", at))).toMatch(/html\s*\{\s*scroll-behavior:\s*smooth;/);
-    // The only smooth rule in the file is that one: no unconditional html { scroll-behavior: smooth }.
-    expect(css.match(/scroll-behavior:\s*smooth/g)).toHaveLength(1);
-  });
-
-  it("is the only way the app asks for a glide: no scroll call names \"smooth\" itself (phones would glide)", () => {
+    expect(css).not.toMatch(/scroll-behavior:\s*smooth/);
     const files = (readdirSync("src", { recursive: true }) as string[]).filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f));
     const direct = files.flatMap((f) => {
       const text = readFileSync(join("src", f), "utf8");
@@ -475,22 +448,8 @@ describe("scrollToElement", () => {
       const handed = /(?:\?|:|behavior:|,)\s*["']smooth["']\s*[,)}:]/g;
       return [...text.matchAll(handed)].map(() => f.split("\\").join("/"));
     });
-    // pageScroll.ts hands it out from smoothBehavior(), the one place that knows the screen.
-    expect([...new Set(direct)].sort()).toEqual(["lib/pageScroll.ts"]);
-  });
-
-  it("jumps instead of gliding under reduced motion", () => {
-    const el = target();
-    const to = vi.fn();
-    vi.stubGlobal("scrollTo", to);
-    onScreen("reduced");
-    placeAt("t", 900, "48px");
-    scrollToElement(el, "smooth");
-    expect(to).not.toHaveBeenCalled();
-    expect(document.documentElement.scrollTop).toBe(852);
-    expect(smoothBehavior()).toBe("auto");
-    onScreen("desktop");
-    expect(smoothBehavior()).toBe("smooth");
+    expect(direct).toEqual([]);
+    expect(JSON.parse(readFileSync("package.json", "utf8")).dependencies?.lenis).toBeUndefined();
   });
 });
 
