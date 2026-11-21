@@ -16,6 +16,8 @@ it("sends current product knowledge with Discord chats, reserving room beside se
   expect(context[1].join(" ")).toContain("Search record 0");
   expect(context[1].length).toBeLessThanOrEqual(40);
   expect(context[1].join("\n").length).toBeLessThan(8000);
+  // Control Point refuses a packet with a fact over 400 characters: every line, product facts included, is under it.
+  expect(context[1].every((f) => f.length <= 400)).toBe(true);
   expect(state.flag.mock.calls.every((args) => (args as unknown as string[])[0] === "discordBruno")).toBe(true);
 
   // Exercise the outer ask/chatWith fit too: the real chat must still trim the
@@ -30,6 +32,22 @@ it("sends current product knowledge with Discord chats, reserving room beside se
   expect(throughAsk[1].join("\n").length).toBeLessThan(7500);
   expect(throughAsk[1].join(" ")).toContain("remodel is complete");
   expect(throughAsk[1].join(" ")).toContain("Search record 0");
+});
+
+it("says why a chat didn't happen, so a deployment is diagnosed from the bot's log", async () => {
+  const deps = await realAskDeps();
+  const info = vi.spyOn(console, "info").mockImplementation(() => {});
+  const answer = state.chat.getMockImplementation()!;
+  try {
+    state.chat.mockImplementation(async () => { throw Object.assign(new Error("Control Point answered 400"), { status: 400 }); });
+    expect(await deps.chat!("hi", [], [])).toBeNull();
+    expect(info.mock.calls.flat().join(" ")).toContain("[bot] chat failed: Control Point answered 400");
+
+    state.chat.mockImplementation(answer);
+    state.flag.mockResolvedValueOnce(false);
+    expect(await deps.chat!("hi", [], [])).toBeNull();
+    expect(info.mock.calls.flat().join(" ")).toContain("[bot] chat off: the discordBruno switch is off");
+  } finally { state.chat.mockImplementation(answer); info.mockRestore(); }
 });
 
 it("answers Zog Mode requests as read-only product information without searching teams or calling AI", async () => {
