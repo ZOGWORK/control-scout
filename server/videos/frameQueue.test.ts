@@ -7,7 +7,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { forgetRecordings } from "./recordings";
 import { forgetOfficial } from "./officialVideos";
 import { currentSeason } from "../api/answers/season";
-import { FRAME_TIMINGS, setFrameTimingsForTests, type FrameTiming } from "../data/frameTimings";
+import { FRAME_TIMINGS, setAutoFrameRows, setFrameTimingsForTests, type FrameTiming } from "../data/frameTimings";
 import { checkClipCoverage, ownerClipCoverage } from "./coverageCheck";
 import { frameQueue, frameStatus, queueSummary, rankQueue, type QueueEvent } from "./frameQueue";
 import type { CoverageMatch } from "../../src/shared/api";
@@ -100,6 +100,40 @@ describe("frameStatus against frame rows merged since the coverage check", () =>
     expect(frameStatus(ev([miss("Q1", { reason: "before-broadcast", video: { checked: null } })]), NOW)).toMatchObject({ state: "read", at: "2026-11-16" });
     // Between two recordings, no video of its own: its stored check of both stands.
     expect(frameStatus(ev([miss("Q2", { reason: "between-recordings", videoId: null, video: { checked: null } })]), NOW).state).toBe("queued");
+  });
+
+  it("queues a video read after the event with starts but no edges for a --bounds read; one with both edges is read", () => {
+    const row = (o: Partial<FrameTiming> = {}): FrameTiming => ({ videoId: "VIDEOaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: { Q2: 400 }, missing: { Q1: "no frame read of it" }, ...o });
+    const status = () => frameStatus(ev([miss("Q1")]), NOW);
+    // Starts placed, no edges read: due, so the autopilot's --bounds pass reads its first and last frames.
+    setFrameTimingsForTests([row()]);
+    expect(status()).toMatchObject({ state: "queued", due: 1, why: "Queued for a frame read: 1 match, its video's first and last frames not read yet" });
+    // One edge only: still due for the other.
+    setFrameTimingsForTests([row({ opensOn: { at: 3, label: "Q2" } })]);
+    expect(status().state).toBe("queued");
+    // Both edges in: read, never queued again for them.
+    setFrameTimingsForTests([row({ opensOn: { at: 3, label: "Q2" }, endsOn: { at: 9000, fromEnd: 20, label: "Q40" } })]);
+    expect(status()).toMatchObject({ state: "read", due: 0 });
+    // No starts at all (none of this event's matches are in it): nothing for edges to prove, read.
+    setFrameTimingsForTests([row({ starts: {} })]);
+    expect(status().state).toBe("read");
+    // Beside a match read before the event finished: both counted, each said.
+    setFrameTimingsForTests([row(), { videoId: "READ20261114", code: "USXXQ", checked: "2026-11-14", starts: {}, missing: {} }]);
+    expect(frameStatus(ev([miss("Q1"), miss("Q9", { videoId: "READ20261114" })]), NOW).why)
+      .toBe("Queued for a frame read: 2 matches (1 read before the event finished; 1 in a video whose first and last frames aren't read yet)");
+  });
+
+  it("sees the edges of the database's live rows laid over the code's (auto_reads)", () => {
+    setFrameTimingsForTests([{ videoId: "VIDEOaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: { Q2: 400 }, missing: { Q1: "no frame read of it" } }]);
+    try {
+      // The autopilot's --bounds read went live from the database: its edges count, the code's row without them doesn't.
+      setAutoFrameRows([{ videoId: "VIDEOaaaaa1", code: "USXXQ", checked: "2026-11-17", starts: { Q2: 400 }, missing: { Q1: "no frame read of it" }, opensOn: { at: 3, label: "Q2" }, endsOn: { at: 9000, fromEnd: 20, label: "Q40" } }], [2025]);
+      expect(frameStatus(ev([miss("Q1")]), NOW).state).toBe("read");
+      // And a database row with starts and no edges over a code row with none: due.
+      setFrameTimingsForTests([{ videoId: "VIDEOaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: {}, missing: {} }]);
+      setAutoFrameRows([{ videoId: "VIDEOaaaaa1", code: "USXXQ", checked: "2026-11-17", starts: { Q2: 400 }, missing: { Q1: "no frame read of it" } }], [2025]);
+      expect(frameStatus(ev([miss("Q1")]), NOW).state).toBe("queued");
+    } finally { setAutoFrameRows([]); }
   });
 });
 
