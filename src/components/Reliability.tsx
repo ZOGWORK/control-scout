@@ -60,7 +60,7 @@ export function ReliabilitySection({ r, notes, workspaceName }: { r: Reliability
                 </div>
               ))}
             </dl>
-            <p className={cn("mt-3 rounded-lg p-2 text-xs text-muted-foreground v8:bg-white/[0.03]", r.matches < RELIABILITY_SMALL ? "bg-warning/[0.08]" : "bg-muted/40")}>
+            <p className={cn("mt-3 rounded-lg p-2 text-xs text-muted-foreground v8:bg-ink/[0.03]", r.matches < RELIABILITY_SMALL ? "bg-warning/[0.08]" : "bg-muted/40")}>
               Every part is pulled toward the season average as if the team had {RELIABILITY_PRIOR} more matches at it{r.matches < RELIABILITY_SMALL ? ": with this few matches, the index says more about the field than about this team" : ""}. Last {r.recent.matches}: {plural(r.recent.noShows, "no-show")}, {plural(r.recent.nearZero, "near-zero match", )}.
             </p>
           </div>

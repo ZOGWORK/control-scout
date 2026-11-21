@@ -21,24 +21,24 @@ export const V8_FRAME = "v8:rounded-none v8:border-0 v8:bg-transparent";
  *  on near-black where the 6% `line` token fades); opaque so a sticky head hides the rows under it. */
 export const V8_TH = "v8:bg-background v8:pb-0 v8:align-middle v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint v8:shadow-[inset_0_-1px_0_rgb(255_255_255/0.12)]";
 /** A row: 44px, a hairline above, a quiet fill on hover (hover-capable devices only). */
-export const V8_ROW = "v8:h-11 v8:border-white/[0.08] v8:hover:bg-white/[0.03]";
+export const V8_ROW = "v8:h-11 v8:border-ink/[0.08] v8:hover:bg-ink/[0.03]";
 /** Your team's row (or the one a link asked for): white, not the accent. A faint white fill and a white edge. */
-export const V8_MINE = "v8:bg-white/[0.05] v8:shadow-[inset_2px_0_0_var(--color-text-base)]";
+export const V8_MINE = "v8:bg-ink/[0.05] v8:shadow-[inset_2px_0_0_var(--color-text-base)]";
 /** A rank: Inter in tabular figures (Space Grotesk is for hero numbers only); its colour from `v8Medal`. */
 export const V8_RANK = "v8:font-sans v8:text-sm v8:font-medium";
 /** A rank's colour: #1 soft gold, #2 silver, #3 bronze (softened for the dark page, never neon), the rest white. */
 export const v8Medal = (rank: number | null | undefined) =>
-  rank === 1 ? "v8:text-[#fcd34d]" : rank === 2 ? "v8:text-[#cbd5e1]" : rank === 3 ? "v8:text-[#d9a77a]" : "v8:text-text-base";
+  rank === 1 ? "v8:text-[#fcd34d] v8light:text-amber-700" : rank === 2 ? "v8:text-[#cbd5e1] v8light:text-slate-500" : rank === 3 ? "v8:text-[#d9a77a] v8light:text-[#92400e]" : "v8:text-text-base";
 /** A move or rating change: up a soft green, down a soft red (the classic's colours, toned down for v8). */
-export const V8_UP = "v8:text-[#86d9a8]";
-export const V8_DOWN = "v8:text-[#f29a9a]";
+export const V8_UP = "v8:text-[#86d9a8] v8light:text-[#047857]";
+export const V8_DOWN = "v8:text-[#f29a9a] v8light:text-[#dc2626]";
 /** The "New" chip on a move: a soft blue tint, as in the classic look. */
 export const V8_NEW = "v8:border-sky-300/30 v8:bg-sky-300/10 v8:font-medium v8:text-sky-200";
 /** A trend chip: Rising a soft green chip, Falling a soft red one, Steady neutral. */
 export const v8Trend = (t: "up" | "down" | "flat") =>
-  t === "up" ? "v8:border-[#86d9a8]/30 v8:bg-[#86d9a8]/10 v8:text-[#86d9a8]"
-  : t === "down" ? "v8:border-[#f29a9a]/30 v8:bg-[#f29a9a]/10 v8:text-[#f29a9a]"
-  : "v8:border-white/[0.12] v8:bg-white/[0.04] v8:text-text-muted";
+  t === "up" ? "v8:border-[#86d9a8]/30 v8:bg-[#86d9a8]/10 v8:text-[#86d9a8] v8light:border-[#047857]/30 v8light:bg-[#047857]/[0.08] v8light:text-[#047857]"
+  : t === "down" ? "v8:border-[#f29a9a]/30 v8:bg-[#f29a9a]/10 v8:text-[#f29a9a] v8light:border-[#dc2626]/30 v8light:bg-[#dc2626]/[0.08] v8light:text-[#b91c1c]"
+  : "v8:border-ink/[0.12] v8:bg-ink/[0.04] v8:text-text-muted";
 /** Captions under a number (world rank, matches played): faint. */
 export const V8_CAPTION = "v8:text-text-faint";
 /** A plain text link in v8: muted, white on hover, no accent. */
@@ -46,9 +46,9 @@ export const V8_LINK = "v8:font-normal v8:text-text-muted v8:hover:text-text-bas
 /** A note that was a tinted box (season note, "isn't from here"): a neutral card in v8. */
 export const V8_NOTE = "v8:border-line v8:bg-card v8:text-text-muted";
 /** A card that links somewhere (a league, a meet): neutral hairline, a quiet fill on hover, no lift. */
-export const V8_CARD_LINK = "v8:border-line v8:hover:border-white/[0.12] v8:hover:bg-white/[0.02]";
+export const V8_CARD_LINK = "v8:border-line v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.02]";
 /** A search box in the filter row: a hairline box with no fill of its own. */
-export const V8_SEARCH = "v8:border-white/[0.12] v8:bg-transparent";
+export const V8_SEARCH = "v8:border-ink/[0.12] v8:bg-transparent";
 /** A decorative icon: no colour of its own in v8. */
 export const V8_ICON = "v8:text-text-faint";
 

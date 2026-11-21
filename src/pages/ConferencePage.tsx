@@ -187,5 +187,5 @@ function TeamLink({ season, t }: { season: number; t: { team: number; name: stri
 
 function Skeleton() {
   // v8: no pulse (skeletons stay still), and the table's place comes before the movers', as the page draws them.
-  return <div className="space-y-3 v8:flex v8:flex-col v8:space-y-0 v8:gap-3" aria-busy="true"><div className="h-14 animate-pulse rounded-xl bg-muted v8:animate-none v8:bg-white/[0.04]" /><div className="grid gap-3 sm:grid-cols-3 v8:order-2">{[0, 1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-muted v8:animate-none v8:bg-white/[0.04]" />)}</div><div className="h-64 animate-pulse rounded-xl bg-muted v8:animate-none v8:bg-white/[0.04]" /></div>;
+  return <div className="space-y-3 v8:flex v8:flex-col v8:space-y-0 v8:gap-3" aria-busy="true"><div className="h-14 animate-pulse rounded-xl bg-muted v8:animate-none v8:bg-ink/[0.04]" /><div className="grid gap-3 sm:grid-cols-3 v8:order-2">{[0, 1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-muted v8:animate-none v8:bg-ink/[0.04]" />)}</div><div className="h-64 animate-pulse rounded-xl bg-muted v8:animate-none v8:bg-ink/[0.04]" /></div>;
 }

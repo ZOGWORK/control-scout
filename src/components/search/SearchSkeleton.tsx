@@ -20,9 +20,9 @@ const Card = () => (
 const V8Answer = () => (
   <div className="mt-5 hidden rounded-xl border border-line bg-card p-5 v8:block" aria-hidden data-v8-skeleton>
     <div className="skeleton h-3 w-28" />
-    <div className="mt-5 h-9 border-b border-white/[0.12]" />
+    <div className="mt-5 h-9 border-b border-ink/[0.12]" />
     {Array.from({ length: 5 }, (_, i) => (
-      <div key={i} className="flex h-12 items-center gap-4 border-t border-white/[0.07] first:border-t-0">
+      <div key={i} className="flex h-12 items-center gap-4 border-t border-ink/[0.07] first:border-t-0">
         <div className="skeleton size-6 rounded-full" />
         <div className="flex-1"><div className="skeleton h-3.5 w-40 max-w-full" /><div className="skeleton mt-1.5 h-2.5 w-24" /></div>
         <div className="skeleton h-3.5 w-10" /><div className="skeleton h-3.5 w-10 max-md:hidden" /><div className="skeleton h-3.5 w-10 max-md:hidden" />
