@@ -99,8 +99,21 @@ export async function currentUser(req: Request): Promise<User | null> {
   const s = await get<any>("SELECT user_id, expires_at FROM sessions WHERE id = ?", [sha256(t)]);
   if (!s || Date.parse(s.expires_at) < Date.now()) return null;
   const user = await getUser(Number(s.user_id));
-  if (user) await run("UPDATE users SET last_seen = ? WHERE id = ?", [new Date().toISOString(), user.id]);
+  if (user) noteSeen(user.id);
   return user;
+}
+
+/** When this process last wrote each user's last_seen. */
+const seenWritten = new Map<number, number>();
+/** How often a user's last_seen is written: the owner's People list and 30-day count can't tell a minute, and a write
+ *  on every request waited for the write lock on every signed-in search. */
+const SEEN_EVERY_MS = 60_000;
+/** `last_seen` now, at most once a SEEN_EVERY_MS per user, and never waited for: the request goes on meanwhile. */
+function noteSeen(id: number, now = Date.now()): void {
+  if (now - (seenWritten.get(id) ?? -Infinity) < SEEN_EVERY_MS) return;
+  seenWritten.set(id, now);
+  if (seenWritten.size > 10_000) seenWritten.clear();
+  void run("UPDATE users SET last_seen = ? WHERE id = ?", [new Date(now).toISOString(), id]).catch(() => seenWritten.delete(id));
 }
 
 /** A short mark of this request's session, the same for its whole life and different for each sign-in (the

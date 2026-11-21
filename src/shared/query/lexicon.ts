@@ -84,6 +84,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["by the least|by the least points|by the fewest points", [{ k: "metric", v: "margin" }, { k: "agg", v: "min" }]],
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|world record|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
+  // "Good teams" (plural: never one team's name, nor "is 12345 a good team") asks for the strong ones, the best first.
+  ["good teams|great teams|strong teams|good robots|great robots|strong robots", [{ k: "thing", v: "team" }, { k: "agg", v: "max" }]],
   // The ones worth watching are the best: "what team should i watch at nj states".
   // Who is first by a stat ("who leads auto in texas", "who is leading in opr"): the highest.
   ["leads|leads in|is leading|is leading in|leading in", { k: "agg", v: "max" }],
@@ -103,6 +105,11 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["closest|tightest|narrowest|nail biter|nailbiter", { k: "agg", v: "closest" }],
   // "Closes" is a word of its own, so spelling never corrects it; before "match" it's only ever "closest" cut short.
   ["closes match|closes matches|closes game|closes games", [{ k: "agg", v: "closest" }, { k: "thing", v: "match" }]],
+  // "Beat" is a word of its own too, so spelling never corrects it; before a phase it's only ever "best" mistyped
+  // ("<team> beat auto in into the deep"): no match is beaten by a phase.
+  ["beat auto|beat autonomous|beat auton", [{ k: "agg", v: "max" }, { k: "metric", v: "auto" }]],
+  ["beat teleop|beat tele op|beat driver controlled", [{ k: "agg", v: "max" }, { k: "metric", v: "teleop" }]],
+  ["beat endgame|beat end game", [{ k: "agg", v: "max" }, { k: "metric", v: "endgame" }]],
   // A sort said as an order ("highest scoring first", "lowest first"): the highest or lowest, never a first match.
   ["highest first|best first|top first|most first|biggest first", { k: "agg", v: "max" }],
   ["lowest first|worst first|fewest first|least first|smallest first", { k: "agg", v: "min" }],

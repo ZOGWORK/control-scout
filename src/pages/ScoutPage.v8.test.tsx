@@ -55,7 +55,7 @@ describe("Event day in v8", () => {
     fireEvent.click(within(next).getByRole("button", { name: /Scout pit/ }));
     expect(onPit).toHaveBeenCalledWith(1111);
     // One primary (white on white/10) on the screen: the queues' buttons are outline or ghost.
-    const primaries = screen.getAllByRole("button").filter((b) => b.className.includes("v8:bg-white/10") && b.className.includes("v8:ring-white/[0.12]"));
+    const primaries = screen.getAllByRole("button").filter((b) => b.className.includes("v8:bg-ink/10") && b.className.includes("v8:ring-ink/[0.12]"));
     expect(primaries.map((b) => b.textContent)).toEqual(["Scout Q2 "]);
     // The old strip and tiles aren't drawn; progress is a quiet line of three counts.
     expect(screen.queryByText("What are you watching?")).toBeNull();
@@ -118,7 +118,7 @@ describe("the match screen in v8", () => {
   it("marks the open match with the slate-blue line on white, never a coloured fill; the classic classes stay", () => {
     render(<MatchHeader schedule={[m(1), m(2)]} index={1} watching={session.watching} nextIndex={1} progress={(i) => (i === 0 ? "done" : "todo")} onIndex={() => {}} />);
     const cur = screen.getByRole("button", { name: /Q2, current/ });
-    expect(cur.className).toContain("v8:bg-white/10");
+    expect(cur.className).toContain("v8:bg-ink/10");
     expect(cur.className).toContain("v8:ring-accent/70");
     expect(own(cur.className)).toContain("bg-accent/15");
     const done = screen.getByRole("button", { name: /Q1, done/ });

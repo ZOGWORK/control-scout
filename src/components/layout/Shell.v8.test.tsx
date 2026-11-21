@@ -86,6 +86,14 @@ describe("v8 shell", () => {
     expect(container.querySelector("[data-corner][data-testid='bug-report-button']")).toBeTruthy();
   });
 
+  it("leaves the top bar's centred logo out on Home only (Home has its own mark by the search box)", () => {
+    const homeLink = (at: string) => { const { container } = shell(at); const h = container.querySelector("header") as HTMLElement; const l = within(h).queryByRole("link", { name: "Control Scout home" }); cleanup(); return l; };
+    expect(homeLink("/")).toBeNull();
+    expect(homeLink("/search?q=meets")).toBeTruthy();
+    expect(homeLink("/events")).toBeTruthy();
+    expect(homeLink("/teams/4215")).toBeTruthy();
+  });
+
   it("washes the top: tall on a top-level page, short inside one", () => {
     expect(shell("/events").container.querySelector("[data-wash]")!.getAttribute("data-wash")).toBe("tall");
     cleanup();
@@ -101,6 +109,15 @@ describe("v8 shell", () => {
     act(() => resetFlags({ ...DEFAULT_FLAGS, particleWave: false }, true));
     expect(container.querySelector("[data-dot-wave]")).toBeNull();
     expect(container.querySelector("[data-wash]")).toBeTruthy();
+  });
+
+  it("shows the page-end glow in v8, and takes it away when the owner switches it off", () => {
+    const { container } = shell();
+    expect(container.querySelector("[data-page-end-glow]")).toBeTruthy();
+    act(() => resetFlags({ ...DEFAULT_FLAGS, pageEndGlow: false }, true));
+    expect(container.querySelector("[data-page-end-glow]")).toBeNull();
+    act(() => resetFlags({ ...DEFAULT_FLAGS, pageEndGlow: true }, true));
+    expect(container.querySelector("[data-page-end-glow]")).toBeTruthy();
   });
 
   it("uses the three-stream particle background throughout the v8 app", () => {
@@ -121,6 +138,11 @@ describe("without v8", () => {
     expect(container.querySelector("[data-wash]")).toBeNull();
     expect(container.querySelector("[data-ambient]")).toBeTruthy();
     expect(container.querySelector("header [data-profile]")).toBeNull();
+  });
+  it("keeps the top bar's centred logo on Home", () => {
+    document.documentElement.removeAttribute("data-v8");
+    const header = shell("/").container.querySelector("header") as HTMLElement;
+    expect(within(header).getByRole("link", { name: "Control Scout home" })).toBeTruthy();
   });
 });
 

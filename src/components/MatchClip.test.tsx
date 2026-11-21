@@ -36,6 +36,22 @@ describe("Watch", () => {
     expect(again.getAttribute("src")).toContain("start=100");
   });
 
+  it("opened to watch (?watch, from a Recording or Watch live link): the player plays at once, that day's video when named", () => {
+    const days = { ...stream, days: [{ videoId: clip.videoId, label: "Saturday" }, { videoId: "sundayVideo", label: "Sunday" }] };
+    render(<MemoryRouter><WatchLive d={d} stream={days} watch="sundayVideo" /></MemoryRouter>);
+    const src = new URL(document.querySelector("iframe")!.getAttribute("src")!);
+    expect(src.pathname).toBe("/embed/sundayVideo");
+    expect(src.searchParams.get("autoplay")).toBe("1");
+    expect(screen.getByRole("button", { name: "Sunday" }).getAttribute("aria-pressed")).toBe("true");
+    cleanup();
+    // ?watch alone (or a video it doesn't have): the event's own video; no ?watch: the picture, nothing playing.
+    render(<MemoryRouter><WatchLive d={d} stream={days} watch="" /></MemoryRouter>);
+    expect(new URL(document.querySelector("iframe")!.getAttribute("src")!).pathname).toBe(`/embed/${clip.videoId}`);
+    cleanup();
+    render(<MemoryRouter><WatchLive d={d} stream={days} /></MemoryRouter>);
+    expect(document.querySelector("iframe")).toBeNull();
+  });
+
   it("Close video stops it: back to the picture, nothing playing", () => {
     render(<MemoryRouter><WatchLive d={d} stream={stream} /></MemoryRouter>);
     expect(screen.queryByRole("button", { name: "Close video" })).toBeNull();

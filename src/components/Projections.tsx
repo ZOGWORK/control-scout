@@ -43,7 +43,7 @@ const shortDate = (iso: string) => { const t = new Date(iso); return Number.isNa
 function LocalNote({ value, why }: { value: LocalProjection; why: string }) {
   const asOf = shortDate(value.ratingsAsOf);
   return (
-    <div className="relative flex gap-2.5 border-b border-border bg-info/[0.06] px-4 py-3 text-sm sm:px-5 v8:border-line v8:bg-white/[0.03]">
+    <div className="relative flex gap-2.5 border-b border-border bg-info/[0.06] px-4 py-3 text-sm sm:px-5 v8:border-line v8:bg-ink/[0.03]">
       <HardDrive className="mt-0.5 size-4 shrink-0 text-info v8:text-text-faint" aria-hidden />
       <p className="text-muted-foreground">
         The server's {PROJECTION_RUNS.toLocaleString("en-US")}-simulation projection {why}, so this one was simulated on this device from your offline pack{asOf ? ` (ratings as of ${asOf})` : ""}.
@@ -196,7 +196,7 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
               const lastPin = pin && !pinned.has(rows[i + 1]?.team ?? -1);
               const move = showMove ? rankMovement(t, before.get(t.team)) : null;
               return (
-                <tr key={t.team} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03] v8:h-11 v8:border-line", pin && "bg-accent/[0.07] v8:bg-accent/[0.08]", lastPin && "border-b-2 border-b-accent/40 v8:border-b v8:border-b-white/[0.12]")}>
+                <tr key={t.team} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03] v8:h-11 v8:border-line", pin && "bg-accent/[0.07] v8:bg-accent/[0.08]", lastPin && "border-b-2 border-b-accent/40 v8:border-b v8:border-b-ink/[0.12]")}>
                   <td className="density-row whitespace-nowrap px-3 py-2 max-sm:px-2">
                     <span className={cn("flex items-center gap-1.5", pin && "border-l-2 border-accent -ml-3 pl-2.5")}>
                       {pin && <Pin className="size-3 shrink-0 text-accent-text" aria-label="Pinned: your team or a tracked team" />}
