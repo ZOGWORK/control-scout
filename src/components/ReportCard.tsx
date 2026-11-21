@@ -21,7 +21,7 @@ export const SMALL_SAMPLE = 10;
 /** The team page's section: closed at first, and its card asked for only when it's first opened. */
 export function ReportCardSection({ team, season }: { team: number; season: number }) {
   return (
-    <Section collapsible id="report-card" title="Prediction report card" summary={`How the engine's calls on ${team}'s matches turned out`}
+    <Section collapsible id="report-card" title="Prediction report card" summary={`How the engine's calls on ${team}'s matches turned out`} icon={Crosshair}
       tint={['var(--color-accent)', 'var(--color-info)', 'var(--color-chart-4)']}
       description={<>How the engine's pre-match calls on {team}'s matches turned out this season. Live calls only, each logged before its match. <Link to="/methodology#report-cards" className="underline">How it's computed</Link></>}>
       <ReportCardBody team={team} season={season} />
@@ -68,7 +68,7 @@ function Card({ s, data, season }: { s: ReportCard; data: TeamReportCards; seaso
         <StatTile tone="violet" icon={Waves} label="Swing" value={<>±{num(s.shrunk.errSd)} <span className="text-base font-medium text-muted-foreground">pts</span></>}
           hint={s.scored ? <>Typical miss {num(s.shrunk.errAbs)} pts per robot{f?.errSd != null && <> · field ±{num(f.errSd)}</>}</> : "No call had a predicted score yet"} />
       </div>
-      <p className={cn("mt-3 rounded-xl border p-3 text-xs text-muted-foreground", small ? "border-warning/40 bg-warning/[0.06]" : "border-border bg-card")}>
+      <p className={cn("mt-3 rounded-xl border p-3 text-xs text-muted-foreground", small ? "border-warning/40 bg-warning/[0.06]" : "border-border bg-card", "v8:border-line v8:bg-card")}>
         Estimate from {calls(s.calls)}{s.scored < s.calls ? ` (${s.scored} with a predicted score)` : ""}.{" "}
         {small ? "A small sample: the numbers are pulled toward the field average, so they say little about this team yet. " : `Pulled toward the field average as if it were ${data.prior} more calls, which matters less as calls add up. `}
         Raw: {pct(s.raw.hitRate)} called right, {signed(s.raw.errMean)} vs prediction, ±{num(s.raw.errSd)} swing. Misses are per robot: the alliance's miss split evenly between its robots.
@@ -77,7 +77,7 @@ function Card({ s, data, season }: { s: ReportCard; data: TeamReportCards; seaso
         <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
           <table className="w-full text-sm">
             <caption className="sr-only">Report card by finished event</caption>
-            <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-text-muted">
+            <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint">
               <th className="h-10 px-3">Event</th><th className="px-3 text-right">Calls</th><th className="px-3 text-right">Called right</th><th className="px-3 text-right">Vs prediction</th><th className="px-3 text-right">Swing</th>
             </tr></thead>
             <tbody>

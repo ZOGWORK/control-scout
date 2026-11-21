@@ -10,7 +10,9 @@ Read off the coverage check's own rows (`clip_coverage`, server/videos/coverageC
 
 - **queued**: the event is over (its venue's last day has ended, counted in UTC days, so an American evening is never
   called over early) and a missing match sits in a video not read for this event yet, or read on or before that day
-  (matches may have come after the read: read once more). Most due matches first.
+  (matches may have come after the read: read once more). The current season's events first, then events with an
+  official video added in the last 7 days, then the backlog of past seasons; most due matches first within each. A new
+  video is read within a run or two, never behind hundreds of older events.
 - **waiting**: the event is still on, or a video's YouTube facts aren't in yet (the reader needs them).
 - **read**: every readable video was read after the event; each missing match keeps its own why (what the video showed).
 - **unreadable**: nothing a frame read can place: no video that day, a private video, no real start from FIRST.
@@ -33,7 +35,8 @@ computer at home, in a clone kept for it alone. Each run:
 2. takes a read-only snapshot of the live database (`VACUUM INTO` over ssh, copied down, removed from the VM);
 3. takes the queue from it; skips events already in an open PR (the autopilot's, or any other PR adding rows for the
    event to a season's frame-read file: `heldElsewhere`, read again just before PRs open, where such an event's rows
-   wait), events read lately with nothing new
+   wait), events listed in `.data/autopilot/skip.txt` (one `season/code` a line, `#` comments: left by hand to a session
+   reading them with no PR open yet), events read lately with nothing new
    (tried again after 3 days, left after 3 such reads until their recording or matches change), and events whose good
    rows waited last time (read again after 6 h, doubling each wait in a row up to 3 days; waits never count toward
    the 3);

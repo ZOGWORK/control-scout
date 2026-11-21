@@ -8,7 +8,7 @@ import { cn } from "../cn";
 import { int, pct } from "../../lib/format";
 import { rateVital, VITALS, type VitalName, type VitalStat, type VitalsRow } from "../../shared/vitals";
 
-const TONE = { good: "text-success", ni: "text-warning", poor: "text-danger" } as const;
+const TONE = { good: "text-success v8:text-emerald-400", ni: "text-warning", poor: "text-danger" } as const;
 
 export function fmtVital(name: VitalName, v: number): string {
   if (name === "CLS") return v < 0.01 && v > 0 ? "<0.01" : v.toFixed(2);
