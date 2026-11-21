@@ -38,8 +38,8 @@ it("answers Zog Mode requests as read-only product information without searching
   for (const q of ["where is the dog", "what is zog mode", "enable dog mode", "disable zog mode"]) {
     const reply = await ask(q, { ...deps, search, chat }, "https://controlscout.org");
     expect(reply.embed.title).toBe("Zog Mode");
-    expect(reply.embed.description).toContain("available");
-    expect(reply.embed.description).toContain("Discord users cannot turn it on or off");
+    expect(reply.embed.description).toContain("Zog Mode exists!");
+    expect(reply.embed.description).not.toMatch(/owner|console|flag|settings/i);
     expect(reply.embed.description).not.toMatch(/is disabled|turned (?:on|off)/);
   }
   expect(search).not.toHaveBeenCalled();

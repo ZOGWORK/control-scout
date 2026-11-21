@@ -142,13 +142,14 @@ describe("team page, v8 on", () => {
     expect(within(next).getByRole("link", { name: /Advancement odds/ })).toBeTruthy();
   });
 
-  it("picks the season from one clearly visible select at the end of the action row, not a row of pills", () => {
+  it("picks the season in the header above the standing, outside the action row", () => {
     mount();
     const actions = document.querySelector<HTMLElement>("[data-hero-actions]")!;
-    const select = within(actions).getByRole("combobox", { name: /Season 2025/ });
+    const select = within(hero()).getByRole("combobox", { name: /Season 2025/ });
     expect(select.className).toContain("text-text-base");
     expect(select.className).toContain("border-white/30");
-    expect(within(hero()).queryByRole("combobox")).toBeNull();
+    expect(within(actions).queryByRole("combobox")).toBeNull();
+    expect(follows(select, document.querySelector("[data-standing]")!)).toBe(true);
     expect(hero().querySelector("[data-eyebrow]")!.textContent).toBe("FTC team");
     expect(within(actions).queryAllByRole("radio")).toHaveLength(0);
   });
