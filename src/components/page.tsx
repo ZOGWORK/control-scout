@@ -118,7 +118,7 @@ function FoldedSection({ id, also, title, summary, tint: tintIn, icon: Icon, cou
         {/* A closed section is a card that looks pressable: a frame, a hint at what's inside and a "Show details" pill. */}
         <h2 className={cn(open && 'mb-4')}>
           <button type="button" aria-expanded={open} aria-controls={body} aria-describedby={summary ? hint : undefined} style={tint && { backgroundImage: wash(7 * faint) }} onClick={() => { setOpen((o) => !o); setOpened(true); }}
-            className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 text-left transition-colors hover:border-foreground/25 hover:bg-muted/50 motion-reduce:transition-none v8:min-h-[3.5rem] v8:border-line v8:bg-card v8:hover:border-white/[0.12] v8:hover:bg-white/[0.02]">
+            className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 text-left transition-colors hover:border-foreground/25 hover:bg-muted/50 motion-reduce:transition-none v8:min-h-[3.5rem] v8:border-line v8:bg-card v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.02]">
             {v8 && Icon && <Icon aria-hidden className="size-4 shrink-0 self-start mt-[0.1875rem] text-text-faint" />}
             <span className="min-w-0 v8:flex-1">
               <span className="block text-base font-semibold text-foreground v8:text-[0.9375rem] v8:leading-snug">{title}</span>

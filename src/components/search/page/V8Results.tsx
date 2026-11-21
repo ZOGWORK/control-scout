@@ -45,7 +45,7 @@ export function FollowChips({ ask, related, seeAll, className }: { ask: SearchFo
     <nav aria-label="Ask next" className={cn("flex flex-wrap items-center gap-2", className)} data-follow-chips>
       {chips.map((x) => (
         <Link key={x.q} to={searchHref(x.q)} title={x.preview}
-          className="inline-flex min-h-9 max-w-full items-center rounded-full border border-white/12 px-3.5 text-sm text-foreground transition-[background-color,border-color,transform] duration-150 ease-out hover:border-white/25 hover:bg-white/[0.06] active:scale-[0.97] motion-reduce:active:scale-100 max-md:min-h-[44px]"
+          className="inline-flex min-h-9 max-w-full items-center rounded-full border border-ink/12 px-3.5 text-sm text-foreground transition-[background-color,border-color,transform] duration-150 ease-out hover:border-ink/25 hover:bg-ink/[0.06] active:scale-[0.97] motion-reduce:active:scale-100 max-md:min-h-[44px]"
           data-follow-chip>
           <span className="truncate">{x.q}</span>
         </Link>
@@ -97,7 +97,7 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
           <p className="mt-1.5 break-words text-base font-medium text-foreground">{name}</p>
           {(place || s?.place) && <p className="mt-0.5 flex items-center gap-1 text-sm text-text-muted"><MapPin className="size-3.5 shrink-0" aria-hidden />{place || s?.place}</p>}
         </div>
-        <Link to={`/teams/${team}${summary ? `?season=${summary.season}` : ""}`} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 text-sm text-foreground hover:bg-white/[0.06] max-md:min-h-[44px]" data-team-page>
+        <Link to={`/teams/${team}${summary ? `?season=${summary.season}` : ""}`} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 text-sm text-foreground hover:bg-ink/[0.06] max-md:min-h-[44px]" data-team-page>
           Team page<ArrowRight className="size-4" aria-hidden />
         </Link>
       </div>
@@ -112,7 +112,7 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
         </dl>
       )}
       {next && (
-        <Link to={`/events/${next.m.season}/${next.m.code}?match=${next.m.key}`} className="-mx-2 mt-3 flex min-h-[44px] items-center gap-3 rounded-lg border-t border-line px-2 pt-3 text-sm hover:bg-white/[0.04]" data-next-match={next.kind}>
+        <Link to={`/events/${next.m.season}/${next.m.code}?match=${next.m.key}`} className="-mx-2 mt-3 flex min-h-[44px] items-center gap-3 rounded-lg border-t border-line px-2 pt-3 text-sm hover:bg-ink/[0.04]" data-next-match={next.kind}>
           <Swords className="size-4 shrink-0 text-text-muted" aria-hidden />
           <span className="min-w-0 flex-1 truncate">
             <span className="text-text-faint">{next.kind === "next" ? "Next match" : "Last match"} </span>
@@ -139,7 +139,7 @@ export function MatchRows({ rows }: { rows: StatMatchRow[] }) {
     <ul className="divide-y divide-line">
       {rows.map((r) => (
         <li key={`${r.href}-${r.label}`}>
-          <Link to={r.href} className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-sm hover:bg-white/[0.04]" data-match-row>
+          <Link to={r.href} className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-sm hover:bg-ink/[0.04]" data-match-row>
             <Swords className="size-4 shrink-0 text-text-muted" aria-hidden />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-foreground">{r.note && <span className="text-text-muted">{r.note}: </span>}{r.label} at {r.event.label}</span>
@@ -165,7 +165,7 @@ export function RowGroup({ title, count, children, cap = 5, id }: { title: strin
         <ul className="divide-y divide-line">{shown.map((c, i) => <li key={i}>{c}</li>)}</ul>
         {rest > 0 && (
           <button type="button" onClick={() => setAll((a) => !a)} aria-expanded={all}
-            className="flex min-h-[44px] w-full items-center gap-1.5 border-t border-line px-3 text-sm text-text-muted hover:bg-white/[0.04] hover:text-foreground" data-show-more>
+            className="flex min-h-[44px] w-full items-center gap-1.5 border-t border-line px-3 text-sm text-text-muted hover:bg-ink/[0.04] hover:text-foreground" data-show-more>
             <ChevronDown className={cn("size-4 transition-transform duration-200 ease-out", all && "rotate-180")} aria-hidden />{all ? "Show fewer" : `Show ${rest} more`}
           </button>
         )}
@@ -174,7 +174,7 @@ export function RowGroup({ title, count, children, cap = 5, id }: { title: strin
   );
 }
 
-const ROW = "flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-sm hover:bg-white/[0.04]";
+const ROW = "flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-sm hover:bg-ink/[0.04]";
 
 /** A team as a plain row: number and name, its place, its record and OPR on the right. */
 export function TeamRow({ h, summary, onOpen }: { h: SearchHit; summary?: SeasonSummary; onOpen: () => void }) {

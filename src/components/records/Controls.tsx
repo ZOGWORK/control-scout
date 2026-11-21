@@ -16,8 +16,8 @@ import { cn } from "../cn";
 
 // v8: hairline pills with faint icons; a picker that's set is white text on white/10% (never the accent).
 const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-10 v8:transition-[color,background-color,border-color,scale] v8:duration-150 v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
-const idle = "border-line bg-card text-text-base hover:border-text-base/25 v8:border-white/[0.12] v8:bg-transparent v8:hover:border-white/[0.12] v8:hover:bg-white/[0.06]";
-const active = "border-accent/60 bg-accent/[0.08] text-text-base v8:border-white/[0.12] v8:bg-white/10";
+const idle = "border-line bg-card text-text-base hover:border-text-base/25 v8:border-ink/[0.12] v8:bg-transparent v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.06]";
+const active = "border-accent/60 bg-accent/[0.08] text-text-base v8:border-ink/[0.12] v8:bg-ink/10";
 const ICON = "v8:text-text-faint";
 
 /** Season dropdown: every season the site has, newest first, with the game's name. */
@@ -99,7 +99,7 @@ export function RegionPicker({ season, value, onChange }: { season: number; valu
             const on = value.includes(r.code);
             return (
               <button key={r.code} type="button" role="option" aria-selected={on} onClick={() => toggle(r.code)}
-                className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-text-base/[0.06] max-sm:py-2.5", on && "bg-accent/[0.08] v8:bg-white/[0.06]")}>
+                className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-text-base/[0.06] max-sm:py-2.5", on && "bg-accent/[0.08] v8:bg-ink/[0.06]")}>
                 <span className={cn("flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-accent bg-accent text-accent-ink v8:border-text-base v8:bg-text-base v8:text-background" : "border-text-base/30")}>{on && <Check className="size-3" strokeWidth={3} />}</span>
                 <span className="min-w-0 flex-1 truncate">{label(r)}</span>
                 <span className="font-mono text-[11px] text-text-muted">{r.code}</span>

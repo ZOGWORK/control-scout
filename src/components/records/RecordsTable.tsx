@@ -43,7 +43,7 @@ import { useIsV8, V8_NUM } from "../../lib/v8";
 import { V8_ICON } from "../rankings/v8";
 
 /** The filter in words, a button that opens the builder: a quiet white line in v8, not the accent. */
-const V8_FILTER_LINE = "v8:border-white/20 v8:bg-white/[0.04] v8:hover:bg-white/[0.08]";
+const V8_FILTER_LINE = "v8:border-ink/20 v8:bg-ink/[0.04] v8:hover:bg-ink/[0.08]";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 type Resp = RecordsResponse<Row>;
@@ -288,7 +288,7 @@ export function RecordsTable(p: RecordsTableProps) {
           <button type="button" aria-pressed={on} onClick={() => void toggleChip(pr)} disabled={chipBusy === pr.id}
             // v8: a hairline pill, no colour; the picked one is white text on white/10% (brief §5 Chips).
             className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10", "v8:font-medium v8:transition-[color,background-color,border-color,scale] v8:duration-150 v8:active:scale-[0.97] v8:motion-reduce:active:scale-100",
-              on ? cn(tone.chip, "ring-1 ring-current", "v8:border-white/[0.12] v8:bg-white/10 v8:text-text-base v8:ring-0") : "border-line text-text-muted hover:border-text-base/25 hover:text-text-base v8:border-white/[0.12] v8:hover:border-white/[0.12] v8:hover:bg-white/[0.06]")}>
+              on ? cn(tone.chip, "ring-1 ring-current", "v8:border-ink/[0.12] v8:bg-ink/10 v8:text-text-base v8:ring-0") : "border-line text-text-muted hover:border-text-base/25 hover:text-text-base v8:border-ink/[0.12] v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.06]")}>
             {chipBusy === pr.id ? <Loader2 className="size-3 animate-spin" /> : <span className={cn("size-1.5 rounded-full", tone.bar, (pr.kind === "team" && V8_CATEGORY[pr.tone]?.dot) || "v8:hidden")} />}
             {pr.label}{on && <X className="size-3" />}
           </button>
@@ -300,7 +300,7 @@ export function RecordsTable(p: RecordsTableProps) {
   const countLine = data ? <><span className="font-semibold tabular-nums text-text-base v8:font-medium">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown || state.stateUnknown || api.error ? null : "Loading…"; // a failed load says so below, not "Loading…" too
   // The cap note takes its own line (under the toolbar; under Compare on phones), so it never squeezes the quick filters.
   const capStatus = selectable && (
-    <span role="status" className={cn(capNote ? ["order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium max-sm:order-1", RECORDS_CAP_NOTE_TONE, "v8:bg-white/[0.05] v8:text-text-muted"] : "sr-only")}>
+    <span role="status" className={cn(capNote ? ["order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium max-sm:order-1", RECORDS_CAP_NOTE_TONE, "v8:bg-ink/[0.05] v8:text-text-muted"] : "sr-only")}>
       {capNote && <><Info className="size-3.5 shrink-0" />{capNote}</>}
     </span>
   );
@@ -410,7 +410,7 @@ export function RecordsTable(p: RecordsTableProps) {
           <Columns3 className={cn("text-sky-500", V8_ICON)} /> <span className="max-sm:sr-only">Statistics</span> <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums v8:text-[0.6875rem]">{cols.length}{" "}<span className="sr-only">columns</span></span>
         </Button>
         <Button variant={conditions ? "default" : v8 ? "outline" : "secondary"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { if (builder) setBuilder(false); else openBuilder(); }} aria-pressed={builder} aria-label={`Filters${conditions ? `: ${conditions} conditions` : ""}`}>
-          <ListFilter className={cn(conditions ? "" : "text-accent", V8_ICON)} /> Filters{conditions > 0 && <span className="rounded bg-accent-ink/15 px-1.5 text-[11px] tabular-nums v8:bg-white/10 v8:text-[0.6875rem]">{conditions}</span>}
+          <ListFilter className={cn(conditions ? "" : "text-accent", V8_ICON)} /> Filters{conditions > 0 && <span className="rounded bg-accent-ink/15 px-1.5 text-[11px] tabular-nums v8:bg-ink/10 v8:text-[0.6875rem]">{conditions}</span>}
         </Button>
         {presets.length > 0 && (
           <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto border-l border-line pl-2 max-sm:order-last max-sm:basis-full max-sm:border-l-0 max-sm:border-t max-sm:pl-0 max-sm:pt-1.5 v8:order-last v8:basis-full v8:border-0 v8:pl-0 max-sm:v8:pt-0" aria-label="Quick filters">
@@ -473,7 +473,7 @@ export function RecordsTable(p: RecordsTableProps) {
       ) : !data.rows.length ? (
         !filtered && p.emptyFallback ? p.emptyFallback : (
           <div className="flex flex-col items-center rounded-xl border border-dashed border-line px-6 max-sm:px-4 py-12 text-center">
-            <span className="mb-3 flex size-11 items-center justify-center rounded-full bg-accent/15 v8:bg-white/[0.06]"><SearchX className="size-5 text-accent v8:text-text-muted" /></span>
+            <span className="mb-3 flex size-11 items-center justify-center rounded-full bg-accent/15 v8:bg-ink/[0.06]"><SearchX className="size-5 text-accent v8:text-text-muted" /></span>
             <p className="font-medium">{filtered ? `No ${p.noun} match these filters` : `No ${p.noun} yet`}</p>
             <p className="mt-1 max-w-md text-sm text-text-muted">{filtered ? (state.filter ? describeFilter(state.filter, scope) : "Try another region, country, event type or date range.") : "Records appear once matches have been played and the stats have been updated."}</p>
             {filtered && <Button className="mt-4" onClick={() => setState(clearFilters(state))}><X /> Clear filters</Button>}
@@ -587,9 +587,9 @@ const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var
 const cellText = (tone: keyof typeof TONE_CLASS) => (tone === "redAlliance" ? "text-red-alliance-ink" : TONE_CLASS[tone].text);
 // v8: the hover is a quiet fill, never the accent (mint marks only the #1 rank, progress and "yours").
 const rowHover = "still-hover:bg-accent/[0.14]";
-const rowV8 = "v8:h-11 v8:border-white/[0.08] v8:still-hover:bg-white/[0.03]";
+const rowV8 = "v8:h-11 v8:border-ink/[0.08] v8:still-hover:bg-ink/[0.03]";
 const stickyHover = "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_80%,var(--color-accent))] row-still-hover:shadow-[inset_3px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]" +
-  " v8:row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,white)] v8:row-still-hover:shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
+  " v8:row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-ink))] v8:row-still-hover:shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 
 function SortHead({ k, label, title, state, sortBy, className, tone, v8Tone, align = "right", lead, iconOnly }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; v8Tone?: string; align?: "left" | "right"; lead?: ReactNode; iconOnly?: boolean }) {
   const on = k != null && state.sort === k;
@@ -760,7 +760,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
               <Fragment key={rowKey(r)}>
               <Spacer height={gapBefore} colSpan={span} />
               <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined}
-                className={cn("group/row border-b last:border-b-0", grid, rowHover, rowV8, hl && "bg-accent/[0.07] v8:bg-white/[0.05]", sel && "bg-sky-500/[0.07] v8:bg-white/[0.06]")} data-highlight={hl || undefined}>
+                className={cn("group/row border-b last:border-b-0", grid, rowHover, rowV8, hl && "bg-accent/[0.07] v8:bg-ink/[0.05]", sel && "bg-sky-500/[0.07] v8:bg-ink/[0.06]")} data-highlight={hl || undefined}>
                 {"key" in r ? (
                   <>
                     <td className={cn(sticky, td, stickyHover)}>
@@ -776,7 +776,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                 ) : (
                   <>
                     {/* v8: your team (the highlighted row) is white: a white edge, never the accent. */}
-                    <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))] v8:bg-[color-mix(in_srgb,var(--color-card)_95%,white)] v8:shadow-[inset_2px_0_0_var(--color-text-base),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]", stickyHover)}>
+                    <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))] v8:bg-[color-mix(in_srgb,var(--color-card)_95%,var(--color-ink))] v8:shadow-[inset_2px_0_0_var(--color-text-base),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]", stickyHover)}>
                       <div className="flex items-center gap-2.5 max-sm:gap-2">
                         {selectable && (
                           // In a label so a touch screen's 44px tap area (tap-44) toggles it too.
