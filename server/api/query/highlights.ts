@@ -260,7 +260,7 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const scope = [S, ...(ev ? [...(ev.when ? [ev.when] : []), ...(ev.where ? [ev.where] : [])] : []), ...f.chips, ...(f.named ? [] : ["Official events"])];
   const where2 = `${at ? ` ${at}` : ""}${f.window ? ` ${f.window.label}` : ` in ${S}`}`;
   const base = {
-    family: "superlative" as const, intent: "scope-highlights", title: `Highlights${at ? ` ${at}` : ""}, ${S}`, scope,
+    family: "superlative" as const, intent: "scope-highlights", title: `${f.videos ? "Match videos" : "Highlights"}${at ? ` ${at}` : ""}, ${S}`, scope,
     definition: DEFINITION(at, S, whole, !!f.named),
     source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}`,
   };
@@ -284,11 +284,11 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const standout: StatBlock = { kind: "matches", title: `${picks.length} standout ${picks.length === 1 ? "match" : "matches"}`, rows };
   return {
     ...base, ...(f.videos ? { title: `Match videos${at ? ` ${at}` : ""}, ${S}` } : {}),
-    headline: { value: `${best.ownNp ?? best.own} points`, label: `${withoutPenalties(lead.note, best.ownNp)}: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
+    ...(!f.videos ? { headline: { value: `${best.ownNp ?? best.own} points`, label: `${withoutPenalties(lead.note, best.ownNp)}: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
       sub: `${best.ownNp != null && best.own !== best.ownNp ? `${best.own} with penalties · ` : ""}${best.alliance === "red" ? "Red" : "Blue"} ${best.result === "W" ? "won" : best.result === "L" ? "lost" : "tied"} ${best.own}–${best.opp}`,
-      teams: best.partners, alliance: best.alliance },
+      teams: best.partners, alliance: best.alliance } } : {}),
     // A scope too big to list keeps its standout matches, the gallery saying why it lists none.
-    blocks: f.videos && gallery.kind === "videos" && gallery.tiles.length ? [gallery] : [standout, gallery],
+    blocks: f.videos ? [gallery] : [standout, gallery],
   };
 }
 

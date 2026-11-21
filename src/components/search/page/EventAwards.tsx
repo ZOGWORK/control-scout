@@ -5,15 +5,17 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Award, Crown, Medal, Trophy } from "lucide-react";
 import type { SearchCard, SearchCardAward } from "../../../shared/api";
-import { awardLabel, seasonLabel } from "../../../shared/format";
+import { awardLabel, awardTitle, seasonLabel } from "../../../shared/format";
 import { cn } from "../../cn";
-import { SEARCH_PALETTE, meaningOf } from "../../../lib/textTones";
+import { meaningOf } from "../../../lib/textTones";
+import { TONE } from "./v8tone";
 
 /** An award's colour in search's palette (Inspire, an alliance place, a judged award): the same on every card. */
-const tone = (name: string) => SEARCH_PALETTE[meaningOf(name) ?? "judged"];
+const tone = (name: string) => TONE[meaningOf(name) ?? "judged"];
 import { AnswerFrame, PART, SECONDARY, TAP, repeats } from "./TeamAnswer";
 import { AnswerVideo } from "./AnswerVideo";
 import { TeamChip } from "./MatchBox";
+import { V8_NUM } from "../../../lib/v8";
 
 /** Each place told by its step's height, its icon and its label, never a colour (on a search card hue means team). */
 const PLACE: Record<number, { height: string; label: string }> = {
@@ -22,7 +24,7 @@ const PLACE: Record<number, { height: string; label: string }> = {
   3: { height: "h-14 max-sm:h-12", label: "3rd" },
 };
 
-const nameOf = (a: SearchCardAward) => (a.name ?? awardLabel(a.type, a.placement)).replace(/<[^>]+>/g, "");
+const nameOf = (a: SearchCardAward) => awardTitle(a);
 const awardsHref = (e: NonNullable<SearchCard["event"]>) => `/events/${e.season}/${encodeURIComponent(e.code)}?tab=awards`;
 
 export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading?: string }) {
@@ -90,8 +92,8 @@ function Champions({ champions }: { champions: NonNullable<SearchCard["champions
   return (
     <section aria-label="Champions" className="mb-5 grid gap-3 sm:grid-cols-2" data-champions>
       {champions.map((c) => (
-        <div key={c.href} className="rounded-xl border border-accent/60 bg-accent/[0.06] p-3" data-champion>
-          <Link to={c.href} className={cn("flex items-center gap-1.5 font-display text-base font-semibold text-accent-text hover:underline", TAP)}>
+        <div key={c.href} className="rounded-xl border border-accent/60 bg-accent/[0.06] p-3 v8:border-line v8:bg-card" data-champion>
+          <Link to={c.href} className={cn("flex items-center gap-1.5 font-display text-base font-semibold text-accent-text v8:text-foreground hover:underline", TAP)}>
             <Crown className="size-4 shrink-0" aria-hidden /> {c.label}{c.number != null ? ` · Alliance ${c.number}` : ""}
           </Link>
           <p className="mt-2 flex flex-wrap gap-1">{c.teams.map((t) => <TeamChip key={t.href} t={t} side={c.alliance} />)}</p>
@@ -113,7 +115,7 @@ function Podium({ places, season, asked }: { places: SearchCardAward[]; season?:
           <li key={a.placement} className={cn("flex min-w-0 flex-col items-center text-center", "row-start-1", a.placement === 1 ? "col-start-2" : a.placement === 2 ? "col-start-1" : "col-start-3")} data-place={a.placement} {...(asked === a.placement ? { "data-asked": "" } : {})}>
             <Link to={`/teams/${a.team}${season ? `?season=${season}` : ""}`} aria-current={asked === a.placement ? "true" : undefined} className={cn("group flex w-full min-w-0 flex-col items-center rounded-xl px-1 py-2 hover:bg-muted/50", asked === a.placement && "ring-2 ring-foreground", TAP)}>
               <span className={cn("grid place-items-center rounded-full", tone(nameOf(a)).fill, a.placement === 1 ? "size-12" : "size-10")}><Icon className={a.placement === 1 ? "size-6" : "size-5"} aria-hidden /></span>
-              <span className={cn("mt-2 font-display font-semibold tabular-nums text-foreground group-hover:underline", a.placement === 1 ? "text-3xl max-sm:text-2xl" : "text-2xl max-sm:text-xl")}>{a.team}</span>
+              <span className={cn("mt-2 font-display font-semibold tabular-nums text-foreground group-hover:underline", V8_NUM, a.placement === 1 ? "text-3xl max-sm:text-2xl" : "text-2xl max-sm:text-xl")}>{a.team}</span>
               <span className="w-full break-words text-sm font-medium leading-snug text-foreground">{a.teamName ?? `Team ${a.team}`}</span>
               <span className={cn("mt-0.5 w-full break-words text-xs font-semibold", tone(nameOf(a)).text)}>{nameOf(a)}</span>
             </Link>

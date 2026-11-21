@@ -65,18 +65,18 @@ export function LatestCalls({ className, still: stillCount = 3, compact = false 
   }
   const shown = reduced && paused === null ? calls.slice(0, compact ? 1 : stillCount) : calls.length ? [calls[i % calls.length]] : [];
   const scored = (
-    <Link to="/methodology#recent" className={cn("relative inline-flex items-center gap-1 font-semibold text-accent-text hover:underline", compact ? "min-h-8 shrink-0 whitespace-nowrap text-xs" : "mt-3 min-h-9 text-sm")}>
+    <Link to="/methodology#recent" className={cn("relative inline-flex items-center gap-1 font-semibold text-accent-text hover:underline v8:font-medium v8:text-text-base", compact ? "min-h-8 shrink-0 whitespace-nowrap text-xs" : "mt-3 min-h-9 text-sm")}>
       Every call, scored <ArrowUpRight className={compact ? "size-3.5" : "size-4"} />
     </Link>
   );
   return (
     <aside aria-label="Latest live calls" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       onFocus={() => setFocus(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocus(false); }}
-      className={cn("relative overflow-hidden rounded-2xl border border-line bg-card", compact ? "px-4 py-3" : "p-5 max-sm:p-4", className)}>
-      <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-accent/10 blur-3xl" />
+      className={cn("relative overflow-hidden rounded-2xl border border-line bg-card v8:rounded-xl", compact ? "px-4 py-3" : "p-5 max-sm:p-4", className)}>
+      <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-accent/10 blur-3xl v8:hidden" />
       <div className="relative flex items-center justify-between gap-3">
         {/* Compact: one line beside the link and the pause button (a narrower tracking so the three fit the card). */}
-        <p className={cn("text-xs font-semibold uppercase text-text-muted", compact ? "min-w-0 truncate tracking-[0.08em]" : "tracking-[0.16em]")}>Latest live calls</p>
+        <p className={cn("text-xs font-semibold uppercase text-text-muted v8:text-sm v8:normal-case v8:tracking-normal v8:text-text-base", compact ? "min-w-0 truncate tracking-[0.08em]" : "tracking-[0.16em]")}>Latest live calls</p>
         {compact && <span className="ml-auto">{scored}</span>}
         {calls.length > 1 && !(reduced && paused === null) && (
           <button type="button" onClick={() => setPaused(!still)} aria-label={still ? "Turn through the calls" : "Stop turning through the calls"}
@@ -92,7 +92,7 @@ export function LatestCalls({ className, still: stillCount = 3, compact = false 
       )}
       {calls.length > 1 && !(reduced && paused === null) && (
         <div className={cn("relative flex items-center gap-1.5", compact ? "mt-2.5" : "mt-4")} aria-hidden>
-          {calls.map((m, k) => <span key={`${m.code}:${m.key}`} className={cn("h-1 rounded-full transition-all duration-300 motion-reduce:transition-none", k === i % calls.length ? "w-5 bg-accent" : "w-1.5 bg-text-base/20")} />)}
+          {calls.map((m, k) => <span key={`${m.code}:${m.key}`} className={cn("h-1 rounded-full transition-[width,background-color] duration-300 ease-out motion-reduce:transition-none v8:transition-[background-color] v8:duration-150", k === i % calls.length ? "w-5 bg-accent" : "w-1.5 bg-text-base/20")} />)}
         </div>
       )}
       {!compact && scored}
@@ -119,8 +119,8 @@ function CallRow({ m }: { m: Call }) {
       <WinBar pRed={p} size="sm" className="mt-2" />
       <p className="mt-2 flex flex-wrap items-center justify-between gap-x-3 text-xs">
         <span className="text-text-muted">{pick ? <>Called <span className={pick === "red" ? "text-red-alliance" : "text-blue-alliance"}>{pick === "red" ? "Red" : "Blue"} {pickPct(pick === "red" ? p : 1 - p)}</span> before the match</> : "A 50:50 call before the match"}</span>
-        {o === "right" ? <span className="inline-flex items-center gap-1 font-semibold text-success"><Check className="size-3.5" aria-hidden /> Right</span>
-          : o === "missed" ? <span className="inline-flex items-center gap-1 font-semibold text-danger"><X className="size-3.5" aria-hidden /> Missed</span>
+        {o === "right" ? <span className="inline-flex items-center gap-1 font-semibold text-success v8:text-emerald-400"><Check className="size-3.5" aria-hidden /> Right</span>
+          : o === "missed" ? <span className="inline-flex items-center gap-1 font-semibold text-danger v8:font-medium v8:text-rose-400"><X className="size-3.5" aria-hidden /> Missed</span>
           : <span className="text-text-muted">{o === "tie" ? "Tied match" : "No pick"}</span>}
       </p>
     </li>

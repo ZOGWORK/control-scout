@@ -27,7 +27,7 @@ export function saveState(s: SaveSync, savedHere: boolean): { kind: SaveStateKin
 const ICON = { unsaved: HardDrive, device: HardDrive, saving: Loader2, queued: HardDrive, failed: TriangleAlert, saved: Check } as const;
 const TONE: Record<SaveStateKind, string> = {
   unsaved: "text-muted-foreground", device: "text-foreground", saving: "text-muted-foreground",
-  queued: "text-foreground", failed: "text-danger-text", saved: "text-success-text",
+  queued: "text-foreground", failed: "text-danger-text", saved: "text-success-text v8:text-emerald-400",
 };
 
 export function SaveState({ sync, savedHere, className }: { sync: SaveSync; savedHere: boolean; className?: string }) {

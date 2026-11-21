@@ -108,6 +108,7 @@ export function SelectContent({ className, children, position = 'popper', ...pro
         className={cn(
           'relative z-[90] max-h-[min(var(--radix-select-content-available-height),20rem)] min-w-[8rem] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-xl',
           'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+          'v8:origin-(--radix-select-content-transform-origin) v8:[--tw-enter-scale:0.97] v8:duration-[180ms] v8:data-[state=closed]:duration-[120ms] v8:ease-out motion-reduce:v8:[--tw-enter-scale:1]',
           position === 'popper' && 'w-full min-w-[var(--radix-select-trigger-width)] data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
           className,
         )}
@@ -146,7 +147,7 @@ export function Progress({ className, value, indicatorClassName, ...props }: Rea
   return (
     <ProgressP.Root data-slot="progress" value={value} className={cn('relative h-1.5 w-full overflow-hidden rounded-full bg-muted', className)} {...props}>
       <ProgressP.Indicator
-        className={cn('h-full w-full flex-1 rounded-full bg-accent transition-transform duration-500 ease-out', indicatorClassName)}
+        className={cn('h-full w-full flex-1 rounded-full bg-accent transition-transform duration-500 ease-out v8:duration-300', indicatorClassName)}
         style={{ transform: `translateX(-${100 - Math.max(0, Math.min(100, value || 0))}%)` }}
       />
     </ProgressP.Root>
@@ -205,8 +206,11 @@ const toggleItem = cva(
         // Tooltip wraps the item (its data-state is "closed"/"delayed-open").
         // On dark the picked option is lifted (a light fill), not the page colour sunk into the track.
         segment: 'rounded-md px-3 hover:bg-text-base/[0.06] aria-checked:bg-background aria-checked:text-foreground aria-checked:shadow-sm aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm dark:aria-checked:bg-text-base/[0.16] dark:aria-pressed:bg-text-base/[0.16]',
-        chips: 'h-8 shrink-0 rounded-full border border-border px-3 max-sm:h-9 aria-checked:border-accent/50 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/50 aria-pressed:bg-accent/10 aria-pressed:text-foreground',
-        cards: 'h-auto min-h-12 shrink-0 flex-col items-start gap-0.5 rounded-xl border border-border bg-background px-3 py-2 text-left aria-checked:border-accent/60 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/60 aria-pressed:bg-accent/10 aria-pressed:text-foreground',
+        chips: 'h-8 shrink-0 rounded-full border border-border px-3 max-sm:h-9 aria-checked:border-accent/50 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/50 aria-pressed:bg-accent/10 aria-pressed:text-foreground ' +
+          // v8: a picked chip is white on white/10%, never the accent (brief §5).
+          'v8:border-white/[0.12] v8:aria-checked:border-white/25 v8:aria-checked:bg-white/10 v8:aria-pressed:border-white/25 v8:aria-pressed:bg-white/10',
+        cards: 'h-auto min-h-12 shrink-0 flex-col items-start gap-0.5 rounded-xl border border-border bg-background px-3 py-2 text-left aria-checked:border-accent/60 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/60 aria-pressed:bg-accent/10 aria-pressed:text-foreground ' +
+          'v8:aria-checked:border-white/25 v8:aria-checked:bg-white/[0.06] v8:aria-pressed:border-white/25 v8:aria-pressed:bg-white/[0.06]',
       },
       size: { default: '', sm: '', lg: '' },
     },
@@ -255,7 +259,7 @@ export function AccordionTrigger({ className, children, ...props }: React.Compon
     <AccordionP.Header className="flex">
       <AccordionP.Trigger
         data-slot="accordion-trigger"
-        className={cn('flex flex-1 items-center justify-between gap-4 rounded-md py-3 text-left text-sm font-medium outline-none transition-all hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 [&[data-state=open]>svg]:rotate-180', className)}
+        className={cn('flex flex-1 items-center justify-between gap-4 rounded-md py-3 text-left text-sm font-medium outline-none transition-colors hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 [&[data-state=open]>svg]:rotate-180', className)}
         {...props}
       >
         {children}

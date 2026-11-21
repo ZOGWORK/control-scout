@@ -58,24 +58,24 @@ export function SaveMatchBar({ label, teamCount, nextLabel, nextIndex, emptyTeam
   const press = () => { if (emptyTeams.length) setAsking(true); else run(false); };
 
   return (
-    <div data-sticky-actions className={cn("sticky z-30 -mx-4 border-t border-line bg-secondary px-4 py-2 max-md:bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] md:bottom-0 md:mx-0 md:rounded-xl md:border", className)}>
+    <div data-sticky-actions className={cn("sticky z-30 -mx-4 border-t border-line bg-secondary px-4 py-2 max-md:bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] md:bottom-0 md:mx-0 md:rounded-xl md:border v8:bg-card/95 v8:backdrop-blur-md", className)}>
       {asking ? (
         <div role="group" aria-label={`Teams with nothing yet in ${label}`} className="grid gap-2">
-          <p role="alert" className="text-center text-sm text-warning-text">{emptyHint(emptyTeams)}</p>
+          <p role="alert" className="text-center text-sm text-warning-text v8:text-text-base">{emptyHint(emptyTeams)}</p>
           <div className="flex gap-2">
-            <Button type="button" size="lg" className="flex-1 max-sm:h-12" onClick={() => run(true)}>Save anyway</Button>
-            {others > 0 && <Button type="button" variant="outline" size="lg" className="flex-1 max-sm:h-12" onClick={() => run(false)}>Skip {emptyTeams.length === 1 ? emptyTeams[0] : `${emptyTeams.length} teams`}</Button>}
+            <Button type="button" size="lg" className="flex-1 max-sm:h-12 v8:h-12" onClick={() => run(true)}>Save anyway</Button>
+            {others > 0 && <Button type="button" variant="outline" size="lg" className="flex-1 max-sm:h-12 v8:h-12" onClick={() => run(false)}>Skip {emptyTeams.length === 1 ? emptyTeams[0] : `${emptyTeams.length} teams`}</Button>}
           </div>
         </div>
       ) : (
         <>
-          <Button type="button" onClick={press} aria-describedby={error ? errId : undefined} size="lg" className="w-full max-sm:h-12">
+          <Button type="button" onClick={press} aria-describedby={error ? errId : undefined} size="lg" className="w-full max-sm:h-12 v8:h-12">
             <Save />{toPersonal ? `Save ${label} to Personal` : `Save ${label}`}
             <span className="font-medium opacity-75">· {teamCount} {teamCount === 1 ? "team" : "teams"}{nextLabel ? ` → ${nextLabel}` : ""}</span>
           </Button>
           {/* No sync line to show (a preview): how saving works. */}
           {(toPersonal || emptyTeams.length > 0 || !sync) && (
-            <p className={cn("mt-1.5 text-center text-xs", emptyTeams.length ? "text-warning-text" : "text-muted-foreground")}>
+            <p className={cn("mt-1.5 text-center text-xs", emptyTeams.length ? "text-warning-text v8:text-text-muted" : "text-muted-foreground")}>
               {toPersonal ? "This workspace is read-only, so Save keeps what you typed in Personal." : emptyHint(emptyTeams)}
             </p>
           )}

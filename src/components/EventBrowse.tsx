@@ -16,6 +16,7 @@ import { cn } from "./cn";
 import { EVENT_FILTER_COUNT, EVENT_TYPE_TONE } from "../lib/textTones";
 import { EventStatusChip, LiveDot } from "./EventChips";
 import { dateRange, place } from "../lib/format";
+import { useIsV8 } from "../lib/v8";
 import { eventTypeLabel } from "../shared/labels";
 import { regionLabel, regionNames } from "../shared/regions";
 import { applyFilters, FIRST_EVENTS, statusPick, videoPick, groupWeeks, MORE_EVENTS, placeKey, takeBatch, weekOf, type Filters, type Status, type VideoFilter } from "../pages/eventsList";
@@ -37,6 +38,12 @@ const STATUS: { v: Status; label: string; dot: string }[] = [
   { v: "upcoming", label: "Upcoming", dot: "bg-sky-400" },
   { v: "finished", label: "Finished", dot: "bg-emerald-400" },
 ];
+// v8 (docs/design/v8-revamp-brief.md §5): pickers are quiet outlines; a picker in use reads white on a faint white fill,
+// never the accent. Icons inherit the text colour. Status is a row of underline tabs, the picked one on the accent line.
+const V8_PICK = "v8:border-white/[0.12] v8:bg-transparent v8:still-hover:bg-white/[0.04] v8:[&_svg]:text-text-faint";
+const V8_PICK_ON = "v8:border-white/20 v8:bg-white/[0.08]";
+const V8_STATUS = "v8:relative v8:h-11 v8:gap-1.5 v8:rounded-none v8:border-0 v8:bg-transparent v8:px-3 v8:text-sm v8:font-medium v8:text-text-muted v8:hover:text-text-base v8:active:scale-[0.97] v8:motion-reduce:active:scale-100 v8:max-sm:h-11";
+const V8_STATUS_ON = "v8:text-text-base v8:after:absolute v8:after:inset-x-3 v8:after:-bottom-px v8:after:h-0.5 v8:after:rounded-full v8:after:bg-accent";
 const VIDEO_LABEL: Record<"recording" | "clips", string> = { recording: "Has a recording", clips: "Match clips" };
 
 /** A card's own action, under its link (Scout's picker), and whether to ring the card (the event picked now). */
@@ -60,10 +67,11 @@ export function EventFilterBar({ season, onSeason, events, typeEvents = events, 
   const counts = { all: base.length, live: 0, upcoming: 0, finished: 0 } as Record<Status, number>;
   for (const e of base) counts[e.status]++;
   const compact = useCompactFilters();
+  const v8 = useIsV8();
   const place = <PlacePicker events={events} value={region} onChange={(r) => set({ region: r }, false)} />;
   const typePicker = (
     <Select value={type} onValueChange={(v) => set({ type: v }, false)}>
-      <SelectTrigger className={cn("h-9 w-auto gap-2 rounded-lg px-3 font-medium max-sm:h-10", type !== "all" ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card")} aria-label="Event type"><SelectValue /></SelectTrigger>
+      <SelectTrigger className={cn("h-9 w-auto gap-2 rounded-lg px-3 font-medium max-sm:h-10", type !== "all" ? cn("border-accent/60 bg-accent/[0.08]", V8_PICK, V8_PICK_ON) : cn("border-line bg-card", V8_PICK))} aria-label="Event type"><SelectValue /></SelectTrigger>
       <SelectContent className="min-w-[14rem]">
         <SelectItem value="all">All event types</SelectItem>
         {types.map(([t, n]) => <SelectItem key={t} value={t}><span className="inline-flex items-center gap-2"><span className={cn("size-2 rounded-full", toneOfType(t).bar)} />{eventTypeLabel(t)} <span className="text-muted-foreground">{n}</span></span></SelectItem>)}
@@ -77,7 +85,7 @@ export function EventFilterBar({ season, onSeason, events, typeEvents = events, 
   for (const e of events) { if (e.video) videoCounts.recording++; if (e.video === "clips") videoCounts.clips++; }
   const videoPicker = (
     <Select value={video} onValueChange={(v) => set(videoPatch(v as VideoFilter), false)}>
-      <SelectTrigger className={cn("h-9 w-auto gap-2 rounded-lg px-3 font-medium max-sm:h-10", video !== "all" ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card")} aria-label="Video"><SelectValue /></SelectTrigger>
+      <SelectTrigger className={cn("h-9 w-auto gap-2 rounded-lg px-3 font-medium max-sm:h-10", video !== "all" ? cn("border-accent/60 bg-accent/[0.08]", V8_PICK, V8_PICK_ON) : cn("border-line bg-card", V8_PICK))} aria-label="Video"><SelectValue /></SelectTrigger>
       <SelectContent className="min-w-[14rem]">
         <SelectItem value="all">Any video</SelectItem>
         <SelectItem value="recording"><span className="inline-flex items-center gap-2"><MonitorPlay className="size-4 text-video" />Has a recording <span className="text-muted-foreground">{videoCounts.recording}</span></span></SelectItem>
@@ -87,16 +95,18 @@ export function EventFilterBar({ season, onSeason, events, typeEvents = events, 
   );
   const dates = <DateRangePicker from={from} to={to} onChange={(a, b) => set({ from: a, to: b }, false)} />;
   const search = (
-    <div className="relative min-w-[12rem] flex-1">
+    <div className="relative min-w-[12rem] flex-1 v8:order-first v8:basis-full v8:lg:basis-[18rem]">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input value={q} onChange={(e) => onQ(e.target.value)} placeholder="Name, code, city or state" className="h-9 pl-9 max-sm:h-10" aria-label="Filter events" />
+      <Input value={q} onChange={(e) => onQ(e.target.value)} placeholder="Name, code, city or state" className="h-9 pl-9 max-sm:h-10 v8:h-10" aria-label="Filter events" />
     </div>
   );
   const statusChips = STATUS.map((s) => (
     <button key={s.v} type="button" aria-pressed={status === s.v} onClick={() => set(statusPatch(s.v), false)}
       className={cn("inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10",
-        status === s.v ? "border-accent bg-accent text-accent-ink" : "border-line text-muted-foreground hover:border-text-base/25 hover:text-foreground")}>
-      <span className={cn("size-1.5 rounded-full", status === s.v ? "bg-accent-ink" : s.dot)} />{s.label}<span className={EVENT_FILTER_COUNT}>{counts[s.v]}</span>
+        status === s.v ? "border-accent bg-accent text-accent-ink" : "border-line text-muted-foreground hover:border-text-base/25 hover:text-foreground",
+        V8_STATUS, status === s.v && V8_STATUS_ON)}>
+      {v8 ? s.v === "live" && counts.live > 0 && <LiveDot className="size-1.5" /> : <span className={cn("size-1.5 rounded-full", status === s.v ? "bg-accent-ink" : s.dot)} />}
+      {s.label}<span className={cn(EVENT_FILTER_COUNT, "v8:font-normal v8:text-text-faint v8:tabular-nums")}>{v8 ? counts[s.v].toLocaleString() : counts[s.v]}</span>
     </button>
   ));
 
@@ -119,6 +129,22 @@ export function EventFilterBar({ season, onSeason, events, typeEvents = events, 
       </CompactFilters>
     );
   }
+  if (v8) return (
+    <div className="mb-6" data-event-filters="v8">
+      <div className="flex flex-wrap items-center gap-2 [&_[aria-label=Season]_svg]:text-text-faint [&_[aria-label^='Date_range']_svg]:text-text-faint">
+        {search}
+        <SeasonSelect value={season} onChange={onSeason} />
+        {place}
+        {typePicker}
+        {dates}
+        {videoPicker}
+      </div>
+      <div className="mt-3 flex items-center gap-1 border-b border-line" role="group" aria-label="Status">
+        <div className="-mb-px flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{statusChips}</div>
+        {active && <Button variant="ghost" size="sm" className="shrink-0" onClick={onClear}><X /> Clear filters</Button>}
+      </div>
+    </div>
+  );
   return (
     <div className="mb-8 max-sm:mb-5 space-y-3 rounded-2xl border border-border bg-card p-3 sm:p-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -161,7 +187,7 @@ function PlacePicker({ events, value, onChange }: { events: EventListItem[]; val
   let lastCountry = "";
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQ(""); }}>
-      <span className={cn("inline-flex h-9 max-w-full items-center rounded-lg border text-sm font-medium max-sm:h-10", value ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card hover:border-text-base/25")}>
+      <span className={cn("inline-flex h-9 max-w-full items-center rounded-lg border text-sm font-medium max-sm:h-10", value ? cn("border-accent/60 bg-accent/[0.08]", V8_PICK, V8_PICK_ON) : cn("border-line bg-card hover:border-text-base/25", V8_PICK))}>
         <PopoverTrigger asChild>
           <button type="button" aria-label={`Place: ${label}`} className="inline-flex h-full min-w-0 items-center gap-2 rounded-lg px-3">
             <MapPin className="size-4 text-sky-500" /><span className="max-w-[12rem] truncate">{label}</span>
@@ -188,7 +214,7 @@ function PlacePicker({ events, value, onChange }: { events: EventListItem[]; val
             lastCountry = p.country;
             return (
               <div key={p.key}>
-                {head && <p className="px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{head === "USA" ? "United States" : head}</p>}
+                {head && <p className="px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">{head === "USA" ? "United States" : head}</p>}
                 <PlaceRow on={value === p.key} name={p.name} n={p.n} onClick={() => { onChange(p.key); setOpen(false); }} />
               </div>
             );
@@ -202,7 +228,7 @@ function PlacePicker({ events, value, onChange }: { events: EventListItem[]; val
 
 function PlaceRow({ on, name, n, onClick }: { on: boolean; name: string; n: number; onClick: () => void }) {
   return (
-    <button type="button" role="option" aria-selected={on} onClick={onClick} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-text-base/[0.06] max-sm:py-2.5", on && "bg-accent/[0.08]")}>
+    <button type="button" role="option" aria-selected={on} onClick={onClick} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-text-base/[0.06] max-sm:py-2.5", on && "bg-accent/[0.08] v8:bg-white/[0.06]")}>
       <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
       <span className="text-xs tabular-nums text-muted-foreground">{n}</span>
       {on && <Check className="size-4 text-accent" />}
@@ -233,7 +259,32 @@ export const EventWeeks = memo(function EventWeeks({ events, region, type, statu
     io.observe(el);
     return () => io.disconnect();
   }, [shown, hidden, more]);
+  const v8 = useIsV8();
   if (!weeks.length) return <EmptyState icon={Search} title="No events match" description="Try another place, type or date range." action={<Button onClick={onClear}><X /> Clear filters</Button>} />;
+  if (v8) return (
+    <div data-event-weeks="v8">
+      <p className="mb-3 text-sm text-text-muted"><span className="font-medium tabular-nums text-text-base">{list.length.toLocaleString()}</span> event{list.length === 1 ? "" : "s"} in {weeks.length} week{weeks.length === 1 ? "" : "s"}</p>
+      <div className="space-y-6">
+        {shown.map(([w, evs, all]) => (
+          <section key={w} aria-label={w === "TBA" ? "Date to be announced" : `Week of ${fmtDay(w, true)}`}>
+            <div className="mb-2 flex items-baseline gap-2 px-1">
+              <h2 className="font-sans text-sm font-semibold text-text-base">{w === "TBA" ? "Date TBA" : `${fmtDay(w)} – ${fmtDay(addDays(w, 6), true)}`}</h2>
+              {w === thisWeek && <span className="rounded-full px-2 py-0.5 text-xs font-medium text-text-muted ring-1 ring-inset ring-white/[0.12]">This week</span>}
+              <span className="ml-auto text-xs tabular-nums text-text-faint">{all} event{all === 1 ? "" : "s"}</span>
+            </div>
+            <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-card">
+              {evs.map((e) => <EventRowV8 key={e.code} e={e} action={tileAction} />)}
+            </ul>
+          </section>
+        ))}
+      </div>
+      {hidden > 0 && (
+        <div ref={sentinel} className="mt-6 text-center">
+          <Button variant="outline" onClick={more}>Show more events <span className="text-text-faint">({hidden.toLocaleString()} more)</span></Button>
+        </div>
+      )}
+    </div>
+  );
   return (
     <div>
       <p className="mb-4 text-sm text-muted-foreground max-md:mb-2"><span className="font-semibold tabular-nums text-foreground">{list.length.toLocaleString()}</span> events in {weeks.length} week{weeks.length === 1 ? "" : "s"}</p>
@@ -257,6 +308,63 @@ export const EventWeeks = memo(function EventWeeks({ events, region, type, statu
         </div>
       )}
     </div>
+  );
+});
+
+/** v8's day column: "Nov 18", or "Nov 19–20" for a two-day event in one month. */
+export function shortDates(start: string | null, end: string | null): string {
+  if (!start) return "TBA";
+  if (!end || end === start) return fmtDay(start);
+  const a = fmtDay(start), b = fmtDay(end);
+  return a.split(" ")[0] === b.split(" ")[0] ? `${a}–${b.split(" ").slice(1).join(" ")}` : `${a} – ${b}`;
+}
+
+/** Where an event is, as the cards say it: city, state's full name, and the country outside the USA. */
+export const where = (e: EventListItem) => place(e.city, e.state ? regionLabel(`${e.country}:${e.state}`) : null, e.country === "USA" ? null : e.country) || "Location TBA";
+
+/** An event's status at the end of its row (v8): live with the red dot and matches played, the recording of a
+ *  finished one, or the plain word. */
+export function RowStatus({ e }: { e: EventListItem }) {
+  if (e.status === "live") {
+    const pct = e.matchesTotal ? Math.round((e.matchesPlayed / e.matchesTotal) * 100) : 0;
+    return (
+      <span className="flex flex-col items-end gap-1" title={e.matchesTotal ? `${e.matchesPlayed} of ${e.matchesTotal} matches played` : "On now"}>
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-live"><LiveDot />Live{e.stream && <span className="sr-only"> with a stream</span>}</span>
+        {e.matchesTotal > 0 && (
+          <span className="flex items-center gap-1.5" data-match-bar>
+            <span className="h-0.5 w-12 overflow-hidden rounded-full bg-white/10"><span className="block h-full rounded-full bg-accent" style={{ width: `${pct}%` }} /></span>
+            <span className="text-xs tabular-nums text-text-faint">{e.matchesPlayed}/{e.matchesTotal}</span>
+          </span>
+        )}
+      </span>
+    );
+  }
+  if (e.status === "finished" && e.video) return <span className="inline-flex items-center gap-1.5 text-sm text-text-muted" data-video={e.video}><MonitorPlay className="size-4" aria-hidden />{e.video === "clips" ? "Clips" : "Video"}</span>;
+  return <span className="text-sm text-text-faint">{e.status === "finished" ? "Finished" : "Upcoming"}</span>;
+}
+
+/** One event as a v8 row: day, name with type and place, teams, status. With an action (Scout's picker), the link
+ *  and the action sit side by side (the action under it on a phone), never one inside the other. */
+const EventRowV8 = memo(function EventRowV8({ e, action }: { e: EventListItem; action?: TileAction }) {
+  const href = `/events/${e.season}/${e.code}`;
+  const act = action?.(e);
+  const link = (
+    <Link to={href} className="group flex min-h-14 min-w-0 flex-1 items-center gap-4 px-4 py-2.5 transition-colors duration-150 still-hover:bg-white/[0.03]" data-event-row={e.code}>
+      <span className="w-[4.75rem] shrink-0 text-sm tabular-nums text-text-muted max-sm:hidden">{shortDates(e.start, e.end)}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium text-text-base" title={e.name}>{e.name}</span>
+        <span className="block truncate text-xs text-text-faint"><span className="sm:hidden">{shortDates(e.start, e.end)} · </span>{e.typeLabel} · {where(e)}</span>
+      </span>
+      {e.teams > 0 && <span className="hidden w-12 shrink-0 items-center justify-end gap-1 text-xs tabular-nums text-text-faint sm:inline-flex" title={`${e.teams} teams`}><Users className="size-3.5" aria-hidden />{e.teams}</span>}
+      <span className="flex w-[5.5rem] shrink-0 justify-end max-sm:w-auto"><RowStatus e={e} /></span>
+    </Link>
+  );
+  if (!act) return <li>{link}</li>;
+  return (
+    <li aria-label={e.name} className={cn("relative flex items-center max-sm:flex-col max-sm:items-stretch", act.ring && "bg-white/[0.04] before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent")} data-picked={act.ring || undefined}>
+      {link}
+      <div className="shrink-0 pr-4 max-sm:px-4 max-sm:pb-3">{act.node}</div>
+    </li>
   );
 });
 
