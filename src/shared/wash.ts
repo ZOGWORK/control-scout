@@ -1,6 +1,7 @@
 // The v8 wash (src/components/layout/Wash.tsx; the first paint's copy in server/bootShell.ts): the soft colour band
-// across the top of every page. The owner can change it in the console (server/wash.ts, owner_settings key "wash"):
-// three colours (left, middle, right), a brightness and a spread. Shared by the server (validation, the first
+// across the top of every page, and the glow at the end of a long page (PageEndGlow.tsx). The owner can change both in
+// the console's Appearance tab (server/wash.ts, owner_settings key "wash"): three top colours (left, middle, right),
+// three glow colours, a brightness and a spread, or one of the ready-made WASH_PRESETS. Shared by the server (validation, the first
 // paint's <style>) and the app (the console's live preview), so both turn the same settings into the same CSS.
 
 export interface WashSettings {
@@ -8,6 +9,11 @@ export interface WashSettings {
   a: string;
   b: string;
   c: string;
+  /** The page-end glow's left, middle and right colours, as #rrggbb. A wash saved before the glow could be chosen
+   *  has none: parseWash fills in the defaults. */
+  ga: string;
+  gb: string;
+  gc: string;
   /** 0.3–1.6. Up to 1 it is the wash's opacity; above 1 the opacity stays full and the colours get brighter. */
   strength: number;
   /** 0.6–1.6: how far down the wash reaches (1 = the default height). */
@@ -21,7 +27,29 @@ export interface WashResponse { wash: WashSettings; custom: boolean }
 export interface OwnerWash extends WashResponse { defaults: WashSettings; updatedAt: string | null; updatedBy: string | null }
 
 /** The defaults, as in src/index.css (html[data-v8]). */
-export const DEFAULT_WASH: Readonly<WashSettings> = Object.freeze({ a: "#5a76ad", b: "#5f5785", c: "#91689c", strength: 1, spread: 1 });
+export const DEFAULT_WASH: Readonly<WashSettings> = Object.freeze({ a: "#5a76ad", b: "#5f5785", c: "#91689c", ga: "#be6937", gb: "#795fa7", gc: "#556496", strength: 1, spread: 1 });
+
+/** Ready-made gradients for the console's Appearance tab: the default (Dusk) and five more, each a top wash and a
+ *  page-end glow that belong together. Picking one only fills the editor; nothing changes for visitors until Save. */
+export const WASH_PRESETS: readonly { id: string; name: string; wash: Readonly<WashSettings> }[] = Object.freeze([
+  { id: "dusk", name: "Dusk", wash: DEFAULT_WASH },
+  { id: "aurora", name: "Aurora", wash: { a: "#2f9e8f", b: "#3f7fb8", c: "#7a5cc4", ga: "#2fb37f", gb: "#3a8fa8", gc: "#6a5acd", strength: 1, spread: 1 } },
+  { id: "sunset", name: "Sunset", wash: { a: "#d0784a", b: "#c2557a", c: "#7c4fa8", ga: "#e08a3c", gb: "#d14f6b", gc: "#8a4fb0", strength: 1, spread: 1 } },
+  { id: "ocean", name: "Ocean", wash: { a: "#1f5fa8", b: "#1d8fb0", c: "#1f9e9a", ga: "#1aa3b8", gb: "#2563b8", gc: "#3a4fa0", strength: 1, spread: 1 } },
+  { id: "ember", name: "Ember", wash: { a: "#b8452f", b: "#c7702e", c: "#9c3a5a", ga: "#e0662e", gb: "#c9a032", gc: "#a83a3a", strength: 1, spread: 1 } },
+  { id: "nebula", name: "Nebula", wash: { a: "#b0469e", b: "#5a4fc4", c: "#2f8fb8", ga: "#c24fa8", gb: "#6a4fd0", gc: "#2fa0c8", strength: 1, spread: 1 } },
+]);
+
+/** The keys that make up a wash, in the order the console lists them. */
+export const WASH_KEYS = ["a", "b", "c", "ga", "gb", "gc", "strength", "spread"] as const;
+export const COLOUR_KEYS = ["a", "b", "c", "ga", "gb", "gc"] as const;
+export type ColourKey = (typeof COLOUR_KEYS)[number];
+
+/** Whether two washes are the same. */
+export const sameWash = (x: WashSettings, y: WashSettings) => WASH_KEYS.every((k) => x[k] === y[k]);
+
+/** The preset `w` is, if any. */
+export const presetOf = (w: WashSettings) => WASH_PRESETS.find((p) => sameWash(p.wash, w)) ?? null;
 
 export const WASH_STRENGTH = { min: 0.3, max: 1.6 } as const;
 export const WASH_SPREAD = { min: 0.6, max: 1.6 } as const;
@@ -47,12 +75,13 @@ const clamp = (n: number, r: { min: number; max: number }) => Math.round(Math.mi
  * problem in words: a field that isn't a hex colour or a number. Every field is needed.
  */
 export function parseWash(x: unknown): { wash: WashSettings } | { problem: string } {
-  if (!x || typeof x !== "object") return { problem: "Send the wash as {a, b, c, strength, spread}." };
+  if (!x || typeof x !== "object") return { problem: "Send the wash as {a, b, c, ga, gb, gc, strength, spread}." };
   const o = x as Record<string, unknown>;
-  const names = { a: "The left colour", b: "The middle colour", c: "The right colour" } as const;
-  const colours = {} as Pick<WashSettings, "a" | "b" | "c">;
-  for (const k of ["a", "b", "c"] as const) {
-    const hex = cleanHex(o[k]);
+  const names = { a: "The left colour", b: "The middle colour", c: "The right colour", ga: "The glow's left colour", gb: "The glow's middle colour", gc: "The glow's right colour" } as const;
+  const colours = {} as Pick<WashSettings, ColourKey>;
+  for (const k of COLOUR_KEYS) {
+    // The glow's colours came later: a wash saved without them keeps the default glow.
+    const hex = cleanHex(o[k] === undefined && k.startsWith("g") ? DEFAULT_WASH[k] : o[k]);
     if (!hex) return { problem: `${names[k]} must be a hex colour, like #5a76ad.` };
     colours[k] = hex;
   }
@@ -66,7 +95,7 @@ export function parseWash(x: unknown): { wash: WashSettings } | { problem: strin
 }
 
 /** Whether `w` is the default wash. */
-export const isDefaultWash = (w: WashSettings) => (["a", "b", "c", "strength", "spread"] as const).every((k) => w[k] === DEFAULT_WASH[k]);
+export const isDefaultWash = (w: WashSettings) => sameWash(w, DEFAULT_WASH);
 
 /** `hex` with each channel times `k` (as CSS brightness() does), capped at 255. */
 function brighten(hex: string, k: number): string {
@@ -75,7 +104,7 @@ function brighten(hex: string, k: number): string {
   return `#${[16, 8, 0].map((s) => Math.min(255, Math.round(((n >> s) & 255) * k)).toString(16).padStart(2, "0")).join("")}`;
 }
 
-export type WashVars = Record<"--wash-a" | "--wash-b" | "--wash-c" | "--wash-strength" | "--wash-spread", string>;
+export type WashVars = Record<"--wash-a" | "--wash-b" | "--wash-c" | "--glow-a" | "--glow-b" | "--glow-c" | "--wash-strength" | "--wash-spread", string>;
 
 /**
  * The CSS variables for `w`, as Wash.tsx and the first paint read them. --wash-strength stays within 0.3–1 (it is an
@@ -87,6 +116,9 @@ export function washVars(w: WashSettings): WashVars {
     "--wash-a": brighten(w.a, boost),
     "--wash-b": brighten(w.b, boost),
     "--wash-c": brighten(w.c, boost),
+    "--glow-a": w.ga,
+    "--glow-b": w.gb,
+    "--glow-c": w.gc,
     "--wash-strength": String(Math.min(1, w.strength)),
     "--wash-spread": String(w.spread),
   };

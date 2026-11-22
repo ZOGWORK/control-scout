@@ -64,6 +64,8 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
 
 /** The owner console's feature toggles, in the order its Features tab lists them. */
 export const FEATURE_FLAGS: readonly Flag[] = FLAGS.filter((f) => FLAG_META[f].group === "feature");
+/** The toggles that only change how pages look: the owner console's Appearance tab lists them, not Features. */
+export const APPEARANCE_FLAGS: readonly Flag[] = ["particleWave", "pageEndGlow", "dogTheme"];
 /** The kill switches, listed below the feature toggles. */
 export const KILL_SWITCHES: readonly Flag[] = FLAGS.filter((f) => FLAG_META[f].group === "kill");
 /** Flags that take per-workspace overrides. */

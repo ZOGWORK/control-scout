@@ -3,7 +3,7 @@
 // nothing is deleted; a workspace's own setting (workspace-scoped toggles) applies at once, with a toast. The
 // console itself is never behind any of these.
 import { useMemo, useState } from "react";
-import { ChartBarBig, ClipboardList, Coins, Dices, Dog, Download, Gavel, Globe, Luggage, MessageCircle, Power, PowerOff, Route, Search, Sparkles, Trophy, TrendingUp, Users, type LucideIcon, Swords } from "lucide-react";
+import { AudioWaveform, ChartBarBig, ClipboardList, Coins, Dices, Dog, Sunset, Download, Gavel, Globe, Luggage, MessageCircle, Power, PowerOff, Route, Search, Sparkles, Trophy, TrendingUp, Users, type LucideIcon, Swords } from "lucide-react";
 import { Section } from "../page";
 import { Async } from "../states";
 import { Badge, Input } from "../ui/basic";
@@ -15,7 +15,7 @@ import { cn } from "../cn";
 import { apiFetch, prime, useApi, type ApiError } from "../../lib/api";
 import { refreshFlags } from "../../lib/flags";
 import { ago } from "../../lib/format";
-import { FLAG_INFO, type Flag } from "../../shared/flags";
+import { APPEARANCE_FLAGS, FLAG_INFO, type Flag } from "../../shared/flags";
 import { setV8, useIsV8 } from "../../lib/v8";
 import type { OwnerFlag, OwnerFlags } from "../../shared/owner";
 
@@ -37,6 +37,8 @@ const LOOK: Partial<Record<Flag, { icon: LucideIcon; chip: string; edge: string 
   scheduleDifficulty: { icon: Dices, chip: "bg-rose-500/15 text-rose-500 dark:text-rose-300", edge: "border-l-rose-500" },
   rulesReference: { icon: Gavel, chip: "bg-orange-500/15 text-orange-500", edge: "border-l-orange-500" },
   dogTheme: { icon: Dog, chip: "bg-accent/15 text-accent-text v8:text-accent", edge: "border-l-accent" },
+  particleWave: { icon: AudioWaveform, chip: "bg-sky-500/15 text-sky-500 dark:text-sky-300", edge: "border-l-sky-500" },
+  pageEndGlow: { icon: Sunset, chip: "bg-orange-500/15 text-orange-500", edge: "border-l-orange-500" },
 };
 
 /** How many workspaces the overrides list shows before asking for a search. */
@@ -53,7 +55,7 @@ function LookSwitch() {
           <p className="font-medium text-foreground">{v8 ? "New look" : "Classic look"}</p>
           <p className="text-sm text-muted-foreground">{v8 ? "Calmer and darker, each page built around what you came for." : "Control Scout as it was, yellow accents and all."}</p>
         </div>
-        <Button variant="outline" size="sm" className="max-sm:h-[44px]" onClick={() => setV8(!v8, "/owner?panel=features")}>
+        <Button variant="outline" size="sm" className="max-sm:h-[44px]" onClick={() => setV8(!v8, "/owner?panel=appearance")}>
           Switch to the {v8 ? "classic" : "new"} look
         </Button>
       </div>
@@ -61,7 +63,9 @@ function LookSwitch() {
   );
 }
 
-export function FeaturesPanel() {
+/** `appearance`: only the toggles that change how pages look (the Appearance tab); otherwise every other toggle and the
+ *  kill switches (the Features tab). */
+export function FeaturesPanel({ appearance = false }: { appearance?: boolean } = {}) {
   const state = useApi<OwnerFlags>(FLAGS_PATH);
   const [ask, setAsk] = useState<{ flag: OwnerFlag; enabled: boolean } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -81,16 +85,16 @@ export function FeaturesPanel() {
 
   return (
     <>
-      <LookSwitch />
+      {appearance && <LookSwitch />}
       <Async state={state}>
         {(d) => {
-          const features = d.flags.filter((f) => f.group === "feature");
+          const features = d.flags.filter((f) => f.group === "feature" && APPEARANCE_FLAGS.includes(f.name) === appearance);
           const kills = d.flags.filter((f) => f.group === "kill");
           const off = features.filter((f) => !f.enabled).length;
           return (
             <>
-              <Section title="Feature toggles"
-                description={<>Switch a feature off for everyone, and back on, without a deploy. Your data stays available when you switch a feature back on. {off ? <strong className="text-foreground">{off} of {features.length} off right now.</strong> : `All ${features.length} on.`}</>}>
+              <Section title={appearance ? "Background effects" : "Feature toggles"}
+                description={<>{appearance ? "The moving particles and the page-end glow behind the new look, and the dog theme. Each switch is for everyone." : "Switch a feature off for everyone, and back on, without a deploy. Your data stays available when you switch a feature back on."} {off ? <strong className="text-foreground">{off} of {features.length} off right now.</strong> : `All ${features.length} on.`}</>}>
                 <ul className="grid gap-3 lg:grid-cols-2">
                   {features.map((f) => (
                     <FeatureCard key={f.name} f={f} busy={busy === f.name} onFlip={(enabled) => setAsk({ flag: f, enabled })}>
@@ -99,11 +103,11 @@ export function FeaturesPanel() {
                   ))}
                 </ul>
               </Section>
-              <Section title="Kill switches" description="Operational switches for parts of the app that depend on other services or run in the background. Each one is global.">
+              {!appearance && <Section title="Kill switches" description="Operational switches for parts of the app that depend on other services or run in the background. Each one is global.">
                 <ul className="divide-y divide-border rounded-xl border border-border bg-card">
                   {kills.map((f) => <KillSwitchRow key={f.name} f={f} busy={busy === f.name} onFlip={(enabled) => setAsk({ flag: f, enabled })} />)}
                 </ul>
-              </Section>
+              </Section>}
             </>
           );
         }}
