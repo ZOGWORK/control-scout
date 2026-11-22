@@ -11,7 +11,7 @@ import type { PickAlliance, PickRatings, PickTeam } from "../../src/shared/pickR
 
 const MAX_KEPT = 200;
 const kept = new Map<string, Promise<PickRatings | null>>();
-registerCache("Pick ratings", () => kept.clear());
+registerCache("Pick ratings", () => kept.clear(), { clipFree: true });
 
 const num = (x: unknown) => (x == null ? null : Number(x));
 const r1 = (x: unknown) => Math.round(Number(x) * 10) / 10;

@@ -165,7 +165,7 @@ async function vocab(): Promise<Vocab> {
   v.catch(() => { if (vocabCache?.vocab === v) vocabCache = null; });
   return v;
 }
-registerCache("Search spelling vocabulary", () => { vocabCache = null; });
+registerCache("Search spelling vocabulary", () => { vocabCache = null; }, { clipFree: true });
 /** Builds the vocabulary ahead of the first search (server start). */
 export const warmSpelling = async (): Promise<void> => { await vocab(); };
 

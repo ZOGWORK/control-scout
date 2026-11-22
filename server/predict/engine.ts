@@ -588,7 +588,7 @@ export async function refreshForecasters(): Promise<void> {
 
 /** Drop cached forecasters and season data (tests, or after a manual data change). Not for syncs: a new data version already rebuilds, without making pages wait. */
 export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); ratedTeamsCache.clear(); resetOffThread(); }
-registerCache("Prediction ratings", resetForecasters);
+registerCache("Prediction ratings", resetForecasters, { clipFree: true });
 
 // A forecaster built while the finished seasons' pair history was still building went ahead with its
 // window's pairs only. Once that history is ready, rebuild it in the background (pages keep answering

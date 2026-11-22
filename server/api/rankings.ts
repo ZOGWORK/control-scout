@@ -36,7 +36,7 @@ const listMemo = memo<RankingTeamRow[]>(120_000, 20);
 const snapMemo = memo<Map<number, { rank: number; rating: number }>>(600_000, 20);
 const pageMemo = memo<{ body: string; etag: string }>(120_000, 500);
 const placesMemo = memo<Omit<RankingPlaces, "mine" | "weeks">>(600_000, 20);
-registerCache("World rankings", () => { listMemo.clear(); snapMemo.clear(); pageMemo.clear(); placesMemo.clear(); });
+registerCache("World rankings", () => { listMemo.clear(); snapMemo.clear(); pageMemo.clear(); placesMemo.clear(); }, { clipFree: true });
 
 export const rows: RankingRows = (sql, args) => all(sql, args);
 

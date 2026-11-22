@@ -23,7 +23,7 @@ const leaguesMemo = memo<Awaited<ReturnType<typeof leagueList>>>(120_000, 10);
 const unrankedMemo = memo<UnrankedTeam[]>(120_000, 100);
 const viewMemo = memo<RegionRankingsResponse>(120_000, 500);
 const regionsMemo = memo<RegionsResponse>(600_000, 10);
-registerCache("Region rankings", () => { statsMemo.clear(); leaguesMemo.clear(); unrankedMemo.clear(); viewMemo.clear(); regionsMemo.clear(); });
+registerCache("Region rankings", () => { statsMemo.clear(); leaguesMemo.clear(); unrankedMemo.clear(); viewMemo.clear(); regionsMemo.clear(); }, { clipFree: true });
 
 /** Every team's season stats (the columns beside the rating), by team. */
 async function seasonStats(season: number): Promise<Map<number, Stats>> {

@@ -50,4 +50,4 @@ export async function names(): Promise<Names> {
   n.catch(() => { if (cache?.names === n) cache = null; });
   return n;
 }
-registerCache("Search pipeline names", () => { cache = null; });
+registerCache("Search pipeline names", () => { cache = null; }, { clipFree: true });
