@@ -521,10 +521,15 @@ a.underline:visited:where(.text-accent-text), .prose-links a:visited { color: co
     radial-gradient(ellipse 30% 80% at 52% 100%, color-mix(in srgb, var(--glow-c, #556496) 30%, transparent), transparent 80%);
   mask-image: radial-gradient(ellipse 65% 110% at 50% 110%, #000 25%, transparent 78%);
 }
-/* One gradient at a time: hidden while the top wash is on screen (PageEndGlow.tsx), fading in once it has scrolled away. */
-[data-page-end-glow] { transition: opacity 400ms ease; }
-[data-page-end-glow][data-hidden] { opacity: 0; }
-@media (prefers-reduced-motion: reduce) { [data-page-end-glow] { transition: none; } }
+/* One gradient at a time: hidden while the top wash is on screen (PageEndGlow.tsx), fading in once it has scrolled away.
+   On a short page (Predict on a phone) the glow is already in view when the wash leaves, so the entrance is seen: a
+   slow ease-out fade as the pool swells up from the page's end (#2146). Leaving is quicker. A scale anchored at the
+   bottom edge, not a translate: it never reaches past the box, so the page never grows a scroll while the glow is
+   hidden. Opacity and transform only, so it stays on the compositor. Reduced motion: no swell, and the app-wide
+   reduced-motion rule (end of this file) makes the change instant, as it does every transition. */
+[data-page-end-glow] { transform-origin: 50% 100%; transition: opacity 900ms cubic-bezier(0.22, 1, 0.36, 1), transform 900ms cubic-bezier(0.22, 1, 0.36, 1); }
+[data-page-end-glow][data-hidden] { opacity: 0; transform: scaleY(0.85); transition-duration: 250ms; transition-timing-function: ease-out; }
+@media (prefers-reduced-motion: reduce) { [data-page-end-glow][data-hidden] { transform: none; } }
 
 /* ---------- Ambient background (always on) ----------
    Control Point's line grid, alive: lines drift one cell every ~48 s, a soft
