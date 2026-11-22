@@ -2,6 +2,7 @@
 // team page: the team's name, its place and record here, its OPR and average. "View team" goes to the page.
 // Every row the team plays in marks it while the card is open; a second tap on it, X or Escape closes it.
 import { createContext, useContext, useEffect, useId, useRef, useState, type Ref } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import { ChevronRight, X } from "lucide-react";
@@ -62,17 +63,25 @@ export function TeamSnack({ team, season, name, code, record, onClose }: {
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
   }, [team, onClose]);
-  return (
+  // Into <body> once mounted, like StickyActions: inside the page's <main> (its own stacking layer) the card could
+  // never rise over the bar of actions or the bug-report circle, whatever its z-index (#2144).
+  const [body, setBody] = useState<HTMLElement | null>(null);
+  useEffect(() => { setBody(document.body); }, []);
+  if (!body) return null;
+  return createPortal(
     <AnimatePresence>
       {team != null && (
+        // On a phone it sits above the bar of actions while that bar is up (html[data-sticky-actions-shown], 4rem like
+        // InstallNudge), and slides with it.
         <Motion.div key="snack" ref={box} role="dialog" aria-label={`Team ${team}`} data-team-snack
-          className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] z-40 mx-auto max-w-xl md:bottom-6"
+          className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] z-40 mx-auto max-w-xl transition-[bottom] duration-200 motion-reduce:transition-none max-md:[[data-sticky-actions-shown]_&]:bottom-[calc(var(--tabbar-h)+4rem+env(safe-area-inset-bottom)+0.75rem)] md:bottom-6"
           initial={reduce ? false : { y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={reduce ? { opacity: 0, transition: { duration: 0 } } : { y: 24, opacity: 0 }}
           transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}>
           <SnackBody key={team} team={team} season={season} name={name} code={code} record={record} onClose={onClose} viewRef={view} />
         </Motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    body,
   );
 }
 
@@ -91,7 +100,8 @@ function SnackBody({ team, season, name, code, record, onClose, viewRef }: { tea
   if (st?.opr.np.value != null) facts.push({ k: "npOPR", v: st.opr.np.value.toFixed(2) });
   if (st?.avg.np != null) facts.push({ k: "npAVG", v: st.avg.np.toFixed(2) });
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-card/95 px-4 py-3 shadow-xl backdrop-blur">
+    // Solid: the rows behind never show through the card (#2144).
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-xl">
       <div className="min-w-0 flex-1">
         <p className="truncate font-display text-lg font-semibold">
           <span className="tabular-nums">{team}</span>{(p?.team.name ?? name) && <span className="text-text-muted"> · <span className="italic text-text-base">{p?.team.name ?? name}</span></span>}

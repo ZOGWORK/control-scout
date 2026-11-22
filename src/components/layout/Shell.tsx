@@ -37,7 +37,7 @@ import { useFlag } from "../../lib/flags";
 import { PAGE_FRAME } from "../../shared/boot";
 import { isV8, useIsV8 } from "../../lib/v8";
 import { OwnerOnlyClassicLook } from "../../lib/ownerLook";
-import { Wash, washSize } from "./Wash";
+import { TOP_PATCH, TOP_PATCH_IMAGE, Wash, washSize } from "./Wash";
 
 /** `children`: a row that opens to its own pages instead of being one (How it works: Predictions, FTC One Search).
  *  `sub`: a row that is a page itself, with a small arrow beside it that shows its sub-pages (Rankings: Region
@@ -360,7 +360,9 @@ function MobileTabs() {
   const tabs = useTabBar();
   const { row, active } = useYoursRow();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Main">
+    // Its colour runs on below the screen's edge (the after: strip): whatever a phone draws under the bar (Safari's
+    // toolbar zone, the bounce past the page's end) is the bar, never the page-end glow peeking out.
+    <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary pb-[env(safe-area-inset-bottom)] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-secondary md:hidden" aria-label="Main">
       {tabs.map((id) => {
         const t = tabDef(id);
         // My team / My teams: the YOURS row decides the label, where it goes and when it's lit (src/lib/yoursRow.ts).
@@ -447,6 +449,13 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="relative flex min-w-0 flex-1 flex-col">
             {/* The top wash sits under the bar; a separate glow marks the page's end below. */}
             {!bare && v8 && <Wash size={washSize(loc.pathname)} />}
+            {/* The top patch (#2147, #2144): Safari 26 on an iPhone paints the strip behind the clock from the page, a
+                black band with the page blurred under it as you scroll, unless a fixed bar touches the top: then it
+                fills the strip with that bar's solid colour. v8 has no such bar, so this thin one stands in, in the
+                wash's own colour where it starts, so the strip runs on into the wash with no band or blur. Not
+                pointer-events-none: Safari finds it by a hit test. */}
+            {!bare && v8 && <div aria-hidden data-top-patch className="fixed inset-x-0 top-0 z-50 h-1.5 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-24 before:bg-inherit md:hidden"
+              style={{ backgroundColor: TOP_PATCH, backgroundImage: TOP_PATCH_IMAGE }} />}
             {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). */}
             {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-1 border-b border-line bg-primary px-3 sm:px-6 md:gap-3 lg:px-8 v8:relative v8:h-14 v8:border-transparent v8:bg-transparent">
               {/* Phones: the menu (every page) top left with search beside it, the logo centred, and the bell right. On a
@@ -501,8 +510,9 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
           {!bare && <MobileTabs />}
-          {/* v8: Report a bug, a quiet circle in the screen's bottom corner (above the phone's tab bar). */}
-          {!bare && v8 && <div className="fixed bottom-0 right-0 z-30 size-0 max-md:bottom-(--tabbar-h)"><BugReportButton corner /></div>}
+          {/* v8: Report a bug, a quiet circle in the screen's bottom corner (above the phone's tab bar, and above a page's bar
+              of actions while that shows); out of the way while a team card is open over that corner. */}
+          {!bare && v8 && <div className="fixed bottom-0 right-0 z-30 size-0 transition-[bottom] duration-200 motion-reduce:transition-none max-md:bottom-(--tabbar-h) max-md:[[data-sticky-actions-shown]_&]:bottom-[calc(var(--tabbar-h)+3.25rem)] [html:has([data-team-snack])_&]:hidden"><BugReportButton corner /></div>}
           <WhatsNewHost />
           <Sheet open={menu} onOpenChange={setMenu}>
             <SheetContent side="left" returnFocus={toMenu} className="w-[85vw] max-w-[320px] p-3">
