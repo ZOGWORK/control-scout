@@ -18,6 +18,7 @@ import { clipCheckRow, setAutoClipChecks, type ClipCheck } from "../data/clipChe
 import { carryApproved, clipCheckProblems, nothingRead, rowProblems, SAME_S } from "../data/frameRowRules.js";
 import { CLIP_LEAD_S } from "../../src/shared/recording.js";
 import { LockBusy, withDataLock } from "../data/lock.js";
+import { applyStoryboards, isStoryboardDelivery, storyboardShape, type StoryboardDelivery } from "./storyboards.js";
 import { recordAudit } from "../portal/audit.js";
 import { clearClipCaches } from "../caches.js";
 import type { AutoReadChange, AutoReadKind, OwnerAutoReads, PendingAutoRead, PendingReview } from "../../src/shared/api.js";
@@ -247,7 +248,8 @@ export async function processInbox(o: { dir?: string; now?: number; log?: (s: st
           const size = statSync(c.path).size;
           if (size > DELIVERY_MAX_BYTES) throw new Error(`${size} bytes, over ${DELIVERY_MAX_BYTES}`);
           d = JSON.parse(readFileSync(c.path, "utf8"));
-          const bad = deliveryShape(d);
+          // A storyboards delivery (recordings' frame sheets, ./storyboards.ts) has its own shape and table.
+          const bad = isStoryboardDelivery(d) ? storyboardShape(d) : deliveryShape(d);
           if (bad) throw new Error(bad);
         } catch (e) {
           const why = (e as Error).message;
@@ -263,6 +265,13 @@ export async function processInbox(o: { dir?: string; now?: number; log?: (s: st
           continue;
         }
         try {
+          if (isStoryboardDelivery(d)) {
+            const s = await applyStoryboards(d as StoryboardDelivery, now);
+            rmSync(c.path, { force: true });
+            totals.files++;
+            log(`auto reads: ${c.name}: ${s.kept} storyboards kept, ${s.dropped} dropped`);
+            continue;
+          }
           const r = await applyDelivery(d as Delivery, now, log);
           rmSync(c.path, { force: true });
           totals.files++; totals.live += r.live.length; totals.pending += r.pending.length; totals.dropped += r.dropped.length;

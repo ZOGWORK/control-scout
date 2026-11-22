@@ -97,6 +97,8 @@ export const PUBLIC_TABLES = [
   "team_reliability",
   // YouTube's public timing of event recordings (migration 43): video ids, broadcast times, lengths.
   "video_meta",
+  // Recordings' YouTube storyboard specs (migration 101): public sprite-sheet links, one frame per clip on search.
+  "video_storyboards",
   // Where FIRST's short stream links led while each event was on (migration 66).
   "event_stream_links", "event_broadcasts",
   // Official event recordings and highlights from the organisers' own channels (migration 83): public video ids.

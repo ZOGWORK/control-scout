@@ -550,5 +550,13 @@ if (SWEEP && SHARD.k === 0) {
   // Handed over season by season; a sweep that couldn't be sent is swept again on a later run.
   for (const [season, rows] of bySeason) deliver("clips", season, rows);
 }
+// --- 8. Recordings' storyboards ------------------------------------------------------------------------------------------
+// Each recording's storyboard spec (scripts/storyboards.ts), so search shows each clip's own frame, not the stream's one
+// thumbnail (server/videos/storyboards.ts). Shard 0 alone, like the sweep; a failure is logged and read again next run.
+if (SHARD.k === 0) {
+  const r = await tsx(["scripts/storyboards.ts", "--db", snapshot!, "--max", "150", ...(DRY ? ["--dry"] : [])], 1_800_000).catch((e) => ({ code: 1, out: "", err: (e as Error).message }));
+  for (const line of r.out.trim().split("\n").filter(Boolean).slice(-3)) log(`storyboards: ${line}`);
+  if (r.code) log(`storyboards: exit ${r.code} ${r.err.trim().split("\n").at(-1) ?? ""}`);
+}
 if (stoppedAtLimit.length) log(`stopped at the reader's per-event limit with no new row (look at these by hand): ${stoppedAtLimit.join("; ")}`);
 log("done");

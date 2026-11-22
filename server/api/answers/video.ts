@@ -15,6 +15,7 @@ import { localToUtcMs } from "../../../src/shared/time.js";
 import type { MatchView, SearchAnswer, SearchVideo, SearchVideoItem } from "../../../src/shared/api.js";
 import { matchVideos, type Viewer } from "../../videos/contributors.js";
 import { contributorItem, pickMatchVideo } from "../../../src/shared/contributors.js";
+import { withStills } from "../../videos/storyboards.js";
 
 /** A match or an event an answer links to. */
 export interface VideoRef { season: number; code: string; key?: string }
@@ -233,5 +234,7 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
     if (rec) (out.rows ??= {})[s.href] = { videoId: rec.videoId, t: 0, kind: "stream", ...(rec.meta?.live ? { live: true } : {}) };
   }
   if (!out.main) delete out.main;
+  // Each clip cut from a recording gets its own frame as its picture (../../videos/storyboards.ts), not the stream's.
+  await withStills([...(out.main ? [out.main] : []), ...Object.values(out.rows ?? {})], now).catch(() => {});
   return out.main || out.rows || out.watch ? out : undefined;
 }
