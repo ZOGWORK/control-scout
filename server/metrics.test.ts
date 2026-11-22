@@ -1,6 +1,9 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, MIGRATIONS, openDb, run, setDb } from "./db";
 import type { AddressInfo } from "node:net";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import express from "express";
 import { MAX_ROUTES, OTHER_ROUTE, flushMetrics, isMeasured, isSyncRoute, markNotAnError, normalizeRoute, percentile, recordRequest, requestMetrics, resetMetrics, usageSummary } from "./metrics";
 import { driftAlerts, MIN_BASELINE, MIN_WEEK } from "./portal/predictionHealth";
@@ -79,6 +82,42 @@ describe("request counters", () => {
     const rows = await all<any>("SELECT * FROM request_metrics_daily");
     expect(rows.map((r) => r.route)).toEqual(["GET /api/scout/workspaces/:id/export.csv"]);
     expect(Number(rows[0].max_ms)).toBeLessThan(200);
+  });
+
+  it("a file download (packs, bundles) counts to its headers: the body's arrival is the visitor's connection", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-metrics-"));
+    writeFileSync(join(dir, "scout-pack-x.db"), "x".repeat(10_000));
+    const app = express();
+    app.use(requestMetrics());
+    // A big pack on a slow phone: headers at once, the body still arriving 400 ms later.
+    app.get("/packs/:file", (_req, res) => {
+      res.attachment("scout-pack-big.db");
+      res.writeHead(200);
+      res.write("start");
+      setTimeout(() => res.end("rest"), 400);
+    });
+    app.get("/api/bundles/:s/:c/file", (_req, res) => { res.download(join(dir, "scout-pack-x.db"), "bundle.json.gz"); });
+    // Not a download: still timed to its end.
+    app.get("/api/slow", (_req, res) => { setTimeout(() => res.json({ ok: true }), 300); });
+    const srv = app.listen(0);
+    await new Promise((r) => srv.once("listening", r));
+    const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+    try {
+      expect(await (await fetch(`${base}/packs/scout-pack-big.db`)).text()).toBe("startrest");
+      expect((await (await fetch(`${base}/api/bundles/2025/X/file`)).text()).length).toBe(10_000);
+      await (await fetch(`${base}/api/slow`)).json();
+      await new Promise((r) => setTimeout(r, 50)); // the close events
+    } finally { srv.closeAllConnections(); srv.close(); }
+    await flushMetrics();
+    const rows = await all<any>("SELECT route, count, errors, max_ms FROM request_metrics_daily ORDER BY route");
+    expect(rows.map((r) => [r.route, r.count, r.errors])).toEqual([
+      ["GET /api/bundles/:n/:id/file", 1, 0],
+      ["GET /api/slow", 1, 0],
+      ["GET /packs/:file", 1, 0],
+    ]);
+    const ms = Object.fromEntries(rows.map((r) => [r.route, Number(r.max_ms)]));
+    expect(ms["GET /packs/:file"]).toBeLessThan(200);
+    expect(ms["GET /api/slow"]).toBeGreaterThanOrEqual(290);
   });
 
   it("a live stream counts to the moment it opens, and a client leaving it isn't an error", async () => {
