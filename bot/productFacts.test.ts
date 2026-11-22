@@ -23,12 +23,13 @@ it("tells him how to shape a chat answer — a records question short, an explan
   const style = answerStyle();
   expect(style.length).toBeLessThanOrEqual(400);
   expect(style).toContain("records question gets the number first");
-  expect(style).toMatch(/explain or compare/);
+  expect(style).toMatch(/how or why something works/);
   expect(style).toContain("**bold**");
   expect(style).toContain("'- ' bullets");
-  expect(style).toMatch(/600 to 1,200 characters/);
-  // Still a Discord message, not a document.
-  expect(style).toMatch(/No headings, tables or code blocks/);
+  expect(style).toMatch(/600-1,200 characters/);
+  // Still a Discord message, not a document — and it offers the next question to ask.
+  expect(style).toMatch(/No headings, tables or code/);
+  expect(style).toMatch(/End with one short question the facts can answer/);
 });
 
 it("recognizes the screenshot's question but leaves actual dog-named teams to search", () => {
