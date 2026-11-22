@@ -321,4 +321,32 @@ describe("Sample home dashboard", () => {
     const mintText = all.filter((el) => /(^|\s)text-accent(\s|$)/.test(cls(el)));
     expect(mintText.every((el) => el.hasAttribute("data-rank") || el.tagName.toLowerCase() === "svg")).toBe(true);
   });
+
+  it("moves with a strong ease-out: the fold, menus from the picture, a light press", () => {
+    const EASE = "ease-[cubic-bezier(0.23,1,0.32,1)]";
+    personal = { user: { displayName: "Ada Lovelace", email: "ada@example.test", avatarUrl: null, isOwner: false }, state: st(null) };
+    const { container } = mount();
+    const side = container.querySelector("[data-sample-sidebar]")!;
+    expect(cls(side)).toContain("transition-[width] duration-200 " + EASE);
+    expect(cls(side)).toContain("motion-reduce:transition-none");
+    // Pressables shrink to 0.97 while held, not under reduced motion.
+    const pressables = [within(side as HTMLElement).getByRole("button", { name: "Collapse sidebar" }), container.querySelector("[data-press]")!];
+    for (const el of pressables) {
+      expect(cls(el)).toContain("active:scale-[0.97]");
+      expect(cls(el)).toContain("motion-reduce:active:scale-100");
+      expect(cls(el)).toContain(EASE);
+    }
+    // The profile menu grows out of the picture (Radix's origin), from 0.97, not from the middle.
+    fireEvent.pointerDown(within(container.querySelector("[data-corner-tools]") as HTMLElement).getByRole("button", { name: "Account: Ada Lovelace" }), { button: 0, ctrlKey: false, pointerType: "mouse" });
+    const menu = document.querySelector("[data-profile-menu]")!;
+    expect(cls(menu)).toContain("origin-(--radix-dropdown-menu-content-transform-origin)");
+    expect(cls(menu)).toContain("[--tw-enter-scale:0.97]");
+    expect(cls(menu)).toContain("motion-reduce:[--tw-enter-scale:1]");
+    expect(cls(menu)).toContain(EASE);
+  });
+
+  it("presses Pick your team like the other buttons", () => {
+    const { container } = mount();
+    expect(cls(container.querySelector("[data-pick-team]")!)).toContain("active:scale-[0.97]");
+  });
 });

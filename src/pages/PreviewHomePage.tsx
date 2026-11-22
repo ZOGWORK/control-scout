@@ -55,7 +55,9 @@ export default function PreviewHomePage() {
 }
 
 const SIDE_KEY = "cs-sample-side";
-const roundButton = "flex size-9 shrink-0 items-center justify-center rounded-full text-text-muted outline-none transition-colors hover:bg-white/[0.08] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60";
+// Pressables shrink a touch while held (0.97, 150ms, strong ease-out) so a tap feels physical; not under reduced motion.
+const press = "transition-[color,background-color,border-color,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] motion-reduce:active:scale-100";
+const roundButton = cn("flex size-9 shrink-0 items-center justify-center rounded-full text-text-muted outline-none", press, "hover:bg-white/[0.08] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60");
 
 /** The app's pages, Gemini-like: the mark and name with a round fold button beside them; folded, the fold button
  *  sits over the page icons (no search button: the page's own search is the way in). Nothing at its foot (that's all in the profile menu). Wide
@@ -66,7 +68,7 @@ function SideBar() {
   const foldLabel = rail ? "Expand sidebar" : "Collapse sidebar";
   return (
     <aside data-sample-sidebar aria-label="Sidebar" data-rail={rail ? "" : undefined}
-      className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-white/[0.06] bg-[#0e0e10] transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex", rail ? "w-16" : "w-[15.5rem]")}>
+      className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-white/[0.06] bg-[#0e0e10] transition-[width] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none md:flex", rail ? "w-16" : "w-[15.5rem]")}>
       <div className={cn("flex shrink-0 items-center gap-1 pt-3 pb-2", rail ? "flex-col px-0" : "h-14 pl-4 pr-2.5")}>
         {!rail && (
           <Link to="/" aria-label="Control Scout home" className="mr-auto flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
@@ -112,7 +114,7 @@ function Corner() {
             )}
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" data-profile-menu className="w-64 border-white/10 bg-[#141416] p-1.5">
+        <DropdownMenuContent align="end" data-profile-menu className="w-64 origin-(--radix-dropdown-menu-content-transform-origin) border-white/10 bg-[#141416] p-1.5 duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] [--tw-enter-scale:0.97] [--tw-exit-scale:0.97] motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1]">
           {user ? (
             <DropdownMenuLabel className="px-2 py-2 font-normal">
               <span className="block truncate text-sm font-medium text-text-base">{user.displayName || user.email}</span>
