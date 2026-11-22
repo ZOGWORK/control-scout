@@ -20,12 +20,12 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Enter shows the results the box already found, with no loading screen — this time on the release that actually serves it.
 
 ### Highlights
-- [speed] Enter opens the results page with the dropdown's answer already on screen
+- [speed] Enter opens results with the dropdown's answer already on screen
 - [speed] A team number or event code still goes straight to its page
 - [speed] The page then confirms them with the server's own answer
 
 ### Search
-- Enter, the magnifier and "See all results" open `/search` with the answer the dropdown already had (`src/components/search/handoff.ts`), so a submitted search draws its teams, events and cards at once. Merging main's direct-hit shortcut into 7.7.3 dropped that handoff from the Enter path, so every submitted question showed the loading screen again; a query that names one team or event still goes straight to its page, handing nothing over. (#PR)
+- Enter, the magnifier and "See all results" open `/search` with the answer the dropdown already had (`src/components/search/handoff.ts`), so a submitted search draws its teams, events and cards at once. Merging main's direct-hit shortcut into 7.7.3 dropped that handoff from the Enter path, so every submitted question showed the loading screen again; a query that names one team or event still goes straight to its page, handing nothing over. (#2106)
 
 ## 7.7.3 — 2026-11-21
 
