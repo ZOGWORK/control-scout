@@ -10,7 +10,7 @@ import { eventHasDataSql, teamHasDataSql } from "../indexable.js";
 import { CURRENT_SEASON, SEASON_NUMBERS, isLegacy, seasonInfo } from "../data/seasons.js";
 import { cachedEventDetail, listEvents } from "../api/events.js";
 import { matchDetail, matchViews } from "../api/matches.js";
-import { compareAnswer, teamProfile, teamSummaries } from "../api/teams.js";
+import { cachedTeamProfile, compareAnswer, teamSummaries } from "../api/teams.js";
 import { ensureSearchIndex } from "../api/search.js";
 import { MAX_QUERY } from "../api/searchAnswer.js";
 import { pageAnswer } from "../api/answers/followUps.js";
@@ -319,7 +319,7 @@ export function liteRouter(): Router {
     const n = Number(req.params.number);
     const season = seasonOf(req.query.season);
     if (!Number.isInteger(n) || n < 1 || n > 999999 || season === null) return notFound(req, res, "There's no such team or season.");
-    const p = await teamProfile(n, season);
+    const p = await cachedTeamProfile(n, season);
     if (!p) return notFound(req, res, `No FTC team ${n} in our data.`);
     const matches = await matchViews({ season: p.season, team: n }, { predictUnplayed: true });
     // Revalidated while the team has a match today or later (its results move); otherwise the usual minute.

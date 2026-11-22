@@ -218,7 +218,9 @@ https://controlscout.org.
     ssh -i ~/.ssh/oracle-controlpoint ubuntu@132.145.202.89 'sudo /opt/control-scout/bin/lanes enable && sudo /opt/control-scout/bin/lanes status'
     ```
 
-    It writes `/etc/systemd/system/control-scout@.service` (made from `control-scout.service`, plus `Sockets=`), makes
+    It writes `/etc/systemd/system/control-scout@.service` (made from `control-scout.service`, plus `Sockets=` and
+    `Environment=CS_LANE=%i CS_LANE_UNIT=%p`: a lane started while the other one serves finishes its whole warm-up,
+    ratings included, before it takes the socket, `server/lanes.ts`), makes
     lane a the socket's own service (`Service=control-scout@a.service`, applied by a daemon-reload: the socket keeps its
     port), starts lane a, then stops and disables `control-scout.service` and enables lane a for boot. If lane a never
     gets ready it undoes all that and `control-scout.service` keeps serving. Logs: `journalctl -u 'control-scout@*' -f`.

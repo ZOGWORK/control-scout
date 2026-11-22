@@ -326,8 +326,9 @@ export function PredictionRecord() {
 
 // --- Control Scout, in use ------------------------------------------------------------
 
-export function PublicUsagePanel() {
-  const state = useApi<PublicUsage>("/api/public-usage");
+/** `path`: the owner console reads its own copy (/api/owner/public-usage), there whether or not it's published. */
+export function PublicUsagePanel({ path = "/api/public-usage" }: { path?: string } = {}) {
+  const state = useApi<PublicUsage>(path);
   const v = state.data ? usageView(state.data) : state.error ? usageView(null) : null;
   const max = v?.kind === "available" ? Math.max(1, ...v.daily.map((d) => d.pageViews)) : 1;
   return (
