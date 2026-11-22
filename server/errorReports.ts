@@ -70,6 +70,21 @@ export function takeReportSlot(key: string, max: number, now = Date.now()): { ok
   return { ok: true };
 }
 
+/** How many more reports `key` may take in the window, without taking one: a caller that must check two keys before
+ *  spending either (the Discord bot checks a person and a server) can ask first. */
+export function reportSlotsLeft(key: string, max: number, now = Date.now()): number {
+  const w = REPORT_RATE.windowMs;
+  return Math.max(0, max - (hits.get(key) ?? []).filter((t) => now - t < w).length);
+}
+
+/** Give one report slot back: a filing that ended without an issue shouldn't count against the asker. */
+export function returnReportSlot(key: string): void {
+  const recent = hits.get(key)?.slice();
+  if (!recent?.length) return;
+  recent.pop();
+  if (recent.length) hits.set(key, recent); else hits.delete(key);
+}
+
 // --- Storage --------------------------------------------------------------------------------------
 
 /** A stable id for "the same bug": a hash of the normalized message and first 3 stack frames. */
