@@ -26,7 +26,7 @@ The Discord bot answers every message now: no per-person wait, and an explanatio
 
 ### Discord bot
 - Nobody is paced per person any more (`bot/guard.ts`, `bot/handler.ts`): a second command or mention right after the first is answered, where it used to get a private "Slow down" or silence. The same question within a minute is still one lookup, whoever asks.
-- A chat reply with numbers the facts don't have is refused only when the message could be about the records — search found something for it, or it (or the thread before it) names a number (`bot/ask.ts`). A message that asked nothing of the records is a chat, so an explanation of a mechanism ("a 1:1 coaxial swerve") posts instead of the fallback; a records answer keeps the check, and a dropped one still logs the numbers. `bot/README.md` says so. (#PRNUM)
+- A chat reply with numbers the facts don't have is refused only when the message could be about the records — search found something for it, or it (or the thread before it) names a number (`bot/ask.ts`). A message that asked nothing of the records is a chat, so an explanation of a mechanism ("a 1:1 coaxial swerve") posts instead of the fallback; a records answer keeps the check, and a dropped one still logs the numbers. `bot/README.md` says so. (#2125)
 
 ## 7.7.7 — 2026-11-22
 
