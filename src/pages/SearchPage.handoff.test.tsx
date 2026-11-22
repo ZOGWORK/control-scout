@@ -16,6 +16,8 @@ const TOP: SearchAnswer = {
   hits: [{ kind: "team", ref: "19666", title: "19666 | Forever Knight", subtitle: "Austin, TX, USA", season: 2026 }],
   understood: { kind: "names", label: "Top rookie teams" },
 };
+/** Another query, answered by a box: one team whose whole name it is, the page it names if the results page waits. */
+const NEXT: SearchAnswer = { q: "bad wolf", step: "deterministic", weak: false, pages: [], hits: [HIT] };
 
 // The page's own requests: each waits until a test answers it, so what's on screen is never its answer by accident.
 const pending: { url: string; resolve: (v: unknown) => void }[] = [];
@@ -69,6 +71,28 @@ describe("search results page, the answer Enter already had", () => {
     // The answer's page, drawn from the handoff: its title, and the team it found.
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Top rookie teams");
     expect(screen.getAllByText(/Forever Knight/).length).toBeGreaterThan(0);
+  });
+
+  it("a query submitted here from the page's own box draws its answer too, and isn't sent on to the page it names", async () => {
+    // This visit arrived by submitting a query (its answer on screen from the box's handoff).
+    handOffAnswer(TOP);
+    markDirect("top rookie teams");
+    show("/search?q=top%20rookie%20teams", <><Where /><Go to="/search?q=bad%20wolf" label="submit here" /></>);
+    expect(loading()).toBeNull();
+    // The visitor types another query in the page's own box: its dropdown answers it, and Enter hands that answer over
+    // as it submits the query (the page's `?q=` changes; the page itself doesn't remount).
+    handOffAnswer(NEXT);
+    markDirect("bad wolf");
+    fireEvent.click(screen.getByRole("button", { name: "submit here" }));
+    expect(screen.getByTestId("at").textContent).toBe("/search?q=bad%20wolf");
+    // The box's answer, on screen from the first frame: no loading screen over it while the page asks.
+    expect(loading()).toBeNull();
+    expect(screen.getAllByText(/Bad Wolf/).length).toBeGreaterThan(0);
+    // Answers: a team named whole would be a page (`/teams/6980`), but the box read these words before sending them
+    // here and found none, so the page stays with what it drew.
+    await answer(/q=bad%20wolf&/, ANSWER);
+    expect(screen.getByTestId("at").textContent).toBe("/search?q=bad%20wolf");
+    expect(loading()).toBeNull();
   });
 
   it("without a handed answer for these words, the same page still shows its loading screen while it asks", () => {
