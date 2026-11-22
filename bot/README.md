@@ -51,6 +51,16 @@ every server today — is unlimited: nothing is counted, nothing is written and 
 and a mention get a plain note with when it resets, while the site and the server's follow posts keep working.
 `setGuildLimit(guild, { perHour, perDay }, by)` sets or clears one; a zero or a null is no cap.
 
+**What a server teaches it.** `bot/memory.ts` (migration 100) keeps three things per server, so answers get smarter the
+longer it's there: `discord_guild_teams`, the teams its people ask about (a 3 to 5 digit number that could be one —
+years are skipped, so "who won decode 2025" teaches nothing), most asked first; `discord_people`, the name each person
+goes by there; and `discord_threads`, a reply thread's last 6 turns, kept 14 days. Every chat gets two lines the model
+reads — the server's teams ("when a question doesn't name a team, it means one of these, and say which one you
+picked") and the asker's name — so "what was our auto OPR last event" resolves to the team the server keeps asking
+about, and an answer can use the person's name. The answer style asks for one short suggested next question the facts
+can answer ("Also want 4215's record?"), so a good answer offers the follow-up instead of waiting to be asked. Both
+tables are private: a Discord id, the name Discord already shows, and nothing else.
+
 **@mention answers: a chat with Bruno.** `@Control Scout who won decode` or `@Control Scout hi bruno` goes to Control
 Point's Bruno chat (`POST /internal/bruno/discord-chat`) with the facts the website's search found for it, and his
 reply posts as plain text, like a chat: a greeting gets a greeting, a records question gets the answer, with the
@@ -59,8 +69,8 @@ answer's video and a small "more on controlscout.org" link only when the records
 paragraphs or up to five `- ` bullets, key terms in bold, about 600 to 1,200 characters — where a records question
 stays the number first and a line or two: the shape is one more instruction sent with his facts (`answerStyle()` in
 `bot/productFacts.ts`), inside Control Point's 400-character line cap. Replying to his answer
-carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each; a restart forgets
-them). `/ask` answers the same way, with the question quoted. Every number in his reply must be in the facts, the
+carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each, and keeps them in the
+database, so a restart carries on where the conversation was: `bot/memory.ts`). `/ask` answers the same way, with the question quoted. Every number in his reply must be in the facts, the
 message or the thread, or the website's answer card posts instead, as it does when Bruno is off (`discordBruno`),
 unconfigured, slow (45 s: a model reply takes about 11 s on the live deployment, and a structured explanation longer)
 or failing. Same cache and 3-second

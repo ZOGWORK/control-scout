@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.8.0 — 2026-11-22
+
+The Discord bot learns each server it's in: the teams its people ask about, the names they go by, and conversations that now survive a restart.
+
+### Highlights
+- [alerts] The bot remembers the teams a server asks about and uses them
+- [alerts] It learns your name and keeps a thread past a restart
+- [fixes] An answer ends with one short question it can actually answer
+- [fixes] A season like 2025 in a question isn't remembered as a team
+
+### Discord bot
+- Per-server memory (`bot/memory.ts`, migration 100): `discord_guild_teams` (the teams a server's people ask about, most asked first), `discord_people` (the name each person goes by there) and `discord_threads` (a reply thread's last 6 turns). All three are private (Discord ids, names), and a message only teaches a 3–5 digit number that could be a team — a season year is skipped.
+- Each Discord chat now gets two lines from that memory: the server's teams, so "what was our auto OPR last event" resolves to the team it keeps asking about and the model says which it picked, and the asker's name, so an answer can use it. `/ask` and mentions both learn from what they're asked.
+- A reply thread is kept in the database as well as in memory, so replying to an answer from before a restart still carries the conversation on; threads nobody carried on for 14 days are dropped.
+- Answers now end with one short suggested next question the facts can answer ("Also want 4215's record?"), part of the answer style already sent with every chat. (#2130)
+
 ## 7.7.9 — 2026-11-22
 
 The Discord bot answers the question that was asked: an explanation gets a short structured reply — a bold lead, paragraphs or bullets — and a per-server chat limit is built without capping anyone yet.

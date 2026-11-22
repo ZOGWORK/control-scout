@@ -12,6 +12,7 @@ import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
 import { ask as askSearch, chatPost, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
 import { takeChat, type Quota } from "./quota.js";
+import { keep as keepThread, learn as learnMemory, recall as recallMemory, teamsAsked, thread as readThread } from "./memory.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 
 export type Log = (m: string) => void;
@@ -25,12 +26,27 @@ export interface Lookups {
   follow: (guild: string, channel: string, team: number, by: string) => Promise<"added" | "already">;
   unfollow: (guild: string, team: number, channel?: string | null) => Promise<number>;
   following: (guild: string) => Promise<APIEmbed>;
-  /** /ask and a mention: Bruno's chat reply, else the website's search answer (bot/ask.ts); `history`: the reply thread before it. */
-  ask: (question: string, history?: BrunoChatTurn[]) => Promise<AskReply>;
+  /** /ask and a mention: Bruno's chat reply, else the website's search answer (bot/ask.ts); `history`: the reply
+   *  thread before it; `memory`: the server's own lines for the chat (bot/memory.ts). */
+  ask: (question: string, history?: BrunoChatTurn[], memory?: string[]) => Promise<AskReply>;
+  /** What a server teaches the bot (bot/memory.ts); absent: nothing is remembered. */
+  memory?: Memory;
   /** The owner's feature toggles the bot follows (server/flags.ts); absent: always on. */
   enabled?: (flag: "discordBot" | "livePredictions") => Promise<boolean>;
   /** The server's chat limit (bot/quota.ts); absent: none enforced. No server has one set yet. */
   quota?: (guild: string) => Promise<Quota>;
+}
+
+/** What a server teaches the bot, as the handler uses it (bot/memory.ts keeps it in the database). */
+export interface Memory {
+  /** The server's remembered teams, most asked first, and the name this person goes by there. */
+  recall: (guild: string, user: string) => Promise<{ teams: number[]; name: string | null }>;
+  /** Remember this ask: the asker's name and the teams it named. */
+  learn: (guild: string, user: string, name: string | null, teams: number[]) => Promise<void>;
+  /** A reply thread's turns, by the id of the answer that started it (kept past a restart). */
+  thread: (root: string) => Promise<BrunoChatTurn[]>;
+  /** Keep a reply thread's last turns. */
+  keep: (root: string, turns: BrunoChatTurn[]) => Promise<void>;
 }
 
 export const realLookups: Lookups = {
@@ -42,9 +58,10 @@ export const realLookups: Lookups = {
   follow: addFollow,
   unfollow: removeFollow,
   following: async (guild) => followingEmbed(await listFollows(guild), site()),
-  ask: async (question, history) => askSearch(question, await (askDeps ??= realAskDeps()), site(), history),
+  ask: async (question, history, memory) => askSearch(question, await (askDeps ??= realAskDeps()), site(), history, memory),
   enabled: (flag) => isEnabled(flag),
   quota: takeChat,
+  memory: { recall: recallMemory, learn: learnMemory, thread: readThread, keep: keepThread },
 };
 let askDeps: Promise<AskDeps> | undefined;
 
@@ -121,11 +138,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
    * questions), the same for /ask and a mention, whatever its case or spacing, and by the thread before it: a
    * follow-up in a thread is its own question.
    */
-  async function askReply(question: string, key: string, history: BrunoChatTurn[] = []): Promise<AskReply> {
+  async function askReply(question: string, key: string, history: BrunoChatTurn[] = [], memory: string[] = []): Promise<AskReply> {
     const t0 = Date.now();
     let fresh = false;
-    const k = [question, ...history.map((t) => `${t.role}:${t.text}`)].join("\u0000").trim().replace(/\s+/g, " ").toUpperCase();
-    const r = await asks.get(k, () => { fresh = true; return lookups.ask(question, history); });
+    // The server's own lines are part of the key: two servers asking the same thing get different answers.
+    const k = [question, ...history.map((t) => `${t.role}:${t.text}`), ...memory].join("\u0000").trim().replace(/\s+/g, " ").toUpperCase();
+    const r = await asks.get(k, () => { fresh = true; return lookups.ask(question, history, memory); });
     // The bot's own fallback (bot/smallTalk.ts) is a chat too, but not Bruno's: the log says `talk`.
     const bruno = [r.chat?.by === "scout" ? "talk" : r.meta.chat ? "chat" : null, r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
     log(`${key} step=${r.meta.step} bruno=${bruno}${history.length ? ` thread=${history.length}` : ""}${r.content || r.chat?.video ? " video" : ""} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
@@ -137,12 +155,38 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     r.chat ? { content: chatPost(question, r.chat, { quote }), embeds: [] } : { ...(r.content ? { content: r.content } : {}), embeds: [pride(r.embed)] };
   /** The thread a post of the bot's carries on, by its message id: every turn up to and including that answer. */
   const threads = new Map<string, BrunoChatTurn[]>();
+  /** A thread's turns: from this process' cache, else from the server's memory (a reply to an answer from before a restart). */
+  async function historyFor(root: string): Promise<BrunoChatTurn[]> {
+    const cached = threads.get(root);
+    if (cached) return cached;
+    const kept = lookups.memory ? await lookups.memory.thread(root).catch(() => []) : [];
+    if (kept.length) threads.set(root, kept);
+    return kept;
+  }
   function remember(id: string | undefined, history: BrunoChatTurn[], question: string, r: AskReply) {
     // The bot's own words aren't his: a reply to the fallback starts a new thread instead of handing the model turns
     // it never said (bot/smallTalk.ts).
     if (!id || !r.chat || r.chat.by === "scout") return;
+    const turns = [...history, turn("user", question), turn("bruno", r.chat.text)].slice(-THREAD_TURNS);
     if (threads.size >= THREADS_MAX) threads.delete(threads.keys().next().value!);
-    threads.set(id, [...history, turn("user", question), turn("bruno", r.chat.text)].slice(-THREAD_TURNS));
+    threads.set(id, turns);
+    // Kept past a restart (bot/memory.ts), so a reply to an answer from before a deploy still carries the thread on.
+    void lookups.memory?.keep(id, turns).catch(() => {});
+  }
+  /** The server's own lines for a chat: the teams it asks about and the name the asker goes by there (bot/memory.ts). */
+  async function serverLines(guild: string | null | undefined, user: string | null | undefined): Promise<string[]> {
+    if (!guild || !user || !lookups.memory) return [];
+    const m = await lookups.memory.recall(guild, user).catch(() => null);
+    if (!m) return [];
+    return [
+      m.teams.length ? `This server asks about teams ${m.teams.join(", ")} most: when a question doesn't name a team, it means one of these, and say which one you picked.` : "",
+      m.name ? `The person asking goes by ${m.name} here.` : "",
+    ].filter(Boolean);
+  }
+  /** Remember what this ask taught the server: the asker's name and the teams the message named (bot/memory.ts). */
+  function learnAsk(guild: string | null | undefined, user: string, name: string | null, q: string): void {
+    if (!guild || !lookups.memory) return;
+    void lookups.memory.learn(guild, user, name, teamsAsked(q)).catch(() => {});
   }
 
   function answer(i: ChatInputCommandInteraction): Promise<APIEmbed> {
@@ -201,10 +245,13 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // The server's chat limit, if one is set (none is, today): said plainly, before any lookup.
       const over = await mayChat(i.guildId);
       if (!over.ok) { await i.editReply({ embeds: [pride(limitEmbed(over))] }); return; }
+      // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this question adds.
+      const lines = await serverLines(i.guildId, i.user.id);
+      learnAsk(i.guildId, i.user.id, i.user.globalName ?? i.user.username ?? null, question);
       let post: AskPost;
       let r: AskReply | undefined;
       try {
-        r = await askReply(question, describe(i));
+        r = await askReply(question, describe(i), [], lines);
         post = askPost(question, r, true);
       } catch (e) {
         log(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
@@ -252,7 +299,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const replyTo = m.reference?.messageId && m.mentions?.repliedUser?.id === botId ? m.reference.messageId : null;
       if (!new RegExp(`<@!?${botId}>`).test(m.content) && !(replyTo && m.content.trim())) return;
       const q = m.content.replace(/<@[!&]?\d+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
-      const history = (replyTo && threads.get(replyTo)) || [];
+      const history = replyTo ? await historyFor(replyTo) : [];
       // Nobody is pinged by an answer (his text could name @everyone, a role or a person), reply or not.
       const send = (post: AskPost) => m.reply({ ...post, allowedMentions: NO_PINGS })
         // No Read Message History in that channel: a plain message instead of a reply.
@@ -270,13 +317,16 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // After the bare-mention help: that asks nothing of Control Scout, so it never uses a chat.
       const over = await mayChat(m.guildId);
       if (!over.ok) { await card(limitEmbed(over)); return; }
-      // Typing lasts about 10 s and a model reply can take 30: keep it up while the chat is written.
+      // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this message adds.
+      const lines = await serverLines(m.guildId, m.author.id);
+      learnAsk(m.guildId, m.author.id, m.author.globalName ?? m.author.username ?? null, q);
+      // Typing lasts about 10 s and a model reply can take 45: keep it up while the chat is written.
       void m.channel.sendTyping?.().catch(() => {});
       const typing = setInterval(() => { void m.channel.sendTyping?.().catch(() => {}); }, 8_000);
       typing.unref?.();
       let r: AskReply;
       try {
-        r = await askReply(q, `@mention question=${q.toUpperCase().slice(0, 100)}`, history);
+        r = await askReply(q, `@mention question=${q.toUpperCase().slice(0, 100)}`, history, lines);
       } catch (e) {
         clearInterval(typing);
         log(`@mention ask failed: ${(e as Error)?.message ?? String(e)}`);
@@ -306,7 +356,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
 
 /** The parts of a discord.js Message a mention answer uses (a stand-in in tests). */
 export interface MentionMessage {
-  author: { id: string; bot: boolean };
+  /** `globalName`/`username`: what Discord calls the person (the server's nickname is `displayName` there); remembered
+   *  by the server's memory so an answer can use it. */
+  author: { id: string; bot: boolean; globalName?: string | null; username?: string };
   guildId: string | null;
   content: string;
   /** The message it replies to, and that message's author. */
