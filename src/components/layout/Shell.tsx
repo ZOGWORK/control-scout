@@ -36,6 +36,7 @@ import { watchTextSize } from "../../lib/textSize";
 import { useFlag } from "../../lib/flags";
 import { PAGE_FRAME } from "../../shared/boot";
 import { isV8, useIsV8 } from "../../lib/v8";
+import { OwnerOnlyClassicLook } from "../../lib/ownerLook";
 import { Wash, washSize } from "./Wash";
 
 /** `children`: a row that opens to its own pages instead of being one (How it works: Predictions, FTC One Search).
@@ -431,6 +432,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const v8 = isV8();
   return (
     <AccountProvider>
+    {/* The classic look is the owner's alone (src/lib/ownerLook.tsx): anyone else's device goes back to the new one. */}
+    {!v8 && <OwnerOnlyClassicLook />}
     <AccountSetupProvider>
     {/* v8 keeps your menu under your picture in the top row on every screen (#2091): only the classic look moves it into the sheet. */}
     {!v8 && <AccountSheetBridge menu={menu} openMenu={() => openMenu(menuRef.current)} />}
