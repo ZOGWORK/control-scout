@@ -48,7 +48,7 @@ export function glideTo(href: string, go: () => void): boolean {
     // The results page's code may still be on its way: hold the frame until its box and its first shapes are drawn.
     await until(() => location.pathname === "/search" && !!shownBox() && shownResults(), GLIDE_WAIT_MS);
     // Focus stays in the search box (a keyboard's Enter); a touch screen lets go, so its keyboard closes over the results.
-    const input = shownBox()?.querySelector("input");
+    const input = shownBox()?.querySelector<HTMLInputElement | HTMLTextAreaElement>("input, textarea");
     if (input && window.matchMedia?.("(pointer: fine)").matches && document.activeElement !== input) {
       // The flag is for this one focus only: cleared right after, so it can never swallow a later, real focus (an
       // element that already has focus gets no focus event, and a blocked focus gets none either).
