@@ -54,8 +54,31 @@ export async function listEvents(f: EventListFilter): Promise<EventSummary[]> {
   if (f.q) { where.push("(e.name LIKE ? OR e.code LIKE ? OR e.city LIKE ?)"); const like = `%${f.q}%`; args.push(like, like, like); }
   // Only the known no-match types are left out: an event with no type stays (as in Scout's picker), never dropped by NULL NOT IN.
   if (f.hideNoMatch) { where.push(`(e.type IS NULL OR e.type NOT IN (${NO_MATCH_TYPES.map(() => "?").join(",")}))`); args.push(...NO_MATCH_TYPES); }
-  const rows = await all<any>(`${SUMMARY_SQL} WHERE ${where.join(" AND ")} ORDER BY e.start, e.name LIMIT ?`, [...args, f.limit ?? 2000]);
-  return rows.map(summary);
+  args.push(f.limit ?? 2000);
+  const sql = `${SUMMARY_SQL} WHERE ${where.join(" AND ")} ORDER BY e.start, e.name LIMIT ?`;
+  // The rows are kept, not the summaries: each one's status (upcoming / live / finished) turns over with the venue's
+  // clock, so summary() runs on every call (about a millisecond for a whole season).
+  return (await listRows(sql, args)).map(summary);
+}
+
+/** How long a season's list rows may be reused on top of their key (the data version and data:settled, which move
+ *  with every sync and live result): a write that doesn't move the version, like a registration check, shows within it. */
+export const LIST_TTL_MS = 60_000;
+const LIST_MAX = 40;
+const lists = new Map<string, { at: number; rows: Promise<any[]> }>();
+registerCache("Event lists", () => lists.clear());
+
+/** The list's rows, cached: a season is ~1,800 rows of 25 columns, and the driver takes 50–150 ms to hand them over
+ *  (measured 2026-11-21, 85 ms per /events on the VM), on the one thread every request shares. */
+async function listRows(sql: string, args: (string | number)[]): Promise<any[]> {
+  const key = `${await dataVersion()}|${(await kvGet<string>("data:settled")) ?? ""}|${sql}|${JSON.stringify(args)}`;
+  const hit = lists.get(key);
+  if (hit && Date.now() - hit.at < LIST_TTL_MS) return hit.rows;
+  const rows = all<any>(sql, args);
+  lists.set(key, { at: Date.now(), rows });
+  rows.catch(() => lists.delete(key));
+  while (lists.size > LIST_MAX) lists.delete(lists.keys().next().value!);
+  return rows;
 }
 
 export async function eventSummary(season: number, code: string): Promise<EventSummary | null> {
