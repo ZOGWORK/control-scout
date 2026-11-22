@@ -912,7 +912,9 @@ export function readTwoTeam(raw: string): TwoTeamQuestion | null {
 export function readStatQuestion(raw: string): StatQuestion | null {
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!.,]/g, " ")} `.replace(/\s+/g, " ")
     // "matches at their last event", "… at its first event this season": the team's own event, never the superlative.
-    .replace(/\bat (?:their|its|his|her|the) (?:(last|latest|most recent|newest|previous)|first|debut|earliest) (?:event|competition|tournament|meet)\b/, (_, last) => `at ${last ? THEIR_LAST : THEIR_FIRST}`);
+    // "Record at their meet", one event said with no first or last, is its latest: never an event of that name elsewhere.
+    .replace(/\bat (?:their|its|his|her|the) (?:(last|latest|most recent|newest|previous)|first|debut|earliest) (?:event|competition|tournament|meet)\b/, (_, last) => `at ${last ? THEIR_LAST : THEIR_FIRST}`)
+    .replace(/\bat (?:their|its) (?:event|competition|tournament|meet)\b/, `at ${THEIR_LAST}`);
   // "world record score" and "highest score this season" with no team are a season's records (searchHighScores.ts).
   if (/\bworld[\s-]+records?\b|\brecords?\s+scores?\b|\bscore\s+records?\b/.test(q)) return null;
   for (const r of RULES) {
