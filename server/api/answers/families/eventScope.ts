@@ -59,10 +59,14 @@ export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: Team
   const row = (m: TeamMatch) => matchRow(m, links, team.number);
   const where = [seasonLabel(scope.event.season), ev ? dateRange(ev.start, ev.end) : "", ev ? place(ev.city, ev.state) : ""].filter(Boolean).join(" · ");
   const href = eventHref(scope.event.season, scope.event.code, team.number);
-  const rankText = ev?.rank != null ? `#${ev.rank}${ev.of ? ` of ${ev.of}` : ""}` : "–";
+  // A league meet has no qualification rank of its own (eventSet.ts): its rank among the teams ranked at that meet, as
+  // the team page shows it, else the league's standing after it, labelled so.
+  const at = ev?.rank != null ? { n: ev.rank, of: ev.of } : ev?.meet ?? ev?.standing ?? null;
+  const rankLabel = ev?.rank == null && !ev?.meet && ev?.standing ? "League standing" : "Rank";
+  const rankText = at ? `#${at.n}${at.of ? ` of ${at.of}` : ""}` : "–";
   const r = rec(ms);
   const kpis: StatBlock = { kind: "kpis", items: [
-    { label: "Rank", value: rankText, href },
+    { label: rankLabel, value: rankText, href },
     { label: "Record", value: ms.length ? `${r.wins}-${r.losses}-${r.ties}` : "–" },
     { label: "OPR", value: ev?.opr != null ? ev.opr.toFixed(1) : "–" },
   ] };
@@ -101,11 +105,11 @@ export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: Team
     };
   }
   const title = id === "event-rank" ? `Rank at ${name}` : `Results at ${name}`;
-  if (id === "event-rank" && ev?.rank == null) return { ...base, family: "event", intent: id, title, blocks: [kpis], definition: RANK_RULE, none: `No rank at ${name} is published for ${who} yet.` };
+  if (id === "event-rank" && !at) return { ...base, family: "event", intent: id, title, blocks: [kpis], definition: RANK_RULE, none: `No rank at ${name} is published for ${who} yet.` };
   if (id === "results" && !ms.length) return { ...base, family: "event", intent: id, title, blocks: [kpis], definition: RECORD_RULE, none: `No scored matches at ${name} for ${who} yet.` };
   return {
     ...base, family: "event", intent: id, title,
-    headline: id === "event-rank" ? { value: rankText, label: name, sub: where, href } : { value: `${r.wins}-${r.losses}-${r.ties}`, label: `in ${ms.length} match${ms.length === 1 ? "" : "es"} at ${name}`, sub: [ev?.rank != null ? `Ranked ${rankText}` : "", where].filter(Boolean).join(" · "), href },
+    headline: id === "event-rank" ? { value: rankText, label: name, sub: where, href } : { value: `${r.wins}-${r.losses}-${r.ties}`, label: `in ${ms.length} match${ms.length === 1 ? "" : "es"} at ${name}`, sub: [at ? `${rankLabel === "Rank" ? "Ranked" : rankLabel} ${rankText}` : "", where].filter(Boolean).join(" · "), href },
     blocks: [kpis, { kind: "record", title: "Wins, losses and ties", ...r }, ...each, ...(ms.length ? [{ kind: "matches" as const, title: "Matches in order", rows: ms.slice(0, 40).map(row) }] : [])],
     definition: `${RANK_RULE} ${RECORD_RULE}`,
   };
