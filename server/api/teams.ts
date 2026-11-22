@@ -1,5 +1,7 @@
 // Team profile + compare.
 import { all, get, kvGet } from "../db.js";
+import { dataVersion } from "../predict/engine.js";
+import { registerCache } from "../caches.js";
 import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
 import type { CompareTeam, CompareView, MatchView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
@@ -14,6 +16,7 @@ import { teamLeagueStanding } from "./leagues.js";
 import { teamRegionRank } from "./regionRankings.js";
 import { hasHighlightsSql, teamIndexableSql } from "../indexable.js";
 import { hasRecordSplit } from "../teamRecordPage.js";
+import { plainText } from "../../src/shared/format.js";
 
 /**
  * Many teams' stored season reliability, in the order asked (null: none stored). Public match data only; also
@@ -153,6 +156,30 @@ export async function teamReportCards(season: number, team: number): Promise<Tea
   };
 }
 
+/** How long a cached team profile may be reused on top of its key (the data version and data:settled, which move with
+ *  every sync and live result), and how many are kept. */
+export const PROFILE_TTL_MS = 60_000;
+const PROFILE_MAX = 500;
+const profiles = new Map<string, { at: number; value: Promise<TeamProfile | null> }>();
+registerCache("Team profiles", () => profiles.clear());
+
+/**
+ * teamProfile for pages (/api/teams/:number, the team page's first paint, its light page), cached like cachedEventDetail:
+ * a profile is a dozen reads, 20–50 ms (teamSeasons and teamEvents scan the team's rows), on the one thread every
+ * request shares, and a team page is opened again and again. The pack builder reads teamProfile itself, fresh.
+ * Callers must not change the object they get back (it's shared).
+ */
+export async function cachedTeamProfile(number: number, season?: number): Promise<TeamProfile | null> {
+  const key = `${await dataVersion()}|${(await kvGet<string>("data:settled")) ?? ""}|${number}|${season ?? ""}`;
+  const hit = profiles.get(key);
+  if (hit && Date.now() - hit.at < PROFILE_TTL_MS) return hit.value;
+  const value = teamProfile(number, season);
+  profiles.set(key, { at: Date.now(), value });
+  value.catch(() => profiles.delete(key));
+  while (profiles.size > PROFILE_MAX) profiles.delete(profiles.keys().next().value!);
+  return value;
+}
+
 export async function teamProfile(number: number, season?: number): Promise<TeamProfile | null> {
   const team = await teamInfo(number);
   // A placeholder (src/shared/teamPages.ts) has no page, whatever we hold for it.
@@ -190,7 +217,7 @@ export async function teamProfile(number: number, season?: number): Promise<Team
   return {
     team: team ?? { number, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
     season: s, seasons, stats, events,
-    awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name })),
+    awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name == null ? null : plainText(a.name) || null })),
     league,
     region,
     highlights: !!highlights,

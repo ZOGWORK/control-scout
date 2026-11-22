@@ -6,8 +6,9 @@
 import { build } from "esbuild";
 
 await build({
-  entryPoints: ["server/index.ts"],
-  outfile: "build/server/index.mjs",
+  entryPoints: { index: "server/index.ts", projectionWorker: "server/projections/simWorker.ts", forecasterWorker: "server/predict/rebuildWorker.ts" },
+  outdir: "build/server",
+  outExtension: { ".js": ".mjs" },
   bundle: true,
   platform: "node",
   format: "esm",
@@ -18,4 +19,4 @@ await build({
   // Bundled CommonJS helpers expect require; ESM has none of its own.
   banner: { js: 'import { createRequire as __csRequire } from "node:module"; const require = __csRequire(import.meta.url);' },
 });
-console.log("server bundle: build/server/index.mjs");
+console.log("server bundle: build/server/index.mjs, build/server/projectionWorker.mjs, build/server/forecasterWorker.mjs");

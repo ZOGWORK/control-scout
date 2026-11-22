@@ -2,6 +2,7 @@
 // event: downloading again replaces it. The bytes are kept as downloaded (gzipped JSON, checked against the
 // manifest's SHA-256) in the same IndexedDB store as the packs; nothing is decoded until a page needs it with
 // no signal (lib/api.ts, lib/offline/answer.ts) or the bundle's own page opens.
+import { offlineNow } from "../connection";
 import { del, fetchVerified, getv, put, type PackFile } from "../packs";
 import { ChecksumError, finishDownload, type DownloadOwner } from "./download";
 import { FEATURE_DISABLED, featureOffMessage } from "../../shared/flags";
@@ -41,7 +42,7 @@ export async function fetchBundleManifest(r: BundleRequest, signal?: AbortSignal
 async function askManifest(r: BundleRequest, signal?: AbortSignal): Promise<BundleManifest | { retryAfterMs: number }> {
   let res: Response;
   try { res = await fetch(`/api/bundles/${r.season}/${encodeURIComponent(r.code)}/manifest${query(r)}`, { credentials: "same-origin", cache: "no-store", signal }); }
-  catch { throw new Error(navigator.onLine === false ? "You're offline: bundles download when you're back online." : "Can't reach the server right now. Try again in a moment."); }
+  catch { throw new Error(offlineNow() ? "You're offline: bundles download when you're back online." : "Can't reach the server right now. Try again in a moment."); }
   const body = await res.json().catch(() => null) as (BundleManifest & { error?: string; message?: string; preparing?: boolean; retryAfterMs?: number }) | null;
   if (res.status === 202 && body?.preparing) return { retryAfterMs: Math.min(10_000, Math.max(500, Number(body.retryAfterMs) || 2000)) };
   // Many phones on one venue wifi share an address and its request budget: wait as the server says, then ask again.

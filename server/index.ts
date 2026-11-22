@@ -17,6 +17,7 @@ import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
 import { loadManualStarts } from "./videos/manualStarts.js";
+import { loadAutoReads, startAutoReadsInbox } from "./videos/autoReads.js";
 import { packsDir } from "./packs/routes.js";
 import { backfillDue } from "./data/cycle.js";
 import { childCycle, cycleRunning, runDataCycle } from "./data/jobs.js";
@@ -37,6 +38,7 @@ import { warmVideoQuestions } from "./api/answers/videoSuggest.js";
 import { ensureSearchIndex, warmTypoIndex } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { scheduleCycles, warmUp } from "./warm.js";
+import { handingOver } from "./lanes.js";
 import { names as warmNames } from "./api/query/names.js";
 import { warmPageRenderer } from "./firstPaint.js";
 import { refreshSearchSeason } from "./api/answers/season.js";
@@ -89,6 +91,9 @@ await openReplicaIfRemote(log);
 await migrate();
 // The owner's typed match starts (Owner › Official videos) into memory before any page plays a clip.
 await loadManualStarts().catch((e) => console.warn(`manual starts: ${(e as Error).message}`));
+// The clip autopilot's reads the server put live (server/videos/autoReads.ts), laid over the code's frame rows and
+// clip checks, before any page plays a clip.
+await loadAutoReads().catch((e) => console.warn(`auto reads: ${(e as Error).message}`));
 // Clip coverage rows from before triage get their category from what they hold, in the background (a few hundred rows).
 void triageUntriaged(log).catch((e) => log(`clip coverage triage: ${(e as Error).message}`));
 
@@ -97,11 +102,6 @@ void triageUntriaged(log).catch((e) => log(`clip coverage triage: ${(e as Error)
 // rebuilt here, once, not on a visitor's search; its names and typo index after it, since a rebuild resets them.
 const indexed = ensureSearchIndex(rebuildSearch);
 const afterIndex = () => indexed.catch(() => { /* its own step says it failed */ });
-// The current season's ratings, so the first prediction is fast: in the background, never held for (about 20 s cold,
-// and only predictions need them; held for, every queued search would wait on them).
-// Then the season a search with none named reads (the latest completed one, server/api/answers/season.ts): its
-// predictions ("4215 vs 7149 who wins") otherwise built the whole season on a visitor's request, 10–20 s cold.
-const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))]], log, Infinity, Date.now, "warm (background)");
 const warming = await warmUp([
   // The track record (every scored prediction: about a second and a half cold), then the match report's flag
   // cutoffs (two scans of a season) for this season and last.
@@ -115,6 +115,20 @@ const warming = await warmUp([
   // The server-side page render (server/firstPaint.ts): its bundle compiled before the first team or event page asks.
   ["page renderer", () => warmPageRenderer()],
 ], log);
+// The current season's ratings, so the first prediction is fast: in the background, never held for (about 20 s cold,
+// and only predictions need them; held for, every queued search would wait on them).
+// Then the season a search with none named reads (the latest completed one, server/api/answers/season.ts): its
+// predictions ("4215 vs 7149 who wins") otherwise built the whole season on a visitor's request, 10–20 s cold.
+// Started once the steps above are done, not beside them: the two shared the one event loop, so the held steps took
+// about twice as long (18 s on the VM, measured on a copy of its data: 43 s beside the build, 22 s before it) while a
+// deploy's requests waited in the socket's queue, and searches asked meanwhile ran out of time ("Search is slow right
+// now"). The build yields to requests as it goes.
+// A deploy's new lane with the other lane still serving (server/lanes.ts): nobody waits on this one, so it finishes all
+// of it (the steps past their cap too) before it takes the socket, and the first requests it answers never wait on
+// the ratings (a team page took 20.7 s right after a hand-off, 2026-11-22). Alone (a cold boot, a restart), as above.
+const handover = await handingOver();
+const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))]], log, Infinity, Date.now, handover ? "warm (before taking over)" : "warm (background)");
+if (handover) await Promise.all([warming.settled, rated]);
 void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(() => { warm = true; });
 ready = true;
 if (socket) http = server.listen(socket, listening("the systemd socket"));
@@ -188,6 +202,9 @@ if (!process.env.CS_NO_SCHEDULER) {
   startSearchFailureJobs(log);
   // The public /status page's checks, every 2 minutes (server/uptime.ts). No alerts.
   startUptimeChecks(log);
+  // The clip autopilot's deliveries (server/videos/autoReads.ts): its inbox read every minute, each row put live or held
+  // for the owner; the live rows loaded again when another server process wrote them.
+  startAutoReadsInbox(log);
   setInterval(() => { photoSchedulerTick(log).catch((e) => log(`photos: ${(e as Error).message}`)); }, 15 * 60_000).unref();
   // Workspace activity feeds keep 90 days (server/scout/activityLog.ts): a small indexed delete, every 6 hours, and once soon after boot.
   const prune = () => { pruneActivity().then((n) => { if (n) log(`activity: pruned ${n} items older than 90 days`); }).catch((e) => log(`activity: ${(e as Error).message}`)); };

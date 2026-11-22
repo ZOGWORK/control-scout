@@ -47,6 +47,8 @@ jobs:
         run: bash .github/scripts/uptime.test.sh
       - name: Changelog guard tests
         run: bash .github/scripts/changelog-guard.test.sh
+      - name: Deploy lanes tests (fake systemctl, no systemd)
+        run: bash deploy/lanes.test.sh
 
   test:
     runs-on: ubuntu-24.04

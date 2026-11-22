@@ -58,7 +58,7 @@ function NumberBox({ id, f, value, onChange, disabled }: { id: string; f: ScoutF
     <Input id={id} type="text" inputMode="decimal" autoComplete="off" disabled={disabled} value={text} placeholder="—" aria-describedby={f.unit ? `${id}-unit` : undefined}
       onChange={(e) => { setText(e.target.value); onChange(parseNumberAnswer(e.target.value, f)); }}
       onBlur={() => setText(typed === undefined ? "" : String(typed))}
-      className="h-[44px] w-24 text-right font-mono text-lg tabular-nums" />
+      className="h-[44px] w-24 text-right font-mono text-lg tabular-nums v8:h-12" />
   );
 }
 
@@ -82,11 +82,11 @@ export function BigFieldInput({ f, value, onChange, tone = "default", disabled, 
   if (f.type === "toggleDetail") {
     const on = value === true;
     return (
-      <div className={cn(card, "overflow-hidden", on ? "border-success/50" : "border-input")}>
+      <div className={cn(card, "overflow-hidden", on ? "border-success/50 v8:border-emerald-400/50" : "border-input")}>
         <button type="button" aria-pressed={on} disabled={disabled} onClick={() => onChange(!on)}
-          className={cn(tap, "flex min-h-[56px] w-full items-center justify-between gap-3 px-4 text-left font-semibold", on ? "bg-success/10" : "hover:bg-text-base/[0.04]")}>
+          className={cn(tap, "flex min-h-[56px] w-full items-center justify-between gap-3 px-4 text-left font-semibold", on ? "bg-success/10 v8:bg-emerald-400/10" : "hover:bg-text-base/[0.04]")}>
           <span className="min-w-0 leading-snug">{f.label}</span>
-          <span className={cn("shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold", on ? "bg-success/15 text-success-text" : "bg-muted text-muted-foreground")} aria-hidden>{on ? "Yes" : "No"}</span>
+          <span className={cn("shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold", on ? "bg-success/15 v8:bg-emerald-400/15 text-success-text v8:text-emerald-400" : "bg-muted text-muted-foreground")} aria-hidden>{on ? "Yes" : "No"}</span>
         </button>
         {on && (
           <div className="border-t border-border px-4 py-3">
@@ -102,16 +102,18 @@ export function BigFieldInput({ f, value, onChange, tone = "default", disabled, 
     return (
       <div className="grid grid-cols-[52px_minmax(0,1fr)] gap-2">
         <button type="button" aria-label={`${f.label} minus one`} disabled={disabled || n <= lo} onClick={() => onChange(Math.max(lo, n - 1))}
-          className={cn(buttonVariants({ variant: "secondary" }), "h-auto min-h-[72px] px-0")}>
+          className={cn(buttonVariants({ variant: "secondary" }), "h-auto min-h-[72px] px-0 v8:rounded-xl")}>
           <Minus className="size-5" />
         </button>
         <button type="button" aria-label={`${f.label}: ${n}. Add one`} disabled={disabled || n >= hi} onClick={() => onChange(Math.min(hi, n + 1))}
-          className={cn(card, tap, "flex min-h-[72px] items-center justify-between gap-3 border-input px-4 text-left hover:bg-text-base/[0.04] active:border-accent/60 active:bg-accent/10")}>
+          className={cn(card, tap, "flex min-h-[72px] items-center justify-between gap-3 border-input px-4 text-left hover:bg-text-base/[0.04] active:border-accent/60 active:bg-accent/10",
+            // v8: the press is the 0.97 shrink on a white fill, never a coloured flash (brief §4.2, forms matter most).
+            "v8:transition-[background-color,border-color,scale] v8:duration-150 v8:ease-out v8:active:scale-[0.97] v8:active:border-ink/25 v8:active:bg-ink/[0.08] motion-reduce:v8:active:scale-100")}>
           <span className="min-w-0">
             <span className="block font-semibold leading-snug">{f.label}</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">{n >= hi ? `Most is ${hi}` : "Tap to add 1"}</span>
           </span>
-          <span className="font-mono text-3xl font-bold tabular-nums" aria-hidden>{n}</span>
+          <span className="font-mono text-3xl font-bold tabular-nums v8:font-display v8:font-semibold" aria-hidden>{n}</span>
         </button>
         <span className="sr-only" aria-live="polite">{`${f.label}: ${n}`}</span>
       </div>
@@ -121,11 +123,11 @@ export function BigFieldInput({ f, value, onChange, tone = "default", disabled, 
     const on = value === true, bad = tone === "bad";
     return (
       <button type="button" aria-pressed={on} disabled={disabled} onClick={() => onChange(!on)}
-        className={cn(card, tap, "flex min-h-[56px] w-full items-center justify-between gap-3 px-4 text-left font-semibold",
-          !on ? "border-input hover:bg-text-base/[0.04]" : bad ? "border-danger/50 bg-danger/10" : "border-success/50 bg-success/10")}>
+        className={cn(card, tap, "flex min-h-[56px] w-full items-center justify-between gap-3 px-4 text-left font-semibold v8:active:scale-[0.97] motion-reduce:v8:active:scale-100 v8:transition-[color,background-color,border-color,scale]",
+          !on ? "border-input hover:bg-text-base/[0.04]" : bad ? "border-danger/50 bg-danger/10" : "border-success/50 v8:border-emerald-400/50 bg-success/10 v8:bg-emerald-400/10")}>
         <span className="min-w-0 leading-snug">{f.label}</span>
         <span className={cn("shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold",
-          !on ? "bg-muted text-muted-foreground" : bad ? "bg-danger/15 text-danger-text" : "bg-success/15 text-success-text")} aria-hidden>{on ? "Yes" : "No"}</span>
+          !on ? "bg-muted text-muted-foreground" : bad ? "bg-danger/15 text-danger-text" : "bg-success/15 v8:bg-emerald-400/15 text-success-text v8:text-emerald-400")} aria-hidden>{on ? "Yes" : "No"}</span>
       </button>
     );
   }
@@ -157,8 +159,8 @@ export function BigFieldInput({ f, value, onChange, tone = "default", disabled, 
             return (
               <button key={o.key} type="button" role="radio" aria-checked={on} disabled={disabled} onClick={() => onChange(on ? undefined : o.v)}
                 tabIndex={i === stop ? 0 : -1} data-index={i}
-                className={cn(tap, "min-h-[44px] rounded-lg border px-2 text-sm font-semibold break-words",
-                  on ? "border-accent/60 bg-accent/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground")}>{o.key}</button>
+                className={cn(tap, "min-h-[44px] rounded-lg border px-2 text-sm font-semibold break-words v8:min-h-12 v8:active:scale-[0.97] motion-reduce:v8:active:scale-100 v8:transition-[color,background-color,border-color,scale]",
+                  on ? "border-accent/60 bg-accent/10 text-foreground v8:border-ink/30 v8:bg-ink/10" : "border-border text-muted-foreground hover:text-foreground v8:border-ink/[0.12]")}>{o.key}</button>
             );
           })}
         </div>
@@ -168,7 +170,7 @@ export function BigFieldInput({ f, value, onChange, tone = "default", disabled, 
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{f.label}</Label>
-      <Input id={id} value={typeof value === "string" ? value : ""} disabled={disabled} onChange={(e) => onChange(e.target.value)} className="h-[44px]" />
+      <Input id={id} value={typeof value === "string" ? value : ""} disabled={disabled} onChange={(e) => onChange(e.target.value)} className="h-[44px] v8:h-12" />
     </div>
   );
 }

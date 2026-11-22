@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ConnectionPill, newestSaved, pillText, updatedLabel } from "./ConnectionStatus";
-import { DEMO_KEY, checkInternet, resetConnection } from "../lib/connection";
+import { DEMO_KEY, SLOW_MS, checkInternet, noteWaiting, resetConnection } from "../lib/connection";
 import { savedDataTime } from "../lib/api";
 import { writeSaved } from "../lib/offline/saved";
 
@@ -93,5 +93,39 @@ describe("the pill", () => {
     expect(box.className.split(" ")).not.toContain("absolute"); // floating only from xl up
     const words = screen.getByText("No internet on this Wi-Fi");
     expect(words.className).toContain("max-xl:hidden");
+  });
+});
+
+describe("the pill: slow, not offline", () => {
+  it("a request waiting past SLOW_MS: Slow connection (never Offline), and gone once it answers", () => {
+    vi.useFakeTimers();
+    try {
+      pill();
+      const done = noteWaiting();
+      act(() => { vi.advanceTimersByTime(SLOW_MS - 1); });
+      expect(screen.queryByRole("button")).toBeNull();
+      act(() => { vi.advanceTimersByTime(1); });
+      const btn = screen.getByRole("button");
+      expect(btn.textContent).toBe("Slow connection");
+      expect(btn.getAttribute("data-connection-pill")).toBe("slow");
+      fireEvent.click(btn);
+      expect(screen.getAllByText("Slow connection").length).toBeGreaterThan(1);
+      expect(screen.getByText(/Saving, sending and signing in still work/)).toBeTruthy();
+      expect(screen.queryByText(/\bOffline\b|You're offline/)).toBeNull();
+      act(() => done());
+      expect(screen.queryByRole("button")).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("slow with saved data on screen: says so, with the saved data's time", () => {
+    const now = new Date(2026, 10, 13, 21, 0);
+    expect(pillText({ internet: "yes" }, new Date(2026, 10, 13, 20, 9).toISOString(), now, true)).toMatchObject({ short: "Slow connection", long: expect.stringMatching(/^Slow connection, showing saved data from 8:09/) });
+    expect(pillText({ internet: "unknown" }, null, now, true)).toEqual({ short: "Slow connection", long: "Slow connection, still loading", time: null });
+  });
+
+  it("the screenshot setting shows it too", () => {
+    localStorage.setItem(DEMO_KEY, "slow");
+    pill();
+    expect(screen.getByRole("button").textContent).toBe("Slow connection");
   });
 });

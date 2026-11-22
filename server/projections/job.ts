@@ -13,15 +13,17 @@
 //      Otherwise: the pre-event baseline when it's missing (or the schedule changed before any match
 //      was played), then the current run, both PROJECTION_RUNS simulations, PROJECTION_FLOOR when the
 //      event blows BUDGET_MS. Seeds come from (event, kind, state), so the same state gives the same
-//      numbers. The simulation yields to the event loop every ~20 ms (core.ts).
+//      numbers. The simulation itself runs on a worker thread (offThread.ts), never on this process's event loop:
+//      sliced on the main thread it held the loop ~100% of each run's seconds on an event day.
 //   3. Store, then tell open pages (bus.ts → the projections stream).
-import { ADVANCING_TYPES, ENGINE_VERSION, normType } from "@control-scout/predict-engine";
+import { ADVANCING_TYPES, ENGINE_VERSION, normType, type SimInput } from "@control-scout/predict-engine";
 import { all } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import { eventDetail, toEventInput } from "../api/events.js";
 import { dataVersion, forecasterFor } from "../predict/engine.js";
 import { PROJECTION_FLOOR, PROJECTION_RUNS, type ProjectionKind } from "../../src/shared/projections.js";
-import { projectionSeed, simulateProjection } from "./core.js";
+import { projectionSeed } from "./core.js";
+import { simulateOffThread, type SimOptions } from "./offThread.js";
 import { projectionInput, type ProjectionInput } from "./input.js";
 import { eventState, inputKey } from "./state.js";
 import { saveRuns, storedRuns, type StoredRun } from "./store.js";
@@ -103,10 +105,13 @@ export class Debouncer {
 export interface RunOptions { budgetMs?: number; runs?: number; floor?: number; log?: Log; now?: () => number }
 export type RunOutcome = { status: "ran"; runs: StoredRun[] } | { status: "unchanged" } | { status: "skipped"; reason: string };
 
+/** How the job runs a simulation: on a worker thread of its own, off this process's event loop (offThread.ts). */
+export const jobSimulate = (input: SimInput, o: SimOptions) => simulateOffThread(input, o);
+
 async function simulateKind(kind: ProjectionKind, season: number, code: string, stateKey: string, pi: ProjectionInput, st: { played: number; scheduled: number; through: string | null }, o: RunOptions): Promise<StoredRun> {
   const seed = projectionSeed(season, code, kind, stateKey);
   const target = o.runs ?? PROJECTION_RUNS;
-  const r = await simulateProjection(pi.input, { runs: target, floor: Math.min(target, o.floor ?? PROJECTION_FLOOR), budgetMs: o.budgetMs ?? BUDGET_MS, seed });
+  const r = await jobSimulate(pi.input, { runs: target, floor: Math.min(target, o.floor ?? PROJECTION_FLOOR), budgetMs: o.budgetMs ?? BUDGET_MS, seed });
   return {
     kind, stateKey, seed, runs: r.runs, target, stage: pi.stage, played: st.played, scheduled: st.scheduled, through: st.through,
     slots: pi.slots, slotsSource: pi.slotsSource, engineVersion: ENGINE_VERSION, ms: r.wallMs, computedAt: new Date((o.now ?? Date.now)()).toISOString(), teams: r.teams,

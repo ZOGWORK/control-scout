@@ -73,9 +73,8 @@ const emit = () => { for (const l of listeners) l(); };
 /** Online with internet as far as anyone knows (src/lib/connection.ts): with none, or a Wi-Fi sign-in page in the
  *  way, the light version can't load either, so it's never offered then. */
 const online = () => {
-  if (typeof navigator === "undefined") return true;
-  const c = connection();
-  return navigator.onLine !== false && !shownOffline(c);
+  // The connection check, not navigator.onLine (iOS says offline while online).
+  return !shownOffline(connection());
 };
 
 function raise(why: LiteReason) {

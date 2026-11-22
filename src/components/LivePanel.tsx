@@ -84,7 +84,8 @@ function useSecondClock(on: boolean): number {
 }
 
 /** `track`: the page's tracked state and toggle for this event, shown beside the panel's other actions. */
-export function LivePanel({ d, target, refresh, track }: { d: EventDetail; target: LiveTarget; refresh: RefreshControl; track?: TrackControl }) {
+/** `noWatch`: the page's header already has the stream button (v8), so the panel leaves its copy out. */
+export function LivePanel({ d, target, refresh, track, noWatch }: { d: EventDetail; target: LiveTarget; refresh: RefreshControl; track?: TrackControl; noWatch?: boolean }) {
   const e = d.event;
   const live = d.live!;
   const { teams: atEvent, mine, next: any } = target;
@@ -109,9 +110,9 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
   const title = opener ? `Waiting for ${opener.label}'s score` : mine ? "Up next for you" : !scheduled ? "Waiting for the schedule" : done.length ? "Your teams are done for now" : "Next match";
 
   return (
-    <section aria-labelledby="live-now" className="mt-4 rounded-xl border border-destructive/35 bg-destructive/[0.06] p-3 sm:p-4" data-live-panel>
+    <section aria-labelledby="live-now" className="mt-4 rounded-xl border border-destructive/35 bg-destructive/[0.06] p-3 sm:p-4 v8:border-line v8:bg-card v8:p-4 v8:sm:p-5" data-live-panel>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="live-now" className="inline-flex items-center gap-2 font-display text-lg font-bold tracking-wide text-destructive">
+        <h2 id="live-now" className="inline-flex items-center gap-2 font-display text-lg font-bold tracking-wide text-destructive v8:font-sans v8:text-sm v8:font-semibold v8:text-live">
           <LiveDot className="size-2.5" />
           LIVE
         </h2>
@@ -164,7 +165,7 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
               <Link to={matchReportHref(any)} data-live-report><ClipboardList /> Know your match</Link>
             </Button>
           )}
-          <LivestreamButton watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} offline={!!offlineSource(d)} className="max-sm:h-10 max-sm:flex-1" />
+          {!noWatch && <LivestreamButton watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} offline={!!offlineSource(d)} className="max-sm:h-10 max-sm:flex-1" />}
           {track && <TrackEventButton track={track} className="max-sm:h-10 max-sm:flex-1" />}
         </div>
         {!opener && !mine && done.length > 0 && (
@@ -180,7 +181,7 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
         )}
       </div>
 
-      <p className="mt-3 text-[11px] text-muted-foreground">
+      <p className="mt-3 text-[11px] text-muted-foreground v8:text-xs v8:text-text-faint">
         {every ? `Scores and rankings refresh on their own every ${every} s while this tab is open.` : "Check now to look for new results."}
       </p>
       <p role="status" aria-live="polite" className="text-xs text-muted-foreground empty:hidden">{refresh.note}</p>
@@ -194,13 +195,14 @@ function Lineup({ m, reasons }: { m: MatchView; reasons: ReadonlyMap<number, Rel
     <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
       {(["red", "blue"] as const).map((side) => (
         <div key={side} className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-lg border-l-[3px] px-2.5 py-1.5",
-          side === "red" ? "border-red-alliance bg-red-alliance/[0.08]" : "border-blue-alliance bg-blue-alliance/[0.08]")}>
+          // v8: the alliance colour stays on the cue (the left edge and the label) only; the box itself is neutral.
+          side === "red" ? "border-red-alliance bg-red-alliance/[0.08]" : "border-blue-alliance bg-blue-alliance/[0.08]", "v8:border-l-2 v8:bg-ink/[0.03]")}>
           <span className={cn("text-[11px] font-semibold", side === "red" ? "text-red-alliance" : "text-blue-alliance")}>{side === "red" ? "Red" : "Blue"}</span>
           {m[side].teams.length ? m[side].teams.map((t) => {
             const why = reasons.get(t.number);
             return (
               <Link key={t.number} to={`/teams/${t.number}?season=${m.season}`}
-                className={cn("inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 font-mono text-sm hover:underline", why ? "bg-accent/15 font-bold text-accent-text ring-1 ring-accent/60" : "text-foreground")}>
+                className={cn("inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 font-mono text-sm hover:underline", why ? "bg-accent/15 font-bold text-accent-text ring-1 ring-accent/60 v8:bg-transparent v8:ring-accent/50" : "text-foreground")}>
                 {t.number}{why && <span className="font-sans text-[10px] font-medium">{REASON_LABEL[why]}</span>}
               </Link>
             );

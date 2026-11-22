@@ -54,7 +54,7 @@ export function ClockWeather() {
   const wx = formatWeather(weather);
   return (
     <span
-      className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap px-1 text-xs tabular-nums text-text-muted lg:inline-flex"
+      className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap px-1 text-xs tabular-nums text-text-muted lg:inline-flex v8:text-[0.8125rem] v8:font-medium v8:text-text-base/90"
       title={weather?.place ? `Weather in ${weather.place} (team ${team})` : undefined}
       aria-label={wx ? `${time}, ${wx}${weather?.place ? ` in ${weather.place}` : ""}` : time}
     >

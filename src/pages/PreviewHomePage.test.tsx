@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { EventListItem, MatchView } from "../shared/api";
 import type { RecordsResponse, TeamSeasonRecord } from "../shared/statCatalog";
+import { resetFlags } from "../lib/flags";
+import { DEFAULT_FLAGS } from "../shared/flags";
 import { HOME_SUGGESTIONS } from "../shared/homeSuggestions";
 import { isBareRoute, pageModule, pageTitle } from "../shared/routes";
 import { readFileSync } from "node:fs";
@@ -51,7 +53,7 @@ const mount = () => render(<TooltipProvider><MemoryRouter initialEntries={["/pre
 const cls = (el: Element) => el.getAttribute("class") ?? "";
 
 beforeEach(() => { data = {}; personal = { user: null, state: st(null) }; localStorage.clear(); });
-afterEach(cleanup);
+afterEach(() => { cleanup(); resetFlags(); });
 
 describe("Sample home dashboard", () => {
   it("is its own bare route, titled and kept apart from the real Home", () => {
@@ -161,11 +163,12 @@ describe("Sample home dashboard", () => {
     expect(container.innerHTML).not.toContain("zoom");
   });
 
-  it("washes the top a third of the way down, smooth glows under a fine grain", () => {
+  it("marks the particle canvas as decorative", () => {
+    resetFlags({ ...DEFAULT_FLAGS }, true);
     const { container } = mount();
     const wash = container.querySelector("[data-wash]") as HTMLElement;
-    expect(cls(wash)).toMatch(/h-\[34vh\]/);
-    expect(cls(wash.querySelector("[data-grain]")!)).toContain("opacity-[0.12]");
+    expect(container.querySelector("canvas[data-dot-wave]")?.getAttribute("aria-hidden")).toBe("true");
+    expect(cls(wash.querySelector("[data-grain]")!)).toContain("opacity-[var(--wash-grain,0.12)]");
     expect(wash.innerHTML).not.toMatch(/type="discrete"/); // not the shutdown page's chalky grain
   });
 
@@ -211,6 +214,11 @@ describe("Sample home dashboard", () => {
     expect(rows[0].textContent).toContain("200.0");
     expect(cls(rows[0].querySelector("[data-rank]")!)).toContain("text-accent");
     expect(cls(rows[1].querySelector("[data-rank]")!)).not.toContain("text-accent");
+    // v8: the podium, gold / silver / bronze (lib/v8colour.ts), then grey.
+    expect(cls(rows[0].querySelector("[data-rank]")!)).toContain("v8:text-yellow-400");
+    expect(cls(rows[1].querySelector("[data-rank]")!)).toContain("v8:text-slate-300");
+    expect(cls(rows[2].querySelector("[data-rank]")!)).toContain("v8:text-amber-600");
+    expect(cls(rows[3].querySelector("[data-rank]")!)).toContain("v8:text-text-muted");
   });
 
   it("falls back to last season's leaders, labelled, before anyone has a record this season", () => {
@@ -232,8 +240,7 @@ describe("Sample home dashboard", () => {
     const { container } = mount();
     // A plain icon-and-label button like the sidebar's rows: no colour, no fill, no border.
     const pick = container.querySelector("[data-pick-team]")!;
-    // (border-color in the transition list is fine: it's the press/hover fade, not a border.)
-    expect(cls(pick)).not.toMatch(/accent|(^|\s)border(-[a-z0-9]|\s|$)|(^|\s)bg-/);
+    expect(cls(pick)).not.toMatch(/accent|border|(^|\s)bg-/);
     expect(cls(pick.querySelector("svg")!)).not.toContain("accent");
     const team = container.querySelector("[data-card='team']")!;
     expect(team.textContent).toContain("Pick your team to see its next match");
@@ -294,25 +301,29 @@ describe("Sample home dashboard", () => {
     const root = container.querySelector("[data-theme-next]") as HTMLElement;
     expect(root.style.getPropertyValue("--color-accent")).toBe(MINT.accent);
     const html = container.innerHTML.toLowerCase();
-    expect(html).not.toMatch(/#ffc700|#ffd633|#eab308|text-accent-text|text-yellow|bg-yellow/);
+    // No yellow chrome. The one gold is v8's #1 rank in Top teams (a podium colour, lib/v8colour.ts).
+    const rankGold = [...container.querySelectorAll("[data-rank]")].filter((el) => cls(el).includes("v8:text-yellow-400"));
+    expect(rankGold).toHaveLength(1);
+    expect(html.replaceAll("v8:text-yellow-400", "")).not.toMatch(/#ffc700|#ffd633|#eab308|text-accent-text|text-yellow|bg-yellow/);
     const all = [...container.querySelectorAll("*")];
     // Mint fills: the live progress, nothing else.
     const fills = all.filter((el) => /(^|\s)bg-accent(\s|$)/.test(cls(el)));
     expect(fills.every((el) => ["data-progress"].some((a) => el.hasAttribute(a)))).toBe(true);
-    // Live is red and pulses (motion-reduce stills it).
+    // Live is red with the slow ring (index.css live-ring; motion-reduce stills it).
     const pulse = container.querySelector("[data-live-dot] [data-live-pulse]")!;
-    expect(cls(pulse)).toContain("animate-[live-ring_2s_");
+    expect(cls(pulse)).toContain("animate-[live-ring_2s");
+    expect(cls(pulse)).toContain("bg-live");
+    expect(indexCss).toMatch(/@keyframes live-ring \{/);
     expect(cls(pulse)).toContain("motion-reduce:hidden");
-    expect(container.querySelector("[data-live-event] svg")!.getAttribute("class")).toContain("text-[#f2555a]");
+    expect(container.querySelector("[data-live-event] svg")!.getAttribute("class")).toContain("text-live");
     expect(container.querySelector("[data-pick-team]")).toBeNull();
     // Text in mint: only the #1 rank (and icons).
     const mintText = all.filter((el) => /(^|\s)text-accent(\s|$)/.test(cls(el)));
     expect(mintText.every((el) => el.hasAttribute("data-rank") || el.tagName.toLowerCase() === "svg")).toBe(true);
   });
 
-  it("moves with a strong ease-out: the fold, a slow live ring, menus from the picture, a light press", () => {
+  it("moves with a strong ease-out: the fold, menus from the picture, a light press", () => {
     const EASE = "ease-[cubic-bezier(0.23,1,0.32,1)]";
-    expect(indexCss).toMatch(/@keyframes live-ring \{ 0% \{ transform: scale\(1\); opacity: 0\.6; \} 70%, 100% \{ transform: scale\(2\); opacity: 0; \} \}/);
     personal = { user: { displayName: "Ada Lovelace", email: "ada@example.test", avatarUrl: null, isOwner: false }, state: st(null) };
     const { container } = mount();
     const side = container.querySelector("[data-sample-sidebar]")!;

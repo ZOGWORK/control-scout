@@ -1,10 +1,38 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
+import { pngPixels } from "./__fixtures__/png";
+import { fileURLToPath } from "node:url";
 
 describe("the frame reader", () => {
+  it("skips an opening lead that sits on the overlay's switch to its match", () => {
+    // USMOKSCMP 2023 Q9: a second before its 20 s lead the overlay names Q8.
+    expect(onSwitch("Q8", "Q9")).toBe(true);
+    // Nothing named a second before (a transition, a cutaway), or the same match: no switch.
+    expect(onSwitch(null, "Q9")).toBe(false);
+    expect(onSwitch("Q9", "Q9")).toBe(false);
+    // A semifinal's first match names the event's M2 as "M2-1"; a replay's frame names its match alone.
+    expect(onSwitch("M2-1", "M2")).toBe(false);
+    expect(onSwitch("M1-1", "M2")).toBe(true);
+    expect(onSwitch("M6", "M6-2")).toBe(false);
+  });
+
+  it("judges the frame a second before an opening lead: a switch, a failed read, or kept", () => {
+    // Another match named there: the overlay's switch onto Q9.
+    expect(beforeLead({ at: 4003, label: "Q8" }, 4003, "Q9")).toBe("switch");
+    // On a stream two divisions share, a sibling division's match there is the overlay switching onto this match too.
+    expect(beforeLead({ at: 4003, label: "Q8", division: "other" }, 4003, "Q9")).toBe("switch");
+    expect(beforeLead({ at: 4003, label: null, division: "other" }, 4003, "Q9")).toBe("switch");
+    // The read failed: not "no switch", the opening is left unchecked.
+    expect(beforeLead(null, 4003, "Q9")).toBe("failed");
+    // Nothing named, the same match, or a seek that didn't land there: the lead stands.
+    expect(beforeLead({ at: 4003, label: null }, 4003, "Q9")).toBe("kept");
+    expect(beforeLead({ at: 4003, label: "Q9", division: "own" }, 4003, "Q9")).toBe("kept");
+    expect(beforeLead({ at: 3990, label: "Q8" }, 4003, "Q9")).toBe("kept");
+  });
+
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
   // timer (white digits in a dark box at the centre), its rows broken here and there by white icons and digits.
   const frame = (bars: { top: number; bottom: number; left?: "blue" | "red"; dark?: boolean }[], floor = [120, 115, 110]) => {
@@ -44,6 +72,65 @@ describe("the frame reader", () => {
     expect(overlayBand(frame([{ top: 300, bottom: 310 }]), 1280, 720)).toBeNull();
     // A results card: its blue half and red half fill the frame's height (CENTERSTAGE's "WINNER" card).
     expect(overlayBand(frame([{ top: 60, bottom: 660 }]), 1280, 720)).toBeNull();
+  });
+
+  // Real frames, cut to the bar's centre 480 px with 100 px over and under it (scripts/lib/__fixtures__): the band is
+  // where overlayBand found the bar in the whole frame, and the digits' rows were measured by eye.
+  const real = (name: string) => pngPixels(fileURLToPath(new URL(`./__fixtures__/${name}`, import.meta.url)));
+  it("reads the timer's digits in their own box, wherever the bar is", () => {
+    // Nevada 2023's top bar (USNVCMP, Q4 at 2:03): overlayBand finds only the bar's lower half, the timer box standing
+    // above it; the digits are rows 30–80 and the robot icon under them (rows 88–110) is left out.
+    const nv = real("timer-top-nv2023.png"), nvBox = timerDigits(nv.px, nv.width, nv.height, { top: 100, bottom: 148 })!;
+    expect(nvBox.y).toBeLessThanOrEqual(30);
+    expect(nvBox.y + nvBox.height).toBeGreaterThanOrEqual(80);
+    expect(nvBox.y + nvBox.height).toBeLessThan(88);
+    expect(nvBox.x).toBeGreaterThan(165); expect(nvBox.x + nvBox.width).toBeLessThan(315);
+    // FTC Live's bottom bar, a white box (USAZGLQ 2023, Semifinal 1 Match 1 at 2:30): digits rows 104–148.
+    const glq = real("timer-bottom-azglq2023.png"), glqBox = timerDigits(glq.px, glq.width, glq.height, { top: 100, bottom: 183 })!;
+    expect(glqBox.y).toBeLessThanOrEqual(104);
+    expect(glqBox.y + glqBox.height).toBeGreaterThanOrEqual(148);
+    // Arizona's flush-top dark bar, a mid-grey box on a paused frame (USAZCMPGC1 2023, 2:30): digits rows 55–98.
+    const gc = real("timer-flushtop-azgc2023.png"), gcBox = timerDigits(gc.px, gc.width, gc.height, { top: 48, bottom: 109 })!;
+    expect(gcBox.y).toBeLessThanOrEqual(55);
+    expect(gcBox.y + gcBox.height).toBeGreaterThanOrEqual(98);
+    expect(gcBox.y + gcBox.height).toBeLessThan(110);
+  });
+  it("orders the timer's places (box first on a top-row label or where it ran last) and reads the box", () => {
+    const crops = ["bottom", "top", "topBar"];
+    expect(timerSteps(crops, "topBar", "topBar")).toEqual(["box", "topBar", "bottom", "top", "band"]);
+    expect(timerSteps(crops, "box", "topBar")).toEqual(["box", "bottom", "top", "topBar", "band"]);
+    expect(timerSteps(crops, null, "topBar")).toEqual(["bottom", "top", "topBar", "box", "band"]);
+    expect(timerSteps(crops, "topBar", "topBar").filter((s) => afterUnreadBox(s, "topBar"))).toEqual(["box", "bottom", "top"]);
+    expect(boxSeconds("112", true)).toEqual({ where: "plain", left: 112 });
+    expect(boxSeconds("112", false)).toEqual({ where: "bottom", left: 72 });
+    expect(boxSeconds("150", true)).toBeNull();
+  });
+
+  it("finds no timer box where there's none at the bar's centre", () => {
+    // A dark box with white digits is no light box.
+    expect(timerDigits(frame([{ top: 612, bottom: 700 }]), 1280, 720, { top: 612, bottom: 700 })).toBeNull();
+    // The field monitor in Nevada's frame shows the same white timer box in rows 170–215, off to the left (x 55–130):
+    // searched round the centre, those rows have none.
+    const nv = real("timer-top-nv2023.png");
+    expect(timerDigits(nv.px, nv.width, nv.height, { top: 168, bottom: 220 })).toBeNull();
+  });
+  it("finds no timer box in a white slide's text at the centre (too tall for a timer's digits)", () => {
+    // A 1280 × 720 frame: blue left, red right, a white panel 160 px wide at the centre from row 200 down, and in it a
+    // black block `inkRows` tall from row 240. A timer's digits are found; a slide's text block is not.
+    const slide = (inkRows: number) => {
+      const px = new Uint8Array(1280 * 720 * 4);
+      for (let y = 0; y < 720; y++) for (let x = 0; x < 1280; x++) {
+        const i = (y * 1280 + x) * 4, panel = y >= 200 && x >= 560 && x < 720, ink = panel && y >= 240 && y < 240 + inkRows && x >= 590 && x < 690;
+        const c = ink ? [0, 0, 0] : panel ? [250, 250, 250] : x < 640 ? [30, 60, 200] : [200, 40, 40];
+        px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2]; px[i + 3] = 255;
+      }
+      return px;
+    };
+    // Run as the reader runs it, from its source in the page (`toString`): an outer name there is a ReferenceError.
+    const paged = new Function("px", `const __name = (f) => f; return (${timerDigits.toString()})(px, 1280, 720, { top: 200, bottom: 719 });`);
+    expect(paged(slide(45))).not.toBeNull();
+    expect(paged(slide(91))).toBeNull();
+    expect(paged(slide(300))).toBeNull();
   });
 
   it("steps the upload scan on past a named match until its timer runs, through a cutaway", () => {
@@ -745,6 +832,42 @@ describe("an event's played matches, a time or not", () => {
   });
   it("leaves out a time the event's zone can't place", () => {
     expect(playedMatches([{ label: "Q1", time: "2025-07-19T10:01:13", timezone: null }], { ...f, utcMs: () => null })).toEqual([]);
+  });
+});
+
+describe("undetailed", () => {
+  const ok = (videoId: string) => ({ videoId, meta: { status: "ok", length: 6552 } });
+  const none = "no details on file (fetch them, then read again)";
+  it("says each linked recording with no details on file (KZCMP 2022's day-2 videos)", () => {
+    const r = undetailed([ok("1VAGi4X7hWA"), { videoId: "w0H2auno5c8" }, { videoId: "ZXdoZmDoHp0", meta: null }]);
+    expect(r.skipped).toEqual([{ videoId: "w0H2auno5c8", why: none, fixable: true }, { videoId: "ZXdoZmDoHp0", why: none, fixable: true }]);
+    expect(r.fails).toBe(false);
+  });
+  it("says a failed fetch, a removed video and an untimed live stream apart, and only the fetch as fixable", () => {
+    const r = undetailed([{ videoId: "a", meta: { status: "error" } }, { videoId: "b", meta: { status: "unavailable" } }, { videoId: "c", meta: { status: "ok", length: 0 } }]);
+    expect(r.skipped.map((s) => [s.why, s.fixable])).toEqual([
+      ["fetching its details failed (fetch again, then read again)", true],
+      ["unavailable on YouTube (removed or private)", false],
+      ["no length: a live stream or one the player can't time (looked at again next run)", false],
+    ]);
+  });
+  it("fails when no video can be read for want of details a fetch would give, and empty when all can be read", () => {
+    expect(undetailed([{ videoId: "w0H2auno5c8" }]).fails).toBe(true);
+    expect(undetailed([{ videoId: "a", meta: { status: "error" } }, { videoId: "b", meta: { status: "unavailable" } }]).fails).toBe(true);
+    expect(undetailed([ok("a"), ok("b")])).toEqual({ skipped: [], fails: false });
+  });
+  it("tells the reader's undetailed exit apart from a failed read, so the autopilot doesn't forget a season", () => {
+    // A live video with no length beside one whose details fetch errored: nothing readable, a fetch would fix it.
+    expect(undetailed([{ videoId: "live", meta: { status: "ok", length: null } }, { videoId: "err", meta: { status: "error" } }]).fails).toBe(true);
+    expect(UNDETAILED_EXIT).not.toBe(1);
+    expect(readFailed(0)).toBe(false);
+    expect(readFailed(UNDETAILED_EXIT)).toBe(false);
+    for (const code of [1, 2, 3, null]) expect(readFailed(code)).toBe(true);
+  });
+  it("never fails for an event whose only video is removed or still live: it would fail every run", () => {
+    expect(undetailed([{ videoId: "gone", meta: { status: "unavailable" } }]).fails).toBe(false);
+    expect(undetailed([{ videoId: "live", meta: { status: "ok", length: null } }]).fails).toBe(false);
+    expect(undetailed([{ videoId: "gone", meta: { status: "unavailable" } }, { videoId: "live", meta: { status: "ok" } }]).fails).toBe(false);
   });
 });
 

@@ -41,7 +41,7 @@ export function CompareBar({ picks, names, season, onDrop }: { picks: number[]; 
           </li>
         ))}
       </ul>
-      <Link to={pickHref(picks, season)} data-compare-go className="inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink">Compare ({picks.length})<ArrowRight className="size-4" aria-hidden /></Link>
+      <Link to={pickHref(picks, season)} data-compare-go className="inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink v8:border v8:border-ink/12 v8:bg-ink/10 v8:text-foreground">Compare ({picks.length})<ArrowRight className="size-4" aria-hidden /></Link>
     </div>,
     body,
   );

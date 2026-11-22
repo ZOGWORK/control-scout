@@ -13,6 +13,7 @@ import type { LitePairs } from "../shared/litePairs";
 import type { RecentRow } from "../shared/predictView";
 import type { LiteLearned } from "../shared/liteLearned";
 import { PACK_META_KEY, packStatus, type PackMeta } from "./packPolicy";
+import { offlineNow } from "./connection";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { ChecksumError, download, dropPartial, finishDownload, partialDownloads, sha256Of, type DownloadOwner } from "./offline/download";
 import { clearResume, markKey } from "./offline/resumeMarks";
@@ -74,11 +75,12 @@ export class ManifestError extends Error {
 
 /** `signal`: lets a caller give up (a timeout, a page that's gone); a request given up on counts as unreachable. */
 export async function fetchManifest(opts: { signal?: AbortSignal } = {}): Promise<PackManifest> {
-  // Always asked: navigator.onLine can say offline while the phone is online (iOS), so it only picks the message.
+  // Always asked, whatever navigator.onLine says (iOS can say offline while online). "Offline" only when the
+  // connection check found no internet.
   let r: Response;
   try { r = await fetch("/packs/latest.json", { cache: "no-cache", signal: opts.signal }); }
   catch {
-    throw new ManifestError("unreachable", navigator.onLine === false
+    throw new ManifestError("unreachable", offlineNow()
       ? "You're offline — the pack list loads when you're back online."
       : "Can't reach the server right now — try again in a moment.");
   }

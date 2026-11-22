@@ -84,9 +84,9 @@ export function StatPicker({ scope, predictable, mode, selected, onPick, autoFoc
     if (!body) return null;
     const exclusive = cat === "Control Scout Exclusives";
     return (
-      <section key={cat} aria-label={cat} className={cn("rounded-xl border p-2", exclusive ? "border-accent/40 bg-accent/[0.05]" : "border-line")}>
+      <section key={cat} aria-label={cat} className={cn("rounded-xl border p-2", exclusive ? "border-accent/40 bg-accent/[0.05] v8:border-line v8:bg-transparent" : "border-line")}>
         <header className="mb-1 flex items-baseline gap-2 px-1.5">
-          <h3 className={cn("text-[11px] font-bold uppercase tracking-[0.12em]", exclusive ? "text-accent-text" : "text-text-base")}>
+          <h3 className={cn("text-[11px] font-bold uppercase tracking-[0.12em] v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal", exclusive ? "text-accent-text" : "text-text-base")}>
             {exclusive && <Sparkles className="mr-1 inline size-3.5 -translate-y-px" />}{cat}
           </h3>
           {CATEGORY_HINT[cat] && <p className="min-w-0 truncate text-[11px] text-text-muted">{CATEGORY_HINT[cat]}</p>}
@@ -113,9 +113,9 @@ export function StatPicker({ scope, predictable, mode, selected, onPick, autoFoc
 }
 
 function Mark({ on, mode }: { on: boolean; mode: "single" | "multi" }) {
-  if (mode === "single") return on ? <Check className="size-4 text-accent" /> : null;
+  if (mode === "single") return on ? <Check className="size-4 text-accent v8:text-text-base" /> : null;
   return (
-    <span aria-hidden className={cn("flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-accent bg-accent text-accent-ink" : "border-text-base/30")}>
+    <span aria-hidden className={cn("flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-accent bg-accent text-accent-ink v8:border-text-base v8:bg-text-base v8:text-background" : "border-text-base/30")}>
       {on && <Check className="size-3" strokeWidth={3} />}
     </span>
   );
@@ -126,7 +126,7 @@ function Row({ d, mode, on, onPick }: { d: StatDef; mode: "single" | "multi"; on
   return (
     <button
       type="button" onClick={() => onPick(d.key)} role={mode === "multi" ? "checkbox" : "option"} aria-checked={mode === "multi" ? on : undefined} aria-selected={mode === "single" ? on : undefined}
-      className={cn("flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-text-base/[0.06] max-sm:py-2.5", on && "bg-accent/[0.08]")}
+      className={cn("flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-text-base/[0.06] max-sm:py-2.5", on && "bg-accent/[0.08] v8:bg-ink/[0.06]")}
     >
       <span className="mt-0.5"><Mark on={on} mode={mode} /></span>
       <span className="min-w-0 flex-1">
@@ -164,7 +164,7 @@ function Grid({ cols, tones, rows, mode, selected, onPick }: {
                   role={mode === "multi" ? "checkbox" : "option"} aria-checked={mode === "multi" ? selected.has(d.key) : undefined} aria-selected={mode === "single" ? selected.has(d.key) : undefined}
                   className={cn(
                     "inline-flex h-8 min-w-0 items-center justify-center gap-0.5 rounded-md border text-[11px] font-semibold tabular-nums transition-colors max-sm:h-10",
-                    selected.has(d.key) ? "border-accent bg-accent text-accent-ink" : cn("border-line hover:border-text-base/30 hover:bg-text-base/[0.06]", tones ? TONE_CLASS[tones[i]].text : "text-text-muted"),
+                    selected.has(d.key) ? "border-accent bg-accent text-accent-ink v8:border-ink/[0.12] v8:bg-ink/10 v8:text-text-base" : cn("border-line hover:border-text-base/30 hover:bg-text-base/[0.06]", tones ? TONE_CLASS[tones[i]].text : "text-text-muted"),
                   )}
                 >
                   {selected.has(d.key) && mode === "multi" && <Check className="size-3 shrink-0" strokeWidth={3} />}{cols[i]}

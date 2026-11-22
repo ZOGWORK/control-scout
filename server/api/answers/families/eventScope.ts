@@ -48,7 +48,7 @@ export async function championshipMatchesAnswer(team: AnswerTeam, all: TeamMatch
 }
 
 /** The answer for an event intent, or null when `id` isn't one. `scope.event` is set. */
-export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], ev: TeamEvent | undefined, scope: Scope, opts: { n: number | null; each?: TeamEvent[] }): Promise<StatAnswer | null> {
+export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], ev: TeamEvent | undefined, scope: Scope, opts: { n: number | null; each?: TeamEvent[]; phase?: "auto" | "teleop" | "endgame" }): Promise<StatAnswer | null> {
   if (!scope.event || !["results", "event-rank", "event-opr", "match-lookup"].includes(id)) return null;
   const keep = inScope(scope);
   // The record counts official results; one match's score is any match the team played on the field (a surrogate too).
@@ -88,11 +88,14 @@ export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: Team
     };
   }
   if (id === "event-opr") {
-    const title = `OPR at ${name}`;
-    if (ev?.opr == null) return { ...base, family: "event", intent: id, title, blocks: [kpis], definition: OPR_RULE, none: `No OPR at ${name} for ${who}: it needs scored matches there.` };
+    // A phase asked for ("auto opr at nj states"): its part of the event OPR leads, the whole OPR beside it.
+    const ph = opts.phase ? { label: opts.phase === "auto" ? "Auto" : opts.phase === "teleop" ? "TeleOp" : "Endgame", value: ev?.[opts.phase] ?? null } : null;
+    const title = `${ph ? `${ph.label} ` : ""}OPR at ${name}`;
+    if (ev?.opr == null || (ph && ph.value == null)) return { ...base, family: "event", intent: id, title, blocks: [kpis], definition: OPR_RULE, none: `No ${ph ? `${ph.label} ` : ""}OPR at ${name} for ${who}: it needs scored matches there.` };
     return {
       ...base, family: "event", intent: id, title,
-      headline: { value: `OPR ${ev.opr.toFixed(1)}`, label: name, sub: where, href },
+      headline: ph ? { value: `${ph.label} OPR ${ph.value!.toFixed(1)}`, label: name, sub: [`OPR ${ev.opr.toFixed(1)}`, where].filter(Boolean).join(" · "), href }
+        : { value: `OPR ${ev.opr.toFixed(1)}`, label: name, sub: where, href },
       blocks: [kpis, { kind: "bars", title: "By phase", groups: [{ label: name, items: [{ label: "Auto", value: ev.auto, tone: "a" }, { label: "TeleOp", value: ev.teleop, tone: "b" }, { label: "Endgame", value: ev.endgame, tone: "c" }] }] }, ...each],
       definition: OPR_RULE,
     };

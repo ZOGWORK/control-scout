@@ -9,6 +9,7 @@ import { Button } from "../../ui/button";
 import { Label, Textarea } from "../../ui/basic";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { cn } from "../../cn";
+import { useIsV8 } from "../../../lib/v8";
 import { detailKey, MATCH_PHASES, phaseLabel, phasesFor, type FieldPhase, type ScoutField, type ScoutTemplate } from "../../../shared/scoutTemplate";
 import { NOTES_MAX, type ScoutValue } from "../../../lib/scouting";
 import { BigFieldInput, type FieldTone } from "./BigFieldInput";
@@ -79,6 +80,8 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
   const fields = template.fields.filter((f) => f.phase === shown);
   const own = useMatchTimer(timer ? undefined : onPhase);
   const t = timer ?? own;
+  // v8: Save is the screen's one primary, so starting the timer is an outline button.
+  const v8 = useIsV8();
 
   // Undo: the field's value before the last tap, only while `value` is still the very record that tap
   // produced. Another team's answers (or anything changed from outside) are a different record, so undo
@@ -107,18 +110,18 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
     <>
         {showTimer && (
           <div data-cue={t.cue ?? undefined} className={cn("flex min-h-[52px] items-center gap-3 rounded-xl border px-3 py-1.5 motion-safe:transition-colors motion-safe:duration-300",
-            t.cue ? "border-accent/60 bg-accent/10" : "border-border bg-card")}>
+            t.cue ? "border-accent/60 bg-accent/10 v8:bg-ink/[0.04]" : "border-border bg-card v8:border-line")}>
             <div className="min-w-0 flex-1">
               <div className="text-xs text-muted-foreground">{t.cue ? `${phaseLabel(t.cue)} now` : "Match timer"}</div>
-              <div className="font-mono text-base font-bold tabular-nums" role="timer" aria-live="off">
+              <div className="font-mono text-base font-bold tabular-nums v8:font-display v8:text-lg v8:font-semibold" role="timer" aria-live="off">
                 {t.startedAt == null ? "Off" : fc.period === "Ended" ? "Ended" : `${fc.period} ${clock(fc.left)}`}
               </div>
             </div>
             {t.startedAt == null
-              ? <Button type="button" size="sm" disabled={disabled} onClick={t.start} className="h-[44px] px-4 text-sm">Match started</Button>
+              ? <Button type="button" size="sm" variant={v8 ? "outline" : "default"} disabled={disabled} onClick={t.start} className="h-[44px] px-4 text-sm v8:h-12">Match started</Button>
               : t.running
-                ? <Button type="button" size="sm" variant="secondary" onClick={t.stop} className="h-[44px] px-4 text-sm">Stop</Button>
-                : <Button type="button" size="sm" variant="secondary" onClick={t.reset} className="h-[44px] px-4 text-sm">Reset</Button>}
+                ? <Button type="button" size="sm" variant="secondary" onClick={t.stop} className="h-[44px] px-4 text-sm v8:h-12">Stop</Button>
+                : <Button type="button" size="sm" variant="secondary" onClick={t.reset} className="h-[44px] px-4 text-sm v8:h-12">Reset</Button>}
           </div>
         )}
         <span className="sr-only" aria-live="polite">{t.cue ? `${phaseLabel(t.cue)} started` : ""}</span>
@@ -147,7 +150,7 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
     <Tabs value={shown} onValueChange={(p) => onPhase(p as FieldPhase)} className="gap-3">
       <TabsList aria-label="Match phase" className="grid w-full sm:w-full" style={{ gridTemplateColumns: `repeat(${phases.length}, minmax(0, 1fr))` }}>
         {phases.map((p) => (
-          <TabsTrigger key={p} value={p} className="min-h-[44px] sm:flex-1">
+          <TabsTrigger key={p} value={p} className="min-h-[44px] sm:flex-1 v8:min-h-12 v8:after:top-auto v8:after:bottom-0 v8:after:left-3 v8:after:w-auto v8:after:h-0.5 v8:after:transform-none">
             {formPhaseLabel(p)}
             {live === p && <><span className="size-1.5 rounded-full bg-current" aria-hidden /><span className="sr-only">(now)</span></>}
           </TabsTrigger>

@@ -159,7 +159,7 @@ describe("light version offer", () => {
     stop();
   });
 
-  it("offers it after repeated failures within a minute, never while offline (the offline pack's job)", () => {
+  it("offers it after repeated failures within a minute, whatever navigator.onLine says (iOS says offline while online)", () => {
     const { result } = renderHook(() => useLiteSuggested());
     for (let i = 0; i < LITE_FAILS - 1; i++) watchRequest("/api/meta").failed();
     expect(result.current).toBe(false);
@@ -172,7 +172,7 @@ describe("light version offer", () => {
     expect(result.current).toBe(false);
     setOnline(false);
     act(() => { for (let i = 0; i < LITE_FAILS; i++) watchRequest("/api/meta").failed(); arrive("/teams/1"); vi.advanceTimersByTime(LITE_SLOW_MS); });
-    expect(result.current).toBe(false);
+    expect(result.current).toBe(true); // only the connection check finding no internet hides it (below)
   });
 
   it("quick failures of the page's own data keep the offer up (apiFetch calls failed() then done())", () => {
@@ -184,12 +184,12 @@ describe("light version offer", () => {
     expect(result.current).toBe(true);
   });
 
-  it("losing the signal hides the offer at once", () => {
+  it("the browser's offline word alone (iOS gets it wrong) leaves the offer up", () => {
     const { result } = renderHook(() => useLiteSuggested());
     act(() => { arrive("/teams/1"); vi.advanceTimersByTime(LITE_SLOW_MS); });
     expect(result.current).toBe(true);
     act(() => { setOnline(false); window.dispatchEvent(new Event("offline")); });
-    expect(result.current).toBe(false);
+    expect(result.current).toBe(true);
     act(() => { setOnline(true); window.dispatchEvent(new Event("online")); });
     expect(result.current).toBe(true);
   });

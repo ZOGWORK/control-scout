@@ -1,13 +1,13 @@
-// The app's five themes as colour values, for pages drawn without the app's stylesheet: Control Scout Lite
+// The app's themes as colour values, for pages drawn without the app's stylesheet: Control Scout Lite
 // (server/lite/render.ts). Each value is the one src/index.css gives the named custom property in that theme;
 // themeTokens.test.ts reads index.css and fails if any of them drifts.
 //
 // The cookies the client keeps for the server (docs/lite.md): cs-theme and cs-text-size, written whenever the
 // setting changes and once when the app starts (src/lib/liteCookies.ts).
 
-export type Palette = "dark" | "light" | "dim" | "midnight";
+export type Palette = "dark" | "light" | "dim";
 export type ThemeCookie = Palette | "system";
-export const THEME_COOKIES: readonly ThemeCookie[] = ["light", "dim", "dark", "midnight", "system"];
+export const THEME_COOKIES: readonly ThemeCookie[] = ["light", "dim", "dark", "system"];
 export type TextSizeCookie = "s" | "l" | "xl";
 export const TEXT_SIZE_COOKIES: readonly TextSizeCookie[] = ["s", "l", "xl"];
 
@@ -49,8 +49,31 @@ export const THEME_TOKENS: Record<Palette, Record<Token, string>> = {
     acc: "#eab308", accText: "#875200", accInk: "#231a00", red: "#be123c", blue: "#0369a1", ok: "#047857",
   },
   dim: { ...DARK, bg: "#1e1f23", fg: "#e4e4e7", card: "#232428", muted: "#2d2e33", mutedFg: "#b4b4bd", line: "#ffffff1a", red: "#fb7185" },
-  midnight: { ...DARK, bg: "#000000", fg: "#f4f4f5", card: "#08080a", muted: "#121215", mutedFg: "#a1a1aa", line: "#ffffff12" },
 };
+
+/** v8, the new look (docs/design/v8-revamp-brief.md), in Dark: each value the one src/index.css's `html[data-v8]`
+ *  block gives the same property. Wins and "Right" use the green success colour. Text that used the accent is white; the slate blue is
+ *  for bars, lines and the #1 rank; the alliances are the bright red and blue. */
+export const V8_TOKENS: Record<Token, string> = {
+  bg: "#0a0a0b", fg: "#f4f4f5", card: "#0e0e10", muted: "#1b1b1e", mutedFg: "#a1a1aa", line: "#ffffff0f",
+  acc: "#a3b6e0", accText: "#f4f4f5", accInk: "#141a2b", red: "#f43f5e", blue: "#38bdf8", ok: "#34d399",
+};
+
+/** v8 in each theme: Dark above; Light and Dim from src/index.css's `html[data-v8].light` / `.dim` blocks (`ok` again
+ *  the win green the app sets per element: emerald 400 on dark, the deeper emerald it maps to on Light). */
+export const V8_THEME_TOKENS: Record<Palette, Record<Token, string>> = {
+  dark: V8_TOKENS,
+  light: {
+    bg: "#fafafa", fg: "#18181b", card: "#ffffff", muted: "#f4f4f5", mutedFg: "#52525b", line: "#00000017",
+    acc: "#3f5a96", accText: "#18181b", accInk: "#ffffff", red: "#be123c", blue: "#0369a1", ok: "#047857",
+  },
+  dim: { ...V8_TOKENS, bg: "#1e1f23", fg: "#e4e4e7", card: "#232428", muted: "#2d2e33", mutedFg: "#b4b4bd", line: "#ffffff14", accText: "#e4e4e7", red: "#fb7185" },
+};
+
+/** Which look this device picked (src/lib/v8.ts), mirrored by the app for Lite (src/lib/liteCookies.ts): "0" is the
+ *  classic look (/legacy), anything else (no cookie included) v8, the default. */
+export const V8_COOKIE = "cs-v8";
+export const v8FromCookie = (v: string) => v !== "0";
 
 /** A cookie header's value for `name` ("" when absent). */
 export function cookieValue(header: string | undefined, name: string): string {
@@ -64,5 +87,6 @@ export function cookieValue(header: string | undefined, name: string): string {
   return "";
 }
 
+/** A cs-theme cookie's theme: unknown values, and the retired "midnight", are Dark. */
 export const themeFromCookie = (v: string): ThemeCookie => ((THEME_COOKIES as readonly string[]).includes(v) ? (v as ThemeCookie) : "dark");
 export const textSizeFromCookie = (v: string): TextSizeCookie | null => ((TEXT_SIZE_COOKIES as readonly string[]).includes(v) ? (v as TextSizeCookie) : null);

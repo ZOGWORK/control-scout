@@ -6,7 +6,7 @@
 // play button; the youtube-nocookie iframe loads only on a click, never autoplaying on its own), so the page
 // costs one image for everyone who doesn't watch. The rail (lib/watchRail.ts) follows the event page's own
 // live refresh: the match being called, its result and verdict for a minute once it's in, then the next one.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Check, ExternalLink, Play, X } from "lucide-react";
 import type { EventDetail, EventStream, MatchView } from "../shared/api";
@@ -19,43 +19,58 @@ import { VideoPredictions, useVideoPredictions, type OverlayCall } from "./Video
 import { oddsPct } from "../shared/share";
 import { nextFlip, railModel, verdict, type Calling, type Flip } from "../lib/watchRail";
 import { venueClock } from "../lib/liveMode";
+import { scrollToElement } from "../lib/pageScroll";
 import { TierMark, WinBar } from "./predict";
 import { cn } from "./cn";
 import { PredictedPair } from "./ScoreRange";
 
 export const WATCH_ID = "watch-live";
 
-export function WatchLive({ d, stream }: { d: EventDetail; stream: EventStream }) {
+/** `watch`: the page was opened to watch (?watch, lib watchHref): "" the event's video, else that day's video id. The
+ *  section is scrolled to and its player opened at once, so a Recording or Watch live link elsewhere in the app plays
+ *  here, never on YouTube. `owner`: the site owner's controls to correct the event's recordings, under the player. */
+export function WatchLive({ d, stream, watch = null, owner }: { d: EventDetail; stream: EventStream; watch?: string | null; owner?: ReactNode }) {
   const finished = d.event.status === "finished";
+  const section = useRef<HTMLElement>(null);
+  // Asked to watch: to the player once the page has laid out (the header and tabs above it are drawn by then).
+  const asked = watch != null;
+  useEffect(() => {
+    if (!asked) return;
+    const id = requestAnimationFrame(() => { if (section.current) scrollToElement(section.current); });
+    return () => cancelAnimationFrame(id);
+  }, [asked]);
   // Live: the overlay shows the rail's call (the match being called, or a result for a minute).
   const rail = useRail(d);
   const liveCall: OverlayCall | null = finished ? null : rail.result ? { match: rail.result, phase: "after" } : rail.current ? { match: rail.current, phase: "before" } : null;
   return (
-    <section id={WATCH_ID} aria-labelledby={`${WATCH_ID}-h`} className="mb-8 scroll-mt-bar-4" data-watch-live data-recording={finished ? "" : undefined}>
+    <section ref={section} id={WATCH_ID} aria-labelledby={`${WATCH_ID}-h`} className="mb-8 scroll-mt-bar-4" data-watch-live data-recording={finished ? "" : undefined}>
       <h2 id={`${WATCH_ID}-h`} className="mb-3 font-display text-lg font-semibold text-foreground">{finished ? "Watch the recording" : "Watch live"}</h2>
       <div className={cn("grid gap-4", !finished && "lg:grid-cols-3")}>
         <div className={cn("min-w-0", finished ? "max-w-4xl" : "lg:col-span-2")}>
-          <Player stream={stream} title={`${d.event.name} live stream`} matches={d.matches} liveCall={liveCall} recording={finished} />
+          <Player stream={stream} title={`${d.event.name} live stream`} matches={d.matches} liveCall={liveCall} recording={finished} watch={watch} />
           {finished && <p className="mt-2 text-sm text-muted-foreground">{stream.youtubeOnly?.includes(stream.videoId) ? `Event finished: this is the recording. Its owner turned off playing on other sites, so it plays on YouTube only${d.matches.some((m) => m.clip) ? "; a match's Watch button opens it there at that match" : ""}.` : d.matches.some((m) => m.clip) ? "Event finished: this is the recording. A match's Watch button starts it at that match." : d.matches.some((m) => m.video) ? "Event finished: this is the recording. A match's video button plays that match here." : "Event finished: this is the recording."}</p>}
         </div>
         {!finished && <PredictionRail d={d} rail={rail} />}
       </div>
+      {owner}
     </section>
   );
 }
 
-function Player({ stream, title, matches, liveCall, recording }: { stream: EventStream; title: string; matches: MatchView[]; liveCall: OverlayCall | null; recording: boolean }) {
+function Player({ stream, title, matches, liveCall, recording, watch }: { stream: EventStream; title: string; matches: MatchView[]; liveCall: OverlayCall | null; recording: boolean; watch: string | null }) {
   // null: the facade; else playing from that second (0 from the start). n counts the loads, so the same match's Watch
   // again restarts it when the player can't be moved within the video. own: a match's own video instead of the recording.
   // end: a match's clip stops at its match's end (MatchClip.end); the recording from the day picker or the picture plays on.
-  const [play, setPlay] = useState<{ t: number; n: number; end?: number; own?: { videoId: string; label: string; matchKey?: string } } | null>(null);
+  // Opened to watch (?watch): playing from the start at once (a live stream plays live).
+  const [play, setPlay] = useState<{ t: number; n: number; end?: number; own?: { videoId: string; label: string; matchKey?: string } } | null>(watch != null ? { t: 0, n: 1 } : null);
   const start = play?.t ?? null;
   const own = play?.own ?? null;
   // An event broadcast a day at a time: the day's video playing (a match's Watch moves to its day).
   const days = stream.days?.length ? stream.days : [{ videoId: stream.videoId, label: "" }];
   // First shown: today's broadcast while the event is on, else its first day.
   const opening = recording ? stream.videoId : days[days.length - 1].videoId;
-  const [picked, setDay] = useState(opening);
+  // ?watch=<videoId>: that day's video, when it's one of the event's.
+  const [picked, setDay] = useState(() => (watch && days.some((d) => d.videoId === watch) ? watch : opening));
   // A day whose video was taken off since (a refresh): the opening one instead.
   const day = days.some((d) => d.videoId === picked) ? picked : opening;
   // ... and a recording playing starts that video afresh (a new player: its own clock, from its start).

@@ -15,6 +15,7 @@ import { Button } from "../ui/button";
 import { Input, Label, RequiredMark, Textarea } from "../ui/basic";
 import { cn } from "../cn";
 import { apiFetch, ApiError } from "../../lib/api";
+import { offlineNow } from "../../lib/connection";
 import { useTheme } from "../../hooks/useTheme";
 import { APP_VERSION } from "../../lib/errorReporting";
 import { sanitizeText } from "../../shared/errorReport";
@@ -52,7 +53,7 @@ function PublicNotice() {
     </div>
   );
 }
-const PALETTE_NAME = { light: "Light", dim: "Dim", dark: "Dark", midnight: "Midnight" } as const;
+const PALETTE_NAME = { light: "Light", dim: "Dim", dark: "Dark" } as const;
 const ACCEPT = [...IMAGE_TYPES, ...VIDEO_TYPES].join(",");
 /** ⌘V on Apple keyboards, Ctrl+V elsewhere. */
 const pasteKeys = () => (/Mac|iPhone|iPad/.test(typeof navigator !== "undefined" ? navigator.platform || navigator.userAgent : "") ? "⌘V" : "Ctrl+V");
@@ -151,7 +152,7 @@ export function BugReportButton({ corner = false }: { corner?: boolean } = {}) {
   const back = () => ref.current;
   const button = corner ? (
     <button ref={ref} type="button" onClick={() => setOpen(phone ? "sheet" : "dialog")} aria-label="Report a bug" aria-haspopup="dialog" title="Report a bug"
-      className="absolute right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex size-11 items-center justify-center rounded-full border border-white/10 bg-[#121214] text-text-muted shadow-[0_4px_16px_rgb(0_0_0/0.35)] outline-none transition-colors hover:border-danger/40 hover:text-danger focus-visible:ring-2 focus-visible:ring-ring/60 sm:right-6 sm:bottom-6"
+      className="absolute right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex size-11 items-center justify-center rounded-full border border-ink/10 bg-[#121214] v8light:bg-card [html.dim_&]:bg-card text-text-muted shadow-[0_4px_16px_rgb(0_0_0/0.35)] outline-none transition-colors hover:border-danger/40 hover:text-danger focus-visible:ring-2 focus-visible:ring-ring/60 sm:right-6 sm:bottom-6"
       data-testid="bug-report-button" data-corner>
       <Bug className="size-5" aria-hidden />
     </button>
@@ -357,7 +358,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       if (skipped.length) setFailure(`Your report was sent, but ${skipped.length === 1 ? "one attachment" : `${skipped.length} attachments`} didn't upload. ${skipped.join(" ")}`);
     } catch (err) {
       setStatus("idle");
-      setFailure((err as ApiError)?.offline ? "You're offline. Your report is still here: send it again once you're back online." : (err as ApiError)?.message || "Couldn't send your report. Try again in a moment.");
+      setFailure((err as ApiError)?.offline ? (offlineNow() ? "You're offline. Your report is still here: send it again once you're back online." : "Couldn't reach the server. Your report is still here: send it again in a moment.") : (err as ApiError)?.message || "Couldn't send your report. Try again in a moment.");
     } finally { setProgress(""); }
   };
 
@@ -373,7 +374,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
     return (
       <div role="status" className="flex flex-col items-center py-6 text-center" data-testid="bug-report-sent" data-filed={filed.state}>
         <Header className="sr-only"><Title>Bug report sent</Title><Desc>Thanks for the report.</Desc></Header>
-        <span className={cn("mb-3 flex size-12 items-center justify-center rounded-full", filed.state === "failed" ? "bg-warning/12 text-warning" : "bg-success/12 text-success")}>
+        <span className={cn("mb-3 flex size-12 items-center justify-center rounded-full", filed.state === "failed" ? "bg-warning/12 text-warning" : "bg-success/12 text-success v8:bg-emerald-400/12 v8:text-emerald-400")}>
           {filed.state === "asking" ? <Loader2 className="size-6 animate-spin" aria-hidden /> : filed.state === "failed" ? <AlertCircle className="size-6" aria-hidden /> : <CheckCircle2 className="size-6" aria-hidden />}
         </span>
         <p className="font-display text-lg font-semibold text-foreground">{heading}</p>
@@ -384,7 +385,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
           </a>
         )}
         <p className="mt-1 max-w-sm text-sm text-text-muted">{email.trim() ? <>If we need more, we'll write to <strong className="text-foreground">{email.trim()}</strong>.</> : "We'll look into it."}</p>
-        <div className="mt-3 max-w-md"><PublicNotice /></div>
+        {/* The "this is public" warning belongs before sending; once it's sent it only adds noise. */}
         {failure && <p className="mt-3 max-w-sm text-xs text-warning">{failure}</p>}
         <Button className="mt-5" onClick={onDone}>Done</Button>
       </div>

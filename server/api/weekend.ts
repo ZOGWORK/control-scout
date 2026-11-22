@@ -24,6 +24,7 @@ import { dayAt, inWeekend, type NextMatchAnswer, type WeekendAnswer, type Weeken
 import { matchViews } from "./matches.js";
 import { eventRecording } from "../videos/recordings.js";
 import { regionLabel } from "../../src/shared/regions.js";
+import { watchHref } from "../../src/shared/stream.js";
 
 /** A date as given ("2026-11-14") when it is a real day; null otherwise ("2026-13-45"). */
 const realDate = (d: string | null | undefined): string | null => {
@@ -66,7 +67,7 @@ export async function eventCards(rows: WeekendRow[], now = Date.now()): Promise<
     return {
       season: Number(r.season), code: r.code, name: r.name, type: r.type, place: place(r.city, r.state, r.country) || null, city: r.city, state: r.state, country: r.country,
       start: r.start, end: r.end, timezone: r.timezone, dates: dateRange(r.start, r.end) || null, teams: nTeams.get(k(Number(r.season), r.code)) ?? 0, status,
-      href: `/events/${r.season}/${encodeURIComponent(r.code)}`, ...(rec ? { recording: `https://www.youtube.com/watch?v=${rec.videoId}` } : {}),
+      href: `/events/${r.season}/${encodeURIComponent(r.code)}`, ...(rec ? { recording: watchHref(Number(r.season), r.code, rec.videoId) } : {}),
     };
   }));
 }

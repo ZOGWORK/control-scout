@@ -8,7 +8,7 @@
 // 44px tall (LITE_TAP_CLASSES; lite.test.ts holds the stylesheet to it).
 import { awardLabel, dateRange, int, matchTime, num, oddsPct, place, rankPct, seasonLabel } from "../../src/shared/format.js";
 import { TIER_WORD } from "../../src/shared/tierWords.js";
-import { THEME_TOKENS, type Palette, type TextSizeCookie, type ThemeCookie, type Token } from "../../src/shared/themeTokens.js";
+import { THEME_TOKENS, V8_THEME_TOKENS, type Palette, type TextSizeCookie, type ThemeCookie, type Token } from "../../src/shared/themeTokens.js";
 import type { LiteCall, LiteEvent, LiteMatch, LiteMatchRow, LitePicks, LiteSide, LiteTeam } from "./trim.js";
 
 export const esc = (s: string | number | null | undefined) =>
@@ -17,18 +17,19 @@ export const esc = (s: string | number | null | undefined) =>
 // ── Stylesheet ─────────────────────────────────────────────────────────────────────────────────────────────
 
 const VAR: Record<Token, string> = { bg: "bg", fg: "fg", card: "card", muted: "mu", mutedFg: "mf", line: "line", acc: "acc", accText: "at", accInk: "ink", red: "red", blue: "blue", ok: "ok" };
-const vars = (p: Palette) => (Object.keys(VAR) as Token[]).map((k) => `--${VAR[k]}:${THEME_TOKENS[p][k]}`).join(";");
+const tokenVars = (t: Record<Token, string>) => (Object.keys(VAR) as Token[]).map((k) => `--${VAR[k]}:${t[k]}`).join(";");
+const vars = (p: Palette) => tokenVars(THEME_TOKENS[p]);
 
 /** The classes a link may carry; each is a tap target at least 44px tall. */
 export const LITE_TAP_CLASSES = ["btn", "cell", "row", "chip"] as const;
 
-// The app's five themes (src/shared/themeTokens.ts, the values of src/index.css): dark on :root, the others on
+// The app's themes (src/shared/themeTokens.ts, the values of src/index.css): dark on :root, the others on
 // html's class as in the app, System following the device. Text size as the app's (index.css): rem sizes, the root
 // font 14px on phones and 16px wider, times this device's choice. Tap targets are in px, so they stay 44px at any size.
-export const LITE_STYLE = `:root{color-scheme:dark;${vars("dark")}}`
-  + `html.light{color-scheme:light;${vars("light")}}html.dim{${vars("dim")}}html.midnight{${vars("midnight")}}`
-  + `html.sys{color-scheme:dark light}@media(prefers-color-scheme:light){html.sys{${vars("light")}}}`
-  + `html{--b:1;--s:1;font-size:calc(100% * var(--b) * var(--s))}@media(max-width:767px){html{--b:.875}}`
+const CLASSIC_THEMES = `:root{color-scheme:dark;${vars("dark")}}`
+  + `html.light{color-scheme:light;${vars("light")}}html.dim{${vars("dim")}}`
+  + `html.sys{color-scheme:dark light}@media(prefers-color-scheme:light){html.sys{${vars("light")}}}`;
+const BASE = `html{--b:1;--s:1;font-size:calc(100% * var(--b) * var(--s))}@media(max-width:767px){html{--b:.875}}`
   + `html[data-text-size=s]{--s:.9}html[data-text-size=l]{--s:1.125}html[data-text-size=xl]{--s:1.25}`
   + `*{box-sizing:border-box}[hidden]{display:none!important}.stack>*+*{margin-top:12px}.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}`
   + `body{margin:0;background:var(--bg);color:var(--fg);font:1rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%;overflow-wrap:break-word}`
@@ -63,7 +64,46 @@ export const LITE_STYLE = `:root{color-scheme:dark;${vars("dark")}}`
   + `.row.one{grid-template-columns:minmax(0,1fr) auto}.row>.res{text-align:right;white-space:nowrap}.row .ev{grid-column:1/-1;font-size:.8125rem;color:var(--mf)}`
   + `.back{margin-top:16px}.nav{display:flex;justify-content:space-between;gap:12px;margin-top:24px}`
   + `ul.why{margin:0;padding-left:20px}ul.why li+li{margin-top:6px}`
-  + `footer{margin-top:40px;padding:24px 0 32px;border-top:1px solid var(--line);font-size:.875rem;color:var(--mf)}footer .in>*+*{margin-top:12px}`;
+  + `footer{margin-top:40px;padding:24px 0 32px;border-top:1px solid var(--line);font-size:.875rem;color:var(--mf)}footer .in>*+*{margin-top:12px}`
+  // A match row (matchList), as the app's v8 row reads: label and time, red's teams, the scores (winner bold in its
+  // colour, loser muted), blue's teams, the call (picked side and %, a thin bar, the tier, Right or Upset) and the
+  // page's team's result. Phones: teams and scores on the first line, time, call and result on the second.
+  + `.mr{grid-template-columns:2.75rem minmax(0,1fr) auto minmax(0,1fr);grid-template-areas:"l r s b" "x x x x";gap:4px 8px;min-height:44px;padding:8px 12px}`
+  + `.ml{grid-area:l}.mt{display:flex;flex-direction:column;min-width:0;font-size:.875rem;line-height:1.35}.mt.r{grid-area:r;align-items:flex-end}.mt.b{grid-area:b;align-items:flex-start}`
+  + `.ms{grid-area:s;display:flex;align-items:baseline;justify-content:center;gap:6px}.ms>span{min-width:2.25rem;font-size:1.125rem;font-weight:600;line-height:1.2}.ms>span:first-child{text-align:right}.ms>i{font-style:normal;font-size:.75rem;color:var(--mf)}`
+  + `.ms .lo,.ms .pr{color:var(--mf);font-weight:400}.ms .pr{font-size:1rem}`
+  + `.mx{grid-area:x;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;min-width:0;font-size:.8125rem}.mw{color:var(--mf);white-space:nowrap}`
+  + `.mc{display:flex;align-items:center;gap:8px;min-width:0;color:var(--mf);white-space:nowrap}.mc .r,.mc .b{font-weight:600}.rt{color:var(--fg);font-weight:600}.up{color:var(--wn,var(--mf));font-weight:600}`
+  + `.wb{display:inline-block;width:40px;height:4px;border-radius:2px;background:var(--blue);overflow:hidden}.wb i{display:block;height:100%;background:var(--red)}`
+  + `.mm{margin-left:auto;white-space:nowrap;font-weight:600}.mm.lo{color:var(--mf);font-weight:400}`
+  + `@media(min-width:768px){.mr{grid-template-columns:5.5rem minmax(0,1fr) auto minmax(0,1fr) minmax(15rem,17rem);grid-template-areas:"l r s b c" "w r s b c";gap:2px 16px;padding:8px 16px}`
+  + `.mr.my{grid-template-columns:9rem minmax(0,1fr) auto minmax(0,1fr) minmax(15rem,17rem) 4.5rem;grid-template-areas:"l r s b c m" "w r s b c m"}`
+  + `.mx{display:contents}.mw{grid-area:w;font-size:.75rem;white-space:normal}.mc{grid-area:c;justify-content:flex-end;font-size:.75rem}.mm{grid-area:m;margin-left:0;text-align:right;font-size:.75rem}}`;
+
+/** Lite in the classic look (a device that picked /legacy): the app's five themes. */
+export const LITE_STYLE = CLASSIC_THEMES + BASE;
+
+// v8 (docs/design/v8-revamp-brief.md §3, §6): near-black surfaces and hairlines (or near-white ones on Light), no yellow, the slate
+// blue only for bars, lines and the #1 rank, Inter when the device has it (no font download: one bar of signal),
+// big tabular numbers, the 90% root, plain buttons that answer a press.
+const V8_LAYER = `:root{--wn:#fb923c;--lv:#f2555a;--h1:#ffffff1f;--h2:#ffffff1a;--h3:#ffffff33}html.light{--wn:#c2410c;--lv:#c81e1e;--h1:#0000001f;--h2:#0000000d;--h3:#00000033}@media(prefers-color-scheme:light){html.sys{--wn:#c2410c;--lv:#c81e1e;--h1:#0000001f;--h2:#0000000d;--h3:#00000033}}html{--b:.9}@media(max-width:767px){html{--b:.875}}`
+  + `body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;letter-spacing:-.003em}`
+  + `.top{background:var(--bg)}.top .in{min-height:56px}.brand{gap:8px;font-weight:600;font-size:.9375rem}.brand svg{width:22px;height:22px}.brand rect{fill:none}.brand path{fill:var(--fg)}.brand i{color:var(--mf);font-weight:500}`
+  + `.btn,.chip{border-color:var(--h1);border-radius:8px;background:transparent;font-weight:500;transition:transform 160ms cubic-bezier(.23,1,.32,1)}`
+  + `.btn.p{border-color:var(--h1);background:var(--h2);color:var(--fg);font-weight:600}.chip.cur{border-color:var(--h3);background:var(--h2);color:var(--fg)}`
+  + `.btn:active,.chip:active{transform:scale(.97)}@media(prefers-reduced-motion:reduce){.btn:active,.chip:active{transform:none}}`
+  + `input{border-color:var(--h1);border-radius:8px;background:var(--mu)}`
+  + `h1{margin-top:20px;font-size:1.375rem;font-weight:600;letter-spacing:-.015em;line-height:1.27}h2{margin-bottom:10px;font-size:1rem;font-weight:600}`
+  + `th{font-size:.75rem;font-weight:500}.card,.tbl,.list,.stat{border-radius:14px}.in{max-width:62rem}@media(max-width:639px){.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.stat{padding:10px 12px}.stat b{font-size:1.375rem}}`
+  + `.stat b{font-size:1.75rem;font-weight:600;letter-spacing:-.02em;line-height:1.2}.stat span{font-size:.75rem}`
+  + `.bar{color:var(--acc)}.top1{color:var(--acc);font-weight:600}.lv{color:var(--lv)}`
+  + `.ml b,.mt{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}.ml b{font-size:.875rem}.ms>span{font-size:1.25rem}`;
+
+/** Lite in v8, the app's default look. */
+export const LITE_V8_STYLE = `:root{color-scheme:dark;${tokenVars(V8_THEME_TOKENS.dark)}}`
+  + `html.light{color-scheme:light;${tokenVars(V8_THEME_TOKENS.light)}}html.dim{${tokenVars(V8_THEME_TOKENS.dim)}}`
+  + `html.sys{color-scheme:dark light}@media(prefers-color-scheme:light){html.sys{${tokenVars(V8_THEME_TOKENS.light)}}}`
+  + BASE + V8_LAYER;
 
 // The C-mark (public/mark.png, traced; on the app icon's black tile, as the app's top bar shows it).
 const MARK = `<svg viewBox="0 0 256 256" aria-hidden="true"><rect width="256" height="256" rx="60" fill="#0a0a0b"/>`
@@ -87,10 +127,13 @@ export interface LiteView {
   sticky: boolean;
   /** This page's own address (path and query), for "Always open Lite". */
   here: string;
+  /** Drawn in v8 (the app's default look; false when this device picked the classic one: the cs-v8 cookie). Both
+   *  looks take the theme choice, as in the app. */
+  v8: boolean;
 }
-export const DEFAULT_VIEW: LiteView = { theme: "dark", textSize: null, sticky: false, here: "/lite" };
+export const DEFAULT_VIEW: LiteView = { theme: "dark", textSize: null, sticky: false, here: "/lite", v8: true };
 
-const THEME_COLOR: Record<Palette, string> = { dark: THEME_TOKENS.dark.bg, light: THEME_TOKENS.light.bg, dim: THEME_TOKENS.dim.bg, midnight: THEME_TOKENS.midnight.bg };
+const THEME_COLOR: Record<Palette, string> = { dark: THEME_TOKENS.dark.bg, light: THEME_TOKENS.light.bg, dim: THEME_TOKENS.dim.bg };
 
 /** A link that is a button: `primary` is the page's one main action (gold). */
 export const button = (href: string, text: string, primary = false, cls = "") =>
@@ -113,16 +156,18 @@ export const stickyNote = (full: string) =>
 /** The whole document. `canonical`: the full page's absolute URL (search engines index that one, not this).
  *  `noindex`: the full page is noindex (nothing on it yet but a name: server/indexable.ts), so this twin is too. */
 export function liteDocument(p: LitePage, canonical: string | null, view: LiteView = DEFAULT_VIEW, noindex = false): string {
-  const cls = view.theme === "system" ? "sys" : view.theme === "dark" ? "" : view.theme;
-  const scheme = view.theme === "system" ? "dark light" : view.theme === "light" ? "light" : "dark";
-  const color = view.theme === "system"
-    ? `<meta name="theme-color" content="${THEME_COLOR.dark}" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="${THEME_COLOR.light}" media="(prefers-color-scheme: light)">`
-    : `<meta name="theme-color" content="${THEME_COLOR[view.theme]}">`;
+  const theme = view.theme;
+  const bar = view.v8 ? (p: Palette) => V8_THEME_TOKENS[p].bg : (p: Palette) => THEME_COLOR[p];
+  const cls = theme === "system" ? "sys" : theme === "dark" ? "" : theme;
+  const scheme = theme === "system" ? "dark light" : theme === "light" ? "light" : "dark";
+  const color = theme === "system"
+    ? `<meta name="theme-color" content="${bar("dark")}" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="${bar("light")}" media="(prefers-color-scheme: light)">`
+    : `<meta name="theme-color" content="${bar(theme)}">`;
   const keep = view.sticky ? ""
     : `<p>${button(`/lite/on?next=${encodeURIComponent(view.here)}`, "Always open Lite")}</p><p>Pages with a Lite version then open in Lite every time, until you turn it off.</p>`;
-  return `<!doctype html><html lang="en"${cls ? ` class="${cls}"` : ""}${view.textSize ? ` data-text-size="${view.textSize}"` : ""}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
+  return `<!doctype html><html lang="en"${cls ? ` class="${cls}"` : ""}${view.v8 ? " data-v8" : ""}${view.textSize ? ` data-text-size="${view.textSize}"` : ""}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${esc(p.title)} · Control Scout Lite</title>${canonical ? `<link rel="canonical" href="${esc(canonical)}">` : ""}${noindex ? `<meta name="robots" content="noindex">` : ""}`
-    + `<meta name="color-scheme" content="${scheme}">${color}<style>${LITE_STYLE}</style></head><body>`
+    + `<meta name="color-scheme" content="${scheme}">${color}<style>${view.v8 ? LITE_V8_STYLE : LITE_STYLE}</style></head><body>`
     + header(p.full, view) + `<main class="in">${view.sticky ? stickyNote(p.full) : ""}${p.body}</main>`
     + `<footer><div class="in"><p>Control Scout Lite: text only, for a weak signal. The same data and predictions as the full version.</p>${keep}</div></footer></body></html>`;
 }
@@ -170,26 +215,49 @@ function callText(c: LiteCall, tier = true): string {
   return `<span class="${red ? "r" : "b"}">${red ? "Red" : "Blue"} ${esc(oddsPct(red ? c.pRed : 1 - c.pRed))}</span>${tier ? `<small>${esc(TIER_WORD[c.tier] ?? c.tier)}</small>` : ""}`;
 }
 
-function result(m: LiteMatchRow): string {
+/** One alliance's score in a row: the winner bold in its colour, the loser muted; unplayed, the predicted score muted
+ *  (an estimate, never a result), or a dash. */
+function rowScore(m: LiteMatchRow, side: "red" | "blue"): string {
+  const cls = side === "red" ? "r" : "b";
   if (m.score) {
-    const { red, blue } = m.score;
-    return `<span class="r${red > blue ? " w" : ""}">${red}</span>–<span class="b${blue > red ? " w" : ""}">${blue}</span>`;
+    const own = m.score[side], opp = m.score[side === "red" ? "blue" : "red"];
+    return `<span class="${own > opp ? `${cls} w` : own < opp ? "lo" : cls}">${own}</span>`;
   }
-  return m.call ? callText(m.call) : `<span class="m">—</span>`;
+  const p = m.call?.[side];
+  return p != null ? `<span class="pr" title="Predicted score">~${Math.round(p)}</span>` : `<span class="pr">–</span>`;
 }
 
-/** An alliance's teams, named for screen readers (the colour alone doesn't say which); one listed but not on the field (a playoff alliance's fourth robot) in brackets, muted. */
-const teamsLine = (teams: number[], off: number[], cls: string) =>
-  `<span class="${cls}"><span class="vh">${cls === "r" ? "Red" : "Blue"}: </span>${teams.map((t) => (off.includes(t) ? `<span class="m">(${t})</span>` : String(t))).join(" ")}</span>`;
+/** Whether the call was right, once played: null before, on a tie, or with no favourite. */
+const callRight = (c: LiteCall, score: { red: number; blue: number } | null) =>
+  score && score.red !== score.blue && c.pRed !== 0.5 ? (c.pRed > 0.5) === (score.red > score.blue) : null;
+const rightWord = (right: boolean | null) => (right == null ? "" : right ? `<span class="rt">✓ Right</span>` : `<span class="up">✗ Upset</span>`);
 
-/** Matches as a list: each row opens the match. Label and time, both alliances, then the score or the call. */
-export function matchList(matches: (LiteMatchRow & { code?: string })[], season: number, code: string | null, empty: string, withEvent = false): string {
+/** The call in a row: the picked side and its chance, a thin bar (red's share of the odds), the tier, Right or Upset. */
+function rowCall(m: LiteMatchRow): string {
+  const c = m.call;
+  if (!c) return m.played ? `<span class="mc">No call</span>` : "";
+  const red = c.pRed >= 0.5;
+  return `<span class="mc"><span>Picked <span class="${red ? "r" : "b"}">${red ? "Red" : "Blue"} ${esc(oddsPct(red ? c.pRed : 1 - c.pRed))}</span></span>`
+    + `<span class="wb" aria-hidden="true"><i style="width:${Math.round(c.pRed * 100)}%"></i></span><span>${esc(TIER_WORD[c.tier] ?? c.tier)}</span>${rightWord(callRight(c, m.score))}</span>`;
+}
+
+/** An alliance's teams, one a line, named for screen readers (the colour alone doesn't say which); one listed but not
+ *  on the field (a playoff alliance's fourth robot) in brackets, muted; the page's own team bold. */
+const teamsLine = (teams: number[], off: number[], cls: string, mine?: number) =>
+  `<span class="mt ${cls}"><span class="vh">${cls === "r" ? "Red" : "Blue"}: </span>${teams.map((t) => (off.includes(t) ? `<span class="m">(${t})</span>` : t === mine ? `<span class="w">${t}</span>` : `<span>${t}</span>`)).join("")}</span>`;
+
+/** Matches as a list: each row opens the match (.mr in the stylesheet). `withEvent`: the event's code beside the time
+ *  (a team's matches across events). `mine`: the page's team, whose result ends each played row. */
+export function matchList(matches: (LiteMatchRow & { code?: string })[], season: number, code: string | null, empty: string, withEvent = false, mine?: number): string {
   return list(matches.map((m) => {
     const c = m.code ?? code!;
-    return listRow(liteMatchPath(season, c, m.key),
-      `<span><b>${esc(m.label)}</b><small>${esc(matchTime(m.time) || "—")}</small></span>`
-      + `<span>${teamsLine(m.red, m.off, "r")}<br>${teamsLine(m.blue, m.off, "b")}</span><span class="res">${result(m)}</span>`
-      + (withEvent ? `<span class="ev">${esc(c)}</span>` : ""));
+    const side = mine == null ? null : m.red.includes(mine) ? "red" : m.blue.includes(mine) ? "blue" : null;
+    const res = side && m.score ? (m.score.red === m.score.blue ? "tied" : (m.score.red > m.score.blue) === (side === "red") ? "won" : "lost") : null;
+    const when = [withEvent ? c : "", matchTime(m.time)].filter(Boolean).join(" · ") || "—";
+    return `<a class="row mr${mine != null ? " my" : ""}" href="${esc(liteMatchPath(season, c, m.key))}">`
+      + `<span class="ml"><b>${esc(m.label)}</b></span>${teamsLine(m.red, m.off, "r", mine)}`
+      + `<span class="ms">${rowScore(m, "red")}<i aria-hidden="true">–</i>${rowScore(m, "blue")}</span>${teamsLine(m.blue, m.off, "b", mine)}`
+      + `<span class="mx"><span class="mw">${esc(when)}</span>${rowCall(m)}${res ? `<span class="mm${res === "won" ? "" : " lo"}">${mine} ${res}</span>` : ""}</span></a>`;
   }), empty);
 }
 /** The key to bracketed teams, under a list that has any. */
@@ -201,21 +269,24 @@ export function eventPage(e: LiteEvent, full: string): LitePage {
   const played = e.matches.filter((m) => m.played).length;
   const status = e.status === "live" ? "On now" : e.status === "finished" ? "Finished" : "Upcoming";
   const ranked = e.teams.some((t) => t.rank != null);
-  const teamRows = e.teams.map((t) => `<tr><td class="n">${t.rank ?? "—"}</td><td>${cellLink(liteTeamPath(t.team, e.season), String(t.team), esc(t.name ?? ""))}</td>`
+  const teamRows = e.teams.map((t) => `<tr><td class="n${t.rank === 1 ? " top1" : ""}">${t.rank ?? "—"}</td><td>${cellLink(liteTeamPath(t.team, e.season), String(t.team), esc(t.name ?? ""))}</td>`
     + (ranked ? `<td class="n">${wlt(t.wins, t.losses, t.ties)}</td><td class="n">${num(t.rs, 2)}</td>` : "") + `<td class="n">${num(t.opr)}</td></tr>`);
   const teamHead = `<th class="n">#</th><th>Team</th>${ranked ? `<th class="n">W-L-T</th><th class="n" title="Ranking score: average ranking points a match">RS</th>` : ""}<th class="n">OPR</th>`;
   const awards = e.awards.map((a) => `<tr><td>${esc(awardLabel(a.type, a.placement))}</td><td class="n">${cellLink(liteTeamPath(a.team, e.season), String(a.team))}</td></tr>`);
   const rankNote = ranked && e.meet ? "This meet's own standing, from its matches alone. RS: ranking score, the average ranking points a match. The league's running standing is on the full page."
     : ranked ? "RS: ranking score, the average ranking points a match." : "";
+  // At a live event the matches lead (what's on, what's next); before and after it, the standing does.
+  const matches = section("Matches", matchList(e.matches, e.season, e.code, "No schedule published yet.") + offNote(e.matches)
+    + (e.matches.some((m) => !m.played && m.call) ? note("Matches not yet played show the predicted score muted, the favourite's win odds and how sure the call is.") : ""));
   const body = title(esc(e.name), esc([e.typeLabel, dateRange(e.start, e.end), place(e.city, e.state, e.country)].filter(Boolean).join(" · ")))
     + stats([stat(status, seasonLabel(e.season)), stat(String(e.teams.length), "teams"), stat(`${played}/${e.matches.length}`, "matches played")])
     + (e.checkedAt ? note(`Results checked ${esc(matchTime(e.checkedAt))}. Reload the page for newer ones.`) : "")
+    + (e.status === "live" ? matches : "")
     + section(ranked ? "Rankings" : e.registered ? "Registered teams" : "Teams", table(teamHead, teamRows, "No team list published yet.")
       + (e.registered ? note("FIRST's registration list: it can still change before the event.") : "") + (rankNote ? note(rankNote) : ""))
     + (e.alliances.length ? section("Alliances", table(`<th class="n">#</th><th>Teams</th>`,
       e.alliances.map((a) => `<tr><td class="n">${a.number}</td><td>${chips(a.teams.map((t) => ({ href: liteTeamPath(t, e.season), text: String(t) })))}</td></tr>`), "")) : "")
-    + section("Matches", matchList(e.matches, e.season, e.code, "No schedule published yet.") + offNote(e.matches)
-      + (e.matches.some((m) => !m.played && m.call) ? note("Matches not yet played show the favourite's win odds and how sure the call is.") : ""))
+    + (e.status === "live" ? "" : matches)
     + (awards.length ? section("Awards", table(`<th>Award</th><th class="n">Team</th>`, awards, "")) : "");
   return { title: e.name, full, body };
 }
@@ -230,11 +301,12 @@ export function teamPage(t: LiteTeam, full: string): LitePage {
   const others = t.seasons.filter((x) => x !== t.season);
   const body = title(esc(name), esc([t.school, place(t.city, t.state, t.country), t.rookieYear ? `rookie year ${t.rookieYear}` : null].filter(Boolean).join(" · ")))
     + `<p class="sub">${esc(seasonLabel(t.season))} season</p>`
+    // At a venue the next match is the question: it leads, then the season's numbers and the latest results.
+    + (t.next.length ? section("Next matches", matchList(t.next, t.season, null, "", true, t.number)) : "")
     + (s ? stats([stat(num(s.opr.np), top ? `OPR · ${top}` : "OPR"), stat(wlt(s.record.wins, s.record.losses, s.record.ties), `record, ${s.record.events} event${s.record.events === 1 ? "" : "s"}`),
       stat(num(s.opr.auto), "auto"), stat(num(s.opr.teleop), "TeleOp"), stat(num(s.opr.endgame), "endgame"), ...(s.ratingRank != null ? [stat(`#${int(s.ratingRank)}`, "rating rank")] : [])])
       : `<div class="sec">${card(`<p class="m">No ${esc(seasonLabel(t.season))} results yet.</p>`)}</div>`)
-    + (t.next.length ? section("Next matches", matchList(t.next, t.season, null, "", true)) : "")
-    + (t.recent.length ? section("Latest results", matchList(t.recent, t.season, null, "", true)) : "")
+    + (t.recent.length ? section("Latest results", matchList(t.recent, t.season, null, "", true, t.number)) : "")
     + offNote([...t.next, ...t.recent])
     + section("Events", table(`<th>Event</th><th class="n">Rank</th><th class="n">W-L-T</th><th class="n">OPR</th>`, eventRows, "No events this season yet."))
     + (others.length ? section("Other seasons", chips(others.map((x) => ({ href: liteTeamPath(t.number, x), text: seasonLabel(x) })))) : "");
@@ -259,7 +331,7 @@ export function matchPage(m: LiteMatch, full: string): LitePage {
   const headline = r && b
     ? stats([stat(String(r.total), `Red${r.total > b.total ? " wins" : ""}`, "r"), stat(String(b.total), `Blue${b.total > r.total ? " wins" : ""}`, "b")])
     : c ? stats([stat(oddsPct(c.pRed), "Red wins", "r"), stat(oddsPct(1 - c.pRed), "Blue wins", "b"), ...(c.red != null && c.blue != null ? [stat(`${int(c.red)}–${int(c.blue)}`, "predicted score")] : [])]) : "";
-  const call = c ? section(m.played ? "The call" : "Favourite", card(`<p>${callText(c, false)} <span class="m">· confidence ${esc((TIER_WORD[c.tier] ?? c.tier).toLowerCase())}, ${esc(KIND[c.kind])}</span></p>`
+  const call = c ? section(m.played ? "The call" : "Favourite", card(`<p>${callText(c, false)} ${m.played && r && b ? `${rightWord(callRight(c, { red: r.total, blue: b.total }))} ` : ""}<span class="m">· confidence ${esc((TIER_WORD[c.tier] ?? c.tier).toLowerCase())}, ${esc(KIND[c.kind])}</span></p>`
     + (c.redRange && c.blueRange ? `<p class="m s">Likely range: red ${c.redRange[0]}–${c.redRange[1]}, blue ${c.blueRange[0]}–${c.blueRange[1]}</p>` : "")
     + (m.reasons.length ? `<ul class="why">${m.reasons.slice(0, 3).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""))) : "";
   const sheet = m.sheet?.length

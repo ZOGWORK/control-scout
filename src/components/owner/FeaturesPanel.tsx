@@ -3,7 +3,7 @@
 // nothing is deleted; a workspace's own setting (workspace-scoped toggles) applies at once, with a toast. The
 // console itself is never behind any of these.
 import { useMemo, useState } from "react";
-import { ChartBarBig, ClipboardList, Coins, Dices, Dog, Download, Gavel, Globe, Luggage, MessageCircle, Power, PowerOff, Route, Search, Sparkles, Trophy, TrendingUp, Users, type LucideIcon, Swords } from "lucide-react";
+import { AudioWaveform, ChartBarBig, ClipboardList, Coins, Dices, Dog, Sunset, Download, Gavel, Globe, Luggage, MessageCircle, Power, PowerOff, Route, Search, Sparkles, Trophy, TrendingUp, Users, type LucideIcon, Swords } from "lucide-react";
 import { Section } from "../page";
 import { Async } from "../states";
 import { Badge, Input } from "../ui/basic";
@@ -15,33 +15,57 @@ import { cn } from "../cn";
 import { apiFetch, prime, useApi, type ApiError } from "../../lib/api";
 import { refreshFlags } from "../../lib/flags";
 import { ago } from "../../lib/format";
-import { FLAG_INFO, type Flag } from "../../shared/flags";
+import { APPEARANCE_FLAGS, FLAG_INFO, type Flag } from "../../shared/flags";
+import { setV8, useIsV8 } from "../../lib/v8";
 import type { OwnerFlag, OwnerFlags } from "../../shared/owner";
 
 export const FLAGS_PATH = "/api/owner/flags";
 
 /** Each feature toggle's colour and icon (literal classes, so Tailwind keeps them). */
 const LOOK: Partial<Record<Flag, { icon: LucideIcon; chip: string; edge: string }>> = {
-  livePredictions: { icon: Sparkles, chip: "bg-accent/15 text-accent-text", edge: "border-l-accent" },
+  livePredictions: { icon: Sparkles, chip: "bg-accent/15 text-accent-text v8:text-accent", edge: "border-l-accent" },
   advancementOdds: { icon: TrendingUp, chip: "bg-info/15 text-info", edge: "border-l-info" },
   bracketOdds: { icon: Swords, chip: "bg-rose-500/15 text-rose-600 dark:text-rose-300", edge: "border-l-rose-500" },
   powerRankings: { icon: Trophy, chip: "bg-warning/15 text-warning", edge: "border-l-warning" },
-  coinFlips: { icon: Coins, chip: "bg-success/15 text-success", edge: "border-l-success" },
+  coinFlips: { icon: Coins, chip: "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400", edge: "border-l-success" },
   factorSheet: { icon: ChartBarBig, chip: "bg-rose-500/15 text-rose-500 dark:text-rose-300", edge: "border-l-rose-500" },
   offlinePacks: { icon: Download, chip: "bg-info/15 text-info", edge: "border-l-info" },
   eventBundle: { icon: Luggage, chip: "bg-warning/15 text-warning", edge: "border-l-warning" },
   discordBot: { icon: MessageCircle, chip: "bg-violet-500/15 text-violet-500 dark:text-violet-300", edge: "border-l-violet-500" },
-  seasonRoadMap: { icon: Route, chip: "bg-accent/15 text-accent-text", edge: "border-l-accent" },
+  seasonRoadMap: { icon: Route, chip: "bg-accent/15 text-accent-text v8:text-accent", edge: "border-l-accent" },
   workspaceScouting: { icon: ClipboardList, chip: "bg-danger/15 text-danger", edge: "border-l-danger" },
   scheduleDifficulty: { icon: Dices, chip: "bg-rose-500/15 text-rose-500 dark:text-rose-300", edge: "border-l-rose-500" },
   rulesReference: { icon: Gavel, chip: "bg-orange-500/15 text-orange-500", edge: "border-l-orange-500" },
-  dogTheme: { icon: Dog, chip: "bg-accent/15 text-accent-text", edge: "border-l-accent" },
+  dogTheme: { icon: Dog, chip: "bg-accent/15 text-accent-text v8:text-accent", edge: "border-l-accent" },
+  particleWave: { icon: AudioWaveform, chip: "bg-sky-500/15 text-sky-500 dark:text-sky-300", edge: "border-l-sky-500" },
+  pageEndGlow: { icon: Sunset, chip: "bg-orange-500/15 text-orange-500", edge: "border-l-orange-500" },
 };
 
 /** How many workspaces the overrides list shows before asking for a search. */
 const LIST_MAX = 25;
 
-export function FeaturesPanel() {
+/** The look, the owner's choice alone (src/lib/ownerLook.tsx): visitors always get the new one, and Settings no longer
+ *  offers it. Kept on this device, like /legacy (which this replaces as the way in). */
+function LookSwitch() {
+  const v8 = useIsV8();
+  return (
+    <Section title="Look on this device" description="Visitors always get the new look; only you can switch, here. Kept on this device.">
+      <div data-owner-look className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+        <div className="min-w-0">
+          <p className="font-medium text-foreground">{v8 ? "New look" : "Classic look"}</p>
+          <p className="text-sm text-muted-foreground">{v8 ? "Calmer and darker, each page built around what you came for." : "Control Scout as it was, yellow accents and all."}</p>
+        </div>
+        <Button variant="outline" size="sm" className="max-sm:h-[44px]" onClick={() => setV8(!v8, "/owner?panel=appearance")}>
+          Switch to the {v8 ? "classic" : "new"} look
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
+/** `appearance`: only the toggles that change how pages look (the Appearance tab); otherwise every other toggle and the
+ *  kill switches (the Features tab). */
+export function FeaturesPanel({ appearance = false }: { appearance?: boolean } = {}) {
   const state = useApi<OwnerFlags>(FLAGS_PATH);
   const [ask, setAsk] = useState<{ flag: OwnerFlag; enabled: boolean } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -51,7 +75,7 @@ export function FeaturesPanel() {
     try {
       const r = await apiFetch<OwnerFlags>(`${FLAGS_PATH}/${f.name}`, { method: "PUT", json: { enabled, confirm: true } });
       prime(FLAGS_PATH, r);
-      void refreshFlags();
+      void refreshFlags({ fresh: true });
       toast.success(`${FLAG_INFO[f.name].label} ${enabled ? "on" : "off"} everywhere. Every server has it within a few seconds.`);
       setAsk(null);
     } catch (e) {
@@ -61,15 +85,16 @@ export function FeaturesPanel() {
 
   return (
     <>
+      {appearance && <LookSwitch />}
       <Async state={state}>
         {(d) => {
-          const features = d.flags.filter((f) => f.group === "feature");
+          const features = d.flags.filter((f) => f.group === "feature" && APPEARANCE_FLAGS.includes(f.name) === appearance);
           const kills = d.flags.filter((f) => f.group === "kill");
           const off = features.filter((f) => !f.enabled).length;
           return (
             <>
-              <Section title="Feature toggles"
-                description={<>Switch a feature off for everyone, and back on, without a deploy. The server refuses it while it's off (pages say it's switched off for now), and nothing is deleted: switching back on brings everything back as it was. {off ? <strong className="text-foreground">{off} of {features.length} off right now.</strong> : `All ${features.length} on.`}</>}>
+              <Section title={appearance ? "Background effects" : "Feature toggles"}
+                description={<>{appearance ? "The moving particles and the page-end glow behind the new look, and the dog theme. Each switch is for everyone." : "Switch a feature off for everyone, and back on, without a deploy. Your data stays available when you switch a feature back on."} {off ? <strong className="text-foreground">{off} of {features.length} off right now.</strong> : `All ${features.length} on.`}</>}>
                 <ul className="grid gap-3 lg:grid-cols-2">
                   {features.map((f) => (
                     <FeatureCard key={f.name} f={f} busy={busy === f.name} onFlip={(enabled) => setAsk({ flag: f, enabled })}>
@@ -78,11 +103,11 @@ export function FeaturesPanel() {
                   ))}
                 </ul>
               </Section>
-              <Section title="Kill switches" description="Operational switches for parts of the app that depend on other services or run in the background. Each one is global.">
+              {!appearance && <Section title="Kill switches" description="Operational switches for parts of the app that depend on other services or run in the background. Each one is global.">
                 <ul className="divide-y divide-border rounded-xl border border-border bg-card">
                   {kills.map((f) => <KillSwitchRow key={f.name} f={f} busy={busy === f.name} onFlip={(enabled) => setAsk({ flag: f, enabled })} />)}
                 </ul>
-              </Section>
+              </Section>}
             </>
           );
         }}
@@ -95,7 +120,7 @@ export function FeaturesPanel() {
                 <DialogTitle>Turn {FLAG_INFO[ask.flag.name].label.toLowerCase()} {ask.enabled ? "on" : "off"} for everyone?</DialogTitle>
                 <DialogDescription>{ask.enabled ? FLAG_INFO[ask.flag.name].on : FLAG_INFO[ask.flag.name].off}</DialogDescription>
               </DialogHeader>
-              <p className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-foreground">
+              <p className="rounded-lg border border-success/30 v8:border-emerald-400/30 bg-success/10 v8:bg-emerald-400/10 px-3 py-2 text-sm text-foreground">
                 {ask.enabled ? "Everything that was kept while it was off is back as it was." : "Nothing is deleted. Switching it back on restores everything exactly as it was."}
                 {ask.flag.scope === "workspace" && " Workspaces with their own setting keep it."}
               </p>
@@ -117,7 +142,7 @@ const changed = (f: OwnerFlag) => (f.updatedAt ? `Changed ${ago(f.updatedAt)} by
 
 function FeatureCard({ f, busy, onFlip, children }: { f: OwnerFlag; busy: boolean; onFlip: (enabled: boolean) => void; children?: React.ReactNode }) {
   const info = FLAG_INFO[f.name];
-  const look = LOOK[f.name] ?? { icon: Power, chip: "bg-accent/15 text-accent-text", edge: "border-l-accent" };
+  const look = LOOK[f.name] ?? { icon: Power, chip: "bg-accent/15 text-accent-text v8:text-accent", edge: "border-l-accent" };
   const Icon = look.icon;
   const id = `feature-${f.name}`;
   return (
@@ -215,7 +240,7 @@ function WorkspaceOverrides({ flag, data }: { flag: OwnerFlag; data: OwnerFlags 
                 <li key={w.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5" data-workspace={w.id}>
                   <div className="min-w-0 flex-1 basis-40">
                     <p className="truncate text-sm font-medium text-foreground">{w.name || "Unnamed workspace"}</p>
-                    <p className={cn("text-xs", effective ? "text-success" : "text-danger")}>{effective ? "On" : "Off"}{o ? " (its own setting)" : " (follows global)"}</p>
+                    <p className={cn("text-xs", effective ? "text-success v8:text-emerald-400" : "text-danger")}>{effective ? "On" : "Off"}{o ? " (its own setting)" : " (follows global)"}</p>
                   </div>
                   <ToggleGroup type="single" value={value} disabled={busy === w.id} aria-label={`${info.label} for ${w.name || "this workspace"}`}
                     onValueChange={(v) => { if (v && v !== value) void set(w, v as Setting); }} className="shrink-0">

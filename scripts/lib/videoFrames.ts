@@ -1,5 +1,8 @@
 // The pure parts of scripts/video-frames.ts: reading FTC Live's overlay text, the timer's elapsed time, and placing a
 // video's matches from the frames read. Kept apart so they can be tested without a browser.
+// The constants the server's row rules share (server/data/frameRowRules.ts): one definition, re-exported here.
+import { NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText } from "../../server/data/frameRowRules.js";
+export { NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText };
 
 /** A played match: its label and its real start (epoch seconds, from FIRST's actual start time). */
 /** A match the video holds: its label and its start (epoch seconds). `scheduled`: FIRST gives only its scheduled time
@@ -52,8 +55,6 @@ export function enteredLater(
   });
 }
 
-/** Two reads closer than this (seconds) are the same distance: the timer reads to the second, and the frame read lags it. */
-export const SAME_S = 6;
 /** The most frames read looking for one match. */
 export const TRIES = 7;
 /** Reads a match between two reads gets of its own once the video's budget is spent: each side's tries and a confirm. */
@@ -117,6 +118,26 @@ export function autoLeadsTo(left: number, later: number, reading: number): boole
 export function sameMatch(named: string, label: string): boolean {
   if (/^M\d+-\d+$/.test(named)) return (/^M\d+$/.test(label) ? `${label}-1` : label) === named;
   return named === label.replace(/-\d+$/, "");
+}
+
+/** Whether a clip's opening frame sits on the overlay's switch to its match: the frame a second before it names another
+ *  match (`before`, that frame's overlayLabel). A paused seek there can land either side of the switch, so the opening
+ *  can show the match before in one player and its own in another (USMOKSCMP 2023 Q9 at 4004 s: "Qualification 9 of
+ *  54" on one read, "Qualification 8 of 54" on the next). Such a lead isn't used; the next one in, clear of the switch,
+ *  is. A frame before that names nothing (a transition, a cutaway) or the same match is no switch. */
+export function onSwitch(before: string | null, label: string): boolean {
+  return !!before && !sameMatch(before, label);
+}
+
+/** The frame a second before an opening lead that names its match (checkOpenings), at `t`:
+ *  - "switch": the overlay is switching onto the match there, so the lead isn't used: the frame names another match
+ *    (onSwitch), or a sibling division's match on a stream two divisions share (a paused seek at the lead can show it).
+ *  - "failed": that read failed (null), so, as with a failed opening read, the openings left go unchecked.
+ *  - "kept": no switch there: nothing named, the same match, or a seek that didn't land at `t`. */
+export function beforeLead(before: { at: number; label: string | null; division?: "own" | "other" | null } | null, t: number, label: string): "switch" | "failed" | "kept" {
+  if (!before) return "failed";
+  if (Math.abs(before.at - t) > 1) return "kept";
+  return before.division === "other" || onSwitch(before.label, label) ? "switch" : "kept";
 }
 
 /** A frame's match (overlayLabel) as the event names it, where that's one match: a semifinal's first match ("M2-1")
@@ -275,6 +296,20 @@ export const cropOrder = <T>(crops: readonly T[], first?: T | null): T[] =>
  *  "0", TeleOp's "120" to "0"): one to three digits and nothing else, at most TeleOp's 120. A colon is another bar's
  *  timer, never this one. */
 export const secondsPlain =(s: string) => { const m = /^\d{1,3}$/.exec(s.replace(/\s/g, "")); return m && Number(m[0]) <= TELEOP_S ? Number(m[0]) : null; };
+/** The places timer() reads in, in turn: the box (timerDigits) first where the label came from the top row or the box ran
+ *  last (`first` the top bar's crop or "box"; that crop reads the icon on USNVCMP 2023's top bar); else the crops
+ *  (cropOrder), the box, then the bar's upper half ("band"). */
+export function timerSteps<C>(crops: readonly C[], first: C | "box" | null | undefined, topBar: C): (C | "box" | "band")[] {
+  const ordered = cropOrder(crops, first === "box" ? null : first);
+  return first === "box" || first === topBar ? ["box", ...ordered, "band"] : [...ordered, "box", "band"];
+}
+/** After a box whose digits didn't read: not the top bar's crop nor the band half, which read the icon under them. */
+export const afterUnreadBox = <C>(step: C | "box" | "band", topBar: C) => step !== topBar && step !== "band";
+/** The box's digits: bare seconds up to 2022 ("112" is 112 s, not the loose 1:12), a clock after; a score ("150"): none. */
+export function boxSeconds(text: string, plain: boolean): { where: "bottom" | "plain"; left: number } | null {
+  const left = plain ? secondsPlain(text) : secondsOf(text) ?? secondsLoose(text);
+  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: plain ? "plain" : "bottom", left };
+}
 
 /** Seconds since the match started, from its timer (where it's running: a timer standing at its full time is a match
  *  not started yet). Either bar counts Auto down from 0:30, then TeleOp from 2:00, so a reading of 0:30 or less is Auto
@@ -327,25 +362,12 @@ export type Judged = {
   opens: Map<string, number>;
 };
 
-/** Why a match is missing when no frame of its video could be read at all. */
-export const NOTHING_READ = "no frame of the video could be read";
 /** A match FIRST gives only a scheduled time for (M.scheduled) that no frame walked through the video showed running. */
 export const SCHEDULED_UNREAD = "no start time from FIRST, and no frame of it read";
 
 /** The least a match can take in a video: 30 s Auto, 8 s switch, 2:00 TeleOp. Two placed starts closer than this
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
-/** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match.
- *  The 2 and 0 open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
- *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. The last two open
- *  just after it, where nothing before the start names the match: an upload cut from one match's results straight into
- *  the next match's first second (USMOKSKCM2 2021 Q15: Q14's results at 4651 s, Q15's Auto running at 4657 s), so the
- *  clip opens 2 or 4 s into its match rather than not at all. Still only on a frame that names it. */
-export const OPEN_LEADS = [20, 12, 5, 2, 0, -2, -4];
-/** OPEN_LEADS in words, for checks and summaries. */
-export const OPEN_LEADS_TEXT = "20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it";
-/** Where a clip opens against its match's start, in words: "12 s before its start", "2 s after its start". */
-export const leadText = (lead: number): string => (lead >= 0 ? `${lead} s before its start` : `${-lead} s after its start`);
 
 /** Where a clip opens: OPEN_LEADS in order, the first second whose frame names the match (`names` reads it: true names
  *  it, false doesn't, "stop" when the read failed and no more are tried). Every lead-in second (20 … 0 s before) is
@@ -677,6 +699,66 @@ export function overlayBand(px: ArrayLike<number>, width: number, height: number
 }
 
 /**
+ * The timer's digits in a score bar found in the frame (overlayBand): the light box between the two alliances' scores,
+ * and in it the tallest run of inked rows, the digits (the icon over or under them, a robot or a gamepad, is shorter).
+ * Null where no such box stands at the bar's centre (`cx`). Self-contained, as it runs in the page too (`toString`).
+ *
+ * Found from the bar, not at a fixed place: the band overlayBand finds can be only the bar's lower half (Nevada 2023,
+ * whose timer box stands above the coloured band), where a crop of the band's upper half reads the robot icon's row.
+ * The box is the neutral run (white, and the digits' black) round the centre between the alliance colours; its top and
+ * bottom are where the pixels just inside its edges stop being light (the digits never reach the edges). Only round the
+ * centre: a field monitor shows the same white timer box off to one side. Digits over MAX_H (90) rows tall are no
+ * timer's (a timer's are about 45): a white slide or results card at the centre reads as one tall box, and that much
+ * page sent to the one-line digit reader stalled it (a frame read hung on 3 of 4 full 2023 runs).
+ */
+export function timerDigits(px: ArrayLike<number>, width: number, height: number, band: { top: number; bottom: number }, cx = width / 2): { x: number; y: number; width: number; height: number } | null {
+  const rgb = (x: number, y: number) => { const i = (y * width + x) * 4; return [px[i], px[i + 1], px[i + 2]]; };
+  // Grey, white or black: a dark navy (47, 65, 77) is a colour. Brightness is judged against the box's own (`level`): a
+  // paused frame's box can be a mid grey (Nevada 2023 about 130, Arizona about 110), not white.
+  const neutral = (x: number, y: number) => { const c = rgb(x, y); return Math.max(...c) - Math.min(...c) <= 20; };
+  const bright = (x: number, y: number) => { const c = rgb(x, y); return (c[0] + c[1] + c[2]) / 3; };
+  const MIN_W = 60, MAX_W = 260, MAX_H = 90;
+  const mid = Math.round(cx), tall = band.bottom - band.top;
+  let box: { x0: number; x1: number; y: number; level: number } | null = null;
+  // A row in the band's upper half where the centre is neutral out to a colour on both sides, a box's width apart,
+  // with lighter edges (not a dark grey strip: the box's edges are its ground, never ink).
+  for (let y = Math.max(0, band.top + 2); !box && y < Math.min(height, band.top + Math.max(3, Math.round(tall / 2))); y++) {
+    if (!neutral(mid, y)) continue;
+    let x0 = mid, x1 = mid;
+    while (x0 - 1 >= 0 && mid - x0 < MAX_W && neutral(x0 - 1, y)) x0--;
+    while (x1 + 1 < width && x1 - mid < MAX_W && neutral(x1 + 1, y)) x1++;
+    const w = x1 - x0 + 1;
+    if (w < MIN_W || w > MAX_W || x0 === 0 || x1 === width - 1) continue;
+    const edges = [2, 3, 4, 5, 6].flatMap((d) => [bright(x0 + d, y), bright(x1 - d, y)]);
+    const level = edges.reduce((a, b) => a + b, 0) / edges.length;
+    if (level >= 80) box = { x0, x1, y, level };
+  }
+  if (!box) return null;
+  const { x0, x1, level } = box;
+  const light = (x: number, y: number) => neutral(x, y) && bright(x, y) >= level * 0.75;
+  const dark = (x: number, y: number) => bright(x, y) < level * 0.6;
+  // Its rows: on from the seed row while the pixels just inside both edges stay light.
+  const inside = (y: number) => [x0 + 2, x0 + 4, x1 - 2, x1 - 4].filter((x) => light(x, y)).length >= 3;
+  let top = box.y, bottom = box.y;
+  while (top - 1 >= 0 && inside(top - 1)) top--;
+  while (bottom + 1 < height && inside(bottom + 1)) bottom++;
+  if (bottom - top + 1 < 20) return null;
+  // The tallest run of inked rows across the box (gaps of up to 2 rows bridged).
+  const ink = (y: number) => { let n = 0; for (let x = x0 + 6; x <= x1 - 6; x++) if (dark(x, y)) n++; return n / (x1 - x0 - 11) >= 0.04; };
+  let best: { top: number; bottom: number } | null = null, run = -1, last = -1;
+  for (let y = top; y <= bottom + 1; y++) {
+    if (y <= bottom && ink(y)) { if (run < 0 || y - last > 3) run = y; last = y; continue; }
+    if (run >= 0 && (y - last > 2 || y > bottom)) {
+      if (!best || last - run > best.bottom - best.top) best = { top: run, bottom: last };
+      run = -1;
+    }
+  }
+  if (!best || best.bottom - best.top + 1 < 12 || best.bottom - best.top + 1 > MAX_H) return null;
+  const y = Math.max(top, best.top - 4), y1 = Math.min(bottom, best.bottom + 4);
+  return { x: x0, y, width: x1 - x0 + 1, height: y1 - y + 1 };
+}
+
+/**
  * The row over a score bar found in the frame (overlayBand), where FTC Live names the match: as tall as the usual row
  * (`usual`, over the bottom bar), cut at the frame's top. Null where it would be the usual row again (a bar where the
  * bottom bar always is), or there's no room over the bar for a line of text.
@@ -712,6 +794,41 @@ export function leadIn(at: number, i: number, windows: { start: number | null; e
   if (windows.some((w) => w.start != null && w.start <= at && (w.end == null || at <= w.end))) return false;
   return !windows.some((w, k) => k !== i && w.start != null && at < w.start && w.start < from);
 }
+
+/**
+ * An event's linked recordings the reader can't read, each said, never dropped quietly (KZCMP 2022's two day-2 videos
+ * were linked with no details, and the read went over day 1 alone as if it were the whole event).
+ * `fixable`: fetching YouTube's details again would let it be read: none on file, or the fetch failed. A video YouTube
+ * says is unavailable (removed or private), or one with no length (a live stream the player can't time: looked at again
+ * next run), is said but isn't fixable by fetching.
+ * `fails`: none of the event's videos can be read and at least one is fixable; never for an event whose only video is
+ * gone or still live, which would fail every run.
+ */
+export function undetailed(videos: readonly { videoId: string; meta?: { status?: string; length?: number | null } | null }[]): { skipped: { videoId: string; why: string; fixable: boolean }[]; fails: boolean } {
+  const skipped = videos.filter((v) => v.meta?.status !== "ok" || !v.meta.length).map((v) => {
+    const m = v.meta;
+    if (!m) return { videoId: v.videoId, why: "no details on file (fetch them, then read again)", fixable: true };
+    if (m.status === "error") return { videoId: v.videoId, why: "fetching its details failed (fetch again, then read again)", fixable: true };
+    if (m.status === "unavailable") return { videoId: v.videoId, why: "unavailable on YouTube (removed or private)", fixable: false };
+    if (m.status !== "ok") return { videoId: v.videoId, why: `its details say ${m.status ?? "no status"}`, fixable: false };
+    return { videoId: v.videoId, why: "no length: a live stream or one the player can't time (looked at again next run)", fixable: false };
+  });
+  return { skipped, fails: skipped.length > 0 && skipped.length === videos.length && skipped.some((s) => s.fixable) };
+}
+
+/**
+ * The reader's exit when its only trouble is events left unread for want of details a fetch would give (undetailed
+ * `fails`): it ran, nothing crashed, and no video it could read was left unfinished. Not 1, so a caller can tell it
+ * from a crash, a timeout or a video that couldn't be played. (2 is a usage error, 3 a dark player.)
+ */
+export const UNDETAILED_EXIT = 4;
+
+/**
+ * Whether a reader run's exit means the read itself failed (crashed, killed, timed out, a video unplayed): its events
+ * then aren't counted as tried. Exit 0 and UNDETAILED_EXIT both mean it read what it could; scripts/clip-autopilot.ts
+ * otherwise re-picked a whole season every run while one event's details were missing.
+ */
+export const readFailed = (code: number | null): boolean => code !== 0 && code !== UNDETAILED_EXIT;
 
 /** The rows of a server/data/frameTimings/<season>.ts file as written (one JSON row a line after the data marker). */
 export function dataRows<T>(text: string): T[] {

@@ -39,11 +39,13 @@ async function call(method: string, path: string, opts: { cookie?: string; body?
   return { status: res.status, json, headers: res.headers };
 }
 
-const OWNER_GETS = ["/api/owner/overview", "/api/owner/users", "/api/owner/users/1", "/api/owner/workspaces", "/api/owner/usage", "/api/owner/predictions", "/api/owner/predictions/engine", "/api/owner/flags", "/api/owner/feedback", "/api/owner/errors", "/api/owner/ops", "/api/owner/data", "/api/owner/packs", "/api/owner/hero-lines", "/api/owner/audit"];
+const OWNER_GETS = ["/api/owner/overview", "/api/owner/users", "/api/owner/users/1", "/api/owner/workspaces", "/api/owner/usage", "/api/owner/predictions", "/api/owner/predictions/engine", "/api/owner/flags", "/api/owner/feedback", "/api/owner/errors", "/api/owner/ops", "/api/owner/data", "/api/owner/packs", "/api/owner/hero-lines", "/api/owner/wash", "/api/owner/audit"];
 const OWNER_WRITES: [string, string, unknown][] = [
   ["PUT", "/api/owner/flags/offlinePacks", { enabled: false }],
   ["PATCH", "/api/owner/feedback/1", { status: "resolved" }],
   ["POST", "/api/owner/ops/caches", { confirm: true }],
+  ["PUT", "/api/owner/wash", { wash: { a: "#111111", b: "#222222", c: "#333333", strength: 1, spread: 1 } }],
+  ["POST", "/api/owner/wash/reset", { confirm: true }],
 ];
 // owner_audit is append-only (migration 52), so a test reads only the rows written since it started.
 let auditFrom = 0;
@@ -77,6 +79,57 @@ beforeEach(async () => {
   resetOps();
   resetMetrics();
   resetLiveConnections();
+});
+
+describe("the wash (owner console)", () => {
+  const MINE = { a: "#AA0000", b: "0b0", c: "#0000cc", strength: 1.3, spread: 0.7 };
+  beforeEach(async () => { await run("DELETE FROM owner_settings WHERE key = 'wash'"); (await import("../wash")).invalidateWash(); });
+
+  it("only the owner can read or change it; everyone else gets 403 and nothing is saved", async () => {
+    for (const cookie of [undefined, otherCookie]) {
+      expect((await call("GET", "/api/owner/wash", { cookie })).status).toBe(403);
+      expect((await call("PUT", "/api/owner/wash", { cookie, body: { wash: MINE } })).status).toBe(403);
+      expect((await call("POST", "/api/owner/wash/reset", { cookie, body: { confirm: true } })).status).toBe(403);
+    }
+    expect(await all("SELECT * FROM owner_settings WHERE key = 'wash'")).toEqual([]);
+    expect((await call("GET", "/api/wash")).json).toMatchObject({ custom: false });
+  });
+
+  it("saves a cleaned wash, publishes it at /api/wash, audits old and new, and resets to the defaults", async () => {
+    const before = await call("GET", "/api/owner/wash", { cookie: ownerCookie });
+    expect(before.json).toMatchObject({ custom: false, wash: before.json.defaults, updatedAt: null });
+    const saved = await call("PUT", "/api/owner/wash", { cookie: ownerCookie, body: { wash: MINE } });
+    expect(saved.status).toBe(200);
+    // No glow colours sent: the saved wash keeps the default glow (older saves have none).
+    const clean = { a: "#aa0000", b: "#00bb00", c: "#0000cc", ga: "#be6937", gb: "#795fa7", gc: "#556496", strength: 1.3, spread: 0.7 };
+    expect(saved.json).toMatchObject({ custom: true, wash: clean, updatedBy: "owner@example.com" });
+    const pub = await call("GET", "/api/wash");
+    expect(pub.json).toEqual({ wash: clean, custom: true });
+    expect(pub.headers.get("cache-control")).toContain("max-age=60");
+    // Out-of-range numbers are clamped, not refused.
+    expect((await call("PUT", "/api/owner/wash", { cookie: ownerCookie, body: { wash: { ...MINE, strength: 5, spread: 0 } } })).json.wash).toMatchObject({ strength: 1.6, spread: 0.6 });
+    // Reset asks for confirm.
+    expect((await call("POST", "/api/owner/wash/reset", { cookie: ownerCookie, body: {} })).status).toBe(400);
+    const reset = await call("POST", "/api/owner/wash/reset", { cookie: ownerCookie, body: { confirm: true } });
+    expect(reset.json).toMatchObject({ custom: false, wash: before.json.defaults });
+    expect((await call("GET", "/api/wash")).json.custom).toBe(false);
+    const rows = (await audit()).filter((r) => r.action === "settings.wash");
+    expect(rows.map((r) => [JSON.parse(r.old_value!), JSON.parse(r.new_value!)])).toEqual([
+      [null, clean],
+      [clean, { ...clean, strength: 1.6, spread: 0.6 }],
+      [{ ...clean, strength: 1.6, spread: 0.6 }, null],
+    ]);
+  });
+
+  it("refuses anything but hex colours and numbers, and saves nothing", async () => {
+    for (const wash of [undefined, "#fff", { ...MINE, a: "red" }, { ...MINE, c: "#fff;}*{x:y" }, { ...MINE, b: 42 }, { ...MINE, strength: "1" }, { ...MINE, spread: null }, { a: "#fff" }]) {
+      const r = await call("PUT", "/api/owner/wash", { cookie: ownerCookie, body: { wash } });
+      expect(r.status, JSON.stringify(wash)).toBe(400);
+      expect(r.json.error).toBeTruthy();
+    }
+    expect(await all("SELECT * FROM owner_settings WHERE key = 'wash'")).toEqual([]);
+    expect((await audit()).filter((r) => r.action === "settings.wash")).toEqual([]);
+  });
 });
 
 describe("who gets in", () => {
@@ -156,6 +209,9 @@ describe("feature flags", () => {
       // Bruno AI in the Discord bot: its own switch, on by default.
       discordBruno: true,
       statusPage: true,
+      particleWave: true,
+      // The glow at the page's end: its own switch, on by default.
+      pageEndGlow: true,
     });
     expect(r.headers.get("cache-control")).toBe("public, max-age=15");
   });

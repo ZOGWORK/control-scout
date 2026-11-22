@@ -13,7 +13,9 @@ import { toast } from "../ui/sonner";
 import { cn } from "../cn";
 
 const bundles = () => import("../../lib/offline/bundles");
-const CHIP = "mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-accent/40 bg-accent/[0.07] px-2.5 text-sm font-medium hover:border-accent max-sm:min-h-11";
+const CHIP = "mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-accent/40 bg-accent/[0.07] px-2.5 text-sm font-medium hover:border-accent max-sm:min-h-11" +
+  // v8: an outlined button like the header's others (no mint fill); its icon takes the text colour.
+  " v8:rounded-lg v8:border-ink/[0.12] v8:bg-transparent v8:transition-colors v8:duration-150 v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100 v8:[&_svg]:text-current";
 
 export function EventPackButton({ season, code, field }: { season: number; code: string; field: number[] }) {
   useSavedBundles(); // re-render when a bundle is saved or removed

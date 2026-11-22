@@ -28,7 +28,7 @@ import { searchTiming } from "./api/searchTiming.js";
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
-import { teamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
+import { cachedTeamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
 import { onboardingExamples } from "./api/onboardingExamples.js";
 import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, toEventInput } from "./api/events.js";
@@ -110,6 +110,7 @@ import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
 import { coinFlips, radarEtag } from "./api/coinFlips.js";
 import { liveHeroLines } from "./heroLines.js";
+import { liveWash } from "./wash.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv, streamRecordsXlsx } from "./api/records.js";
 import { seasonRecordLine } from "./api/searchHighScores.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
@@ -377,6 +378,12 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     res.setHeader("Cache-Control", "public, max-age=60");
     return liveHeroLines();
   }));
+  // The v8 wash (server/wash.ts): the owner's, else the defaults. Every page's HTML already carries the owner's as an
+  // inline <style>; this is for a copy of the app without that first paint (development, tests).
+  api.get("/wash", h(async (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return liveWash();
+  }));
 
   // Today's coin flips: the closest calls on today's schedules, every event at its own venue date (server/api/coinFlips.ts).
   // Revalidated every time, by browsers and shared caches alike: the open page polls it each minute and rows
@@ -570,7 +577,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   }));
 
   api.get("/teams/:number", h(async (req) => {
-    const p = await teamProfile(int(req.params.number, "team", { min: 1, max: 999999 }), req.query.season ? season(req.query.season) : undefined);
+    const p = await cachedTeamProfile(int(req.params.number, "team", { min: 1, max: 999999 }), req.query.season ? season(req.query.season) : undefined);
     if (!p) throw new HttpError(404, `No FTC team ${req.params.number} in our data`);
     return p;
   }));
@@ -1131,7 +1138,9 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     app.use("/assets", express.static(opts.assetArchive ?? join(process.cwd(), ".assets-archive"), { immutable: true, maxAge: "1y" }));
     // The service worker and its file list must never be served stale.
     for (const f of ["sw.js"]) app.get(`/${f}`, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, f)); });
-    app.use(express.static(dist, { index: false, maxAge: "1h" }));
+    // redirect: false: a folder of static files that shares a page's name (public/legacy/ holds the classic logos, and
+    // /legacy is a page) must fall through to the app, not 301 to "/legacy/", which the one-URL rule 301s back (a loop).
+    app.use(express.static(dist, { index: false, redirect: false, maxAge: "1h" }));
     // The app's HTML, with the page's canonical link in the first response (crawlers don't run JS).
     // A missing file (anything with an extension) is an honest 404, never the app's HTML with a 200.
     app.get(MISSING_FILE, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.status(404).type("text/plain").send("Not found"); });
