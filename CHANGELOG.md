@@ -25,7 +25,7 @@ The bot's journal now says at startup whether "Report this to ControlScout" can 
 - [alerts] Only whether the token is set is logged, never the token
 
 ### Discord bot
-- `bot/index.ts` logs one line at startup after the token check: `report filing on: GITHUB_REPORT_TOKEN is set` or `report filing off: GITHUB_REPORT_TOKEN is not set (a report says it couldn't be filed)`. "Is reporting wired up?" is then answered by `journalctl -u control-scout-bot | grep 'report filing'` on any restart, with no issue filed to find out. It says whether the variable is set, never its value, and a token added later shows up on the next restart.
+- `bot/index.ts` logs one line at startup after the token check: `report filing on: GITHUB_REPORT_TOKEN is set` or `report filing off: GITHUB_REPORT_TOKEN is not set (a report says it couldn't be filed)`. "Is reporting wired up?" is then answered by `journalctl -u control-scout-bot | grep 'report filing'` on any restart, with no issue filed to find out. It says whether the variable is set, never its value, and a token added later shows up on the next restart. (#2143)
 - `bot/report.ts` `reportSetup()` builds that line (and `bot/report.test.ts` checks both states, and that the token never appears in it). `bot/README.md` says so.
 
 ## 7.8.3 — 2026-11-22
