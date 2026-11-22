@@ -255,6 +255,15 @@ or stat:
 A filler word inside a team's full name stays: "just in time opr" keeps "just" when Just In Time is a team. That is
 checked against every stored name.
 
+**Short forms and strays**, before any layer (`server/api/searchAnswer.ts`):
+- A short form is said in full (`INFORMAL` in `src/shared/query/lexicon.ts`): "rn" is "right now", "u" is "you", "th"
+  is "the" ("best team in th world"). Never inside a team's or event's name, and an ordinal's ending after its number
+  stays ("5 th place").
+- A stray letter on its own anywhere ("what is t r best team"), or a stray two-letter word ending the question ("…
+  world en", a slip on "rn"), is left out when the parser reads the rest whole and leaves only those unread
+  (`withoutStrayLetter`). The answer is the question's without them, and says them under it as not read. A word
+  something reads (a state's code, a short form, a team's name) is never a stray.
+
 **Scaffolding** (`SCAFFOLD`) is read by the keyword layer around the team, the intent and the scope, never by plain
 stripping and never inside a team's full name. It covers:
 - question words (what is, how, does, tell me, show me, give me)

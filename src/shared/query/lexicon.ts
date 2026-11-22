@@ -297,6 +297,9 @@ export const INFORMAL: [string, string][] = [
   // "NJ champs", "Romania champs", "world champs": the championship, as every reader reads it.
   ["champs", "championship"],
   ["ur", "your"], ["u", "you"],
+  // "Th" with its last letter not typed ("best team in th world"); after a number it is the number's ordinal ("5 th"),
+  // kept as typed (informalQuery).
+  ["th", "the"],
   // "WR": the world record, as players say it ("current wr").
   ["wr", "world record"],
   // "Is" with its letters swapped after a question word ("what si the best team"): two letters are never spell-checked,
@@ -345,6 +348,7 @@ export function spelledNumbers(q: string, named: (words: string) => boolean = ()
 const core = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
 /** Whether word `i` of `ws` is inside a quoted phrase (or holds a quote mark itself). */
 const quoted = (ws: string[], i: number) => (ws.slice(0, i).join(" ").split('"').length - 1) % 2 === 1 || ws[i].includes('"');
+const ORDINAL_END = /^(?:st|nd|rd|th)$/;
 const edges = (w: string) => { const c = core(w); const at = c ? w.indexOf(c) : w.length; return [w.slice(0, at), w.slice(at + c.length)]; };
 
 /** `q` with each INFORMAL form said in full: whole words, any case, and never a word of a name `named` knows (a team
@@ -361,6 +365,8 @@ export function informalQuery(q: string, named: (words: string, wider: boolean) 
       if (ws.slice(i, i + f.length).map((w) => core(w).toLowerCase()).join(" ") !== from) continue;
       // A quoted phrase is searched for exactly as typed ('"RN" Robotics'): nothing in it is said another way.
       if (Array.from({ length: f.length }, (_, k) => i + k).some((j) => quoted(ws, j))) continue;
+      // An ordinal's ending after its number ("5 th place") is the number's, never a short form.
+      if (i > 0 && ORDINAL_END.test(from) && /^\d+$/.test(core(ws[i - 1]))) continue;
       let inName = false;
       for (let a = Math.max(0, i - longest + 1); a <= i; a++) for (let b = i + f.length; b <= Math.min(ws.length, a + longest); b++) inName ||= named(ws.slice(a, b).map(core).join(" "), b - a > f.length);
       if (inName) continue;

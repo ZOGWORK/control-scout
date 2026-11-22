@@ -150,27 +150,30 @@ export async function withoutAside(q: string, opts: { now?: number; prefer?: Rea
   return again.leftover.length ? q : rest;
 }
 
-const ONE_LETTER_FORMS = new Set(INFORMAL.map(([from]) => from).filter((f) => f.length === 1));
-/** Stray letters typed on their own, anywhere ("what is the best team in nj n", "what is t r best team in the world"):
- *  letters left unread in a question the parser reads whole without them, and only them. The question without them,
- *  and the letters, to say they weren't read. Never "a" or "i" (words), nor a letter anything reads (a team's name, a
- *  match's "q", a short form). */
+const SHORT_FORMS_TYPED = new Set(INFORMAL.map(([from]) => from).filter((f) => f.length <= 2));
+/** Stray letters typed on their own, anywhere ("what is the best team in nj n", "what is t r best team in the world"),
+ *  and a stray two-letter word ending the question ("best team in the world en", a slip on a short form): left unread
+ *  in a question the parser reads whole without them, and only them. The question without them, and the letters, to
+ *  say they weren't read. Never "a" or "i" (words), nor anything something reads (a team's name, a match's "q", a
+ *  state's code, a short form such as "u" or "rn"). */
 export async function withoutStrayLetter(q: string, opts: { now?: number; prefer?: ReadonlySet<string> } = {}): Promise<{ rest: string; letters: string[] } | null> {
   if (q.includes('"')) return null;
   const ws = q.trim().split(/\s+/);
-  // A one-letter short form ("u" for "you", ./query/lexicon.ts INFORMAL) is read, said in full later: never stray.
-  const stray = (w: string) => /^[b-hj-z]$/i.test(w) && !ONE_LETTER_FORMS.has(w.toLowerCase());
+  // A short form ("u" for "you", "rn", ./query/lexicon.ts INFORMAL) is read, said in full later: never stray.
+  const stray = (w: string, i: number) => !SHORT_FORMS_TYPED.has(w.toLowerCase())
+    && (/^[b-hj-z]$/i.test(w) || (i === ws.length - 1 && /^[a-z]{2}$/i.test(w)));
   // Punctuation at the end of the question stays with the words kept ("… nj n?" is "… nj?").
   const end = /[?!.]+$/.exec(ws[ws.length - 1])?.[0] ?? "";
   if (end) ws[ws.length - 1] = ws[ws.length - 1].slice(0, -end.length);
-  const letters = ws.filter(stray), kept = ws.filter((w) => w && !stray(w));
+  const letters = ws.filter(stray), kept = ws.filter((w, i) => w && !stray(w, i));
   // Two words or more stay: a letter beside one word may be part of what it asks.
   if (!letters.length || kept.length < 2) return null;
   const ctx = await parseContext(opts.now, opts.prefer);
   const p = await parseQuery(q, ctx);
   // Every word the parser left unread is one of these letters, and each of them is unread.
   const unread = new Set(p.leftover.map((w) => w.toLowerCase()));
-  if (!p.leftover.length || ![...unread].every((w) => stray(w)) || !letters.every((l) => unread.has(l.toLowerCase()))) return null;
+  const strays = new Set(letters.map((l) => l.toLowerCase()));
+  if (!p.leftover.length || ![...unread].every((w) => strays.has(w)) || !strays.size || ![...strays].every((l) => unread.has(l))) return null;
   const rest = `${kept.join(" ")}${end}`;
   const again = await parseQuery(rest, ctx);
   return !again.leftover.length && again.intent ? { rest, letters } : null;
