@@ -53,8 +53,10 @@ export interface AskDeps {
   chat?: (message: string, facts: string[], history: BrunoChatTurn[]) => Promise<ChatReply | null>;
 }
 
-/** Bruno's chat reply; `search`: the facts answer the message, so the answer's video and page go with it. */
-export interface ChatReply { text: string; search: boolean }
+/** Bruno's chat reply; `search`: the facts answer the message, so the answer's video and page go with it. `unknown`:
+ *  numbers in his text that neither the facts, the message nor the thread have — a record claim in a records answer,
+ *  an explanation's own numbers in a chat (see ask, below). */
+export interface ChatReply { text: string; search: boolean; unknown?: string[] }
 /** Facts sent with a chat, at most (Control Point's caps: 40 lines of at most 400 characters, 8,000 in all). One
  *  longer line and it refuses the whole packet with a 400, so every line is cut to its cap (clip, below). */
 const CHAT_FACTS = 40;
@@ -113,11 +115,10 @@ export async function realAskDeps(): Promise<AskDeps> {
         return null;
       }
       if (!r || typeof r.text !== "string" || !r.text.trim()) { console.info("[bot] chat empty: Bruno sent no reply"); return null; }
-      // Every number his: the facts', the message's or the thread's, or nothing posts from him.
+      // Every number his must be the facts', the message's or the thread's — reported (never dropped here: ask knows
+      // whether a number could be a record at all), so a reply the check does refuse is traced to the number that failed.
       const unknown = ungrounded(r.text, [...context, ...history.map((t) => t.text)], message);
-      // Logged (the numbers only, never who asked) so a dropped reply can be traced to the number that failed.
-      if (unknown.length) { console.info(`[bot] chat dropped: numbers not in the facts: ${unknown.slice(0, 8).join(", ")}`); return null; }
-      return { text: r.text.trim(), search: r.search === true };
+      return { text: r.text.trim(), search: r.search === true, unknown };
     },
   };
 }
@@ -137,7 +138,15 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
   const chatting = !!(deps.chat && deps.facts);
   if (chatting) {
     const reply = await chatWith(q, answer, history, deps).catch(() => null);
-    if (reply) {
+    // His numbers are checked against the facts, the message and the thread — where a number could be a record: an
+    // answer with records behind it, or a message (or thread) that names one. A message that asked nothing of the
+    // records is a chat: search found nothing for it and it has no number, so "a 1:1 gear" in an explanation is not a
+    // stat, and dropping that reply is exactly what turned a good answer into "I can't chat right now".
+    const records = asksRecords(q, answer, history);
+    if (reply && records && reply.unknown?.length) {
+      // Logged (the numbers only, never who asked) so a dropped reply can be traced to the number that failed.
+      console.info(`[bot] chat dropped: numbers not in the facts: ${reply.unknown.slice(0, 8).join(", ")}`);
+    } else if (reply) {
       const video = reply.search && deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
       const watch = videoLinks(video);
       return {
@@ -172,6 +181,12 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
   const watch = videoLinks(video);
   return { embed: askEmbed(q, answer, sentence, site, video), meta: { step: answer.step, refined, sentence: !!sentence }, ...(watch[0] ? { content: watch[0].url } : {}) };
 }
+
+/** Whether a message could be about the records at all: search found something for it, or it (or the thread before it)
+ *  names a number. Only then can a number in Bruno's reply be a record (an OPR, a season, a score) rather than the
+ *  explanation a chat message asked for. */
+const asksRecords = (q: string, a: SearchAnswer, history: BrunoChatTurn[]) =>
+  /\d/.test(q) || history.some((t) => /\d/.test(t.text)) || !!(a.hits.length || a.card || a.stat);
 
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
  *  second place?" has the records it's about), then his reply. */

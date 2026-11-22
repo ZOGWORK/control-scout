@@ -34,6 +34,18 @@ it("sends current product knowledge with Discord chats, reserving room beside se
   expect(throughAsk[1].join(" ")).toContain("Search record 0");
 });
 
+it("a reply with a number the facts don't have is reported, not thrown away here: ask decides whether it could be a record", async () => {
+  // The screenshot's "coxial suspension swerve explain": an explanation's own numbers ("1:1") must not cost the answer.
+  const deps = await realAskDeps();
+  const answer = state.chat.getMockImplementation()!;
+  try {
+    state.chat.mockImplementation(async () => ({ text: "A coaxial swerve often runs 1:1.", search: false }));
+    const reply = await deps.chat!("coxial suspension swerve explain", [], []);
+    expect(reply?.text).toContain("1:1");
+    expect(reply?.unknown).toEqual(["1", "1"]); // both sides of "1:1"
+  } finally { state.chat.mockImplementation(answer); }
+});
+
 it("says why a chat didn't happen, so a deployment is diagnosed from the bot's log", async () => {
   const deps = await realAskDeps();
   const info = vi.spyOn(console, "info").mockImplementation(() => {});
