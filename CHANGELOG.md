@@ -26,7 +26,7 @@ The startup config block now says whether the slash commands are registered glob
 
 ### Discord bot
 - `bot/config.ts` adds one line to the block: `config: slash commands globally (no DISCORD_DEV_GUILD_ID)`, or `config: slash commands in server 123456789012345678 only (DISCORD_DEV_GUILD_ID)`. A command registered in a test server and nowhere else is invisible to everyone else, which was the one part of the bot's setup the block didn't say.
-- `bot/config.test.ts` covers both forms (and that neither the season, the site, the chat, report filing nor the follow counts changed places), and `bot/README.md` shows the block with the line.
+- `bot/config.test.ts` covers both forms (and that neither the season, the site, the chat, report filing nor the follow counts changed places), and `bot/README.md` shows the block with the line. (#2153)
 
 ## 7.8.5 — 2026-11-22
 
