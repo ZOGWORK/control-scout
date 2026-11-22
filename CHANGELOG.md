@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.7.9 — 2026-11-22
+
+The Discord bot answers the question that was asked: an explanation gets a short structured reply — a bold lead, paragraphs or bullets — and a per-server chat limit is built without capping anyone yet.
+
+### Highlights
+- [alerts] The bot explains a mechanism in bold, bullets and paragraphs
+- [fixes] A records question still gets the number first and stays short
+- [fixes] Every server can have a chat limit; none has one set yet
+- [speed] A longer answer now has 45 seconds to arrive, not 30
+
+### Discord bot
+- Answer shape (`bot/productFacts.ts`, `bot/ask.ts`): every Discord chat sends one more instruction beside the product facts — match the question; a records question gets the number first and a line or two, while a question about how or why something works gets a one-line **bold** summary, 2–3 short paragraphs or up to five bullets, key terms in bold, about 600 to 1,200 characters, and no headings, tables or code blocks. "Explain a coaxial swerve" no longer gets a clipped sentence; Control Point's 400-character per-line cap and Discord's 2,000-character message cap still hold.
+- Per-server limits, not enforced yet (`bot/quota.ts`, migration 99): `discord_limits` holds a server's chats per UTC hour and per UTC day, `discord_chat_usage` its counts. A server with no row — every server now — is unlimited: `takeChat` allows the chat at once and writes nothing, so nothing is counted or refused today. `setGuildLimit` sets or clears one; at a cap, `/ask` and a mention get a plain note with when it resets, and a quota read that fails never silences the bot. The unlimited default, hourly and daily resets, pruning and per-server isolation are tested on a database (`bot/quota.test.ts`).
+- A chat now waits 45 s for Control Point instead of 30 (`CHAT_TIMEOUT_MS`): a structured explanation takes longer than the one-sentence answers the timeout was set for. (#2127)
+
 ## 7.7.8 — 2026-11-22
 
 The Discord bot answers every message now: no per-person wait, and an explanation with numbers in it is no longer thrown away.

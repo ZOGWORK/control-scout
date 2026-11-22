@@ -17,7 +17,7 @@ import type { StatAnswer, StatBlock, StatLink, StatMatchRow } from "../src/share
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search.js";
 import { FOOTER, VOLT, teamLink } from "./views.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
-import { productFacts, zogModeReply } from "./productFacts.js";
+import { answerStyle, productFacts, zogModeReply } from "./productFacts.js";
 import { smallTalk } from "./smallTalk.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
@@ -73,8 +73,9 @@ export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentenc
 export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string; chat?: { text: string; video?: string; page?: string; by?: "bruno" | "scout" } }
 
 /** How long a chat waits for Bruno before the card posts instead. Generous: a model reply takes a while (Control
- *  Point's one-sentence answers take about 11 s on the live deployment), and the mention's typing indicator stays up. */
-export const CHAT_TIMEOUT_MS = 30_000;
+ *  Point's one-sentence answers take about 11 s on the live deployment, and a structured explanation of a few
+ *  paragraphs takes longer), and the mention's typing indicator stays up while it's written. */
+export const CHAT_TIMEOUT_MS = 45_000;
 
 export async function realAskDeps(): Promise<AskDeps> {
   // The search index is the site's (it builds and refreshes it); the bot only reads it, like every other table but its own.
@@ -105,7 +106,9 @@ export async function realAskDeps(): Promise<AskDeps> {
       }
       // Product knowledge first, every line inside Control Point's per-fact cap: one longer line and it refuses the
       // whole packet (400 `facts[i]`), which used to fall back to the card with nothing in the log.
-      const product = productFacts().map(clip);
+      // Product knowledge and how to shape the answer (a records question short, an explanation structured), every line
+      // inside Control Point's per-fact cap.
+      const product = [...productFacts(), answerStyle()].map(clip);
       const context = [...product, ...fit(facts, CHAT_FACTS - product.length, CHAT_FACTS_CHARS - chars(product))];
       let r: { text: string; search: boolean };
       try { r = await brunoDiscordChat(message, context, history, CHAT_TIMEOUT_MS); }

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { productFacts, zogModeReply } from "./productFacts";
+import { answerStyle, productFacts, zogModeReply } from "./productFacts";
 import { ungrounded } from "../server/api/searchBrunoAnswer";
 
 it("grounds the completed remodel and available Zog Mode without claiming its background is on", () => {
@@ -17,6 +17,18 @@ it("keeps every product fact inside Control Point's 400-character cap, so none i
   const facts = productFacts();
   for (const f of facts) expect(f.length).toBeLessThanOrEqual(400);
   expect(facts.find((f) => f.startsWith("Zog Mode is an existing"))).toMatch(/Only the owner can turn it on or off/);
+});
+
+it("tells him how to shape a chat answer — a records question short, an explanation in paragraphs or bullets — inside the cap", () => {
+  const style = answerStyle();
+  expect(style.length).toBeLessThanOrEqual(400);
+  expect(style).toContain("records question gets the number first");
+  expect(style).toMatch(/explain or compare/);
+  expect(style).toContain("**bold**");
+  expect(style).toContain("'- ' bullets");
+  expect(style).toMatch(/600 to 1,200 characters/);
+  // Still a Discord message, not a document.
+  expect(style).toMatch(/No headings, tables or code blocks/);
 });
 
 it("recognizes the screenshot's question but leaves actual dog-named teams to search", () => {

@@ -431,3 +431,68 @@ describe("answers ping nobody", () => {
     for (const o of opts) expect(o.allowedMentions).toEqual({ parse: [], repliedUser: false });
   });
 });
+
+describe("a server's chat limit", () => {
+  const BOT = "1562258217873047562";
+  const atLimit = { ok: false as const, limited: "hour" as const, retryAfter: 1800 };
+
+  function message(content: string) {
+    const sent: { kind: string; embeds: APIEmbed[] }[] = [];
+    const m: MentionMessage = {
+      author: { id: "u1", bot: false }, guildId: "g1", content,
+      reply: vi.fn(async (o) => { sent.push({ kind: "reply", embeds: o.embeds }); return { id: "m1" }; }),
+      channel: { send: vi.fn(async (o) => { sent.push({ kind: "send", embeds: o.embeds }); }), sendTyping: vi.fn(async () => {}) },
+    };
+    return { m, sent };
+  }
+
+  it("no limit set — every server today — so a mention answers as always", async () => {
+    const l = lookups({ quota: vi.fn(async () => ({ ok: true as const })) });
+    const { m, sent } = message(`<@${BOT}> who won decode`);
+    await createHandler(() => {}, l).mention(m, BOT);
+    expect(sent[0].embeds[0].title).toBe("ask who won decode");
+    expect(l.quota).toHaveBeenCalledWith("g1");
+  });
+
+  it("at the limit: a mention gets a plain note instead of an answer, and nothing is looked up", async () => {
+    const l = lookups({ quota: vi.fn(async () => atLimit) });
+    const { m, sent } = message(`<@${BOT}> who won decode`);
+    await createHandler(() => {}, l).mention(m, BOT);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].embeds[0].title).toBe("This server's limit is reached");
+    expect(sent[0].embeds[0].description).toContain("each hour");
+    expect(sent[0].embeds[0].description).toContain("30 minutes");
+    // The site and the server's follows are untouched, and the bot doesn't mention anyone.
+    expect(sent[0].embeds[0].description).toContain("controlscout.org still works");
+    expect(l.ask).not.toHaveBeenCalled();
+  });
+
+  it("/ask at the limit says the same, and a day's limit says how many hours until it resets", async () => {
+    const l = lookups({ quota: vi.fn(async () => ({ ok: false as const, limited: "day" as const, retryAfter: 25 * 3600 })) });
+    const h = createHandler(() => {}, l);
+    const c = command("ask", { question: "who won decode" });
+    c.i.guildId = "g1";
+    await h(c.i);
+    expect(c.calls.map((k) => k.kind)).toEqual(["defer", "edit"]);
+    expect(c.calls[1].payload.embeds[0].title).toBe("This server's limit is reached");
+    expect(c.calls[1].payload.embeds[0].description).toContain("each day");
+    expect(c.calls[1].payload.embeds[0].description).toContain("25 hours");
+    expect(l.ask).not.toHaveBeenCalled();
+  });
+
+  it("a bare mention asks for the help text without using a chat", async () => {
+    const quota = vi.fn(async () => atLimit);
+    const { m, sent } = message(`<@${BOT}>`);
+    await createHandler(() => {}, lookups({ quota })).mention(m, BOT);
+    expect(sent[0].embeds[0].title).toBe("Ask me anything");
+    expect(quota).not.toHaveBeenCalled();
+  });
+
+  it("a quota read that fails never silences the bot", async () => {
+    const l = lookups({ quota: async () => { throw new Error("database is locked"); } });
+    const { m, sent } = message(`<@${BOT}> who won decode`);
+    await createHandler(() => {}, l).mention(m, BOT);
+    expect(sent[0].embeds[0].title).toBe("ask who won decode");
+    expect(l.ask).toHaveBeenCalledTimes(1);
+  });
+});

@@ -253,6 +253,11 @@ describe("a chat with Bruno", () => {
       "> **who won decode**", "30030 Exodus won.", "https://youtu.be/A", `-# Bruno AI · [more on controlscout.org](<${SITE}/search?q=x>)`,
     ]);
     expect(chatPost("hi", { text: "Hey!" }, { quote: false })).toBe("Hey!\n-# Bruno AI · controlscout.org");
+    // A structured explanation goes out as he wrote it — a bold lead, paragraphs, bullets — whole, while Discord's own
+    // 2,000-character message cap still holds for one that runs long.
+    const answer = "**A coaxial swerve puts both drive motors on one axis.**\n\nThat keeps the wheel's turning on the module's pivot.\n- **Coaxial**: both motors share a shaft\n- **Offset**: the motors sit beside the pivot";
+    expect(chatPost("explain a coaxial swerve", { text: answer }, { quote: false })).toBe(`${answer}\n-# Bruno AI · controlscout.org`);
+    expect(chatPost("x", { text: "y".repeat(3000) }, { quote: false })).toHaveLength(2000);
   });
 });
 

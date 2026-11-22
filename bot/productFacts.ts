@@ -12,6 +12,15 @@ export function productFacts(): string[] {
   ];
 }
 
+/** How a chat answer is shaped, sent with every Discord chat (bot/ask.ts): a records question stays a line or two, and
+ *  a question about how something works gets a short structured answer — a bold summary, a couple of paragraphs or a
+ *  few bullets — instead of one clipped sentence. Inside Control Point's 400-character fact cap. */
+export const answerStyle = () =>
+  "How to answer in Discord: match the question. A records question gets the number first, then a line or two. A question " +
+  "about how or why something works, or to explain or compare, gets a short structured answer: a one-line **bold** summary, " +
+  "then 2 or 3 short paragraphs or up to 5 '- ' bullets, key terms in **bold**, about 600 to 1,200 characters. No " +
+  "headings, tables or code blocks.";
+
 /** Unambiguous product questions bypass team-name search, even when Bruno is unavailable.
  * This is information only: there is deliberately no flag read/write or Discord action. */
 export function zogModeReply(q: string): string | null {
