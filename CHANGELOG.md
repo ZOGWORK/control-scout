@@ -26,7 +26,7 @@ The Discord bot no longer answers a build question with a guess at a team: a gea
 
 ### Discord bot
 - A message's digits are read before it's called a records question (`bot/smallTalk.ts` `RECORD_NUMBER`, used by `bot/ask.ts`): a ratio (`42:15`, `1:1`) and a measurement (`12.4 OPR`) aren't a team, a match or a score. The screenshot's "should I use a 42:15 gear reduction on my robot turret because it is my team numebr" was refused as a record claim only because it had digits in it, so Bruno's explanation was thrown away and the card guessed "Team 12499 Gear Up" from the words "gear reduction". Now the explanation posts, and its own numbers (2:1, 3:1) are about the mechanism.
-- A build question is never a records question however long it is (`MECHANISM`: a ratio, or gearing, turret, motor, rpm, drivetrain…): when no chat answers it, it gets the one plain line ("I didn't get an answer to that one — ask me about a team, an event or a match") rather than search's reading of it as a team. A record number still keeps the honest card. (#0000)
+- A build question is never a records question however long it is (`MECHANISM`: a ratio, or gearing, turret, motor, rpm, drivetrain…): when no chat answers it, it gets the one plain line ("I didn't get an answer to that one — ask me about a team, an event or a match") rather than search's reading of it as a team. A record number still keeps the honest card. (#2133)
 
 ## 7.8.0 — 2026-11-22
 
