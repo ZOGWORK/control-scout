@@ -37,10 +37,12 @@ lanes_live() {
 }
 
 # The template, made from the single service unit (oracle-vm-setup.sh writes it, vm-rollback.sh edits it), so both
-# always start the same way: the same unit with the socket named (Sockets=) and the lane in its description.
+# always start the same way: the same unit with the socket named (Sockets=) and the lane in its description. The
+# server is told its lane and unit (CS_LANE, CS_LANE_UNIT: server/lanes.ts), so a lane started while the other one
+# serves knows it's a hand-off and finishes warming up before it takes the socket.
 lanes_template() {
   sed -e 's/^Description=\(.*\)$/Description=\1 (lane %i)/' \
-      -e "s/^\[Service\]\$/[Service]\nSockets=$LANES_UNIT.socket/" "$LANES_SYSTEMD_DIR/$LANES_UNIT.service"
+      -e "s/^\[Service\]\$/[Service]\nSockets=$LANES_UNIT.socket\nEnvironment=CS_LANE=%i CS_LANE_UNIT=%p/" "$LANES_SYSTEMD_DIR/$LANES_UNIT.service"
 }
 
 # Write the template from the single unit (call systemctl daemon-reload after). Changes nothing that's running.
