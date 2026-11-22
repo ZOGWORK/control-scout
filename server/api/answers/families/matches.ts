@@ -102,7 +102,7 @@ export function counts(id: IntentId, m: TeamMatch): boolean {
 }
 
 /** The answer for a match-set intent, or null when `id` isn't one of these families' match intents. */
-export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null; outcome?: "W" | "L" | null; perEvent?: boolean; under?: number }): Promise<StatAnswer | null> {
+export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null; outcome?: "W" | "L" | null; perEvent?: boolean; under?: number; phase?: "auto" }): Promise<StatAnswer | null> {
   const ms = pool(id, all, scope);
   const who = whoOf(team), where = scopePhrase(scope);
   const base = { team, scope: scopeChips(scope), source: sourceOf(ms) };
@@ -391,6 +391,31 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
     }
 
     case "last-matches": {
+      // Auto over the last N matches (#2167): the alliance's auto points in each, the team on the field. Never called an
+      // OPR: an OPR is solved from every team's matches at an event, and N of one team's matches can't give one.
+      if (opts.phase === "auto") {
+        const n = opts.n ?? 5, title = `Auto points, last ${n} matches${where}`;
+        const def = "Auto points: the alliance's official auto score in each match, partners' included, the team on the field. This is not an OPR: an OPR is solved from every team's matches at an event, so a team's own last matches can't give one; its Auto OPR at each event is on the team's page.";
+        const xs = newestFirst(all.filter((m) => m.onField && m.ownAuto != null && inScope(scope)(m))).slice(0, n);
+        if (!xs.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: `No matches with an auto score${where} found for ${who} in the recorded matches.` };
+        // Each season is a different game: the newest season's matches only, said so when the run reaches back further.
+        const run = [...xs].reverse().filter((m) => m.season === xs[0].season), mixed = run.length < xs.length;
+        const autos = run.map((m) => m.ownAuto!), mean = (autos.reduce((a, v) => a + v, 0) / autos.length).toFixed(1);
+        return {
+          ...base, source: sourceOf(run), family: "aggregate", intent: id, title,
+          headline: { value: mean, label: `average alliance auto points over the last ${run.length} match${run.length === 1 ? "" : "es"}, not an OPR`, sub: `${seasonLabel(xs[0].season)} · auto ${autos.join(", ")}${mixed ? ` (the ${run.length} in ${seasonLabel(xs[0].season)}; each season is a different game)` : ""}` },
+          blocks: [
+            { kind: "kpis", items: [
+              { label: `Average auto, last ${run.length}`, value: mean, sub: "alliance points" },
+              { label: "Highest", value: String(Math.max(...autos)) },
+              { label: "Lowest", value: String(Math.min(...autos)) },
+            ] },
+            { kind: "series", title: "Auto points, match by match", unit: "points", points: run.map((m) => ({ x: `${m.label} · ${m.event}`, y: m.ownAuto!, href: row(m).href })) },
+            matchesBlock("Newest first", newestFirst(run)),
+          ],
+          definition: def,
+        };
+      }
       // A win or a loss said ("last 5 losses"): only those matches.
       const plural = opts.outcome === "W" ? "wins" : opts.outcome === "L" ? "losses" : "matches";
       const n = opts.n ?? 5, xs = newestFirst(opts.outcome ? ms.filter((m) => m.result === opts.outcome) : ms).slice(0, n);
