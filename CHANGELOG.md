@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.8.7 — 2026-11-22
+
+A new `/config` command shows the bot's own setup in Discord: the same six lines its startup log prints.
+
+### Highlights
+- [alerts] /config shows what the bot can do, without journalctl
+- [fixes] Season, site, chat, reports, follows and command registration
+- [alerts] A private reply, Manage Server only, and never a secret's value
+- [alerts] /help and the site's Discord card now list it too
+
+### Discord bot
+- `/config` (`bot/commands.ts`, `Manage Server`, servers only) answers privately with the startup summary read live: the season, the site it talks to, chat and, when off, the same reason `ask.ts` gives, report filing, the follow posts, and whether the commands are registered globally or only in `DISCORD_DEV_GUILD_ID`. The reply says whether a variable is set, never its value — the same lines the journal carries, so "what can this bot do here?" takes one command instead of an SSH session.
+- The journal and the command cannot disagree: `bot/index.ts` gathers the summary in one `configHere()` used by both, and `bot/config.ts` renders the same `configLines()` as an embed (`configEmbed`). Tests cover the embed's six lines, its no-secrets rule, the private defer and a lookup that can't be read (`bot/config.test.ts`, `bot/handler.test.ts`).
+- `/help` lists it from the same list the site shows (`src/shared/discord.ts`), which is why the "Control Scout in Discord" card counts one command more (`bot/README.md`). (#2159)
+
 ## 7.8.6 — 2026-11-22
 
 The startup config block now says whether the slash commands are registered globally or only in the test server.
