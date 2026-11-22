@@ -58,7 +58,7 @@ import { rangeCoverageNow, trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
 import { CSP_REPORT_PATH, cspHeaderName, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
-import { CACHED_PAGE, drawPage, pageKey } from "./pageCache.js";
+import { CACHED_PAGE, drawPage, pageBody, pageKey } from "./pageCache.js";
 import { keptPage, PAGE_TTL_MS } from "./api/searchReads.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { indexNowKeyRoute } from "./indexNow.js";
@@ -1176,9 +1176,10 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
         // Never a search page: each of its visits reaches this server, so it is counted.
         const shared = /^\/search$/i.test(req.path) ? "" : `, s-maxage=${PAGE_TTL_MS / 1000}`;
         if (page.status === 200) res.setHeader("Cache-Control", `public, max-age=0, must-revalidate${shared}`);
-        const gz = req.acceptsEncodings("gzip") ? await page.gz.catch(() => null) : null;
-        if (gz) res.setHeader("Content-Encoding", "gzip");
-        res.status(page.status).type("html").send(gz ?? page.html);
+        // Only the gzip is kept (server/pageCache.ts): sent as is, or unzipped for a client that takes no gzip.
+        const { body, gzip } = await pageBody(page, !!req.acceptsEncodings("gzip"));
+        if (gzip) res.setHeader("Content-Encoding", "gzip");
+        res.status(page.status).type("html").send(body);
         return;
       }
       // The query names the page's view: rankings filters, a shared matchup (its card is the link preview).
