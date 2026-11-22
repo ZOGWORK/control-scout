@@ -16,6 +16,7 @@ import { apiFetch, prime, useApi, type ApiError } from "../../lib/api";
 import { refreshFlags } from "../../lib/flags";
 import { ago } from "../../lib/format";
 import { FLAG_INFO, type Flag } from "../../shared/flags";
+import { setV8, useIsV8 } from "../../lib/v8";
 import type { OwnerFlag, OwnerFlags } from "../../shared/owner";
 
 export const FLAGS_PATH = "/api/owner/flags";
@@ -41,6 +42,25 @@ const LOOK: Partial<Record<Flag, { icon: LucideIcon; chip: string; edge: string 
 /** How many workspaces the overrides list shows before asking for a search. */
 const LIST_MAX = 25;
 
+/** The look, the owner's choice alone (src/lib/ownerLook.tsx): visitors always get the new one, and Settings no longer
+ *  offers it. Kept on this device, like /legacy (which this replaces as the way in). */
+function LookSwitch() {
+  const v8 = useIsV8();
+  return (
+    <Section title="Look on this device" description="Visitors always get the new look; only you can switch, here. Kept on this device.">
+      <div data-owner-look className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+        <div className="min-w-0">
+          <p className="font-medium text-foreground">{v8 ? "New look" : "Classic look"}</p>
+          <p className="text-sm text-muted-foreground">{v8 ? "Calmer and darker, each page built around what you came for." : "Control Scout as it was, yellow accents and all."}</p>
+        </div>
+        <Button variant="outline" size="sm" className="max-sm:h-[44px]" onClick={() => setV8(!v8, "/owner?panel=features")}>
+          Switch to the {v8 ? "classic" : "new"} look
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
 export function FeaturesPanel() {
   const state = useApi<OwnerFlags>(FLAGS_PATH);
   const [ask, setAsk] = useState<{ flag: OwnerFlag; enabled: boolean } | null>(null);
@@ -61,6 +81,7 @@ export function FeaturesPanel() {
 
   return (
     <>
+      <LookSwitch />
       <Async state={state}>
         {(d) => {
           const features = d.flags.filter((f) => f.group === "feature");
