@@ -14,6 +14,7 @@ import { packsDir } from "../packs/routes.js";
 import type { Manifest } from "../packs/build.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { pageModule } from "../../src/shared/routes.js";
+import { dataReportOffThread } from "./dataReportOffThread.js";
 import { DATA_FLAG_EXAMPLES, type DataFlag, type OwnerDataReport, type OwnerPacks, type PackFileRow, type SeasonSync } from "../../src/shared/ownerData.js";
 
 const N = DATA_FLAG_EXAMPLES;
@@ -196,7 +197,8 @@ let cached: { at: number; p: Promise<OwnerDataReport> } | null = null;
 export function dataReport(fresh = false): Promise<OwnerDataReport> {
   if (fresh || !cached || Date.now() - cached.at > REPORT_TTL_MS) {
     const at = Date.now();
-    const p = computeDataReport(at);
+    // On a worker thread (dataReportOffThread.ts): its whole-history reads held the site for seconds here.
+    const p = dataReportOffThread(at);
     p.catch(() => { if (cached?.at === at) cached = null; });
     cached = { at, p };
   }
