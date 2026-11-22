@@ -217,6 +217,9 @@ export interface SearchVideoItem {
   live?: boolean;
   /** Its owner turned off playing on other sites: it opens on YouTube (MatchClip.youtubeOnly). */
   youtubeOnly?: true;
+  /** A recording's clip: its own frame, one tile (`col`, `row`) of a YouTube storyboard sheet `cols` × `rows` tiles
+   *  big (server/videos/storyboards.ts). None: the video's own thumbnail. */
+  still?: { src: string; col: number; row: number; cols: number; rows: number };
   /** A contributor video's credit (the actual name, never a username), badge, likes and the viewer's own part. */
   contributor?: { id: number; name: string; verified: boolean; profile: string | null; avatar?: string | null; likes: number; liked: boolean; mine: boolean; tier: "public" | "team" | "self" };
 }
