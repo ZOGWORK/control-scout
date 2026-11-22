@@ -10,7 +10,7 @@
 // narrow the results here, in the address (./search/page/results.ts). A question also gets Bruno AI's short
 // written answer on top, from those same records (./search/BrunoAnswer.tsx). Nothing found is never a dead end
 // (./search/page/NoResults.tsx).
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -70,6 +70,9 @@ export default function SearchPage() {
   // submitted search never starts on a loading screen; this page's own request replaces it as soon as it answers.
   // `thread`: this question, once answered, is what a follow-up refers back to (src/components/search/thread.ts).
   const initial = BOOT_HITS && BOOT_HITS.q.trim() === query ? BOOT_HITS : handedAnswer(query);
+  // Whether the page drew with an answer it already had (read once: the handoff lapses, the drawn answer doesn't): a
+  // submitted query keeps showing it rather than wait on its own answer to decide where to go (../components/search/direct.ts).
+  const seeded = useRef(!!initial).current;
   const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, initial, false, picked, true);
   const seasonPick = useMemo<SeasonPick>(() => ({
     picked, pending: reseason,
@@ -81,7 +84,7 @@ export default function SearchPage() {
   const askedTime = askedWhen(ax);
   const filters = readFilters(params, askedTime);
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
-  const leaving = useSubmittedSearch(query, { answer, live, error, searchNow });
+  const leaving = useSubmittedSearch(query, { answer, live, error, searchNow, seeded });
   // Home's glide on its way in (search/glide.ts): the loading shapes until the box lands, then the answer.
   const gliding = useGliding();
   const phone = useMediaQuery("(max-width: 767px)");
