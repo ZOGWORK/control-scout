@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { useSearchParams } from "react-router-dom";
 import { Clapperboard,
   Activity, AlertTriangle, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, Gauge, HardDrive, HardDriveDownload,
-  Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Trophy, Unlink, UserRound, Users, Tv, Film,
+  Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Palette, Trophy, Unlink, UserRound, Users, Tv, Film,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
@@ -64,6 +64,7 @@ const PANELS = [
   { id: "predictions", label: "Predictions & ledger", icon: Target, group: "Product" },
   { id: "content", label: "Rankings & content", icon: Trophy, group: "Product" },
   { id: "features", label: "Features", icon: ToggleRight, group: "Product" },
+  { id: "appearance", label: "Appearance", icon: Palette, group: "Product" },
   { id: "moderation", label: "Moderation", icon: ShieldAlert, group: "People & trust" },
   { id: "contributors", label: "Video contributors", icon: Clapperboard, group: "People & trust" },
   { id: "feedback", label: "Feedback & errors", icon: Inbox, group: "People & trust" },
@@ -76,7 +77,7 @@ const PANELS = [
 /** Links made before the console grouped its panels into sections: each opens the section that holds it. */
 const PANEL_ALIASES: Record<string, string> = {
   ops: "data", users: "accounts", orphaned: "accounts", usage: "analytics", flags: "features", errors: "feedback",
-  powerRankings: "content", streams: "content", whatsNew: "content",
+  powerRankings: "content", streams: "content", whatsNew: "content", wash: "appearance", gradients: "appearance",
 };
 type PanelId = (typeof PANELS)[number]["id"];
 
@@ -174,13 +175,13 @@ export default function OwnerPage() {
             <div className="space-y-8">
               <PowerRankingsPanel onOpenSwitches={() => go("features")} />
               <HeroLinesPanel />
-              <WashPanel />
               <StreamsPanel />
               <DigestPanel />
               <WhatsNewPanel />
             </div>
           )}
           {panel === "features" && <FeaturesPanel />}
+          {panel === "appearance" && <div className="space-y-8"><WashPanel /><FeaturesPanel appearance /></div>}
           {panel === "moderation" && <div className="space-y-8"><CommonsPanel /><ModerationPanel onOpenResync={() => go("data")} /></div>}
           {panel === "feedback" && <div className="space-y-8"><FeedbackPanel onOpenResync={() => go("data")} /><ErrorsPanel /></div>}
           {panel === "bugs" && <BugReportsPanel />}

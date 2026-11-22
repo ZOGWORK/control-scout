@@ -10,7 +10,7 @@ import { renderPage, washStyle } from "./seo";
 import { BOOT_STYLE } from "./bootShell";
 import { DEFAULT_WASH, WASH_STYLE_ID } from "../src/shared/wash";
 
-const MINE = { a: "#112233", b: "#445566", c: "#778899", strength: 0.6, spread: 1.4 };
+const MINE = { a: "#112233", b: "#445566", c: "#778899", ga: "#aa3300", gb: "#3300aa", gc: "#00aa33", strength: 0.6, spread: 1.4 };
 
 beforeEach(async () => {
   const c = openDb(":memory:");
