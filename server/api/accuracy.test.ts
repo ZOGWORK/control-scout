@@ -9,6 +9,8 @@ import { LIVE_THRESHOLD, REPLAY_HEADLINE_MIN, brierSkill, ledgerSplit } from "..
 
 const S = Math.max(...PREDICT_SEASONS);
 let builds = 0;
+/** Reads of one season's replayed calls (the track record keeps them until that season's replay is written again). */
+let replayReads = 0;
 let realExec: any;
 /** Run once just before the next bonus read (mid-build, after the scored calls' chunks): a write landing in between. */
 let beforeBonusRead: (() => Promise<void>) | null = null;
@@ -26,10 +28,14 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   realExec = c.execute.bind(c);
-  // Count full builds: each reads every scored prediction once, in chunks (db.ts allInChunks): its first chunk counts.
+  // Count reads of the calls: each try of a build lists the seasons' replays once (and reads those that moved, in
+  // chunks: db.ts allInChunks, a first chunk each); a build read in one statement (after three torn tries) counts too.
   (c as any).execute = (s: any) => {
     const sql = String(s?.sql ?? s);
-    if (sql.startsWith("SELECT id, kind, season, p_red") && s?.args?.at(-1) === Number.MIN_SAFE_INTEGER) builds++;
+    if (sql.includes("WHERE kind = 'backtest' GROUP BY season")) builds++;
+    const first = s?.args?.at(-1) === Number.MIN_SAFE_INTEGER;
+    if (sql.startsWith("SELECT id, kind, season, p_red") && first && !sql.includes("AND kind")) builds++;
+    if (sql.startsWith("SELECT id, kind, season, p_red") && first && sql.includes("kind = 'backtest' AND season = ?")) replayReads++;
     if (beforeBonusRead && sql.includes("p.bonus_red")) { const w = beforeBonusRead; beforeBonusRead = null; return w().then(() => realExec(s)); }
     return realExec(s);
   };
@@ -39,6 +45,7 @@ afterAll(() => { (db() as any).execute = realExec; });
 beforeEach(async () => {
   resetTrackRecord();
   builds = 0;
+  replayReads = 0;
   await run("DELETE FROM predictions");
   await kvSet("data:version", "v1");
   for (let i = 1; i <= 4; i++) await backtestCall(i, 0.7, i === 4 ? 0 : 1);
@@ -134,6 +141,54 @@ describe("track record cache", () => {
     await kvSet("data:settled", "s2"); // …and finishes
     await warmTrackRecord();
     expect(n(await trackRecord())).toBe(5);
+  });
+
+  it("reads a season's replay once, then only the live calls, until the stats run writes that replay again", async () => {
+    const live = (number: number) => run(
+      `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at, match_time, outcome, scored_at)
+       VALUES ('live', ?, 'USLIV', 'qual', 0, ?, '1 2', '3 4', 0.6, 50, 40, 'moderate', 'test', '2026-11-01', '2026-11-01T10:00:00', 1, ?)`,
+      [S, number, `2026-11-01T10:0${number}:00`],
+    );
+    const first = await trackRecord();
+    expect(replayReads).toBe(1);
+    const block = first.seasons.find((s) => s.season === S)!;
+    // A live tick: the follow-up moves the data version as it starts and data:settled as it ends, a call scored between.
+    await kvSet("data:version", "v-tick");
+    await warmTrackRecord();
+    // Nothing the season's block is made of moved: the same block, nothing read again.
+    expect((await trackRecord()).seasons.find((s) => s.season === S)).toBe(block);
+    await live(1);
+    await kvSet("data:settled", "s-tick");
+    await warmTrackRecord();
+    const after = await trackRecord();
+    expect(builds).toBe(3);
+    expect(replayReads).toBe(1);
+    expect(after.seasons.find((s) => s.season === S)?.live?.n).toBe(1);
+    expect(n(after)).toBe(4);
+    // The stats run writes the season's replay again (deleted, then written under new ids, one call more).
+    await run("DELETE FROM predictions WHERE kind = 'backtest' AND season = ?", [S]);
+    for (let i = 1; i <= 5; i++) await backtestCall(i, 0.7, i === 4 ? 0 : 1);
+    await kvSet("data:settled", "s-run");
+    await warmTrackRecord();
+    const rewritten = await trackRecord();
+    expect(replayReads).toBe(2);
+    expect(n(rewritten)).toBe(5);
+    // Identical to a build from scratch (apart from when it was made).
+    resetTrackRecord();
+    expect({ ...(await trackRecord()), generatedAt: "" }).toEqual({ ...rewritten, generatedAt: "" });
+  });
+
+  it("keeps nothing a torn read gave: a replay written mid-build is read in full on the retry", async () => {
+    beforeBonusRead = async () => {
+      await run("DELETE FROM predictions WHERE kind = 'backtest' AND season = ?", [S]);
+      for (let i = 1; i <= 6; i++) await backtestCall(i, 0.7, i === 4 ? 0 : 1);
+    };
+    expect(n(await trackRecord())).toBe(6);
+    // The next build (the data moved on) reads no replay again: the one kept is the retry's.
+    await kvSet("data:version", "v-next");
+    await warmTrackRecord();
+    expect(n(await trackRecord())).toBe(6);
+    expect(replayReads).toBe(2);
   });
 
   it("rebuilds when a live call is scored", async () => {
