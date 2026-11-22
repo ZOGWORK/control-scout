@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { APIEmbed } from "discord.js";
 import { createHandler, type Lookups, type Memory, type MentionMessage } from "./handler";
-import type { Report } from "./report";
+import type { Filed, Report } from "./report";
 import { Friendly } from "./views";
 import { AnswerCache } from "./guard";
 import { COMMANDS, sameCommands } from "./commands";
@@ -588,7 +588,7 @@ describe("\"Report this to ControlScout\"", () => {
   function message(content: string, over: Partial<MentionMessage> = {}) {
     const sent: { kind: string; embeds: APIEmbed[] }[] = [];
     const m: MentionMessage = {
-      author: { id: "u1", bot: false, globalName: "Alex" }, guildId: "g1", channelId: "c1", content,
+      id: "msg-1", author: { id: "u1", bot: false, globalName: "Alex" }, guildId: "g1", channelId: "c1", content,
       reply: vi.fn(async (o) => { sent.push({ kind: "reply", embeds: o.embeds }); return { id: "m1" }; }),
       channel: { send: vi.fn(async (o) => { sent.push({ kind: "send", embeds: o.embeds }); }), sendTyping: vi.fn(async () => {}) },
       ...over,
@@ -621,6 +621,28 @@ describe("\"Report this to ControlScout\"", () => {
     expect(report).toHaveBeenCalledTimes(1);
     expect(second.sent[0].embeds[0].title).toBe("Reported");
     expect(second.sent[0].embeds[0].description).toContain("#42");
+  });
+
+  it("two members' different reports are two issues, even a moment apart in one channel", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const h = createHandler(() => {}, lookups({ report }));
+    await h.mention(message(`<@${BOT}> report this to ControlScout`).m, BOT);
+    await h.mention(message(`<@${BOT}> report this to ControlScout`, { id: "msg-2" }).m, BOT);
+    expect(report).toHaveBeenCalledTimes(2);
+  });
+
+  it("the same message asked for twice at once files one issue", async () => {
+    let release!: (r: Filed) => void;
+    const report = vi.fn(() => new Promise<Filed>((res) => { release = res; }));
+    const h = createHandler(() => {}, lookups({ report }));
+    const first = h.mention(message(`<@${BOT}> report this to ControlScout`).m, BOT);
+    // Let the first reach the awaiting file call, then ask again for the same message.
+    await new Promise((r) => setTimeout(r, 10));
+    const second = h.mention(message(`<@${BOT}> report this to ControlScout`).m, BOT);
+    await new Promise((r) => setTimeout(r, 10));
+    release(filed);
+    await Promise.all([first, second]);
+    expect(report).toHaveBeenCalledTimes(1);
   });
 
   it("the thread before it goes with the report, and its log too", async () => {

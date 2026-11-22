@@ -38,6 +38,10 @@ export interface Report {
 export type Filed = { ok: true; number: number; url: string } | { ok: false; reason: string };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+/** Discord text in an issue: it's filed under the bot's own GitHub identity, so a member can't use a report to ping a
+ *  stranger or cross-reference an issue — an @mention and a #123 lose their trigger (a zero-width space) and nothing
+ *  else about the text changes. */
+const quiet = (s: string) => s.replace(/@(?=[\w-])/g, "@\u200B").replace(/#(?=\d)/g, "#\u200B");
 /** A log line is text from the bot's own log: keep it inside the body's fence whatever it holds. */
 const fenced = (s: string) => clip(s.replace(/```/g, "'''"), 300);
 
@@ -48,13 +52,13 @@ export function reportBody(r: Report, now = Date.now()): string {
     "_Reported from Discord by Control Scout itself, at a member's request._",
     "",
     "### The message that asked for it",
-    clip(r.message, 1500),
-    ...(thread.length ? ["", "### The thread before it", ...thread.map((t) => `- **${t.role === "user" ? "Person" : "Control Scout"}:** ${clip(t.text, 1200)}`)] : []),
+    quiet(clip(r.message, 1500)),
+    ...(thread.length ? ["", "### The thread before it", ...thread.map((t) => `- **${t.role === "user" ? "Person" : "Control Scout"}:** ${quiet(clip(t.text, 1200))}`)] : []),
     "",
     "### Where",
     `- **Server:** \`${r.guild ?? "unknown"}\``,
     `- **Channel:** \`${r.channel ?? "unknown"}\``,
-    `- **Asked by:** ${r.name ?? "a member"} (\`${r.user}\`)`,
+    `- **Asked by:** ${quiet(clip(r.name ?? "a member", 100))} (\`${r.user}\`)`,
     "",
     `### The bot's last log lines (${r.logs.length})`,
     "```",

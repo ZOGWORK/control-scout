@@ -3,7 +3,7 @@
 // the site already has: GITHUB_REPORT_TOKEN.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setGithubFetch } from "../server/errorReports";
-import { REPORT_LABELS, REPORT_TITLE, fileReport, reportBody, wantsReport, type Report } from "./report";
+import { REPORT_LABELS, REPORT_TITLE, fileReport, reportBody, wantsReport, type Filed, type Report } from "./report";
 
 const report = (over: Partial<Report> = {}): Report => ({
   guild: "g1", channel: "c1", user: "u1", name: "Alex",
@@ -42,6 +42,19 @@ describe("the issue's body", () => {
     // Nothing secret ever rides along: the token isn't in what the bot writes.
     process.env.GITHUB_REPORT_TOKEN = "ghp_secret_value";
     expect(reportBody(report())).not.toContain("ghp_secret_value");
+  });
+
+  it("can't be used to ping a GitHub user or cross-reference an issue", () => {
+    // The issue is filed under the bot's own GitHub identity: whatever a member typed, no @mention and no #123 may
+    // reach anyone from it.
+    const body = reportBody(report({ message: "Report this to ControlScout @octocat #12", name: "@here guy", thread: [{ role: "user", text: "ping @everyone about #999" }] }));
+    expect(body).not.toMatch(/@octocat/);
+    expect(body).not.toMatch(/@here/);
+    expect(body).not.toMatch(/@everyone/);
+    expect(body).not.toMatch(/#12\b/);
+    expect(body).not.toMatch(/#999/);
+    expect(body).toContain("@\u200Boctocat");
+    expect(body).toContain("#\u200B999");
   });
 
   it("keeps a log line inside the fence, and says so when nothing was logged", () => {
