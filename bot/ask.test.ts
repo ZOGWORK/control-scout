@@ -318,6 +318,43 @@ describe("when no chat can answer", () => {
     expect((await ask(q, deps(nothing(q), { ...rest, available: () => false }), SITE)).chat?.text).toBe(NO_CHAT);
   });
 
+  it("a chat about a mechanism posts even though his answer has a number: nothing found, nothing asked of the records", async () => {
+    // The screenshot's question: search finds nothing for it, there is no number in it, so the numbers in his explanation
+    // ("1:1", "2 motors") are how a swerve works, not a record — the reply posts instead of the fallback.
+    const q = "coxial suspension swerve explain";
+    const d = deps(nothing(q), {
+      facts: vi.fn(async () => []), refine: vi.fn(async () => null),
+      chat: vi.fn(async () => ({ text: "A coaxial swerve drives both wheels from one axis, usually 1:1.", search: false, unknown: ["1"] })),
+    });
+    const r = await ask(q, d, SITE);
+    expect(r.chat?.text).toMatch(/1:1/);
+    expect(r.chat?.by).toBeUndefined();
+    expect(r.meta.chat).toBe(true);
+  });
+
+  it("a number the facts don't have still refuses his reply when the message asked about the records", async () => {
+    const d = deps(base(), {
+      facts: vi.fn(async () => ["4215 Hypnotic Robotics: 3 awards in 2025–26"]),
+      chat: vi.fn(async () => ({ text: "4215 won 7 awards.", search: true, unknown: ["7"] })),
+    });
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const r = await ask("4215 awards", d, SITE);
+      expect(r.chat).toBeUndefined();
+      expect(r.embed.title).toBe("4215 | Team 4215");
+      // The numbers only, so a dropped reply is traced to the number that failed.
+      expect(info.mock.calls.flat().join(" ")).toContain("[bot] chat dropped: numbers not in the facts: 7");
+    } finally { info.mockRestore(); }
+  });
+
+  it("a message naming a number is a records question, even when search finds nothing for it", async () => {
+    const d = deps(nothing("99999 swerve ratio"), {
+      facts: vi.fn(async () => []), refine: vi.fn(async () => null),
+      chat: vi.fn(async () => ({ text: "Teams at that number usually run 2 motors on a 1:1.", search: false, unknown: ["2"] })),
+    });
+    expect((await ask("99999 swerve ratio", d, SITE)).chat).toBeUndefined();
+  });
+
   it("the model's chat speaks first when it has something to say, fallback or not", async () => {
     const facts = vi.fn(async () => []);
     const chat = vi.fn(async () => ({ text: "Hey! Ask me about a team.", search: false }));

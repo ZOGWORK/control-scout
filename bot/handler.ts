@@ -3,7 +3,7 @@
 // friendly embed, logged here with the command and its arguments. Autocomplete answers from a cached
 // event list and never throws.
 import { MessageFlags, PermissionFlagsBits, type APIEmbed, type AutocompleteInteraction, type ChatInputCommandInteraction, type Interaction } from "discord.js";
-import { AnswerCache, Cooldown } from "./guard.js";
+import { AnswerCache } from "./guard.js";
 import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
 import { addFollow, followingEmbed, listFollows, removeFollow } from "./follows.js";
 import { BOT_COMMANDS } from "../src/shared/discord.js";
@@ -87,10 +87,10 @@ export function describe(i: Pick<ChatInputCommandInteraction, "commandName" | "o
   return [`/${i.commandName}`, ...args].join(" ");
 }
 
-export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { ttlMs?: number; cooldownMs?: number } = {}) {
+export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { ttlMs?: number } = {}) {
   const cache = new AnswerCache<APIEmbed>(opts.ttlMs ?? 60_000, 2000, (e) => e instanceof Friendly);
-  const cooldown = new Cooldown(opts.cooldownMs ?? 3000);
-  // /ask keeps every command's 3-second pace; the same question within a minute is the answer already given.
+  // Nobody is paced per person: every message is answered (a person asking twice in a row gets both answers). Only the
+  // same question within a minute is the answer already given, whoever asks.
   const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
 
   /**
@@ -172,11 +172,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       await i.reply({ embeds: [pride(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."))], flags: MessageFlags.Ephemeral });
       return;
     }
-    const wait = cooldown.take(i.user.id);
-    if (wait > 0) {
-      await i.reply({ embeds: [pride(errorEmbed("Slow down", `One command every 3 seconds. Try again in ${Math.ceil(wait / 1000)} s.`))], flags: MessageFlags.Ephemeral });
-      return;
-    }
+    
     await i.deferReply();
     if (i.commandName === "ask") {
       const question = i.options.getString("question", true);
@@ -241,8 +237,6 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         await card(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."));
         return;
       }
-      // Too fast: nothing in the channel (a public "slow down" would be noise); the next one past 3 s is answered.
-      if (cooldown.take(m.author.id) > 0) return;
       if (!q) {
         await card({ title: "Ask me anything", description: "Write your question after the mention, like the website's search box:\n`@Control Scout who won decode` · `@Control Scout 4215 vs 6980`\nOr use `/ask question:`. Reply to my answer to keep talking.", color: VOLT, footer: FOOTER });
         return;

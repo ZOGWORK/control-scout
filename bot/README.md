@@ -41,8 +41,8 @@ can't answer get "Sorry — I can't answer that yet", what was read, and questio
 footer above Control Scout's line; a deterministic one never does. Bruno off, unconfigured, failing or slow: the
 deterministic answer posts anyway.
 
-Pace: the same as every command (one per person every 3 seconds, no longer wait for /ask); the same question
-within a minute is the answer already given. Every ask is logged as the command, the step, whether Bruno helped
+Pace: none per person — every message is answered, so two in a row get two answers. Only the same question within
+a minute is the answer already given (one lookup, whoever asks). Every ask is logged as the command, the step, whether Bruno helped
 and the time, never who asked. The bot reads the site's search index and never writes it.
 
 **@mention answers: a chat with Bruno.** `@Control Scout who won decode` or `@Control Scout hi bruno` goes to Control
@@ -95,8 +95,9 @@ code; you can also type a code yourself).
   it. Only matches starting after the follow (no backlog). Each post is claimed in `discord_posts` before it's
   sent, so nothing posts twice; a passing failure retries, a channel that's gone is dropped after 5 failures.
 - **Load protection.** One answer per command and arguments for 60 seconds (`bot/guard.ts`): fifty people
-  asking for the same match cost one lookup. One command per person every 3 seconds (a private "Slow
-  down" reply). Autocomplete reads the event list once a minute and returns at most 25 choices.
+  asking for the same match cost one lookup. Nobody is paced per person: every command and every mention is
+  answered, however fast it follows the last. Autocomplete reads the event list once a minute and returns at
+  most 25 choices.
 - **Always answers.** Replies are deferred before any lookup, so nothing dies with "The application did
   not respond". Every failure is a short embed; unexpected ones (the database busy or down) say "Try
   again in a minute" and are logged with the command and arguments, never shown.
