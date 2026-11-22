@@ -60,8 +60,11 @@ import { dailyRefreshTick } from "./powerRankings/refresh.js";
 import { pingIndexNow } from "./indexNow.js";
 import { tidyStoredPlaces } from "./data/tidyPlaces.js";
 import type { Server } from "node:http";
+import { watchGcPauses } from "./gcPauses.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
+// Long garbage-collection pauses, named (server/gcPauses.ts): they hold the loop and leave no other trace.
+watchGcPauses(log);
 
 // Open the port first (hosts like Render restart a service that doesn't bind
 // quickly), then prepare the data: restore the shipped snapshot into an empty
