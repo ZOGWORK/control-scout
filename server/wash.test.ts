@@ -75,7 +75,7 @@ describe("the first paint", () => {
     for (const p of ["/", "/events", "/teams/4215"]) {
       const html = (await renderPage(file, p)).html;
       const head = html.slice(0, html.indexOf("</head>"));
-      expect(head, p).toContain(`<style id="${WASH_STYLE_ID}">html[data-v8]:root{--wash-a:#112233;--wash-b:#445566;--wash-c:#778899;--wash-strength:0.6;--wash-spread:1.4}</style>`);
+      expect(head, p).toContain(`<style id="${WASH_STYLE_ID}">html[data-v8]:root{--wash-a:#112233;--wash-b:#445566;--wash-c:#778899;--glow-a:#aa3300;--glow-b:#3300aa;--glow-c:#00aa33;--wash-strength:0.6;--wash-spread:1.4}</style>`);
     }
   });
 
