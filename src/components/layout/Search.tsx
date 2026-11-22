@@ -9,7 +9,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { focusForEditing } from "../../lib/focusField";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
-import { SearchBox, hitHref } from "../search/SearchBox";
+import { SearchBox, hitHref, type SearchFieldEl } from "../search/SearchBox";
 import { cn } from "../cn";
 
 export { hitHref };
@@ -17,8 +17,8 @@ export { hitHref };
 interface SearchCtx {
   /** Focus the search box on this page (expanding the top-bar field on phones). */
   open: () => void;
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  pageRef: React.RefObject<HTMLInputElement | null>;
+  inputRef: React.RefObject<SearchFieldEl | null>;
+  pageRef: React.RefObject<SearchFieldEl | null>;
   expanded: boolean;
   setExpanded: (v: boolean) => void;
   /** A page has its own search box: the top-bar field hides. */
@@ -39,8 +39,8 @@ export function usePageSearch() {
 }
 
 export function SearchProvider({ children }: { children: ReactNode }) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const pageRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = useRef<SearchFieldEl | null>(null);
+  const pageRef = useRef<SearchFieldEl | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [claims, setClaims] = useState(0);
   const claim = useCallback(() => { setClaims((n) => n + 1); return () => setClaims((n) => n - 1); }, []);
@@ -114,7 +114,7 @@ export function GlobalSearch({ part }: { part?: "button" | "field" }) {
         onPick={(h) => nav(hitHref(h))}
         onClose={() => setExpanded(false)}
         onEscape={restoreFocus}
-        glide
+        glide wrap
         className={cn(
           "w-full md:block md:max-w-xs lg:max-w-sm",
           expanded ? "absolute inset-x-0 top-full z-50 border-b border-line bg-primary p-2 md:relative md:inset-auto md:top-auto md:border-0 md:bg-transparent md:p-0" : "hidden",
