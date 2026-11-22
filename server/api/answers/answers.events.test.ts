@@ -134,8 +134,24 @@ describe("one team at one event", () => {
     const fk = first.stat!.blocks.find((b) => b.kind === "kpis");
     expect(fk && fk.kind === "kpis" && fk.items[0]).toMatchObject({ label: "League standing", value: expect.stringMatching(/^#3\b/) });
     expect(first.understood?.label).toBe("Quality Control (21229) · Auto OPR at Salk League Meet 1, their first event");
+    // "First" alone after the stat is the same first event (failed search #2171).
+    const bareFirst = await searchAnswer("quality control auto opr first", { limit: 25 });
+    expect(bareFirst.stat).toMatchObject({ title: "Auto OPR at Salk League Meet 1", headline: { value: "Auto OPR 41.9" } });
+    expect(bareFirst.understood?.label).toBe("Quality Control (21229) · Auto OPR at Salk League Meet 1, their first event");
+    expect(bareFirst.understood?.unread ?? []).toEqual([]);
     // The quick answer (no card yet) says it too: "last" is never left unread.
     expect((await searchAnswer("quality control average points last meet", { limit: 25, full: false })).understood?.unread ?? []).toEqual([]);
+  });
+  it("'average' before a phase's OPR is the same season number, a dangling 'in' after it read (failed search #2164)", async () => {
+    // The same card as "auto opr" said plainly: the team's Auto OPR this season.
+    const plain = await searchAnswer("quality control auto opr", { limit: 25 });
+    for (const q of ["quality control average auto opr", "quality control average auto opr in"]) {
+      const a = await searchAnswer(q, { limit: 25 });
+      expect(a.understood?.kind, q).toBe("question");
+      expect(a.understood?.label, q).toBe("Quality Control (21229) · Auto OPR in 2026–27");
+      expect(a.stat, q).toEqual(plain.stat);
+      expect(a.understood?.unread ?? [], q).toEqual([]);
+    }
   });
   it("a phase alone beside the team at an event is that phase's OPR there (failed search #2032)", () => {
     expect(readStatQuestion("hypnotic robotics auto in nj states")).toMatchObject({ id: "event-opr", phase: "auto", core: "hypnotic robotics nj", scope: { states: true } });

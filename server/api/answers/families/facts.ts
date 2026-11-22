@@ -62,9 +62,10 @@ const PHASE = { "auto-opr": ["auto", "Auto OPR"], "teleop-opr": ["teleop", "Tele
 // In order: the longer phrases first ("OPR vs … average" before "OPR", "auto OPR" before "OPR").
 const RULES: { id: FactId; re: RegExp }[] = [
   { id: "opr-vs-average", re: /\bopr\s+(?:vs\.?|versus|compared\s+(?:to|with)|against)\s+(?:the\s+)?(?<what>.+?)\s+(?:average|avg|mean)\b/ },
-  { id: "auto-opr", re: /\b(?:auto|autonomous)\s+opr\b/ },
-  { id: "teleop-opr", re: /\b(?:tele-?op|driver[\s-]controlled)\s+opr\b/ },
-  { id: "endgame-opr", re: /\bend\s?game\s+opr\b/ },
+  // A phase's OPR is a per-match average too, as the OPR is (below): "average auto OPR" asks the same number.
+  { id: "auto-opr", re: /\b(?:(?:average|avg|mean)\s+)?(?:auto|autonomous)\s+opr\b/ },
+  { id: "teleop-opr", re: /\b(?:(?:average|avg|mean)\s+)?(?:tele-?op|driver[\s-]controlled)\s+opr\b/ },
+  { id: "endgame-opr", re: /\b(?:(?:average|avg|mean)\s+)?end\s?game\s+opr\b/ },
   { id: "report-card", re: /\b(?:prediction\s+)?report\s+card\b|\bprediction\s+(?:accuracy|record)\b/ },
   // Only the predicted score: "will 12345 win its next match" and "when is 12345's next match" are the asks' own.
   // "Predicted matches" (failed-search #1147): the engine's call on the team's next match, as "next match prediction".
