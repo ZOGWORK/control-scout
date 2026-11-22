@@ -90,17 +90,23 @@ function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string;
   // An answer about no team shows its season as the frame's picker (./SeasonPick.tsx): not again among the chips.
   const picked = !!useSeasonPick() && !teams?.length && stated != null;
   const chips = picked ? stat.scope.filter((s) => !(statedSeason(s) != null && s.length <= 7)) : stat.scope;
+  // v8 draws a ranked list with no headline number: the list itself is the answer.
+  const listOnly = v8 && stat.family === "leaderboard" && stat.blocks.some((b) => b.kind === "leaderboard");
+  // A list that opens the card: its label and what it counts join the frame's header block (chips, label, meta on one
+  // left edge, the season picker beside them), not a second header of its own under it.
+  const lead = (listOnly || !stat.headline) && stat.blocks[0]?.kind === "leaderboard" ? stat.blocks[0] : null;
   const scope = !!chips.length && (
     <p className="flex flex-wrap gap-1.5 text-xs" data-scope>
       {chips.map((s) => statedSeason(s) != null && s.length <= 7 ? <SeasonChip key={s} text={s} /> : <span key={s} className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 font-medium text-foreground/80">{s}</span>)}
     </p>
   );
+  const sub = lead ? <>{scope}<LeaderboardCaption b={lead} className={scope ? "mt-2" : undefined} /></> : scope || undefined;
   return (
-    <AnswerFrame teams={teams} split={stat.split} profile={profile} season={stated} title={stat.title} hideTitle={repeats(heading, stat.title, stat.scope)} sub={scope || undefined}
+    <AnswerFrame teams={teams} split={stat.split} profile={profile} season={stated} title={stat.title} hideTitle={repeats(heading, stat.title, stat.scope)} sub={sub}
       data={{ "data-stat-answer": stat.intent, "data-family": stat.family }}>
       {/* A label the page's heading already holds (or that only repeats the title) is for screen readers only, as the
           server's first paint leaves it out (server/seoMeta.ts): never the same words twice. */}
-      {stat.headline && !(v8 && stat.family === "leaderboard" && stat.blocks.some((b) => b.kind === "leaderboard")) && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} tone={headlineTone(stat, teams)}
+      {stat.headline && !listOnly && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} tone={headlineTone(stat, teams)}
         hideLabel={repeats(heading, stat.headline.label, stat.scope) || stat.headline.label === stat.title} />}
       <AnswerVideo />
       <NoVideoLine stat={stat} />
@@ -110,7 +116,7 @@ function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string;
           <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", TONE.no.fill)} data-line-icon><Info className="size-4" aria-hidden /></span><span className="mt-1">{stat.none}</span>
         </p>
       )}
-      <div className="mt-4 space-y-5">{stat.blocks.map((b, i) => <Block key={`${b.kind}-${i}`} b={b} team={stat.team} teams={teams} said={said} hue={one} />)}</div>
+      <div className={cn("space-y-5", !lead && "mt-4")}>{stat.blocks.map((b, i) => <Block key={`${b.kind}-${i}`} b={b} team={stat.team} teams={teams} said={said} hue={one} captioned={!(lead && i === 0)} />)}</div>
       {extra}
       <MethodNote source={stat.source} definition={stat.definition}>
         {stat.more && <p><Link to={stat.more.href} className="inline-flex items-center text-xs font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text v8:hover:text-foreground max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more>{stat.more.label}</Link></p>}
@@ -196,7 +202,8 @@ function teamOf(label: string, teams: { number: number }[]): number {
   return teams.findIndex((t) => new RegExp(`(^|\\(|\\s)${t.number}(\\)|\\s|$)`).test(label));
 }
 
-function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: StatAnswer["team"]; teams?: { number: number; name: string | null }[]; said?: Said; hue?: boolean }) {
+/** `captioned: false`: the block's label is drawn in the card's header (a leaderboard that opens the card). */
+function Block({ b: block, team, teams, said, hue, captioned = true }: { b: StatBlock; team?: StatAnswer["team"]; teams?: { number: number; name: string | null }[]; said?: Said; hue?: boolean; captioned?: boolean }) {
   const bar = hue ? TEAM_BAR : INK_BAR;
   // A tile that says nothing the headline or scope doesn't (its number, and its line and rank too: the headline's
   // number, its win rate, the season): left out. A tile with anything more (a rank, a count) stays.
@@ -301,7 +308,7 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
     case "table":
       return b.rows.some((r) => r.teams) ? <MatchTable b={b} /> : <Table b={b} />;
     case "leaderboard":
-      return <Leaderboard b={b} />;
+      return <Leaderboard b={b} captioned={captioned} />;
     case "league":
       return (
         <div data-block="league" className="space-y-2">
@@ -622,7 +629,19 @@ const V8_TOP = 5;
 
 /** A leaderboard: the asked stat's teams as the search's one team table (../TeamTable.tsx), sorted by the stat asked
  *  (the list's own order when it isn't an OPR), with its note above and the small "View more detail" link under it. */
-function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) {
+/** A leaderboard's label with what it counts under it, both on the label's left edge (never pushed to the far right,
+ *  where it floated off the label's line). */
+function LeaderboardCaption({ b, className }: { b: Extract<StatBlock, { kind: "leaderboard" }>; className?: string }) {
+  return (
+    <div className={className} data-leaderboard-caption>
+      <p className={cn(H3, "mb-0")}>{b.title}</p>
+      {b.note && <p className="mt-0.5 text-[11px] text-muted-foreground" data-note>{b.note}</p>}
+    </div>
+  );
+}
+
+/** `captioned: false`: the label and note are in the card's header (LeaderboardCaption), so the figure has none. */
+function Leaderboard({ b, captioned = true }: { b: Extract<StatBlock, { kind: "leaderboard" }>; captioned?: boolean }) {
   const table = useMemo(() => teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame, b.lowest), [b]);
   // v8: a ranking is sized to the question, its top five, the rest in place with one tap (the page plan).
   const v8 = useIsV8();
@@ -634,10 +653,7 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
   const short = v8 && !all && !b.whole && table.rows.length > V8_TOP;
   return (
     <figure data-block="leaderboard">
-      <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <span className={H3}>{b.title}</span>
-        <span className="text-[11px] text-muted-foreground" data-note>{b.note}</span>
-      </figcaption>
+      {captioned && <figcaption className="mb-2"><LeaderboardCaption b={b} /></figcaption>}
       <TeamTable table={table} label={b.title} limit={short ? V8_TOP : undefined} />
       {v8 && !b.whole && table.rows.length > V8_TOP && (
         <button type="button" onClick={() => setAll((a) => !a)} aria-expanded={all}
