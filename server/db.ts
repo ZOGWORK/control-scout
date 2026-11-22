@@ -2694,6 +2694,21 @@ CREATE TABLE IF NOT EXISTS discord_threads (
 CREATE INDEX IF NOT EXISTS discord_threads_age ON discord_threads (updated_at);
 `,
   },
+  {
+    version: 101,
+    name: "video storyboards",
+    sql: `
+-- Each recording's YouTube storyboard spec (the signed sprite sheets of small frames along its timeline), read at home
+-- (scripts/storyboards.ts: YouTube shows the VM a bot check instead) and handed over through the auto-reads inbox
+-- (server/videos/storyboards.ts). Search crops one frame per clip cut from the recording, so a grid of clips from one
+-- stream shows each match. read_at: when it was read (read again after 30 days).
+CREATE TABLE IF NOT EXISTS video_storyboards (
+  video_id TEXT PRIMARY KEY,
+  spec TEXT NOT NULL,
+  read_at TEXT NOT NULL
+);
+`,
+  },
 ];
 
 export type Db = Client;

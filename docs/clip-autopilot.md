@@ -72,6 +72,13 @@ computer at home, in a clone kept for it alone. Each run:
 7. sweeps up to `--sweep` events' clock-placed clips by their first frame (`video-frames.ts --clips`, shard 0 only)
    and hands the changed `server/data/clipChecks.ts` rows over the same way, checked by `clipCheckProblems`.
 
+8. reads up to 150 recordings' YouTube storyboard specs (`scripts/storyboards.ts`, shard 0 only): the signed sprite
+   sheets of small frames along a video's timeline, which only the watch page names and which YouTube shows the VM a bot
+   check instead of. Newest seasons first, any not read in 30 days, one page every 1.5 s; a bot check stops it until the
+   next run. They go over as one `{ kind: "storyboards", rows: [{ videoId, spec }] }` delivery, kept in
+   `video_storyboards` (`server/videos/storyboards.ts`), so search shows each clip cut from a recording with its own
+   frame (half a minute into the match), not the stream's one thumbnail. A video with none keeps its thumbnail.
+
 ## On the live server (`server/videos/autoReads.ts`)
 
 A delivery is one JSON file, `{ kind: "frames" | "clips", season, rows, source }`, written over ssh as the app's own

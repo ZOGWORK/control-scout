@@ -1,6 +1,6 @@
 // A team's highlights as videos, first (v8 /search, a "highlights" answer: server/api/answers/highlights.ts): a grid of
 // video cards, as a video site lays them out. Each card is the clip's picture with a play mark, the match ("Q21") over
-// it and the clip's length, then "Q21 · NTX I-League Meet #1" and why it's there, the score and the day under it. A tap
+// it and the clip's length (the picture is the match's own frame when the server has one: ./ClipImage.tsx), then "Q21 · NTX I-League Meet #1" and why it's there, the score and the day under it. A tap
 // plays it in the app's video dialog (./AnswerVideo.tsx useClips), never off to YouTube, one at a time. Order: the
 // standout matches first (best score, biggest win…), then every other match with a clip by the team's points, newest
 // first on a tie. A season with no match clip shows the newest season that has one (the server's `season` list,
@@ -11,10 +11,10 @@ import { Link } from "react-router-dom";
 import { ChevronDown, Play, Radio } from "lucide-react";
 import type { SearchVideoItem } from "../../../shared/api";
 import type { StatAnswer, StatBlock } from "../../../shared/searchStat";
-import { thumbnailUrl } from "../../../shared/stream";
 import { clipTime } from "../../../shared/recording";
 import { dateRange, seasonLabel } from "../../../lib/format";
 import { useClips, useVideoKnown } from "./AnswerVideo";
+import { ClipImage } from "./ClipImage";
 import { cn } from "../../cn";
 
 type Videos = Extract<StatBlock, { kind: "videos" }>;
@@ -118,8 +118,7 @@ function Card({ c, onPlay }: { c: ReelCard; onPlay: () => void }) {
       <button type="button" onClick={onPlay} aria-label={`Play ${c.stream ? c.event : `${c.label} · ${c.event}`}${c.note ? `, ${c.note}` : ""}: ${what(c.v)}`}
         className="group block w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background" data-reel-play={c.v.kind}>
         <span className="relative block aspect-video w-full overflow-hidden rounded-xl border border-line bg-black">
-          <img src={thumbnailUrl(c.v.videoId)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }}
-            className="absolute inset-0 size-full object-cover transition-transform duration-200 ease-out group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100" />
+          <ClipImage v={c.v} className="transition-transform duration-200 ease-out group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100" />
           <span className="absolute inset-0 grid place-items-center">
             <span className="grid size-10 place-items-center rounded-full bg-black/65 text-white ring-1 ring-white/30 transition-colors duration-150 group-hover:bg-black/80 group-focus-visible:bg-black/80 motion-reduce:transition-none">
               {c.stream ? <Radio className="size-5" aria-hidden /> : <Play className="size-5 translate-x-px fill-current" aria-hidden />}
