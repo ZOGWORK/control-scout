@@ -101,8 +101,9 @@ export type StatBlock =
   /** Matches, best first or newest first as `title` says. */
   | { kind: "matches"; title: string; rows: StatMatchRow[]; more?: string }
   /** A video page (src/components/search/page/VideoGallery.tsx): every listed match that has a video, in the events'
-   *  order, and each event's own stream (its link). `empty`: what to say, and where to look, when none has one (none: nothing drawn). */
-  | { kind: "videos"; title: string; tiles: VideoTile[]; streams?: StatLink[]; more?: string; empty?: { text: string; href?: string } }
+   *  order, and each event's own stream (its link). `empty`: what to say, and where to look, when none has one (none: nothing drawn).
+   *  `season`: another season's videos, listed because the season shown has none (a team's highlights). */
+  | { kind: "videos"; title: string; tiles: VideoTile[]; streams?: StatLink[]; more?: string; empty?: { text: string; href?: string }; season?: number }
   /** Rows of named columns; a row may link (its first cell is the link text). A row about one event may carry its
    *  `type` (FIRST's event type, "Qualifier"): its name then gets the Events cards' type colour. */
   | { kind: "table"; title: string; columns: { key: string; label: string; num?: boolean }[]; rows: { cells: Record<string, string | number | null>; href?: string; strong?: boolean; type?: string | null;

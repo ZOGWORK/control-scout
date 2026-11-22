@@ -10,6 +10,7 @@ import { dateRange } from "../../../src/shared/format.js";
 import { eventHref, matchHref, matchRow, teamLinks, teamMatches, type TeamMatch } from "./matchSet.js";
 import { teamEventSet } from "./eventSet.js";
 import { withoutPenalties } from "../../../src/shared/seasonRecord.js";
+import { seasonClipKeys } from "../../videos/recordings.js";
 
 /** Where a team's highlights are read: its matches at an event named (or Worlds, or a state championship), and that
  *  place in words ("New Jersey Championship", "the FIRST Championship") for when it played none there. */
@@ -64,14 +65,41 @@ export async function teamHighlights(team: { number: number; name: string | null
   const where = at ? ` ${at.phrase ?? `at ${xs[0].event}`}` : "";
   const standout: StatBlock = { kind: "matches", title: `${picks.length} standout ${picks.length === 1 ? "match" : "matches"}`, rows };
   const gallery = page ? videoPage(xs, team.number, page === "highlights" ? null : `No match videos of ${team.number}${where} in ${S} yet.`) : null;
+  // A highlights page (no event named) whose season has no match clip: the newest other season that has, as its own
+  // list, or one line when no season has any (the owner's "highlights itkan solar": video is what people come for).
+  const other = page === "highlights" && !at && gallery?.kind === "videos" ? await clipsElsewhere(team.number, xs, season) : null;
+  if (other === "none" && gallery?.kind === "videos") gallery.empty = { text: `No match video of ${team.number} in any season yet.`, href: `/teams/${team.number}` };
   return {
     // The event is said once, in the title: its first match's (a Worlds division before the finals it feeds).
     family: "superlative", intent: "team-highlights", title: `${page === "videos" ? "Match videos" : "Highlights"}${where}, ${S}`, team, scope: [S],
     headline: { value: `${np(top)} points`, label: `${withoutPenalties(lead.note, top.ownNp)}: ${top.label} at ${top.event}`, sub: `${top.own !== np(top) ? `${top.own} with penalties · ` : ""}${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, href: matchHref(top) },
-    blocks: page === "videos" ? [gallery!] : gallery ? [standout, gallery] : [standout],
+    blocks: page === "videos" ? [gallery!] : gallery ? [standout, gallery, ...(other && other !== "none" ? [other] : [])] : [standout],
     definition: `The team's standout matches${where} of ${S}${asked == null ? `, its latest season with matches${at ? " there" : ""}` : ""}: its best score (points without penalties), biggest win (by margin), latest playoff win, best Auto and closest win, each match once. Only matches its robot played in. A match with a video plays here.`,
     source: `From ${xs.length} ${xs.length === 1 ? "match" : "matches"} in ${S}`,
   };
+}
+
+const clipKey = (m: TeamMatch) => `${m.code}|${m.level}|${m.series}|${m.number}`;
+
+/** Another season's match clips for a team whose shown season (`xs`, `season`) has none: the newest season with any,
+ *  as a video list of only its clipped matches (`season` says which); "none" when no season has a clip; null when the
+ *  shown season has one, or a season's clips couldn't be read (then nothing is said either way). FIRST's own match
+ *  video or the match's place in its event's recording (seasonClipKeys, the same check as each Play button). */
+export async function clipsElsewhere(team: number, xs: TeamMatch[], season: number): Promise<Extract<StatBlock, { kind: "videos" }> | "none" | null> {
+  const here = await seasonClipKeys(season).catch(() => null);
+  if (!here || xs.some((m) => here.has(clipKey(m)))) return null;
+  const mine = (await teamMatches(team)).filter((m) => m.onField && m.season !== season);
+  for (const s of [...new Set(mine.map((m) => m.season))].sort((a, b) => b - a)) {
+    const keys = await seasonClipKeys(s).catch(() => null);
+    if (!keys) return null;
+    const ms = mine.filter((m) => m.season === s && keys.has(clipKey(m)));
+    if (ms.length) {
+      const { tiles } = videoPage(ms, team, null) as Extract<StatBlock, { kind: "videos" }>;
+      // Each tile names its event (another season's matches have no other row to name it from).
+      return { kind: "videos", title: `Match videos, ${seasonLabel(s)}`, tiles: tiles.map((t, i) => ({ ...t, event: ms[i].event })), season: s };
+    }
+  }
+  return "none";
 }
 
 /** A team's matches as a video page's list, in order, and each of their events' own stream. */
