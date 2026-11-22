@@ -75,7 +75,7 @@ const PANELS = [
 ] as const;
 /** Links made before the console grouped its panels into sections: each opens the section that holds it. */
 const PANEL_ALIASES: Record<string, string> = {
-  ops: "data", users: "accounts", orphaned: "accounts", usage: "analytics", flags: "features", errors: "feedback",
+  ops: "data", users: "accounts", orphaned: "accounts", usage: "analytics", "in-use": "analytics", flags: "features", errors: "feedback",
   powerRankings: "content", streams: "content", whatsNew: "content",
 };
 type PanelId = (typeof PANELS)[number]["id"];
