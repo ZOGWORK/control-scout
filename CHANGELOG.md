@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.7.8 — 2026-11-22
+
+The Discord bot answers every message now: no per-person wait, and an explanation with numbers in it is no longer thrown away.
+
+### Highlights
+- [fixes] The bot answers every message, however fast it follows the last
+- [fixes] A chat reply with a number like "1:1" is no longer dropped
+- [fixes] Records answers still refuse a number the facts don't have
+
+### Discord bot
+- Nobody is paced per person any more (`bot/guard.ts`, `bot/handler.ts`): a second command or mention right after the first is answered, where it used to get a private "Slow down" or silence. The same question within a minute is still one lookup, whoever asks.
+- A chat reply with numbers the facts don't have is refused only when the message could be about the records — search found something for it, or it (or the thread before it) names a number (`bot/ask.ts`). A message that asked nothing of the records is a chat, so an explanation of a mechanism ("a 1:1 coaxial swerve") posts instead of the fallback; a records answer keeps the check, and a dropped one still logs the numbers. `bot/README.md` says so. (#PRNUM)
+
 ## 7.7.7 — 2026-11-22
 
 The Discord bot no longer says its AI answers are unreachable in a channel where it was chatting a moment ago.
