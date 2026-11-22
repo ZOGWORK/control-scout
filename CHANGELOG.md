@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.8.2 — 2026-11-22
+
+The Discord bot answers the channel's own questions — a cosine, a unit, a design trade-off — instead of replying with a guess at a team.
+
+### Highlights
+- [fixes] A maths question gets an answer, not "no team, event or match matched"
+- [fixes] A degree or a millimetre isn't read as a team number
+- [alerts] It answers any question; FTC numbers stay the facts' own
+
+### Discord bot
+- A measurement is not a record number (`bot/smallTalk.ts` `RECORD_NUMBER`): `35 degrees`, `42 mm`, `12.4 OPR`, a ratio like `42:15` — so Bruno's cosine answer (`0.8192`) is no longer refused as a fake stat, which is what turned "what is the cosine of 35 degrees i need it for a auto trust" into "Sorry — I can't answer that yet".
+- A working question — a mechanism, maths, an angle, a unit (`WORKING`: cosine, sine, tangent, angle, radians, gearing, torque, volts…) — is never a records question, so when no chat answers one it gets the one plain line instead of search's reading of it as a team ("I read it as: Team 6570 Piradians"). A team number still keeps the card. (#2134)
+- Every Discord chat now carries `answerScope()` (`bot/productFacts.ts`): answer any question the channel asks, not only Control Scout or FTC ones, concretely and without refusing for being off-topic — while FTC numbers still come only from the facts sent with the message.
+
 ## 7.8.1 — 2026-11-22
 
 The Discord bot no longer answers a build question with a guess at a team: a gear ratio isn't a record number.

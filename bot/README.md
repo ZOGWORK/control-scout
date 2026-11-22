@@ -88,13 +88,19 @@ rather than Bruno. There are no keyword replies, so it never guesses a favourite
 in character. A message with a record number in it (a team, a season, a score), or a longer one search couldn't
 answer, is still a real question and keeps the honest card.
 
-A **ratio or a measurement** is not a record number, and a **build question** is not a records question however long
-it is: `bot/smallTalk.ts`'s `RECORD_NUMBER` (no `42:15`, `1:1`, `12.4 OPR`) and `MECHANISM` (a ratio, or gearing,
-turret, motor, rpm, drivetrain…). Two things follow. The model's explanation of a mechanism is never refused as a
-record claim because the message had digits in it — the screenshot's "should I use a 42:15 gear reduction on my robot
-turret" was answered "Sorry — I can't answer that yet. I read it as: Team 12499 Gear Up" because of exactly that. And
-when no chat answers a build question, it gets the one plain line instead of search's guess at a team: a gearing
-question has nothing to do with team 12499.
+A **ratio or a measurement** is not a record number, and a **working question** (a mechanism, maths, an angle, a unit)
+is not a records question however long it is: `bot/smallTalk.ts`'s `RECORD_NUMBER` (no `42:15`, `1:1`, `12.4 OPR`,
+`35 degrees`, `42 mm`) and `WORKING` (a ratio, or gearing, turret, motor, drivetrain, cosine, sine, tangent, angle,
+radians, volts, torque…). Two things follow. The model's own numbers in an explanation are never refused as a record
+claim because the message had digits in it — the screenshot's "should I use a 42:15 gear reduction on my robot turret"
+was answered "Sorry — I can't answer that yet. I read it as: Team 12499 Gear Up" because of exactly that. And when no
+chat answers a working question, it gets the one plain line instead of search's guess at a team: a gearing question has
+nothing to do with team 12499, and "the cosine of pi radians" nothing to do with team 6570 Piradians.
+
+**It answers the channel's own questions.** `answerScope()` (`bot/productFacts.ts`) goes with every chat: answer any
+question the channel asks — a cosine, a gear ratio, a rule, a design trade-off — concretely, and never refuse just
+because it isn't about the records. FTC numbers still come only from the facts sent with the message, so "smarter"
+never means inventing a team's OPR.
 
 Which line it is depends on the chat, not on luck: a chat that is off, unconfigured or switched off says so — it can't
 chat right now, its AI answers aren't reachable, and it can still read the records. A chat that is there and gave

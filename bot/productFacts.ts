@@ -12,6 +12,14 @@ export function productFacts(): string[] {
   ];
 }
 
+/** What he may answer at all, sent with every Discord chat: a channel asks maths, design and rules questions as often
+ *  as records ones, and refusing those ("Sorry — I can't answer that yet") reads as the bot being broken. FTC numbers
+ *  still come only from the facts. Inside Control Point's 400-character fact cap. */
+export const answerScope = () =>
+  "Answer any question the channel asks, not only Control Scout or FTC ones: a cosine, a gear ratio, a rule, a design " +
+  "trade-off. Be concrete, give the number, and say when you're unsure. Never refuse a question just because it isn't " +
+  "about the records. FTC numbers (a team's OPR, record, score) still come only from the facts sent with the message.";
+
 /** How a chat answer is shaped, sent with every Discord chat (bot/ask.ts): a records question stays a line or two, and
  *  a question about how something works gets a short structured answer — a bold summary, a couple of paragraphs or a
  *  few bullets — instead of one clipped sentence. Inside Control Point's 400-character fact cap. */
