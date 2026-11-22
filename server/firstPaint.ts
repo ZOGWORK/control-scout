@@ -7,7 +7,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { compareAnswer, teamProfile } from "./api/teams.js";
+import { cachedTeamProfile, compareAnswer } from "./api/teams.js";
 import { matchViews } from "./api/matches.js";
 import { eventView } from "./api/eventView.js";
 import { leagueStandings } from "./api/leagues.js";
@@ -84,7 +84,7 @@ export async function teamFirstPaint(n: number, seasonRaw?: string): Promise<Fir
   if (asked != null && covered(asked) == null) return null;
   const url = `/teams/${n}${asked != null ? `?season=${asked}` : ""}`;
   return draw(url, `team ${n}`, async () => {
-    const p = await teamProfile(n, asked != null ? Number(asked) : undefined);
+    const p = await cachedTeamProfile(n, asked != null ? Number(asked) : undefined);
     if (!p) return null;
     const [matches, meta] = await Promise.all([matchViews({ season: p.season, team: n }, { predictUnplayed: true }), siteMeta()]);
     // The same keys the page's useApi calls build (src/pages/TeamPage.tsx), and the same bodies the routes send (server/app.ts).
@@ -162,7 +162,7 @@ export async function predictFirstPaint(sp: URLSearchParams): Promise<FirstPaint
   if (!teams.length || !(await isEnabled("livePredictions"))) return null;
   const m = matchupOf(sp.get("red"), sp.get("blue"));
   return draw(`/predict?${sp.toString()}`, `predict ${teams.join(",")}`, async () => {
-    const [meta, x, ...profiles] = await Promise.all([siteMeta(), m ? matchExplanation(season, m.red, m.blue) : null, ...teams.map((n) => teamProfile(n))]);
+    const [meta, x, ...profiles] = await Promise.all([siteMeta(), m ? matchExplanation(season, m.red, m.blue) : null, ...teams.map((n) => cachedTeamProfile(n))]);
     // Each team's page answer, as the team boxes look a name up (src/components/TeamInput.tsx): its name under its number.
     const named = Object.fromEntries(teams.flatMap((n, i) => (profiles[i] ? [[`/api/teams/${n}`, profiles[i]]] : [])));
     return { "/api/meta": meta, ...named, ...(m && x ? { [matchApiPath(season, m.red, m.blue)]: x } : {}) };
