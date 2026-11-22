@@ -3,7 +3,8 @@
 // Full-text (FTS5, prefix-indexed) over team numbers/names/schools/places and
 // event codes/names/places; exact team numbers jump to the top; a query like
 // "USNJQ1 Q12" or "2025 USNJQ1 M3" resolves straight to a match.
-import { all, get } from "../db.js";
+import { all, allInChunks, loopTurn, get } from "../db.js";
+import { STEP_ITEMS, runAll, runYielding } from "../../src/shared/steps.js";
 import { CURRENT_SEASON, SEASON_NUMBERS, isLegacy } from "../data/seasons.js";
 import type { SearchHit } from "../../src/shared/api.js";
 import { SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, sectionFor, type SearchTopic } from "../../src/shared/search.js";
@@ -409,17 +410,36 @@ const bigrams = (s: string) => { const out = new Set<string>(); for (const w of 
 const KEPT_SCORES = 48;
 
 /** The typo index built from search_fuzzy's rows. */
-export function buildFuzzyIndex(rs: { kind: "team" | "event"; ref: string; season: number | null; weight: number | null; title: string; subtitle: string; name: string }[]): FuzzyIndex {
+type FuzzySource = { kind: "team" | "event"; ref: string; season: number | null; weight: number | null; title: string; subtitle: string; name: string };
+export function buildFuzzyIndex(rs: FuzzySource[]): FuzzyIndex {
+  return runAll(fuzzyIndexSteps(rs));
+}
+
+/** buildFuzzyIndex as steps (src/shared/steps.ts), yielding every STEP_ITEMS rows: the server builds it with the loop
+ *  let go. The words are numbered in the same order either way (every row's own words, then the pairs run together). */
+export function* fuzzyIndexSteps(rs: FuzzySource[]): Generator<void, FuzzyIndex> {
   const ids = new Map<string, number>(), list: string[] = [];
   const id = (w: string) => { let n = ids.get(w); if (n === undefined) { n = list.length; ids.set(w, n); list.push(w); } return n; };
-  const split = rs.map((r) => words(`${r.title} ${r.name}`));
-  const own = split.map((ws) => Int32Array.from(ws, id));
+  const split: string[][] = [];
+  for (const r of rs) {
+    if (split.length % STEP_ITEMS === 0) yield;
+    split.push(words(`${r.title} ${r.name}`));
+  }
+  const own: Int32Array[] = [];
+  for (const ws of split) {
+    if (own.length % STEP_ITEMS === 0) yield;
+    own.push(Int32Array.from(ws, id));
+  }
   const plain = list.length;
-  const rows = rs.map((r, i): FuzzyRow => ({
-    kind: r.kind, ref: r.ref, season: r.season == null ? null : Number(r.season), weight: Number(r.weight) || 1, title: r.title, subtitle: r.subtitle,
-    words: own[i], joined: Int32Array.from(joinedWords(split[i]), id),
-    bigrams: bigrams(normalize(`${r.title} ${r.name}`)),
-  }));
+  const rows: FuzzyRow[] = [];
+  for (const [i, r] of rs.entries()) {
+    if (i % STEP_ITEMS === 0) yield;
+    rows.push({
+      kind: r.kind, ref: r.ref, season: r.season == null ? null : Number(r.season), weight: Number(r.weight) || 1, title: r.title, subtitle: r.subtitle,
+      words: own[i], joined: Int32Array.from(joinedWords(split[i]), id),
+      bigrams: bigrams(normalize(`${r.title} ${r.name}`)),
+    });
+  }
   const kept = new Map<string, Scorer>();
   const scorer = (q: string): Scorer => {
     const hit = kept.get(q);
@@ -443,7 +463,9 @@ let indexCache: { version: string; index: Promise<FuzzyIndex> } | null = null;
 async function fuzzyIndex(): Promise<FuzzyIndex> {
   const version = await searchVersion();
   if (indexCache?.version === version) return indexCache.index;
-  const index = all<any>("SELECT kind, ref, season, weight, title, subtitle, name FROM search_fuzzy").then(buildFuzzyIndex);
+  // A few thousand rows at a time in rowid order (the order one whole read gave), the build let go between slices.
+  const index = allInChunks<FuzzySource & { rid: number }>("SELECT rowid rid, kind, ref, season, weight, title, subtitle, name FROM search_fuzzy WHERE rowid > ?", [], "rid", 2_500)
+    .then((rs) => runYielding(fuzzyIndexSteps(rs), loopTurn));
   indexCache = { version, index };
   // A failed read (e.g. a brief database outage) must not stick: the next search retries.
   index.catch(() => { if (indexCache?.index === index) indexCache = null; });
