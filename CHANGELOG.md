@@ -21,7 +21,7 @@ A new `/config` command shows the bot's own setup in Discord: the same six lines
 
 ### Highlights
 - [alerts] `/config` shows what the bot can do, without reaching for journalctl
-- [fixes] Season, site, chat or why not, reports, follow posts, command registration
+- [fixes] Season, site, chat, reports, follows and command registration
 - [alerts] A private reply, Manage Server only, and never a secret's value
 - [alerts] `/help` and the site's Discord card now list it too
 
