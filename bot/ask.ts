@@ -49,8 +49,9 @@ export interface AskDeps {
   video?: (a: SearchAnswer) => Promise<SearchVideo | undefined>;
   /** Search's facts for an answer, as Bruno reads them (server/api/searchBrunoAnswer.ts answerFacts). */
   facts?: (a: SearchAnswer) => Promise<string[]>;
-  /** Bruno's chat reply (Control Point's discord-chat), or null: off, unavailable, or a number not in the facts. */
-  chat?: (message: string, facts: string[], history: BrunoChatTurn[]) => Promise<ChatReply | null>;
+  /** Bruno's chat reply (Control Point's discord-chat), or null: off, unavailable, or a number not in the facts.
+   *  `memory`: what the server has taught the bot (bot/memory.ts) — its teams, the asker's name — sent with the facts. */
+  chat?: (message: string, facts: string[], history: BrunoChatTurn[], memory?: string[]) => Promise<ChatReply | null>;
 }
 
 /** Bruno's chat reply; `search`: the facts answer the message, so the answer's video and page go with it. `unknown`:
@@ -94,7 +95,7 @@ export async function realAskDeps(): Promise<AskDeps> {
     // No viewer: only the site's own match clips and recordings, as a page drawn for everyone gets.
     video: (a) => answerVideo(a),
     facts: (a) => answerFacts(a),
-    chat: async (message, facts, history) => {
+    chat: async (message, facts, history, memory = []) => {
       // Why a chat didn't happen is logged (never the message or the key): a deployment is diagnosed from these lines.
       if (!brunoAvailable()) {
         console.info("[bot] chat off: Control Point isn't configured (CONTROL_POINT_INTERNAL_URL and CONTROL_POINT_INTERNAL_KEY)");
@@ -106,10 +107,10 @@ export async function realAskDeps(): Promise<AskDeps> {
       }
       // Product knowledge first, every line inside Control Point's per-fact cap: one longer line and it refuses the
       // whole packet (400 `facts[i]`), which used to fall back to the card with nothing in the log.
-      // Product knowledge and how to shape the answer (a records question short, an explanation structured), every line
-      // inside Control Point's per-fact cap.
-      const product = [...productFacts(), answerStyle()].map(clip);
-      const context = [...product, ...fit(facts, CHAT_FACTS - product.length, CHAT_FACTS_CHARS - chars(product))];
+      // Product knowledge and how to shape the answer (a records question short, an explanation structured), then what
+      // the server has taught the bot, every line inside Control Point's per-fact cap.
+      const head = [...productFacts(), answerStyle(), ...memory].map(clip);
+      const context = [...head, ...fit(facts, CHAT_FACTS - head.length, CHAT_FACTS_CHARS - chars(head))];
       let r: { text: string; search: boolean };
       try { r = await brunoDiscordChat(message, context, history, CHAT_TIMEOUT_MS); }
       catch (e) {
@@ -127,8 +128,8 @@ export async function realAskDeps(): Promise<AskDeps> {
 }
 
 /** The website's answer to `q`, with Bruno's help where the site would use it: his chat reply first (the reply
- *  thread before it in `history`), else the card. */
-export async function ask(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[] = []): Promise<AskReply> {
+ *  thread before it in `history`), else the card. `memory`: the server's own lines for the chat (bot/memory.ts). */
+export async function ask(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[] = [], memory: string[] = []): Promise<AskReply> {
   const zog = zogModeReply(q);
   if (zog) return {
     embed: { title: "Zog Mode", description: zog, footer: FOOTER },
@@ -140,7 +141,7 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
   // sentence; the deterministic answer then posts, bounded by the chat's own timeout.
   const chatting = !!(deps.chat && deps.facts);
   if (chatting) {
-    const reply = await chatWith(q, answer, history, deps).catch(() => null);
+    const reply = await chatWith(q, answer, history, deps, memory).catch(() => null);
     // His numbers are checked against the facts, the message and the thread — where a number could be a record: an
     // answer with records behind it, or a message (or thread) that names one. A message that asked nothing of the
     // records is a chat: search found nothing for it and it has no number, so "a 1:1 gear" in an explanation is not a
@@ -193,10 +194,10 @@ const asksRecords = (q: string, a: SearchAnswer, history: BrunoChatTurn[]) =>
 
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
  *  second place?" has the records it's about), then his reply. */
-async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[], deps: AskDeps): Promise<ChatReply | null> {
+async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[], deps: AskDeps, memory: string[] = []): Promise<ChatReply | null> {
   const facts = await deps.facts!(answer);
   const before = [...history].reverse().find((t) => t.role === "user")?.text;
-  if (!before || before.trim().toUpperCase() === q.trim().toUpperCase()) return deps.chat!(q, fit(facts, CHAT_FACTS, CHAT_FACTS_CHARS), history);
+  if (!before || before.trim().toUpperCase() === q.trim().toUpperCase()) return deps.chat!(q, fit(facts, CHAT_FACTS, CHAT_FACTS_CHARS), history, memory);
   const earlier = (await deps.search(before).then((a) => deps.facts!(a)).catch(() => [] as string[])).filter((f) => !facts.includes(f));
   // Both questions' records get a share: the new one's first half, then the earlier one's, then whatever room is left
   // for the rest of either (a broad new answer must not crowd out the records the follow-up is about).
@@ -205,7 +206,7 @@ async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[
   const then = fit(earlier, CHAT_FACTS - now.length, CHAT_FACTS_CHARS - chars(now));
   const kept = [...now, ...then];
   const rest = fit([...facts.slice(now.length), ...earlier.slice(then.length)], CHAT_FACTS - kept.length, CHAT_FACTS_CHARS - chars(kept));
-  return deps.chat!(q, [...now, ...rest.filter((f) => facts.includes(f)), ...then, ...rest.filter((f) => !facts.includes(f))], history);
+  return deps.chat!(q, [...now, ...rest.filter((f) => facts.includes(f)), ...then, ...rest.filter((f) => !facts.includes(f))], history, memory);
 }
 
 /** Characters `lines` take as sent (one line each). */

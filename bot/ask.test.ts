@@ -222,7 +222,7 @@ describe("a chat with Bruno", () => {
     expect(r.meta).toMatchObject({ chat: true, sentence: false });
     expect(d.bruno).not.toHaveBeenCalled();
     expect(d.video).not.toHaveBeenCalled();
-    expect(d.chat).toHaveBeenCalledWith("hi bruno", ["Result: 4215 | Team 4215"], []);
+    expect(d.chat).toHaveBeenCalledWith("hi bruno", ["Result: 4215 | Team 4215"], [], []);
   });
 
   it("a records answer: the answer's video and its page go with his reply", async () => {
@@ -245,7 +245,7 @@ describe("a chat with Bruno", () => {
     const d = chatDeps({ text: "Second were 4215.", search: true }, { search });
     const history = [{ role: "user" as const, text: "who won decode" }, { role: "bruno" as const, text: "30030 Exodus won." }];
     await ask("and second?", d, SITE, history);
-    expect(d.chat).toHaveBeenCalledWith("and second?", ["Result: 4215 | Team 4215", "Result: 30030 | Team 30030"], history);
+    expect(d.chat).toHaveBeenCalledWith("and second?", ["Result: 4215 | Team 4215", "Result: 30030 | Team 30030"], history, []);
   });
 
   it("the post: the question quoted for /ask, his words, the video, and a small credit line with an unpreviewed link", () => {

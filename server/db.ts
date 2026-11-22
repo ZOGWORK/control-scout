@@ -2664,6 +2664,36 @@ CREATE TABLE IF NOT EXISTS discord_chat_usage (
 );
 `,
   },
+  {
+    version: 100,
+    name: "discord memory",
+    sql: `
+-- What a Discord server teaches the bot (bot/memory.ts): the teams its people ask about, the display name each person
+-- goes by there, and the turns of a reply thread, so a restart no longer forgets a conversation. Written by the bot
+-- only; never shipped (Discord ids and names).
+CREATE TABLE IF NOT EXISTS discord_guild_teams (
+  guild_id TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  asks INTEGER NOT NULL DEFAULT 1,
+  last_at TEXT NOT NULL,
+  PRIMARY KEY (guild_id, team)
+);
+CREATE TABLE IF NOT EXISTS discord_people (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  asks INTEGER NOT NULL DEFAULT 1,
+  last_at TEXT NOT NULL,
+  PRIMARY KEY (guild_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS discord_threads (
+  root_id TEXT PRIMARY KEY,
+  turns TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS discord_threads_age ON discord_threads (updated_at);
+`,
+  },
 ];
 
 export type Db = Client;

@@ -2,7 +2,7 @@
 // friendly errors for every failure (never the exception's words).
 import { describe, expect, it, vi } from "vitest";
 import type { APIEmbed } from "discord.js";
-import { createHandler, type Lookups, type MentionMessage } from "./handler";
+import { createHandler, type Lookups, type Memory, type MentionMessage } from "./handler";
 import { Friendly } from "./views";
 import { AnswerCache } from "./guard";
 import { COMMANDS, sameCommands } from "./commands";
@@ -308,7 +308,7 @@ describe("@mention answers", () => {
     const h = createHandler(() => {}, l);
     const { m, sent } = msg(`<@${BOT}> who won decode`);
     await h.mention(m, BOT);
-    expect(l.ask).toHaveBeenCalledWith("who won decode", []);
+    expect(l.ask).toHaveBeenCalledWith("who won decode", [], []);
     expect(sent).toHaveLength(1);
     expect(sent[0].kind).toBe("reply");
     expect(sent[0].embeds[0].title).toBe("ask who won decode");
@@ -392,7 +392,7 @@ describe("a chat with Bruno in Discord", () => {
     await h.mention(message(`<@${BOT}> who won decode`, {}, "bot-1").m, BOT);
     const follow = message("and second?", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }, "bot-2");
     await h.mention(follow.m, BOT);
-    expect(ask).toHaveBeenLastCalledWith("and second?", [{ role: "user", text: "who won decode" }, { role: "bruno", text: "re: who won decode (0)" }]);
+    expect(ask).toHaveBeenLastCalledWith("and second?", [{ role: "user", text: "who won decode" }, { role: "bruno", text: "re: who won decode (0)" }], []);
     expect(follow.sent[0].content).toMatch(/^re: and second\? \(2\)/);
     await h.mention(message("and third?", { reference: { messageId: "bot-2" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
     expect((ask.mock.calls.at(-1) as unknown[])[1]).toHaveLength(4);
@@ -412,7 +412,7 @@ describe("a chat with Bruno in Discord", () => {
     await h.mention(message(`<@${BOT}> hi`, {}, "bot-1").m, BOT);
     const follow = message("who won decode", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }, "bot-2");
     await h.mention(follow.m, BOT);
-    expect(ask).toHaveBeenLastCalledWith("who won decode", []);
+    expect(ask).toHaveBeenLastCalledWith("who won decode", [], []);
   });
 });
 
@@ -494,5 +494,87 @@ describe("a server's chat limit", () => {
     await createHandler(() => {}, l).mention(m, BOT);
     expect(sent[0].embeds[0].title).toBe("ask who won decode");
     expect(l.ask).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("what the server has taught the bot", () => {
+  const BOT = "1562258217873047562";
+
+  function memory(over: Partial<Memory> = {}): Memory {
+    return {
+      recall: vi.fn(async () => ({ teams: [] as number[], name: null })),
+      learn: vi.fn(async () => {}),
+      thread: vi.fn(async () => []),
+      keep: vi.fn(async () => {}),
+      ...over,
+    };
+  }
+  function message(content: string, author: Partial<MentionMessage["author"]> = {}, over: Partial<MentionMessage> = {}) {
+    const sent: { kind: string; embeds: APIEmbed[] }[] = [];
+    const m: MentionMessage = {
+      author: { id: "u1", bot: false, ...author }, guildId: "g1", content,
+      reply: vi.fn(async (o) => { sent.push({ kind: "reply", embeds: o.embeds }); return { id: "m1" }; }),
+      channel: { send: vi.fn(async (o) => { sent.push({ kind: "send", embeds: o.embeds }); }), sendTyping: vi.fn(async () => {}) },
+      ...over,
+    };
+    return { m, sent };
+  }
+  const chatAnswer = (text = "**4215's auto OPR was 12.4 at their last event.**") => vi.fn(async (q: string) => ({
+    embed: ok(`ask ${q}`), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text },
+  }));
+
+  it("sends the server's teams and the asker's name with the chat, and remembers the name and the team asked about", async () => {
+    const mem = memory({ recall: vi.fn(async () => ({ teams: [4215, 6980], name: "Alex" })) });
+    const l = lookups({ memory: mem, ask: chatAnswer() });
+    await createHandler(() => {}, l).mention(message(`<@${BOT}> what was 4215's auto OPR at the last event?`, { globalName: "Alex" }).m, BOT);
+    const lines = vi.mocked(l.ask).mock.calls[0][2] as string[];
+    expect(lines[0]).toContain("teams 4215, 6980");
+    expect(lines[0]).toContain("say which one you picked");
+    expect(lines[1]).toContain("goes by Alex");
+    expect(mem.recall).toHaveBeenCalledWith("g1", "u1");
+    expect(mem.learn).toHaveBeenCalledWith("g1", "u1", "Alex", [4215]);
+  });
+
+  it("/ask learns the same, from the command's own server and person", async () => {
+    const mem = memory();
+    const l = lookups({ memory: mem, ask: chatAnswer() });
+    const c = command("ask", { question: "4215 highlights" });
+    c.i.guildId = "g1";
+    c.i.user = { id: "u1", globalName: "Alex" };
+    await createHandler(() => {}, l)(c.i);
+    expect(mem.learn).toHaveBeenCalledWith("g1", "u1", "Alex", [4215]);
+  });
+
+  it("a reply to an answer from before a restart still carries its thread", async () => {
+    const turns = [{ role: "user" as const, text: "who won decode" }, { role: "bruno" as const, text: "30030 won." }];
+    const mem = memory({ thread: vi.fn(async () => turns) });
+    const l = lookups({ memory: mem, ask: chatAnswer() });
+    await createHandler(() => {}, l).mention(message("and second?", {}, { reference: { messageId: "old" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
+    expect(mem.thread).toHaveBeenCalledWith("old");
+    expect(l.ask).toHaveBeenCalledWith("and second?", turns, []);
+  });
+
+  it("keeps the answer's thread, so a reply to it carries on even after a deploy", async () => {
+    const mem = memory();
+    const l = lookups({ memory: mem, ask: chatAnswer("30030 Exodus won.") });
+    await createHandler(() => {}, l).mention(message(`<@${BOT}> who won decode`).m, BOT);
+    expect(mem.keep).toHaveBeenCalledWith("m1", [
+      { role: "user", text: "who won decode" },
+      { role: "bruno", text: "30030 Exodus won." },
+    ]);
+  });
+
+  it("a memory that fails changes nothing: the question is still answered", async () => {
+    const mem = memory({
+      recall: async () => { throw new Error("database is locked"); },
+      learn: async () => { throw new Error("database is locked"); },
+      thread: async () => { throw new Error("database is locked"); },
+      keep: async () => { throw new Error("database is locked"); },
+    });
+    const l = lookups({ memory: mem, ask: chatAnswer() });
+    const { m, sent } = message(`<@${BOT}> 4215`, {}, { reference: { messageId: "old" }, mentions: { repliedUser: { id: BOT } } });
+    await createHandler(() => {}, l).mention(m, BOT);
+    expect(l.ask).toHaveBeenCalledTimes(1);
+    expect(sent[0].embeds).toEqual([]);
   });
 });
