@@ -9,7 +9,9 @@
 //   3. lays the rows the live server serves from its database (auto_reads, server/videos/autoReads.ts) over main's
 //      season files and clip checks, so what's live counts as read; takes the queue from that (server/videos/
 //      frameQueue.ts), most missing first;
-//   4. reads each picked event with scripts/video-frames.ts (--live: what's live), then --verify, then --bounds;
+//   4. reads each picked event with scripts/video-frames.ts (--live: what's live), then --verify, then --bounds, then
+//      --recheck (a second look at its review entries: scripts/lib/reviewRecheck.ts); an event queued only for that
+//      second look (frameQueue's `recheck`) isn't read again, only looked at again;
 //   5. checks every row it changed (server/data/frameRowRules.ts, the rules the server keeps too): a row whose video
 //      showed the reader nothing is a failed read, never handed over; the rest are logged with their problems;
 //   6. hands the rows to the live server: one JSON file per season in its inbox on the VM (over ssh, written whole then
@@ -40,7 +42,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { forgetSettled, laneJobMs, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes } from "./lib/autopilotRun";
+import { forgetSettled, recheckOnly, laneJobMs, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes } from "./lib/autopilotRun";
 import { clipCheckProblems } from "./lib/autopilotClips";
 import { streamRun } from "./lib/streamRun";
 import { eventLimitMs, readFailed as readFailedExit } from "./lib/videoFrames";
@@ -207,7 +209,7 @@ function othersHold(): Map<string, number> {
 const LANE_DIR = join(".data", "lane"), LANE_STATE = join(LANE_DIR, "state.json");
 if (LANE) {
   const state = existsSync(LANE_STATE) ? JSON.parse(readFileSync(LANE_STATE, "utf8")) : { state: "idle" };
-  const job = existsSync(join(LANE_DIR, "job.json")) ? JSON.parse(readFileSync(join(LANE_DIR, "job.json"), "utf8")) as { id: string; seasons: { season: number; codes: string[] }[] } : null;
+  const job = existsSync(join(LANE_DIR, "job.json")) ? JSON.parse(readFileSync(join(LANE_DIR, "job.json"), "utf8")) as LaneJob : null;
   if (state.state !== "queued" || !job || state.id !== job.id) { log(`lane: no job queued (${state.state}${state.id ? ` ${state.id}` : ""})`); process.exit(0); }
   const out = join(LANE_DIR, "results", job.id), at = () => new Date().toISOString();
   mkdirSync(out, { recursive: true });
@@ -221,8 +223,8 @@ if (LANE) {
   process.env.DATABASE_URL = `file:${db.replace(/\\/g, "/")}`;
   await layLiveRows();
   log(`lane: job ${job.id}: ${job.seasons.map((x) => `${x.season} ${x.codes.join(",")}`).join("; ")}`);
-  for (const { season, codes } of job.seasons) {
-    const r = existsSync(seasonFile(season)) ? await readSeason(season, codes) : { changed: [], readFailed: true, stopped: new Map() };
+  for (const { season, codes, recheck } of job.seasons) {
+    const r = existsSync(seasonFile(season)) ? await readSeason(season, codes, new Set(recheck ?? [])) : { changed: [], readFailed: true, stopped: new Map() };
     writeFileSync(join(out, `${season}.json`), JSON.stringify({ season, codes, changed: r.changed, readFailed: r.readFailed, stopped: [...r.stopped] }));
     log(`lane: ${season}: ${r.changed.length} rows changed${r.readFailed ? ", a read failed" : ""}`);
   }
@@ -345,10 +347,11 @@ async function eventLimits(season: number): Promise<Map<string, number>> {
     return new Map();
   }
 }
-/** Reads `codes` of `season` into its file (those not read yet, then those with rows already whole, then --verify and
- *  --bounds), and puts the file back: the rows the read changed, whether a read failed, and the events the reader
- *  stopped at its per-event limit (and the video each was on). This computer's reads and a lane's alike. */
-async function readSeason(season: number, codes: string[]): Promise<{ changed: Row[]; readFailed: boolean; stopped: Map<string, string | undefined> }> {
+/** Reads `codes` of `season` into its file (those not read yet, then those with rows already whole, then --verify,
+ *  --bounds and --recheck), and puts the file back: the rows the read changed, whether a read failed, and the events the
+ *  reader stopped at its per-event limit (and the video each was on). `recheckOnly`: codes queued only for the second
+ *  look at their review entries, never read again whole for it. This computer's reads and a lane's alike. */
+async function readSeason(season: number, codes: string[], recheckOnly: ReadonlySet<string> = new Set()): Promise<{ changed: Row[]; readFailed: boolean; stopped: Map<string, string | undefined> }> {
   const file = seasonFile(season);
   // The file as the site serves it (layLiveRows laid the database's rows over main's): what the reader adds to.
   const before = readFileSync(file, "utf8"), liveFile = join(DIR, `live-${season}.ts`);
@@ -357,7 +360,8 @@ async function readSeason(season: number, codes: string[]): Promise<{ changed: R
   // An event with rows already (read before it finished, or one of its videos read) is read again whole (--all): the
   // reader otherwise skips an event whose videos all have rows. The others read what isn't read yet.
   const hasRows = new Set(fileRows(before).map((r) => r.code));
-  const again = codes.filter((c) => hasRows.has(c)), fresh = codes.filter((c) => !hasRows.has(c));
+  const reading = codes.filter((c) => !recheckOnly.has(c));
+  const again = reading.filter((c) => hasRows.has(c)), fresh = reading.filter((c) => !hasRows.has(c));
   // --live keeps the clips the site plays from being dropped on a frame that names nothing; a season with no rows yet
   // has none to keep (and the reader refuses an empty --live file).
   const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(liveText(file)).length ? ["--live", liveFile] : []), "--lanes", READER_LANES];
@@ -378,7 +382,7 @@ async function readSeason(season: number, codes: string[]): Promise<{ changed: R
   // (readCallMs), so it never cuts an event before the event's own limit does.
   const limits = await eventLimits(season);
   for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) await pass(["--codes", list.join(","), ...extra], readCallMs(list.map((c) => limits.get(c) ?? 0)), `read ${list.join(",")}`);
-  for (const p of ["--verify", "--bounds"]) await pass(["--codes", codes.join(","), p], 3 * 3600_000, p);
+  for (const p of ["--verify", "--bounds", "--recheck"]) await pass(["--codes", codes.join(","), p], 3 * 3600_000, p);
   const after = readFileSync(file, "utf8");
   writeFileSync(file, before);
   return { changed: changedRows(before, after).filter((x) => codes.includes(x.code)), readFailed, stopped };
@@ -479,7 +483,10 @@ for (const lane of DRY ? [] : LANES) {
     // Idle: its next job, from its own shard (what this computer remembers of each event, and the held set, as its own).
     const { picked: next } = pickEvents(inShard(lane.k), inPr, memory, MAX);
     if (!next.length) { log(`${name}: nothing in its shard to read`); continue; }
-    const job2: LaneJob = { id: STAMP, seasons: [...new Set(next.map((q) => q.season))].map((season) => ({ season, codes: next.filter((q) => q.season === season).map((q) => q.code) })) };
+    const job2: LaneJob = { id: STAMP, seasons: [...new Set(next.map((q) => q.season))].map((season) => {
+      const mine = next.filter((q) => q.season === season), recheck = mine.filter(recheckOnly).map((q) => q.code);
+      return { season, codes: mine.map((q) => q.code), ...(recheck.length ? { recheck } : {}) };
+    }) };
     mkdirSync(here, { recursive: true });
     const sending = join(here, "job.sending.json");
     writeFileSync(sending, JSON.stringify(job2));
@@ -506,7 +513,7 @@ for (const [season, events] of bySeason) {
   const file = seasonFile(season);
   if (!existsSync(file)) { log(`${season}: no ${file} to write (add the season's file first)`); continue; }
   const codes = events.map((e) => e.code);
-  await settle(season, codes, await readSeason(season, codes));
+  await settle(season, codes, await readSeason(season, codes, new Set(events.filter(recheckOnly).map((e) => e.code))));
 }
 
 // --- 7. The live clips the clock places, checked by their first frame --------------------------------------------------------
