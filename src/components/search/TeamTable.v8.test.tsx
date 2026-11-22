@@ -27,7 +27,7 @@ describe("TeamTable in v8", () => {
     expect(container.querySelector("thead")!.className).toContain("v8:[&_tr]:border-b");
     const tr = container.querySelector('[data-team-row="100"]')!;
     expect(tr.className).toMatch(/v8:h-12 .*v8:border-ink\/\[0\.07\]/);
-    expect(tr.querySelector("[title='100 A Very Long Team Name 100']")!.className).toContain("v8:md:truncate");
+    expect(tr.querySelector("[title='100 A Very Long Team Name 100']")!.className).toContain("v8:@min-[44rem]/tt:truncate");
     expect(container.querySelector("[data-opr-bar]")!.parentElement!.className).toContain("v8:hidden");
     expect(container.querySelector("[data-legend]")!.className).toContain("v8:hidden");
     expect(container.querySelector("[data-column-defs] [data-phase-note-v8]")).toBeTruthy();
