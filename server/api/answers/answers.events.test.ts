@@ -117,6 +117,10 @@ describe("one team at one event", () => {
     expect(avg.stat).toMatchObject({ title: "Average score at Salk League Meet 2", headline: { value: "194.0" } });
     expect(avg.stat!.scope).toContain("Most recent event");
     expect(avg.understood?.unread ?? []).toEqual([]);
+    // One event: no one-point "Average by event" chart repeating the headline.
+    expect(avg.stat!.blocks.map((b) => b.kind)).not.toContain("series");
+    // Over a season of two meets the chart stays.
+    expect((await searchAnswer("quality control average points", { limit: 25 })).stat!.blocks.map((b) => b.kind)).toContain("series");
     // The first meet is the first of its latest season, never its debut a season before.
     const first = await searchAnswer("quality control auto opr in first meet", { limit: 25 });
     expect(first.stat).toMatchObject({ title: "Auto OPR at Salk League Meet 1", headline: { value: "Auto OPR 41.9" } });
