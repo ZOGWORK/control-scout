@@ -9,7 +9,7 @@ export function touchFirst(win: Pick<Window, "matchMedia"> | undefined = typeof 
 }
 
 /** Focus a text field ready for editing: everything selected for a mouse or keyboard, the caret at the end for touch. */
-export function focusForEditing(el: HTMLInputElement | null | undefined, opts: { touch?: boolean; preventScroll?: boolean } = {}): void {
+export function focusForEditing(el: HTMLInputElement | HTMLTextAreaElement | null | undefined, opts: { touch?: boolean; preventScroll?: boolean } = {}): void {
   if (!el) return;
   el.focus({ preventScroll: opts.preventScroll });
   if (opts.touch ?? touchFirst()) {

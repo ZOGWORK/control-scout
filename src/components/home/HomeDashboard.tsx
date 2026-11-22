@@ -106,7 +106,7 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
       <section aria-label="Search" onFocusCapture={preloadSearchPage} className={cn("mx-auto flex w-full max-w-[44rem] flex-col items-center", framed ? "mt-[15vh] max-sm:mt-[11vh]" : "mt-[9vh] max-sm:mt-[5vh]")}>
         <img data-mark src="/mark-white.webp" alt="Control Scout" width={40} height={40} className="mb-7 size-10" />
         <SearchBox
-          inputRef={searchRef} onEscape={search.restoreFocus} hint={SEARCH_HINT} initialQuery={query} discover size="lg"
+          inputRef={searchRef} onEscape={search.restoreFocus} hint={SEARCH_HINT} initialQuery={query} discover size="lg" wrap
           label="Search teams, events and matches"
           placeholder="Search teams, events, matches…"
           onPick={(h: SearchHit) => { const to = hitHref(h); return glideTo(to, () => nav(to)); }}

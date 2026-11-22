@@ -11,7 +11,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentTy
 import { useNavigate } from "react-router-dom";
 import { Award, CalendarDays, Crown, Gauge, Globe, Hash, ListFilter, ListOrdered, Medal, MessageCircleQuestion, Swords, Timer, TrendingUp, Trophy } from "lucide-react";
 import { useReducedMotion } from "motion/react";
-import { SearchBox, hitHref, searchPagePick } from "../search/SearchBox";
+import { SearchBox, hitHref, searchPagePick, type SearchFieldEl } from "../search/SearchBox";
 import { addRecentSearch } from "../search/discover";
 import { HOME_SUGGESTIONS, SUGGESTION_HOUR_MS, fitChips, placeholderable, suggestionLabel, suggestionsAt, teamSuggestions, type HomeSuggestion, type SuggestionKind } from "../../shared/homeSuggestions";
 import type { SearchHit, TeamSummary } from "../../shared/api";
@@ -170,7 +170,7 @@ export function useFittingChips(list: RefObject<HTMLUListElement | null>, items:
   return current ?? items;
 }
 
-export function HeroSearch({ inputRef, onEscape, hint, initialQuery }: { inputRef: Ref<HTMLInputElement>; onEscape: () => void; hint: string; initialQuery?: string }) {
+export function HeroSearch({ inputRef, onEscape, hint, initialQuery }: { inputRef: Ref<SearchFieldEl>; onEscape: () => void; hint: string; initialQuery?: string }) {
   const nav = useNavigate();
   const reduced = useReducedMotion() === true;
   const [focused, setFocused] = useState(false);
