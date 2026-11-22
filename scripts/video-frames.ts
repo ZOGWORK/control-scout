@@ -883,18 +883,24 @@ async function recheckVideo(row: FrameTiming, length: number, due: { label: stri
     await open(page, row.videoId);
     log(`  ${row.videoId}: a second look at ${due.length} for review (${due.map((e) => `${e.label} at ${e.t} s`).join(", ")})`);
     const verdicts = new Map<string, { verdict: RecheckVerdict; saw: string }>();
+    let unreadLooks = 0;
     for (const e of due) {
       const reads: RecheckRead[] = [];
+      let missed = 0;
       for (const after of RECHECK_AFTER) {
         const r = await readAt(page, e.t + after);
         // A seek that never landed shows the frame before it: it says nothing of this second.
-        if (Math.abs(r.at - (e.t + after)) > 2) continue;
+        if (Math.abs(r.at - (e.t + after)) > 2) { missed++; continue; }
         reads.push({ at: r.at, label: r.label, start: r.start, division: r.division ?? null });
       }
-      const verdict = recheckVerdict(e.label, e.t, reads), saw = sawText(e.t, reads);
+      const verdict = recheckVerdict(e.label, e.t, reads, missed), saw = sawText(e.t, reads);
       verdicts.set(e.label, { verdict, saw });
-      log(`    ${e.label}: ${"settled" in verdict ? `confirmed, start ${verdict.settled.start} s, opening ${verdict.settled.open} s (frames ${verdict.settled.frames.join(", ")})` : `stays for the owner: ${verdict.stays}`} (${saw})`);
+      // Frames not read and nothing settled: no look taken (the entry isn't marked), and the read counts as failed, so
+      // the autopilot doesn't count the event as tried.
+      if ("unread" in verdict) unreadLooks++;
+      log(`    ${e.label}: ${"settled" in verdict ? `confirmed, start ${verdict.settled.start} s, opening ${verdict.settled.open} s (frames ${verdict.settled.frames.join(", ")})` : "stays" in verdict ? `stays for the owner: ${verdict.stays}` : `not looked at: ${verdict.unread}`} (${saw})`);
     }
+    if (unreadLooks) failedVideos++;
     const key = `${row.videoId}|${row.code}`;
     const r = recheckRow(row, verdicts, LIVE_FULL.get(key), order, today, length);
     if (!r.row) { log(`    nothing written: ${r.why}`); return; }
