@@ -9,14 +9,15 @@
 import "../server/env.js";
 import { Client, Events, GatewayIntentBits, REST, Routes, type APIApplicationCommand } from "discord.js";
 import { env } from "../server/env.js";
-import { configure, db } from "../server/db.js";
+import { configure, db, get } from "../server/db.js";
 import { CURRENT_SEASON } from "../server/data/seasons.js";
 import { liveForecaster, refreshForecasters } from "../server/predict/engine.js";
 import { COMMANDS, sameCommands } from "./commands.js";
 import { createHandler } from "./handler.js";
 import { notifyTick, type Send } from "./follows.js";
 import { site } from "./lookups.js";
-import { reportSetup } from "./report.js";
+import { configLines } from "./config.js";
+import { chatSetup } from "./chatState.js";
 import { beat } from "../server/uptime.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] [bot] ${m}`);
@@ -29,9 +30,6 @@ if (!token) {
   process.exit(78);
 }
 
-// Said at startup so the journal says whether "Report this to ControlScout" will work, without filing a test issue.
-log(reportSetup().line);
-
 // WAL and a busy wait on the local database, as the site sets them; no migrations (the site owns the
 // schema). A remote database (Turso) is read directly: the embedded replica file belongs to the site.
 // The busy wait goes first: setting WAL needs a moment's lock, which the site's sync may be holding.
@@ -41,6 +39,14 @@ log(reportSetup().line);
 await waitForSite();
 await db().execute("PRAGMA busy_timeout = 5000").catch(() => {});
 await configure(db()).catch((e) => log(`database not ready yet (${(e as Error).message}); lookups will say so until it is`));
+
+// One startup summary of what this process can do (bot/config.ts): chat and why not, report filing, follow posts, the
+// site it talks to and the season. `journalctl -u control-scout-bot | grep 'config:'` then answers it, with no test
+// message and no test issue filed. Said after the database is open, since the chat switch and the follows live there.
+const follows = await get<{ n: number; g: number }>("SELECT COUNT(*) AS n, COUNT(DISTINCT guild_id) AS g FROM discord_follows")
+  .then((r) => ({ follows: Number(r?.n ?? 0), servers: Number(r?.g ?? 0) }))
+  .catch(() => null);
+for (const line of configLines({ season: CURRENT_SEASON, sitePort: env.port, chat: await chatSetup(), follows })) log(line);
 
 async function waitForSite(timeoutMs = 180_000): Promise<void> {
   const url = `http://127.0.0.1:${env.port}/api/health`;
