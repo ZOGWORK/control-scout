@@ -2967,6 +2967,21 @@ export async function busyTurn(): Promise<void> {
   turnedAt = performance.now();
 }
 
+/** When this turn's slice of long work began, or null when none has yet this turn. */
+let claimedAt: number | null = null;
+/** A turn of the event loop between slices of long work (a chunked read, a build in steps: src/shared/steps.ts),
+ *  timers and requests let in. Jobs that wake in the same turn take one slice between them: one that wakes after
+ *  another has spent it waits a turn more, so three rebuilds at once hold the loop no longer than one does. */
+export async function loopTurn(): Promise<void> {
+  for (;;) {
+    await new Promise<void>((go) => setImmediate(go));
+    const now = performance.now();
+    if (claimedAt !== null && now - claimedAt >= SLICE_MS) continue;
+    if (claimedAt === null) { claimedAt = now; setImmediate(() => { claimedAt = null; }); }
+    return;
+  }
+}
+
 export async function all<T = Row>(sql: string, args: InArgs = []): Promise<T[]> {
   await busyTurn();
   return (await db().execute({ sql, args })).rows as unknown as T[];
@@ -2984,7 +2999,7 @@ export async function allInChunks<T = Row>(sql: string, args: InArgs, key: keyof
     for (const r of rows) out.push(r);
     if (rows.length < size) return out;
     after = Number(rows[rows.length - 1][key]);
-    await new Promise<void>((r) => setImmediate(r));
+    await loopTurn();
   }
 }
 

@@ -12,7 +12,8 @@
 // rather than guessing one.
 import type { SearchAnswer, SearchHit } from "../../src/shared/api.js";
 import { search } from "./search.js";
-import { all } from "../db.js";
+import { all, allInChunks, loopTurn } from "../db.js";
+import { STEP_ITEMS, runAll, runYielding } from "../../src/shared/steps.js";
 import { searchVersion } from "./searchReads.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { registerCache } from "../caches.js";
@@ -114,16 +115,24 @@ type EventRow = { code: string; name: string | null; venue?: string | null; city
 
 /** The vocabulary for the stored teams and events. */
 export function buildVocab(teams: TeamRow[], events: EventRow[]): Vocab {
+  return runAll(vocabSteps(teams, events));
+}
+
+/** buildVocab as steps (src/shared/steps.ts), yielding every STEP_ITEMS rows: the server builds it with the loop let go. */
+export function* vocabSteps(teams: TeamRow[], events: EventRow[]): Generator<void, Vocab> {
+  let step = 0;
   const own = ownWords();
   const count = new Map<string, number>();
   const add = (w: string) => count.set(w, (count.get(w) ?? 0) + 1);
   const keep = new Set(own.keys());
   const team = new Set<string>();
   for (const t of teams) {
+    if (++step % STEP_ITEMS === 0) yield;
     for (const w of words(t.name ?? "")) { add(w); team.add(w); }
     for (const w of words(`${t.school ?? ""} ${t.city ?? ""} ${t.state ?? ""}`)) add(w);
   }
   for (const e of events) {
+    if (++step % STEP_ITEMS === 0) yield;
     keep.add(e.code.toLowerCase());
     for (const w of words(`${e.name ?? ""} ${e.venue ?? ""} ${e.city ?? ""} ${e.state ?? ""}`)) add(w);
   }
@@ -132,6 +141,7 @@ export function buildVocab(teams: TeamRow[], events: EventRow[]): Vocab {
   for (const [w, n] of count) if (n >= 3) keep.add(w);
   const byLength = new Map<number, string[]>();
   for (const w of new Set([...own.keys(), ...count.keys()])) {
+    if (++step % STEP_ITEMS === 0) yield;
     if (!/^\p{L}+$/u.test(w)) continue;
     (byLength.get(w.length) ?? byLength.set(w.length, []).get(w.length)!).push(w);
   }
@@ -145,10 +155,11 @@ let vocabCache: { version: string; vocab: Promise<Vocab> } | null = null;
 async function vocab(): Promise<Vocab> {
   const version = await searchVersion();
   if (vocabCache?.version === version) return vocabCache.vocab;
+  // A few thousand rows at a time in key order (the order one whole read gave), the build let go between slices.
   const v = Promise.all([
-    all<TeamRow>("SELECT name, school, city, state FROM teams"),
-    all<EventRow>("SELECT code, name, venue, city, state FROM events"),
-  ]).then(([teams, events]) => buildVocab(teams, events));
+    allInChunks<TeamRow & { number: number }>("SELECT number, name, school, city, state FROM teams WHERE number > ?", [], "number", 2_500),
+    allInChunks<EventRow & { rid: number }>("SELECT rowid rid, code, name, venue, city, state FROM events WHERE rowid > ?", [], "rid", 2_500),
+  ]).then(([teams, events]) => runYielding(vocabSteps(teams, events), loopTurn));
   vocabCache = { version, vocab: v };
   // A failed read must not stick: the next search retries.
   v.catch(() => { if (vocabCache?.vocab === v) vocabCache = null; });
