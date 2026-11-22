@@ -15,7 +15,7 @@ import { computeSeasonStats } from "../stats/job";
 import { createApp } from "../app";
 import type { EventRow } from "./bundle";
 import { LockBusy, lockHolder, release, renew, tryAcquire, withDataLock } from "./lock";
-import { MANUAL_REFRESH_MS, MANUAL_WAIT_MS, busyBy, isEventDay, liveEvents, liveIo, liveTick, manualRefresh, refreshEvents, resetLiveState } from "./live";
+import { MANUAL_ANSWER_MS, MANUAL_REFRESH_MS, MANUAL_WAIT_MS, busyBy, isEventDay, liveEvents, liveIo, liveTick, manualRefresh, refreshEvents, resetLiveState } from "./live";
 
 const S = CURRENT_SEASON;
 const TEAMS = [201, 202, 203, 204, 205, 206];
@@ -291,6 +291,24 @@ describe("Refresh results (manual)", () => {
     expect(fetches).toHaveLength(1);
   });
 
+  it("a refresh that takes long is answered \"checking\" in time and goes on; clicks meanwhile share it", async () => {
+    let finish!: () => void;
+    onFetch = () => new Promise<void>((r) => { finish = r; }); // FIRST + the live stats rebuild: 18-24 s on the VM
+    const t0 = performance.now();
+    expect(await manualRefresh(S, "LIVE", { answerWithinMs: 100 })).toEqual({ status: "checking" });
+    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(await manualRefresh(S, "LIVE", { answerWithinMs: 50 })).toEqual({ status: "checking" }); // shares it
+    const waiting = manualRefresh(S, "LIVE"); // a caller without a bound waits for the same run
+    finish();
+    expect(await waiting).toEqual({ status: "refreshed", fetched: true });
+    expect(fetches).toEqual(["LIVE"]); // one real refresh, which finished after the first answer
+    expect(await manualRefresh(S, "LIVE", { answerWithinMs: 100 })).toEqual({ status: "recent" });
+  });
+
+  it("a quick refresh is answered with its own outcome, never \"checking\"", async () => {
+    expect(await manualRefresh(S, "LIVE", { answerWithinMs: MANUAL_ANSWER_MS })).toEqual({ status: "refreshed", fetched: true });
+  });
+
   it("only for events on today", async () => {
     expect(await manualRefresh(S, "PRIOR")).toEqual({ status: "not-live" });
     expect(await manualRefresh(S, "NOPE")).toEqual({ status: "not-found" });
@@ -355,6 +373,21 @@ describe("Refresh results (manual)", () => {
         expect(body.message).toBe("Another data update is running right now. Try again in a moment.");
       } finally { await release(t!); }
     });
+
+    it("a refresh that is still running after MANUAL_ANSWER_MS answers \"checking\" with the event as it is", async () => {
+      let finish!: () => void;
+      onFetch = () => new Promise<void>((r) => { finish = r; });
+      const t0 = performance.now();
+      const body = await (await post(`/api/events/${S}/LIVE/refresh`)).json();
+      const ms = performance.now() - t0;
+      expect(ms).toBeGreaterThanOrEqual(MANUAL_ANSWER_MS - 100);
+      expect(ms).toBeLessThan(MANUAL_ANSWER_MS + 1500);
+      expect(body.outcome).toBe("checking");
+      expect(body.message).toBe("Checking FIRST now. New results show here in a few seconds.");
+      expect(body.detail.event.code).toBe("LIVE");
+      finish();
+      await vi.waitFor(async () => expect((await (await fetch(`${base}/api/events/${S}/LIVE`)).json()).live.checkedAt).not.toBeNull());
+    }, 15_000);
 
     it("live event pages revalidate on every load; other days keep the normal cache", async () => {
       const live = await fetch(`${base}/api/events/${S}/LIVE`);

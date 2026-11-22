@@ -263,6 +263,9 @@ export const busyBy = (what: string | undefined): BusyBy =>
  *  day (measured 11-22), and it is checking this very event: waiting it out (10 s before) only made the click hang and
  *  then say "busy" anyway. A short wait still catches a lease that is just being released. */
 export const MANUAL_WAIT_MS = 2000;
+/** The route answers a click within this (answerWithinMs): a refresh that found news goes on to a live stats rebuild
+ *  in a child process, 18–24 s on the VM (11-22), and the page's own poll shows its results when they land. */
+export const MANUAL_ANSWER_MS = 4000;
 
 const lastManual = new Map<string, number>();
 const inflight = new Map<string, Promise<ManualOutcome>>();
@@ -271,6 +274,8 @@ export type ManualOutcome =
   | { status: "refreshed"; fetched: boolean }
   /** Someone refreshed this event under MANUAL_REFRESH_MS ago: their result is the latest. */
   | { status: "recent" }
+  /** Still checking after answerWithinMs: it goes on in the background (and later clicks share it). */
+  | { status: "checking" }
   /** Another writer holds the lease (busyBy): the fast lane checking today's events (live), the background cycle,
    *  another event's refresh (manual), or a job that doesn't sync results (other: video checks, owner tools). */
   | { status: "busy"; by: BusyBy }
@@ -284,14 +289,23 @@ export type ManualOutcome =
  * A refresh probes FIRST and fetches in full when something changed or the
  * last full fetch is over a minute old.
  */
-export async function manualRefresh(season: number, code: string, o: { log?: Log; now?: number; waitMs?: number } = {}): Promise<ManualOutcome> {
+/** `p`, or "checking" if it hasn't settled within `ms` (it carries on either way). */
+function answerWithin(p: Promise<ManualOutcome>, ms: number | undefined): Promise<ManualOutcome> {
+  if (ms == null) return p;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<ManualOutcome>((r) => { timer = setTimeout(() => r({ status: "checking" }), ms); timer.unref?.(); });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
+/** `answerWithinMs`: answer "checking" if the refresh (or the one already running) takes longer; it isn't stopped. */
+export async function manualRefresh(season: number, code: string, o: { log?: Log; now?: number; waitMs?: number; answerWithinMs?: number } = {}): Promise<ManualOutcome> {
   const now = o.now ?? Date.now();
   const row = await get<any>(`SELECT ${EVENT_ROW_COLUMNS} FROM events WHERE season = ? AND code = ?`, [season, code]);
   if (!row) return { status: "not-found" };
   if (!isEventDay(row, now)) return { status: "not-live" };
   const k = `${season}:${code}`;
   const running = inflight.get(k);
-  if (running) return running;
+  if (running) return answerWithin(running, o.answerWithinMs);
   if (now - (lastManual.get(k) ?? -Infinity) < MANUAL_REFRESH_MS) return { status: "recent" };
   lastManual.set(k, now);
   const p = (async (): Promise<ManualOutcome> => {
@@ -306,5 +320,7 @@ export async function manualRefresh(season: number, code: string, o: { log?: Log
     }
   })();
   inflight.set(k, p);
-  try { return await p; } finally { inflight.delete(k); }
+  // Shared until it settles, even after a click was answered "checking" (p never rejects: its errors are outcomes).
+  void p.finally(() => { if (inflight.get(k) === p) inflight.delete(k); });
+  return answerWithin(p, o.answerWithinMs);
 }
