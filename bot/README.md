@@ -14,7 +14,7 @@ an embed that links back to controlscout.org:
 | `/following` | The server's followed teams and where each posts (up to 10 per server) |
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below) |
 | `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking |
-| `/config` | What the bot is and can do here, read live: the release it runs, the season, the site it talks to, chat on (or why it isn't), report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
+| `/config` | What the bot is and can do here, read live: the release it runs, the account it is and how many servers it is in, the season, the site it talks to, chat on (or why it isn't), report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
 
 ## /ask
