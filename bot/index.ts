@@ -48,6 +48,10 @@ await configure(db()).catch((e) => log(`database not ready yet (${(e as Error).m
 // When the gateway is up: `since` while this process is connected, `last` when the moment it was connected, kept after a
 // drop so /config says "not connected now (last connected …)" rather than claiming a connection it lost.
 const gateway: { since: number | null; last: number | null } = { since: null, last: null };
+// The ready line's two facts — which account this is and how many servers it is in — kept where configHere (which runs
+// before the client is constructed, being top-level await above it) can read them: until the gateway says, the summary
+// says it isn't ready rather than "0 servers", which would be the truth only for a bot that had looked.
+const self: { tag: string | null; servers: number } = { tag: null, servers: 0 };
 for (const line of configLines(await configHere())) log(line);
 
 /** What this bot can do here, read now: the startup summary and /config both come from this, so the journal and the
@@ -65,7 +69,8 @@ async function configHere(): Promise<Config> {
   // is later than nothing.
   const lastConnected = Math.max(gateway.last ?? 0, beatAt ?? 0) || null;
   return {
-    release: RELEASE, season: CURRENT_SEASON, sitePort: env.port, commands: { guild: env.discordDevGuildId },
+    release: RELEASE, bot: self.tag === null ? null : { tag: self.tag, servers: self.servers },
+    season: CURRENT_SEASON, sitePort: env.port, commands: { guild: env.discordDevGuildId },
     chat: await chatSetup(), follows, discord: { since: gateway.since, last: gateway.since ?? lastConnected },
   };
 }
@@ -110,6 +115,8 @@ client.on(Events.ShardResume, () => { connected(); log("gateway resumed"); });
 
 client.once(Events.ClientReady, (c) => {
   connected();
+  self.tag = c.user.tag;
+  self.servers = c.guilds.cache.size;
   log(`ready as ${c.user.tag} in ${c.guilds.cache.size} server${c.guilds.cache.size === 1 ? "" : "s"}`);
   void registerUntilDone(c.application.id);
   // Warm the season's ratings so the first /predict doesn't wait for them.
@@ -157,8 +164,14 @@ setInterval(() => {
 }, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
 client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m as never, client.user.id); });
-client.on(Events.GuildCreate, (g) => log(`added to a server (${client.guilds.cache.size} now): ${g.id}`));
-client.on(Events.GuildDelete, (g) => log(`removed from a server (${client.guilds.cache.size} now): ${g.id}`));
+client.on(Events.GuildCreate, (g) => {
+  self.servers = client.guilds.cache.size;
+  log(`added to a server (${self.servers} now): ${g.id}`);
+});
+client.on(Events.GuildDelete, (g) => {
+  self.servers = client.guilds.cache.size;
+  log(`removed from a server (${self.servers} now): ${g.id}`);
+});
 client.on(Events.Error, (e) => log(`client error: ${e.message}`));
 client.on(Events.ShardDisconnect, () => {
   // Not connected any more: the summary says so, with when it last was (a heartbeat a minute at most).
