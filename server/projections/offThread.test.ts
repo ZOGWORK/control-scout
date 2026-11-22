@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { PROJECTION_FLOOR, PROJECTION_RUNS } from "../../src/shared/projections";
 import { simulateProjection, textSeed } from "./core";
 import { deserializeInput, type FixtureEvent } from "./fixture";
-import { liveWorkers, simulateOffThread, workerEntry } from "./offThread";
+import { liveWorkers, simulateOffThread, workerEntry, workerFlags } from "./offThread";
 import { BUDGET_MS, jobSimulate } from "./job";
 
 const fx = JSON.parse(readFileSync(join(__dirname, "__fixtures__", "midpoint.json"), "utf8")) as { season: number; events: FixtureEvent[] };
@@ -74,5 +74,21 @@ describe("workerEntry", () => {
     expect(e.url.href).toBe(pathToFileURL(join("/app", "server", "projections", "simWorker.ts")).href);
     expect(e.execArgv).toEqual(["--import", "tsx"]);
     expect(workerEntry(pathToFileURL("/app/server/projections/offThread.ts").href, ["--import", "tsx"]).execArgv).toEqual(["--import", "tsx"]);
+  });
+
+  it("leaves out the heap-size flags Node refuses in a worker (the Discord bot runs with --max-old-space-size)", () => {
+    const src = pathToFileURL("/app/server/projections/offThread.ts").href;
+    expect(workerEntry(src, ["--max-old-space-size=1536", "--import", "tsx"]).execArgv).toEqual(["--import", "tsx"]);
+    expect(workerEntry(src, ["--max-old-space-size", "1536", "--enable-source-maps"]).execArgv).toEqual(["--enable-source-maps", "--import", "tsx"]);
+    expect(workerFlags(["--max-semi-space-size=64", "--max_old_space_size=900", "--enable-source-maps"])).toEqual(["--enable-source-maps"]);
+  });
+
+  it("a worker started with the bot's flags runs (Node accepts what's left)", async () => {
+    const { Worker } = await import("node:worker_threads");
+    const { execArgv } = workerEntry(pathToFileURL("/app/server/projections/offThread.ts").href, ["--max-old-space-size=1536", "--enable-source-maps"]);
+    const w = new Worker("require('node:worker_threads').parentPort.postMessage('ok')", { eval: true, execArgv: execArgv!.filter((a) => a !== "--import" && a !== "tsx") });
+    await expect(new Promise((res, rej) => { w.once("message", res); w.once("error", rej); })).resolves.toBe("ok");
+    await w.terminate();
+    expect(() => new Worker("0", { eval: true, execArgv: ["--max-old-space-size=1536"] })).toThrow(/invalid execArgv/);
   });
 });
