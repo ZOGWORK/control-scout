@@ -116,7 +116,7 @@ import { seasonRecordLine } from "./api/searchHighScores.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS } from "../src/shared/statCatalog.js";
-import { manualRefresh, type ManualOutcome } from "./data/live.js";
+import { MANUAL_ANSWER_MS, manualRefresh, type ManualOutcome } from "./data/live.js";
 import { defaultRankingsSeason, rankingPlaces, rankingsPage, snapshotWeeks, type RankingsQuery } from "./api/rankings.js";
 import { regionRankings, regionsList, seasonLeagueList } from "./api/regionRankings.js";
 import { REGION_SORTS, isRegionSort, type LeaguesResponse } from "../src/shared/regionRankings.js";
@@ -257,6 +257,7 @@ function refreshMessage(o: ManualOutcome): string {
   switch (o.status) {
     case "refreshed": return o.fetched ? "Updated from FIRST just now." : "Checked FIRST just now: nothing new yet.";
     case "recent": return "Someone refreshed this event seconds ago, so these are the latest results.";
+    case "checking": return "Checking FIRST now. New results show here in a few seconds.";
     case "busy":
       switch (o.by) {
         case "live": return "Today's results are being checked from FIRST right now. New ones show here in a few seconds.";
@@ -720,7 +721,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   // every 20 s (everyone else shares it), on top of the live fast lane's every-minute checks.
   api.post("/events/:season/:code/refresh", limiter(12), h(async (req): Promise<EventRefreshResult> => {
     const s = season(req.params.season), c = code(req.params.code);
-    const out = await manualRefresh(s, c, { log: (m) => console.log(`[${new Date().toISOString()}] ${m}`) });
+    const out = await manualRefresh(s, c, { log: (m) => console.log(`[${new Date().toISOString()}] ${m}`), answerWithinMs: MANUAL_ANSWER_MS });
     if (out.status === "not-found") throw new HttpError(404, `No event ${c} in ${s}`);
     if (out.status === "not-live") throw new HttpError(409, "Only events that are on today (in their time zone) can be refreshed. Other events update with the regular sync.");
     const detail = await eventDetail(s, c);
