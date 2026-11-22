@@ -60,6 +60,21 @@ describe("a server's chat limit, on a database", () => {
     expect(await takeChat("g1", NOW)).toEqual({ ok: true });
   });
 
+  it("two chats at the same moment can't share the last slot", async () => {
+    await setGuildLimit("g1", { perHour: 1, perDay: null }, "owner", NOW);
+    const both = await Promise.all([takeChat("g1", NOW), takeChat("g1", NOW)]);
+    expect(both.filter((r) => r.ok)).toHaveLength(1);
+    expect(both.filter((r) => !r.ok)).toHaveLength(1);
+  });
+
+  it("a chat the day's limit refuses gives its hour slot back", async () => {
+    await setGuildLimit("g1", { perHour: 5, perDay: 1 }, "owner", NOW);
+    expect((await takeChat("g1", NOW)).ok).toBe(true);
+    expect(await takeChat("g1", NOW)).toMatchObject({ ok: false, limited: "day" });
+    // Counted once, not twice: the refused chat isn't charged to the hour either.
+    expect((await get<{ used: number }>("SELECT used FROM discord_chat_usage WHERE guild_id = 'g1' AND window = 'h:2026-11-22T05'"))!.used).toBe(1);
+  });
+
   it("keeps the two windows a chat counts in, and drops the ones that are long over", async () => {
     await setGuildLimit("g1", { perHour: 10, perDay: 10 }, "owner", NOW);
     await takeChat("g1", NOW);

@@ -480,6 +480,14 @@ describe("a server's chat limit", () => {
     expect(l.ask).not.toHaveBeenCalled();
   });
 
+  it("a bare mention asks for the help text without using a chat", async () => {
+    const quota = vi.fn(async () => atLimit);
+    const { m, sent } = message(`<@${BOT}>`);
+    await createHandler(() => {}, lookups({ quota })).mention(m, BOT);
+    expect(sent[0].embeds[0].title).toBe("Ask me anything");
+    expect(quota).not.toHaveBeenCalled();
+  });
+
   it("a quota read that fails never silences the bot", async () => {
     const l = lookups({ quota: async () => { throw new Error("database is locked"); } });
     const { m, sent } = message(`<@${BOT}> who won decode`);

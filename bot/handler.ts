@@ -262,13 +262,14 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         await card(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."));
         return;
       }
-      // The server's chat limit, if one is set (none is, today): said in the channel, before the typing indicator goes up.
-      const over = await mayChat(m.guildId);
-      if (!over.ok) { await card(limitEmbed(over)); return; }
       if (!q) {
         await card({ title: "Ask me anything", description: "Write your question after the mention, like the website's search box:\n`@Control Scout who won decode` · `@Control Scout 4215 vs 6980`\nOr use `/ask question:`. Reply to my answer to keep talking.", color: VOLT, footer: FOOTER });
         return;
       }
+      // The server's chat limit, if one is set (none is, today): said in the channel, before the typing indicator goes up.
+      // After the bare-mention help: that asks nothing of Control Scout, so it never uses a chat.
+      const over = await mayChat(m.guildId);
+      if (!over.ok) { await card(limitEmbed(over)); return; }
       // Typing lasts about 10 s and a model reply can take 30: keep it up while the chat is written.
       void m.channel.sendTyping?.().catch(() => {});
       const typing = setInterval(() => { void m.channel.sendTyping?.().catch(() => {}); }, 8_000);
