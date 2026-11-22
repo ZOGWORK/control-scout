@@ -7,7 +7,8 @@ import { createHash } from "node:crypto";
 import { serialize } from "node:v8";
 import type { EventRecord, PartnershipTable } from "@control-scout/predict-engine";
 import { configure, openDb, setDb } from "../db.js";
-import { replayWindow, resetForecasters } from "./engine.js";
+import { dataVersion, replayWindow, resetForecasters } from "./engine.js";
+import { sharedReplay } from "./sharedRatings.js";
 import { onPartnershipPrefixReady } from "./partnerships.js";
 import type { FromRebuildWorker, PartKind, TableFields, ToRebuildWorker } from "./offThread.js";
 
@@ -31,7 +32,9 @@ const hashOf = (v: unknown) => createHash("sha1").update(serialize(v)).digest("h
 
 async function rebuild(m: Extract<ToRebuildWorker, { t: "rebuild" }>): Promise<void> {
   await ready;
-  const p = await replayWindow(m.anchor, m.seasons);
+  // Shared with the machine's other processes (sharedRatings.ts): a build already made for this data is loaded here,
+  // on this thread, instead of replayed; one made here is saved for them.
+  const p = await sharedReplay(m.anchor, m.seasons, await dataVersion(), replayWindow);
   const parts: { name: string; kind: PartKind; hash: string | null }[] = [];
   /** A part by its content: not sent when the server already holds the same. */
   const send = async (name: string, kind: PartKind, value: unknown, hashed: boolean, chunks: () => Promise<void>) => {
