@@ -112,7 +112,28 @@ export function tokens(q: string): string[] {
  *  way), then accents, case and punctuation folded. */
 export const nameKey = (s: string) => normalize(joinThousands(s).replace(/[’']/g, ""));
 
-let names: { at: number; byName: Map<string, string[]>; list: [string, string][]; whole: Map<string, string> } | null = null;
+/** First index in `sorted` (by name, code-unit order) whose name is not below `k`. */
+function lowerBound(sorted: readonly (readonly [string, string])[], k: string): number {
+  let lo = 0, hi = sorted.length;
+  while (lo < hi) { const mid = (lo + hi) >>> 1; if (sorted[mid][0] < k) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+
+/** The entries of `sorted` named exactly `n` or starting with the whole words `n` ("hypnotic" → "hypnotic robotics"):
+ *  `list.filter(([name]) => name === n || name.startsWith(`${n} `))` as a set, in two binary searches instead of a
+ *  pass over every team (search asked it for every run of words, 82 ms a query for an event pack's searches). In
+ *  code-unit order the names equal to n are one run, and those starting with "n " are exactly [n + " ", n + "!"),
+ *  "!" being the unit after the space. */
+export function namesFrom(sorted: readonly (readonly [string, string])[], n: string): [string, string][] {
+  const out: [string, string][] = [];
+  for (let i = lowerBound(sorted, n); i < sorted.length && sorted[i][0] === n; i++) out.push([sorted[i][0], sorted[i][1]]);
+  const end = lowerBound(sorted, `${n}!`);
+  for (let i = lowerBound(sorted, `${n} `); i < end; i++) out.push([sorted[i][0], sorted[i][1]]);
+  return out;
+}
+const byKey = (a: readonly [string, string], b: readonly [string, string]) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+
+let names: { at: number; byName: Map<string, string[]>; list: [string, string][]; sorted: [string, string][]; whole: Map<string, string> } | null = null;
 export async function teamNames() {
   if (names && Date.now() - names.at < 10 * 60_000) return names;
   const rows = await all<{ number: number; name: string | null }>("SELECT number, name FROM teams WHERE name IS NOT NULL AND name <> ''");
@@ -124,7 +145,7 @@ export async function teamNames() {
     list.push([n, String(r.number)]);
     whole.set(String(r.number), wholeName(r.name!));
   }
-  names = { at: Date.now(), byName, list, whole };
+  names = { at: Date.now(), byName, list, sorted: [...list].sort(byKey), whole };
   return names;
 }
 /** Forget the cached names (tests that write teams). */
@@ -141,7 +162,7 @@ export async function teamExists(n: string): Promise<boolean> {
 export async function teamsNamed(ws: string[], which = false): Promise<string[]> {
   const n = ws.join(" ");
   if (!n || /^\d+$/.test(n)) return [];
-  const { byName, list, whole } = await teamNames();
+  const { byName, sorted, whole } = await teamNames();
   // A region's or a country's name is the place ("Texas", "Romania"), never a team named after it (the parser's rule).
   // Two letters lower case ("in", "or", "me") are words here: a state's code is only read as typed, by the parser.
   const pl = n.length > 2 ? (await pipelineNames()).place(n) : null;
@@ -155,7 +176,7 @@ export async function teamsNamed(ws: string[], which = false): Promise<string[]>
   // A one-word start of a name needs 6+ letters ("hypnotic"), so a common word ("total") isn't read as a team; a name's
   // own part has its own floor (four letters).
   const long = n.replace(/\s/g, "").length >= (ws.length > 1 ? 5 : 6);
-  const pre = long ? list.filter(([name]) => name === n || name.startsWith(`${n} `)) : [];
+  const pre = long ? namesFrom(sorted, n) : [];
   if (pre.length === 1) return [pre[0][1]];
   return pre.length ? [] : (await pipelineNames()).teamsCalled(n).map((t) => String(t.number));
 }
