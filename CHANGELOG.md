@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.0 — 2026-11-22
+
+Every Discord server now has a chat cap — 30 an hour, 100 a day — and /config shows the limit the server it was asked in has; a server that removes the bot has its data deleted.
+
+### Highlights
+- [alerts] Every server now has a chat cap: 30 an hour, 100 a day
+- [alerts] /config names this server's limit and where it came from
+- [fixes] Removing the bot from a server deletes everything it kept
+- [fixes] Threads record their server, so they go with it
+
+### Discord bot
+- `bot/quota.ts` gives every server the same default cap — 30 chats an hour and 100 a day, counted in UTC windows — and counts what it uses (`discord_chat_usage`), so no server can spend Control Point's chats without a ceiling. A server's own row in `discord_limits` replaces both windows (`setGuildLimit`): a zero or a null there is no cap for that window, which is how a big event server is exempted, and `clearGuildLimit` deletes the row to put the server back on the default. A server's counters start with its limit, so chats from before it don't count against it; at a cap, `/ask` and a mention say when it resets, while the site and the server's follow posts keep working.
+- `/config` gains a tenth line for the server it was asked in: `config: chat limit 30 an hour, 100 a day (the default for every server)`, or `(set for this server)`, or `none`, or that the limit couldn't be read. The handler passes the server to the config lookup, and the startup block keeps its nine lines, since it has no server to ask about.
+- Removing the bot from a server deletes everything it kept for it (`bot/forget.ts`): the follows and the posts they sent, the chat limit and its usage, the teams its people asked about, the names, and the reply threads. `discord_threads` now records the server a thread belongs to (migration 102), so a thread goes with it. A `GuildDelete` with `available: false` is a Discord outage, not a removal, and keeps the server's data.
+- `bot/quota.test.ts` covers the default cap and its counting, a row replacing it, clearing back to the default, both windows and per-server isolation; `bot/forget.test.ts` covers every per-server table and another server's rows surviving; `bot/memory.test.ts`, `bot/config.test.ts` and `bot/handler.test.ts` cover the thread's server and the new line; `bot/README.md` and the site's Discord card say so.
+
 ## 7.8.9 — 2026-11-22
 
 /config and the startup block now name the bot's own account and how many servers it is in, the facts the journal's ready line reports.

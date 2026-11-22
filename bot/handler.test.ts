@@ -58,10 +58,13 @@ describe("commands", () => {
   it("/config answers privately, with the bot's own setup (not in the channel's history)", async () => {
     const l = lookups();
     const { i, calls } = command("config", {});
+    i.guildId = "g1";
     await createHandler(() => {}, l)(i);
     expect(calls.map((c) => c.kind)).toEqual(["defer", "edit"]);
     expect(calls[0].payload).toEqual({ flags: 64 }); // MessageFlags.Ephemeral
     expect(calls[1].payload.embeds[0].title).toBe("config here");
+    // Read for the server it was asked in: its chat limit is part of the answer (bot/config.ts).
+    expect(l.config).toHaveBeenCalledWith("g1");
     expect(l.team).not.toHaveBeenCalled();
   });
 
@@ -465,7 +468,7 @@ describe("a server's chat limit", () => {
     return { m, sent };
   }
 
-  it("no limit set — every server today — so a mention answers as always", async () => {
+  it("a server under its limit (the default, unless its own row says otherwise) answers as always", async () => {
     const l = lookups({ quota: vi.fn(async () => ({ ok: true as const })) });
     const { m, sent } = message(`<@${BOT}> who won decode`);
     await createHandler(() => {}, l).mention(m, BOT);
@@ -577,10 +580,11 @@ describe("what the server has taught the bot", () => {
     const mem = memory();
     const l = lookups({ memory: mem, ask: chatAnswer("30030 Exodus won.") });
     await createHandler(() => {}, l).mention(message(`<@${BOT}> who won decode`).m, BOT);
+    // Kept with its server, so removing the bot from that server deletes it (bot/forget.ts).
     expect(mem.keep).toHaveBeenCalledWith("m1", [
       { role: "user", text: "who won decode" },
       { role: "bruno", text: "30030 Exodus won." },
-    ]);
+    ], "g1");
   });
 
   it("a memory that fails changes nothing: the question is still answered", async () => {
