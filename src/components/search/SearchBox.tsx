@@ -58,9 +58,23 @@ export function usePreferKey(): string {
  *  withSeason); results remember it with their query.
  *  `thread`: this answer is a question asked (the results page's), so it becomes the thread's latest (./thread.ts). A
  *  box's dropdown answers the words as they are typed, a letter at a time, and none of those is a question asked. */
+/** `initial` when it answers `q` itself: a page only ever starts from an answer to the words it shows (`/search`'s
+ *  first paint, or the answer its own box handed over), whichever case or spacing they were typed with. */
+const forQuery = (initial: { q: string; hits: SearchHit[] } | null | undefined, q: string) =>
+  initial && initial.q.trim().replace(/\s+/g, " ").toLowerCase() === q.trim().replace(/\s+/g, " ").toLowerCase() ? initial : null;
+
+/** What the page starts a query from: the answer already in hand for it, as this hook draws it. */
+const seeded = (seed: { q: string; hits: SearchHit[] }, q: string): Answered => ({ q: q.trim(), hits: seed.hits, answer: isAnswer(seed) ? seed : undefined });
+
 export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?: { q: string; hits: SearchHit[] } | null, refine = true, season: number | null = null, thread = false) {
   // Results remember the query they answer, so a pick can never come from a previous query.
-  const [res, setRes] = useState<Answered>(() => (initial ? { q: initial.q, hits: initial.hits, answer: isAnswer(initial) ? initial : undefined } : { q: "", hits: [] }));
+  const [res, setRes] = useState<Answered>(() => { const seed = forQuery(initial, q); return seed ? seeded(seed, q) : { q: "", hits: [] }; });
+  // The answer already in hand for the words now shown: the page's first paint, or the one its own search box handed
+  // over as it submitted them (./handoff.ts). Drawn at once, so a submitted search never starts on a loading screen;
+  // this hook's own request replaces it when it answers. Read every render, not only the first: /search stays open
+  // while its own box submits another query (`?q=` changes), and that visit's answer has to be drawn too.
+  const seed = forQuery(initial, q);
+  if (seed && res.q !== q.trim()) setRes(seeded(seed, q));
   const [ai, setAi] = useState<{ q: string; answer: SearchAnswer | null } | null>(null);
   const [refining, setRefining] = useState(false);
   const [busy, setBusy] = useState(false);

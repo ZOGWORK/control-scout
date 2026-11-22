@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.7.6 — 2026-11-22
+
+Searching again from the results page's own search bar starts from that bar's answer too, with no loading screen.
+
+### Highlights
+- [speed] Searching again from the results page keeps the answer it had
+- [speed] No loading screen over results the box already found
+- [fixes] A query still goes straight to its page when it names one
+
+### Search
+- A query submitted from `/search`'s own box starts from the answer that box already had, as Enter from any other page does: the page reads the handoff whenever its `?q=` changes, not only when it mounts, and the visit handed an answer neither waits nor goes on to a page it already knew the words don't name (`src/pages/SearchPage.tsx`, `useSearchHits` in `src/components/search/SearchBox.tsx`, `src/components/search/handoff.ts`, `src/components/search/direct.ts`). (#2120)
+
 ## 7.7.5 — 2026-11-22
 
 Enter now really opens the results with no loading screen: the results page no longer hides the answer it was handed.

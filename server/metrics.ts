@@ -54,8 +54,12 @@ let routesSeen = new Set<string>();
 
 const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-/** Count one finished request. */
-export function recordRequest(method: string, path: string, status: number, ms: number, now = Date.now()): void {
+/** Mark an answer as a deliberate 5xx (the shutdown message's 503): still counted and timed, but not an error, so a
+ *  closed site doesn't fill the owner portal's error column with every signed-out tab's poll. */
+export function markNotAnError(res: Response): void { res.locals.notAnError = true; }
+
+/** Count one finished request (`error`: a 5xx that wasn't marked deliberate, markNotAnError). */
+export function recordRequest(method: string, path: string, status: number, ms: number, now = Date.now(), error = status >= 500): void {
   let route = `${method.toUpperCase()} ${normalizeRoute(path)}`;
   if (status === 404 && /:id|:file|:key/.test(route)) route = `${method.toUpperCase()} ${NOT_FOUND_ROUTE}`;
   const day = dayOf(now);
@@ -68,7 +72,7 @@ export function recordRequest(method: string, path: string, status: number, ms: 
   let t = pending.get(key);
   if (!t) { t = { count: 0, errors: 0, total: 0, max: 0, b: new Array(NB).fill(0) }; pending.set(key, t); }
   t.count++;
-  if (status >= 500) t.errors++;
+  if (error) t.errors++;
   t.total += ms;
   if (ms > t.max) t.max = ms;
   let i = 0;
@@ -105,7 +109,7 @@ export function requestMetrics() {
         // A streamed download (CSV exports) counts to its first byte: how long the rest takes is the client's connection.
         // A live stream counts to its opening; a client leaving it later is no error (the status was sent long before).
         const end = (isEventStream(res) ? headersAt : res.locals.firstByteAt) ?? performance.now();
-        recordRequest(req.method, p, res.statusCode, end - t0);
+        recordRequest(req.method, p, res.statusCode, end - t0, Date.now(), res.statusCode >= 500 && res.locals.notAnError !== true);
       } catch { /* never break a response */ }
     });
     next();
