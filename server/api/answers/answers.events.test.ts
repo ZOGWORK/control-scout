@@ -7,7 +7,7 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
-import { readStatQuestion, readTwoTeam } from "./read";
+import { THEIR_LAST, readStatQuestion, readTwoTeam } from "./read";
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -51,6 +51,20 @@ beforeAll(async () => {
   await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2025, 'USNJQ5', 'Winner', 1, 207, 'Winning Alliance - Captain'), (2025, 'USNJQ5', 'Winner', 1, 6980, '<i>FIRST</i>® Leadership Award Winner')");
   // The next season has begun (an event on the calendar) but has no championship yet.
   await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, 'USNJQ26', 'Fall Qualifier', 'Qualifier', 'Hillsborough', 'NJ', 'USA', '2026-10-01', '2026-10-01', 't')");
+  // A team with two league meets in 2026–27 (its last meet is the later one, its first meet the earlier) and a qualifier
+  // the season before (never its "first meet" now).
+  await run("INSERT INTO teams (number, name, city, state, country) VALUES (21229, 'Quality Control', 'Bellevue', 'WA', 'USA')");
+  await run("INSERT INTO team_seasons (season, team) VALUES (2025, 21229), (2026, 21229)");
+  await ev("USWAQ1", "Bellevue Qualifier", "Qualifier", "2025-12-06");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USWAQ1', 21229, 9)");
+  await run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, matches) VALUES (2025, 'USWAQ1', 21229, 60, 12.5, 40, 7.5, 1)");
+  for (const [code, name, day, auto, opr, rank, own] of [["USWASAM1", "Salk League Meet 1", "2026-10-17", 41.9, 151.1, 3, 170], ["USWASAM2", "Salk League Meet 2", "2026-11-14", 35.1, 135.8, 1, 194]] as const) {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, ?, ?, 'LeagueMeet', 'Bellevue', 'WA', 'USA', ?, ?, 't')", [code, name, day, day]);
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2026, ?, 21229, ?)", [code, rank]);
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, matches) VALUES (2026, ?, 21229, ?, ?, 80, 20, 1)", [code, opr, auto]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2026, ?, 'qual', 0, 1, 'Q1', ?, 1, ?, ?, 73, 73, 't')", [code, `${day}T10:00:00Z`, own, own]);
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2026, ?, 'qual', 0, 1, 21229, 'red', 1)", [code]);
+  }
   await rebuildSearch();
 });
 
@@ -83,6 +97,33 @@ describe("one team at one event", () => {
     expect((await searchAnswer("4215 endgame opr at New Jersey Championship", { limit: 25 })).stat!.headline).toMatchObject({ value: "Endgame OPR 11.3" });
     // No phase said: the whole OPR, as before.
     expect(readStatQuestion("4215 opr at nj states")).not.toHaveProperty("phase");
+  });
+  it("a stat in the team's last or first meet: that event of its latest season, said so (reported searches)", async () => {
+    // "In their last meet" is the team's own latest event, as "at their last meet" is; "average" before a stat is filler.
+    expect(readStatQuestion("quality control average auto opr in their last meet")).toMatchObject({ id: "event-opr", phase: "auto", core: "quality control", scope: { at: THEIR_LAST } });
+    // "Last event" asked alone stays the latest event's own answer, its rank leading when asked.
+    expect(readStatQuestion("21229 last event")).toMatchObject({ id: "last-event", scope: { at: null } });
+    expect(readStatQuestion("21229 last event rank")).toMatchObject({ id: "last-event", rank: true });
+    for (const q of ["quality control average auto opr in thier last meet", "quality control average auto opr in thier last meet in the bio buzz season"]) {
+      const a = await searchAnswer(q, { limit: 25 });
+      expect(a.stat, q).toMatchObject({ title: "Auto OPR at Salk League Meet 2", headline: { value: "Auto OPR 35.1", label: "Salk League Meet 2", sub: expect.stringMatching(/^OPR 135\.8 · 2026–27 · Nov 14/) } });
+      expect(a.stat!.scope, q).toContain("Most recent event");
+      expect(a.understood?.label, q).toBe("Quality Control (21229) · Auto OPR at Salk League Meet 2, their most recent event");
+      // Nothing it said is left unread ("last" is the most recent event).
+      expect(a.understood?.unread ?? [], q).toEqual([]);
+    }
+    // No "their" said: the same, for any stat with an answer at one event.
+    const avg = await searchAnswer("quality control average points last meet", { limit: 25 });
+    expect(avg.stat).toMatchObject({ title: "Average score at Salk League Meet 2", headline: { value: "194.0" } });
+    expect(avg.stat!.scope).toContain("Most recent event");
+    expect(avg.understood?.unread ?? []).toEqual([]);
+    // The first meet is the first of its latest season, never its debut a season before.
+    const first = await searchAnswer("quality control auto opr in first meet", { limit: 25 });
+    expect(first.stat).toMatchObject({ title: "Auto OPR at Salk League Meet 1", headline: { value: "Auto OPR 41.9" } });
+    expect(first.stat!.scope).toContain("First event");
+    expect(first.understood?.label).toBe("Quality Control (21229) · Auto OPR at Salk League Meet 1, their first event");
+    // The quick answer (no card yet) says it too: "last" is never left unread.
+    expect((await searchAnswer("quality control average points last meet", { limit: 25, full: false })).understood?.unread ?? []).toEqual([]);
   });
   it("a phase alone beside the team at an event is that phase's OPR there (failed search #2032)", () => {
     expect(readStatQuestion("hypnotic robotics auto in nj states")).toMatchObject({ id: "event-opr", phase: "auto", core: "hypnotic robotics nj", scope: { states: true } });
