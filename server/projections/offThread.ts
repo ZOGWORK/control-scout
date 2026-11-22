@@ -35,8 +35,26 @@ export function workerEntry(moduleUrl = import.meta.url, execArgv: readonly stri
  *  `source` (relative to `moduleUrl`) through tsx. The forecaster's rebuild worker starts the same way (predict/offThread.ts). */
 export function entryFor(bundled: string, source: string, moduleUrl: string, execArgv: readonly string[] = process.execArgv): { url: URL; execArgv?: string[] } {
   if (fileURLToPath(moduleUrl).endsWith(".mjs")) return { url: new URL(bundled, moduleUrl) };
-  const flags = execArgv.some((a) => a.includes("tsx")) ? [...execArgv] : [...execArgv, "--import", "tsx"];
+  const own = workerFlags(execArgv);
+  const flags = own.some((a) => a.includes("tsx")) ? own : [...own, "--import", "tsx"];
   return { url: new URL(source, moduleUrl), execArgv: flags };
+}
+
+/** V8 heap-size flags: Node refuses them in a Worker's execArgv ("Initiated Worker with invalid execArgv flags"), so a
+ *  process started with one (the Discord bot: node --max-old-space-size=1536 --import tsx bot/index.ts) could never
+ *  start a worker and rebuilt its forecaster on its own thread. A worker's heap is set by resourceLimits, not flags. */
+// V8 takes - and _ alike in a flag's name, so each word gap matches either.
+const HEAP_FLAG = /^--(max[-_](?:old[-_]space|semi[-_]space|young[-_]generation)[-_]size)(=|$)/;
+
+/** The parent's flags a worker may be started with: all but the heap-size ones (each as --flag=N or --flag N). */
+export function workerFlags(execArgv: readonly string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < execArgv.length; i++) {
+    const a = execArgv[i], m = HEAP_FLAG.exec(a);
+    if (!m) { out.push(a); continue; }
+    if (m[2] === "" && /^\d+$/.test(execArgv[i + 1] ?? "")) i++;
+  }
+  return out;
 }
 
 let started = 0, live = 0;
