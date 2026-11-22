@@ -164,3 +164,19 @@ describe("the link check", () => {
     expect(await get<any>("SELECT code FROM official_videos WHERE video_id = 'qM3qo5rrmyc'")).toEqual({ code: "USMOKSSWM2" });
   });
 });
+
+describe("the link check's read", () => {
+  it("read in parts (300 links each), it finds the same links as before past the first parts", async () => {
+    // What is left wrong once the tests above freed theirs.
+    const before = (await findWrongLinks(NOW)).map((c) => c.videoId).sort();
+    // 700 more links aired on their meet's day (right, kept), read ahead of the rest.
+    for (let i = 0; i < 700; i++) {
+      await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by) VALUES (?, 2026, 'USMOKSSTLMM1', 'recording', '2026-11-14', ?, ?, 'FTC STL Mid League Rolla Meet #1', 'list', 'x', '2026-11-14T05:00:00Z', NULL)", [`fill${String(i).padStart(7, "0")}`, `p${i}`, MO]);
+      await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'ok', '2026-11-14T16:44:32Z', NULL, NULL, 0, '2026-11-17T13:00:00Z')", [`fill${String(i).padStart(7, "0")}`]);
+    }
+    // And one wrong link after them all (never aired, its meet past), in the last part.
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by) VALUES ('lateWrong01', 2026, 'USMOFAIL', 'recording', '2026-11-14', 'late', ?, 'Fail Meet #1', 'list', 'x', '2026-11-14T05:00:00Z', NULL)", [MO]);
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES ('lateWrong01', 'ok', NULL, NULL, NULL, 1, '2026-11-17T13:00:00Z')");
+    expect((await findWrongLinks(NOW)).map((c) => c.videoId).sort()).toEqual([...before, "lateWrong01"].sort());
+  });
+});

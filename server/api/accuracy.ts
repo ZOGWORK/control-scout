@@ -129,12 +129,19 @@ const bonusFlags = (s: unknown): [boolean, boolean, boolean] | null => {
 /** Let the event loop go: requests waiting behind a long build are answered in between. */
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
+/** Rows per read of the scored calls (db.ts allInChunks). At 10,000 a part, one part of a season's replay held the
+ *  server's one thread 311-352 ms on a copy of the VM's data (2026-11-22: 22 columns a row, made into objects by the
+ *  driver); at 2,000 a part holds it a fifth of that. */
+const CALL_CHUNK = 2_000;
+/** Rows worked through between two yields once read (plainRows, bonusRows). */
+const COPY_PART = 4_000;
+
 /** One scored call's bonus RP calls (each alliance's, where its match has recorded bonus RPs), with its event. */
 interface BonusRow { pid: number; kind: string; season: number; code: string; calls: BonusCall[] }
 
 /** Every scored bonus RP call's row (calls whose match has recorded bonus RPs only), in id order. `where`: which calls,
  *  as a condition on the prediction (`p`), with its arguments (every live and replayed call by default). */
-async function bonusRows(chunk = 4_000, where = "p.kind IN ('live', 'backtest')", args: InArgs = []): Promise<BonusRow[]> {
+async function bonusRows(chunk = CALL_CHUNK, where = "p.kind IN ('live', 'backtest')", args: InArgs = []): Promise<BonusRow[]> {
   // In chunks (db.ts allInChunks): one read of every call held the server's one thread for a third of a second.
   const rows = await allInChunks<any>(
     `SELECT p.id pid, p.kind, p.season, p.code, p.bonus_red, p.bonus_blue, m.red_bonus, m.blue_bonus FROM predictions p
@@ -142,13 +149,20 @@ async function bonusRows(chunk = 4_000, where = "p.kind IN ('live', 'backtest')"
       WHERE p.bonus_red IS NOT NULL AND p.outcome IS NOT NULL AND ${where} AND m.played = 1 AND p.id > ?`,
     args, "pid", chunk,
   );
-  return rows.map((r) => {
-    const calls: BonusCall[] = [];
-    for (const [p, y] of [[bonusTriple(r.bonus_red), bonusFlags(r.red_bonus)], [bonusTriple(r.bonus_blue), bonusFlags(r.blue_bonus)]] as const) {
-      if (p && y) calls.push({ p, y });
+  // Made into calls a part at a time too: a season's 40,000-odd at once, then its calls copied (plainRows), held the
+  // thread 244 ms on a copy of the VM's data (2026-11-22).
+  const out: BonusRow[] = [];
+  for (let i = 0; i < rows.length; i += COPY_PART) {
+    if (i) await yieldLoop();
+    for (const r of rows.slice(i, i + COPY_PART)) {
+      const calls: BonusCall[] = [];
+      for (const [p, y] of [[bonusTriple(r.bonus_red), bonusFlags(r.red_bonus)], [bonusTriple(r.bonus_blue), bonusFlags(r.blue_bonus)]] as const) {
+        if (p && y) calls.push({ p, y });
+      }
+      out.push({ pid: Number(r.pid), kind: String(r.kind), season: Number(r.season), code: String(r.code), calls });
     }
-    return { pid: Number(r.pid), kind: String(r.kind), season: Number(r.season), code: String(r.code), calls };
-  });
+  }
+  return out;
 }
 
 /** Bonus RP calls by kind and season, from their rows (in id order). */
@@ -164,7 +178,7 @@ function groupBonus(rows: BonusRow[], out: BonusBySeason = new Map()): BonusBySe
 }
 
 /** Every scored bonus RP call, by kind and season. */
-async function bonusCalls(chunk = 4_000, where?: string, args?: InArgs): Promise<BonusBySeason> {
+async function bonusCalls(chunk = CALL_CHUNK, where?: string, args?: InArgs): Promise<BonusBySeason> {
   return groupBonus(await bonusRows(chunk, where, args));
 }
 
@@ -286,8 +300,29 @@ registerCache("Track record", resetTrackRecord);
  */
 export async function replayCoverage(seasons: number[]): Promise<Map<number, ReplayCoverage>> {
   const out = new Map<number, ReplayCoverage>();
-  if (!seasons.length) return out;
-  const rows = await all<{ season: number; scored: number; replayed: number; event_skipped: number; short_handed: number }>(
+  // By events, COVERAGE_PART at a time, the event loop let go between, the counts added up: a past season's 30,000-odd
+  // matches counted in one statement held the server's one thread 130-230 ms on a copy of the VM's data (2026-11-22).
+  for (const season of [...new Set(seasons)]) {
+    const codes = (await all<{ code: string }>("SELECT DISTINCT code FROM matches WHERE season = ? ORDER BY code", [season])).map((r) => String(r.code));
+    const sum = { scored: 0, replayed: 0, eventSkipped: 0, shortHanded: 0 };
+    let any = false;
+    for (let i = 0; i < codes.length; i += COVERAGE_PART) {
+      if (i) await yieldLoop();
+      for (const r of await coverageRows(season, codes.slice(i, i + COVERAGE_PART))) {
+        any = true;
+        sum.scored += Number(r.scored); sum.replayed += Number(r.replayed); sum.eventSkipped += Number(r.event_skipped); sum.shortHanded += Number(r.short_handed);
+      }
+    }
+    if (any) out.set(season, { ...sum, other: Math.max(0, sum.scored - sum.replayed - sum.eventSkipped - sum.shortHanded) });
+  }
+  return out;
+}
+
+/** Events counted in one statement (replayCoverage). */
+const COVERAGE_PART = 60;
+
+async function coverageRows(season: number, codes: string[]) {
+  return all<{ season: number; scored: number; replayed: number; event_skipped: number; short_handed: number }>(
     `SELECT m.season,
             COUNT(*) scored,
             SUM(CASE WHEN p.id IS NOT NULL THEN 1 ELSE 0 END) replayed,
@@ -301,15 +336,10 @@ export async function replayCoverage(seasons: number[]): Promise<Map<number, Rep
      FROM matches m
      LEFT JOIN events e ON e.season = m.season AND e.code = m.code
      LEFT JOIN predictions p ON p.kind = 'backtest' AND p.season = m.season AND p.code = m.code AND p.level = m.level AND p.series = m.series AND p.number = m.number
-     WHERE m.season IN (${seasons.map(() => "?").join(",")}) AND m.played = 1 AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL
+     WHERE m.season = ? AND m.code IN (${codes.map(() => "?").join(",")}) AND m.played = 1 AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL
      GROUP BY m.season`,
-    seasons,
+    [season, ...codes],
   );
-  for (const r of rows) {
-    const scored = Number(r.scored), replayed = Number(r.replayed), eventSkipped = Number(r.event_skipped), shortHanded = Number(r.short_handed);
-    out.set(Number(r.season), { scored, replayed, eventSkipped, shortHanded, other: Math.max(0, scored - replayed - eventSkipped - shortHanded) });
-  }
-  return out;
 }
 
 /**
@@ -357,8 +387,8 @@ async function scoredCalls(): Promise<{ rows: any[]; bonus: BonusBySeason; print
     // Every other kind's calls (live, and the few logged too late), read every time: they're what moves between two
     // builds, a few thousand at most. By kind, so the read uses the kind index instead of scanning every call.
     const others = before.kinds.filter((k) => k !== "backtest");
-    const rows = [...past.rows, ...(others.length ? await allInChunks<any>(SQL.replace("AND id > ?", `AND kind IN (${others.map(() => "?").join(", ")}) AND id > ?`), others, "id") : [])];
-    const bonus: BonusBySeason = new Map([...past.bonus, ...await bonusCalls(4_000, "p.kind = 'live'")]);
+    const rows = [...past.rows, ...(others.length ? await allInChunks<any>(SQL.replace("AND id > ?", `AND kind IN (${others.map(() => "?").join(", ")}) AND id > ?`), others, "id", CALL_CHUNK) : [])];
+    const bonus: BonusBySeason = new Map([...past.bonus, ...await bonusCalls(CALL_CHUNK, "p.kind = 'live'")]);
     if ((await callsFingerprint()).print === before.print) { past.keep(); return { rows, bonus, prints: past.prints }; }
   }
   const WHOLE = 1_000_000_000;
@@ -385,6 +415,26 @@ type BonusBySeason = Map<string, { calls: BonusCall[]; matches: number }>;
  */
 const replayed = new Map<number, { print: string; rows: any[]; bonus: Map<string, { rev: number | null; rows: BonusRow[] }> }>();
 
+/**
+ * A season's replayed calls, walked by id within the season's ids (`a` to `m` as listed, which every one of them lies
+ * in: a rewrite moves the listed ids, so the print, and the read is retried). The "+" keeps SQLite off the (kind,
+ * season) index: by it, each part sorted every call of the season left to read (and joined their matches) before
+ * taking its 2,000, so a season's first parts held the server's one thread 150-200 ms each on a copy of the VM's
+ * data (2026-11-22), and smaller parts only added work. By id, a part reads its own rows and stops.
+ */
+const REPLAY_RANGE = (t: string) => `+${t}kind = 'backtest' AND +${t}season = ? AND ${t}id BETWEEN ? AND ?`;
+
+/** Driver rows as plain objects, a part at a time with the event loop let go between (a season's 50,000-odd rows
+ *  copied in one go were one more long hold). */
+async function plainRows(read: any[]): Promise<any[]> {
+  const out: any[] = [];
+  for (let i = 0; i < read.length; i += COPY_PART) {
+    if (i) await yieldLoop();
+    for (const r of read.slice(i, i + COPY_PART)) out.push({ ...r });
+  }
+  return out;
+}
+
 /** Each event's result_watch rev in a season (null: never watched, so its matches haven't been written since). */
 async function eventRevs(season: number): Promise<Map<string, number>> {
   return new Map((await all<{ code: string; rev: number }>("SELECT code, rev FROM result_watch WHERE season = ?", [season])).map((r) => [String(r.code), Number(r.rev)]));
@@ -405,15 +455,15 @@ async function replayedCalls(): Promise<{ rows: any[]; bonus: BonusBySeason; pri
     let hit = replayed.get(season);
     if (hit?.print !== print) {
       // Kept as plain objects: a driver row also carries every column under its index.
-      const read = await allInChunks<any>(SQL.replace("AND id > ?", "AND kind = 'backtest' AND season = ? AND id > ?"), [season], "id");
+      const read = await allInChunks<any>(SQL.replace("AND id > ?", `AND ${REPLAY_RANGE("")} AND id > ?`), [season, p.a, p.m], "id", CALL_CHUNK);
       // Every watched event, with or without bonus calls yet: one whose matches get their bonus RPs later is read then.
       const byEvent = new Map<string, { rev: number | null; rows: BonusRow[] }>([...revs].map(([code, rev]) => [code, { rev, rows: [] }]));
-      for (const r of await bonusRows(4_000, "p.kind = 'backtest' AND p.season = ?", [season])) {
+      for (const r of await bonusRows(CALL_CHUNK, REPLAY_RANGE("p."), [season, p.a, p.m])) {
         let e = byEvent.get(r.code);
         if (!e) { e = { rev: revs.get(r.code) ?? null, rows: [] }; byEvent.set(r.code, e); }
         e.rows.push(r);
       }
-      hit = { print, rows: read.map((r) => ({ ...r })), bonus: byEvent };
+      hit = { print, rows: await plainRows(read), bonus: byEvent };
       fresh.set(season, hit);
     } else {
       // The same replay: only the events whose matches were written since are read again.
@@ -423,7 +473,7 @@ async function replayedCalls(): Promise<{ rows: any[]; bonus: BonusBySeason; pri
         for (const code of moved) byEvent.set(code, { rev: revs.get(code) ?? null, rows: [] });
         for (let i = 0; i < moved.length; i += 200) {
           const part = moved.slice(i, i + 200);
-          for (const r of await bonusRows(4_000, `p.kind = 'backtest' AND p.season = ? AND p.code IN (${part.map(() => "?").join(", ")})`, [season, ...part])) byEvent.get(r.code)!.rows.push(r);
+          for (const r of await bonusRows(CALL_CHUNK, `p.kind = 'backtest' AND p.season = ? AND p.code IN (${part.map(() => "?").join(", ")})`, [season, ...part])) byEvent.get(r.code)!.rows.push(r);
         }
         hit = { ...hit, bonus: byEvent };
         fresh.set(season, hit);
@@ -470,11 +520,17 @@ async function computeTrackRecord(): Promise<TrackRecord> {
     const key = prints && JSON.stringify([prints.get(s.season) ?? null, calls("live", s.season), bonus.get(`live|${s.season}`) ?? null, coverage.get(s.season) ?? null]);
     const memo = seasonBlocks.get(s.season);
     if (key && memo?.key === key) { seasons.push(memo.value); continue; }
-    seasons.push((() => {
+    // Its parts with the event loop let go between: the current season's block, built whole, held it 200-269 ms on a
+    // copy of the VM's data (2026-11-22), its 50,000-odd replayed calls scored twice over.
+    seasons.push(await (async () => {
     const of = (kind: string, engine?: string) => calls(kind, s.season).filter((r) => engine == null || r.engine === engine)
       .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time, ranges: statedRanges(r), margin: callMargin(r) }));
     // Prospective evidence per engine version: each version's own calls only.
     const engines = [...new Set(calls("live", s.season).map((r) => String(r.engine)))].sort();
+    const live = block(of("live"));
+    await yieldLoop();
+    const backtest = block(of("backtest"));
+    await yieldLoop();
     const liveByEngine = engines.map((engine) => { const b = block(of("live", engine))!; return { engine, n: b.n, decided: b.decided, accuracy: b.accuracy, brier: b.brier, logLoss: b.logLoss }; });
     // Paired: the same live calls scored for the served and the shadow model.
     const paired = new Map<string, { y: number; p: number; ps: number }[]>();
@@ -494,10 +550,11 @@ async function computeTrackRecord(): Promise<TrackRecord> {
       const [servedModel, shadowModel] = k.split("|");
       return { servedModel, shadowModel, n: xs.length, served: score(xs), shadow: score(xs.map((x) => ({ y: x.y, p: x.ps }))) };
     });
+    await yieldLoop();
     const labels = bonusLabels(s.season);
     const bonusOf = (kind: string) => { const e = bonus.get(`${kind}|${s.season}`); return e && labels ? bonusBlock(e.calls, labels, e.matches) : null; };
     return {
-      season: s.season, label: `${s.label} ${s.game}`, live: block(of("live")), backtest: block(of("backtest")), replay: coverage.get(s.season), liveByEngine, liveShadow,
+      season: s.season, label: `${s.label} ${s.game}`, live, backtest, replay: coverage.get(s.season), liveByEngine, liveShadow,
       ...(labels ? { bonus: { live: bonusOf("live"), backtest: bonusOf("backtest") } } : {}),
     };
     })());

@@ -57,6 +57,10 @@ async function ratedTeams(season: number): Promise<number[]> {
 }
 const ratedTeamsCache = new Map<number, { key: string; teams: number[] }>();
 
+/** replayToPaced: matches replayed between two looks at the clock, and the longest run between two yields. */
+const REPLAY_STEP = 250;
+const REPLAY_SLICE_MS = 20;
+
 export class ScoutForecaster extends Forecaster {
   protected readonly model: PredictModel = FITTED_MODEL;
   protected awardHistory = new Map<number, AwardRecord[]>();
@@ -263,13 +267,38 @@ export class ScoutForecaster extends Forecaster {
    * rankings snapshots (server/stats/rankings.ts) use it.
    */
   replayTo(season: number, times: number[], at: (ms: number, book: RatingBook) => void): void {
+    const steps = this.replaySteps(season, times, at);
+    while (!steps.next().done);
+  }
+
+  /**
+   * replayTo, the event loop let go whenever it has run REPLAY_SLICE_MS: the same matches into the same book in the
+   * same order, so the same ratings. A finished event's disagreements (server/api/disagreements.ts) replay the whole
+   * season to its last match on a visitor's request; in one go that held the server's one thread 158-246 ms on a copy
+   * of the VM's data (2026-11-22), every other request waiting. The season's matches are taken when it starts, so a
+   * rebuild installed meanwhile doesn't change what it replays.
+   */
+  async replayToPaced(season: number, times: number[], at: (ms: number, book: RatingBook) => void): Promise<void> {
+    const steps = this.replaySteps(season, times, at);
+    for (let t0 = performance.now(); !steps.next().done;) {
+      if (performance.now() - t0 < REPLAY_SLICE_MS) continue;
+      await new Promise<void>((r) => setImmediate(r));
+      t0 = performance.now();
+    }
+  }
+
+  /** replayTo's work, pausing (a yield) every REPLAY_STEP matches. */
+  private *replaySteps(season: number, times: number[], at: (ms: number, book: RatingBook) => void): Generator<void, void, void> {
     const prevSeason = this.books.get(season - 1);
     const book = prevSeason ? prevSeason.clone() : new RatingBook(FITTED_MODEL.rating);
     book.startSeason(season);
     const matches = this.seasonEvents(season).flatMap((e) => e.matches).sort((x, y) => x.time - y.time);
     let next = 0;
     for (const t of [...times].sort((a, b) => a - b)) {
-      while (next < matches.length && matches[next].time < t) book.update(matches[next++]);
+      while (next < matches.length && matches[next].time < t) {
+        book.update(matches[next++]);
+        if (next % REPLAY_STEP === 0) yield;
+      }
       book.setTime(t);
       at(t, book);
     }
