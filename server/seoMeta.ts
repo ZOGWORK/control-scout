@@ -686,10 +686,12 @@ export function teamTableHtml(t: TeamTable, label: string): string {
 const NO_PREFER: ReadonlySet<string> = new Set();
 
 /** How long a search's first paint waits for its follow-ups (People also ask, Related searches) once its answer is
- *  read. Each is a search run to check it answers directly, kept a minute (keptFollowUps): most are already kept, and
- *  the app asked for them right after the page anyway. Still making past this, the page goes without them and the app
- *  asks for the same kept ones, so a slow set never holds the answer back. */
-export const FOLLOW_FIRST_PAINT_MS = 1200;
+ *  read. Each is a search run to check it answers directly, kept a minute (keptFollowUps): a kept set is there at
+ *  once, and the app asks for them right after the page anyway. Still making past this, the page goes without them
+ *  (they keep being made, and are kept) and the app shows the same kept ones a moment later, so a slow set never holds
+ *  the answer back. Was 1200 ms: a new search's page then took 1.2 s on the server (VM, 2026-11-22) for a set that
+ *  takes 0.3–0.9 s to make cold; the page is never indexed ("noindex, follow"), so nothing is lost by not waiting. */
+export const FOLLOW_FIRST_PAINT_MS = 250;
 
 /** The follow-ups for `q`, or null when they take longer than `ms`. */
 async function followUpsWithin(q: string, ms: number): Promise<SearchFollowUps | null> {
