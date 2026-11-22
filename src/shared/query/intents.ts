@@ -107,6 +107,9 @@ export const INTENTS: IntentRule[] = [
   // A win or a loss said with them is a filter: "first win", "when did they last lose a match", "last 5 losses".
   R("first-match", 1, ["agg:first", "thing:match"], ["agg:max", ...OUTCOMES]),
   R("last-matches", 1, ["agg:last", "thing:match"], ["metric:score", ...OUTCOMES], { n: true }),
+  // Auto over the last N matches, averaged or said as its OPR ("average auto opr last 10 matches"): an OPR can't be
+  // solved from one team's N matches, so the answer is the alliance's auto points in them, said so (families/matches.ts).
+  R("last-matches", 1, ["agg:last", "thing:match", "metric:auto"], ["agg:mean", "metric:opr", "metric:score", "per:match"], { n: true }),
   R("recent-match", 1, ["agg:last", "thing:match"], ["metric:score", ...OUTCOMES]),
   R("first-match", 1, ["agg:first", "metric:win"], ["thing:match", "per:match"]),
   R("first-match", 1, ["agg:first", "metric:loss"], ["thing:match", "per:match"]),

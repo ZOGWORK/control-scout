@@ -395,6 +395,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       leadEvent: id === "highest-score" && p.symbols.includes("thing:event"),
       n: id === "match-lookup" ? p.matchNumber : p.n ?? (id === "last-matches" ? 5 : null), outcome: OUTCOME_IDS.has(id) ? outcome : null,
       count: p.agg === "count", noTeam: false, core: String(team.number),
+      ...(id === "last-matches" && p.symbols.includes("metric:auto") ? { phase: "auto" as const } : {}),
       ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
       // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure; a trend
