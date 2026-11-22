@@ -292,7 +292,7 @@ export function compileFilter(node: FilterNode, columns: Record<string, string>,
  */
 const LABELS_TTL_MS = 60_000;
 let labelCache: { at: number; value: Promise<(string | null)[]> } | null = null;
-registerCache("Country labels", () => { labelCache = null; });
+registerCache("Country labels", () => { labelCache = null; }, { clipFree: true });
 export async function countryLabels(code: string): Promise<string[]> {
   if (!labelCache || Date.now() - labelCache.at >= LABELS_TTL_MS) {
     const value = all<{ country: string | null }>("SELECT DISTINCT country FROM teams").then((r) => r.map((x) => x.country));

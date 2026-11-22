@@ -117,7 +117,7 @@ export function toDoc(g: GeneratedWeek): RankingDoc {
 // The published rows, for a few seconds (every page view reads them); a write here drops them at once.
 let cache: { at: number; docs: Promise<RankingDoc[]> } | null = null;
 export function invalidateGenerated() { cache = null; }
-registerCache("Generated power rankings", invalidateGenerated);
+registerCache("Generated power rankings", invalidateGenerated, { clipFree: true });
 
 /** The published generated weeks as RankingDocs, oldest first. */
 export function generatedDocs(): Promise<RankingDoc[]> {
