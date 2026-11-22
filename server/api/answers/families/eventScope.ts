@@ -48,14 +48,13 @@ export async function championshipMatchesAnswer(team: AnswerTeam, all: TeamMatch
 }
 
 /** The answer for an event intent, or null when `id` isn't one. `scope.event` is set. */
-export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], ev: TeamEvent | undefined, scope: Scope, opts: { n: number | null; each?: TeamEvent[]; phase?: "auto" | "teleop" | "endgame"; latest?: boolean }): Promise<StatAnswer | null> {
+export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], ev: TeamEvent | undefined, scope: Scope, opts: { n: number | null; each?: TeamEvent[]; phase?: "auto" | "teleop" | "endgame" }): Promise<StatAnswer | null> {
   if (!scope.event || !["results", "event-rank", "event-opr", "match-lookup"].includes(id)) return null;
   const keep = inScope(scope);
   // The record counts official results; one match's score is any match the team played on the field (a surrogate too).
   const ms = all.filter((m) => keep(m) && (id === "match-lookup" ? m.onField : m.counted));
   const who = whoOf(team), name = scope.event.name;
-  // "… at their last meet": the team's own latest event, said so beside its name.
-  const base = { team, scope: [...(opts.latest ? ["Most recent event"] : []), ...scopeChips(scope)], source: ms.length ? sourceOf(ms) : "From the event's published rankings" };
+  const base = { team, scope: scopeChips(scope), source: ms.length ? sourceOf(ms) : "From the event's published rankings" };
   const links = await teamLinks(ms.flatMap((m) => [...m.partners, ...m.opponents]));
   const row = (m: TeamMatch) => matchRow(m, links, team.number);
   const where = [seasonLabel(scope.event.season), ev ? dateRange(ev.start, ev.end) : "", ev ? place(ev.city, ev.state) : ""].filter(Boolean).join(" · ");

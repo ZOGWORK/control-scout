@@ -268,7 +268,9 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   else if (s.at || oneEvent) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches).
     // A forecast's "this season" is the current one (its upcoming event), not the team's last played.
-    const season = s.year ? null : s.season ?? (s.latest ? (PREDICT_INTENTS.has(it.id) ? currentSeason() : (await latestSeason(team, it.id))?.season ?? null) : null);
+    // "Auto opr in first meet" with no season said: the team's first event of its latest season (every season is a
+    // different game), never its debut years ago.
+    const season = s.year ? null : s.season ?? (s.latest || s.at === THEIR_FIRST ? (PREDICT_INTENTS.has(it.id) ? currentSeason() : (await latestSeason(team, it.id))?.season ?? null) : null);
     if (s.latest && season == null && !acrossIfNone) return null;
     const p = teamPick((await teamEventSet(team)).events, s, season);
     if (p) {
@@ -620,6 +622,8 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   if (!opts.full) return answer;
   const stat = scope.event?.absent ? await absentAnswer(q, it, team, scope, title) : await build(it, team, scope);
   if (!stat) return null;
+  // "… in their last meet", "… in first meet": the team's own latest or earliest event, said so beside its name.
+  if (scope.event && (it.scope.at === THEIR_LAST || it.scope.at === THEIR_FIRST)) stat.scope = [it.scope.at === THEIR_LAST ? "Most recent event" : "First event", ...(stat.scope ?? [])];
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
   await noteNamedEvent(stat, scope);
   // A state championship read as one season's: the team's other seasons there, each its own question (by the year held).
@@ -770,7 +774,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   if (it.id === "never-played") return neverPlayedAnswer(team, ms, scope);
   if (scope.event) {
     const evs = (await teamEventSet(team.number)).events.filter((e) => e.season === scope.event!.season && (scope.event!.codes ?? [scope.event!.code]).includes(e.code));
-    const at = await eventScopeAnswer(it.id, team, ms, evs.find((e) => e.code === scope.event!.code), scope, { n: it.n, each: evs, phase: it.phase, latest: it.scope.at === THEIR_LAST });
+    const at = await eventScopeAnswer(it.id, team, ms, evs.find((e) => e.code === scope.event!.code), scope, { n: it.n, each: evs, phase: it.phase });
     if (at) return at;
   }
   // A match by its number with no event named ("<team> Q6", "<team> M14 at worlds"): each event's in the scope, of
