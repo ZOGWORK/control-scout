@@ -3,7 +3,7 @@
 // the same match, so the event page, search and the list's Clips badge all play from them at once.
 import { all, get, run } from "../db.js";
 import { setManualStarts } from "../data/frameTimings.js";
-import { clearAllCaches } from "../caches.js";
+import { clearClipCaches } from "../caches.js";
 import { recordAudit } from "../portal/audit.js";
 import type { ManualStart } from "../../src/shared/api.js";
 
@@ -57,7 +57,7 @@ export async function setManualStart(videoId: string, body: { season?: unknown; 
   [videoId, season, code, String(match.label), seconds, actor, new Date(now).toISOString()]);
   await recordAudit(actor, "officialVideo.manualStart", { videoId, season, code, label: String(match.label), seconds });
   await loadManualStarts();
-  clearAllCaches();
+  clearClipCaches();
   return { ok: true, starts: await manualStarts(videoId, season, code) };
 }
 
@@ -68,6 +68,6 @@ export async function deleteManualStart(videoId: string, body: { season?: unknow
   if (!n) return { ok: false, error: "Not a typed start." };
   await recordAudit(actor, "officialVideo.manualStartRemoved", { videoId, season, code, label });
   await loadManualStarts();
-  clearAllCaches();
+  clearClipCaches();
   return { ok: true, starts: await manualStarts(videoId, season, code) };
 }

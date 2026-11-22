@@ -90,7 +90,7 @@ export async function seasonScheduleDifficulty(f: Forecaster, season: number, no
 
 const cache = new Map<string, Promise<ScheduleDifficulty | null>>();
 const CACHE_MAX = 500;
-registerCache("Schedule difficulty", () => cache.clear());
+registerCache("Schedule difficulty", () => cache.clear(), { clipFree: true });
 
 /** One event's figures with the ratings pages answer with (cached per data version, and per whether the event is
  *  over by its venue's calendar, so "still to play" goes at the venue's midnight); null when there are none. */

@@ -289,7 +289,7 @@ export async function warmTrackRecord(): Promise<void> {
 
 /** Forget the cached track record (tests). */
 export function resetTrackRecord(): void { cached = null; building = null; pastCoverage = null; replayed.clear(); seasonBlocks.clear(); }
-registerCache("Track record", resetTrackRecord);
+registerCache("Track record", resetTrackRecord, { clipFree: true });
 
 /**
  * Per season: every match with a final score, how many have a replayed call, and why the rest don't. The

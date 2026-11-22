@@ -17,7 +17,7 @@ export class ForecastUnavailable extends Error { constructor(readonly status: nu
 const TTL_MS = 120_000, FINISHED_TTL_MS = 24 * 3_600_000;
 const kept = new Map<string, { at: number; ttl: number; v: Promise<ForecastView> }>();
 let queue: Promise<void> = Promise.resolve();
-registerCache("Event forecasts", () => kept.clear());
+registerCache("Event forecasts", () => kept.clear(), { clipFree: true });
 
 /** The forecast of `code` in `season` for `team` (its own odds, points and partner view; null for everyone's), in `mode`. */
 export async function eventForecast(season: number, code: string, team: number | null, mode: ForecastView["mode"]): Promise<ForecastView> {

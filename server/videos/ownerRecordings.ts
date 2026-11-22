@@ -12,7 +12,7 @@
 //   - the link check and the channel audit only take off 'list' and 'watcher' rows, never these.
 // Every change is audited (owner_audit) and every cache is dropped, so the page shows it on its next read.
 import { all, db, get } from "../db.js";
-import { clearAllCaches } from "../caches.js";
+import { clearClipCaches } from "../caches.js";
 import { recordAudit } from "../portal/audit.js";
 import { parseStreamUrl } from "../../src/shared/stream.js";
 import { EVENT_FIRST_DAY, EVENT_LAST_DAY } from "./eventDays.js";
@@ -104,7 +104,7 @@ const dayHolders = (ev: { season: number; code: string }, day: string, part?: st
   all<{ video_id: string }>(`SELECT video_id FROM official_videos WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL AND day = ?${part !== undefined ? " AND COALESCE(part, '') = COALESCE(?, '')" : ""}`,
     [ev.season, ev.code, day, ...(part !== undefined ? [part] : [])]).then((r) => r.map((x) => String(x.video_id)));
 
-function done() { forgetOfficial(); forgetRecordings(); clearAllCaches(); }
+function done() { forgetOfficial(); forgetRecordings(); clearClipCaches(); }
 
 function validDay(ev: { code: string; days: string[] }, day: unknown): { ok: true; day: string } | { ok: false; error: string } {
   const d = typeof day === "string" ? day.trim() : "";
