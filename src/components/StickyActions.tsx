@@ -43,6 +43,22 @@ export function useStickyActionsMarker(active = true) {
   }, [active]);
 }
 
+let shown = 0;
+
+/**
+ * Marks the page (<html data-sticky-actions-shown>) while a bar is on screen (not just mounted): the team card
+ * (TeamSnack) moves up above the bar only while there is one to clear, so it never leaves a gap when the bar has
+ * slid away. Counted, like useStickyActionsMarker.
+ */
+function useStickyActionsShown(visible: boolean) {
+  useEffect(() => {
+    if (!visible) return;
+    shown++;
+    document.documentElement.dataset.stickyActionsShown = "";
+    return () => { if (--shown === 0) delete document.documentElement.dataset.stickyActionsShown; };
+  }, [visible]);
+}
+
 /**
  * The bar itself, rendered into <body> so no transformed ancestor can move
  * it. While one is mounted, <html data-sticky-actions> gives the shell's
@@ -63,6 +79,7 @@ export function StickyActions({ after, label, children }: { after: Element | nul
   // the bar waits until that choice is made, so the two never overlap.
   const { decided } = useConsent();
   const visible = show && decided;
+  useStickyActionsShown(visible && !!body);
   if (!body) return null;
   return createPortal(
     <div
