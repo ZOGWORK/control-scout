@@ -34,6 +34,9 @@ export interface Lookups {
   memory?: Memory;
   /** Files a "Report this to ControlScout" as a GitHub issue (bot/report.ts); absent: reporting is off. */
   report?: (r: Report) => Promise<Filed>;
+  /** /config: what this bot can do here, gathered the same way its startup log gathers it (bot/config.ts); absent:
+   *  said as unreadable rather than failing. Private: the handler defers it ephemerally. */
+  config?: () => Promise<APIEmbed>;
   /** The owner's feature toggles the bot follows (server/flags.ts); absent: always on. */
   enabled?: (flag: "discordBot" | "livePredictions") => Promise<boolean>;
   /** The server's chat limit (bot/quota.ts); absent: none enforced. No server has one set yet. */
@@ -256,6 +259,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       case "event": return cache.get(key, () => lookups.event(i.options.getString("code", true)));
       case "rankings": return cache.get(key, () => lookups.rankings());
       case "help": return Promise.resolve(helpEmbed());
+      case "config":
+        return lookups.config
+          ? lookups.config()
+          : Promise.reject(new Friendly("Couldn't read the config", "This bot couldn't read its own setup just now. Try again in a moment."));
       case "follow": case "unfollow": case "following": return manage(i);
       default: return Promise.reject(new Friendly("Unknown command", "This command isn't one Control Scout knows. Try /help for the list."));
     }
@@ -298,7 +305,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       return;
     }
     
-    await i.deferReply();
+    // /config answers privately: it describes this bot's own setup, which a channel doesn't need to read.
+    await i.deferReply(i.commandName === "config" ? { flags: MessageFlags.Ephemeral } : undefined);
     if (i.commandName === "ask") {
       const question = i.options.getString("question", true);
       // The server's chat limit, if one is set (none is, today): said plainly, before any lookup.

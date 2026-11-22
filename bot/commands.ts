@@ -60,6 +60,11 @@ export const COMMANDS: CommandDef[] = [
     options: [{ type: ApplicationCommandOptionType.String, name: "question", description: "Like the search box: who won decode, 4215 vs 6980, 4215 highlights", required: true, max_length: 500 }],
   },
   {
+    name: "config",
+    description: "What this bot can do here: chat, report filing, follows and where its commands register",
+    ...MANAGE,
+  },
+  {
     name: "help",
     description: "Everything Control Scout can do here",
   },
