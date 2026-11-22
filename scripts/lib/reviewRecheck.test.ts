@@ -38,6 +38,12 @@ describe("recheckVerdict", () => {
     expect(recheckVerdict("Q7", 1000, [at(2, "Q7", 940), at(8, "Q7", 941)])).toEqual({ stays: "the frames after it put Q7's start at 940 s, 60 s from where it was seen" });
   });
 
+  it("takes no look where frames weren't read and the rest settle nothing; a settled start stands whatever was missed", () => {
+    expect(recheckVerdict("Q7", 1000, [], 4)).toEqual({ unread: "4 of its frames weren't read (no frame after it named a match): looked at again next run" });
+    expect(recheckVerdict("Q7", 1000, [at(2, "Q6")], 3)).toMatchObject({ unread: expect.stringMatching(/^3 of its frames weren't read/) });
+    expect(recheckVerdict("Q7", 1000, [at(2, "Q7", 1000), at(8, "Q7", 1000)], 2)).toMatchObject({ settled: { start: 1003 } });
+  });
+
   it("names a replay's frames by its match, as the reader does (sameMatch)", () => {
     expect("settled" in recheckVerdict("M6-2", 1000, [{ at: 1002, label: "M6", start: 1000 }, { at: 1008, label: "M6", start: 1000 }])).toBe(true);
   });
@@ -90,6 +96,12 @@ describe("recheckRow", () => {
     expect(out.row?.starts).toEqual({ Q6: 700 });
     expect(out.row?.review?.Q7.again?.saw).toBe("confirmed at 1003 s by frames 1003, 1009, but the match would run past the video's end (1100 s) (frames)");
     expect(recheckRow(end, new Map([["Q7", settled(1003, 1003, [1003, 1009])]]), end, ORDER, "2026-11-21", 1200).row?.starts).toEqual({ Q6: 700, Q7: 1003 });
+  });
+
+  it("leaves an entry whose frames weren't read as it was: unmarked, due its look on the next run", () => {
+    const r = recheckRow(live(), new Map([["Q7", { verdict: { unread: "4 of its frames weren't read" }, saw: "" }]]), live(), ORDER, "2026-11-21");
+    expect(r.row?.review).toEqual(live().review);
+    expect(recheckDue(r.row!)).toEqual([{ label: "Q7", t: 1000 }]);
   });
 
   it("writes nothing where the server would hold the row anyway, the live row is today's, or openings were never checked", () => {

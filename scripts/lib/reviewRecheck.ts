@@ -19,16 +19,23 @@ export const RECHECK_SHIFT_S = 30;
 /** One frame the second look read: its second, the match its bar named (null: none), the start its timer gave (null:
  *  not read running), and whose overlay it was on a stream divisions share ("other": a sibling's or another event's). */
 export type RecheckRead = { at: number; label: string | null; start: number | null; division?: "own" | "other" | null };
-/** What the frames say of one entry: a start (and where its clip opens, and the frames it stands on), or why it stays. */
-export type RecheckVerdict = { settled: { start: number; open: number; frames: number[] } } | { stays: string };
+/** What the frames say of one entry: a start (and where its clip opens, and the frames it stands on), why it stays for
+ *  the owner, or (`unread`) that some frames weren't read at all and the rest settled nothing: no look taken, the entry
+ *  left as it was for the next run (a stalled seek never uses up its second look). */
+export type RecheckVerdict = { settled: { start: number; open: number; frames: number[] } } | { stays: string } | { unread: string };
 
 /** What each frame showed, in words, for the log and the entry's `again.saw`: "2 s on: Q6; 8 s on: Q7 from 1234 s". */
 export function sawText(t: number, reads: RecheckRead[]): string {
   return reads.map((r) => `${Math.round(r.at - t)} s on: ${r.division === "other" ? "another division's or event's match" : r.label ? `${r.label}${r.start != null ? ` from ${r.start} s` : ""}` : "nothing"}`).join("; ");
 }
 
-/** The verdict on review entry `label` at `t` from the frames read after it. */
-export function recheckVerdict(label: string, t: number, reads: RecheckRead[]): RecheckVerdict {
+/** The verdict on review entry `label` at `t` from the frames read after it. `missed`: frames asked for that weren't
+ *  read (a seek that never landed): where the rest settle nothing, the look is no look (`unread`). */
+export function recheckVerdict(label: string, t: number, reads: RecheckRead[], missed = 0): RecheckVerdict {
+  const v = judgeReads(label, t, reads);
+  return "stays" in v && missed > 0 ? { unread: `${missed} of its frames weren't read (${v.stays}): looked at again next run` } : v;
+}
+function judgeReads(label: string, t: number, reads: RecheckRead[]): RecheckVerdict {
   const names = (r: RecheckRead) => r.division !== "other" && !!r.label && sameMatch(r.label, label);
   const others = reads.filter((r) => r.division === "other" || (!!r.label && !sameMatch(r.label, label)));
   const timed = reads.filter((r) => names(r) && r.start != null).sort((a, b) => a.start! - b.start!);
@@ -91,7 +98,7 @@ export function recheckRow(row: FrameTiming, verdicts: Map<string, { verdict: Re
   if (unchanged && before.length) return { row: null, why: `the row as served already waits on a rule (${before[0]}): left for the owner` };
   const settled: string[] = [], stays: string[] = [];
   for (const [label, { verdict, saw }] of verdicts) {
-    if (!next.review?.[label]) continue;
+    if (!next.review?.[label] || "unread" in verdict) continue;
     if ("stays" in verdict) { next = marked(next, label, `${verdict.stays} (${saw})`); stays.push(label); continue; }
     const { start, open, frames } = verdict.settled;
     const moved: FrameTiming = { ...next, starts: Object.fromEntries([...Object.entries(next.starts), [label, start] as [string, number]].sort((a, b) => a[1] - b[1])), opens: { ...next.opens, [label]: open }, confirmed: { ...next.confirmed, [label]: frames } };
