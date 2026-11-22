@@ -24,7 +24,7 @@ import { regionHref } from "../../../../src/shared/regionRankings.js";
 // reads no SQL. A gain or a growth board walks every team's events: 100–300 ms a read (measured 2026-11-13).
 import { searchGet as get, searchRead as all } from "../../searchReads.js";
 import { currentSeason, searchSeasonWhy } from "../season.js";
-import { reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
+import { SEASONS_IN, reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { eventHref, teamHref } from "../matchSet.js";
 import { seasonOfDate } from "../../query/time.js";
 import { searchToday } from "../../searchEvents.js";
@@ -286,7 +286,7 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
     // (remote ones) still counts its awards.
     `SELECT t.number team, t.name, t.city, t.state, t.country, t.rookie_year rookie, ${c.sql} v, COALESCE(SUM(s.wins), 0) wins, COALESCE(SUM(s.losses), 0) losses, COALESCE(SUM(s.ties), 0) ties,
             MAX(CASE WHEN s.matches > 0 THEN s.season END) lastPlayed,
-            (SELECT x.opr_np FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0 ORDER BY x.season DESC LIMIT 1) opr
+            (SELECT x.opr_np FROM team_season_stats x WHERE x.season IN (${SEASONS_IN}) AND x.team = t.number AND x.matches > 0 ORDER BY x.season DESC LIMIT 1) opr
      FROM teams t LEFT JOIN team_season_stats s ON s.team = t.number
      WHERE ${teamPageSql("t.number", "t.name")}${regionSql}${oldest || b.stat.id === "seasons" ? ` AND t.rookie_year >= ${FTC_FIRST_SEASON}` : ""}
      GROUP BY t.number${oldest ? " HAVING lastPlayed >= ?" : " HAVING v > 0"}
@@ -331,7 +331,7 @@ async function numberAnswer(b: BoardQuestion, where: string, regionSql: string, 
   const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; rookie: number | null; wins: number; losses: number; ties: number; lastPlayed: number; opr: number | null }>(
     `SELECT t.number team, t.name, t.city, t.state, t.country, t.rookie_year rookie, COALESCE(SUM(s.wins), 0) wins, COALESCE(SUM(s.losses), 0) losses, COALESCE(SUM(s.ties), 0) ties,
             MAX(CASE WHEN s.matches > 0 THEN s.season END) lastPlayed,
-            (SELECT x.opr_np FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0 ORDER BY x.season DESC LIMIT 1) opr
+            (SELECT x.opr_np FROM team_season_stats x WHERE x.season IN (${SEASONS_IN}) AND x.team = t.number AND x.matches > 0 ORDER BY x.season DESC LIMIT 1) opr
      FROM teams t JOIN team_season_stats s ON s.team = t.number
      WHERE ${teamPageSql("t.number", "t.name")}${regionSql}
      GROUP BY t.number HAVING lastPlayed >= ?
@@ -816,8 +816,8 @@ async function cityAnswer(city: string, school = false, within: Region | null = 
   const inSql = within ? ` AND t.country = ?${within.state ? " AND t.state = ?" : ""}` : "";
   const rows = await all<{ number: number; name: string | null; city: string; school: string | null; state: string | null; country: string | null; rookie_year: number | null; last: number | null; opr: number | null }>(
     `SELECT t.number, t.name, t.city, t.school, t.state, t.country, t.rookie_year,
-            (SELECT MAX(season) FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0) last,
-            (SELECT opr_np FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0 ORDER BY season DESC LIMIT 1) opr
+            (SELECT MAX(season) FROM team_season_stats x WHERE x.season IN (${SEASONS_IN}) AND x.team = t.number AND x.matches > 0) last,
+            (SELECT opr_np FROM team_season_stats x WHERE x.season IN (${SEASONS_IN}) AND x.team = t.number AND x.matches > 0 ORDER BY season DESC LIMIT 1) opr
      FROM teams t WHERE lower(t.${school ? "school" : "city"}) = lower(?)${inSql} AND ${teamPageSql("t.number", "t.name")}
      ORDER BY last IS NULL, last DESC, t.number LIMIT 1000`, [city, ...(within ? [within.country, ...(within.state ? [within.state] : [])] : [])]);
   const name = (school ? rows[0]?.school : rows[0]?.city) ?? city;
