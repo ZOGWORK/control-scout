@@ -68,10 +68,11 @@ Whether reporting is wired up is said once at startup (`report filing on: GITHUB
 filing off: …`), so the journal answers it — `journalctl -u control-scout-bot | grep 'report filing'` — without filing
 a test issue. It says whether the variable is set, never its value; a token added later shows on the next restart.
 
-**What it is and can do, at startup** (`bot/config.ts`): eight lines starting `config:`, said once the database is open —
+**What it is and can do, at startup** (`bot/config.ts`): nine lines starting `config:`, said once the database is open —
 
 ```
 config: release 8f6f706044289bd4fa632aaa84a9b1d15434c1c8
+config: bot Control Scout#1234 in 4 servers
 config: season 2025 (2025–26 DECODE)
 config: site http://127.0.0.1:3000 (its own API, on loopback)
 config: slash commands globally (no DISCORD_DEV_GUILD_ID)
@@ -85,11 +86,14 @@ so `journalctl -u control-scout-bot | grep 'config:'` answers "what can this bot
 one look: the chat says `off —` with the reason ask.ts itself gives (Control Point unconfigured, or the switch off), the
 follows are counted (or it says none yet, or that they couldn't be read), the commands are placed (`globally`, or `in
 server <id> only (DISCORD_DEV_GUILD_ID)`), and no line ever carries a secret's value. The release is the commit
-`/api/health` reports (the `RELEASE` file the deploy writes; `development` without one), and the Discord line is when
-this process reached the gateway, or — before it has, as at startup — the last heartbeat it wrote
-(`service_heartbeats`, once a minute while connected), which outlives a restart. `/config` (Manage Server, answered
-privately) shows the same eight lines in Discord, read live — same function, so the two can't disagree — with the
-times as Discord timestamps (`<t:…:R>`), so "3 minutes ago" is in each reader's own clock.
+`/api/health` reports (the `RELEASE` file the deploy writes; `development` without one). The bot line is the ready
+line's two facts — its Discord tag and how many servers it is in (`guilds.cache`, updated as it is added or removed);
+the gateway only knows them once it reports ready, so before that (the startup block, or a bot that hasn't connected)
+the line says so rather than claiming 0 servers. The Discord line is when this process reached the gateway, or —
+before it has, as at startup — the last heartbeat it wrote (`service_heartbeats`, once a minute while connected),
+which outlives a restart. `/config` (Manage Server, answered privately) shows the same nine lines in Discord, read
+live — same function, so the two can't disagree — with the times as Discord timestamps (`<t:…:R>`), so "3 minutes
+ago" is in each reader's own clock.
 
 The issue is as public as the repository's issues: it posts what
 the channel said, which is the point of the request — with an `@mention` and a `#123` neutralised, since it's filed
