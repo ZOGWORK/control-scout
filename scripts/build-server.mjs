@@ -6,7 +6,7 @@
 import { build } from "esbuild";
 
 await build({
-  entryPoints: { index: "server/index.ts", projectionWorker: "server/projections/simWorker.ts", forecasterWorker: "server/predict/rebuildWorker.ts", shareCardWorker: "server/share/cardWorker.ts", dataReportWorker: "server/portal/dataReportWorker.ts" },
+  entryPoints: { index: "server/index.ts", projectionWorker: "server/projections/simWorker.ts", forecasterWorker: "server/predict/rebuildWorker.ts", shareCardWorker: "server/share/cardWorker.ts", dataReportWorker: "server/portal/dataReportWorker.ts", sitemapWorker: "server/sitemapWorker.ts" },
   outdir: "build/server",
   outExtension: { ".js": ".mjs" },
   bundle: true,
@@ -19,4 +19,4 @@ await build({
   // Bundled CommonJS helpers expect require; ESM has none of its own.
   banner: { js: 'import { createRequire as __csRequire } from "node:module"; const require = __csRequire(import.meta.url);' },
 });
-console.log("server bundle: build/server/index.mjs, build/server/projectionWorker.mjs, build/server/forecasterWorker.mjs, build/server/shareCardWorker.mjs, build/server/dataReportWorker.mjs");
+console.log("server bundle: build/server/index.mjs, build/server/projectionWorker.mjs, build/server/forecasterWorker.mjs, build/server/shareCardWorker.mjs, build/server/dataReportWorker.mjs, build/server/sitemapWorker.mjs");
