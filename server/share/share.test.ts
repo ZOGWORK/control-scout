@@ -6,6 +6,7 @@ import { get as httpGet, type Server } from "node:http";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
@@ -13,6 +14,7 @@ import { renderIndex } from "../seo";
 import { cardFonts, fitText, glyphs, parseFont, textWidth } from "./fonts";
 import { cardSvg, renderCard, type CardModel } from "./card";
 import { CARD_CACHE_MAX, PromiseLru, cardCacheSize } from "./match";
+import { CardQueueFull, cardRenderCounts, cardWorkerEntry, cardsPending, renderCardOffThread, setCardQueueLimits, stopCardWorker } from "./offThread";
 
 /** Width and height from a PNG's IHDR chunk (after checking the signature). */
 function pngSize(b: Uint8Array): { width: number; height: number } {
@@ -90,6 +92,72 @@ describe("card drawing", () => {
   });
 });
 
+describe("drawing off the main thread", () => {
+  it("the worker's PNG is renderCard's, byte for byte", async () => {
+    for (const m of [model, { ...model, format: "square" as const }, { ...model, final: { red: 120, blue: 140 } }]) {
+      expect((await renderCardOffThread(m)).equals(await renderCard(m))).toBe(true);
+    }
+  }, 60_000);
+
+  it("keeps the event loop free while cards are drawn (in-thread each one held it ~120 ms)", async () => {
+    await renderCardOffThread(model); // the worker is up
+    const before = cardRenderCounts().offThread;
+    let maxLag = 0, last = performance.now();
+    const iv = setInterval(() => { const n = performance.now(); maxLag = Math.max(maxLag, n - last); last = n; }, 2);
+    try {
+      await Promise.all(Array.from({ length: 6 }, (_, i) => renderCardOffThread({ ...model, pRed: 0.5 + i / 50 })));
+    } finally { clearInterval(iv); }
+    expect(cardRenderCounts().offThread - before).toBe(6);
+    expect(maxLag).toBeLessThan(90);
+  }, 60_000);
+
+  it("a dead worker fails nothing: the card is drawn here, and the next one starts a new worker", async () => {
+    const here = cardRenderCounts().here;
+    const p = renderCardOffThread(model);
+    stopCardWorker("test stop");
+    expect((await p).equals(await renderCard(model))).toBe(true);
+    expect(cardRenderCounts().here).toBe(here + 1);
+    const off = cardRenderCounts().offThread;
+    await renderCardOffThread(model);
+    expect(cardRenderCounts().offThread).toBe(off + 1);
+  }, 60_000);
+
+  it("a long queue isn't a stuck worker: the time limit runs per card, from when the worker gets it", async () => {
+    await renderCardOffThread(model); // the worker is up
+    // 10 cards at ~120 ms each wait well past this limit in the queue; counted from posting, they'd all have timed out.
+    setCardQueueLimits({ timeoutMs: 400 });
+    try {
+      const c0 = cardRenderCounts();
+      const pngs = await Promise.all(Array.from({ length: 10 }, (_, i) => renderCardOffThread({ ...model, pRed: 0.4 + i / 50 })));
+      expect(pngs.every((p) => pngSize(p).width === 1200)).toBe(true);
+      const c1 = cardRenderCounts();
+      expect([c1.offThread - c0.offThread, c1.here - c0.here]).toEqual([10, 0]);
+    } finally { setCardQueueLimits(); }
+  }, 60_000);
+
+  it("a burst past the queue is refused (nothing drawn on the main thread); the rest are drawn", async () => {
+    await renderCardOffThread(model);
+    setCardQueueLimits({ maxQueued: 3 });
+    try {
+      const c0 = cardRenderCounts();
+      const all = Array.from({ length: 7 }, (_, i) => renderCardOffThread({ ...model, pRed: 0.3 + i / 50 }).then(() => "drawn", (e) => (e instanceof CardQueueFull ? "refused" : String(e))));
+      // One goes to the worker at once, three wait, three are refused.
+      expect(await Promise.all(all)).toEqual(["drawn", "drawn", "drawn", "drawn", "refused", "refused", "refused"]);
+      const c1 = cardRenderCounts();
+      expect([c1.offThread - c0.offThread, c1.here - c0.here, c1.refused - c0.refused]).toEqual([4, 0, 3]);
+      expect(cardsPending()).toBe(0);
+    } finally { setCardQueueLimits(); }
+  }, 60_000);
+
+  it("starts the bundled worker next to the server bundle, the source through tsx otherwise", () => {
+    const at = (...p: string[]) => pathToFileURL(join("/app", ...p)).href;
+    expect(cardWorkerEntry(at("build", "server", "index.mjs"), []).url.href).toBe(at("build", "server", "shareCardWorker.mjs"));
+    const src = cardWorkerEntry(at("server", "share", "offThread.ts"), []);
+    expect(src.url.href).toBe(at("server", "share", "cardWorker.ts"));
+    expect(src.execArgv).toEqual(["--import", "tsx"]);
+  });
+});
+
 let server: Server;
 let base = "";
 beforeAll(async () => {
@@ -114,6 +182,23 @@ afterAll(() => { server?.close(); });
 const LAB = "/api/share/match.png?season=2025&red=101,102&blue=103,104";
 
 describe("GET /api/share/match.png", () => {
+  it("a new card past a full drawing queue answers 503 with Retry-After, never stored; a cached one still answers", async () => {
+    const cached = await fetch(base + LAB);
+    expect(cached.status).toBe(200);
+    await cached.arrayBuffer();
+    setCardQueueLimits({ maxQueued: 0 });
+    try {
+      const r = await fetch(`${base}/api/share/match.png?season=2025&red=104,102&blue=103,101&format=square`);
+      expect(r.status).toBe(503);
+      expect(r.headers.get("retry-after")).toBe("30");
+      expect(r.headers.get("cache-control")).toBe("no-store");
+      expect((await r.json()).error).toMatch(/Try again in a moment/);
+      expect((await fetch(base + LAB)).status).toBe(200);
+    } finally { setCardQueueLimits(); }
+    // Not kept as a failure: the same card draws once the queue has room.
+    expect((await fetch(`${base}/api/share/match.png?season=2025&red=104,102&blue=103,101&format=square`)).status).toBe(200);
+  }, 60_000);
+
   it("sends a 1200×630 PNG, cached for a day with an ETag; the same request revalidates to a 304", async () => {
     const r = await fetch(base + LAB);
     expect(r.status).toBe(200);
