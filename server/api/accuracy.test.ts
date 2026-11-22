@@ -178,6 +178,31 @@ describe("track record cache", () => {
     expect({ ...(await trackRecord()), generatedAt: "" }).toEqual({ ...rewritten, generatedAt: "" });
   });
 
+  it("reads an event's replayed bonus calls again when a sync writes its matches, the replay unchanged", async () => {
+    await run("DELETE FROM matches");
+    await run("DELETE FROM result_watch");
+    await run("INSERT INTO result_watch (season, code, since) VALUES (?, 'USBON', '2026-11-01')", [S]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (?, 'USBON', 'qual', 0, 1, 'Q1', 1, 'first')", [S]);
+    await run(
+      `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at, match_time, outcome, scored_at, bonus_red, bonus_blue)
+       VALUES ('backtest', ?, 'USBON', 'qual', 0, 1, '1 2', '3 4', 0.6, 50, 40, 'confident', 'test', '2026-11-01', '2026-11-01T10:00:00', 1, '2026-11-01', '[0.9,0.2,0.5]', '[0.3,0.1,0.5]')`,
+      [S],
+    );
+    const bonusN = (t: Awaited<ReturnType<typeof trackRecord>>) => t.seasons.find((s) => s.season === S)?.bonus?.backtest?.n ?? 0;
+    expect(bonusN(await trackRecord())).toBe(0); // the match has no bonus RPs recorded yet
+    expect(replayReads).toBe(1);
+    // A sync fills them in: the event's matches are written again (data/bundle.ts moves its rev), the replay isn't.
+    await run("UPDATE matches SET red_bonus = ?, blue_bonus = ? WHERE season = ? AND code = 'USBON'", ['{"movement":true,"goal":false,"pattern":true}', '{"movement":false,"goal":false,"pattern":true}', S]);
+    await run("UPDATE result_watch SET rev = rev + 1 WHERE season = ? AND code = 'USBON'", [S]);
+    await kvSet("data:version", "v-bonus");
+    await warmTrackRecord();
+    const after = await trackRecord();
+    expect(replayReads).toBe(1);
+    expect(bonusN(after)).toBe(6);
+    resetTrackRecord();
+    expect({ ...(await trackRecord()), generatedAt: "" }).toEqual({ ...after, generatedAt: "" });
+  });
+
   it("keeps nothing a torn read gave: a replay written mid-build is read in full on the retry", async () => {
     beforeBonusRead = async () => {
       await run("DELETE FROM predictions WHERE kind = 'backtest' AND season = ?", [S]);

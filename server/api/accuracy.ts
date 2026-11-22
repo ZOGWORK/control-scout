@@ -129,28 +129,43 @@ const bonusFlags = (s: unknown): [boolean, boolean, boolean] | null => {
 /** Let the event loop go: requests waiting behind a long build are answered in between. */
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
-/** Every scored bonus RP call, by kind and season (calls whose match has recorded bonus RPs only). `where`: which
- *  calls, as a condition on the prediction (`p`), with its arguments (every live and replayed call by default). */
-async function bonusCalls(chunk = 4_000, where = "p.kind IN ('live', 'backtest')", args: InArgs = []): Promise<BonusBySeason> {
+/** One scored call's bonus RP calls (each alliance's, where its match has recorded bonus RPs), with its event. */
+interface BonusRow { pid: number; kind: string; season: number; code: string; calls: BonusCall[] }
+
+/** Every scored bonus RP call's row (calls whose match has recorded bonus RPs only), in id order. `where`: which calls,
+ *  as a condition on the prediction (`p`), with its arguments (every live and replayed call by default). */
+async function bonusRows(chunk = 4_000, where = "p.kind IN ('live', 'backtest')", args: InArgs = []): Promise<BonusRow[]> {
   // In chunks (db.ts allInChunks): one read of every call held the server's one thread for a third of a second.
   const rows = await allInChunks<any>(
-    `SELECT p.id pid, p.kind, p.season, p.bonus_red, p.bonus_blue, m.red_bonus, m.blue_bonus FROM predictions p
+    `SELECT p.id pid, p.kind, p.season, p.code, p.bonus_red, p.bonus_blue, m.red_bonus, m.blue_bonus FROM predictions p
        JOIN matches m ON m.season = p.season AND m.code = p.code AND m.level = p.level AND m.series = p.series AND m.number = p.number
       WHERE p.bonus_red IS NOT NULL AND p.outcome IS NOT NULL AND ${where} AND m.played = 1 AND p.id > ?`,
     args, "pid", chunk,
   );
-  const out = new Map<string, { calls: BonusCall[]; matches: number }>();
+  return rows.map((r) => {
+    const calls: BonusCall[] = [];
+    for (const [p, y] of [[bonusTriple(r.bonus_red), bonusFlags(r.red_bonus)], [bonusTriple(r.bonus_blue), bonusFlags(r.blue_bonus)]] as const) {
+      if (p && y) calls.push({ p, y });
+    }
+    return { pid: Number(r.pid), kind: String(r.kind), season: Number(r.season), code: String(r.code), calls };
+  });
+}
+
+/** Bonus RP calls by kind and season, from their rows (in id order). */
+function groupBonus(rows: BonusRow[], out: BonusBySeason = new Map()): BonusBySeason {
   for (const r of rows) {
     const k = `${r.kind}|${r.season}`;
     let e = out.get(k);
     if (!e) { e = { calls: [], matches: 0 }; out.set(k, e); }
-    let any = false;
-    for (const [p, y] of [[bonusTriple(r.bonus_red), bonusFlags(r.red_bonus)], [bonusTriple(r.bonus_blue), bonusFlags(r.blue_bonus)]] as const) {
-      if (p && y) { e.calls.push({ p, y }); any = true; }
-    }
-    if (any) e.matches++;
+    for (const c of r.calls) e.calls.push(c);
+    if (r.calls.length) e.matches++;
   }
   return out;
+}
+
+/** Every scored bonus RP call, by kind and season. */
+async function bonusCalls(chunk = 4_000, where?: string, args?: InArgs): Promise<BonusBySeason> {
+  return groupBonus(await bonusRows(chunk, where, args));
 }
 
 /**
@@ -363,27 +378,61 @@ type BonusBySeason = Map<string, { calls: BonusCall[]; matches: number }>;
  * with the event loop held. A season's replay changes only when the stats run writes it again, under new ids (the
  * current season every cycle, the rest when the engine changes), so a build reads the other calls and the seasons whose
  * replay moved, nothing else.
+ *
+ * Its bonus calls also read the matches (the bonus RPs each alliance earned), which a sync can rewrite without the
+ * replay moving: they're kept per event (`bonus`), with the event's result_watch rev as read just before them (every
+ * write of an event's matches moves it, data/bundle.ts), and an event whose rev moved is read again.
  */
-const replayed = new Map<number, { print: string; rows: any[]; bonus: BonusBySeason }>();
+const replayed = new Map<number, { print: string; rows: any[]; bonus: Map<string, { rev: number | null; rows: BonusRow[] }> }>();
 
-/** The replayed calls of every season, from `replayed` where a season's rows are as they were. `keep` stores what was
- *  read, once the caller has checked nothing was written meanwhile. The prints come from the kind index alone. */
+/** Each event's result_watch rev in a season (null: never watched, so its matches haven't been written since). */
+async function eventRevs(season: number): Promise<Map<string, number>> {
+  return new Map((await all<{ code: string; rev: number }>("SELECT code, rev FROM result_watch WHERE season = ?", [season])).map((r) => [String(r.code), Number(r.rev)]));
+}
+
+/** The replayed calls of every season, from `replayed` where a season's rows (and each event's matches) are as they
+ *  were. `keep` stores what was read, once the caller has checked nothing was written meanwhile. `prints`: each
+ *  season's replay and its events' revs, for the season blocks' keys. The replay prints come from the kind index. */
 async function replayedCalls(): Promise<{ rows: any[]; bonus: BonusBySeason; prints: Map<number, string>; keep: () => void }> {
   const list = await all<any>("SELECT season, COUNT(*) n, MIN(id) a, MAX(id) m, COALESCE(MAX(scored_at), '') s FROM predictions WHERE kind = 'backtest' GROUP BY season ORDER BY season");
-  const prints = new Map(list.map((p) => [Number(p.season), JSON.stringify([p.n, p.a, p.m, p.s])]));
-  const fresh = new Map<number, { print: string; rows: any[]; bonus: BonusBySeason }>();
+  const prints = new Map<number, string>();
+  const fresh = new Map<number, { print: string; rows: any[]; bonus: Map<string, { rev: number | null; rows: BonusRow[] }> }>();
   const rows: any[] = [];
   const bonus: BonusBySeason = new Map();
-  for (const [season, print] of prints) {
+  for (const p of list) {
+    const season = Number(p.season), print = JSON.stringify([p.n, p.a, p.m, p.s]);
+    const revs = await eventRevs(season);
     let hit = replayed.get(season);
     if (hit?.print !== print) {
       // Kept as plain objects: a driver row also carries every column under its index.
       const read = await allInChunks<any>(SQL.replace("AND id > ?", "AND kind = 'backtest' AND season = ? AND id > ?"), [season], "id");
-      hit = { print, rows: read.map((r) => ({ ...r })), bonus: await bonusCalls(4_000, "p.kind = 'backtest' AND p.season = ?", [season]) };
+      // Every watched event, with or without bonus calls yet: one whose matches get their bonus RPs later is read then.
+      const byEvent = new Map<string, { rev: number | null; rows: BonusRow[] }>([...revs].map(([code, rev]) => [code, { rev, rows: [] }]));
+      for (const r of await bonusRows(4_000, "p.kind = 'backtest' AND p.season = ?", [season])) {
+        let e = byEvent.get(r.code);
+        if (!e) { e = { rev: revs.get(r.code) ?? null, rows: [] }; byEvent.set(r.code, e); }
+        e.rows.push(r);
+      }
+      hit = { print, rows: read.map((r) => ({ ...r })), bonus: byEvent };
       fresh.set(season, hit);
+    } else {
+      // The same replay: only the events whose matches were written since are read again.
+      const moved = [...new Set([...revs.keys(), ...hit.bonus.keys()])].filter((code) => hit!.bonus.get(code)?.rev !== (revs.get(code) ?? null));
+      if (moved.length) {
+        const byEvent = new Map(hit.bonus);
+        for (const code of moved) byEvent.set(code, { rev: revs.get(code) ?? null, rows: [] });
+        for (let i = 0; i < moved.length; i += 200) {
+          const part = moved.slice(i, i + 200);
+          for (const r of await bonusRows(4_000, `p.kind = 'backtest' AND p.season = ? AND p.code IN (${part.map(() => "?").join(", ")})`, [season, ...part])) byEvent.get(r.code)!.rows.push(r);
+        }
+        hit = { ...hit, bonus: byEvent };
+        fresh.set(season, hit);
+      }
     }
     for (const r of hit.rows) rows.push(r);
-    for (const [k, v] of hit.bonus) bonus.set(k, v);
+    // In id order, as one read of the season gives them.
+    groupBonus([...hit.bonus.values()].flatMap((e) => e.rows).sort((x, y) => x.pid - y.pid), bonus);
+    prints.set(season, JSON.stringify([print, [...hit.bonus].map(([code, e]) => [code, e.rev])]));
   }
   return {
     rows, bonus, prints,
@@ -415,8 +464,9 @@ async function computeTrackRecord(): Promise<TrackRecord> {
   const seasons: TrackRecord["seasons"] = [];
   for (const s of SEASONS.filter((x) => PREDICT_SEASONS.includes(x.season))) {
     await yieldLoop();
-    // Everything the season's block reads: its replay (by its print, which its replayed bonus calls go with), its live
-    // calls and live bonus calls, and its replay coverage. Nothing kept when the calls were read in one statement.
+    // Everything the season's block reads: its replay and its events' revs (by its print, which its replayed bonus
+    // calls go with), its live calls and live bonus calls, and its replay coverage. Nothing kept when the calls were
+    // read in one statement.
     const key = prints && JSON.stringify([prints.get(s.season) ?? null, calls("live", s.season), bonus.get(`live|${s.season}`) ?? null, coverage.get(s.season) ?? null]);
     const memo = seasonBlocks.get(s.season);
     if (key && memo?.key === key) { seasons.push(memo.value); continue; }
