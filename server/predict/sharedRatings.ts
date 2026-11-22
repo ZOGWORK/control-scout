@@ -23,7 +23,7 @@
 // anchor are kept. "Clear caches" deletes them all (engine.ts resetForecasters), so a forced rebuild is a real one.
 import { serialize, deserialize } from "node:v8";
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ENGINE_VERSION, PartnershipTable, RatingBook } from "@control-scout/predict-engine";
 import { env } from "../env.js";
@@ -117,12 +117,17 @@ export function clearShared(): void {
   for (const f of readdirSync(dir)) if (f.endsWith(".v8") || f.endsWith(".building")) rmSync(join(dir, f), { force: true });
 }
 
+/** A lock with no readable pid younger than this is taken as held: claim never makes one (the pid is in it from the
+ *  start, below), but one written by hand or cut short is not taken over while it might still be filling in. */
+const FRESH_MS = 10_000;
+
 /** Is the process that holds `lock` still building (alive, and not past STALE_MS)? */
 function building(lock: string): boolean {
   try {
-    if (Date.now() - statSync(lock).mtimeMs > STALE_MS) return false;
+    const age = Date.now() - statSync(lock).mtimeMs;
+    if (age > STALE_MS) return false;
     const pid = Number(readFileSync(lock, "utf8"));
-    if (!pid) return false;
+    if (!pid) return age < FRESH_MS;
     process.kill(pid, 0);
     return true;
   } catch (e) {
@@ -130,20 +135,28 @@ function building(lock: string): boolean {
   }
 }
 
-/** Take the build lock for `file` (one process builds a version). A dead or stale holder's lock is taken over. */
+/** Take the build lock for `file` (one process builds a version). The lock appears with its pid already in it: written
+ *  to a file of this process's own, then linked into place (a link fails when the lock exists, as an exclusive create
+ *  does), so no other process ever reads a lock without its holder. A dead or stale holder's lock is taken over. */
 function claim(lock: string): boolean {
-  for (let i = 0; i < 2; i++) {
-    try {
-      const fd = openSync(lock, "wx", 0o600);
-      writeSync(fd, String(process.pid));
-      closeSync(fd);
-      return true;
-    } catch {
-      if (building(lock)) return false;
-      rmSync(lock, { force: true });
+  const mine = `${lock}.${process.pid}`;
+  try {
+    writeFileSync(mine, String(process.pid), { mode: 0o600 });
+    for (let i = 0; i < 2; i++) {
+      try {
+        linkSync(mine, lock);
+        return true;
+      } catch {
+        if (building(lock)) return false;
+        rmSync(lock, { force: true });
+      }
     }
+    return false;
+  } catch {
+    return false;
+  } finally {
+    rmSync(mine, { force: true });
   }
-  return false;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

@@ -1,7 +1,7 @@
 // Ratings shared between processes (sharedRatings.ts): a forecaster from a saved build is exactly the one a replay
 // gives; a saved build is loaded instead of replayed, only for exactly what it was built from; a build in progress
 // elsewhere is waited for, a dead or stale one taken over; incomplete or unreadable builds are never used.
-import { mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -114,6 +114,24 @@ describe("sharedReplay", () => {
     const p = await sharedReplay(S, WINDOW, "v1", replay, { dir, waitMs: 10_000 });
     expect(replay).not.toHaveBeenCalled();
     expect(p.books.get(S)).toBeInstanceOf(RatingBook);
+  });
+
+  it("holds the lock with its own pid in it from the moment it exists, with nothing left beside it", async () => {
+    const file = buildFile(dir, S, WINDOW, "v1"), lock = `${file}.building`;
+    let during = "";
+    const replay = vi.fn(async () => { during = readFileSync(lock, "utf8"); expect(readdirSync(dir).filter((f) => f.includes(".building"))).toEqual([lock.split(/[\\/]/).pop()]); return parts; });
+    await sharedReplay(S, WINDOW, "v1", replay, { dir });
+    expect(during).toBe(String(process.pid));
+    expect(readdirSync(dir).filter((f) => f.includes(".building"))).toEqual([]);
+  });
+
+  it("waits on a lock just made with no pid yet, instead of taking it over", async () => {
+    const file = buildFile(dir, S, WINDOW, "v1");
+    writeFileSync(`${file}.building`, "");
+    setTimeout(() => saveBuild(file, S, parts), 400);
+    const replay = vi.fn(async () => parts);
+    await sharedReplay(S, WINDOW, "v1", replay, { dir, waitMs: 10_000 });
+    expect(replay).not.toHaveBeenCalled();
   });
 
   it("takes over a build whose process is gone", async () => {
