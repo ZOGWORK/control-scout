@@ -43,7 +43,8 @@ export function entryFor(bundled: string, source: string, moduleUrl: string, exe
 /** V8 heap-size flags: Node refuses them in a Worker's execArgv ("Initiated Worker with invalid execArgv flags"), so a
  *  process started with one (the Discord bot: node --max-old-space-size=1536 --import tsx bot/index.ts) could never
  *  start a worker and rebuilt its forecaster on its own thread. A worker's heap is set by resourceLimits, not flags. */
-const HEAP_FLAG = /^--(max-old-space-size|max-semi-space-size|max-young-generation-size|max_old_space_size|max_semi_space_size)(=|$)/;
+// V8 takes - and _ alike in a flag's name, so each word gap matches either.
+const HEAP_FLAG = /^--(max[-_](?:old[-_]space|semi[-_]space|young[-_]generation)[-_]size)(=|$)/;
 
 /** The parent's flags a worker may be started with: all but the heap-size ones (each as --flag=N or --flag N). */
 export function workerFlags(execArgv: readonly string[]): string[] {
