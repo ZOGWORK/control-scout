@@ -2,7 +2,7 @@
 // they go by there, and a reply thread kept past a restart. Plus the one rule that keeps the memory honest: a season
 // year in a question is not a team.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { migrate, openDb, run, setDb } from "../server/db";
+import { get, migrate, openDb, run, setDb } from "../server/db";
 import { TEAMS_MAX, THREAD_DAYS, keep, learn, recall, teamsAsked, thread } from "./memory";
 
 const NOW = Date.parse("2026-11-22T05:30:00Z");
@@ -54,16 +54,18 @@ describe("the server's memory, on a database", () => {
 
   it("keeps a reply thread across a restart — its last TURNS_MAX turns — and forgets a stale one", async () => {
     const turns = Array.from({ length: 8 }, (_, i) => ({ role: (i % 2 ? "bruno" : "user") as "user" | "bruno", text: `turn ${i}` }));
-    await keep("root1", turns, NOW);
+    await keep("root1", turns, "g1", NOW);
     expect((await thread("root1", NOW)).map((t) => t.text)).toEqual(["turn 2", "turn 3", "turn 4", "turn 5", "turn 6", "turn 7"]);
+    // The thread knows its server, so being removed from that server can take it with the rest (bot/forget.ts).
+    expect((await get<{ guild_id: string }>("SELECT guild_id FROM discord_threads WHERE root_id = 'root1'"))!.guild_id).toBe("g1");
     // Nobody carried it on for THREAD_DAYS: forgotten, and reading it never throws.
     expect(await thread("root1", NOW + (THREAD_DAYS + 1) * DAY)).toEqual([]);
     expect(await thread("nope", NOW)).toEqual([]);
   });
 
   it("drops threads nobody carried on when a new one is kept", async () => {
-    await keep("old", [{ role: "user", text: "hi" }], NOW - (THREAD_DAYS + 1) * DAY);
-    await keep("new", [{ role: "user", text: "hi" }], NOW);
+    await keep("old", [{ role: "user", text: "hi" }], "g1", NOW - (THREAD_DAYS + 1) * DAY);
+    await keep("new", [{ role: "user", text: "hi" }], "g1", NOW);
     expect(await thread("old", NOW)).toEqual([]);
     expect(await thread("new", NOW)).toHaveLength(1);
   });
