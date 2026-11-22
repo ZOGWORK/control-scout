@@ -48,7 +48,7 @@ import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
 import { BOOT_HITS } from "../lib/searchBoot";
-import { handedAnswer } from "../components/search/handoff";
+import { handedAnswer, forgetHandoff } from "../components/search/handoff";
 import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta";
 import { useApi, qs } from "../lib/api";
 import { cn } from "../components/cn";
@@ -66,16 +66,30 @@ export default function SearchPage() {
   const held = useMeta()?.seasons.map((s) => s.season) ?? [];
   const picked = pickedSeason(params.get("in"), held);
   // What the page already has for these words: the server's first paint when /search was opened cold, else the answer
-  // the search box's dropdown had when Enter was pressed (src/components/search/handoff.ts). Drawn at once, so a
-  // submitted search never starts on a loading screen; this page's own request replaces it as soon as it answers.
+  // the search box's dropdown had when Enter (or its magnifier, or "See all results") sent the query here
+  // (src/components/search/handoff.ts). Drawn at once, so a submitted search never starts on a loading screen; this
+  // page's own request replaces it as soon as it answers. Read whenever the words change, not only when the page
+  // mounts: this page stays open while its own box submits another query, and that box hands the answer over first.
   // `thread`: this question, once answered, is what a follow-up refers back to (src/components/search/thread.ts).
-  const initial = BOOT_HITS && BOOT_HITS.q.trim() === query ? BOOT_HITS : handedAnswer(query);
-  // The query this visit drew with an answer it already had (a first paint's hits, or the box's handoff). Only that
-  // one skips the wait: this page stays mounted when `?q=` changes, and a query reached later (the first one again
-  // included) arrived with nothing in hand.
-  const seededFor = useRef(initial ? query : null);
-  const seeded = seededFor.current === query;
-  useEffect(() => { if (seededFor.current !== query) seededFor.current = null; }, [query]);
+  const boot = BOOT_HITS && BOOT_HITS.q.trim() === query ? BOOT_HITS : null;
+  const hand = handedAnswer(query);
+  // The first paint seeded the visit it was painted for, once: words come back to later (a link, Back) arrive with
+  // nothing in hand and wait for their own answer, as a handoff's words do, even while BOOT_HITS still answers them.
+  const bootTaken = useRef(false);
+  const offered = (boot && !bootTaken.current ? boot : null) ?? hand;
+  useEffect(() => { if (boot) bootTaken.current = true; }, [boot]);
+  // The answer this visit draws with, and the words it was handed for: kept while they're shown (the handoff is read
+  // once, below), dropped the moment the page shows other words — those arrived with nothing in hand.
+  const [seed, setSeed] = useState<{ for: string; answer: { q: string; hits: SearchHit[] } } | null>(offered ? { for: query, answer: offered } : null);
+  if (seed && seed.for !== query) setSeed(null);
+  else if (offered && offered !== seed?.answer) setSeed({ for: query, answer: offered });
+  const initial = seed && seed.for === query ? seed.answer : null;
+  // Taken, not borrowed: a handoff seeds the one visit to the words it was made for, so a query reached later (a link,
+  // Back, the first one again) arrives with nothing in hand and waits for its own answer, and the one page it may name.
+  useEffect(() => { if (hand) forgetHandoff(hand.q); }, [hand]);
+  // Nothing is waited for when the answer is already on screen: the box read these words before sending them here, so
+  // the page shows what it has instead of a loading screen (and never leaves for a page it already knew they don't name).
+  const seeded = !!initial;
   const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, initial, false, picked, true);
   const seasonPick = useMemo<SeasonPick>(() => ({
     picked, pending: reseason,
