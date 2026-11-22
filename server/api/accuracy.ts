@@ -133,6 +133,8 @@ const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
  *  server's one thread 311-352 ms on a copy of the VM's data (2026-11-22: 22 columns a row, made into objects by the
  *  driver); at 2,000 a part holds it a fifth of that. */
 const CALL_CHUNK = 2_000;
+/** Rows worked through between two yields once read (plainRows, bonusRows). */
+const COPY_PART = 4_000;
 
 /** One scored call's bonus RP calls (each alliance's, where its match has recorded bonus RPs), with its event. */
 interface BonusRow { pid: number; kind: string; season: number; code: string; calls: BonusCall[] }
@@ -147,13 +149,20 @@ async function bonusRows(chunk = CALL_CHUNK, where = "p.kind IN ('live', 'backte
       WHERE p.bonus_red IS NOT NULL AND p.outcome IS NOT NULL AND ${where} AND m.played = 1 AND p.id > ?`,
     args, "pid", chunk,
   );
-  return rows.map((r) => {
-    const calls: BonusCall[] = [];
-    for (const [p, y] of [[bonusTriple(r.bonus_red), bonusFlags(r.red_bonus)], [bonusTriple(r.bonus_blue), bonusFlags(r.blue_bonus)]] as const) {
-      if (p && y) calls.push({ p, y });
+  // Made into calls a part at a time too: a season's 40,000-odd at once, then its calls copied (plainRows), held the
+  // thread 244 ms on a copy of the VM's data (2026-11-22).
+  const out: BonusRow[] = [];
+  for (let i = 0; i < rows.length; i += COPY_PART) {
+    if (i) await yieldLoop();
+    for (const r of rows.slice(i, i + COPY_PART)) {
+      const calls: BonusCall[] = [];
+      for (const [p, y] of [[bonusTriple(r.bonus_red), bonusFlags(r.red_bonus)], [bonusTriple(r.bonus_blue), bonusFlags(r.blue_bonus)]] as const) {
+        if (p && y) calls.push({ p, y });
+      }
+      out.push({ pid: Number(r.pid), kind: String(r.kind), season: Number(r.season), code: String(r.code), calls });
     }
-    return { pid: Number(r.pid), kind: String(r.kind), season: Number(r.season), code: String(r.code), calls };
-  });
+  }
+  return out;
 }
 
 /** Bonus RP calls by kind and season, from their rows (in id order). */
@@ -419,9 +428,9 @@ const REPLAY_RANGE = (t: string) => `+${t}kind = 'backtest' AND +${t}season = ? 
  *  copied in one go were one more long hold). */
 async function plainRows(read: any[]): Promise<any[]> {
   const out: any[] = [];
-  for (let i = 0; i < read.length; i += 10_000) {
+  for (let i = 0; i < read.length; i += COPY_PART) {
     if (i) await yieldLoop();
-    for (const r of read.slice(i, i + 10_000)) out.push({ ...r });
+    for (const r of read.slice(i, i + COPY_PART)) out.push({ ...r });
   }
   return out;
 }
