@@ -28,7 +28,7 @@ A new `/config` command shows the bot's own setup in Discord: the same six lines
 ### Discord bot
 - `/config` (`bot/commands.ts`, `Manage Server`, servers only) answers privately with the startup summary read live: the season, the site it talks to, chat and, when off, the same reason `ask.ts` gives, report filing, the follow posts, and whether the commands are registered globally or only in `DISCORD_DEV_GUILD_ID`. The reply says whether a variable is set, never its value — the same lines the journal carries, so "what can this bot do here?" takes one command instead of an SSH session.
 - The journal and the command cannot disagree: `bot/index.ts` gathers the summary in one `configHere()` used by both, and `bot/config.ts` renders the same `configLines()` as an embed (`configEmbed`). Tests cover the embed's six lines, its no-secrets rule, the private defer and a lookup that can't be read (`bot/config.test.ts`, `bot/handler.test.ts`).
-- `/help` lists it from the same list the site shows (`src/shared/discord.ts`), which is why the "Control Scout in Discord" card counts one command more (`bot/README.md`).
+- `/help` lists it from the same list the site shows (`src/shared/discord.ts`), which is why the "Control Scout in Discord" card counts one command more (`bot/README.md`). (#2159)
 
 ## 7.8.6 — 2026-11-22
 
