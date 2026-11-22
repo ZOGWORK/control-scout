@@ -11,6 +11,13 @@ const FADE = "linear-gradient(to bottom,#000 0%,rgb(0 0 0/.85) 50%,transparent 1
 // Each colour is mixed into the page by --wash-mix (all of it on Dark; Light takes a pale dawn tint of the same ones).
 const tint = (v: string) => `color-mix(in srgb,var(${v}) var(--wash-mix,100%),var(--color-background))`;
 const GLOWS = `radial-gradient(55% 95% at 12% 0%,${tint("--wash-a")} 0%,transparent 72%),radial-gradient(50% 90% at 52% 0%,${tint("--wash-b")} 0%,transparent 72%),radial-gradient(55% 95% at 90% 0%,${tint("--wash-c")} 0%,transparent 72%)`;
+/** One solid colour for the wash's top edge, for the phone's top patch (Shell.tsx): its middle colour about half
+ *  mixed into the page, the strength the owner set, which is where the drawn wash starts (dark: ~rgb 57 54 77). */
+const edge = (v: string) => `color-mix(in srgb,${tint(v)} calc(55% * var(--wash-strength,1)),var(--color-background))`;
+export const TOP_PATCH = edge("--wash-b");
+/** The same edge left to right (the wash's left, middle and right colours), drawn over TOP_PATCH so the patch runs on
+ *  into the wash on screen; Safari still reads the solid TOP_PATCH under it. */
+export const TOP_PATCH_IMAGE = `linear-gradient(to right,${edge("--wash-a")} 5%,${edge("--wash-b")} 50%,${edge("--wash-c")} 95%)`;
 const HEIGHT = { tall: "clamp(16rem, calc(42vh * var(--wash-spread, 1)), calc(30rem * var(--wash-spread, 1)))", short: "clamp(13rem, calc(34vh * var(--wash-spread, 1)), calc(23rem * var(--wash-spread, 1)))" } as const;
 
 export function Wash({ size = "tall", className, includeParticleWave = true }: { size?: "tall" | "short"; className?: string; includeParticleWave?: boolean }) {
