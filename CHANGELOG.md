@@ -26,7 +26,7 @@ The Discord bot answers the channel's own questions — a cosine, a unit, a desi
 
 ### Discord bot
 - A measurement is not a record number (`bot/smallTalk.ts` `RECORD_NUMBER`): `35 degrees`, `42 mm`, `12.4 OPR`, a ratio like `42:15` — so Bruno's cosine answer (`0.8192`) is no longer refused as a fake stat, which is what turned "what is the cosine of 35 degrees i need it for a auto trust" into "Sorry — I can't answer that yet".
-- A working question — a mechanism, maths, an angle, a unit (`WORKING`: cosine, sine, tangent, angle, radians, gearing, torque, volts…) — is never a records question, so when no chat answers one it gets the one plain line instead of search's reading of it as a team ("I read it as: Team 6570 Piradians"). A team number still keeps the card. (#0000)
+- A working question — a mechanism, maths, an angle, a unit (`WORKING`: cosine, sine, tangent, angle, radians, gearing, torque, volts…) — is never a records question, so when no chat answers one it gets the one plain line instead of search's reading of it as a team ("I read it as: Team 6570 Piradians"). A team number still keeps the card. (#2134)
 - Every Discord chat now carries `answerScope()` (`bot/productFacts.ts`): answer any question the channel asks, not only Control Scout or FTC ones, concretely and without refusing for being off-topic — while FTC numbers still come only from the facts sent with the message.
 
 ## 7.8.1 — 2026-11-22
