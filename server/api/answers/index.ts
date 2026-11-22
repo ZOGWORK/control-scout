@@ -268,7 +268,9 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   else if (s.at || oneEvent) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches).
     // A forecast's "this season" is the current one (its upcoming event), not the team's last played.
-    const season = s.year ? null : s.season ?? (s.latest ? (PREDICT_INTENTS.has(it.id) ? currentSeason() : (await latestSeason(team, it.id))?.season ?? null) : null);
+    // "Auto opr in first meet" with no season said: the team's first event of its latest season (every season is a
+    // different game), never its debut years ago.
+    const season = s.year ? null : s.season ?? (s.latest || s.at === THEIR_FIRST ? (PREDICT_INTENTS.has(it.id) ? currentSeason() : (await latestSeason(team, it.id))?.season ?? null) : null);
     if (s.latest && season == null && !acrossIfNone) return null;
     const p = teamPick((await teamEventSet(team)).events, s, season);
     if (p) {
@@ -596,8 +598,12 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
     : it.id === "vs-top" && it.n != null ? `Against top-${it.n} teams`
     : it.id === "closest-match" && it.n != null ? `${it.outcome === "W" ? "Wins" : it.outcome === "L" ? "Losses" : "Matches"} by ${it.n} point${it.n === 1 ? "" : "s"}`
     : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event")
+    // "auto opr at their last meet": the phase asked for, as the answer's own title says it ("Auto OPR at …").
+    : it.id === "event-opr" && it.phase ? `${it.phase === "auto" ? "Auto" : it.phase === "teleop" ? "TeleOp" : "Endgame"} OPR`
     : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.rank ? (it.id === "first-event" ? "First event rank" : "Latest event rank") : it.schedule ? "Event schedule" : PREDICT_INTENTS.has(it.id) && scope.event ? predictTitle(it.id) : TITLES[it.id];
-  const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}`;
+  // "… in their last meet": the event is named, and that it's the team's most recent (or first) one.
+  const own = scope.event && (it.scope.at === THEIR_LAST || it.scope.at === THEIR_FIRST) ? `, ${it.scope.at === THEIR_LAST ? "their most recent event" : "their first event"}` : "";
+  const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}${own}`;
   // "This season" with none of the season in progress played yet reads the team's latest: the heading names that
   // season (its title ends "in 2025–26"), and the answer's note says why (scope.seasonWhy), so the heading stays clean.
   const label = `${whoOf(team)} · ${title}`;
@@ -618,6 +624,8 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   if (!opts.full) return answer;
   const stat = scope.event?.absent ? await absentAnswer(q, it, team, scope, title) : await build(it, team, scope);
   if (!stat) return null;
+  // "… in their last meet", "… in first meet": the team's own latest or earliest event, said so beside its name.
+  if (scope.event && (it.scope.at === THEIR_LAST || it.scope.at === THEIR_FIRST)) stat.scope = [it.scope.at === THEIR_LAST ? "Most recent event" : "First event", ...(stat.scope ?? [])];
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
   await noteNamedEvent(stat, scope);
   // A state championship read as one season's: the team's other seasons there, each its own question (by the year held).

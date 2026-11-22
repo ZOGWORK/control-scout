@@ -208,7 +208,9 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
       const evs = await all<any>(`SELECT e.code, e.name, e.type, e.start, s.opr_np FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.team = ? AND s.season = ? AND s.opr_np IS NOT NULL AND s.matches > 0 ORDER BY e.start, e.code`, [team.number, season]);
       if (evs.length) blocks.push({ kind: "series", title: `OPR by event, ${S}`, points: evs.map((e) => ({ x: shortEvent(e.name, e.type), y: Math.round(Number(e.opr_np) * 10) / 10, href: eventHref(season, e.code, team.number), note: dateRange(e.start) ?? undefined })) });
     }
-    return { ...b, headline: { value: num(v), label: rank && of ? `#${n(Number(rank))} of ${n(of)} worldwide · ${top(rank, of)}` : "Not ranked yet", sub: S, href: teamHref(team.number, season) }, blocks };
+    // The hero names its stat ("Auto OPR · #5 of 3,909 worldwide"), as each tile below does: the rank is that stat's.
+    const stat = f.id === "opr" ? "OPR" : PHASE[f.id as keyof typeof PHASE][1];
+    return { ...b, headline: { value: num(v), label: rank && of ? `${stat} · #${n(Number(rank))} of ${n(of)} worldwide · ${top(rank, of)}` : `${stat} · not ranked yet`, sub: S, href: teamHref(team.number, season) }, blocks };
   }
 
   if (f.id === "rating") {

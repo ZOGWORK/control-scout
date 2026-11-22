@@ -910,11 +910,22 @@ export function readTwoTeam(raw: string): TwoTeamQuestion | null {
 }
 
 export function readStatQuestion(raw: string): StatQuestion | null {
-  const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!.,]/g, " ")} `.replace(/\s+/g, " ")
-    // "matches at their last event", "… at its first event this season": the team's own event, never the superlative.
+  let q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!.,]/g, " ")} `.replace(/\s+/g, " ")
+    // "matches at their last event", "… at its first event this season", "auto opr in their last meet": the team's own
+    // event, never the superlative. "In"/"during"/"from" only with the team's own ("their"), so "in the last event" stays.
     // "Record at their meet", one event said with no first or last, is its latest: never an event of that name elsewhere.
-    .replace(/\bat (?:their|its|his|her|the) (?:(last|latest|most recent|newest|previous)|first|debut|earliest) (?:event|competition|tournament|meet)\b/, (_, last) => `at ${last ? THEIR_LAST : THEIR_FIRST}`)
+    .replace(/\b(?:at (?:their|its|his|her|the)|(?:in|during|from) (?:their|its|his|her)) (?:(last|latest|most recent|newest|previous)|first|debut|earliest) (?:event|competition|tournament|meet)\b/, (_, last) => `at ${last ? THEIR_LAST : THEIR_FIRST}`)
     .replace(/\bat (?:their|its) (?:event|competition|tournament|meet)\b/, `at ${THEIR_LAST}`);
+  // A stat said with "last meet" or "first meet" and no "their" ("quality control average points last meet", "… auto opr
+  // in first meet") is that stat at the team's own latest or earliest event, as with "their": only when another team
+  // question is asked beside it, so "12345 last event" alone stays the latest event's own answer.
+  const bare = /\b(?:(?:at|in|during|from) )?(?:(last|latest|most recent|newest|previous)|first|debut|earliest) (?:event|competition|tournament|meet)\b/.exec(q);
+  if (bare) {
+    const with_ = q.replace(bare[0], ` at ${bare[1] ? THEIR_LAST : THEIR_FIRST}`);
+    const other = RULES.find((r) => r.re.test(with_));
+    // "12345 latest event ranking" stays the latest event's own answer, its rank leading (StatQuestion.rank).
+    if (other && !other.noTeam && !["first-event", "last-event", "event-rank"].includes(other.id)) q = with_;
+  }
   // "world record score" and "highest score this season" with no team are a season's records (searchHighScores.ts).
   if (/\bworld[\s-]+records?\b|\brecords?\s+scores?\b|\bscore\s+records?\b/.test(q)) return null;
   for (const r of RULES) {
