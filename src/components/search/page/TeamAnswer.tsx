@@ -78,13 +78,26 @@ export function AnswerFrame({ teams, split, profile, season, title, hideTitle, s
     <article aria-label={label ?? title} className="mb-5 overflow-hidden rounded-2xl border border-border bg-card" data-answer-frame {...data}>
       {shown.length === 1 ? <TeamHeader who={shown[0]} profile={profile} season={season} />
         : shown.length > 1 ? <TeamsHeader teams={shown} split={split} season={season} /> : null}
-      <div className="p-4 sm:p-6">
-        {/* An answer about no team (a season's list): its season at the top right, where a team's header has it. */}
-        {!shown.length && season != null && pickable && <div className="mb-2 flex justify-end"><AnswerSeason season={season} /></div>}
-        <div className={cn("min-w-0", (!hideTitle || sub) && "mb-4")}>
-          <h2 className={cn("font-display text-lg font-semibold leading-snug text-foreground", hideTitle && "sr-only")} data-answer-title>{title}</h2>
-          {sub && <div className="mt-1 text-sm text-muted-foreground" data-answer-sub>{sub}</div>}
-        </div>
+      <div className="flow-root p-4 sm:p-6">
+        {/* One header block (owner, 22 Nov: picker, chip, label and meta were four rows sharing no edge): the title and
+            what it covers on the left, an answer about no team's season picker on the right of the same block, where a
+            team's header has it. On a phone the picker sits on the block's first row; from sm up it's centred on the
+            block. With nothing shown on the left the picker floats, so the answer's first line runs beside it. */}
+        {(() => {
+          const pick = !shown.length && pickable && season != null ? season : null;
+          const head = !hideTitle || !!sub;
+          const h2 = <h2 className={cn("font-display text-lg font-semibold leading-snug text-foreground", hideTitle && "sr-only")} data-answer-title>{title}</h2>;
+          if (!head) return <>{pick != null && <div className="float-right mb-2 ml-3" data-answer-head-pick><AnswerSeason season={pick} /></div>}{h2}</>;
+          return (
+            <div className={cn("mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3", pick != null && "sm:items-center")} data-answer-head>
+              <div className="min-w-0">
+                {h2}
+                {sub && <div className={cn("text-sm text-muted-foreground", !hideTitle && "mt-1")} data-answer-sub>{sub}</div>}
+              </div>
+              {pick != null && <AnswerSeason season={pick} />}
+            </div>
+          );
+        })()}
         {children}
       </div>
     </article>
