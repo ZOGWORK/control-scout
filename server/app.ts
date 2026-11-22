@@ -133,6 +133,7 @@ import { projectionStream } from "./projections/routes.js";
 import { ownerRouter } from "./portal/routes.js";
 import { photosRouter } from "./scout/photos.js";
 import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/match.js";
+import { CardQueueFull } from "./share/offThread.js";
 import { env } from "./env.js";
 import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
@@ -947,6 +948,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     }
     let card;
     try { card = await matchCard(key, q); } catch (e) {
+      // A crawler burst past the card worker's queue (share/offThread.ts): come back shortly, nothing drawn here.
+      if (e instanceof CardQueueFull) { res.status(503).set({ "Retry-After": "30", "Cache-Control": "no-store" }).json({ error: e.message }); return undefined; }
       if (e instanceof ShareError) throw new HttpError(e.status, e.message);
       throw e;
     }
