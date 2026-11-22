@@ -27,6 +27,9 @@
 //   --verify  read no starts: check where each placed match's clip opens, for rows not yet checked (opens)
 //   --bounds  read no starts: read each read video's first and last frames (opensOn, endsOn), the proof that a match
 //             was played before it starts or after it ends (outsideRecording); a normal read reads them too
+//   --recheck read no starts: a second look at each row's review entries (scripts/lib/reviewRecheck.ts): frames 2, 8,
+//             20 and 40 s after each read for its match and timer; two agreeing move it into the starts (`confirmed`),
+//             else it stays for the owner, marked looked at (`again`)
 //   --clips   read no starts: check each clip the live site plays from the clock by its first frame, paused (ok,
 //             pulled when it names another match, unconfirmed when it names none), into server/data/clipChecks.ts
 //   --event-limit <minutes>  the least one event's read may take before it's stopped (default 180; a long event gets
@@ -42,10 +45,11 @@ import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, 
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
+import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type RecheckRead, type RecheckVerdict } from "./lib/reviewRecheck";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live", "event-limit"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "trace", "verify"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live", "event-limit"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "recheck", "trace", "verify"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -57,7 +61,7 @@ const args = new Map<string, string | true>();
       if (v == null || v === "" || v.startsWith("--")) { console.error(`--${name}: give it a value`); process.exit(2); }
       args.set(name, v);
     } else if (m && BOOL_FLAGS.has(name) && m[2] == null) args.set(name, true);
-    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --event-limit, --all, --check, --dry, --trace, --verify, --clips, --live <file>)`); process.exit(2); }
+    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --event-limit, --all, --check, --dry, --trace, --verify, --recheck, --clips, --live <file>)`); process.exit(2); }
   }
 }
 const arg = (k: string) => { const v = args.get(k); return typeof v === "string" ? v : undefined; };
@@ -91,7 +95,7 @@ const pageDeadline = new WeakMap<Page, Deadline>();
  *  server/data/frameTimings.ts, before it can be read). */
 const FRAMES_FILE = `server/data/frameTimings/${season}.ts`;
 if (!existsSync(FRAMES_FILE)) { console.error(`--season ${season}: no ${FRAMES_FILE} (add it, and its import in server/data/frameTimings.ts)`); process.exit(2); }
-const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds"), CLIPS = flag("clips");
+const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds"), CLIPS = flag("clips"), RECHECK = flag("recheck");
 
 const { migrate, all } = await import("../server/db.js");
 await migrate();
@@ -109,12 +113,17 @@ const liveRows = (path: string) => {
 };
 const LIVE_ROWS = arg("live") ? liveRows(arg("live")!) : [];
 const LIVE = new Map<string, Record<string, number>>(LIVE_ROWS.map((f) => [`${f.videoId}|${f.code}`, f.starts]));
+/** --live's rows whole: what a second look's row (--recheck) is checked against, as the server will. */
+const LIVE_FULL = new Map<string, import("../server/data/frameTimings.js").FrameTiming>(LIVE_ROWS.map((f) => [`${f.videoId}|${f.code}`, f as unknown as import("../server/data/frameTimings.js").FrameTiming]));
 /** The live starts placed from the clock between two reads, not read off the video (a row's `medium`): a live clip
  *  a read leaves out keeps that confidence when it goes back for its opening check. */
 const LIVE_MEDIUM = new Map<string, Set<string>>(LIVE_ROWS.map((f) => [`${f.videoId}|${f.code}`, new Set(f.medium ?? [])]));
 // A --live copy that gives no rows (a wrong file) would protect no live clip: stop, as an unknown --codes does.
 if (arg("live") && !LIVE.size) { console.error(`--live ${arg("live")}: no frame timing rows in it (a copy of main's server/data/frameTimings/${season}.ts?)`); process.exit(2); }
 type FrameTiming = import("../server/data/frameTimings.js").FrameTiming;
+/** --recheck: review entries the owner rejected, at their second: never looked at again (reviewEntries doesn't list them). */
+const REJECTED = new Map<string, number>(RECHECK ? (await all<{ video_id: string; code: string; label: string; t: number }>("SELECT video_id, code, label, t FROM review_decisions WHERE decision = 'rejected'")).map((d) => [`${d.video_id}|${d.code}|${d.label}`, Number(d.t)]) : []);
+const rejectedAt = (row: { videoId: string; code: string }) => (label: string, t: number) => { const no = REJECTED.get(`${row.videoId}|${row.code}|${label}`); return no != null && Math.abs(no - t) <= SAME_S; };
 const T: any = await import(process.env.TESSERACT_JS ?? "tesseract.js");
 const createWorker = T.createWorker ?? T.default?.createWorker;
 
@@ -765,6 +774,7 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
       ...(j.earlyStart.size ? { earlyStart: Object.fromEntries(j.earlyStart) } : {}),
       opens: Object.fromEntries(j.opens),
       ...(unread.size ? { unconfirmed: [...unread] } : {}),
+      ...(row.confirmed && Object.keys(row.confirmed).some((l) => l in starts) ? { confirmed: Object.fromEntries(Object.entries(row.confirmed).filter(([l]) => l in starts)) } : {}),
     });
   } catch (e) {
     log(`    couldn't check: ${(e as Error).message.split("\n")[0]} (the row is kept unchecked; the next --verify tries it again)`);
@@ -852,6 +862,47 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
     keep(`${row.videoId}|${row.code}`, { ...row, ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) });
   } catch (e) {
     log(`    couldn't read its edges: ${(e as Error).message.split("\n")[0]} (the row is kept as it was)`);
+    failedVideos++;
+  } finally {
+    await closePage(page);
+  }
+}
+
+// --- A second look at the review entries (--recheck) ---------------------------------------------------------------
+
+/** --recheck: each due review entry of a read row (recheckDue) read again on frames RECHECK_AFTER its second, the bar
+ *  and the timer as any start read takes them (readAt: the bar's match, this event's and division's only); the row
+ *  written with what they settled (recheckRow), checked against the live row as the server will. */
+async function recheckVideo(row: FrameTiming, length: number, due: { label: string; t: number }[], division: DivisionCtx | null, order: string[], deadline: Deadline, log: (s: string) => void): Promise<void> {
+  let page: Page | null = null;
+  try {
+    page = await player();
+    if (division) divisions.set(page, division);
+    { const e = eventNames.get(row.code); if (e) pageEvent.set(page, e); }
+    pageDeadline.set(page, deadline);
+    await open(page, row.videoId);
+    log(`  ${row.videoId}: a second look at ${due.length} for review (${due.map((e) => `${e.label} at ${e.t} s`).join(", ")})`);
+    const verdicts = new Map<string, { verdict: RecheckVerdict; saw: string }>();
+    for (const e of due) {
+      const reads: RecheckRead[] = [];
+      for (const after of RECHECK_AFTER) {
+        const r = await readAt(page, e.t + after);
+        // A seek that never landed shows the frame before it: it says nothing of this second.
+        if (Math.abs(r.at - (e.t + after)) > 2) continue;
+        reads.push({ at: r.at, label: r.label, start: r.start, division: r.division ?? null });
+      }
+      const verdict = recheckVerdict(e.label, e.t, reads), saw = sawText(e.t, reads);
+      verdicts.set(e.label, { verdict, saw });
+      log(`    ${e.label}: ${"settled" in verdict ? `confirmed, start ${verdict.settled.start} s, opening ${verdict.settled.open} s (frames ${verdict.settled.frames.join(", ")})` : `stays for the owner: ${verdict.stays}`} (${saw})`);
+    }
+    const key = `${row.videoId}|${row.code}`;
+    const r = recheckRow(row, verdicts, LIVE_FULL.get(key), order, today, length);
+    if (!r.row) { log(`    nothing written: ${r.why}`); return; }
+    keep(key, r.row);
+    log(`    second look: ${r.settled.length} into the starts${r.settled.length ? ` (${r.settled.join(" ")})` : ""}, ${r.stays.length} left for the owner${r.stays.length ? ` (${r.stays.join(" ")})` : ""}`);
+  } catch (e) {
+    if (e instanceof EventOverTime) throw e;
+    log(`    couldn't look again: ${(e as Error).message.split("\n")[0]} (the row is kept as it was; the next run tries again)`);
     failedVideos++;
   } finally {
     await closePage(page);
@@ -1313,6 +1364,9 @@ async function doCode(code: string): Promise<void> {
   const rec = recs.get(code)!, began = Date.now(), deadline: Deadline = { code, ms: EVENT_LIMIT_MS, at: began + EVENT_LIMIT_MS };
   const rows = await all<{ label: string; time: string | null; timezone: string | null; played: number }>(
     "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1", [season, code]);
+  // The event's played matches in the order they were played, as the server's order check takes them (playedOrder):
+  // before enteredLater sets any time aside.
+  const order = rows.filter((r) => r.time != null).sort((a, b) => (a.time! < b.time! ? -1 : a.time! > b.time! ? 1 : 0)).map((r) => String(r.label));
   // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
   // its time orders it among the others and places nothing.
   // A match with no time at all is read the same way, after the timed ones in its label's order (playedMatches).
@@ -1362,7 +1416,7 @@ async function doCode(code: string): Promise<void> {
   if (CLIPS) return checkClips(code, rec, views, span, division);
   const placed = R.withClips(views, rec, Date.now(), span, { frames: false });
   const missing = placed.filter((v) => !v.clip).map((v) => v.label);
-  if (CHECK ? !placed.some((v) => v.clip) : !ALL && !VERIFY && !BOUNDS && !missing.length) return;
+  if (CHECK ? !placed.some((v) => v.clip) : !ALL && !VERIFY && !BOUNDS && !RECHECK && !missing.length) return;
   // Read on an earlier run (each event is written as it finishes): not again, unless --all.
   // Any of its videos that couldn't be played at all keeps the event unread, so the next run tries it again. (An event's
   // rows are saved once all its videos are read, so a run cut short leaves none of them.)
@@ -1383,11 +1437,13 @@ async function doCode(code: string): Promise<void> {
   };
   const rowOf = (v: (typeof own)[number]) => kept.get(`${v.videoId}|${code}`);
   const read = own.filter(holds).every((v) => { const f = rowOf(v); return f && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)); });
-  if (!CHECK && !ALL && !VERIFY && !BOUNDS && !waiting && own.some(holds) && read) return;
+  if (!CHECK && !ALL && !VERIFY && !BOUNDS && !RECHECK && !waiting && own.some(holds) && read) return;
   // --verify: an event none of whose rows still has openings to check doesn't count against --limit.
   if (VERIFY && !own.some((v) => { const f = rowOf(v); return f && (!f.opens || f.unconfirmed?.length) && Object.keys(f.starts).length; })) return;
   // --bounds: likewise an event none of whose rows still lacks an edge (every row, with --all).
   if (BOUNDS && !own.some((v) => { const f = rowOf(v); return f && (ALL || !f.opensOn || !f.endsOn); })) return;
+  // --recheck: likewise an event none of whose rows has a review entry due a second look.
+  if (RECHECK && !own.some((v) => { const f = rowOf(v); return f && recheckDue(f, rejectedAt(f)).length; })) return;
   // Checked again once claimed: a lane that passed its check while another was still loading would read past --limit.
   if (++done > limit) return;
   // An event's lines together (events run side by side).
@@ -1441,6 +1497,12 @@ async function doCode(code: string): Promise<void> {
     if (BOUNDS) {
       // Only a video's first and last frames, for a row read before they were (or every row, with --all).
       if (prior && (ALL || !prior.opensOn || !prior.endsOn)) await boundsRow(prior, m.length!, division, log);
+      continue;
+    }
+    if (RECHECK) {
+      // Only a second look at its review entries: its starts stay as read.
+      const due = prior ? recheckDue(prior, rejectedAt(prior)) : [];
+      if (prior && due.length) await recheckVideo(prior, m.length!, due, division, order, deadline, log);
       continue;
     }
     if (VERIFY) {
