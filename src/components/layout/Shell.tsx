@@ -473,7 +473,8 @@ export function Shell({ children }: { children: ReactNode }) {
               </div>
             </header>}
             <div className="relative flex-1">
-              {!bare && v8 && glow && <PageEndGlow />}
+              {/* Home has none: its dashboard sits under the top wash, and the page shows one gradient at a time. */}
+              {!bare && v8 && glow && !isHomePath(loc.pathname) && <PageEndGlow />}
               {/* The ambient layer fills the screen under the top bar and stays there while the page scrolls
                   over it (sticky, and pulled out of the flow by its negative margin). svh, not dvh: a phone's
                   toolbar folding away must not resize it mid-scroll. */}
