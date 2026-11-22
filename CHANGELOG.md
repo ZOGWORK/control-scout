@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.7.7 — 2026-11-22
+
+The Discord bot no longer says its AI answers are unreachable in a channel where it was chatting a moment ago.
+
+### Highlights
+- [fixes] A message with no AI answer isn't blamed on the AI being down
+- [fixes] Only a bot whose chat is really off says it can't chat
+- [fixes] The fallback still points at teams, events and matches
+
+### Discord bot
+- When the bot's chat is wired, configured and switched on but gives nothing about one message (a reply with a number the facts don't have, an empty one, a failure), the fallback says that message got no answer (`bot/smallTalk.ts`, `bot/ask.ts`) instead of claiming its AI answers aren't reachable — which contradicted the answer it had just posted in the same channel. A chat that is off, unconfigured or switched off still says so, as `bot/README.md` now documents. (#PRNUM)
+
 ## 7.7.6 — 2026-11-22
 
 Searching again from the results page's own search bar starts from that bar's answer too, with no loading screen.
