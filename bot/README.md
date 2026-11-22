@@ -14,6 +14,7 @@ an embed that links back to controlscout.org:
 | `/following` | The server's followed teams and where each posts (up to 10 per server) |
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below) |
 | `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking |
+| `/config` | What the bot can do here, read live: the season, the site it talks to, chat on (or why it isn't), report filing, the follow posts, and whether its commands are registered globally or only in the test server. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
 
 ## /ask
@@ -81,7 +82,8 @@ config: follow posts on — 12 follows in 4 servers (a tick a minute while conne
 so `journalctl -u control-scout-bot | grep 'config:'` answers "what can this bot do here, and what is it missing?" in
 one look: the chat says `off —` with the reason ask.ts itself gives (Control Point unconfigured, or the switch off), the
 follows are counted (or it says none yet, or that they couldn't be read), the commands are placed (`globally`, or `in
-server <id> only (DISCORD_DEV_GUILD_ID)`), and no line ever carries a secret's value.
+server <id> only (DISCORD_DEV_GUILD_ID)`), and no line ever carries a secret's value. `/config` (Manage Server, answered
+privately) shows the same six lines in Discord, read live — same function, so the two can't disagree.
 
 The issue is as public as the repository's issues: it posts what
 the channel said, which is the point of the request — with an `@mention` and a `#123` neutralised, since it's filed

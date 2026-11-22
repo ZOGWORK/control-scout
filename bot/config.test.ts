@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ flag: vi.fn(async () => true) }));
 vi.mock("../server/flags", () => ({ isEnabled: state.flag }));
 
-import { configLines } from "./config";
+import { configEmbed, configLines } from "./config";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED, chatSetup } from "./chatState";
 
 const KEYS = ["CONTROL_POINT_INTERNAL_URL", "CONTROL_POINT_INTERNAL_KEY", "GITHUB_REPORT_TOKEN"] as const;
@@ -90,6 +90,20 @@ describe("the startup summary", () => {
     expect(all({ follows: { follows: 1, servers: 1 } })[5]).toContain("1 follow in 1 server (");
     expect(all({ follows: { follows: 0, servers: 0 } })[5]).toContain("nothing followed yet");
     expect(all({ follows: null })[5]).toContain("couldn't be read");
+  });
+
+  it("/config says the same six things, without the log's prefix, and no secret's value", () => {
+    process.env.GITHUB_REPORT_TOKEN = "ghp-report-token";
+    const c = { season: 2025, sitePort: 3000, commands: { guild: null }, chat: { on: true as const }, follows: { follows: 3, servers: 2 } };
+    const embed = configEmbed(c);
+    const lines = String(embed.description).split("\n");
+    expect(lines).toHaveLength(configLines(c).length);
+    expect(lines.every((l) => l.startsWith("• "))).toBe(true);
+    expect(lines[0]).toContain("season 2025");
+    expect(lines[2]).toContain("slash commands globally");
+    expect(lines[5]).toContain("3 follows in 2 servers");
+    expect(String(embed.description)).not.toContain("config:");
+    expect(String(embed.description)).not.toContain("ghp-report-token");
   });
 
   it("never prints a secret's value, only whether it is set", async () => {

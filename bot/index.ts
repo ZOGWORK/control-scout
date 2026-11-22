@@ -13,10 +13,10 @@ import { configure, db, get } from "../server/db.js";
 import { CURRENT_SEASON } from "../server/data/seasons.js";
 import { liveForecaster, refreshForecasters } from "../server/predict/engine.js";
 import { COMMANDS, sameCommands } from "./commands.js";
-import { createHandler } from "./handler.js";
+import { createHandler, realLookups } from "./handler.js";
 import { notifyTick, type Send } from "./follows.js";
 import { site } from "./lookups.js";
-import { configLines } from "./config.js";
+import { configEmbed, configLines, type Config } from "./config.js";
 import { chatSetup } from "./chatState.js";
 import { beat } from "../server/uptime.js";
 
@@ -43,10 +43,16 @@ await configure(db()).catch((e) => log(`database not ready yet (${(e as Error).m
 // One startup summary of what this process can do (bot/config.ts): chat and why not, report filing, follow posts, the
 // site it talks to and the season. `journalctl -u control-scout-bot | grep 'config:'` then answers it, with no test
 // message and no test issue filed. Said after the database is open, since the chat switch and the follows live there.
-const follows = await get<{ n: number; g: number }>("SELECT COUNT(*) AS n, COUNT(DISTINCT guild_id) AS g FROM discord_follows")
-  .then((r) => ({ follows: Number(r?.n ?? 0), servers: Number(r?.g ?? 0) }))
-  .catch(() => null);
-for (const line of configLines({ season: CURRENT_SEASON, sitePort: env.port, commands: { guild: env.discordDevGuildId }, chat: await chatSetup(), follows })) log(line);
+for (const line of configLines(await configHere())) log(line);
+
+/** What this bot can do here, read now: the startup summary and /config both come from this, so the journal and the
+ *  command can't disagree. Said once the database is open, since the chat switch and the follows live there. */
+async function configHere(): Promise<Config> {
+  const follows = await get<{ n: number; g: number }>("SELECT COUNT(*) AS n, COUNT(DISTINCT guild_id) AS g FROM discord_follows")
+    .then((r) => ({ follows: Number(r?.n ?? 0), servers: Number(r?.g ?? 0) }))
+    .catch(() => null);
+  return { season: CURRENT_SEASON, sitePort: env.port, commands: { guild: env.discordDevGuildId }, chat: await chatSetup(), follows };
+}
 
 async function waitForSite(timeoutMs = 180_000): Promise<void> {
   const url = `http://127.0.0.1:${env.port}/api/health`;
@@ -66,7 +72,8 @@ async function waitForSite(timeoutMs = 180_000): Promise<void> {
 // GuildMessages (not privileged) for "@Control Scout …": Discord sends the text only of messages that mention the
 // bot, so without the privileged Message Content intent it never reads anything else.
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
-const handle = createHandler(log);
+// /config answers with the same summary the startup log prints (bot/config.ts), read live rather than from startup.
+const handle = createHandler(log, { ...realLookups, config: async () => configEmbed(await configHere()) });
 
 async function register(appId: string): Promise<void> {
   const rest = new REST().setToken(token!);
