@@ -43,7 +43,10 @@ const answer = async (match: RegExp, body: unknown) => {
 };
 
 function Where() { const at = useLocation(); return <p data-testid="at">{at.pathname}{at.search}</p>; }
-function Again() { const nav = useNavigate(); return <button type="button" onClick={() => nav("/search?q=team%206980")}>search again</button>; }
+function Go({ to, label }: { to: string; label: string }) {
+  const nav = useNavigate();
+  return <button type="button" onClick={() => nav(to)}>{label}</button>;
+}
 const show = (url: string, extra?: React.ReactNode) =>
   render(<MemoryRouter initialEntries={[url]}><SearchPage />{extra}</MemoryRouter>);
 
@@ -80,13 +83,31 @@ describe("search results page, the answer Enter already had", () => {
     // that lets a submitted query open the one page it names (./components/search/direct.ts).
     handOffAnswer(TOP);
     markDirect("top rookie teams");
-    show("/search?q=top%20rookie%20teams", <><Where /><Again /></>);
+    show("/search?q=top%20rookie%20teams", <><Where /><Go to="/search?q=team%206980" label="search again" /></>);
     expect(loading()).toBeNull();
     // The bar's box answered the next query and marked it, as Enter does.
     markDirect("team 6980");
     fireEvent.click(screen.getByRole("button", { name: "search again" }));
     expect(screen.getByTestId("at").textContent).toBe("/search?q=team%206980");
     await answer(/q=team%206980&/, ANSWER);
+    expect(screen.getByTestId("at").textContent).toBe("/teams/6980");
+  });
+
+  it("coming back to the first query isn't seeded either: only the visit that arrived with an answer is", async () => {
+    // Seeded on /search?q=6980…
+    handOffAnswer(ANSWER);
+    markDirect("6980");
+    show("/search?q=6980", <><Where /><Go to="/search?q=top%20rookie%20teams" label="another" /><Go to="/search?q=6980" label="first" /></>);
+    expect(loading()).toBeNull();
+    // …away to another query, which answers itself…
+    fireEvent.click(screen.getByRole("button", { name: "another" }));
+    await answer(/q=top%20rookie%20teams&/, TOP);
+    pending.length = 0; // the first visit's request, left behind by this one
+    // …and back to the first words, submitted again from the box: this visit has nothing in hand, so /search waits
+    // for its own answer and goes on to the one page it names.
+    markDirect("6980");
+    fireEvent.click(screen.getByRole("button", { name: "first" }));
+    await answer(/q=6980&/, ANSWER);
     expect(screen.getByTestId("at").textContent).toBe("/teams/6980");
   });
 });
