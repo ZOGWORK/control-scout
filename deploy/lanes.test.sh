@@ -89,6 +89,7 @@ case_template() {
   s=$(lanes_socket <"$LANES_SYSTEMD_DIR/control-scout.socket")
   grep -qx 'Description=FTC Control Scout (lane %i)' <<<"$t" &&
     [ "$(grep -A1 -x '\[Service\]' <<<"$t" | tail -n1)" = "Sockets=control-scout.socket" ] &&
+    [ "$(grep -A2 -x '\[Service\]' <<<"$t" | tail -n1)" = "Environment=CS_LANE=%i CS_LANE_UNIT=%p" ] &&
     grep -qx 'ExecStart=/usr/bin/node --enable-source-maps build/server/index.mjs' <<<"$t" &&
     grep -qx 'Requires=control-scout.socket' <<<"$t" &&
     [ "$(grep -A1 -x '\[Socket\]' <<<"$s" | tail -n1)" = "Service=control-scout@a.service" ] &&
