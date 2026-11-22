@@ -526,7 +526,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
       // A follow-up is nobody's page: only a question standing on its own words is marked for /search to open one.
       const asked = askedQuery();
       if (asked === query) markDirect(query);
-      openResults(asked);
+      // The box already has the answer: /search starts from it instead of its loading screen (./handoff).
+      openFull();
     }
   };
   // Enter, the keyboard's Search key and the magnifier: the highlighted row (Enter only); with none, the full results
