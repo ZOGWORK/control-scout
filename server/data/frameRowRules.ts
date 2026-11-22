@@ -10,6 +10,7 @@
 //     stay `unconfirmed`, never a new one;
 //   - a clip the live site plays leaves only when a frame names another match there ("its clip's first frame shows Q7,
 //     not Q6", the reader's review): a frame that names nothing never pulls one;
+//   - a start confirmed by the second look (`confirmed`) stands on two separate frames inside its match;
 //   - a re-read row carries a newer `checked` date than the live one.
 // Clip checks: a clip is pulled only where its first frame names another match; one whose frame names its own match is
 // ok; one that names nothing stays served (unconfirmed); what the live row settled stays.
@@ -18,6 +19,10 @@ import type { ClipCheck } from "./clipChecks.js";
 
 /** Two reads closer than this (seconds) are the same distance: the timer reads to the second, and the frame read lags it. */
 export const SAME_S = 6;
+/** The least a match lasts in a video (30 s Auto, 8 s switch, 2:00 TeleOp: scripts/lib/videoFrames.ts MATCH_S). */
+const MATCH_S = 158;
+/** The separate frames a confirmed start stands on (`confirmed`): a review entry had one signal; two agreeing more. */
+export const CONFIRM_FRAMES = 2;
 /** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match.
  *  The 2 and 0 open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
  *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. The last two open
@@ -38,6 +43,13 @@ export const PLAY_FAILED = "the video couldn't be played";
 const PULLED = /^its clip's first frame shows (.+), not (.+)$/;
 /** Whether a review reason is the reader's pull of this match: its opening frame names a different match. */
 export const namesAnother = (label: string, why: string | undefined) => { const m = PULLED.exec(why ?? ""); return !!m && m[2] === label && m[1] !== label; };
+/** Whether a row's review entry for `label` is due the autopilot's second look (scripts/lib/reviewRecheck.ts): it has a
+ *  second to read at, it isn't a start already, and it hasn't been looked at again since the video was read (`again`).
+ *  The frame-read queue (server/videos/frameQueue.ts) queues an event for it; the reader's --recheck takes it. */
+export const secondLookDue = (row: Pick<FrameTiming, "starts" | "review">, label: string): boolean => {
+  const e = row.review?.[label];
+  return !!e && Number.isFinite(e.t) && e.t >= 0 && !e.again && row.starts[label] == null;
+};
 /** A calendar date, YYYY-MM-DD, that exists ("2026-02-30" doesn't). */
 const isDate = (s: string) => {
   const t = /^\d{4}-\d\d-\d\d$/.test(s) ? Date.parse(`${s}T00:00:00Z`) : NaN;
@@ -86,6 +98,17 @@ export function rowProblems(next: FrameTiming, live?: FrameTiming, order?: strin
     const t = next.starts[l];
     if (t == null || was[l] == null || Math.abs(was[l] - t) > SAME_S) out.push(`${l}: unconfirmed, but not a live clip at that second`);
     else if (next.opens?.[l] != null) out.push(`${l}: unconfirmed, yet its opening is checked`);
+  }
+  // Starts the autopilot's second look moved out of review (`confirmed`, scripts/lib/reviewRecheck.ts): each stands on
+  // CONFIRM_FRAMES separate frames inside its match, the second signal its review entry lacked.
+  for (const [l, secs] of Object.entries(next.confirmed ?? {})) {
+    const t = next.starts[l];
+    if (t == null) { out.push(`${l}: confirmed by frames, but has no start`); continue; }
+    const whole = Array.isArray(secs) && secs.every((x) => Number.isInteger(x) && x >= 0);
+    const seen = new Set(whole ? secs : []);
+    if (seen.size < CONFIRM_FRAMES) out.push(`${l}: confirmed by fewer than ${CONFIRM_FRAMES} separate frames`);
+    for (const x of seen) if (x < t - SAME_S || x > t + MATCH_S) out.push(`${l}: a confirming frame at ${x} s isn't inside its match (start ${t} s)`);
+    if (next.review?.[l]) out.push(`${l}: confirmed, yet still for review`);
   }
   // Live clips: kept (anywhere in starts, a read's slack from where they were), or pulled by a frame naming another match.
   if (live) {
