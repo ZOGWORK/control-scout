@@ -131,6 +131,26 @@ describe("v8 shell", () => {
     expect(container.querySelector("[data-page-end-glow]")).toBeTruthy();
   });
 
+  it("shows one gradient at a time: no page-end glow on Home, and elsewhere only once the top wash is off screen", () => {
+    expect(shell("/").container.querySelector("[data-page-end-glow]")).toBeNull();
+    cleanup();
+    let report: (on: boolean) => void = () => {};
+    const real = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = class {
+      constructor(cb: IntersectionObserverCallback) { report = (on) => cb([{ isIntersecting: on } as IntersectionObserverEntry], this as unknown as IntersectionObserver); }
+      observe() { report(true); } disconnect() {} unobserve() {} takeRecords() { return []; }
+    } as unknown as typeof IntersectionObserver;
+    try {
+      const glow = () => document.querySelector("[data-page-end-glow]")!;
+      shell("/events");
+      expect(glow().hasAttribute("data-hidden")).toBe(true);
+      act(() => report(false));
+      expect(glow().hasAttribute("data-hidden")).toBe(false);
+      act(() => report(true));
+      expect(glow().hasAttribute("data-hidden")).toBe(true);
+    } finally { globalThis.IntersectionObserver = real; }
+  });
+
   it("uses the three-stream particle background throughout the v8 app", () => {
     act(() => resetFlags({ ...DEFAULT_FLAGS }, true));
     for (const path of ["/", "/events", "/events/2026/USNJQ1", "/teams", "/teams/4215", "/rankings", "/predict", "/my-team", "/scout", "/compare", "/shortlist", "/rules", "/download", "/settings"]) {
