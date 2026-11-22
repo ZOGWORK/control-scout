@@ -19,7 +19,7 @@ import { flushMetrics, usageSummary } from "../metrics.js";
 import { vitalsSummary } from "../vitals.js";
 import { onboardingSummary } from "../onboardingStats.js";
 import { liveConnections } from "../liveConnections.js";
-import { statsSummary } from "../analytics.js";
+import { publicUsage, statsSummary } from "../analytics.js";
 import type { OwnerUsage } from "../../src/shared/owner.js";
 import { listAudit, recordAudit } from "./audit.js";
 import { isFeedbackStatus, isTriageState, listFeedback, setFeedbackStatus, setTriage, TriageError, triageQueue } from "./feedback.js";
@@ -192,6 +192,9 @@ export function ownerRouter(): Router {
     await flushMetrics().catch(() => {});
     return ownerAnalytics(num(req.query.days, 14, 1, 90));
   }));
+  // The home page's "Control Scout, in use" figures as the owner console shows them (Analytics): always, published or
+  // not (the switch below only decides whether visitors see them). The new home page has no such section.
+  r.get("/public-usage", h(async () => publicUsage(true)));
   r.put("/settings/public-usage", h(async (req, res) => {
     if (req.body?.confirm !== true) { res.status(400).json({ error: "Confirm with {\"confirm\": true}" }); return; }
     if (typeof req.body?.enabled !== "boolean") { res.status(400).json({ error: "Send {\"enabled\": true | false, \"confirm\": true}" }); return; }
