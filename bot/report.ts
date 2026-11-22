@@ -5,7 +5,7 @@
 //
 // Nothing here may fail loudly: a report that can't be filed is said plainly in the channel and logged (the reason
 // only, never the token or anything from the report), and the bot carries on.
-import { gh, GITHUB_REPO } from "../server/errorReports.js";
+import { gh, GITHUB_REPO, takeReportSlot } from "../server/errorReports.js";
 import { env } from "../server/env.js";
 import { RELEASE } from "../server/release.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
@@ -34,8 +34,12 @@ export interface Report {
   logs: string[];
 }
 
-/** Filed (its number and link), or why not. */
-export type Filed = { ok: true; number: number; url: string } | { ok: false; reason: string };
+/** Reports one person, and one server, may file an hour: an issue is public and filed under the site's own token (and
+ *  its GitHub rate limit, shared with the site's error reports), so the phrase can't be repeated into a flood. */
+export const REPORT_LIMITS = { user: 3, guild: 8 };
+
+/** Filed (its number and link), or why not — `limited`: this person or server has had its few already. */
+export type Filed = { ok: true; number: number; url: string } | { ok: false; reason: string; limited?: boolean };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 /** Discord text in an issue: it's filed under the bot's own GitHub identity, so a member can't use a report to ping a
@@ -76,6 +80,14 @@ export function reportBody(r: Report, now = Date.now()): string {
 export async function fileReport(r: Report, now = Date.now()): Promise<Filed> {
   const token = env.githubReportToken;
   if (!token) return { ok: false, reason: "reporting isn't set up (GITHUB_REPORT_TOKEN)" };
+  // A few an hour per person and per server, through the site's own limiter (server/errorReports.ts): a report files a
+  // public issue under the bot's identity, so one member can't flood the repository (or the token's shared limit).
+  if (!takeReportSlot(`discord:user:${r.user}`, REPORT_LIMITS.user, now).ok) {
+    return { ok: false, limited: true, reason: "too many reports from that person this hour" };
+  }
+  if (r.guild && !takeReportSlot(`discord:guild:${r.guild}`, REPORT_LIMITS.guild, now).ok) {
+    return { ok: false, limited: true, reason: "too many reports from that server this hour" };
+  }
   try {
     const issue = await gh<{ number: number; html_url?: string }>(token, "POST", "/issues", {
       title: REPORT_TITLE, body: reportBody(r, now), labels: REPORT_LABELS,

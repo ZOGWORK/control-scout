@@ -58,7 +58,9 @@ second secret). The issue carries the message that asked, the turns of the threa
 user ids, the asker's display name, the bot's last 20 log lines and the release. The bot answers with the issue number
 and link, and **one message files one issue**: asking again for the same message (even twice at once) points at that
 issue, while two members' different reports are two issues, each keyed by its own message. A report that can't be filed
-(no token, GitHub refusing) says so in the channel and logs the reason, never throws. A report is never counted as a
+(no token, GitHub refusing) says so in the channel and logs the reason, never throws; over the cap — `REPORT_LIMITS`,
+3 an hour per person and 8 per server, through the site's own `takeReportSlot` — it says that instead, and nothing is
+filed. The phrase is the only gate: any member can report, which is the point of it. A report is never counted as a
 chat, so a server at its cap can still report a bug. The issue is as public as the repository's issues: it posts what
 the channel said, which is the point of the request — with an `@mention` and a `#123` neutralised, since it's filed
 under the bot's own GitHub identity and a member must not be able to ping a stranger or cross-reference an issue with it.
