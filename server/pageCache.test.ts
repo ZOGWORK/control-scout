@@ -11,7 +11,7 @@ import { all, migrate, openDb, run, setDb } from "./db";
 import { rebuildSearch } from "./stats/job";
 import { createApp } from "./app";
 import { clearAllCaches } from "./caches";
-import { CACHED_PAGE, pageKey } from "./pageCache";
+import { CACHED_PAGE, drawPage, pageBody, pageKey } from "./pageCache";
 import { keptCounts } from "./api/searchReads";
 
 describe("which pages are kept", () => {
@@ -124,5 +124,25 @@ describe("the HTML route", () => {
     const r = await raw("/teams/4215", "gzip");
     expect(r.encoding).toBe("gzip");
     expect(gunzipSync(r.body).toString()).toContain(`<div id="root">`);
+  });
+});
+
+describe("what a kept page holds", () => {
+  it("keeps only the gzip of the page (no HTML string), and gives back the same HTML either way", async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+    const dist = mkdtempSync(join(tmpdir(), "cs-kept-"));
+    const file = join(dist, "index.html");
+    writeFileSync(file, `<!doctype html><html><head><title>x</title></head><body><div id="root"></div><script>1</script></body></html>`);
+    const page = await drawPage(file, "/teams/4215", {});
+    expect(Object.values(page).some((v) => typeof v === "string" && v.includes("<html"))).toBe(false);
+    expect(Buffer.isBuffer(page.gz)).toBe(true);
+    const html = gunzipSync(page.gz).toString();
+    expect(html).toContain(`<div id="root">`);
+    const zipped = await pageBody(page, true), plain = await pageBody(page, false);
+    expect(zipped).toEqual({ body: page.gz, gzip: true });
+    expect(plain.gzip).toBe(false);
+    expect(plain.body.toString()).toBe(html);
   });
 });
