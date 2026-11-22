@@ -521,6 +521,10 @@ a.underline:visited:where(.text-accent-text), .prose-links a:visited { color: co
     radial-gradient(ellipse 30% 80% at 52% 100%, rgb(85 100 150 / 0.3), transparent 80%);
   mask-image: radial-gradient(ellipse 65% 110% at 50% 110%, #000 25%, transparent 78%);
 }
+/* One gradient at a time: hidden while the top wash is on screen (PageEndGlow.tsx), fading in once it has scrolled away. */
+[data-page-end-glow] { transition: opacity 400ms ease; }
+[data-page-end-glow][data-hidden] { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { [data-page-end-glow] { transition: none; } }
 
 /* ---------- Ambient background (always on) ----------
    Control Point's line grid, alive: lines drift one cell every ~48 s, a soft
