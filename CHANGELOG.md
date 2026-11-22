@@ -25,7 +25,7 @@ Searching again from the results page's own search bar starts from that bar's an
 - [fixes] A query still goes straight to its page when it names one
 
 ### Search
-- A query submitted from `/search`'s own box starts from the answer that box already had, as Enter from any other page does: the page reads the handoff whenever its `?q=` changes, not only when it mounts, and the visit handed an answer neither waits nor goes on to a page it already knew the words don't name (`src/pages/SearchPage.tsx`, `useSearchHits` in `src/components/search/SearchBox.tsx`, `src/components/search/handoff.ts`, `src/components/search/direct.ts`).
+- A query submitted from `/search`'s own box starts from the answer that box already had, as Enter from any other page does: the page reads the handoff whenever its `?q=` changes, not only when it mounts, and the visit handed an answer neither waits nor goes on to a page it already knew the words don't name (`src/pages/SearchPage.tsx`, `useSearchHits` in `src/components/search/SearchBox.tsx`, `src/components/search/handoff.ts`, `src/components/search/direct.ts`). (#2120)
 
 ## 7.7.5 — 2026-11-22
 
