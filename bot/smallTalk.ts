@@ -17,14 +17,22 @@ export const SMALL_TALK_WORDS = 12;
 export const NO_CHAT =
   "I can't chat right now — my AI answers aren't reachable, so I can only go by the records. Ask me about a team, an event or a match.";
 
+/** The same fallback for a chat that is there and gave nothing about this one message (a reply with a number the facts
+ *  don't have, an empty one, a failure): the model isn't missing, so it says only that this message got no answer.
+ *  Saying its AI is unreachable would contradict the answer it posted a moment earlier in the same channel, and send
+ *  whoever reads it looking for a broken deployment. */
+export const NO_REPLY = "I didn't get an answer to that one — ask me about a team, an event or a match.";
+
 /** Whether these words are short enough to be a greeting rather than a question search couldn't answer. */
 export const shortEnough = (q: string) => q.trim().split(/\s+/).filter(Boolean).length <= SMALL_TALK_WORDS;
 
-/** The bot's one fallback for a short message, or null: a real question (a number in it), or a long one. */
-export function smallTalk(q: string): string | null {
+/** The bot's one fallback for a short message, or null: a real question (a number in it), or a long one.
+ *  `reachable`: the chat is wired, configured and switched on, so it answered other messages and this one alone got
+ *  nothing back (bot/ask.ts works that out); it is then described as that, never as missing. */
+export function smallTalk(q: string, reachable = false): string | null {
   const t = q.trim().replace(/\s+/g, " ");
   if (!t || !shortEnough(t)) return null;
   // A number is a team, a season or a score: that's a records question however short ("6980", "2025 worlds").
   if (/\d/.test(t)) return null;
-  return NO_CHAT;
+  return reachable ? NO_REPLY : NO_CHAT;
 }

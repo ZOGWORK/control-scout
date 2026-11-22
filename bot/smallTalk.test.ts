@@ -1,7 +1,7 @@
 // One honest fallback (bot/smallTalk.ts): when no model answered and search found nothing, every short message that
 // isn't a records question gets the same plain line — no canned greeting, no guessed favourite, no fact.
 import { describe, expect, it } from "vitest";
-import { NO_CHAT, SMALL_TALK_WORDS, smallTalk } from "./smallTalk";
+import { NO_CHAT, NO_REPLY, SMALL_TALK_WORDS, smallTalk } from "./smallTalk";
 
 describe("the one fallback", () => {
   it("answers the screenshot's favourite, a greeting, thanks, a joke and a goodbye the same honest way", () => {
@@ -24,6 +24,21 @@ describe("the one fallback", () => {
     expect(NO_CHAT).toMatch(/a team, an event or a match/);
     expect(NO_CHAT).not.toMatch(/\d/);
     expect(NO_CHAT).not.toMatch(/favourite|favorite|opinion|I think/i);
+  });
+
+  it("a chat that is there and said nothing about this message is not called unreachable", () => {
+    // The screenshot's exchange: the bot chatted twice, then met a message the model gave no usable reply to ("are you
+    // sure you are a bruno"). The AI answers, so the line says only that this one got no answer.
+    for (const q of ["are you sure you are a bruno", "hi", "thanks!"]) expect(smallTalk(q, true)).toBe(NO_REPLY);
+    expect(smallTalk("are you sure you are a bruno")).toBe(NO_CHAT);
+    expect(NO_REPLY).toMatch(/didn't get an answer/);
+    expect(NO_REPLY).toMatch(/a team, an event or a match/);
+    expect(NO_REPLY).not.toMatch(/unreachable|can't chat/);
+    expect(NO_REPLY).not.toMatch(/\d/);
+    expect(NO_REPLY).not.toMatch(/favourite|favorite|opinion|I think/i);
+    // A records question keeps its honest card however the chat was doing.
+    expect(smallTalk("6980", true)).toBeNull();
+    expect(smallTalk("hello, which teams from romania are going to worlds this year and how are they ranked", true)).toBeNull();
   });
 
   it("leaves a records question alone: a number in it, or anything long", () => {
