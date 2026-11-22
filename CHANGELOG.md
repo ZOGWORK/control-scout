@@ -28,7 +28,7 @@ The Discord bot answers the question that was asked: an explanation gets a short
 ### Discord bot
 - Answer shape (`bot/productFacts.ts`, `bot/ask.ts`): every Discord chat sends one more instruction beside the product facts — match the question; a records question gets the number first and a line or two, while a question about how or why something works gets a one-line **bold** summary, 2–3 short paragraphs or up to five bullets, key terms in bold, about 600 to 1,200 characters, and no headings, tables or code blocks. "Explain a coaxial swerve" no longer gets a clipped sentence; Control Point's 400-character per-line cap and Discord's 2,000-character message cap still hold.
 - Per-server limits, not enforced yet (`bot/quota.ts`, migration 99): `discord_limits` holds a server's chats per UTC hour and per UTC day, `discord_chat_usage` its counts. A server with no row — every server now — is unlimited: `takeChat` allows the chat at once and writes nothing, so nothing is counted or refused today. `setGuildLimit` sets or clears one; at a cap, `/ask` and a mention get a plain note with when it resets, and a quota read that fails never silences the bot. The unlimited default, hourly and daily resets, pruning and per-server isolation are tested on a database (`bot/quota.test.ts`).
-- A chat now waits 45 s for Control Point instead of 30 (`CHAT_TIMEOUT_MS`): a structured explanation takes longer than the one-sentence answers the timeout was set for. (#0000)
+- A chat now waits 45 s for Control Point instead of 30 (`CHAT_TIMEOUT_MS`): a structured explanation takes longer than the one-sentence answers the timeout was set for. (#2127)
 
 ## 7.7.8 — 2026-11-22
 
