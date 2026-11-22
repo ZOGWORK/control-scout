@@ -149,6 +149,12 @@ https://controlscout.org.
   (`FOLLOW_UP_HEAP_MB`) and the data cycle child with 1536 MB (`CYCLE_HEAP_MB`), each run once more without it
   should it ever run out (`withHeapCap`, server/data/cycle.ts): each child's memory counts toward the
   lane's, on top of the web process (`systemctl show -p MemoryPeak control-scout@a`).
+- **Shared ratings:** each data version's ratings are built once on the machine and shared
+  (`server/predict/sharedRatings.ts`): the first process to need them (usually the live follow-up child) replays
+  and saves them to `/dev/shm/control-scout-ratings` (87 MB a build, the newest 3 per anchor kept); the web
+  process's rebuild worker and the other children load them (1.4 s) instead of replaying (13 s). The log says which
+  (`ratings: 2026 loaded the shared build (1.4 s)` / `built here and shared`). Keyed by data version, engine version
+  and release; `RATINGS_SHARE=off` turns it off, `RATINGS_SHARE_DIR` moves it. "Clear caches" deletes the builds.
 - **Usage statistics** (anonymous page views from visitors who chose "Allow"; daily
   aggregates in `analytics_daily`, no IPs, user agents, cookies or IDs): on the VM,
   `cd /opt/control-scout/current && sudo -u controlscout bash -c 'set -a; . /opt/control-scout/shared/.env; set +a; npm run stats:report'`
