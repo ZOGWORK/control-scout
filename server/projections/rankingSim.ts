@@ -21,7 +21,7 @@ export type SimRankAnswer =
 
 const MAX_KEPT = 200;
 const kept = new Map<string, Promise<SimRankAnswer>>();
-registerCache("Simulated rankings", () => kept.clear());
+registerCache("Simulated rankings", () => kept.clear(), { clipFree: true });
 // One simulation at a time: the VM is small and shared.
 let queue: Promise<unknown> = Promise.resolve();
 

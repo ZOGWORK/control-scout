@@ -19,7 +19,7 @@ import { carryApproved, clipCheckProblems, nothingRead, rowProblems, SAME_S } fr
 import { CLIP_LEAD_S } from "../../src/shared/recording.js";
 import { LockBusy, withDataLock } from "../data/lock.js";
 import { recordAudit } from "../portal/audit.js";
-import { clearAllCaches } from "../caches.js";
+import { clearClipCaches } from "../caches.js";
 import type { AutoReadChange, AutoReadKind, OwnerAutoReads, PendingAutoRead, PendingReview } from "../../src/shared/api.js";
 
 /** Who the audit names for what the autopilot hands over. */
@@ -185,7 +185,7 @@ export async function applyDelivery(d: Delivery, now = Date.now(), log: (s: stri
     }
   }
   await recordAudit(AUTOPILOT_ACTOR, "autoReads.delivery", { kind: d.kind, season: d.season, source, live: out.live, pending: out.pending, same: out.same, dropped: out.dropped });
-  if (out.live.length) { await loadAutoReads(); clearAllCaches(); }
+  if (out.live.length) { await loadAutoReads(); clearClipCaches(); }
   return out;
 }
 
@@ -303,7 +303,7 @@ export function startAutoReadsInbox(log: (s: string) => void): void {
     if (busy) return;
     busy = true;
     try {
-      if ((await liveSig()) !== loadedSig) { await loadAutoReads(); clearAllCaches(); }
+      if ((await liveSig()) !== loadedSig) { await loadAutoReads(); clearClipCaches(); }
       await processInbox({ log });
     } catch (e) { log(`auto reads: ${(e as Error).message}`); } finally { busy = false; }
   };
@@ -456,7 +456,7 @@ async function approveReviewLocked(body: ReviewBody, actor: string, now = Date.n
   [k.videoId, k.code, k.label, season, k.t, actor, at]);
   await recordAudit(actor, "autoReads.reviewApprove", { videoId: k.videoId, season, code: k.code, label: k.label, t: k.t, why: e.why });
   await loadAutoReads();
-  clearAllCaches();
+  clearClipCaches();
   return { ok: true };
 }
 
@@ -537,7 +537,7 @@ async function approveAutoReadLocked(body: Decide, actor: string, now = Date.now
   if (!n) return { ok: false, status: 409, error: "This read changed or was decided since you opened it: look again." };
   await recordAudit(actor, "autoReads.approve", { kind: k.kind, videoId: k.videoId, season: Number(row.season), code: k.code, problems: JSON.parse(String(row.pending_problems ?? "[]")) });
   await loadAutoReads();
-  clearAllCaches();
+  clearClipCaches();
   return { ok: true };
 }
 

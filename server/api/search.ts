@@ -470,7 +470,7 @@ async function fuzzyIndex(): Promise<FuzzyIndex> {
   index.catch(() => { if (indexCache?.index === index) indexCache = null; });
   return index;
 }
-registerCache("Search typo index", () => { indexCache = null; });
+registerCache("Search typo index", () => { indexCache = null; }, { clipFree: true });
 /** Builds the typo index ahead of the first search that needs it (server start). */
 export const warmTypoIndex = async (): Promise<void> => { await fuzzyIndex(); };
 

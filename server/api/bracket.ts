@@ -13,7 +13,7 @@ interface AllianceRow { number: number; captain: number | null; pick1: number | 
 
 const cache = new Map<string, BracketOdds | null>();
 const CACHE_MAX = 200;
-registerCache("Bracket odds", () => cache.clear());
+registerCache("Bracket odds", () => cache.clear(), { clipFree: true });
 
 /**
  * An event detail as the public sees it: without the bracket odds while the owner has switched them off (the

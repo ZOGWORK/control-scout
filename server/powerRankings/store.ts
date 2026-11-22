@@ -152,7 +152,7 @@ async function teamInfo(season: number, teams: number[]): Promise<Map<number, Te
 
 // Finished week views for a minute (the live numbers move with each stats run).
 const viewCache = new Map<string, { at: number; v: Promise<PowerRankingsWeek> }>();
-registerCache("Power rankings", () => { cache = null; viewCache.clear(); });
+registerCache("Power rankings", () => { cache = null; viewCache.clear(); }, { clipFree: true });
 
 async function buildWeek(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRankingsWeek> {
   const i = weeks.indexOf(doc);
