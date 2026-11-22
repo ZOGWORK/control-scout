@@ -100,9 +100,37 @@ export const quietHours = (now = new Date()) => now.getUTCHours() >= 6 && now.ge
 const SCRIPT = appPath("scripts", "data-cycle.ts");
 const PACKS_SCRIPT = appPath("scripts", "build-packs.ts");
 
-/** Run the cycle in a child Node process (same env, TypeScript through tsx); resolves when it exits cleanly. */
-export function runCycleInChild(timeoutMs = 2 * 3600_000): Promise<void> {
-  return runScriptInChild(SCRIPT, "data cycle", timeoutMs);
+/**
+ * The data cycle child's heap limit (MB). Without one V8 sizes a child's heap for the machine (about 4 GB on the VM)
+ * and barely collects before it exits: the 15-minute cycle held 1.77 GB for a heap of 650 MB, on top of the web
+ * process (the lane peaked at 4.3 GB). With 1536 it peaked at 1.14 GB and finished sooner (56 s, against 64 s),
+ * measured on the VM 2026-11-22 on a copy of its data (the season's stats and records). A backfill or every season's
+ * stats again is far more, so it has room to spare, and withHeapCap runs a child that runs out once more without it.
+ */
+export const CYCLE_HEAP_MB = 1536;
+
+/** A child that ran out of its heap: V8 aborts the process (runScriptInChild: "… exited with SIGABRT"). */
+export const outOfMemory = (e: unknown) => /\bSIGABRT$/.test((e as Error)?.message ?? "");
+
+/**
+ * Run a child with a heap limit: `start` gets the Node flags to start it with (this process's own, then the limit).
+ * A child that runs out of it runs once more without the limit, so the job never stops on it; any other failure,
+ * a timeout included, is thrown as it was.
+ */
+export async function withHeapCap<T>(heapMb: number, what: string, start: (execArgv: readonly string[]) => Promise<T>): Promise<T> {
+  try {
+    return await start([...process.execArgv, `--max-old-space-size=${heapMb}`]);
+  } catch (e) {
+    if (!outOfMemory(e)) throw e;
+    console.warn(`${what} ran out of its ${heapMb} MB heap: running it again without the limit`);
+    return start(process.execArgv);
+  }
+}
+
+/** Run the cycle in a child Node process (same env, TypeScript through tsx), with CYCLE_HEAP_MB of heap; resolves
+ *  when it exits cleanly. */
+export function runCycleInChild(timeoutMs = 2 * 3600_000, run: typeof runScriptInChild = runScriptInChild): Promise<void> {
+  return withHeapCap(CYCLE_HEAP_MB, "data cycle", (execArgv) => run(SCRIPT, "data cycle", timeoutMs, execArgv));
 }
 
 /** Build the offline packs in a child Node process (the owner portal's "Rebuild offline packs" where the cycle runs in one).

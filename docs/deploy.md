@@ -145,8 +145,9 @@ https://controlscout.org.
   stats + prediction ledger after each sync; offline packs rebuilt daily. The live lane's follow-up after new
   results (stats, records, live calls, report cards, coin flips) runs in a child process too with `DATA_CYCLE=child`
   (`LIVE_FOLLOW_UP=inline` keeps it in the server process). These children build the ratings on their own thread,
-  not a rebuild worker (they answer no requests), and the follow-up child runs with a 1024 MB heap limit
-  (`FOLLOW_UP_HEAP_MB`), run once more without it should it ever run out: each child's memory counts toward the
+  not a rebuild worker (they answer no requests). The follow-up child runs with a 1024 MB heap limit
+  (`FOLLOW_UP_HEAP_MB`) and the data cycle child with 1536 MB (`CYCLE_HEAP_MB`), each run once more without it
+  should it ever run out (`withHeapCap`, server/data/cycle.ts): each child's memory counts toward the
   lane's, on top of the web process (`systemctl show -p MemoryPeak control-scout@a`).
 - **Usage statistics** (anonymous page views from visitors who chose "Allow"; daily
   aggregates in `analytics_daily`, no IPs, user agents, cookies or IDs): on the VM,
