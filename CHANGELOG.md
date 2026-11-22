@@ -25,7 +25,7 @@ The Discord bot no longer says its AI answers are unreachable in a channel where
 - [fixes] The fallback still points at teams, events and matches
 
 ### Discord bot
-- When the bot's chat is wired, configured and switched on but gives nothing about one message (a reply with a number the facts don't have, an empty one, a failure), the fallback says that message got no answer (`bot/smallTalk.ts`, `bot/ask.ts`) instead of claiming its AI answers aren't reachable — which contradicted the answer it had just posted in the same channel. A chat that is off, unconfigured or switched off still says so, as `bot/README.md` now documents. (#PRNUM)
+- When the bot's chat is wired, configured and switched on but gives nothing about one message (a reply with a number the facts don't have, an empty one, a failure), the fallback says that message got no answer (`bot/smallTalk.ts`, `bot/ask.ts`) instead of claiming its AI answers aren't reachable — which contradicted the answer it had just posted in the same channel. A chat that is off, unconfigured or switched off still says so, as `bot/README.md` now documents. (#2123)
 
 ## 7.7.6 — 2026-11-22
 
