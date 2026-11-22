@@ -45,14 +45,25 @@ Pace: none per person — every message is answered, so two in a row get two ans
 a minute is the answer already given (one lookup, whoever asks). Every ask is logged as the command, the step, whether Bruno helped
 and the time, never who asked. The bot reads the site's search index and never writes it.
 
+**Per-server limits: built, none set.** `bot/quota.ts` holds a server's cap (chats per UTC hour and per UTC day,
+table `discord_limits`) and counts usage (`discord_chat_usage`) only once a server has one. A server with no row —
+every server today — is unlimited: nothing is counted, nothing is written and nothing is refused. At a cap, `/ask`
+and a mention get a plain note with when it resets, while the site and the server's follow posts keep working.
+`setGuildLimit(guild, { perHour, perDay }, by)` sets or clears one; a zero or a null is no cap.
+
 **@mention answers: a chat with Bruno.** `@Control Scout who won decode` or `@Control Scout hi bruno` goes to Control
 Point's Bruno chat (`POST /internal/bruno/discord-chat`) with the facts the website's search found for it, and his
 reply posts as plain text, like a chat: a greeting gets a greeting, a records question gets the answer, with the
-answer's video and a small "more on controlscout.org" link only when the records answer it. Replying to his answer
+answer's video and a small "more on controlscout.org" link only when the records answer it. An explanation question
+("explain a coaxial swerve") gets a short structured answer — a one-line **bold** summary, then a couple of short
+paragraphs or up to five `- ` bullets, key terms in bold, about 600 to 1,200 characters — where a records question
+stays the number first and a line or two: the shape is one more instruction sent with his facts (`answerStyle()` in
+`bot/productFacts.ts`), inside Control Point's 400-character line cap. Replying to his answer
 carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each; a restart forgets
 them). `/ask` answers the same way, with the question quoted. Every number in his reply must be in the facts, the
 message or the thread, or the website's answer card posts instead, as it does when Bruno is off (`discordBruno`),
-unconfigured, slow (30 s: a model reply takes about 11 s on the live deployment) or failing. Same cache and 3-second
+unconfigured, slow (45 s: a model reply takes about 11 s on the live deployment, and a structured explanation longer)
+or failing. Same cache and 3-second
 pace as every command. While a mention waits, the typing indicator is kept up.
 
 **Why a chat didn't happen** is in the bot's log, never the message or the key: `[bot] chat off: Control Point isn't

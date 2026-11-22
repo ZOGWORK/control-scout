@@ -2641,6 +2641,29 @@ CREATE TABLE IF NOT EXISTS review_decisions (
 );
 `,
   },
+  {
+    version: 99,
+    name: "discord chat limits",
+    sql: `
+-- How many chats a Discord server may ask Control Scout for (bot/quota.ts): per UTC hour and per UTC day. Written by the
+-- bot only. No row for a server, or a null/zero column, is no limit — every server's default, with nothing counted.
+CREATE TABLE IF NOT EXISTS discord_limits (
+  guild_id TEXT PRIMARY KEY,
+  per_hour INTEGER,
+  per_day INTEGER,
+  updated_by TEXT,
+  updated_at TEXT
+);
+-- What a server has used, per window ('h:2026-11-22T05', 'd:2026-11-22'). Only written once its server has a limit, and
+-- pruned to the two windows a chat counts in, so the table stays the size of the servers that are capped.
+CREATE TABLE IF NOT EXISTS discord_chat_usage (
+  guild_id TEXT NOT NULL,
+  window TEXT NOT NULL,
+  used INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (guild_id, window)
+);
+`,
+  },
 ];
 
 export type Db = Client;

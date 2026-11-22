@@ -13,6 +13,9 @@ it("sends current product knowledge with Discord chats, reserving room beside se
   const context = state.chat.mock.calls[0] as unknown as [string, string[]];
   expect(context[1].join(" ")).toContain("remodel is complete");
   expect(context[1].join(" ")).toContain("existing, available");
+  // How to shape the answer goes with the facts: a records question short, an explanation in paragraphs or bullets.
+  expect(context[1].join(" ")).toContain("How to answer in Discord");
+  expect(context[1].join(" ")).toContain("'- ' bullets");
   expect(context[1].join(" ")).toContain("Search record 0");
   expect(context[1].length).toBeLessThanOrEqual(40);
   expect(context[1].join("\n").length).toBeLessThan(8000);
@@ -32,6 +35,24 @@ it("sends current product knowledge with Discord chats, reserving room beside se
   expect(throughAsk[1].join("\n").length).toBeLessThan(7500);
   expect(throughAsk[1].join(" ")).toContain("remodel is complete");
   expect(throughAsk[1].join(" ")).toContain("Search record 0");
+});
+
+it("a structured explanation of a few paragraphs is posted as he wrote it: bold, bullets, paragraphs", async () => {
+  const text = [
+    "**A coaxial swerve keeps both drive motors on one axis.**",
+    "",
+    "The wheel's turning effort stays on the module's pivot, so it can drive and steer at once.",
+    "- **Coaxial**: both motors and gears share a shaft.",
+    "- **Offset**: the motors sit beside the pivot, so the module is wider.",
+  ].join("\n");
+  const deps = await realAskDeps();
+  const answer = state.chat.getMockImplementation()!;
+  try {
+    state.chat.mockImplementation(async () => ({ text, search: false }));
+    const reply = await ask("explain a coaxial swerve", { ...deps, facts: async () => [], search: async (q) => ({ q, hits: [], pages: [], step: "deterministic", weak: false }) }, "https://controlscout.org");
+    // Kept whole: a longer answer isn't trimmed to a sentence on the way out.
+    expect(reply.chat?.text).toBe(text);
+  } finally { state.chat.mockImplementation(answer); }
 });
 
 it("a reply with a number the facts don't have is reported, not thrown away here: ask decides whether it could be a record", async () => {
