@@ -596,6 +596,8 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
     : it.id === "vs-top" && it.n != null ? `Against top-${it.n} teams`
     : it.id === "closest-match" && it.n != null ? `${it.outcome === "W" ? "Wins" : it.outcome === "L" ? "Losses" : "Matches"} by ${it.n} point${it.n === 1 ? "" : "s"}`
     : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event")
+    // "auto opr at their last meet": the phase asked for, as the answer's own title says it ("Auto OPR at …").
+    : it.id === "event-opr" && it.phase ? `${it.phase === "auto" ? "Auto" : it.phase === "teleop" ? "TeleOp" : "Endgame"} OPR`
     : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.rank ? (it.id === "first-event" ? "First event rank" : "Latest event rank") : it.schedule ? "Event schedule" : PREDICT_INTENTS.has(it.id) && scope.event ? predictTitle(it.id) : TITLES[it.id];
   const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}`;
   // "This season" with none of the season in progress played yet reads the team's latest: the heading names that
@@ -768,7 +770,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   if (it.id === "never-played") return neverPlayedAnswer(team, ms, scope);
   if (scope.event) {
     const evs = (await teamEventSet(team.number)).events.filter((e) => e.season === scope.event!.season && (scope.event!.codes ?? [scope.event!.code]).includes(e.code));
-    const at = await eventScopeAnswer(it.id, team, ms, evs.find((e) => e.code === scope.event!.code), scope, { n: it.n, each: evs, phase: it.phase });
+    const at = await eventScopeAnswer(it.id, team, ms, evs.find((e) => e.code === scope.event!.code), scope, { n: it.n, each: evs, phase: it.phase, latest: it.scope.at === THEIR_LAST });
     if (at) return at;
   }
   // A match by its number with no event named ("<team> Q6", "<team> M14 at worlds"): each event's in the scope, of
