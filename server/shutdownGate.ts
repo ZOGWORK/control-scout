@@ -8,6 +8,7 @@ import type { NextFunction, Request, Response } from "express";
 import { get } from "./db.js";
 import { env } from "./env.js";
 import { publicAccessOpen } from "./flags.js";
+import { markNotAnError } from "./metrics.js";
 import { CSP_REPORT_PATH, cspHeaderName } from "./securityHeaders.js";
 import { gateSessions as sessions, readCookie, SESSION_COOKIE, sha256 } from "./auth/session.js";
 import { authProviders } from "./auth/routes.js";
@@ -140,6 +141,7 @@ function shut(req: Request, res: Response): void {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Vary", "Cookie");
   res.status(503);
+  markNotAnError(res); // the message, as the owner chose: not a failure (server/metrics.ts)
   if (/^\/api(\/|$)/i.test(req.path)) { res.json({ error: "unavailable", message: `${SHUTDOWN_HEADLINE} ${SHUTDOWN_BACK_SOON}` }); return; }
   res.setHeader(cspHeaderName(), GATE_CSP);
   res.type("html").send(gatePage(req.query.signin === "closed"));

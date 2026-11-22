@@ -7,12 +7,13 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { get, migrate, openDb, run, setDb } from "./db";
+import { all, get, migrate, openDb, run, setDb } from "./db";
 import { createApp } from "./app";
 import { setMailer } from "./auth/email";
 import { deleteUser, sha256, SignupsClosedError, userForIdentity } from "./auth/session";
 import { forgetPublicAccess, invalidateFlags, setFlag } from "./flags";
 import { resetGateSessions } from "./shutdownGate";
+import { flushMetrics, resetMetrics } from "./metrics";
 
 let server: Server;
 let base = "";
@@ -89,6 +90,17 @@ describe("with publicAccess off", () => {
     expect(api.status).toBe(503);
     expect(api.headers.get("cache-control")).toBe("no-store");
     expect(await api.json()).toEqual({ error: "unavailable", message: "Control Scout is under construction. We'll be back in a couple of days." });
+  });
+
+  it("the message isn't counted as an error on the owner portal's routes (still counted as a request)", async () => {
+    await shutDown();
+    resetMetrics();
+    await run("DELETE FROM request_metrics_daily");
+    for (let i = 0; i < 2; i++) expect((await call("/api/alerts-feed?season=2025&teams=1")).status).toBe(503);
+    await new Promise((r) => setTimeout(r, 50)); // the close events
+    await flushMetrics();
+    expect((await all<any>("SELECT route, count, errors FROM request_metrics_daily")).map((r) => [r.route, r.count, r.errors]))
+      .toEqual([["GET /api/alerts-feed", 2, 0]]);
   });
 
   it("leaves sign-in, the flags, assets and robots.txt reachable", async () => {
