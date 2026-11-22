@@ -52,6 +52,12 @@ describe("FeaturesPanel", () => {
     expect([...container.querySelectorAll("li[data-flag]")].map((li) => li.getAttribute("data-flag"))).toEqual(ALL_FEATURES.filter((f) => APPEARANCE_FLAGS.includes(f)));
     expect(screen.getByRole("heading", { name: "Background effects" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Kill switches" })).toBeNull();
+    expect(container.querySelector("[data-owner-look]")).toBeTruthy();
+  });
+
+  it("the look switch sits on the Appearance tab, not Features", () => {
+    const { container } = render(<FeaturesPanel />);
+    expect(container.querySelector("[data-owner-look]")).toBeNull();
   });
 
   it("a global flip asks first, says what turns off and that nothing is deleted, then sends confirm", async () => {

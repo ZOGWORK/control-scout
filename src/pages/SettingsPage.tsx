@@ -332,9 +332,6 @@ function Appearance() {
             <ToggleGroupItem value="compact">Compact</ToggleGroupItem>
           </ToggleGroup>
         </Row>
-        <Row label="Look" description="The new look or the classic one. Kept on this device.">
-          <Button variant="outline" size="sm" className="max-sm:h-[44px]" asChild><Link to="/legacy">Change</Link></Button>
-        </Row>
         <Row label="Text size" description="Everything scales together: text, boxes and buttons. Kept on this device, so your phone and laptop can differ.">
           <ToggleGroup type="single" value={textSize} onValueChange={(v) => { if (isTextSize(v)) setTextSize(v); }} aria-label="Text size">
             {TEXT_SIZES.map((t) => <ToggleGroupItem key={t.id} value={t.id}>{t.label}</ToggleGroupItem>)}
