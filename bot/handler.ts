@@ -34,12 +34,14 @@ export interface Lookups {
   memory?: Memory;
   /** Files a "Report this to ControlScout" as a GitHub issue (bot/report.ts); absent: reporting is off. */
   report?: (r: Report) => Promise<Filed>;
-  /** /config: what this bot can do here, gathered the same way its startup log gathers it (bot/config.ts); absent:
-   *  said as unreadable rather than failing. Private: the handler defers it ephemerally. */
-  config?: () => Promise<APIEmbed>;
+  /** /config: what this bot can do here, gathered the same way its startup log gathers it (bot/config.ts), for the
+   *  server it was asked in (its chat limit belongs to that server); absent: said as unreadable rather than failing.
+   *  Private: the handler defers it ephemerally. */
+  config?: (guild: string | null) => Promise<APIEmbed>;
   /** The owner's feature toggles the bot follows (server/flags.ts); absent: always on. */
   enabled?: (flag: "discordBot" | "livePredictions") => Promise<boolean>;
-  /** The server's chat limit (bot/quota.ts); absent: none enforced. No server has one set yet. */
+  /** The server's chat limit (bot/quota.ts): every server has the default, unless its own row replaced it; absent: none
+   *  enforced. */
   quota?: (guild: string) => Promise<Quota>;
 }
 
@@ -51,8 +53,8 @@ export interface Memory {
   learn: (guild: string, user: string, name: string | null, teams: number[]) => Promise<void>;
   /** A reply thread's turns, by the id of the answer that started it (kept past a restart). */
   thread: (root: string) => Promise<BrunoChatTurn[]>;
-  /** Keep a reply thread's last turns. */
-  keep: (root: string, turns: BrunoChatTurn[]) => Promise<void>;
+  /** Keep a reply thread's last turns, in its server, so it can be forgotten with the rest of that server's data. */
+  keep: (root: string, turns: BrunoChatTurn[], guild: string | null) => Promise<void>;
 }
 
 export const realLookups: Lookups = {
@@ -155,8 +157,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   // Nobody is paced per person: every message is answered (a person asking twice in a row gets both answers). Only the
   // same question within a minute is the answer already given, whoever asks.
   const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
-  // The server's chat limit (bot/quota.ts). No row — every server today — is no limit, and a read that fails allows the
-  // chat: a database blip must never silence the bot.
+  // The server's chat limit (bot/quota.ts): every server has the default cap, and a read that fails allows the chat —
+  // a database blip must never silence the bot.
   const quota = lookups.quota;
   const mayChat = async (guild: string | null | undefined): Promise<Quota> =>
     !guild || !quota ? { ok: true } : quota(guild).catch((): Quota => ({ ok: true }));
@@ -192,7 +194,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     if (kept.length) threads.set(root, kept);
     return kept;
   }
-  function remember(id: string | undefined, history: BrunoChatTurn[], question: string, r: AskReply) {
+  function remember(id: string | undefined, history: BrunoChatTurn[], question: string, r: AskReply, guild: string | null) {
     // The bot's own words aren't his: a reply to the fallback starts a new thread instead of handing the model turns
     // it never said (bot/smallTalk.ts).
     if (!id || !r.chat || r.chat.by === "scout") return;
@@ -200,7 +202,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     if (threads.size >= THREADS_MAX) threads.delete(threads.keys().next().value!);
     threads.set(id, turns);
     // Kept past a restart (bot/memory.ts), so a reply to an answer from before a deploy still carries the thread on.
-    void lookups.memory?.keep(id, turns).catch(() => {});
+    void lookups.memory?.keep(id, turns, guild).catch(() => {});
   }
   /** The server's own lines for a chat: the teams it asks about and the name the asker goes by there (bot/memory.ts). */
   async function serverLines(guild: string | null | undefined, user: string | null | undefined): Promise<string[]> {
@@ -261,7 +263,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       case "help": return Promise.resolve(helpEmbed());
       case "config":
         return lookups.config
-          ? lookups.config()
+          ? lookups.config(i.guildId)
           : Promise.reject(new Friendly("Couldn't read the config", "This bot couldn't read its own setup just now. Try again in a moment."));
       case "follow": case "unfollow": case "following": return manage(i);
       default: return Promise.reject(new Friendly("Unknown command", "This command isn't one Control Scout knows. Try /help for the list."));
@@ -309,7 +311,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     await i.deferReply(i.commandName === "config" ? { flags: MessageFlags.Ephemeral } : undefined);
     if (i.commandName === "ask") {
       const question = i.options.getString("question", true);
-      // The server's chat limit, if one is set (none is, today): said plainly, before any lookup.
+      // The server's chat limit (bot/quota.ts): said plainly, before any lookup.
       const over = await mayChat(i.guildId);
       if (!over.ok) { await i.editReply({ embeds: [pride(limitEmbed(over))] }); return; }
       // "Report this to ControlScout" in /ask: the same report a mention files (bot/report.ts), before the chat limit —
@@ -333,7 +335,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         post = { embeds: [pride(unavailableEmbed())] };
       }
       const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
-      if (r) remember((sent as { id?: string } | undefined)?.id, [], question, r);
+      if (r) remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId);
       return;
     }
     let embed: APIEmbed;
@@ -419,7 +421,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       clearInterval(typing);
       // The reply quotes the message it answers: no need to repeat the question.
       const sent = await send(askPost(q, r, false));
-      remember((sent as { id?: string } | undefined)?.id, history, q, r);
+      remember((sent as { id?: string } | undefined)?.id, history, q, r, m.guildId ?? null);
     } catch (e) {
       logLine(`mention failed: ${(e as Error)?.message ?? String(e)}`);
     }

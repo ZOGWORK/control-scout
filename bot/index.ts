@@ -15,6 +15,8 @@ import { liveForecaster, refreshForecasters } from "../server/predict/engine.js"
 import { COMMANDS, sameCommands } from "./commands.js";
 import { createHandler, realLookups } from "./handler.js";
 import { notifyTick, type Send } from "./follows.js";
+import { forgetGuild } from "./forget.js";
+import { guildLimit } from "./quota.js";
 import { site } from "./lookups.js";
 import { configEmbed, configLines, type Config } from "./config.js";
 import { chatSetup } from "./chatState.js";
@@ -55,8 +57,9 @@ const self: { tag: string | null; servers: number } = { tag: null, servers: 0 };
 for (const line of configLines(await configHere())) log(line);
 
 /** What this bot can do here, read now: the startup summary and /config both come from this, so the journal and the
- *  command can't disagree. Said once the database is open, since the chat switch and the follows live there. */
-async function configHere(): Promise<Config> {
+ *  command can't disagree. Said once the database is open, since the chat switch and the follows live there. `guild`:
+ *  the server /config was asked in, whose own chat limit is then part of the answer; the startup block has none. */
+async function configHere(guild?: string | null): Promise<Config> {
   const follows = await get<{ n: number; g: number }>("SELECT COUNT(*) AS n, COUNT(DISTINCT guild_id) AS g FROM discord_follows")
     .then((r) => ({ follows: Number(r?.n ?? 0), servers: Number(r?.g ?? 0) }))
     .catch(() => null);
@@ -72,6 +75,8 @@ async function configHere(): Promise<Config> {
     release: RELEASE, bot: self.tag === null ? null : { tag: self.tag, servers: self.servers },
     season: CURRENT_SEASON, sitePort: env.port, commands: { guild: env.discordDevGuildId },
     chat: await chatSetup(), follows, discord: { since: gateway.since, last: gateway.since ?? lastConnected },
+    // The limit is the asking server's, so only /config has one; a failed read says so rather than hiding the line.
+    ...(guild ? { limit: await guildLimit(guild).catch(() => null) } : {}),
   };
 }
 
@@ -94,7 +99,7 @@ async function waitForSite(timeoutMs = 180_000): Promise<void> {
 // bot, so without the privileged Message Content intent it never reads anything else.
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 // /config answers with the same summary the startup log prints (bot/config.ts), read live rather than from startup.
-const handle = createHandler(log, { ...realLookups, config: async () => configEmbed(await configHere()) });
+const handle = createHandler(log, { ...realLookups, config: async (guild) => configEmbed(await configHere(guild)) });
 
 async function register(appId: string): Promise<void> {
   const rest = new REST().setToken(token!);
@@ -171,6 +176,13 @@ client.on(Events.GuildCreate, (g) => {
 client.on(Events.GuildDelete, (g) => {
   self.servers = client.guilds.cache.size;
   log(`removed from a server (${self.servers} now): ${g.id}`);
+  // `available: false` is Discord saying the server is unreachable (an outage), not that the bot was removed: the bot is
+  // still in it, and its data must still be there when the gateway returns. Everything else is a real removal: the
+  // server's own rows go with it (bot/forget.ts), since nothing here should outlive the bot's place in a server.
+  if (!g.available) return;
+  forgetGuild(g.id)
+    .then((n) => log(`forgot a removed server's data (${n} row${n === 1 ? "" : "s"}): ${g.id}`))
+    .catch((e) => log(`couldn't forget a removed server's data: ${(e as Error).message}`));
 });
 client.on(Events.Error, (e) => log(`client error: ${e.message}`));
 client.on(Events.ShardDisconnect, () => {

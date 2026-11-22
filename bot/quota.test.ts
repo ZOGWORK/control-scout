@@ -1,13 +1,18 @@
-// Per-server chat limits (bot/quota.ts), on a database: no row is no limit — nothing counted and nothing refused, which
-// is how every server runs today — and a set limit counts the UTC hour and day, refuses past either with when it
+// Per-server chat limits (bot/quota.ts), on a database: no server is unlimited by default — one without a row gets the
+// default cap, and its chats are counted — while a row of its own replaces that cap (nulls: no cap for that window), and
+// clearing the row puts it back on the default. A set limit counts the UTC hour and day, refuses past either with when it
 // resets, and keeps one server's chats out of another's count.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { get, migrate, openDb, run, setDb } from "../server/db";
-import { guildLimit, setGuildLimit, takeChat } from "./quota";
+import { DEFAULT_LIMIT, clearGuildLimit, guildLimit, setGuildLimit, takeChat } from "./quota";
 
 /** 05:30 UTC: a fresh hour, halfway through the day. */
 const NOW = Date.parse("2026-11-22T05:30:00Z");
 const HOUR_MS = 3600_000;
+
+const usage = async (guild: string) =>
+  // A chat is counted in both windows: its hour's count is the number of chats that hour.
+  Number((await get<{ c: number }>("SELECT COALESCE(SUM(used), 0) c FROM discord_chat_usage WHERE guild_id = ? AND window LIKE 'h:%'", [guild]))!.c);
 
 describe("a server's chat limit, on a database", () => {
   beforeAll(async () => {
@@ -20,25 +25,43 @@ describe("a server's chat limit, on a database", () => {
     await run("DELETE FROM discord_chat_usage");
   });
 
-  it("no limit is no limit: every chat is allowed, and nothing is counted", async () => {
-    for (let i = 0; i < 50; i++) expect(await takeChat("g1", NOW + i)).toEqual({ ok: true });
-    expect(await guildLimit("g1")).toEqual({ perHour: null, perDay: null });
-    // Not one row written: a server without a limit costs a single read per chat.
-    expect(Number((await get<{ c: number }>("SELECT COUNT(*) c FROM discord_chat_usage"))!.c)).toBe(0);
-    // A zero is no limit either (how a console would clear one).
-    await setGuildLimit("g1", { perHour: 0, perDay: 0 }, "owner");
-    expect(await guildLimit("g1")).toEqual({ perHour: null, perDay: null });
-    expect(await takeChat("g1", NOW)).toEqual({ ok: true });
-  });
-
-  it("once a server has one: chats are counted, the hour's limit refuses the next, and says when it resets", async () => {
-    await setGuildLimit("g1", { perHour: 2, perDay: null }, "owner", NOW);
-    expect(await takeChat("g1", NOW)).toEqual({ ok: true });
-    expect(await takeChat("g1", NOW + 1000)).toEqual({ ok: true });
-    // 05:30 plus two seconds → the hour resets at 06:00.
-    expect(await takeChat("g1", NOW + 2000)).toEqual({ ok: false, limited: "hour", retryAfter: 1798 });
+  it("gives a server with no row the default cap, and counts its chats", async () => {
+    expect(DEFAULT_LIMIT).toEqual({ perHour: 30, perDay: 100 });
+    expect(await guildLimit("g1")).toEqual({ ...DEFAULT_LIMIT, custom: false });
+    for (let i = 0; i < DEFAULT_LIMIT.perHour!; i++) expect((await takeChat("g1", NOW + i)).ok).toBe(true);
+    // 05:30 plus thirty seconds → the hour resets at 06:00.
+    expect(await takeChat("g1", NOW + 30_000)).toEqual({ ok: false, limited: "hour", retryAfter: 1770 });
+    // Counted, but no limit row was invented for it: the default is not written down per server.
+    expect(await usage("g1")).toBe(DEFAULT_LIMIT.perHour);
+    expect(await get("SELECT 1 FROM discord_limits WHERE guild_id = 'g1'")).toBeUndefined();
     // The next hour starts afresh.
     expect(await takeChat("g1", NOW + HOUR_MS)).toEqual({ ok: true });
+  });
+
+  it("lets a server's own row replace the default for both windows", async () => {
+    await setGuildLimit("g1", { perHour: 2, perDay: null }, "owner", NOW);
+    expect(await guildLimit("g1")).toEqual({ perHour: 2, perDay: null, custom: true });
+    expect(await takeChat("g1", NOW)).toEqual({ ok: true });
+    expect(await takeChat("g1", NOW + 1000)).toEqual({ ok: true });
+    expect(await takeChat("g1", NOW + 2000)).toEqual({ ok: false, limited: "hour", retryAfter: 1798 });
+    // More per hour than the default, and no daily cap at all: the row, not the default, is the limit.
+    await setGuildLimit("g1", { perHour: 50, perDay: null }, "owner", NOW);
+    expect(await takeChat("g1", NOW + HOUR_MS)).toEqual({ ok: true });
+  });
+
+  it("reads a row of nulls as no cap, and clearing the row puts the server back on the default", async () => {
+    await setGuildLimit("g1", { perHour: null, perDay: null }, "owner");
+    expect(await guildLimit("g1")).toEqual({ perHour: null, perDay: null, custom: true });
+    for (let i = 0; i < 50; i++) expect(await takeChat("g1", NOW + i)).toEqual({ ok: true });
+    // Not one usage row written for a server with no cap.
+    expect(await usage("g1")).toBe(0);
+    // A zero is no cap too (how a console would clear one).
+    await setGuildLimit("g1", { perHour: 0, perDay: 0 }, "owner");
+    expect(await guildLimit("g1")).toEqual({ perHour: null, perDay: null, custom: true });
+    // No row at all is the default, not no cap: the way back is to delete it.
+    await clearGuildLimit("g1");
+    expect(await guildLimit("g1")).toEqual({ ...DEFAULT_LIMIT, custom: false });
+    expect((await takeChat("g1", NOW + HOUR_MS)).ok).toBe(true);
   });
 
   it("a day's limit holds across hours and resets at midnight UTC", async () => {
@@ -50,14 +73,13 @@ describe("a server's chat limit, on a database", () => {
     expect(await takeChat("g1", Date.parse("2026-11-23T00:00:05Z"))).toEqual({ ok: true });
   });
 
-  it("counts each server on its own, and a null clears a limit for good", async () => {
+  it("counts each server on its own", async () => {
     await setGuildLimit("g1", { perHour: 1, perDay: null }, "owner");
-    await setGuildLimit("g2", { perHour: 1, perDay: null }, "owner");
     expect((await takeChat("g1", NOW)).ok).toBe(true);
-    expect((await takeChat("g2", NOW)).ok).toBe(true);
     expect((await takeChat("g1", NOW)).ok).toBe(false);
-    await setGuildLimit("g1", { perHour: null, perDay: null }, "owner");
-    expect(await takeChat("g1", NOW)).toEqual({ ok: true });
+    // g2 has its own count (and the default cap), so g1 being full doesn't touch it.
+    expect((await takeChat("g2", NOW)).ok).toBe(true);
+    expect(await usage("g2")).toBe(1);
   });
 
   it("two chats at the same moment can't share the last slot", async () => {
