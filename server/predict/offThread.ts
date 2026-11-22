@@ -177,6 +177,8 @@ let hereOnly = false;
  * `on` false puts the worker back (tests).
  */
 export function replayOnThisThread(on = true): void { hereOnly = on; }
+/** Whether this process replays on its own thread (a child script: replayOnThisThread). */
+export const replaysHere = (): boolean => hereOnly;
 
 /**
  * The window's replay (replayWindow) on the rebuild worker. Null when the database isn't a file the worker can open
