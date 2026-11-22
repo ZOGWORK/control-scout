@@ -21,6 +21,16 @@ it("sends current product knowledge with Discord chats, reserving room beside se
   expect(context[1].join("\n").length).toBeLessThan(8000);
   // Control Point refuses a packet with a fact over 400 characters: every line, product facts included, is under it.
   expect(context[1].every((f) => f.length <= 400)).toBe(true);
+
+  // What the server has taught the bot rides with the facts too (bot/memory.ts), inside the same caps.
+  await deps.chat!("what was our auto OPR?", facts, [], ["This server asks about teams 4215, 6980 most: when a question doesn't name a team, it means one of these, and say which one you picked.", "The person asking goes by Alex here."]);
+  const withMemory = state.chat.mock.calls.at(-1) as unknown as [string, string[]];
+  expect(withMemory[1].join(" ")).toContain("teams 4215, 6980");
+  expect(withMemory[1].join(" ")).toContain("Alex here");
+  expect(withMemory[1].join(" ")).toContain("How to answer in Discord");
+  expect(withMemory[1].length).toBeLessThanOrEqual(40);
+  expect(withMemory[1].join("\n").length).toBeLessThan(8000);
+  expect(withMemory[1].every((f) => f.length <= 400)).toBe(true);
   expect(state.flag.mock.calls.every((args) => (args as unknown as string[])[0] === "discordBruno")).toBe(true);
 
   // Exercise the outer ask/chatWith fit too: the real chat must still trim the
