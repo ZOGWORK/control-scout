@@ -5,7 +5,7 @@
 // "USNJQ1 Q12" or "2025 USNJQ1 M3" resolves straight to a match.
 import { all, allInChunks, loopTurn, get } from "../db.js";
 import { STEP_ITEMS, runAll, runYielding } from "../../src/shared/steps.js";
-import { CURRENT_SEASON, SEASON_NUMBERS, isLegacy } from "../data/seasons.js";
+import { CURRENT_SEASON, SEASONS_IN, SEASON_NUMBERS, isLegacy } from "../data/seasons.js";
 import type { SearchHit } from "../../src/shared/api.js";
 import { SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, sectionFor, type SearchTopic } from "../../src/shared/search.js";
 import { teamAtEvent, teamEvents, teamFacts, teamSeason } from "./searchFacts.js";
@@ -37,7 +37,6 @@ const MATCH_RE = /^(?:(20\d\d)\s+)?([a-z0-9]{3,16})\s+(q|qual|m|match|f|final)\s
 /** The seasons the data holds, inline: with `season IN (…)` a code is found by primary key, season by season. Neither
  *  matches' nor events' key starts with the code, so `code = ?` alone read every match (20 ms a match search, 157 of
  *  them in an event pack's build, each holding the event loop). */
-const SEASONS_IN = SEASON_NUMBERS.map((s) => Math.trunc(s)).join(", ");
 /** The newest season a code has matches in, its own or (an event split in divisions) a division's: two arms, so each
  *  finds its codes by key (the same answer as one `code = ? OR code IN (…)` scan; checked on every stored code). */
 export const NEWEST_MATCH_SEASON = `SELECT MAX(s) s FROM (
