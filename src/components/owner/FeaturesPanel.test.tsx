@@ -4,7 +4,10 @@
 // a workspace's own setting that applies at once with a toast.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { FEATURE_FLAGS, FLAGS, FLAG_INFO, FLAG_META } from "../../shared/flags";
+import { APPEARANCE_FLAGS, FEATURE_FLAGS as ALL_FEATURES, FLAGS, FLAG_INFO, FLAG_META } from "../../shared/flags";
+
+/** The Features tab lists every toggle but the Appearance tab's. */
+const FEATURE_FLAGS = ALL_FEATURES.filter((f) => !APPEARANCE_FLAGS.includes(f));
 import type { OwnerFlags } from "../../shared/owner";
 
 const DATA: OwnerFlags = {
@@ -42,6 +45,19 @@ describe("FeaturesPanel", () => {
     expect(screen.getByRole("heading", { name: "Kill switches" })).toBeTruthy();
     expect(screen.getByText(new RegExp(`1 of ${FEATURE_FLAGS.length} off right now`))).toBeTruthy();
     expect(within(container.querySelector('li[data-flag="scoutingCommons"]') as HTMLElement).getByText("Scouting commons")).toBeTruthy();
+  });
+
+  it("the Appearance tab's copy lists only the background toggles, and no kill switches", () => {
+    const { container } = render(<FeaturesPanel appearance />);
+    expect([...container.querySelectorAll("li[data-flag]")].map((li) => li.getAttribute("data-flag"))).toEqual(ALL_FEATURES.filter((f) => APPEARANCE_FLAGS.includes(f)));
+    expect(screen.getByRole("heading", { name: "Background effects" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Kill switches" })).toBeNull();
+    expect(container.querySelector("[data-owner-look]")).toBeTruthy();
+  });
+
+  it("the look switch sits on the Appearance tab, not Features", () => {
+    const { container } = render(<FeaturesPanel />);
+    expect(container.querySelector("[data-owner-look]")).toBeNull();
   });
 
   it("a global flip asks first, says what turns off and that nothing is deleted, then sends confirm", async () => {
