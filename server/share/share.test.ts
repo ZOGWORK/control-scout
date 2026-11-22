@@ -6,6 +6,7 @@ import { get as httpGet, type Server } from "node:http";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
@@ -13,6 +14,7 @@ import { renderIndex } from "../seo";
 import { cardFonts, fitText, glyphs, parseFont, textWidth } from "./fonts";
 import { cardSvg, renderCard, type CardModel } from "./card";
 import { CARD_CACHE_MAX, PromiseLru, cardCacheSize } from "./match";
+import { cardRenderCounts, cardWorkerEntry, renderCardOffThread, stopCardWorker } from "./offThread";
 
 /** Width and height from a PNG's IHDR chunk (after checking the signature). */
 function pngSize(b: Uint8Array): { width: number; height: number } {
@@ -87,6 +89,45 @@ describe("card drawing", () => {
     expect(pngSize(a)).toEqual({ width: 1200, height: 630 });
     expect((await renderCard(model)).equals(a)).toBe(true);
     expect(pngSize(await renderCard({ ...model, format: "square" }))).toEqual({ width: 1080, height: 1080 });
+  });
+});
+
+describe("drawing off the main thread", () => {
+  it("the worker's PNG is renderCard's, byte for byte", async () => {
+    for (const m of [model, { ...model, format: "square" as const }, { ...model, final: { red: 120, blue: 140 } }]) {
+      expect((await renderCardOffThread(m)).equals(await renderCard(m))).toBe(true);
+    }
+  }, 60_000);
+
+  it("keeps the event loop free while cards are drawn (in-thread each one held it ~120 ms)", async () => {
+    await renderCardOffThread(model); // the worker is up
+    const before = cardRenderCounts().offThread;
+    let maxLag = 0, last = performance.now();
+    const iv = setInterval(() => { const n = performance.now(); maxLag = Math.max(maxLag, n - last); last = n; }, 2);
+    try {
+      await Promise.all(Array.from({ length: 6 }, (_, i) => renderCardOffThread({ ...model, pRed: 0.5 + i / 50 })));
+    } finally { clearInterval(iv); }
+    expect(cardRenderCounts().offThread - before).toBe(6);
+    expect(maxLag).toBeLessThan(90);
+  }, 60_000);
+
+  it("a dead worker fails nothing: the card is drawn here, and the next one starts a new worker", async () => {
+    const here = cardRenderCounts().here;
+    const p = renderCardOffThread(model);
+    stopCardWorker("test stop");
+    expect((await p).equals(await renderCard(model))).toBe(true);
+    expect(cardRenderCounts().here).toBe(here + 1);
+    const off = cardRenderCounts().offThread;
+    await renderCardOffThread(model);
+    expect(cardRenderCounts().offThread).toBe(off + 1);
+  }, 60_000);
+
+  it("starts the bundled worker next to the server bundle, the source through tsx otherwise", () => {
+    const at = (...p: string[]) => pathToFileURL(join("/app", ...p)).href;
+    expect(cardWorkerEntry(at("build", "server", "index.mjs"), []).url.href).toBe(at("build", "server", "shareCardWorker.mjs"));
+    const src = cardWorkerEntry(at("server", "share", "offThread.ts"), []);
+    expect(src.url.href).toBe(at("server", "share", "cardWorker.ts"));
+    expect(src.execArgv).toEqual(["--import", "tsx"]);
   });
 });
 
