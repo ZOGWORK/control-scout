@@ -13,6 +13,7 @@ import { featureOffMessage } from "../src/shared/flags.js";
 import { ask as askSearch, chatPost, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
 import { takeChat, type Quota } from "./quota.js";
 import { keep as keepThread, learn as learnMemory, recall as recallMemory, teamsAsked, thread as readThread } from "./memory.js";
+import { fileReport, wantsReport, type Filed, type Report } from "./report.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 
 export type Log = (m: string) => void;
@@ -31,6 +32,8 @@ export interface Lookups {
   ask: (question: string, history?: BrunoChatTurn[], memory?: string[]) => Promise<AskReply>;
   /** What a server teaches the bot (bot/memory.ts); absent: nothing is remembered. */
   memory?: Memory;
+  /** Files a "Report this to ControlScout" as a GitHub issue (bot/report.ts); absent: reporting is off. */
+  report?: (r: Report) => Promise<Filed>;
   /** The owner's feature toggles the bot follows (server/flags.ts); absent: always on. */
   enabled?: (flag: "discordBot" | "livePredictions") => Promise<boolean>;
   /** The server's chat limit (bot/quota.ts); absent: none enforced. No server has one set yet. */
@@ -62,11 +65,21 @@ export const realLookups: Lookups = {
   enabled: (flag) => isEnabled(flag),
   quota: takeChat,
   memory: { recall: recallMemory, learn: learnMemory, thread: readThread, keep: keepThread },
+  report: fileReport,
 };
 let askDeps: Promise<AskDeps> | undefined;
 
 /** What every command answers while the owner has the bot switched off (the discordBot feature toggle). */
 export const BOT_OFF_TITLE = "Turned off for now";
+
+/** Filed: where the report is, and what went with it (bot/report.ts). */
+export function reportedEmbed(r: { number: number; url: string }): APIEmbed {
+  return {
+    title: "Reported",
+    description: `Filed as [Discord type issue #${r.number}](${r.url}), with the message, the thread before it and my last log lines. Thanks — that's the whole report, no form to fill in.`,
+    color: VOLT, footer: FOOTER,
+  };
+}
 
 /** A server that has reached its chat limit (bot/quota.ts): said plainly, with when it resets. Nothing else stops. */
 export function limitEmbed(q: { limited: "hour" | "day"; retryAfter: number }): APIEmbed {
@@ -121,7 +134,20 @@ export function describe(i: Pick<ChatInputCommandInteraction, "commandName" | "o
   return [`/${i.commandName}`, ...args].join(" ");
 }
 
+/** The bot's own log lines a report carries (bot/report.ts): enough to see what it did for the message, no more. */
+export const REPORT_LOG_LINES = 20;
+
+/** A report already filed for the same words in the same server, and when: a second "report this" answers the same
+ *  issue rather than opening another. */
+const REPORT_REPEAT_MS = 10 * 60_000;
+
 export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { ttlMs?: number } = {}) {
+  // The last lines of the bot's own log, kept for a report: "Report this to ControlScout" files them with the issue.
+  const recentLogs: string[] = [];
+  const logLine: Log = (m) => { recentLogs.push(m); if (recentLogs.length > REPORT_LOG_LINES) recentLogs.shift(); log(m); };
+  const filed = new Map<string, { at: number; number: number; url: string }>();
+  // Reports being filed right now, by the same key: a second ask waits for the first instead of opening an issue too.
+  const filing = new Map<string, Promise<Filed>>();
   const cache = new AnswerCache<APIEmbed>(opts.ttlMs ?? 60_000, 2000, (e) => e instanceof Friendly);
   // Nobody is paced per person: every message is answered (a person asking twice in a row gets both answers). Only the
   // same question within a minute is the answer already given, whoever asks.
@@ -146,7 +172,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const r = await asks.get(k, () => { fresh = true; return lookups.ask(question, history, memory); });
     // The bot's own fallback (bot/smallTalk.ts) is a chat too, but not Bruno's: the log says `talk`.
     const bruno = [r.chat?.by === "scout" ? "talk" : r.meta.chat ? "chat" : null, r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
-    log(`${key} step=${r.meta.step} bruno=${bruno}${history.length ? ` thread=${history.length}` : ""}${r.content || r.chat?.video ? " video" : ""} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
+    logLine(`${key} step=${r.meta.step} bruno=${bruno}${history.length ? ` thread=${history.length}` : ""}${r.content || r.chat?.video ? " video" : ""} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
     return r;
   }
   /** An answer as a post: Bruno's chat reply as text, else the card with its video link as the text. `quote`: show the
@@ -182,6 +208,39 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       m.teams.length ? `This server asks about teams ${m.teams.join(", ")} most: when a question doesn't name a team, it means one of these, and say which one you picked.` : "",
       m.name ? `The person asking goes by ${m.name} here.` : "",
     ].filter(Boolean);
+  }
+  /**
+   * "Report this to ControlScout": file one GitHub issue with what the bot can see (bot/report.ts) and say where it is,
+   * or say plainly that it couldn't. `key` identifies the thing reported — its message, in its channel — so the same
+   * message never files twice (a repeat, a second mention while the first is still being filed) while two members'
+   * different reports are two issues.
+   */
+  async function reportIt(key: string, where: Omit<Report, "message" | "thread" | "logs">, q: string, thread: BrunoChatTurn[], post: (e: APIEmbed) => Promise<unknown>): Promise<void> {
+    const at = Date.now();
+    const already = filed.get(key);
+    if (already && at - already.at < REPORT_REPEAT_MS) {
+      await post(reportedEmbed(already));
+      return;
+    }
+    // The same report asked for twice at once: both get the one issue (the promise is shared, not just its result).
+    let flight = filing.get(key);
+    if (!flight) {
+      flight = lookups.report!({ ...where, message: q, thread, logs: [...recentLogs] }).catch((): Filed => ({ ok: false, reason: "the report failed" }));
+      filing.set(key, flight);
+      void flight.finally(() => { if (filing.get(key) === flight) filing.delete(key); });
+    }
+    const r = await flight;
+    if (!r.ok) {
+      logLine(`report failed: ${r.reason}`);
+      await post(r.limited
+        ? errorEmbed("That's a lot of reports", "This person or server has asked for a few this hour. Try again later, or report it on controlscout.org.")
+        : errorEmbed("Couldn't file that report", "Something on my side stopped the report from reaching GitHub. Try again in a moment, or report it on controlscout.org."));
+      return;
+    }
+    if (filed.size > 200) filed.clear();
+    filed.set(key, { at, number: r.number, url: r.url });
+    logLine(`report filed: #${r.number} guild=${where.guild ?? "-"}`);
+    await post(reportedEmbed(r));
   }
   /** Remember what this ask taught the server: the asker's name and the teams the message named (bot/memory.ts). */
   function learnAsk(guild: string | null | undefined, user: string, name: string | null, q: string): void {
@@ -245,6 +304,14 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // The server's chat limit, if one is set (none is, today): said plainly, before any lookup.
       const over = await mayChat(i.guildId);
       if (!over.ok) { await i.editReply({ embeds: [pride(limitEmbed(over))] }); return; }
+      // "Report this to ControlScout" in /ask: the same report a mention files (bot/report.ts), before the chat limit —
+      // a report is not a chat, and a server at its cap should still be able to report a bug.
+      if (lookups.report && wantsReport(question)) {
+        const key = `${i.guildId ?? ""}|${i.channelId ?? ""}|${i.user.id}|${question.trim().toLowerCase()}`;
+        await reportIt(key, { guild: i.guildId, channel: i.channelId, user: i.user.id, name: i.user.globalName ?? i.user.username ?? null }, question, [],
+          async (embed) => i.editReply({ embeds: [pride(embed)] }));
+        return;
+      }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this question adds.
       const lines = await serverLines(i.guildId, i.user.id);
       learnAsk(i.guildId, i.user.id, i.user.globalName ?? i.user.username ?? null, question);
@@ -254,7 +321,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         r = await askReply(question, describe(i), [], lines);
         post = askPost(question, r, true);
       } catch (e) {
-        log(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
+        logLine(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
       }
       const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
@@ -267,7 +334,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     } catch (e) {
       if (e instanceof Friendly) embed = errorEmbed(e.title, e.detail);
       else {
-        log(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
+        logLine(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
         embed = unavailableEmbed();
       }
     }
@@ -280,7 +347,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       if (lookups.enabled && !(await lookups.enabled("discordBot"))) { await i.respond([]); return; }
       list = await lookups.choices(String(i.options.getFocused() ?? ""));
     } catch (e) {
-      log(`autocomplete /${i.commandName} failed: ${(e as Error)?.message ?? String(e)}`);
+      logLine(`autocomplete /${i.commandName} failed: ${(e as Error)?.message ?? String(e)}`);
     }
     await i.respond(list.slice(0, 25));
   }
@@ -313,6 +380,14 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         await card({ title: "Ask me anything", description: "Write your question after the mention, like the website's search box:\n`@Control Scout who won decode` · `@Control Scout 4215 vs 6980`\nOr use `/ask question:`. Reply to my answer to keep talking.", color: VOLT, footer: FOOTER });
         return;
       }
+      // "Report this to ControlScout": a GitHub issue with the message, the thread before it and the bot's log lines.
+      // Before the chat limit: a report is not a chat, and a server at its cap should still be able to report a bug.
+      if (lookups.report && wantsReport(q)) {
+        // Its key is the message itself in its channel: one report per message, never a merged one for two members.
+        const key = `${m.guildId ?? ""}|${m.channelId ?? ""}|${m.id ?? ""}|${replyTo ?? ""}`;
+        await reportIt(key, { guild: m.guildId, channel: m.channelId ?? null, user: m.author.id, name: m.author.globalName ?? m.author.username ?? null }, q, history, card);
+        return;
+      }
       // The server's chat limit, if one is set (none is, today): said in the channel, before the typing indicator goes up.
       // After the bare-mention help: that asks nothing of Control Scout, so it never uses a chat.
       const over = await mayChat(m.guildId);
@@ -329,7 +404,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         r = await askReply(q, `@mention question=${q.toUpperCase().slice(0, 100)}`, history, lines);
       } catch (e) {
         clearInterval(typing);
-        log(`@mention ask failed: ${(e as Error)?.message ?? String(e)}`);
+        logLine(`@mention ask failed: ${(e as Error)?.message ?? String(e)}`);
         await card(unavailableEmbed());
         return;
       }
@@ -338,7 +413,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const sent = await send(askPost(q, r, false));
       remember((sent as { id?: string } | undefined)?.id, history, q, r);
     } catch (e) {
-      log(`mention failed: ${(e as Error)?.message ?? String(e)}`);
+      logLine(`mention failed: ${(e as Error)?.message ?? String(e)}`);
     }
   }
 
@@ -348,7 +423,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       else if (i.isAutocomplete()) await autocomplete(i);
     } catch (e) {
       // Discord itself failed (the interaction expired, the network dropped): log it and stay up.
-      log(`interaction failed: ${(e as Error)?.message ?? String(e)}`);
+      logLine(`interaction failed: ${(e as Error)?.message ?? String(e)}`);
     }
   }
   return Object.assign(handle, { mention });
@@ -360,6 +435,10 @@ export interface MentionMessage {
    *  by the server's memory so an answer can use it. */
   author: { id: string; bot: boolean; globalName?: string | null; username?: string };
   guildId: string | null;
+  /** The channel's id: a report says where it happened (bot/report.ts). */
+  channelId?: string | null;
+  /** The message's id: a report is filed once per message, however often it is asked for. */
+  id?: string;
   content: string;
   /** The message it replies to, and that message's author. */
   reference?: { messageId?: string } | null;
