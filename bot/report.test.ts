@@ -68,14 +68,15 @@ describe("the issue's body", () => {
 describe("filing it", () => {
   const calls: { method: string; url: string; body?: any; auth?: string }[] = [];
   const saved = process.env.GITHUB_REPORT_TOKEN;
+  const githubOk = (async (url: string, init: RequestInit) => {
+    calls.push({ method: init.method!, url: String(url), body: init.body ? JSON.parse(String(init.body)) : undefined, auth: (init.headers as Record<string, string>)?.Authorization });
+    return Response.json({ number: 2129, html_url: "https://github.com/ZOGWORK/control-scout/issues/2129" }, { status: 201 });
+  }) as typeof fetch;
   beforeEach(() => {
     calls.length = 0;
     resetReportLimits();
     process.env.GITHUB_REPORT_TOKEN = "token-123";
-    setGithubFetch((async (url: string, init: RequestInit) => {
-      calls.push({ method: init.method!, url: String(url), body: init.body ? JSON.parse(String(init.body)) : undefined, auth: (init.headers as Record<string, string>)?.Authorization });
-      return Response.json({ number: 2129, html_url: "https://github.com/ZOGWORK/control-scout/issues/2129" }, { status: 201 });
-    }) as typeof fetch);
+    setGithubFetch(githubOk);
   });
   afterEach(() => { setGithubFetch(null); if (saved === undefined) delete process.env.GITHUB_REPORT_TOKEN; else process.env.GITHUB_REPORT_TOKEN = saved; });
 
@@ -112,6 +113,23 @@ describe("filing it", () => {
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(REPORT_LIMITS.user);
     // Someone else, in another server, still gets their own few.
     expect((await fileReport(report({ user: "u2", guild: "g2" }))).ok).toBe(true);
+  });
+
+  it("a filing that failed doesn't use up the person's few", async () => {
+    setGithubFetch((async () => new Response("{}", { status: 403 })) as typeof fetch);
+    for (let i = 0; i < REPORT_LIMITS.user + 2; i++) expect((await fileReport(report())).ok).toBe(false);
+    // GitHub is answering again: three failures haven't locked the person out.
+    setGithubFetch(githubOk);
+    expect((await fileReport(report())).ok).toBe(true);
+  });
+
+  it("a server at its cap doesn't spend its member's own few", async () => {
+    for (let i = 0; i < REPORT_LIMITS.guild; i++) expect((await fileReport(report({ user: `u${i}`, guild: "g9" }))).ok).toBe(true);
+    const blocked = await fileReport(report({ user: "u-fresh", guild: "g9" }));
+    expect(blocked).toMatchObject({ ok: false, limited: true });
+    expect((blocked as { reason: string }).reason).toContain("that server");
+    // Their own few are untouched: another server files for them.
+    expect((await fileReport(report({ user: "u-fresh", guild: "g10" }))).ok).toBe(true);
   });
 
   it("never throws, whatever the network does", async () => {

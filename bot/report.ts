@@ -5,7 +5,7 @@
 //
 // Nothing here may fail loudly: a report that can't be filed is said plainly in the channel and logged (the reason
 // only, never the token or anything from the report), and the bot carries on.
-import { gh, GITHUB_REPO, takeReportSlot } from "../server/errorReports.js";
+import { gh, GITHUB_REPO, reportSlotsLeft, returnReportSlot, takeReportSlot } from "../server/errorReports.js";
 import { env } from "../server/env.js";
 import { RELEASE } from "../server/release.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
@@ -82,12 +82,16 @@ export async function fileReport(r: Report, now = Date.now()): Promise<Filed> {
   if (!token) return { ok: false, reason: "reporting isn't set up (GITHUB_REPORT_TOKEN)" };
   // A few an hour per person and per server, through the site's own limiter (server/errorReports.ts): a report files a
   // public issue under the bot's identity, so one member can't flood the repository (or the token's shared limit).
-  if (!takeReportSlot(`discord:user:${r.user}`, REPORT_LIMITS.user, now).ok) {
+  // Both are checked before either is spent, so a server at its cap doesn't use up its member's own few.
+  const person = `discord:user:${r.user}`, server = r.guild ? `discord:guild:${r.guild}` : null;
+  if (reportSlotsLeft(person, REPORT_LIMITS.user, now) <= 0) {
     return { ok: false, limited: true, reason: "too many reports from that person this hour" };
   }
-  if (r.guild && !takeReportSlot(`discord:guild:${r.guild}`, REPORT_LIMITS.guild, now).ok) {
+  if (server && reportSlotsLeft(server, REPORT_LIMITS.guild, now) <= 0) {
     return { ok: false, limited: true, reason: "too many reports from that server this hour" };
   }
+  takeReportSlot(person, REPORT_LIMITS.user, now);
+  if (server) takeReportSlot(server, REPORT_LIMITS.guild, now);
   try {
     const issue = await gh<{ number: number; html_url?: string }>(token, "POST", "/issues", {
       title: REPORT_TITLE, body: reportBody(r, now), labels: REPORT_LABELS,
@@ -95,6 +99,9 @@ export async function fileReport(r: Report, now = Date.now()): Promise<Filed> {
     const number = Number(issue.number);
     return { ok: true, number, url: issue.html_url ?? `https://github.com/${GITHUB_REPO}/issues/${number}` };
   } catch (e) {
+    // Nothing came back, so nothing was handed out: the slots go back, and the next try isn't locked out by failures.
+    returnReportSlot(person);
+    if (server) returnReportSlot(server);
     const status = (e as { status?: number })?.status;
     return { ok: false, reason: status ? `GitHub answered ${status}` : `${(e as Error)?.message ?? "no answer"}` };
   }
