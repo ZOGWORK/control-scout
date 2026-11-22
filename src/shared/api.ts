@@ -814,7 +814,8 @@ export interface ProvisionalInfo {
 
 /** POST /api/events/:season/:code/refresh */
 export interface EventRefreshResult {
-  /** refreshed: FIRST was asked just now; recent: someone else did seconds ago; busy: a full update is running; failed: FIRST didn't answer. */
+  /** refreshed: FIRST was asked just now; recent: someone else did seconds ago; busy: another update (the live check or a
+   *  full update) is running and includes this event; failed: FIRST didn't answer. */
   outcome: "refreshed" | "recent" | "busy" | "failed";
   message: string;
   detail: EventDetail;
