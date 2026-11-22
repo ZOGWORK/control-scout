@@ -48,6 +48,8 @@ export const PRIVATE_TABLES = [
   "event_streams",
   // The Discord bot's follows and its post log (migration 35): Discord server, channel and user ids.
   "discord_follows", "discord_posts",
+  // The Discord bot's per-server chat limits and usage (migration 99): server ids and their traffic.
+  "discord_limits", "discord_chat_usage",
   // The weekly email digest (migration 50): who turned it on, their unsubscribe link, and the per-week send log.
   "digest_prefs", "digest_sends",
   // The home page's hero lines (migration 55): owner settings, like feature_flags; who changed them is in owner_audit.
