@@ -10,7 +10,7 @@
 // narrow the results here, in the address (./search/page/results.ts). A question also gets Bruno AI's short
 // written answer on top, from those same records (./search/BrunoAnswer.tsx). Nothing found is never a dead end
 // (./search/page/NoResults.tsx).
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -70,6 +70,12 @@ export default function SearchPage() {
   // submitted search never starts on a loading screen; this page's own request replaces it as soon as it answers.
   // `thread`: this question, once answered, is what a follow-up refers back to (src/components/search/thread.ts).
   const initial = BOOT_HITS && BOOT_HITS.q.trim() === query ? BOOT_HITS : handedAnswer(query);
+  // The query this visit drew with an answer it already had (a first paint's hits, or the box's handoff). Only that
+  // one skips the wait: this page stays mounted when `?q=` changes, and a query reached later (the first one again
+  // included) arrived with nothing in hand.
+  const seededFor = useRef(initial ? query : null);
+  const seeded = seededFor.current === query;
+  useEffect(() => { if (seededFor.current !== query) seededFor.current = null; }, [query]);
   const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, initial, false, picked, true);
   const seasonPick = useMemo<SeasonPick>(() => ({
     picked, pending: reseason,
@@ -81,7 +87,7 @@ export default function SearchPage() {
   const askedTime = askedWhen(ax);
   const filters = readFilters(params, askedTime);
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
-  const leaving = useSubmittedSearch(query, { answer, live, error, searchNow });
+  const leaving = useSubmittedSearch(query, { answer, live, error, searchNow, seeded });
   // Home's glide on its way in (search/glide.ts): the loading shapes until the box lands, then the answer.
   const gliding = useGliding();
   const phone = useMediaQuery("(max-width: 767px)");
