@@ -77,6 +77,14 @@ export function reportBody(r: Report, now = Date.now()): string {
 }
 
 /** File one report as a GitHub issue, or say why not. Never throws: a failure is the caller's to say plainly. */
+/** The startup line: whether "Report this to ControlScout" can file at all, so it can be confirmed from the journal
+ *  without trying it (and without a test issue). Says whether the token is set, never what it is. */
+export function reportSetup(): { on: boolean; line: string } {
+  return env.githubReportToken
+    ? { on: true, line: "report filing on: GITHUB_REPORT_TOKEN is set" }
+    : { on: false, line: "report filing off: GITHUB_REPORT_TOKEN is not set (a report says it couldn't be filed)" };
+}
+
 export async function fileReport(r: Report, now = Date.now()): Promise<Filed> {
   const token = env.githubReportToken;
   if (!token) return { ok: false, reason: "reporting isn't set up (GITHUB_REPORT_TOKEN)" };

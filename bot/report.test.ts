@@ -3,7 +3,7 @@
 // the site already has: GITHUB_REPORT_TOKEN.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetReportLimits, setGithubFetch } from "../server/errorReports";
-import { REPORT_LABELS, REPORT_LIMITS, REPORT_TITLE, fileReport, reportBody, wantsReport, type Report } from "./report";
+import { REPORT_LABELS, REPORT_LIMITS, REPORT_TITLE, fileReport, reportBody, reportSetup, wantsReport, type Report } from "./report";
 
 const report = (over: Partial<Report> = {}): Report => ({
   guild: "g1", channel: "c1", user: "u1", name: "Alex",
@@ -103,6 +103,14 @@ describe("filing it", () => {
     process.env.GITHUB_REPORT_TOKEN = "token-123";
     setGithubFetch((async () => new Response("{}", { status: 403 })) as typeof fetch);
     expect(await fileReport(report())).toEqual({ ok: false, reason: "GitHub answered 403" });
+  });
+
+  it("says at startup whether reporting is set up, without ever printing the token", () => {
+    expect(reportSetup()).toEqual({ on: true, line: expect.stringContaining("report filing on") });
+    expect(reportSetup().line).not.toContain("token-123");
+    delete process.env.GITHUB_REPORT_TOKEN;
+    expect(reportSetup()).toEqual({ on: false, line: expect.stringContaining("report filing off") });
+    expect(reportSetup().line).toContain("GITHUB_REPORT_TOKEN");
   });
 
   it("caps one person and one server an hour, and files nothing past it", async () => {
