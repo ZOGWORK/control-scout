@@ -85,8 +85,16 @@ sent.
 **One honest fallback.** A short message that isn't a records question and that no chat answered ("hi", "who are
 you", "who's your favourite person here", "thanks") gets one line from `bot/smallTalk.ts`, credited to Control Scout
 rather than Bruno. There are no keyword replies, so it never guesses a favourite or invents a fact instead of answering
-in character. A message with a number in it, or a longer one search couldn't answer, is still a real question and keeps
-the honest card.
+in character. A message with a record number in it (a team, a season, a score), or a longer one search couldn't
+answer, is still a real question and keeps the honest card.
+
+A **ratio or a measurement** is not a record number, and a **build question** is not a records question however long
+it is: `bot/smallTalk.ts`'s `RECORD_NUMBER` (no `42:15`, `1:1`, `12.4 OPR`) and `MECHANISM` (a ratio, or gearing,
+turret, motor, rpm, drivetrain…). Two things follow. The model's explanation of a mechanism is never refused as a
+record claim because the message had digits in it — the screenshot's "should I use a 42:15 gear reduction on my robot
+turret" was answered "Sorry — I can't answer that yet. I read it as: Team 12499 Gear Up" because of exactly that. And
+when no chat answers a build question, it gets the one plain line instead of search's guess at a team: a gearing
+question has nothing to do with team 12499.
 
 Which line it is depends on the chat, not on luck: a chat that is off, unconfigured or switched off says so — it can't
 chat right now, its AI answers aren't reachable, and it can still read the records. A chat that is there and gave

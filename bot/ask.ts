@@ -18,7 +18,7 @@ import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search
 import { FOOTER, VOLT, teamLink } from "./views.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 import { answerStyle, productFacts, zogModeReply } from "./productFacts.js";
-import { smallTalk } from "./smallTalk.js";
+import { RECORD_NUMBER, smallTalk } from "./smallTalk.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -187,10 +187,11 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
 }
 
 /** Whether a message could be about the records at all: search found something for it, or it (or the thread before it)
- *  names a number. Only then can a number in Bruno's reply be a record (an OPR, a season, a score) rather than the
- *  explanation a chat message asked for. */
+ *  names a record number (not a ratio or a measurement, bot/smallTalk.ts's RECORD_NUMBER). Only then can a number in
+ *  Bruno's reply be a record (an OPR, a season, a score) rather than the explanation a chat message asked for: the
+ *  screenshot's "should I use a 42:15 gear reduction" was refused as a record claim only because it had digits in it. */
 const asksRecords = (q: string, a: SearchAnswer, history: BrunoChatTurn[]) =>
-  /\d/.test(q) || history.some((t) => /\d/.test(t.text)) || !!(a.hits.length || a.card || a.stat);
+  RECORD_NUMBER.test(q) || history.some((t) => RECORD_NUMBER.test(t.text)) || !!(a.hits.length || a.card || a.stat);
 
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
  *  second place?" has the records it's about), then his reply. */

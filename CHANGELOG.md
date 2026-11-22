@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.8.1 — 2026-11-22
+
+The Discord bot no longer answers a build question with a guess at a team: a gear ratio isn't a record number.
+
+### Highlights
+- [fixes] A 42:15 gear question gets an answer, not a team guess
+- [fixes] A ratio or a measurement isn't read as a record number
+- [fixes] An explanation's own numbers post, not refused as a record
+
+### Discord bot
+- A message's digits are read before it's called a records question (`bot/smallTalk.ts` `RECORD_NUMBER`, used by `bot/ask.ts`): a ratio (`42:15`, `1:1`) and a measurement (`12.4 OPR`) aren't a team, a match or a score. The screenshot's "should I use a 42:15 gear reduction on my robot turret because it is my team numebr" was refused as a record claim only because it had digits in it, so Bruno's explanation was thrown away and the card guessed "Team 12499 Gear Up" from the words "gear reduction". Now the explanation posts, and its own numbers (2:1, 3:1) are about the mechanism.
+- A build question is never a records question however long it is (`MECHANISM`: a ratio, or gearing, turret, motor, rpm, drivetrain…): when no chat answers it, it gets the one plain line ("I didn't get an answer to that one — ask me about a team, an event or a match") rather than search's reading of it as a team. A record number still keeps the honest card. (#0000)
+
 ## 7.8.0 — 2026-11-22
 
 The Discord bot learns each server it's in: the teams its people ask about, the names they go by, and conversations that now survive a restart.
