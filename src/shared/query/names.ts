@@ -7,6 +7,7 @@ import { regionOf, regionPartOf } from "../searchEventQuery.js";
 import { edits, nearRegion } from "../regions.js";
 import { eventInitialisms } from "./initialisms.js";
 import { LEXICON } from "./lexicon.js";
+import { STEP_ITEMS, runAll } from "../steps.js";
 
 /** How many times the teams and events a shared town name has in one region must outnumber the rest for it to be
  *  that region's town. */
@@ -77,12 +78,21 @@ function corePart(k: string): string | null {
 }
 
 /** The index for these rows (tests build one from fixtures). */
-export function buildNames(teams: NameRow[], places: { city: string | null; state: string | null; country: string | null; name?: string | null; code?: string | null }[]): Names {
+type PlaceRow = { city: string | null; state: string | null; country: string | null; name?: string | null; code?: string | null };
+
+export function buildNames(teams: NameRow[], places: PlaceRow[]): Names {
+  return runAll(namesSteps(teams, places));
+}
+
+/** buildNames as steps, yielding every STEP_ITEMS rows (../steps.ts): the server builds it with the loop let go. */
+export function* namesSteps(teams: NameRow[], places: PlaceRow[]): Generator<void, Names> {
+  let step = 0;
   const byNumber = new Map<number, TeamName>(), byName = new Map<string, TeamName[]>();
   let longest = 1;
   /** Folded names by length, for the near-miss look-up. */
   const byLength = new Map<number, string[]>(), lengthed = new Set<string>();
   for (const t of teams) {
+    if (++step % STEP_ITEMS === 0) yield;
     const tn: TeamName = { number: Number(t.number), name: t.name, city: t.city, state: t.state, country: t.country, lastPlayed: t.lastPlayed == null ? null : Number(t.lastPlayed), strength: t.strength == null ? null : Number(t.strength) };
     byNumber.set(tn.number, tn);
     const k = fold(t.name ?? "");
@@ -106,6 +116,7 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
   const byCore = new Map<string, TeamName[]>(), byJoined = new Map<string, TeamName[]>();
   const put = (m: Map<string, TeamName[]>, k: string, t: TeamName) => { if (!m.get(k)?.includes(t)) (m.get(k) ?? m.set(k, []).get(k)!).push(t); };
   for (const [k, ts] of byName) {
+    if (++step % STEP_ITEMS === 0) yield;
     const core = corePart(k);
     for (const t of ts) {
       if (core) put(byCore, core, t);
@@ -118,6 +129,7 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
   // 31 to Minnesota's 1), else it stays ambiguous.
   const towns = new Map<string, Map<string, { country: string; state: string | null; city: string; n: number }>>();
   for (const p of [...teams, ...places]) {
+    if (++step % STEP_ITEMS === 0) yield;
     const k = fold(p.city ?? "");
     if (!k || !p.country) continue;
     const where = `${p.country}:${p.state ?? ""}`;
@@ -140,6 +152,7 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
   const eventWords = new Map<number, Set<string>>();
   let eventLongest = 0;
   for (const p of places) {
+    if (++step % STEP_ITEMS === 0) yield;
     const whole = fold(p.name ?? "");
     if (whole) { eventNames.add(whole); eventLongest = Math.max(eventLongest, whole.split(" ").length); }
     for (const w of whole.split(" ")) if (w.length >= 5 && !/\d/.test(w)) (eventWords.get(w.length) ?? eventWords.set(w.length, new Set()).get(w.length)!).add(w);
@@ -147,7 +160,10 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
     if (p.code) for (const i of eventInitialisms(p.name ?? "")) (initials.get(i) ?? initials.set(i, new Set()).get(i)!).add(p.code);
   }
   const countries = new Map<string, string>();
-  for (const p of [...teams, ...places]) if (p.country) countries.set(fold(p.country), p.country);
+  for (const p of [...teams, ...places]) {
+    if (++step % STEP_ITEMS === 0) yield;
+    if (p.country) countries.set(fold(p.country), p.country);
+  }
   // Each stored country's own country (countryOf), read once here rather than for every word a query is read with:
   // in the stored order, so the first stored label for a country is still the one found.
   const storedCountries = [...countries.values()].flatMap((label) => { const c = countryOf(label); return c ? [{ label, c }] : []; });
