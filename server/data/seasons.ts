@@ -12,6 +12,9 @@ import { SEASONS } from "../../src/shared/seasonList.js";
 
 export const SEASON_NUMBERS = SEASONS.map((s) => s.season);
 export const CURRENT_SEASON = Math.max(...SEASON_NUMBERS);
+/** The seasons, inline for SQL: `season IN (${SEASONS_IN}) AND team = ?` finds a team's rows by the (season, …) keys,
+ *  where `team = ?` alone reads the whole table (team_season_stats has no index that starts with the team). */
+export const SEASONS_IN = SEASON_NUMBERS.map((s) => Math.trunc(s)).join(", ");
 /** Seasons the engine rates, predicts and backtests. Older ones are history only:
  *  replaying them would change every rating from 2023 on. */
 export const FIRST_PREDICT_SEASON = 2023;
