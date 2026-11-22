@@ -65,6 +65,8 @@ beforeAll(async () => {
     await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2026, ?, 'qual', 0, 1, 'Q1', ?, 1, ?, ?, 73, 73, 't')", [code, `${day}T10:00:00Z`, own, own]);
     await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2026, ?, 'qual', 0, 1, 21229, 'red', 1)", [code]);
   }
+  // Meet 2's own finish is posted (2nd of the 2 teams ranked there); Meet 1 has only the league's standing.
+  await run("INSERT INTO team_event_records (season, code, team, rank) VALUES (2026, 'USWASAM2', 21229, 2), (2026, 'USWASAM2', 4215, 1)");
   await rebuildSearch();
 });
 
@@ -108,6 +110,9 @@ describe("one team at one event", () => {
       const a = await searchAnswer(q, { limit: 25 });
       expect(a.stat, q).toMatchObject({ title: "Auto OPR at Salk League Meet 2", headline: { value: "Auto OPR 35.1", label: "Salk League Meet 2", sub: expect.stringMatching(/^OPR 135\.8 · 2026–27 · Nov 14/) } });
       expect(a.stat!.scope, q).toContain("Most recent event");
+      // A league meet's rank is the team's finish at that meet, never a bare dash.
+      const kp = a.stat!.blocks.find((b) => b.kind === "kpis");
+      expect(kp && kp.kind === "kpis" && kp.items[0], q).toMatchObject({ label: "Rank", value: "#2 of 2" });
       expect(a.understood?.label, q).toBe("Quality Control (21229) · Auto OPR at Salk League Meet 2, their most recent event");
       // Nothing it said is left unread ("last" is the most recent event).
       expect(a.understood?.unread ?? [], q).toEqual([]);
@@ -125,6 +130,9 @@ describe("one team at one event", () => {
     const first = await searchAnswer("quality control auto opr in first meet", { limit: 25 });
     expect(first.stat).toMatchObject({ title: "Auto OPR at Salk League Meet 1", headline: { value: "Auto OPR 41.9" } });
     expect(first.stat!.scope).toContain("First event");
+    // No finish posted for that meet: the league's standing after it, said so.
+    const fk = first.stat!.blocks.find((b) => b.kind === "kpis");
+    expect(fk && fk.kind === "kpis" && fk.items[0]).toMatchObject({ label: "League standing", value: expect.stringMatching(/^#3\b/) });
     expect(first.understood?.label).toBe("Quality Control (21229) · Auto OPR at Salk League Meet 1, their first event");
     // The quick answer (no card yet) says it too: "last" is never left unread.
     expect((await searchAnswer("quality control average points last meet", { limit: 25, full: false })).understood?.unread ?? []).toEqual([]);
