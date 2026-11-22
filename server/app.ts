@@ -28,7 +28,7 @@ import { searchTiming } from "./api/searchTiming.js";
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
-import { teamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
+import { cachedTeamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
 import { onboardingExamples } from "./api/onboardingExamples.js";
 import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, toEventInput } from "./api/events.js";
@@ -577,7 +577,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   }));
 
   api.get("/teams/:number", h(async (req) => {
-    const p = await teamProfile(int(req.params.number, "team", { min: 1, max: 999999 }), req.query.season ? season(req.query.season) : undefined);
+    const p = await cachedTeamProfile(int(req.params.number, "team", { min: 1, max: 999999 }), req.query.season ? season(req.query.season) : undefined);
     if (!p) throw new HttpError(404, `No FTC team ${req.params.number} in our data`);
     return p;
   }));
