@@ -595,6 +595,7 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const outcomeTitle = !it.outcome ? null : ({ "first-match": `First ${won}`, "recent-match": `Most recent ${won}`, "last-matches": `Last ${it.outcome === "W" ? "wins" : "losses"}`,
     "longest-streak": it.outcome === "L" ? "Longest losing streak" : null } as Partial<Record<IntentId, string | null>>)[it.id] ?? null;
   const name = outcomeTitle ? outcomeTitle : it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : it.id === "scores-over" ? `Scores ${it.variant === "at-least" ? "of at least" : "over"} ${it.n}`
+    : it.id === "last-matches" && it.phase === "auto" ? `Auto points, last ${it.n ?? 5} matches (not an OPR)`
     : it.id === "vs-top" && it.n != null ? `Against top-${it.n} teams`
     : it.id === "closest-match" && it.n != null ? `${it.outcome === "W" ? "Wins" : it.outcome === "L" ? "Losses" : "Matches"} by ${it.n} point${it.n === 1 ? "" : "s"}`
     : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event")
@@ -784,7 +785,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   if (it.id === "match-lookup" && it.n != null) return matchLabelAnswer(team, ms, scope, it.n);
   if (MATCH_STAT_IDS.has(it.id)) return matchStatAnswer(it.id, team, ms, scope, { n: it.n, variant: it.variant });
   if (it.id === "results" && (scope.championship || scope.states)) return championshipMatchesAnswer(team, ms, scope);
-  return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome, perEvent: it.variant === "per-event", ...(it.under != null ? { under: it.under } : {}) });
+  return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome, perEvent: it.variant === "per-event", ...(it.phase === "auto" && it.id === "last-matches" ? { phase: "auto" as const } : {}), ...(it.under != null ? { under: it.under } : {}) });
 }
 
 /** "Highest scoring games in decode", "top scores in nj this season", "highest scoring match ever": no team, a
