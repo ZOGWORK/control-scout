@@ -9,7 +9,7 @@
 // only when its missing list changes AND the new list is actionable: a fingerprint change alone (a deploy, refreshed
 // facts) never opens one. Nothing is dropped: a gap is a row, never a log line only.
 import { createHash } from "node:crypto";
-import { all, get, inSnapshot, kvGet, kvSet, run, writeBatch } from "../db.js";
+import { all, busyTurn, get, inSnapshot, kvGet, kvSet, run, writeBatch } from "../db.js";
 import { withDataLock, LockBusy } from "../data/lock.js";
 import { recordAudit } from "../portal/audit.js";
 import { checkedTo } from "../data/checkedTimings.js";
@@ -70,6 +70,9 @@ async function pendingMatches(): Promise<number | undefined> {
   }
 }
 
+/** Coverage rows written in one batch (see checkClipCoverage). */
+const WRITE_PART = 50;
+
 let busy = false;
 /** Check every event whose recording or played matches changed since its last check. Returns how many were checked. */
 export async function checkClipCoverage(log: (s: string) => void, now = Date.now()): Promise<number> {
@@ -82,12 +85,11 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
     // A match whose recording can't be played (coverage.ts UNPLAYABLE) is settled: counted apart, never as missing.
     const pass = { events: 0, full: 0, clipped: 0, missing: 0, unplayable: 0, why: {} as Record<string, number> };
     for (const season of seasons) {
-      const [full, recs, firstVideo, known] = await Promise.all([
-        seasonRecordings(season, true),
-        seasonRecordings(season),
-        all<{ code: string }>("SELECT DISTINCT code FROM matches WHERE season = ? AND video IS NOT NULL AND video != ''", [season]),
-        all<{ code: string; fingerprint: string; missing_key: string; reviewed_at: string | null; triage: string | null }>("SELECT code, fingerprint, missing_key, reviewed_at, triage FROM clip_coverage WHERE season = ?", [season]),
-      ]);
+      // One after the other: reads started together all wait for the same turn of the loop and then run in it.
+      const full = await seasonRecordings(season, true);
+      const recs = await seasonRecordings(season);
+      const firstVideo = await all<{ code: string }>("SELECT DISTINCT code FROM matches WHERE season = ? AND video IS NOT NULL AND video != ''", [season]);
+      const known = await all<{ code: string; fingerprint: string; missing_key: string; reviewed_at: string | null; triage: string | null }>("SELECT code, fingerprint, missing_key, reviewed_at, triage FROM clip_coverage WHERE season = ?", [season]);
       // A read that failed part way (recordings.ts soft): checking on it would mark recorded events stats only and drop
       // them from review; the next pass checks them.
       if (isPartial(full) || isPartial(recs)) { log(`clip coverage: ${season} skipped, recordings read only in part`); continue; }
@@ -111,6 +113,9 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
       const rows = await eventMatchRows(season, todo.map((t) => t.code));
       const writes: { sql: string; args: (string | number | null)[] }[] = [];
       for (const { code, fp } of todo) {
+        // A few milliseconds an event, a third of a second for a busy season's 400-odd in one go: the loop turns
+        // between events once it has been held a slice (db.ts busyTurn).
+        await busyTurn();
         const c = clipCoverage(rows.get(code) ?? [], recs.get(code) ?? null, full.get(code) ?? null, shape.get(code)?.tz, now);
         const key = missingKey(c), prev = was.get(code);
         const missing = c.matches.filter((m) => !m.clip);
@@ -139,7 +144,15 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
           args: [season, code, fp, new Date(now).toISOString(), c.state, c.played, c.withClip, key, JSON.stringify(detail), t?.triage ?? null, t?.why ?? null],
         });
       }
-      await withDataLock("clip coverage", () => writeBatch(writes, 200), { ttlMs: 60_000, waitMs: 60_000, pollMs: 1000 });
+      // A batch of WRITE_PART events at a time, the loop let go between (one batch of a busy season's 400-odd rows, each
+      // with its missing list, held it a tenth of a second). Each event's row is whole in its batch; a pass cut short
+      // leaves the rest with their old fingerprints, so the next pass checks them.
+      await withDataLock("clip coverage", async () => {
+        for (let i = 0; i < writes.length; i += WRITE_PART) {
+          if (i) await new Promise<void>((r) => setImmediate(r));
+          await writeBatch(writes.slice(i, i + WRITE_PART), WRITE_PART);
+        }
+      }, { ttlMs: 60_000, waitMs: 60_000, pollMs: 1000 });
       checked += todo.length;
     }
     if (checked) {

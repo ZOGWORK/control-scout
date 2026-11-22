@@ -179,12 +179,25 @@ export function packTeams(ev: EventDetail): number[] {
   return [...out].sort((a, b) => a - b);
 }
 
-/** Run `fn` over `items`, `n` at a time, in order. */
-async function inTurns<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+/** A build that gives the event loop back as much time as it takes (`pace`, background builds only): after each
+ *  turn of reads, once it has run PACE_SLICE_MS since it last paused, it waits as long as that. */
+export interface Pace { since: number }
+export const PACE_SLICE_MS = 50;
+const pause = async (pace: Pace | undefined): Promise<void> => {
+  if (!pace) return;
+  const ran = performance.now() - pace.since;
+  if (ran < PACE_SLICE_MS) return;
+  await new Promise<void>((r) => setTimeout(r, ran));
+  pace.since = performance.now();
+};
+
+/** Run `fn` over `items`, `n` at a time, in order (`pace`: pausing between turns, see Pace). */
+async function inTurns<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>, pace?: Pace): Promise<R[]> {
   const out: R[] = new Array(items.length);
   for (let i = 0; i < items.length; i += n) {
     const part = await Promise.all(items.slice(i, i + n).map(fn));
     part.forEach((r, j) => { out[i + j] = r; });
+    await pause(pace);
   }
   return out;
 }
@@ -231,14 +244,14 @@ export function setPackReads(r: Reads[] | null) { packReads = r ?? PACK_READS; }
 
 /** The event pack's `api` and `compare` sections for an event (its detail as the bundle holds it): kept per data
  *  version, the event's own data and the owner switches that gate its paths. */
-export async function packApi(season: number, ev: EventDetail): Promise<PackParts> {
+export async function packApi(season: number, ev: EventDetail, o: { pace?: Pace } = {}): Promise<PackParts> {
   noteAsked(season, ev.event.code);
   const switches = await Promise.all(["scheduleDifficulty", "advancementOdds"].map((f) => isEnabled(f as "scheduleDifficulty").catch(() => false)));
   const key = [await dataVersion(), (await kvGet<string>("data:settled")) ?? "", await liveVersion(season), season, ev.event.code,
     createHash("sha256").update(stableJson(ev)).digest("hex").slice(0, 16), switches.join(",")].join("|");
   const hit = packs.get(key);
   if (hit && Date.now() - hit.at < PACK_TTL_MS) return hit.value;
-  const value = buildPackApi(season, ev, packReads);
+  const value = buildPackApi(season, ev, packReads, o.pace);
   packs.delete(key);
   packs.set(key, { at: Date.now(), value });
   value.catch(() => { if (packs.get(key)?.value === value) packs.delete(key); });
@@ -278,7 +291,7 @@ export async function rewarmPacks(): Promise<number> {
         const [s, code] = k.split("|");
         try {
           const ev = await cachedEventDetail(Number(s), code);
-          if (ev) { await packApi(Number(s), await gatedEventDetail(ev)); asked.set(k, at); n++; }
+          if (ev) { await packApi(Number(s), await gatedEventDetail(ev), { pace: { since: performance.now() } }); asked.set(k, at); n++; }
         } catch { /* the next ask builds it */ }
       }
     }
@@ -288,7 +301,7 @@ export async function rewarmPacks(): Promise<number> {
 }
 
 /** Build the event pack's `api` and `compare` sections for an event (its detail as the bundle holds it). */
-export async function buildPackApi(season: number, ev: EventDetail, reads: Reads[] = PACK_READS): Promise<PackParts> {
+export async function buildPackApi(season: number, ev: EventDetail, reads: Reads[] = PACK_READS, pace?: Pace): Promise<PackParts> {
   const code = ev.event.code;
   let detail: Promise<EventDetail | null> | undefined;
   const c: PackContext = { season, code, ev, teams: packTeams(ev), matches: ev.matches, detail: () => (detail ??= eventDetail(season, code)) };
@@ -297,10 +310,10 @@ export async function buildPackApi(season: number, ev: EventDetail, reads: Reads
   // older one, for a team that sat out) for most teams: every team's column and season matches for each such season go
   // in too, so Compare opened with no season works for any of the pack's teams.
   const compare: Record<string, PackCompareTeam> = {};
-  await inTurns(c.teams, 6, async (t) => { compare[String(t)] = { block: await compareBlockOf(t, season), latest: await latestResultsSeason(t) }; });
+  await inTurns(c.teams, 6, async (t) => { compare[String(t)] = { block: await compareBlockOf(t, season), latest: await latestResultsSeason(t) }; }, pace);
   const others = [...new Set(Object.values(compare).map((x) => x.latest).filter((s): s is number => s != null && s !== season))].sort();
   for (const s of others) {
-    await inTurns(c.teams, 6, async (t) => { (compare[String(t)].others ??= {})[String(s)] = await compareBlockOf(t, s); });
+    await inTurns(c.teams, 6, async (t) => { (compare[String(t)].others ??= {})[String(s)] = await compareBlockOf(t, s); }, pace);
   }
   const extra = (cx: PackContext): PackRead[] => others.flatMap((s) => cx.teams.map((t) => ({ path: `/api/teams/${t}/matches?season=${s}`, read: () => teamMatchesAnswer(t, s), needed: `team ${t}'s ${s} matches` })));
   // One read a path: two lists can ask for the same one (a card's latest-season match list and Compare's), and the
@@ -318,7 +331,7 @@ export async function buildPackApi(season: number, ev: EventDetail, reads: Reads
   const byText = new Map<string, string>();
   const got = await inTurns(list, 6, async (r) => {
     try { return await r.read(); } catch (e) { throw new Error(`Event pack: reading ${r.path} failed: ${(e as Error).message}`); }
-  });
+  }, pace);
   list.forEach((r, i) => {
     const key = packPath(r.path)!;
     const body = got[i];
