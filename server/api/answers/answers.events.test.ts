@@ -108,7 +108,7 @@ describe("one team at one event", () => {
       const a = await searchAnswer(q, { limit: 25 });
       expect(a.stat, q).toMatchObject({ title: "Auto OPR at Salk League Meet 2", headline: { value: "Auto OPR 35.1", label: "Salk League Meet 2", sub: expect.stringMatching(/^OPR 135\.8 · 2026–27 · Nov 14/) } });
       expect(a.stat!.scope, q).toContain("Most recent event");
-      expect(a.understood?.label, q).toBe("Quality Control (21229) · Auto OPR at Salk League Meet 2");
+      expect(a.understood?.label, q).toBe("Quality Control (21229) · Auto OPR at Salk League Meet 2, their most recent event");
       // Nothing it said is left unread ("last" is the most recent event).
       expect(a.understood?.unread ?? [], q).toEqual([]);
     }
@@ -121,6 +121,9 @@ describe("one team at one event", () => {
     const first = await searchAnswer("quality control auto opr in first meet", { limit: 25 });
     expect(first.stat).toMatchObject({ title: "Auto OPR at Salk League Meet 1", headline: { value: "Auto OPR 41.9" } });
     expect(first.stat!.scope).toContain("First event");
+    expect(first.understood?.label).toBe("Quality Control (21229) · Auto OPR at Salk League Meet 1, their first event");
+    // The quick answer (no card yet) says it too: "last" is never left unread.
+    expect((await searchAnswer("quality control average points last meet", { limit: 25, full: false })).understood?.unread ?? []).toEqual([]);
   });
   it("a phase alone beside the team at an event is that phase's OPR there (failed search #2032)", () => {
     expect(readStatQuestion("hypnotic robotics auto in nj states")).toMatchObject({ id: "event-opr", phase: "auto", core: "hypnotic robotics nj", scope: { states: true } });

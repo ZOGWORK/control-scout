@@ -601,7 +601,9 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
     // "auto opr at their last meet": the phase asked for, as the answer's own title says it ("Auto OPR at …").
     : it.id === "event-opr" && it.phase ? `${it.phase === "auto" ? "Auto" : it.phase === "teleop" ? "TeleOp" : "Endgame"} OPR`
     : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.rank ? (it.id === "first-event" ? "First event rank" : "Latest event rank") : it.schedule ? "Event schedule" : PREDICT_INTENTS.has(it.id) && scope.event ? predictTitle(it.id) : TITLES[it.id];
-  const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}`;
+  // "… in their last meet": the event is named, and that it's the team's most recent (or first) one.
+  const own = scope.event && (it.scope.at === THEIR_LAST || it.scope.at === THEIR_FIRST) ? `, ${it.scope.at === THEIR_LAST ? "their most recent event" : "their first event"}` : "";
+  const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}${own}`;
   // "This season" with none of the season in progress played yet reads the team's latest: the heading names that
   // season (its title ends "in 2025–26"), and the answer's note says why (scope.seasonWhy), so the heading stays clean.
   const label = `${whoOf(team)} · ${title}`;
