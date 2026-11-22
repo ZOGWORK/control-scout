@@ -254,6 +254,16 @@ export function startLiveSync(log: Log): void {
 // "Refresh results" (manual)
 // ---------------------------------------------------------------------------
 
+export type BusyBy = "live" | "cycle" | "manual" | "other";
+/** Which kind of writer a lease holder's name is (lock.ts: withDataLock's `what`). */
+export const busyBy = (what: string | undefined): BusyBy =>
+  what === "live" || what === "cycle" || what === "manual" ? what : "other";
+
+/** How long a manual refresh waits for the writer lease. The fast lane's tick holds it for 4–35 s on a busy event
+ *  day (measured 11-22), and it is checking this very event: waiting it out (10 s before) only made the click hang and
+ *  then say "busy" anyway. A short wait still catches a lease that is just being released. */
+export const MANUAL_WAIT_MS = 2000;
+
 const lastManual = new Map<string, number>();
 const inflight = new Map<string, Promise<ManualOutcome>>();
 
@@ -261,8 +271,9 @@ export type ManualOutcome =
   | { status: "refreshed"; fetched: boolean }
   /** Someone refreshed this event under MANUAL_REFRESH_MS ago: their result is the latest. */
   | { status: "recent" }
-  /** The background cycle is writing right now; it is syncing this event too. */
-  | { status: "busy" }
+  /** Another writer holds the lease (busyBy): the fast lane checking today's events (live), the background cycle,
+   *  another event's refresh (manual), or a job that doesn't sync results (other: video checks, owner tools). */
+  | { status: "busy"; by: BusyBy }
   | { status: "failed"; error: string }
   | { status: "not-live" }
   | { status: "not-found" };
@@ -285,12 +296,12 @@ export async function manualRefresh(season: number, code: string, o: { log?: Log
   lastManual.set(k, now);
   const p = (async (): Promise<ManualOutcome> => {
     try {
-      // A fast-lane tick takes seconds: wait it out. The cycle can take minutes: don't.
-      const r = await withDataLock("manual", () => refreshEvents([rowToEvent(row)], { log: o.log, minFullMs: 60_000 }), { ttlMs: 120_000, waitMs: o.waitMs ?? 10_000, pollMs: 500 });
+      // Never wait out another writer: the fast lane is checking this event already, and the cycle takes minutes.
+      const r = await withDataLock("manual", () => refreshEvents([rowToEvent(row)], { log: o.log, minFullMs: 60_000 }), { ttlMs: 120_000, waitMs: o.waitMs ?? MANUAL_WAIT_MS, pollMs: 250 });
       if (r.failed.length) return { status: "failed", error: r.failed[0].error };
       return { status: "refreshed", fetched: r.fetched.length > 0 };
     } catch (e) {
-      if (e instanceof LockBusy) { lastManual.delete(k); return { status: "busy" }; }
+      if (e instanceof LockBusy) { lastManual.delete(k); return { status: "busy", by: busyBy(e.holder?.what) }; }
       return { status: "failed", error: (e as Error).message.slice(0, 200) };
     }
   })();

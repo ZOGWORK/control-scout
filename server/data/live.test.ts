@@ -15,7 +15,7 @@ import { computeSeasonStats } from "../stats/job";
 import { createApp } from "../app";
 import type { EventRow } from "./bundle";
 import { LockBusy, lockHolder, release, renew, tryAcquire, withDataLock } from "./lock";
-import { MANUAL_REFRESH_MS, isEventDay, liveEvents, liveIo, liveTick, manualRefresh, refreshEvents, resetLiveState } from "./live";
+import { MANUAL_REFRESH_MS, MANUAL_WAIT_MS, busyBy, isEventDay, liveEvents, liveIo, liveTick, manualRefresh, refreshEvents, resetLiveState } from "./live";
 
 const S = CURRENT_SEASON;
 const TEAMS = [201, 202, 203, 204, 205, 206];
@@ -332,6 +332,30 @@ describe("Refresh results (manual)", () => {
       expect(again.detail.event.matchesPlayed).toBe(1);
     });
 
+    it("while the fast lane checks today's events, a click answers in about 2 s that the check is running, with the event", async () => {
+      const t = await tryAcquire("live", 60_000);
+      try {
+        const t0 = performance.now();
+        const r = await post(`/api/events/${S}/LIVE/refresh`);
+        expect(performance.now() - t0).toBeLessThan(MANUAL_WAIT_MS + 1500);
+        expect(r.status).toBe(200);
+        const body = await r.json();
+        expect(body.outcome).toBe("busy");
+        expect(body.message).toBe("Today's results are being checked from FIRST right now. New ones show here in a few seconds.");
+        expect(body.detail.event.code).toBe("LIVE");
+        expect(fetches).toEqual([]);
+      } finally { await release(t!); }
+    });
+
+    it("a job that doesn't sync results holding the lease isn't told as a full update", async () => {
+      const t = await tryAcquire("clip coverage", 60_000);
+      try {
+        const body = await (await post(`/api/events/${S}/LIVE/refresh`)).json();
+        expect(body.outcome).toBe("busy");
+        expect(body.message).toBe("Another data update is running right now. Try again in a moment.");
+      } finally { await release(t!); }
+    });
+
     it("live event pages revalidate on every load; other days keep the normal cache", async () => {
       const live = await fetch(`${base}/api/events/${S}/LIVE`);
       expect(live.headers.get("cache-control")).toBe("no-cache");
@@ -421,10 +445,33 @@ describe("one writer at a time", () => {
 
   it("a manual refresh waits briefly for the lease, then says the cycle is on it", async () => {
     const t = await tryAcquire("cycle", 60_000);
-    expect(await manualRefresh(S, "LIVE", { waitMs: 50 })).toEqual({ status: "busy" });
+    expect(await manualRefresh(S, "LIVE", { waitMs: 50 })).toEqual({ status: "busy", by: "cycle" });
     expect(fetches).toEqual([]);
     await release(t!);
     expect((await manualRefresh(S, "LIVE")).status).toBe("refreshed"); // busy didn't count against the 20 s limit
+  });
+
+  it("a manual refresh doesn't wait out the fast lane's tick: it answers within MANUAL_WAIT_MS that the live check is on it", async () => {
+    expect(MANUAL_WAIT_MS).toBeLessThanOrEqual(2000);
+    const t = await tryAcquire("live", 60_000);
+    const t0 = performance.now();
+    expect(await manualRefresh(S, "LIVE")).toEqual({ status: "busy", by: "live" });
+    const ms = performance.now() - t0;
+    expect(ms).toBeGreaterThanOrEqual(MANUAL_WAIT_MS - 50);
+    expect(ms).toBeLessThan(MANUAL_WAIT_MS + 1500); // was 10 s
+    expect(fetches).toEqual([]);
+    await release(t!);
+    expect((await manualRefresh(S, "LIVE")).status).toBe("refreshed");
+  });
+
+  it("a busy answer names the kind of writer: only the live check and the cycle claim to include this event", async () => {
+    expect(["live", "cycle", "manual", "clip coverage", "owner: clear caches", "packs: 2025 reads"].map(busyBy)).toEqual(["live", "cycle", "manual", "other", "other", "other"]);
+    for (const [what, by] of [["manual", "manual"], ["official videos watcher", "other"]] as const) {
+      const t = await tryAcquire(what, 60_000);
+      expect(await manualRefresh(S, "LIVE", { waitMs: 50 })).toEqual({ status: "busy", by });
+      await release(t!);
+    }
+    expect(fetches).toEqual([]);
   });
 
   it("withDataLock waits for the holder to finish, and never runs two writers at once", async () => {
