@@ -1138,7 +1138,9 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     app.use("/assets", express.static(opts.assetArchive ?? join(process.cwd(), ".assets-archive"), { immutable: true, maxAge: "1y" }));
     // The service worker and its file list must never be served stale.
     for (const f of ["sw.js"]) app.get(`/${f}`, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, f)); });
-    app.use(express.static(dist, { index: false, maxAge: "1h" }));
+    // redirect: false: a folder of static files that shares a page's name (public/legacy/ holds the classic logos, and
+    // /legacy is a page) must fall through to the app, not 301 to "/legacy/", which the one-URL rule 301s back (a loop).
+    app.use(express.static(dist, { index: false, redirect: false, maxAge: "1h" }));
     // The app's HTML, with the page's canonical link in the first response (crawlers don't run JS).
     // A missing file (anything with an extension) is an honest 404, never the app's HTML with a 200.
     app.get(MISSING_FILE, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.status(404).type("text/plain").send("Not found"); });
