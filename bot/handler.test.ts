@@ -1,10 +1,10 @@
-// The interaction handler with stand-in interactions: deferred replies, the shared cache, the
-// per-person cooldown, and friendly errors for every failure (never the exception's words).
+// The interaction handler with stand-in interactions: deferred replies, the shared cache, no per-person pace, and
+// friendly errors for every failure (never the exception's words).
 import { describe, expect, it, vi } from "vitest";
 import type { APIEmbed } from "discord.js";
 import { createHandler, type Lookups, type MentionMessage } from "./handler";
 import { Friendly } from "./views";
-import { AnswerCache, Cooldown } from "./guard";
+import { AnswerCache } from "./guard";
 import { COMMANDS, sameCommands } from "./commands";
 import { BOT_COMMANDS } from "../src/shared/discord";
 
@@ -45,7 +45,7 @@ function lookups(over: Partial<Lookups> = {}): Lookups {
 
 describe("commands", () => {
   it("defers, then answers with the lookup's embed", async () => {
-    const h = createHandler(() => {}, lookups(), { cooldownMs: 0 });
+    const h = createHandler(() => {}, lookups());
     const { i, calls } = command("team", { number: 18360 });
     await h(i);
     expect(calls.map((c) => c.kind)).toEqual(["defer", "edit"]);
@@ -54,7 +54,7 @@ describe("commands", () => {
 
   it("the same command and arguments within a minute cost one lookup, whoever asks", async () => {
     const l = lookups();
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l);
     await Promise.all(["a", "b", "c"].map((u) => h(command("predict", { event: "ustxauq", match: 3 }, u).i)));
     await h(command("predict", { event: "USTXAUQ", match: 3 }, "d").i);
     expect(l.predict).toHaveBeenCalledTimes(1);
@@ -62,7 +62,7 @@ describe("commands", () => {
 
   it("turned off by the owner (the discordBot toggle): every command gets a private note, and nothing is looked up or followed", async () => {
     const l = lookups({ enabled: async (f) => f !== "discordBot" });
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l);
     for (const [name, opts] of [["team", { number: 1 }], ["predict", { event: "X", match: 1 }], ["follow", { team: 1 }], ["help", {}]] as [string, Record<string, string | number>][]) {
       const { i, calls } = command(name, opts);
       await h(i);
@@ -84,7 +84,7 @@ describe("commands", () => {
 
   it("live predictions switched off: /predict says so, the other commands still answer", async () => {
     const l = lookups({ enabled: async (f) => f !== "livePredictions" });
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l);
     const p = command("predict", { event: "X", match: 1 });
     await h(p.i);
     expect(p.calls[1].payload.embeds[0].title).toBe("Predictions are off");
@@ -94,22 +94,20 @@ describe("commands", () => {
     expect(t.calls[1].payload.embeds[0].title).toBe("team 1");
   });
 
-  it("one command per person every 3 seconds: the second gets a private 'slow down'", async () => {
+  it("no per-person pace: two commands in a row from one person both answer", async () => {
     const l = lookups();
     const h = createHandler(() => {}, l);
     await h(command("team", { number: 1 }).i);
     const { i, calls } = command("team", { number: 2 });
     await h(i);
-    expect(calls).toHaveLength(1);
-    expect(calls[0].kind).toBe("reply");
-    expect(calls[0].payload.embeds[0].title).toBe("Slow down");
-    expect(calls[0].payload.flags).toBe(64); // ephemeral
-    expect(l.team).toHaveBeenCalledTimes(1);
+    expect(calls.map((c) => c.kind)).toEqual(["defer", "edit"]);
+    expect(calls[1].payload.embeds[0].title).toBe("team 2");
+    expect(l.team).toHaveBeenCalledTimes(2);
   });
 
   it("a friendly error is shown as is and not logged", async () => {
     const log = vi.fn();
-    const h = createHandler(log, lookups({ team: async () => { throw new Friendly("Team not found", "No team 9."); } }), { cooldownMs: 0 });
+    const h = createHandler(log, lookups({ team: async () => { throw new Friendly("Team not found", "No team 9."); } }));
     const { i, calls } = command("team", { number: 9 });
     await h(i);
     expect(calls[1].payload.embeds[0]).toMatchObject({ title: "Team not found", description: "No team 9." });
@@ -120,7 +118,7 @@ describe("commands", () => {
     const log = vi.fn();
     let fail = true;
     const l = lookups({ event: vi.fn(async (c: string) => { if (fail) throw new Error("SQLITE_BUSY: database is locked"); return ok(c); }) });
-    const h = createHandler(log, l, { cooldownMs: 0 });
+    const h = createHandler(log, l);
     const first = command("event", { code: "USTXAUQ" });
     await h(first.i);
     const shown = first.calls[1].payload.embeds[0];
@@ -135,7 +133,7 @@ describe("commands", () => {
 
   it("Discord failing (an expired interaction) is logged, never thrown", async () => {
     const log = vi.fn();
-    const h = createHandler(log, lookups(), { cooldownMs: 0 });
+    const h = createHandler(log, lookups());
     const { i } = command("rankings", {});
     i.deferReply = async () => { throw new Error("Unknown interaction"); };
     await expect(h(i)).resolves.toBeUndefined();
@@ -177,16 +175,6 @@ describe("AnswerCache", () => {
   });
 });
 
-describe("Cooldown", () => {
-  it("waits out the rest of 3 seconds, per person", () => {
-    const c = new Cooldown(3000);
-    expect(c.take("a", 0)).toBe(0);
-    expect(c.take("a", 1000)).toBe(2000);
-    expect(c.take("b", 1000)).toBe(0);
-    expect(c.take("a", 3000)).toBe(0);
-  });
-});
-
 describe("registration", () => {
   it("the commands, each one on the site's list; follow and unfollow need Manage Server, in servers only", () => {
     expect(COMMANDS.map((c) => c.name)).toEqual(["team", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "help"]);
@@ -222,7 +210,7 @@ describe("follows", () => {
 
   it("/follow posts in this channel by default, or the one picked; /unfollow says what stopped", async () => {
     const l = lookups();
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l);
     const a = inGuild("follow", { team: 18360 });
     await h(a.i);
     expect(l.follow).toHaveBeenCalledWith("g1", "here", 18360, "u1");
@@ -236,7 +224,7 @@ describe("follows", () => {
 
   it("never cached: a second /following reads again", async () => {
     const l = lookups();
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l);
     await h(inGuild("following", {}).i);
     await h(inGuild("following", {}).i);
     expect(l.following).toHaveBeenCalledTimes(2);
@@ -244,22 +232,22 @@ describe("follows", () => {
 
   it("outside a server (a DM): a friendly error", async () => {
     const { i, calls } = command("follow", { team: 1 });
-    await createHandler(() => {}, lookups(), { cooldownMs: 0 })(i);
+    await createHandler(() => {}, lookups())(i);
     expect(calls[1].payload.embeds[0].title).toBe("Servers only");
   });
 
   it("/help lists every command", async () => {
     const { i, calls } = command("help", {});
-    await createHandler(() => {}, lookups(), { cooldownMs: 0 })(i);
+    await createHandler(() => {}, lookups())(i);
     const text = calls[1].payload.embeds[0].description as string;
     for (const c of BOT_COMMANDS) expect(text).toContain(c.usage);
   });
 });
 
-describe("/ask's pace", () => {
-  it("no 10-second wait: /ask has every command's pace, so a second ask once that passes is answered", async () => {
+describe("/ask's answers", () => {
+  it("no waiting: a second ask right after the first is answered too", async () => {
     const l = lookups();
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l);
     await h(command("ask", { question: "who won decode" }).i);
     const second = command("ask", { question: "4215 vs 6980" });
     await h(second.i);
@@ -269,7 +257,7 @@ describe("/ask's pace", () => {
   it("the same question within a minute is one lookup (whoever asks, however it's cased), logged without who asked", async () => {
     const l = lookups();
     const logs: string[] = [];
-    const h = createHandler((m) => logs.push(m), l, { cooldownMs: 0 });
+    const h = createHandler((m) => logs.push(m), l);
     await h(command("ask", { question: "who won decode" }, "u1").i);
     await h(command("ask", { question: "Who won DECODE" }, "u2").i);
     expect(l.ask).toHaveBeenCalledTimes(1);
@@ -279,13 +267,13 @@ describe("/ask's pace", () => {
     expect(logs.join(" ")).not.toMatch(/u1|u2/);
   });
 
-  it("ten asks in a minute from one person: no crash, one lookup each question at most, and the bot still answers others", async () => {
+  it("ten asks in a minute from one person: every one answered, one lookup for the question", async () => {
     const l = lookups();
-    const h = createHandler(() => {}, l, { cooldownMs: 3000 });
+    const h = createHandler(() => {}, l);
     const replies = [];
     for (let n = 0; n < 10; n++) { const c = command("ask", { question: "who won decode" }, "spam"); await h(c.i); replies.push(c.calls[0].kind); }
-    expect(replies.filter((k) => k === "defer")).toHaveLength(1);
-    expect(replies.filter((k) => k === "reply")).toHaveLength(9);
+    expect(replies.filter((k) => k === "defer")).toHaveLength(10);
+    expect(replies.filter((k) => k === "reply")).toHaveLength(0);
     expect(l.ask).toHaveBeenCalledTimes(1);
     const other = command("ask", { question: "who won decode" }, "someone");
     await h(other.i);
@@ -294,7 +282,7 @@ describe("/ask's pace", () => {
 
   it("turned off by the owner: /ask gets the turned-off note and nothing runs", async () => {
     const l = lookups({ enabled: async (f) => f !== "discordBot" });
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l);
     const { i, calls } = command("ask", { question: "who won decode" });
     await h(i);
     expect(calls[0].payload.embeds[0].title).toBe("Turned off for now");
@@ -317,7 +305,7 @@ describe("@mention answers", () => {
 
   it("\"@Control Scout who won decode\" answers as /ask does, as a reply, sharing /ask's cache", async () => {
     const l = lookups();
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l);
     const { m, sent } = msg(`<@${BOT}> who won decode`);
     await h.mention(m, BOT);
     expect(l.ask).toHaveBeenCalledWith("who won decode", []);
@@ -330,21 +318,25 @@ describe("@mention answers", () => {
 
   it("stays silent unless the bot itself is mentioned by a person in a server", async () => {
     const l = lookups();
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l);
     for (const { m } of [msg("who won decode"), msg("<@999> who won decode"), msg("@everyone who won decode"), msg(`<@${BOT}> hi`, { author: { id: "b", bot: true } }), msg(`<@${BOT}> hi`, { guildId: null })]) await h.mention(m, BOT);
     expect(l.ask).not.toHaveBeenCalled();
   });
 
-  it("just the mention: how to ask; a reply it can't make: a plain message; too fast: nothing; turned off: the note", async () => {
-    const h = createHandler(() => {}, lookups(), { cooldownMs: 3000 });
+  it("just the mention: how to ask; a reply it can't make: a plain message; back-to-back mentions: both answered; turned off: the note", async () => {
+    const h = createHandler(() => {}, lookups());
     const empty = msg(`<@!${BOT}>`, { reply: vi.fn(async () => { throw new Error("Missing Permissions"); }) });
     await h.mention(empty.m, BOT);
     expect(empty.sent.map((s) => [s.kind, s.embeds[0].title])).toEqual([["send", "Ask me anything"]]);
-    const fast = msg(`<@${BOT}> 4215`);
-    await h.mention(fast.m, BOT);
-    expect(fast.sent).toHaveLength(0);
+    // Two mentions from one person, one right after the other: the second is answered too (no pace limit).
+    const first = msg(`<@${BOT}> 4215`);
+    await h.mention(first.m, BOT);
+    const second = msg(`<@${BOT}> 4215`);
+    await h.mention(second.m, BOT);
+    expect(first.sent).toHaveLength(1);
+    expect(second.sent).toHaveLength(1);
     const off = msg(`<@${BOT}> 4215`);
-    await createHandler(() => {}, lookups({ enabled: async (f) => f !== "discordBot" }), { cooldownMs: 0 }).mention(off.m, BOT);
+    await createHandler(() => {}, lookups({ enabled: async (f) => f !== "discordBot" })).mention(off.m, BOT);
     expect(off.sent[0].embeds[0].title).toBe("Turned off for now");
   });
 });
@@ -352,7 +344,7 @@ describe("@mention answers", () => {
 describe("an answer with a video", () => {
   it("sends the video link as the message's text, for /ask and a mention alike", async () => {
     const l = lookups({ ask: vi.fn(async (q: string) => ({ embed: { title: `ask ${q}` }, meta: { step: "deterministic" as const, refined: false, sentence: false }, content: "https://www.youtube.com/watch?v=AAA" })) });
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l);
     const c = command("ask", { question: "23268 highlights" });
     await h(c.i);
     expect(c.calls.at(-1)!.payload.content).toBe("https://www.youtube.com/watch?v=AAA");
@@ -365,7 +357,7 @@ describe("an answer with a video", () => {
 describe("the ask cache key", () => {
   it("is the whole question: two long questions alike for 100 characters are answered apart", async () => {
     const l = lookups();
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l);
     const head = "x".repeat(120);
     await h(command("ask", { question: `${head} one` }, "a").i);
     await h(command("ask", { question: `${head} two` }, "b").i);
@@ -385,7 +377,7 @@ describe("a chat with Bruno in Discord", () => {
   }
 
   it("a mention gets his reply as plain text, no embed; /ask quotes the question", async () => {
-    const h = createHandler(() => {}, lookups({ ask: chatAsk() }), { cooldownMs: 0 });
+    const h = createHandler(() => {}, lookups({ ask: chatAsk() }));
     const { m, sent } = message(`<@${BOT}> hi bruno`);
     await h.mention(m, BOT);
     expect(sent[0]).toMatchObject({ content: "re: hi bruno (0)\n-# Bruno AI · controlscout.org", embeds: [] });
@@ -396,7 +388,7 @@ describe("a chat with Bruno in Discord", () => {
 
   it("a reply to his answer carries the thread on, even without a mention; replies to others or with no text are left alone", async () => {
     const ask = chatAsk();
-    const h = createHandler(() => {}, lookups({ ask }), { cooldownMs: 0 });
+    const h = createHandler(() => {}, lookups({ ask }));
     await h.mention(message(`<@${BOT}> who won decode`, {}, "bot-1").m, BOT);
     const follow = message("and second?", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }, "bot-2");
     await h.mention(follow.m, BOT);
@@ -416,7 +408,7 @@ describe("a chat with Bruno in Discord", () => {
       meta: { step: "recovery" as const, refined: false, sentence: false, chat: true },
       chat: { text: "Hey — I'm Control Scout.", by: "scout" as const },
     }));
-    const h = createHandler(() => {}, lookups({ ask }), { cooldownMs: 0 });
+    const h = createHandler(() => {}, lookups({ ask }));
     await h.mention(message(`<@${BOT}> hi`, {}, "bot-1").m, BOT);
     const follow = message("who won decode", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }, "bot-2");
     await h.mention(follow.m, BOT);
@@ -428,7 +420,7 @@ describe("answers ping nobody", () => {
   it("a reply, the fallback plain message and /ask all send with no mentions allowed", async () => {
     const pinged = { text: "@everyone <@&5> <@9> look", search: false };
     const ask = vi.fn(async (q: string) => ({ embed: ok(`ask ${q}`), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: pinged }));
-    const h = createHandler(() => {}, lookups({ ask }), { cooldownMs: 0 });
+    const h = createHandler(() => {}, lookups({ ask }));
     const opts: any[] = [];
     await h.mention({ author: { id: "u", bot: false }, guildId: "g", content: "<@7> hi", reply: async (o) => { opts.push(o); }, channel: {} }, "7");
     await h.mention({ author: { id: "u", bot: false }, guildId: "g", content: "<@7> yo", reply: async () => { throw new Error("Missing Permissions"); }, channel: { send: async (o) => { opts.push(o); } } }, "7");
