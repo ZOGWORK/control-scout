@@ -60,6 +60,21 @@ describe("the one fallback", () => {
     expect(smallTalk("is it true that 4215 hypnotic robotics beat 6980 bad wolf at worlds this season", true)).toBeNull();
   });
 
+  it("a maths or measurement question gets the one line too: a degree isn't a record number", () => {
+    // The screenshot's #control-scouting: "what is the cosine of 35 degrees i need it for a auto trust" was answered
+    // "Sorry — I can't answer that yet. No team, event or match matched … Browse all teams".
+    for (const q of [
+      "what is the cosine of 35 degrees i need it for a auto trust",
+      "what is the cosine of pi radians i need it for auto",
+      "how many inches is 42 mm",
+    ]) {
+      expect(smallTalk(q)).toBe(NO_CHAT);
+      expect(smallTalk(q, true)).toBe(NO_REPLY);
+    }
+    // A team is still a record number, whatever follows it.
+    expect(smallTalk("6980 in the finals", true)).toBeNull();
+  });
+
   it("counts words, so the length rule is the one the bot documents", () => {
     const words = (n: number) => Array.from({ length: n }, () => "word").join(" ");
     expect(SMALL_TALK_WORDS).toBe(12);
