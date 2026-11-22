@@ -70,9 +70,10 @@ export default function SearchPage() {
   // submitted search never starts on a loading screen; this page's own request replaces it as soon as it answers.
   // `thread`: this question, once answered, is what a follow-up refers back to (src/components/search/thread.ts).
   const initial = BOOT_HITS && BOOT_HITS.q.trim() === query ? BOOT_HITS : handedAnswer(query);
-  // Whether the page drew with an answer it already had (read once: the handoff lapses, the drawn answer doesn't): a
-  // submitted query keeps showing it rather than wait on its own answer to decide where to go (../components/search/direct.ts).
-  const seeded = useRef(!!initial).current;
+  // The query this page first drew with an answer it already had (a first paint's hits, or the box's handoff). Only
+  // that query skips the wait: this page stays mounted when `?q=` changes, and a later query has nothing in hand.
+  const seededFor = useRef(initial ? query : null);
+  const seeded = seededFor.current === query;
   const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, initial, false, picked, true);
   const seasonPick = useMemo<SeasonPick>(() => ({
     picked, pending: reseason,
