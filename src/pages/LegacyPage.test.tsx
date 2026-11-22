@@ -5,14 +5,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
-const who = vi.hoisted(() => ({ user: { isOwner: true } as { isOwner?: true } | null, providers: {} as object | null, offlineAccount: false }));
+const who = vi.hoisted(() => ({ user: { isOwner: true } as { isOwner?: true } | null, accountAnswered: true, offlineAccount: false }));
 vi.mock("../lib/personal", () => ({ usePersonal: () => who }));
 const { default: LegacyPage } = await import("./LegacyPage");
 import { V8_KEY } from "../lib/v8";
 
 const assign = vi.fn();
 vi.stubGlobal("location", { ...window.location, assign, reload: vi.fn() });
-afterEach(() => { cleanup(); localStorage.clear(); assign.mockClear(); document.documentElement.removeAttribute("data-v8"); Object.assign(who, { user: { isOwner: true }, providers: {}, offlineAccount: false }); });
+afterEach(() => { cleanup(); localStorage.clear(); assign.mockClear(); document.documentElement.removeAttribute("data-v8"); Object.assign(who, { user: { isOwner: true }, accountAnswered: true, offlineAccount: false }); });
 const page = () => render(<MemoryRouter initialEntries={["/legacy"]}><Routes><Route path="/legacy" element={<LegacyPage />} /><Route path="/" element={<p>home</p>} /></Routes></MemoryRouter>);
 
 describe("LegacyPage", () => {
@@ -50,12 +50,12 @@ describe("LegacyPage", () => {
   });
 
   it("shows nothing until the server has said who's here, or while the account is the offline copy", () => {
-    Object.assign(who, { providers: null });
+    Object.assign(who, { accountAnswered: false });
     page();
     expect(screen.queryByText("Pick a look")).toBeNull();
     expect(screen.queryByText("home")).toBeNull();
     cleanup();
-    Object.assign(who, { providers: {}, offlineAccount: true });
+    Object.assign(who, { accountAnswered: true, offlineAccount: true });
     page();
     expect(screen.queryByText("Pick a look")).toBeNull();
     expect(screen.queryByText("home")).toBeNull();

@@ -4,13 +4,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
-const who = vi.hoisted(() => ({ user: null as { isOwner?: true } | null, providers: {} as object | null, offlineAccount: false }));
+const who = vi.hoisted(() => ({ user: null as { isOwner?: true } | null, accountAnswered: true, offlineAccount: false }));
 const look = vi.hoisted(() => ({ v8: false, setV8: vi.fn() }));
 vi.mock("./personal", () => ({ usePersonal: () => who }));
 vi.mock("./v8", () => ({ isV8: () => look.v8, setV8: look.setV8 }));
 const { OwnerOnlyClassicLook } = await import("./ownerLook");
 
-afterEach(() => { cleanup(); look.setV8.mockClear(); look.v8 = false; Object.assign(who, { user: null, providers: {}, offlineAccount: false }); });
+afterEach(() => { cleanup(); look.setV8.mockClear(); look.v8 = false; Object.assign(who, { user: null, accountAnswered: true, offlineAccount: false }); });
 
 describe("OwnerOnlyClassicLook", () => {
   it("turns a visitor's or a signed-in non-owner's classic look back into the new one", () => {
@@ -29,10 +29,10 @@ describe("OwnerOnlyClassicLook", () => {
   });
 
   it("waits for the server's answer, and never acts on the offline copy", () => {
-    Object.assign(who, { providers: null });
+    Object.assign(who, { accountAnswered: false });
     render(<OwnerOnlyClassicLook />);
     cleanup();
-    Object.assign(who, { providers: {}, offlineAccount: true });
+    Object.assign(who, { accountAnswered: true, offlineAccount: true });
     render(<OwnerOnlyClassicLook />);
     expect(look.setV8).not.toHaveBeenCalled();
   });
