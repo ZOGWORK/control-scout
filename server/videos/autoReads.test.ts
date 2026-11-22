@@ -254,6 +254,23 @@ describe("the frames' review entries: matches seen in the video, kept off the si
     expect((await fetch(`${base}/clip-coverage/counts`).then((x) => x.json())).approvals).toBe(2);
   });
 
+  it("a start the second look confirmed (two frames) goes live with no owner and leaves the list; one frame waits", async () => {
+    setFrameTimingsForTests([reviewed()]);
+    const looked = (confirmed: number[]) => frame({ checked: "2026-11-21", starts: { Q1: 600, Q2: 1000, Q3: 1402 }, opens: { Q1: 588, Q2: 995, Q3: 1402 }, confirmed: { Q3: confirmed } });
+    // One frame only (or one second twice) is no second signal: held for the owner, with why.
+    const thin = await applyDelivery({ kind: "frames", season: 2025, rows: [looked([1402, 1402])] });
+    expect(thin.pending).toEqual([`${V1}|XXAUTO`]);
+    expect(JSON.parse(String((await get<{ p: string }>("SELECT pending_problems AS p FROM auto_reads"))!.p))).toEqual(["Q3: confirmed by fewer than 2 separate frames"]);
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBeNull();
+    // Two separate frames inside the match: live at once, the waiting read outdated, off the owner's list.
+    const two = await applyDelivery({ kind: "frames", season: 2025, rows: [looked([1402, 1421])] });
+    expect(two.live).toEqual([`${V1}|XXAUTO`]);
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBe(1402);
+    expect(frameRow(V1, "XXAUTO")?.confirmed).toEqual({ Q3: [1402, 1421] });
+    expect((await list()).reviewTotal).toBe(0);
+    expect(await get("SELECT pending_json FROM auto_reads")).toEqual({ pending_json: null });
+  });
+
   it("Approve makes t the match's clip start, owner-approved, with its opening the clip lead before; a stale t is refused", async () => {
     setFrameTimingsForTests([reviewed()]);
     expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1399 })).status).toBe(409);

@@ -16,6 +16,7 @@ import { cn } from "../cn";
 import { apiFetch, ApiError, markStale, useApi } from "../../lib/api";
 import { ago, int } from "../../lib/format";
 import type { OwnerAnalytics, PublishUsageSetting } from "../../shared/owner";
+import { PublicUsagePanel } from "../home/HomeSections";
 
 const SERIES: { key: "pageViews" | "sessions" | "predictionCalls"; label: string; cls: string }[] = [
   { key: "pageViews", label: "Page views", cls: "bg-accent" },
@@ -100,6 +101,9 @@ export function AnalyticsPanel() {
   const state = useApi<OwnerAnalytics>(`/api/owner/analytics?days=${days}`);
   return (
     <>
+      {/* "Control Scout, in use": the classic home page's section, as visitors would see it (the new home page has
+          none), published or not. Its own container, as on the home page (its tiles lay out by width). */}
+      <div data-owner-in-use className="@container/home mb-8 [&>section]:border-t-0 [&>section]:pt-0"><PublicUsagePanel path="/api/owner/public-usage" /></div>
       <div className="mb-4 flex items-center justify-end gap-1" role="group" aria-label="Period">
         {[7, 14, 30].map((d) => (
           <Button key={d} size="sm" variant={d === days ? "default" : "outline"} aria-pressed={d === days} onClick={() => setDays(d)}>{d} days</Button>
