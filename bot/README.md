@@ -63,10 +63,15 @@ sent.
 
 **One honest fallback.** A short message that isn't a records question and that no chat answered ("hi", "who are
 you", "who's your favourite person here", "thanks") gets one line from `bot/smallTalk.ts`, credited to Control Scout
-rather than Bruno: it can't chat right now, its AI answers aren't reachable, and it can still read the records. There
-are no keyword replies, so it never guesses a favourite or invents a fact, and it says plainly when the model is
-missing instead of answering in character. A message with a number in it, or a longer one search couldn't answer, is
-still a real question and keeps the honest card.
+rather than Bruno. There are no keyword replies, so it never guesses a favourite or invents a fact instead of answering
+in character. A message with a number in it, or a longer one search couldn't answer, is still a real question and keeps
+the honest card.
+
+Which line it is depends on the chat, not on luck: a chat that is off, unconfigured or switched off says so — it can't
+chat right now, its AI answers aren't reachable, and it can still read the records. A chat that is there and gave
+nothing about this one message (a reply with a number the facts haven't, an empty one, a failure) says only that this
+message got no answer, and still offers the records: claiming the AI is unreachable there would contradict the answer
+it posted a moment earlier in the same channel.
 
 Only a message from a person in a
 server that mentions the bot itself, or replies to its post: not @everyone or a role. Discord sends a bot the text of

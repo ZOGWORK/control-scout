@@ -156,7 +156,11 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
   // Search found nothing and no chat answered either: one honest line rather than "Sorry — I can't answer that yet"
   // with the closest matches. Only a short message that isn't a records question reaches here (bot/smallTalk.ts).
   if (!answer.hits.length && !answer.card && !answer.stat) {
-    const talk = smallTalk(q);
+    // Why no chat: a chat that's wired, configured and still on gave nothing about this one message (a reply with a
+    // number the facts haven't, an empty one, a failure), and saying its AI is unreachable would contradict the answer
+    // it just posted in the same channel. Only a chat that's actually off is reported as off.
+    const reachable = chatting && deps.available() && (await deps.enabled().catch(() => false));
+    const talk = smallTalk(q, reachable);
     if (talk) return {
       embed: askEmbed(q, answer, null, site),
       meta: { step: answer.step, refined, sentence: false, chat: true },
