@@ -38,6 +38,7 @@ import { warmVideoQuestions } from "./api/answers/videoSuggest.js";
 import { ensureSearchIndex, warmTypoIndex } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { scheduleCycles, warmUp } from "./warm.js";
+import { handingOver } from "./lanes.js";
 import { names as warmNames } from "./api/query/names.js";
 import { warmPageRenderer } from "./firstPaint.js";
 import { refreshSearchSeason } from "./api/answers/season.js";
@@ -122,7 +123,12 @@ const warming = await warmUp([
 // about twice as long (18 s on the VM, measured on a copy of its data: 43 s beside the build, 22 s before it) while a
 // deploy's requests waited in the socket's queue, and searches asked meanwhile ran out of time ("Search is slow right
 // now"). The build yields to requests as it goes.
-const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))]], log, Infinity, Date.now, "warm (background)");
+// A deploy's new lane with the other lane still serving (server/lanes.ts): nobody waits on this one, so it finishes all
+// of it (the steps past their cap too) before it takes the socket, and the first requests it answers never wait on
+// the ratings (a team page took 20.7 s right after a hand-off, 2026-11-22). Alone (a cold boot, a restart), as above.
+const handover = await handingOver();
+const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))]], log, Infinity, Date.now, handover ? "warm (before taking over)" : "warm (background)");
+if (handover) await Promise.all([warming.settled, rated]);
 void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(() => { warm = true; });
 ready = true;
 if (socket) http = server.listen(socket, listening("the systemd socket"));
