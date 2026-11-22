@@ -151,19 +151,29 @@ export async function withoutAside(q: string, opts: { now?: number; prefer?: Rea
 }
 
 const ONE_LETTER_FORMS = new Set(INFORMAL.map(([from]) => from).filter((f) => f.length === 1));
-/** A stray letter typed at the end ("what is the best team in nj n"): one letter left unread after a question the
- *  parser reads whole without it. The question without it, and the letter, to say it wasn't read. Never "a" or "i"
- *  (words), nor a letter anything reads (a team's name, a short form). */
-export async function withoutStrayLetter(q: string, opts: { now?: number; prefer?: ReadonlySet<string> } = {}): Promise<{ rest: string; letter: string } | null> {
-  const m = /^(\S+(?:\s+\S+)+?)\s+([b-hj-z])\s*([?!.]*)\s*$/i.exec(q.trim());
+/** Stray letters typed on their own, anywhere ("what is the best team in nj n", "what is t r best team in the world"):
+ *  letters left unread in a question the parser reads whole without them, and only them. The question without them,
+ *  and the letters, to say they weren't read. Never "a" or "i" (words), nor a letter anything reads (a team's name, a
+ *  match's "q", a short form). */
+export async function withoutStrayLetter(q: string, opts: { now?: number; prefer?: ReadonlySet<string> } = {}): Promise<{ rest: string; letters: string[] } | null> {
+  if (q.includes('"')) return null;
+  const ws = q.trim().split(/\s+/);
   // A one-letter short form ("u" for "you", ./query/lexicon.ts INFORMAL) is read, said in full later: never stray.
-  if (!m || q.includes('"') || ONE_LETTER_FORMS.has(m[2].toLowerCase())) return null;
+  const stray = (w: string) => /^[b-hj-z]$/i.test(w) && !ONE_LETTER_FORMS.has(w.toLowerCase());
+  // Punctuation at the end of the question stays with the words kept ("… nj n?" is "… nj?").
+  const end = /[?!.]+$/.exec(ws[ws.length - 1])?.[0] ?? "";
+  if (end) ws[ws.length - 1] = ws[ws.length - 1].slice(0, -end.length);
+  const letters = ws.filter(stray), kept = ws.filter((w) => w && !stray(w));
+  // Two words or more stay: a letter beside one word may be part of what it asks.
+  if (!letters.length || kept.length < 2) return null;
   const ctx = await parseContext(opts.now, opts.prefer);
   const p = await parseQuery(q, ctx);
-  if (p.leftover.length !== 1 || p.leftover[0].toLowerCase() !== m[2].toLowerCase()) return null;
-  const rest = `${m[1]}${m[3]}`;
+  // Every word the parser left unread is one of these letters, and each of them is unread.
+  const unread = new Set(p.leftover.map((w) => w.toLowerCase()));
+  if (!p.leftover.length || ![...unread].every((w) => stray(w)) || !letters.every((l) => unread.has(l.toLowerCase()))) return null;
+  const rest = `${kept.join(" ")}${end}`;
   const again = await parseQuery(rest, ctx);
-  return !again.leftover.length && again.intent ? { rest, letter: m[2] } : null;
+  return !again.leftover.length && again.intent ? { rest, letters } : null;
 }
 /** The lexicon's one-word filler ("i", "please"). */
 /** A chat command and its option name, written before the question: "/ask question:", "/ask question: ". */
@@ -292,11 +302,12 @@ async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer>
     const b = await searchAnswer(unasked, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
-  // A stray letter typed at the end ("… in nj n"): the question without it, the letter said as not read.
+  // Stray letters typed on their own ("… in nj n", "what is t r best team"): the question without them, the letters
+  // said as not read.
   const stray = await withoutStrayLetter(String(raw ?? ""), opts);
   if (stray) {
     const b = await searchAnswer(stray.rest, opts);
-    const understood = b.understood ? { ...b.understood, unread: [...(b.understood.unread ?? []), stray.letter] } : b.understood;
+    const understood = b.understood ? { ...b.understood, unread: [...(b.understood.unread ?? []), ...stray.letters] } : b.understood;
     return carryOutcome(b, { ...b, q: cleanQuery(raw), ...(understood ? { understood } : {}) });
   }
   const said = String(raw ?? ""), full = await inFull(said);
@@ -313,7 +324,10 @@ async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer>
   // A possessive after a name ending in punctuation ("die toaster, die!'s worst score"): the name as typed, never a
   // stray "s" every reader would take for a word (or a team named "s").
   const owned = said.replace(/(?<=[\p{L}\p{N}][^\p{L}\p{N}\s'’]+)['’]s(?=[\s,;:?!]|$)/gu, "");
-  const dated = owned.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
+  // A team's number said again before an event word ("37032 record at 37032 meet") is the same team's own event, never a
+  // second team: "at their meet".
+  const once = owned.replace(/\b(\d{1,6})\b(.*?)\b(at|in|from|during)\s+#?\1(?:['’]s)?\s+(?=(?:events?|meets?|competitions?|comps?|tournaments?)\b)/gi, (_, n: string, mid: string, at: string) => `${n}${mid}${at} their `);
+  const dated = once.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
     .replace(/\b(20\d\d)\s*,\s*(\d\d)\b/g, (w, a: string, b: string) => (next(a, b) ? `${a}-${b}` : w))
     .replace(/\b(season\s+)(\d\d)\s*,\s*(\d\d)\b|\b(\d\d)\s*,\s*(\d\d)(\s+season)\b/gi, (w, pre?: string, a1?: string, b1?: string, a2?: string, b2?: string, post?: string) => {
       const [a, b] = a1 ? [a1, b1!] : [a2!, b2!];
