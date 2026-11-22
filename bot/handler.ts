@@ -146,6 +146,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   const recentLogs: string[] = [];
   const logLine: Log = (m) => { recentLogs.push(m); if (recentLogs.length > REPORT_LOG_LINES) recentLogs.shift(); log(m); };
   const filed = new Map<string, { at: number; number: number; url: string }>();
+  // Reports being filed right now, by the same key: a second ask waits for the first instead of opening an issue too.
+  const filing = new Map<string, Promise<Filed>>();
   const cache = new AnswerCache<APIEmbed>(opts.ttlMs ?? 60_000, 2000, (e) => e instanceof Friendly);
   // Nobody is paced per person: every message is answered (a person asking twice in a row gets both answers). Only the
   // same question within a minute is the answer already given, whoever asks.
@@ -209,18 +211,25 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   }
   /**
    * "Report this to ControlScout": file one GitHub issue with what the bot can see (bot/report.ts) and say where it is,
-   * or say plainly that it couldn't. The same words in the same server within REPORT_REPEAT_MS point at the same issue
-   * rather than opening another.
+   * or say plainly that it couldn't. `key` identifies the thing reported — its message, in its channel — so the same
+   * message never files twice (a repeat, a second mention while the first is still being filed) while two members'
+   * different reports are two issues.
    */
-  async function reportIt(where: Omit<Report, "message" | "thread" | "logs">, q: string, thread: BrunoChatTurn[], post: (e: APIEmbed) => Promise<unknown>): Promise<void> {
-    const key = `${where.guild ?? ""}|${q.trim().toLowerCase()}|${thread.length}`;
+  async function reportIt(key: string, where: Omit<Report, "message" | "thread" | "logs">, q: string, thread: BrunoChatTurn[], post: (e: APIEmbed) => Promise<unknown>): Promise<void> {
     const at = Date.now();
     const already = filed.get(key);
     if (already && at - already.at < REPORT_REPEAT_MS) {
       await post(reportedEmbed(already));
       return;
     }
-    const r = await lookups.report!({ ...where, message: q, thread, logs: [...recentLogs] }).catch((): Filed => ({ ok: false, reason: "the report failed" }));
+    // The same report asked for twice at once: both get the one issue (the promise is shared, not just its result).
+    let flight = filing.get(key);
+    if (!flight) {
+      flight = lookups.report!({ ...where, message: q, thread, logs: [...recentLogs] }).catch((): Filed => ({ ok: false, reason: "the report failed" }));
+      filing.set(key, flight);
+      void flight.finally(() => { if (filing.get(key) === flight) filing.delete(key); });
+    }
+    const r = await flight;
     if (!r.ok) {
       logLine(`report failed: ${r.reason}`);
       await post(errorEmbed("Couldn't file that report", "Something on my side stopped the report from reaching GitHub. Try again in a moment, or report it on controlscout.org."));
@@ -293,9 +302,11 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // The server's chat limit, if one is set (none is, today): said plainly, before any lookup.
       const over = await mayChat(i.guildId);
       if (!over.ok) { await i.editReply({ embeds: [pride(limitEmbed(over))] }); return; }
-      // "Report this to ControlScout" in /ask: the same report a mention files (bot/report.ts).
+      // "Report this to ControlScout" in /ask: the same report a mention files (bot/report.ts), before the chat limit —
+      // a report is not a chat, and a server at its cap should still be able to report a bug.
       if (lookups.report && wantsReport(question)) {
-        await reportIt({ guild: i.guildId, channel: i.channelId, user: i.user.id, name: i.user.globalName ?? i.user.username ?? null }, question, [],
+        const key = `${i.guildId ?? ""}|${i.channelId ?? ""}|${i.user.id}|${question.trim().toLowerCase()}`;
+        await reportIt(key, { guild: i.guildId, channel: i.channelId, user: i.user.id, name: i.user.globalName ?? i.user.username ?? null }, question, [],
           async (embed) => i.editReply({ embeds: [pride(embed)] }));
         return;
       }
@@ -370,7 +381,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // "Report this to ControlScout": a GitHub issue with the message, the thread before it and the bot's log lines.
       // Before the chat limit: a report is not a chat, and a server at its cap should still be able to report a bug.
       if (lookups.report && wantsReport(q)) {
-        await reportIt({ guild: m.guildId, channel: m.channelId ?? null, user: m.author.id, name: m.author.globalName ?? m.author.username ?? null }, q, history, card);
+        // Its key is the message itself in its channel: one report per message, never a merged one for two members.
+        const key = `${m.guildId ?? ""}|${m.channelId ?? ""}|${m.id ?? ""}|${replyTo ?? ""}`;
+        await reportIt(key, { guild: m.guildId, channel: m.channelId ?? null, user: m.author.id, name: m.author.globalName ?? m.author.username ?? null }, q, history, card);
         return;
       }
       // The server's chat limit, if one is set (none is, today): said in the channel, before the typing indicator goes up.
@@ -422,6 +435,8 @@ export interface MentionMessage {
   guildId: string | null;
   /** The channel's id: a report says where it happened (bot/report.ts). */
   channelId?: string | null;
+  /** The message's id: a report is filed once per message, however often it is asked for. */
+  id?: string;
   content: string;
   /** The message it replies to, and that message's author. */
   reference?: { messageId?: string } | null;
