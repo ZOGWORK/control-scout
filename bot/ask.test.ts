@@ -352,6 +352,30 @@ describe("when no chat can answer", () => {
     } finally { info.mockRestore(); }
   });
 
+  it("the screenshot's build question with a ratio in it is a chat, not a record claim: his explanation posts", async () => {
+    // "should I use a 42:15 gear reduction on my robot turret": the digits are a ratio, so his own numbers (a swerve's
+    // 2:1, a turret's 3:1) are about the mechanism, not the records, and the reply is not thrown away.
+    const q = "should I use a 42:15 gear reduction on my robot turret because it is my team numebr";
+    const d = deps(nothing(q), {
+      facts: vi.fn(async () => []), refine: vi.fn(async () => null),
+      chat: vi.fn(async () => ({ text: "**42:15 is far too slow for a turret.** Most turrets land near 2:1 or 3:1 so they hold position under a hit.", search: false, unknown: ["2", "1", "3"] })),
+    });
+    const r = await ask(q, d, SITE);
+    expect(r.chat?.text).toContain("42:15");
+    expect(r.chat?.by).toBeUndefined();
+  });
+
+  it("a build question no chat answered gets the plain line, not search's guess at a team", async () => {
+    // Search read "gear reduction" as Team 12499 Gear Up: telling someone asking about gearing that is worse than one
+    // plain line saying this message got no answer.
+    const q = "should I use a 42:15 gear reduction on my robot turret because it is my team numebr";
+    const d = deps(nothing(q), { chat: vi.fn(async () => null), facts: vi.fn(async () => []), refine: vi.fn(async () => null) });
+    expect((await ask(q, d, SITE)).chat?.text).toBe(NO_REPLY);
+    // A records question still keeps its own card.
+    const records = "who had the highest score at 2025 worlds";
+    expect((await ask(records, plain(records), SITE)).chat).toBeUndefined();
+  });
+
   it("a message naming a number is a records question, even when search finds nothing for it", async () => {
     const d = deps(nothing("99999 swerve ratio"), {
       facts: vi.fn(async () => []), refine: vi.fn(async () => null),

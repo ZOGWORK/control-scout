@@ -26,13 +26,26 @@ export const NO_REPLY = "I didn't get an answer to that one — ask me about a t
 /** Whether these words are short enough to be a greeting rather than a question search couldn't answer. */
 export const shortEnough = (q: string) => q.trim().split(/\s+/).filter(Boolean).length <= SMALL_TALK_WORDS;
 
-/** The bot's one fallback for a short message, or null: a real question (a number in it), or a long one.
+/** A number that could be a record: a team, a match, a score or a season. Not a ratio ("42:15", "1:1") and not a
+ *  measurement ("12.4 OPR", "1.5 in"): a build question is full of those, and it asks nothing of the records. */
+export const RECORD_NUMBER = /(?<![\d.:])\d{2,5}(?![\d:])(?!\.\d)/;
+
+/** A build question: a ratio ("42:15", "1:1") or the parts around one. It asks nothing of the records, so search's
+ *  guess at a team is worth nothing to it: the screenshot's "should I use a 42:15 gear reduction on my robot turret"
+ *  was answered "Sorry — I can't answer that yet. I read it as: Team 12499 Gear Up", which is worse than one plain
+ *  line saying this one got no answer. */
+export const MECHANISM = /\b\d+(?:\.\d+)?\s*:\s*\d+\b|\b(?:gear|gears|gearing|ratio|reduction|turret|motor|motors|rpm|sprocket|chain|belt|drivetrain|intake|flywheel|servo|encoder|axle|chassis)\b/i;
+
+/** The bot's one fallback for a short message, or null: a real question (a record number in it), or a long one —
+ *  unless it's a build question, which is never one about the records however long it is.
  *  `reachable`: the chat is wired, configured and switched on, so it answered other messages and this one alone got
  *  nothing back (bot/ask.ts works that out); it is then described as that, never as missing. */
 export function smallTalk(q: string, reachable = false): string | null {
   const t = q.trim().replace(/\s+/g, " ");
-  if (!t || !shortEnough(t)) return null;
-  // A number is a team, a season or a score: that's a records question however short ("6980", "2025 worlds").
-  if (/\d/.test(t)) return null;
+  if (!t) return null;
+  // A team, a season or a score is a records question however short ("6980", "2025 worlds"): its own card.
+  if (RECORD_NUMBER.test(t)) return null;
+  // A build question is not: one plain line, however long it is.
+  if (!MECHANISM.test(t) && !shortEnough(t)) return null;
   return reachable ? NO_REPLY : NO_CHAT;
 }
