@@ -919,7 +919,10 @@ export function readStatQuestion(raw: string): StatQuestion | null {
   // A stat said with "last meet" or "first meet" and no "their" ("quality control average points last meet", "… auto opr
   // in first meet") is that stat at the team's own latest or earliest event, as with "their": only when another team
   // question is asked beside it, so "12345 last event" alone stays the latest event's own answer.
-  const bare = /\b(?:(?:at|in|during|from) )?(?:(last|latest|most recent|newest|previous)|first|debut|earliest) (?:event|competition|tournament|meet)\b/.exec(q);
+  // "First" said alone at the end, right after a stat ("quality control auto opr first", failed search #2171), is the
+  // same first event: the stat said with its event word left off.
+  const bare = /\b(?:(?:at|in|during|from) )?(?:(last|latest|most recent|newest|previous)|first|debut|earliest) (?:event|competition|tournament|meet)\b/.exec(q)
+    ?? /(?<=\b(?:opr|points|score|record) )(?:in )?first(?= $)/.exec(q);
   if (bare) {
     const with_ = q.replace(bare[0], ` at ${bare[1] ? THEIR_LAST : THEIR_FIRST}`);
     const other = RULES.find((r) => r.re.test(with_));
