@@ -3,7 +3,8 @@
 //
 // Live and backtest are always separate blocks — never blended. "Live" counts
 // only predictions written down before the match was played.
-import { all, allInChunks, get, kvGet } from "../db.js";
+import { all, allInChunks, kvGet } from "../db.js";
+import type { InArgs } from "@libsql/client";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASONS, bonusLabels } from "../data/seasons.js";
 import { ENGINE_VERSION, type ConfidenceTier } from "@control-scout/predict-engine";
 import type { AccuracyBlock, BonusAccuracy, MarginError, RangeCoverage, RangeCoverageNow, ReplayCoverage, ShadowScore, TrackRecord } from "../../src/shared/api.js";
@@ -128,14 +129,15 @@ const bonusFlags = (s: unknown): [boolean, boolean, boolean] | null => {
 /** Let the event loop go: requests waiting behind a long build are answered in between. */
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
-/** Every scored bonus RP call, by kind and season (calls whose match has recorded bonus RPs only). */
-async function bonusCalls(chunk = 4_000): Promise<Map<string, { calls: BonusCall[]; matches: number }>> {
+/** Every scored bonus RP call, by kind and season (calls whose match has recorded bonus RPs only). `where`: which
+ *  calls, as a condition on the prediction (`p`), with its arguments (every live and replayed call by default). */
+async function bonusCalls(chunk = 4_000, where = "p.kind IN ('live', 'backtest')", args: InArgs = []): Promise<BonusBySeason> {
   // In chunks (db.ts allInChunks): one read of every call held the server's one thread for a third of a second.
   const rows = await allInChunks<any>(
     `SELECT p.id pid, p.kind, p.season, p.bonus_red, p.bonus_blue, m.red_bonus, m.blue_bonus FROM predictions p
        JOIN matches m ON m.season = p.season AND m.code = p.code AND m.level = p.level AND m.series = p.series AND m.number = p.number
-      WHERE p.bonus_red IS NOT NULL AND p.outcome IS NOT NULL AND p.kind IN ('live', 'backtest') AND m.played = 1 AND p.id > ?`,
-    [], "pid", chunk,
+      WHERE p.bonus_red IS NOT NULL AND p.outcome IS NOT NULL AND ${where} AND m.played = 1 AND p.id > ?`,
+    args, "pid", chunk,
   );
   const out = new Map<string, { calls: BonusCall[]; matches: number }>();
   for (const r of rows) {
@@ -257,7 +259,7 @@ export async function warmTrackRecord(): Promise<void> {
 }
 
 /** Forget the cached track record (tests). */
-export function resetTrackRecord(): void { cached = null; building = null; pastCoverage = null; }
+export function resetTrackRecord(): void { cached = null; building = null; pastCoverage = null; replayed.clear(); seasonBlocks.clear(); }
 registerCache("Track record", resetTrackRecord);
 
 /**
@@ -315,31 +317,90 @@ async function seasonCoverage(): Promise<Map<number, ReplayCoverage>> {
   return new Map([...pastCoverage.value, ...current]);
 }
 
-/** What the predictions table holds, in brief: any write between two reads of it (a call logged or scored, a season's
- *  replay deleted and written again under new ids) changes it. */
-const callsFingerprint = async () => JSON.stringify(await get("SELECT COUNT(*) n, COALESCE(MAX(id), 0) m, COUNT(outcome) o, TOTAL(outcome) t, COALESCE(MAX(scored_at), '') s FROM predictions"));
+/** What the predictions table holds, in brief, per kind: any write between two reads of it (a call logged or scored, a
+ *  season's replay deleted and written again under new ids) changes it. From the (kind, season, scored_at) index alone:
+ *  the whole table's scan held the thread 100–170 ms, twice a build. A call is scored by setting its scored_at and then
+ *  its outcome; the outcome alone moving between two reads isn't seen here, but the live calls are read in one
+ *  statement (never torn), and the track record's key counts the scored live calls, so the next build has it. */
+async function callsFingerprint(): Promise<{ print: string; kinds: string[] }> {
+  const rows = await all<{ kind: string; n: number; m: number; s: string }>("SELECT kind, COUNT(*) n, COALESCE(MAX(id), 0) m, COALESCE(MAX(scored_at), '') s FROM predictions GROUP BY kind ORDER BY kind");
+  return { print: JSON.stringify(rows.map((r) => [r.kind, r.n, r.m, r.s])), kinds: rows.map((r) => String(r.kind)) };
+}
 
 /**
  * Every scored call and every bonus call, in chunks (db.ts allInChunks): read at once, the 100,000-odd scored calls
  * held the server's one thread for 1.3–2.5 s after every data move (measured 2026-11-10), every visitor's request
  * waiting behind it. In chunks, a write can land between two of them (a replay rewriting a season would be counted
  * twice, or not at all), so the table is fingerprinted before and after, and read again if it moved; after three
- * tries, each is read in one statement as it was before (consistent, and the thread held that once).
+ * tries, each is read in one statement as it was before (consistent, and the thread held that once). `prints`: each
+ * season's replay as read (replayedCalls), null when read in one statement.
  */
-async function scoredCalls(): Promise<{ rows: any[]; bonus: Awaited<ReturnType<typeof bonusCalls>> }> {
-  const SQL = "SELECT id, kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine, model_id model, p_red_shadow ps, shadow_model_id sm, red_lo, red_hi, blue_lo, blue_hi, range_level, red_score, blue_score, red_mean, blue_mean, no_score_basis FROM predictions WHERE outcome IS NOT NULL AND id > ?";
+async function scoredCalls(): Promise<{ rows: any[]; bonus: BonusBySeason; prints: Map<number, string> | null }> {
   for (let i = 0; i < 3; i++) {
     const before = await callsFingerprint();
-    const rows = await allInChunks<any>(SQL, [], "id");
-    const bonus = await bonusCalls();
-    if ((await callsFingerprint()) === before) return { rows, bonus };
+    const past = await replayedCalls();
+    // Every other kind's calls (live, and the few logged too late), read every time: they're what moves between two
+    // builds, a few thousand at most. By kind, so the read uses the kind index instead of scanning every call.
+    const others = before.kinds.filter((k) => k !== "backtest");
+    const rows = [...past.rows, ...(others.length ? await allInChunks<any>(SQL.replace("AND id > ?", `AND kind IN (${others.map(() => "?").join(", ")}) AND id > ?`), others, "id") : [])];
+    const bonus: BonusBySeason = new Map([...past.bonus, ...await bonusCalls(4_000, "p.kind = 'live'")]);
+    if ((await callsFingerprint()).print === before.print) { past.keep(); return { rows, bonus, prints: past.prints }; }
   }
   const WHOLE = 1_000_000_000;
-  return { rows: await allInChunks<any>(SQL, [], "id", WHOLE), bonus: await bonusCalls(WHOLE) };
+  return { rows: await allInChunks<any>(SQL, [], "id", WHOLE), bonus: await bonusCalls(WHOLE), prints: null };
 }
 
+const SQL = "SELECT id, kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine, model_id model, p_red_shadow ps, shadow_model_id sm, red_lo, red_hi, blue_lo, blue_hi, range_level, red_score, blue_score, red_mean, blue_mean, no_score_basis FROM predictions WHERE outcome IS NOT NULL AND id > ?";
+
+type BonusBySeason = Map<string, { calls: BonusCall[]; matches: number }>;
+
+/**
+ * Each season's replayed (backtest) calls as last read, kept by what that season's rows are (`print`). They were read
+ * again on every build, and the track record is built twice after every live tick with new results (the live
+ * follow-up moves data:version as it starts and data:settled as it ends): on the VM (2026-11-22) each build held the
+ * one thread for 7–8 s of every live tick, 110,000 replayed calls and 35,000 bonus calls read through the driver, and
+ * requests waited 0.3–3.3 s behind it (/api/health included). Measured on a copy of the data: 4.5 s a build, 95% of it
+ * with the event loop held. A season's replay changes only when the stats run writes it again, under new ids (the
+ * current season every cycle, the rest when the engine changes), so a build reads the other calls and the seasons whose
+ * replay moved, nothing else.
+ */
+const replayed = new Map<number, { print: string; rows: any[]; bonus: BonusBySeason }>();
+
+/** The replayed calls of every season, from `replayed` where a season's rows are as they were. `keep` stores what was
+ *  read, once the caller has checked nothing was written meanwhile. The prints come from the kind index alone. */
+async function replayedCalls(): Promise<{ rows: any[]; bonus: BonusBySeason; prints: Map<number, string>; keep: () => void }> {
+  const list = await all<any>("SELECT season, COUNT(*) n, MIN(id) a, MAX(id) m, COALESCE(MAX(scored_at), '') s FROM predictions WHERE kind = 'backtest' GROUP BY season ORDER BY season");
+  const prints = new Map(list.map((p) => [Number(p.season), JSON.stringify([p.n, p.a, p.m, p.s])]));
+  const fresh = new Map<number, { print: string; rows: any[]; bonus: BonusBySeason }>();
+  const rows: any[] = [];
+  const bonus: BonusBySeason = new Map();
+  for (const [season, print] of prints) {
+    let hit = replayed.get(season);
+    if (hit?.print !== print) {
+      // Kept as plain objects: a driver row also carries every column under its index.
+      const read = await allInChunks<any>(SQL.replace("AND id > ?", "AND kind = 'backtest' AND season = ? AND id > ?"), [season], "id");
+      hit = { print, rows: read.map((r) => ({ ...r })), bonus: await bonusCalls(4_000, "p.kind = 'backtest' AND p.season = ?", [season]) };
+      fresh.set(season, hit);
+    }
+    for (const r of hit.rows) rows.push(r);
+    for (const [k, v] of hit.bonus) bonus.set(k, v);
+  }
+  return {
+    rows, bonus, prints,
+    keep: () => {
+      for (const s of [...replayed.keys()]) if (!prints.has(s)) replayed.delete(s);
+      for (const [s, v] of fresh) replayed.set(s, v);
+    },
+  };
+}
+
+/** Each season's block of the track record as last built, by everything it's made of: a past season's (a third of a
+ *  second of work over its 50,000 replayed calls, the event loop held throughout) is the same build after build until
+ *  its replay or its live calls move. */
+const seasonBlocks = new Map<number, { key: string; value: TrackRecord["seasons"][number] }>();
+
 async function computeTrackRecord(): Promise<TrackRecord> {
-  const { rows, bonus } = await scoredCalls();
+  const { rows, bonus, prints } = await scoredCalls();
   // Grouped once by kind and season: each season's blocks read their own calls, not all of them again.
   const byKindSeason = new Map<string, any[]>();
   for (const r of rows) {
@@ -354,6 +415,11 @@ async function computeTrackRecord(): Promise<TrackRecord> {
   const seasons: TrackRecord["seasons"] = [];
   for (const s of SEASONS.filter((x) => PREDICT_SEASONS.includes(x.season))) {
     await yieldLoop();
+    // Everything the season's block reads: its replay (by its print, which its replayed bonus calls go with), its live
+    // calls and live bonus calls, and its replay coverage. Nothing kept when the calls were read in one statement.
+    const key = prints && JSON.stringify([prints.get(s.season) ?? null, calls("live", s.season), bonus.get(`live|${s.season}`) ?? null, coverage.get(s.season) ?? null]);
+    const memo = seasonBlocks.get(s.season);
+    if (key && memo?.key === key) { seasons.push(memo.value); continue; }
     seasons.push((() => {
     const of = (kind: string, engine?: string) => calls(kind, s.season).filter((r) => engine == null || r.engine === engine)
       .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time, ranges: statedRanges(r), margin: callMargin(r) }));
@@ -385,6 +451,8 @@ async function computeTrackRecord(): Promise<TrackRecord> {
       ...(labels ? { bonus: { live: bonusOf("live"), backtest: bonusOf("backtest") } } : {}),
     };
     })());
+    if (key) seasonBlocks.set(s.season, { key, value: seasons[seasons.length - 1] });
+    else seasonBlocks.delete(s.season);
   }
   seasons.reverse();
   // Headline: the one rule every ledger card reads (src/shared/ledger.ts), always labelled with its kind.
