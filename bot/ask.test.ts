@@ -4,7 +4,7 @@ import type { SearchAnswer, SearchHit } from "../src/shared/api";
 import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, chatPost, fitLines, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 import { SORRY_SENTENCE } from "../src/shared/search";
-import { NO_CHAT } from "./smallTalk";
+import { NO_CHAT, NO_REPLY } from "./smallTalk";
 
 const SITE = "https://controlscout.org";
 const hit = (n: number, extra: Partial<SearchHit> = {}): SearchHit => ({ kind: "team", ref: String(n), title: `${n} | Team ${n}`, subtitle: "Oradell, NJ", season: 2025, ...extra });
@@ -296,6 +296,26 @@ describe("when no chat can answer", () => {
       expect(chatPost(q, r.chat!, { quote: true })).toContain("-# Control Scout · [more on controlscout.org]");
       expect(chatPost(q, r.chat!, { quote: true })).not.toContain("Bruno AI");
     }
+  });
+
+  it("a chat that is wired and on but said nothing about this message doesn't claim its AI is unreachable", async () => {
+    // The chat just answered the message before this one in the same channel: a reply it dropped (a number the facts
+    // haven't, bot/ask.ts's grounded check), an empty one or a failure is about this message, not about the deployment.
+    const q = "are you sure you are a bruno";
+    const chat = vi.fn(async () => null);
+    const d = deps(nothing(q), { chat, facts: vi.fn(async () => []), refine: vi.fn(async () => null) });
+    const r = await ask(q, d, SITE);
+    expect(chat).toHaveBeenCalled();
+    expect(r.chat?.by).toBe("scout");
+    expect(r.chat?.text).toBe(NO_REPLY);
+    expect(r.chat?.text).not.toMatch(/unreachable/);
+  });
+
+  it("a chat that is off or unconfigured still says plainly that it can't chat", async () => {
+    const q = "are you sure you are a bruno";
+    const rest = { chat: vi.fn(async () => null), facts: vi.fn(async () => []), refine: vi.fn(async () => null) };
+    expect((await ask(q, deps(nothing(q), { ...rest, enabled: vi.fn(async () => false) }), SITE)).chat?.text).toBe(NO_CHAT);
+    expect((await ask(q, deps(nothing(q), { ...rest, available: () => false }), SITE)).chat?.text).toBe(NO_CHAT);
   });
 
   it("the model's chat speaks first when it has something to say, fallback or not", async () => {
