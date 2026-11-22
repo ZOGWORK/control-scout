@@ -3,7 +3,8 @@
 // (DEFAULT_LIMIT) — no server may spend Control Point's chats without a ceiling — unless the owner console, or
 // setGuildLimit, gives it a row of its own. A row replaces both windows (a null or zero there is no cap for that window,
 // which is how a big event server is exempted), so clearGuildLimit deletes the row to put a server back on the default.
-// A server's two counters start with its limit: usage from before it is not counted against it.
+// A server's two counters start with its limit: setting or clearing one deletes its usage, so chats from before it are
+// not counted against it.
 import { all, get, run } from "../server/db.js";
 
 /** A server's limit: null (or 0) is none. */
@@ -15,10 +16,10 @@ export type Quota = { ok: true } | { ok: false; limited: "hour" | "day"; retryAf
 
 /** The cap every server has unless its own row says otherwise: 30 chats an hour, 100 a day. One chat every two minutes
  *  is more than a server's people ask in an hour; a whole competition day of steady use fits inside 100. */
-export const DEFAULT_LIMIT: GuildLimit = { perHour: 30, perDay: 100 };
+export const DEFAULT_LIMIT = { perHour: 30, perDay: 100 };
 
-/** The two UTC windows a chat counts in, as their keys. */
-const windows = (now: number) => {
+/** The two UTC windows a chat counts in, as their keys (the owner console reads them too). */
+export const chatWindows = (now = Date.now()) => {
   const at = new Date(now).toISOString();
   return { hour: `h:${at.slice(0, 13)}`, day: `d:${at.slice(0, 10)}` };
 };
@@ -37,18 +38,22 @@ export async function guildLimit(guild: string): Promise<LimitSetting> {
   return { perHour: asLimit(r.per_hour), perDay: asLimit(r.per_day), custom: true };
 }
 
-/** Set a server's own limit (nulls clear a window's cap). `by`: who asked, a Discord user id; `now`: for tests. */
+/** Set a server's own limit (nulls clear a window's cap). `by`: who set it (a Discord user id, or the owner console's
+ *  email); `now`: for tests. The server's counters start afresh: what it asked before this isn't counted against it. */
 export async function setGuildLimit(guild: string, limit: GuildLimit, by: string | null = null, now = Date.now()): Promise<void> {
   await run(
     `INSERT INTO discord_limits (guild_id, per_hour, per_day, updated_by, updated_at) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(guild_id) DO UPDATE SET per_hour = excluded.per_hour, per_day = excluded.per_day,
        updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
     [guild, limit.perHour, limit.perDay, by, new Date(now).toISOString()]);
+  await run("DELETE FROM discord_chat_usage WHERE guild_id = ?", [guild]);
 }
 
-/** Back to the default cap: delete the server's row. (A row of nulls is no cap, not the default.) */
+/** Back to the default cap: delete the server's row. (A row of nulls is no cap, not the default.) The counters start
+ *  afresh here too, so a server that spent most of a custom cap today isn't refused the moment it goes back. */
 export async function clearGuildLimit(guild: string): Promise<void> {
   await run("DELETE FROM discord_limits WHERE guild_id = ?", [guild]);
+  await run("DELETE FROM discord_chat_usage WHERE guild_id = ?", [guild]);
 }
 
 /**
@@ -76,7 +81,7 @@ async function count(guild: string, window: string, max: number | null): Promise
 export async function takeChat(guild: string, now = Date.now()): Promise<Quota> {
   const { perHour, perDay } = await guildLimit(guild);
   if (perHour == null && perDay == null) return { ok: true };
-  const w = windows(now);
+  const w = chatWindows(now);
   // Read for housekeeping only (is this the hour's first chat?); the caps themselves are enforced by count() below.
   const before = await all<{ window: string }>("SELECT window FROM discord_chat_usage WHERE guild_id = ? AND window IN (?, ?)", [guild, w.hour, w.day]);
   const freshHour = !before.some((r) => r.window === w.hour);

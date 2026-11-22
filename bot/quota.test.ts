@@ -64,6 +64,21 @@ describe("a server's chat limit, on a database", () => {
     expect((await takeChat("g1", NOW + HOUR_MS)).ok).toBe(true);
   });
 
+  it("starts a server's counters afresh when its cap is set or cleared", async () => {
+    // Thirty chats this hour, under the default: full.
+    for (let i = 0; i < 30; i++) expect((await takeChat("g1", NOW + i)).ok).toBe(true);
+    expect(await takeChat("g1", NOW + 100)).toMatchObject({ ok: false, limited: "hour" });
+    // Given 20 an hour, it isn't refused at once: what it asked under the default isn't counted against its own cap.
+    await setGuildLimit("g1", { perHour: 20, perDay: 20 }, "owner", NOW);
+    expect(await usage("g1")).toBe(0);
+    for (let i = 0; i < 20; i++) expect((await takeChat("g1", NOW + i)).ok).toBe(true);
+    expect(await takeChat("g1", NOW + 30)).toMatchObject({ ok: false, limited: "hour" });
+    // Back on the default, today's count starts afresh too: those 20 aren't charged to the default's 100 a day.
+    await clearGuildLimit("g1");
+    expect(await usage("g1")).toBe(0);
+    expect((await takeChat("g1", NOW + 31)).ok).toBe(true);
+  });
+
   it("a day's limit holds across hours and resets at midnight UTC", async () => {
     await setGuildLimit("g1", { perHour: 5, perDay: 2 }, "owner", NOW);
     expect((await takeChat("g1", NOW)).ok).toBe(true);

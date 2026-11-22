@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Clapperboard,
-  Activity, AlertTriangle, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, Gauge, HardDrive, HardDriveDownload,
+  Activity, AlertTriangle, Bot, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, Gauge, HardDrive, HardDriveDownload,
   Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Palette, Trophy, Unlink, UserRound, Users, Tv, Film,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
@@ -24,6 +24,7 @@ import { ExpandableText } from "../components/ExpandableText";
 import { ago, int, pct, seasonLabel } from "../lib/format";
 import { fmtBytes } from "../lib/recordings";
 import { FeaturesPanel } from "../components/owner/FeaturesPanel";
+import { DiscordPanel } from "../components/owner/DiscordPanel";
 import { FLAG_INFO } from "../shared/flags";
 import type {
   AuditEntry, LedgerKind, OwnerOverview, OwnerUsage, OwnerUser, OwnerUserDetail, OwnerWorkspace, PredictionHealth, RouteStats,
@@ -64,6 +65,7 @@ const PANELS = [
   { id: "predictions", label: "Predictions & ledger", icon: Target, group: "Product" },
   { id: "content", label: "Rankings & content", icon: Trophy, group: "Product" },
   { id: "features", label: "Features", icon: ToggleRight, group: "Product" },
+  { id: "discord", label: "Discord bot", icon: Bot, group: "Product" },
   { id: "appearance", label: "Appearance", icon: Palette, group: "Product" },
   { id: "moderation", label: "Moderation", icon: ShieldAlert, group: "People & trust" },
   { id: "contributors", label: "Video contributors", icon: Clapperboard, group: "People & trust" },
@@ -181,6 +183,7 @@ export default function OwnerPage() {
             </div>
           )}
           {panel === "features" && <FeaturesPanel />}
+          {panel === "discord" && <DiscordPanel />}
           {panel === "appearance" && <div className="space-y-8"><WashPanel /><FeaturesPanel appearance /></div>}
           {panel === "moderation" && <div className="space-y-8"><CommonsPanel /><ModerationPanel onOpenResync={() => go("data")} /></div>}
           {panel === "feedback" && <div className="space-y-8"><FeedbackPanel onOpenResync={() => go("data")} /><ErrorsPanel /></div>}

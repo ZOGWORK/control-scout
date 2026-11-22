@@ -50,8 +50,10 @@ and the time, never who asked. The bot reads the site's search index and never w
 UTC hour and per UTC day, counted in UTC windows) and counts what it uses (`discord_chat_usage`); a server with its own
 row in `discord_limits` has that instead. A row replaces both windows, and a zero or a null there is no cap for that
 window — how a big event server is exempted — while `clearGuildLimit(guild)` deletes the row and puts the server back
-on the default (`setGuildLimit(guild, { perHour, perDay }, by)` is the console's write). A server's counters start
-with its limit, so nothing it asked earlier counts against it. At a cap, `/ask` and a mention get a plain note with
+on the default. Both are the owner console's write (Product › Discord bot, `server/portal/discordLimits.ts`): it lists
+every server the bot knows with its cap and what it has used today, and sets or clears one server's cap, every change
+in the audit log. Either write deletes that server's usage, so its counters start with its cap: nothing it asked
+earlier counts against it. At a cap, `/ask` and a mention get a plain note with
 when it resets, while the site and the server's follow posts keep working. `/config` says which limit the server it
 was asked in has, and whether it is the default or that server's own.
 
