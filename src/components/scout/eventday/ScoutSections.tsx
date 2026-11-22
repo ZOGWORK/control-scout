@@ -5,9 +5,8 @@ import type { ReactNode } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { SCOUT_SECTIONS, SECTION_LABEL, SECTION_SHORT, type ScoutSection } from "../../../shared/scoutSections";
 
-// On a touch screen the trigger's tap-44 ::after (centred: top 50% and a transform) lands on v8's underline, which is
-// the same ::after, and draws it through the label. The tab is already 44px tall there, so the underline wins.
-const UNDERLINE_ON_TOUCH = "max-sm:min-h-11 v8:after:top-auto v8:after:bottom-0 v8:after:left-3 v8:after:w-auto v8:after:h-0.5 v8:after:transform-none";
+// The tabs are 44px tall on a phone, as before (the underline's clash with tap-44 is fixed in ui/tabs itself).
+const PHONE_HEIGHT = "max-sm:min-h-11";
 
 export function ScoutSections({ section, onSection, sections = SCOUT_SECTIONS, folded = false, children }: {
   section: ScoutSection;
@@ -23,7 +22,7 @@ export function ScoutSections({ section, onSection, sections = SCOUT_SECTIONS, f
       <TabsList aria-label="Scout sections" className={folded ? "v8:max-md:hidden" : undefined}>
         {/* On a phone a long name goes short ("Picks"), so the row fits at 320 px; its name stays the full one. */}
         {sections.map((s) => (
-          <TabsTrigger key={s} value={s} className={UNDERLINE_ON_TOUCH} aria-label={SECTION_SHORT[s] ? SECTION_LABEL[s] : undefined}>
+          <TabsTrigger key={s} value={s} className={PHONE_HEIGHT} aria-label={SECTION_SHORT[s] ? SECTION_LABEL[s] : undefined}>
             {SECTION_SHORT[s] ? <><span className="sm:hidden">{SECTION_SHORT[s]}</span><span className="max-sm:hidden">{SECTION_LABEL[s]}</span></> : SECTION_LABEL[s]}
           </TabsTrigger>
         ))}
