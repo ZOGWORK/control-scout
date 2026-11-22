@@ -50,7 +50,8 @@ export function markDirect(query: string) { marked = { q: norm(query), at: Date.
  *  pending: the page keeps its loading screen rather than flash results it may leave.
  *  `seeded`: the page already has these words' answer on screen (the search box's handoff, ./handoff.ts, or a first
  *  paint's hits), which the box itself read before sending the query here and found no single page in. Nothing is
- *  waited for then: the page shows what it has, and never goes on to a page it already knew these words don't name. */
+ *  waited for then: the page shows what it has, and never goes on to a page it already knew these words don't name.
+ *  That covers the results page's own box submitting another query: it hands that answer over as it leaves. */
 export function useSubmittedSearch(query: string, s: { answer: SearchAnswer | undefined; live: boolean; error: string | null; searchNow: () => void; seeded?: boolean }) {
   const { answer, live, error, searchNow, seeded } = s;
   const nav = useNavigate();
