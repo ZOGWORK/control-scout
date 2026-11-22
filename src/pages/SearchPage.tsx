@@ -10,7 +10,7 @@
 // narrow the results here, in the address (./search/page/results.ts). A question also gets Bruno AI's short
 // written answer on top, from those same records (./search/BrunoAnswer.tsx). Nothing found is never a dead end
 // (./search/page/NoResults.tsx).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -73,7 +73,11 @@ export default function SearchPage() {
   // `thread`: this question, once answered, is what a follow-up refers back to (src/components/search/thread.ts).
   const boot = BOOT_HITS && BOOT_HITS.q.trim() === query ? BOOT_HITS : null;
   const hand = handedAnswer(query);
-  const offered = boot ?? hand;
+  // The first paint seeded the visit it was painted for, once: words come back to later (a link, Back) arrive with
+  // nothing in hand and wait for their own answer, as a handoff's words do, even while BOOT_HITS still answers them.
+  const bootTaken = useRef(false);
+  const offered = (boot && !bootTaken.current ? boot : null) ?? hand;
+  useEffect(() => { if (boot) bootTaken.current = true; }, [boot]);
   // The answer this visit draws with, and the words it was handed for: kept while they're shown (the handoff is read
   // once, below), dropped the moment the page shows other words — those arrived with nothing in hand.
   const [seed, setSeed] = useState<{ for: string; answer: { q: string; hits: SearchHit[] } } | null>(offered ? { for: query, answer: offered } : null);
