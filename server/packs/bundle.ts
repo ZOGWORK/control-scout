@@ -12,7 +12,8 @@
 // file downloaded is the one the manifest described. Same data, same version: the version hashes the contents
 // (not the build time), so the Download page's Update and Update all appear only when something changed.
 import { createHash } from "node:crypto";
-import { gzipSync } from "node:zlib";
+import { promisify } from "node:util";
+import { gzip } from "node:zlib";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
@@ -34,6 +35,12 @@ import { readPickList } from "../scout/picklist.js";
 import { matchReportHtml, picklistHtml, rulesHtml } from "./snapshotHtml.js";
 import { hasRuleReference, ruleReference } from "../../src/shared/rules/index.js";
 import { PackBroken, packApi, packApiPaths } from "./eventApi.js";
+
+/** gzip on libuv's thread pool: the same bytes as gzipSync (one zlib, the same options), without the event loop held
+ *  for it (~200 ms locally for an event's 6 MB, level 9). */
+const gzipAsync = promisify(gzip);
+/** Let the event loop turn between the build's big synchronous steps (each section's hash runs over up to a few MB). */
+const turn = () => new Promise<void>((r) => setImmediate(r));
 
 /** A build answers the same asker this long (the manifest, then its file). */
 export const BUNDLE_TTL_MS = 5 * 60_000;
@@ -153,26 +160,30 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
   const apiPaths = packApiPaths(api);
   const venue = venueOf(ev);
 
-  const sections: BundleSection[] = [
-    section("event", "Teams, schedule and rankings", ev, ev.field.length, ev.matches.length ? null : "No schedule published yet: it's in the bundle once FIRST posts it."),
+  // One section at a time, the event loop let go between them: each hashes its whole value (stableJson, a few MB for
+  // the pack's api and search), which back to back held it for the lot.
+  const parts: (() => BundleSection)[] = [
+    () => section("event", "Teams, schedule and rankings", ev, ev.field.length, ev.matches.length ? null : "No schedule published yet: it's in the bundle once FIRST posts it."),
     // The book's clock (`now`) moves with every build; the ratings themselves only with new results.
-    section("ratings", "Ratings for offline predictions", ratings && { ...ratings, now: 0, predict }, ratings?.ratings.length ?? 0, ratings ? null : "No ratings for this season yet.", ratings && { ...ratings, predict }),
-    section("api", "Team and match pages", api, apiPaths.length),
-    section("compare", "Compare for every team", compare, Object.keys(compare).length),
-    section("search", "Search for its teams", search, Object.keys(search.teams).length),
-    section("reports", "Know your match reports", reportData, reports.length,
+    () => section("ratings", "Ratings for offline predictions", ratings && { ...ratings, now: 0, predict }, ratings?.ratings.length ?? 0, ratings ? null : "No ratings for this season yet.", ratings && { ...ratings, predict }),
+    () => section("api", "Team and match pages", api, apiPaths.length),
+    () => section("compare", "Compare for every team", compare, Object.keys(compare).length),
+    () => section("search", "Search for its teams", search, Object.keys(search.teams).length),
+    () => section("reports", "Know your match reports", reportData, reports.length,
       team == null ? "Pick your team to include its matches." : !mine.length ? `Team ${team} has no matches scheduled here yet.` : null, reports),
-    section("picklist", "Pick list", wsPart ? { picks: wsPart.picks, field: ev.field.map((f) => [f.team, f.name, f.rank, f.opr.np]) } : null, picklist?.count ?? 0, workspace ? null : "Sign in with a scouting workspace to include its pick list.", picklist),
-    section("rules", "Rules reference", rules, rules ? 1 : 0, rules ? null : "No rules reference for this season yet."),
-    section("venue", "Venue card", venue, 1),
+    () => section("picklist", "Pick list", wsPart ? { picks: wsPart.picks, field: ev.field.map((f) => [f.team, f.name, f.rank, f.opr.np]) } : null, picklist?.count ?? 0, workspace ? null : "Sign in with a scouting workspace to include its pick list.", picklist),
+    () => section("rules", "Rules reference", rules, rules ? 1 : 0, rules ? null : "No rules reference for this season yet."),
+    () => section("venue", "Venue card", venue, 1),
   ];
+  const sections: BundleSection[] = [];
+  for (const make of parts) { sections.push(make()); await turn(); }
   const version = sha(sections.map((s) => `${s.id}:${s.version}`).join("|") + `|${team ?? ""}|${workspace?.id ?? ""}|${BUNDLE_FORMAT}`).slice(0, 12);
   const head: EventBundle["manifest"] = {
     format: BUNDLE_FORMAT, season, code: ev.event.code, name: ev.event.name, end: ev.event.end ?? ev.event.start, version, builtAt, dataAsOf,
     engineVersion: ENGINE_VERSION, team, workspace, sections, field: ev.field.map((f) => [f.team, f.name]), reportKeys: reports.map((r) => r.key), apiPaths,
   };
   const body: EventBundle = { format: BUNDLE_FORMAT, manifest: head, event: ev, ratings, ...(predict ? { predict } : {}), reports, picklist, rules, venue, api, compare, search, currentSeason: CURRENT_SEASON };
-  const gz = gzipSync(Buffer.from(JSON.stringify(body)), { level: 9 });
+  const gz = await gzipAsync(Buffer.from(JSON.stringify(body)), { level: 9 });
   const q = new URLSearchParams({ ...(team != null ? { team: String(team) } : {}), ...(workspace ? { workspace: workspace.id } : {}), v: version });
   const manifest: BundleManifest = { ...head, url: `/api/bundles/${season}/${encodeURIComponent(ev.event.code)}/file?${q}`, bytes: gz.length, sha256: sha(gz) };
   return { manifest, gz, at: Date.now() };
