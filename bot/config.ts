@@ -1,9 +1,11 @@
 // What this process can do, said once at startup so one journalctl look answers it — chat and why not, report filing,
 // follow posts, the site it talks to and the season — without a test message or a filed issue. Every line says whether
 // something is set, never a secret's value (bot/index.ts logs these, `journalctl -u control-scout-bot | grep 'config:'`).
+import type { APIEmbed } from "discord.js";
 import { seasonWithGame } from "../server/data/seasons.js";
 import { reportSetup } from "./report.js";
 import type { ChatSetup } from "./chatState.js";
+import { FOOTER, VOLT } from "./views.js";
 
 export interface Config {
   season: number;
@@ -32,4 +34,15 @@ export function configLines(c: Config): string[] {
         ? "on — nothing followed yet (a tick a minute while connected)"
         : `on — ${plural(follows.follows, "follow", "follows")} in ${plural(follows.servers, "server", "servers")} (a tick a minute while connected)`}`,
   ];
+}
+
+/** The same six answers as an embed, for /config: whoever can manage the server asks, and only they see it (the
+ *  handler defers it ephemerally), since it describes this bot's own setup rather than a channel's. */
+export function configEmbed(c: Config): APIEmbed {
+  return {
+    title: "What this bot can do here",
+    description: configLines(c).map((l) => `• ${l.replace(/^config: /, "")}`).join("\n"),
+    color: VOLT,
+    footer: FOOTER,
+  };
 }

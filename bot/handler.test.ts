@@ -22,7 +22,7 @@ function command(name: string, options: Record<string, string | number>, user = 
     isChatInputCommand: () => true,
     isAutocomplete: () => false,
     reply: async (payload: any) => { calls.push({ kind: "reply", payload }); },
-    deferReply: async () => { calls.push({ kind: "defer" }); },
+    deferReply: async (payload?: any) => { calls.push({ kind: "defer", payload }); },
     editReply: async (payload: any) => { calls.push({ kind: "edit", payload }); },
   };
   return { i: i as any, calls };
@@ -40,6 +40,7 @@ function lookups(over: Partial<Lookups> = {}): Lookups {
     unfollow: vi.fn(async () => 1),
     following: vi.fn(async () => ok("following")),
     ask: vi.fn(async (q: string) => ({ embed: ok(`ask ${q}`), meta: { step: "deterministic" as const, refined: false, sentence: false } })),
+    config: vi.fn(async () => ok("config here")),
     ...over,
   };
 }
@@ -51,6 +52,23 @@ describe("commands", () => {
     await h(i);
     expect(calls.map((c) => c.kind)).toEqual(["defer", "edit"]);
     expect(calls[1].payload.embeds[0].title).toBe("team 18360");
+    expect(calls[0].payload).toBeUndefined(); // a public answer, as before
+  });
+
+  it("/config answers privately, with the bot's own setup (not in the channel's history)", async () => {
+    const l = lookups();
+    const { i, calls } = command("config", {});
+    await createHandler(() => {}, l)(i);
+    expect(calls.map((c) => c.kind)).toEqual(["defer", "edit"]);
+    expect(calls[0].payload).toEqual({ flags: 64 }); // MessageFlags.Ephemeral
+    expect(calls[1].payload.embeds[0].title).toBe("config here");
+    expect(l.team).not.toHaveBeenCalled();
+  });
+
+  it("/config without the lookup says it couldn't read it, rather than failing", async () => {
+    const { i, calls } = command("config", {});
+    await createHandler(() => {}, lookups({ config: undefined }))(i);
+    expect(calls[1].payload.embeds[0].title).toBe("Couldn't read the config");
   });
 
   it("the same command and arguments within a minute cost one lookup, whoever asks", async () => {
@@ -177,10 +195,10 @@ describe("AnswerCache", () => {
 });
 
 describe("registration", () => {
-  it("the commands, each one on the site's list; follow and unfollow need Manage Server, in servers only", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "help"]);
+  it("the commands, each one on the site's list; follow, unfollow and config need Manage Server, in servers only", () => {
+    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "config", "help"]);
     for (const c of COMMANDS) expect(BOT_COMMANDS.some((b) => b.usage.startsWith(`/${c.name}`)), c.name).toBe(true);
-    for (const name of ["follow", "unfollow"]) {
+    for (const name of ["follow", "unfollow", "config"]) {
       const c = COMMANDS.find((x) => x.name === name)!;
       expect(c.default_member_permissions).toBe("32"); // Manage Server
       expect(c.contexts).toEqual([0]); // guild only
