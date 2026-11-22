@@ -17,7 +17,8 @@ import { registerCache } from "../caches.js";
 import { onPartnershipPrefixReady, partnershipPrefix } from "./partnerships.js";
 import { callOptions } from "../../src/shared/predictView.js";
 import { pairsAmong } from "../../src/shared/eventBundle.js";
-import { onWorkerPrefixReady, replayOffThread, resetOffThread } from "./offThread.js";
+import { onWorkerPrefixReady, replayOffThread, replaysHere, resetOffThread } from "./offThread.js";
+import { clearShared, sharedReplay } from "./sharedRatings.js";
 
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
@@ -94,9 +95,13 @@ export class ScoutForecaster extends Forecaster {
   }
 
   /** Replay the window from the database (oldest season first), here on this thread (tests, a database the
-   *  rebuild worker can't open). forecasterFor runs the replay on the rebuild worker instead (offThread.ts). */
+   *  rebuild worker can't open, a child script). forecasterFor runs the replay on the rebuild worker instead
+   *  (offThread.ts). A child script shares the build with the machine's other processes (sharedRatings.ts): it loads
+   *  one already made for this data, or makes it and saves it; the web process's own thread never does (it would hold
+   *  the request loop for the load), its worker does. */
   async rebuild(): Promise<void> {
-    await this.install(await replayWindow(this.anchor, this.seasons));
+    const parts = replaysHere() ? await sharedReplay(this.anchor, this.seasons, await dataVersion(), replayWindow) : await replayWindow(this.anchor, this.seasons);
+    await this.install(parts);
   }
 
   /**
@@ -587,7 +592,7 @@ export async function refreshForecasters(): Promise<void> {
 }
 
 /** Drop cached forecasters and season data (tests, or after a manual data change). Not for syncs: a new data version already rebuilds, without making pages wait. */
-export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); ratedTeamsCache.clear(); resetOffThread(); }
+export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); ratedTeamsCache.clear(); resetOffThread(); clearShared(); }
 registerCache("Prediction ratings", resetForecasters, { clipFree: true });
 
 // A forecaster built while the finished seasons' pair history was still building went ahead with its
