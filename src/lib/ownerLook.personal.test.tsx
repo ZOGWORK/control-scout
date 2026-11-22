@@ -20,7 +20,7 @@ const mount = async () => {
 };
 const me = (answer: () => Promise<Response>) => vi.stubGlobal("fetch", vi.fn(async (url: string) => (new URL(String(url), "http://x").pathname === "/api/auth/me" ? answer() : json({ error: "not in this test" }, 404))));
 
-beforeEach(() => { localStorage.clear(); answered = null; look.setV8.mockClear(); });
+beforeEach(() => { localStorage.clear(); sessionStorage.clear(); answered = null; look.setV8.mockClear(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("the owner's look against /api/auth/me", () => {
@@ -42,6 +42,6 @@ describe("the owner's look against /api/auth/me", () => {
     me(async () => json({ user: null, providers: { email: true, google: false } }));
     await mount();
     expect(answered).toBe(true);
-    expect(look.setV8).toHaveBeenCalledWith(true);
+    expect(look.setV8).toHaveBeenCalledWith(true, "/");
   });
 });
