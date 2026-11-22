@@ -11,6 +11,7 @@ import { DEFAULT_FLAGS } from "../../shared/flags";
 import { washSize } from "./Wash";
 
 type User = { id: number; email: string; displayName: string | null; createdAt: string; isOwner?: boolean; avatarUrl?: string | null };
+const screenWide = vi.hoisted(() => ({ wide: true }));
 const personal = vi.hoisted(() => ({ user: null as null | User, sync: "local", offlineAccount: false, signOut: vi.fn(async () => {}) }));
 vi.mock("../../lib/personal", () => ({ SIGNED_IN: "cs-signed-in", usePersonal: () => ({ ...personal, providers: {}, state: { myTeam: null, settings: { theme: "dark" } }, update: () => true, syncReady: false }) }));
 vi.mock("./Search", () => ({ GlobalSearch: () => null }));
@@ -18,7 +19,7 @@ vi.mock("./TopBarExtras", () => ({ ClockWeather: () => null, showsClockWeather: 
 vi.mock("./InboxBell", () => ({ InboxBell: () => null }));
 vi.mock("./Ambient", () => ({ Ambient: () => <div data-ambient /> }));
 vi.mock("./SiteFooter", () => ({ SiteFooter: () => null }));
-vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useMeta: () => null, useMediaQuery: () => true }));
+vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useMeta: () => null, useMediaQuery: () => screenWide.wide }));
 
 const { Shell } = await import("./Shell");
 const shell = (at = "/events") => render(<MemoryRouter initialEntries={[at]}><Shell><Routes><Route path="*" element={<p>page</p>} /></Routes></Shell></MemoryRouter>);
@@ -29,6 +30,7 @@ beforeEach(() => {
   vi.stubGlobal("EventSource", undefined);
   localStorage.clear();
   personal.user = null;
+  screenWide.wide = true;
   document.documentElement.setAttribute("data-v8", "");
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); resetFlags(); document.documentElement.removeAttribute("data-v8"); });
@@ -70,6 +72,15 @@ describe("v8 shell", () => {
     fireEvent.click(me);
     const links = container.querySelector("[data-corner-links]") as HTMLElement;
     expect([...links.querySelectorAll("a, button")].map((e) => e.textContent?.trim())).toEqual(["Settings", "What’s new"]);
+  });
+
+  it("on a phone, your picture opens your menu, never the page menu sheet (#2091)", () => {
+    screenWide.wide = false;
+    const { container } = shell();
+    fireEvent.click(within(container.querySelector("header") as HTMLElement).getByRole("button", { name: "Sign in" }));
+    expect(container.querySelector("[data-corner-links]")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(within(container.querySelector("header") as HTMLElement).getByRole("button", { name: "Open menu" }).getAttribute("aria-expanded")).toBe("false");
   });
 
   it("adds the owner console to the owner's menu only", () => {
@@ -118,6 +129,26 @@ describe("v8 shell", () => {
     expect(container.querySelector("[data-page-end-glow]")).toBeNull();
     act(() => resetFlags({ ...DEFAULT_FLAGS, pageEndGlow: true }, true));
     expect(container.querySelector("[data-page-end-glow]")).toBeTruthy();
+  });
+
+  it("shows one gradient at a time: no page-end glow on Home, and elsewhere only once the top wash is off screen", () => {
+    expect(shell("/").container.querySelector("[data-page-end-glow]")).toBeNull();
+    cleanup();
+    let report: (on: boolean) => void = () => {};
+    const real = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = class {
+      constructor(cb: IntersectionObserverCallback) { report = (on) => cb([{ isIntersecting: on } as IntersectionObserverEntry], this as unknown as IntersectionObserver); }
+      observe() { report(true); } disconnect() {} unobserve() {} takeRecords() { return []; }
+    } as unknown as typeof IntersectionObserver;
+    try {
+      const glow = () => document.querySelector("[data-page-end-glow]")!;
+      shell("/events");
+      expect(glow().hasAttribute("data-hidden")).toBe(true);
+      act(() => report(false));
+      expect(glow().hasAttribute("data-hidden")).toBe(false);
+      act(() => report(true));
+      expect(glow().hasAttribute("data-hidden")).toBe(true);
+    } finally { globalThis.IntersectionObserver = real; }
   });
 
   it("uses the three-stream particle background throughout the v8 app", () => {
