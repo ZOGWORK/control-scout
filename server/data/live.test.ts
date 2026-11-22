@@ -15,7 +15,7 @@ import { computeSeasonStats } from "../stats/job";
 import { createApp } from "../app";
 import type { EventRow } from "./bundle";
 import { LockBusy, lockHolder, release, renew, tryAcquire, withDataLock } from "./lock";
-import { MANUAL_REFRESH_MS, MANUAL_WAIT_MS, isEventDay, liveEvents, liveIo, liveTick, manualRefresh, refreshEvents, resetLiveState } from "./live";
+import { MANUAL_REFRESH_MS, MANUAL_WAIT_MS, busyBy, isEventDay, liveEvents, liveIo, liveTick, manualRefresh, refreshEvents, resetLiveState } from "./live";
 
 const S = CURRENT_SEASON;
 const TEAMS = [201, 202, 203, 204, 205, 206];
@@ -347,6 +347,15 @@ describe("Refresh results (manual)", () => {
       } finally { await release(t!); }
     });
 
+    it("a job that doesn't sync results holding the lease isn't told as a full update", async () => {
+      const t = await tryAcquire("clip coverage", 60_000);
+      try {
+        const body = await (await post(`/api/events/${S}/LIVE/refresh`)).json();
+        expect(body.outcome).toBe("busy");
+        expect(body.message).toBe("Another data update is running right now. Try again in a moment.");
+      } finally { await release(t!); }
+    });
+
     it("live event pages revalidate on every load; other days keep the normal cache", async () => {
       const live = await fetch(`${base}/api/events/${S}/LIVE`);
       expect(live.headers.get("cache-control")).toBe("no-cache");
@@ -453,6 +462,16 @@ describe("one writer at a time", () => {
     expect(fetches).toEqual([]);
     await release(t!);
     expect((await manualRefresh(S, "LIVE")).status).toBe("refreshed");
+  });
+
+  it("a busy answer names the kind of writer: only the live check and the cycle claim to include this event", async () => {
+    expect(["live", "cycle", "manual", "clip coverage", "owner: clear caches", "packs: 2025 reads"].map(busyBy)).toEqual(["live", "cycle", "manual", "other", "other", "other"]);
+    for (const [what, by] of [["manual", "manual"], ["official videos watcher", "other"]] as const) {
+      const t = await tryAcquire(what, 60_000);
+      expect(await manualRefresh(S, "LIVE", { waitMs: 50 })).toEqual({ status: "busy", by });
+      await release(t!);
+    }
+    expect(fetches).toEqual([]);
   });
 
   it("withDataLock waits for the holder to finish, and never runs two writers at once", async () => {

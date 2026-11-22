@@ -256,9 +256,13 @@ function refreshMessage(o: ManualOutcome): string {
   switch (o.status) {
     case "refreshed": return o.fetched ? "Updated from FIRST just now." : "Checked FIRST just now: nothing new yet.";
     case "recent": return "Someone refreshed this event seconds ago, so these are the latest results.";
-    case "busy": return o.by === "live"
-      ? "Today's results are being checked from FIRST right now. New ones show here in a few seconds."
-      : "A full data update is running and includes this event. New results will show in a minute or two.";
+    case "busy":
+      switch (o.by) {
+        case "live": return "Today's results are being checked from FIRST right now. New ones show here in a few seconds.";
+        case "cycle": return "A full data update is running and includes this event. New results will show in a minute or two.";
+        case "manual": return "Another refresh is running right now. Try again in a few seconds.";
+        default: return "Another data update is running right now. Try again in a moment.";
+      }
     case "failed": return "FIRST didn't answer just now. Showing the latest results we have.";
     default: return "";
   }
