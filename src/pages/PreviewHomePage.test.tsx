@@ -69,7 +69,7 @@ describe("Sample home dashboard", () => {
     const { container } = mount();
     expect(container.querySelector("h1")).toBeNull();
     const field = screen.getByLabelText("Search teams, events and matches");
-    expect(container.querySelector("input")).toBe(field);
+    expect(container.querySelector("input, textarea")).toBe(field);
     expect(field.getAttribute("placeholder")).toBe("Search teams, events, matches…");
     // A fresh set each visit, from the live Home's rotation: four, the leaderboard first, no two of one family, no team's own.
     for (const hour of [0, 1, 2, 77, 4321]) {
@@ -98,7 +98,7 @@ describe("Sample home dashboard", () => {
     const mark = container.querySelector("[data-mark]")!;
     expect(mark.getAttribute("src")).toBe("/mark-white.webp");
     expect(cls(mark)).not.toContain("hidden");
-    expect(mark.compareDocumentPosition(container.querySelector("input")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(mark.compareDocumentPosition(container.querySelector("input, textarea")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // One bug report, a corner circle, apart from the corner tools.
     const bugs = container.querySelectorAll("[data-tool='bug']");
     expect(bugs).toHaveLength(1);
