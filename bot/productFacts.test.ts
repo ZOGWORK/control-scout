@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { answerStyle, productFacts, zogModeReply } from "./productFacts";
+import { answerScope, answerStyle, productFacts, zogModeReply } from "./productFacts";
 import { ungrounded } from "../server/api/searchBrunoAnswer";
 
 it("grounds the completed remodel and available Zog Mode without claiming its background is on", () => {
@@ -30,6 +30,16 @@ it("tells him how to shape a chat answer — a records question short, an explan
   // Still a Discord message, not a document — and it offers the next question to ask.
   expect(style).toMatch(/No headings, tables or code/);
   expect(style).toMatch(/End with one short question the facts can answer/);
+});
+
+it("lets him answer the channel's own questions — maths, design, rules — inside the cap, with FTC numbers still from the facts", () => {
+  const scope = answerScope();
+  expect(scope.length).toBeLessThanOrEqual(400);
+  expect(scope).toMatch(/not only Control Scout or FTC ones/);
+  expect(scope).toMatch(/a cosine/);
+  expect(scope).toMatch(/Never refuse a question just because it isn't about the records/);
+  // What he must never invent still can't: a team's numbers are the facts'.
+  expect(scope).toMatch(/FTC numbers \(a team's OPR, record, score\) still come only from the facts/);
 });
 
 it("recognizes the screenshot's question but leaves actual dog-named teams to search", () => {

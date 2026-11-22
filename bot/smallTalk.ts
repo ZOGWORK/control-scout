@@ -28,13 +28,14 @@ export const shortEnough = (q: string) => q.trim().split(/\s+/).filter(Boolean).
 
 /** A number that could be a record: a team, a match, a score or a season. Not a ratio ("42:15", "1:1") and not a
  *  measurement ("12.4 OPR", "1.5 in"): a build question is full of those, and it asks nothing of the records. */
-export const RECORD_NUMBER = /(?<![\d.:])\d{2,5}(?![\d:])(?!\.\d)/;
+export const RECORD_NUMBER =
+  /(?<![\d.:])\d{2,5}(?![\d:])(?!\.\d)(?!\s*(?:°|%|deg\b|degrees?\b|rad\b|radians?\b|mm\b|cm\b|inches?\b|lbs?\b|rpm\b|seconds?\b|ms\b|amps?\b|volts?\b|hz\b|psi\b|oz\b|kg\b|feet\b|ft\b))/i;
 
-/** A build question: a ratio ("42:15", "1:1") or the parts around one. It asks nothing of the records, so search's
- *  guess at a team is worth nothing to it: the screenshot's "should I use a 42:15 gear reduction on my robot turret"
- *  was answered "Sorry — I can't answer that yet. I read it as: Team 12499 Gear Up", which is worse than one plain
- *  line saying this one got no answer. */
-export const MECHANISM = /\b\d+(?:\.\d+)?\s*:\s*\d+\b|\b(?:gear|gears|gearing|ratio|reduction|turret|motor|motors|rpm|sprocket|chain|belt|drivetrain|intake|flywheel|servo|encoder|axle|chassis)\b/i;
+/** A working question: a ratio ("42:15", "1:1"), a part, or a measurement — maths, an angle, a unit ("the cosine of
+ *  35 degrees"). It asks nothing of the records, so search's guess at a team is worth nothing to it: the screenshot's
+ *  "should I use a 42:15 gear reduction on my robot turret" was answered "Sorry — I can't answer that yet. I read it as:
+ *  Team 12499 Gear Up", and "the cosine of pi radians" "Team 6570 Piradians", which is worse than one plain line. */
+export const WORKING = /\b\d+(?:\.\d+)?\s*:\s*\d+\b|\b(?:gear|gears|gearing|ratio|reduction|turret|motor|motors|rpm|sprocket|chain|belt|drivetrain|intake|flywheel|servo|encoder|axle|chassis|cosine|sine|tangent|angle|degree|degrees|radian|radians|sqrt|square root|equation|formula|volts?|amps?|watts?|torque|velocity|acceleration|physics)\b/i;
 
 /** The bot's one fallback for a short message, or null: a real question (a record number in it), or a long one —
  *  unless it's a build question, which is never one about the records however long it is.
@@ -46,6 +47,6 @@ export function smallTalk(q: string, reachable = false): string | null {
   // A team, a season or a score is a records question however short ("6980", "2025 worlds"): its own card.
   if (RECORD_NUMBER.test(t)) return null;
   // A build question is not: one plain line, however long it is.
-  if (!MECHANISM.test(t) && !shortEnough(t)) return null;
+  if (!WORKING.test(t) && !shortEnough(t)) return null;
   return reachable ? NO_REPLY : NO_CHAT;
 }

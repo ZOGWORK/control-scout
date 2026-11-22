@@ -17,7 +17,7 @@ import type { StatAnswer, StatBlock, StatLink, StatMatchRow } from "../src/share
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search.js";
 import { FOOTER, VOLT, teamLink } from "./views.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
-import { answerStyle, productFacts, zogModeReply } from "./productFacts.js";
+import { answerScope, answerStyle, productFacts, zogModeReply } from "./productFacts.js";
 import { RECORD_NUMBER, smallTalk } from "./smallTalk.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
@@ -109,7 +109,7 @@ export async function realAskDeps(): Promise<AskDeps> {
       // whole packet (400 `facts[i]`), which used to fall back to the card with nothing in the log.
       // Product knowledge and how to shape the answer (a records question short, an explanation structured), then what
       // the server has taught the bot, every line inside Control Point's per-fact cap.
-      const head = [...productFacts(), answerStyle(), ...memory].map(clip);
+      const head = [...productFacts(), answerStyle(), answerScope(), ...memory].map(clip);
       const context = [...head, ...fit(facts, CHAT_FACTS - head.length, CHAT_FACTS_CHARS - chars(head))];
       let r: { text: string; search: boolean };
       try { r = await brunoDiscordChat(message, context, history, CHAT_TIMEOUT_MS); }
