@@ -90,6 +90,22 @@ describe("the search bar grows to show a long query while it's edited", () => {
     expect(field.selectionStart).toBe(5);
   });
 
+  it("a press released outside the grown field still ends with the caret at the end, and a later click places it as usual", async () => {
+    const { field } = mount();
+    fireEvent.pointerDown(field);
+    act(() => field.focus());
+    field.setSelectionRange(3, 3);
+    // The release lands on the page (the field grew under the pointer): no click reaches the field.
+    fireEvent.pointerUp(document.body);
+    await act(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
+    expect(field.selectionStart).toBe(LONG.length);
+    // The next click inside the focused field is an ordinary one.
+    field.setSelectionRange(5, 5);
+    fireEvent.pointerDown(field);
+    fireEvent.click(field);
+    expect(field.selectionStart).toBe(5);
+  });
+
   it("the search shortcut still selects the whole query (typing replaces it)", () => {
     const { field } = mount();
     act(() => focusForEditing(field, { touch: false }));

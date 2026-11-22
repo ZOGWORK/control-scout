@@ -727,12 +727,14 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
             // anywhere, and on the click.
             onPointerDown={(e) => {
               const el = e.currentTarget;
-              if (document.activeElement === el) return;
-              pressed.current = true;
+              // Every press sets it afresh: one into the field already focused places the caret as usual.
+              pressed.current = document.activeElement !== el;
+              if (!pressed.current) return;
               const released = () => {
                 window.removeEventListener("pointerup", released, true);
                 window.removeEventListener("pointercancel", released, true);
-                requestAnimationFrame(() => { if (pressed.current && document.activeElement === el) caretToEnd(el); });
+                // (Not yet focused, as on an iPhone, which focuses after the release: the click does it.)
+                requestAnimationFrame(() => { if (pressed.current && document.activeElement === el) { pressed.current = false; caretToEnd(el); } });
               };
               window.addEventListener("pointerup", released, true);
               window.addEventListener("pointercancel", released, true);
