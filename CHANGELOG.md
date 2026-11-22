@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.8.6 — 2026-11-22
+
+The startup config block now says whether the slash commands are registered globally or only in the test server.
+
+### Highlights
+- [alerts] Startup block says where the slash commands are registered
+- [fixes] Globally, or in the DISCORD_DEV_GUILD_ID server alone
+- [alerts] One more thing the journal answers without asking anyone
+
+### Discord bot
+- `bot/config.ts` adds one line to the block: `config: slash commands globally (no DISCORD_DEV_GUILD_ID)`, or `config: slash commands in server 123456789012345678 only (DISCORD_DEV_GUILD_ID)`. A command registered in a test server and nowhere else is invisible to everyone else, which was the one part of the bot's setup the block didn't say.
+- `bot/config.test.ts` covers both forms (and that neither the season, the site, the chat, report filing nor the follow counts changed places), and `bot/README.md` shows the block with the line. (#2153)
+
 ## 7.8.5 — 2026-11-22
 
 One startup summary of the bot's whole configuration, so a single journal look says what it can do and what it is missing.

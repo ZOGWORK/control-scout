@@ -46,7 +46,7 @@ await configure(db()).catch((e) => log(`database not ready yet (${(e as Error).m
 const follows = await get<{ n: number; g: number }>("SELECT COUNT(*) AS n, COUNT(DISTINCT guild_id) AS g FROM discord_follows")
   .then((r) => ({ follows: Number(r?.n ?? 0), servers: Number(r?.g ?? 0) }))
   .catch(() => null);
-for (const line of configLines({ season: CURRENT_SEASON, sitePort: env.port, chat: await chatSetup(), follows })) log(line);
+for (const line of configLines({ season: CURRENT_SEASON, sitePort: env.port, commands: { guild: env.discordDevGuildId }, chat: await chatSetup(), follows })) log(line);
 
 async function waitForSite(timeoutMs = 180_000): Promise<void> {
   const url = `http://127.0.0.1:${env.port}/api/health`;
