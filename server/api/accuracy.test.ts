@@ -34,8 +34,8 @@ beforeAll(async () => {
     const sql = String(s?.sql ?? s);
     if (sql.includes("WHERE kind = 'backtest' GROUP BY season")) builds++;
     const first = s?.args?.at(-1) === Number.MIN_SAFE_INTEGER;
-    if (sql.startsWith("SELECT id, kind, season, p_red") && first && !sql.includes("AND kind")) builds++;
-    if (sql.startsWith("SELECT id, kind, season, p_red") && first && sql.includes("kind = 'backtest' AND season = ?")) replayReads++;
+    if (sql.startsWith("SELECT id, kind, season, p_red") && first && !/AND \+?kind/.test(sql)) builds++;
+    if (sql.startsWith("SELECT id, kind, season, p_red") && first && sql.includes("+kind = 'backtest' AND +season = ?")) replayReads++;
     if (beforeBonusRead && sql.includes("p.bonus_red")) { const w = beforeBonusRead; beforeBonusRead = null; return w().then(() => realExec(s)); }
     return realExec(s);
   };
@@ -255,6 +255,15 @@ describe("replay coverage", () => {
     const s = (await trackRecord()).seasons.find((x) => x.season === S)!;
     expect(s.replay).toEqual(c);
     expect(s.backtest!.n).toBe(c.replayed);
+  });
+
+  it("counted by events a part at a time, adds up the same as one count", async () => {
+    // More events than a part (60): one played 2-on-2 match each, and one no-show past the first part.
+    for (let i = 0; i < 130; i++) await match(`E${String(i).padStart(3, "0")}`, 1, [[1, 1], [2, 1]], [[3, 1], [4, 1]]);
+    await match("E125", 2, [[1, 1], [2, 0]], [[3, 1], [4, 1]]);
+    await match("USTST", 1, [[1, 1], [2, 1]], [[3, 1], [4, 1]]); // replayed (beforeEach)
+    expect((await replayCoverage([S])).get(S)).toEqual({ scored: 132, replayed: 1, eventSkipped: 0, shortHanded: 1, other: 130 });
+    expect((await replayCoverage([S - 10])).has(S - 10)).toBe(false); // nothing scored: no entry, as before
   });
 });
 

@@ -160,5 +160,11 @@ describe("ScoutForecaster.replayTo", () => {
     expect(seen.map((s) => s.ms)).toEqual([Date.parse("2024-11-04T00:00:00Z"), Date.parse("2024-12-01T00:00:00Z")]); // in time order
     expect(seen[0].ns).toEqual([3, 3, 3, 3]); // the first event only
     expect(seen[1].ratings).toEqual(new Map([...stored].map(([t, r]) => [t, { ...r }])));
+    // Paced (disagreements.ts): the same instants, the same books.
+    const paced: typeof seen = [];
+    await f.replayToPaced(S, [Date.parse("2024-12-01T00:00:00Z"), Date.parse("2024-11-04T00:00:00Z")], (ms, book) => {
+      paced.push({ ms, ns: [...book.ratings.values()].map((r) => r.n), ratings: new Map([...book.ratings].map(([t, r]) => [t, { ...r }])) });
+    });
+    expect(paced).toEqual(seen);
   });
 });

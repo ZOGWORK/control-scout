@@ -82,7 +82,7 @@ async function finalView(d: EventDetail, field: DisagreementInput[]): Promise<Di
   const kept = await kvGet<{ fp: string; view: DisagreementsView }>(key).catch(() => null);
   if (kept?.fp === fp) return kept.view;
   const at = new Map<number, NonNullable<DisagreementInput["rating"]>>();
-  f.replayTo(e.season, [lastPlayed + 1], (_ms, book) => {
+  await f.replayToPaced(e.season, [lastPlayed + 1], (_ms, book) => {
     for (const x of field) if (book.ratings.has(x.team)) at.set(x.team, rating(book.get(x.team)));
   });
   const view = findDisagreements(field.map((x) => ({ ...x, rating: at.get(x.team) ?? null })), { ...opts, ratingsAsOf: "event-end" });

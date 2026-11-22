@@ -17,7 +17,7 @@
 //   3. it's set aside in the watcher's list (status ignored, decided by "link check"), unless the owner or evidence
 //      decided it (approved, rejected): the channel audit decides that list again each run, so once it airs as the
 //      meet its title names it's added there, or the owner approves it from the list.
-import { all, db } from "../db.js";
+import { allInChunks, db } from "../db.js";
 import { withDataLock } from "../data/lock.js";
 import { localDate } from "../../src/shared/eventDay.js";
 import { forgetOfficial } from "./officialVideos.js";
@@ -57,11 +57,13 @@ const placeholder = (t: unknown) => /^(deleted|private) video$/i.test(String(t ?
 
 /** The links wrong today, as read now. */
 export async function findWrongLinks(now = Date.now()): Promise<Candidate[]> {
-  const rows = await all<any>(`SELECT o.video_id, o.season, o.code, o.day, o.part, o.source, o.channel_id, o.title AS listed, e.name, e.timezone,
+  // In parts by rowid (db.ts allInChunks): each link's event days are worked out from its matches in the statement, and
+  // every link in one statement held the server's one thread 148-248 ms on a copy of the VM's data (2026-11-22).
+  const rows = await allInChunks<any>(`SELECT o.rowid rid, o.video_id, o.season, o.code, o.day, o.part, o.source, o.channel_id, o.title AS listed, e.name, e.timezone,
       ${EVENT_FIRST_DAY} AS first, ${EVENT_LAST_DAY} AS end, ${EVENT_PLAYED_DAYS} AS played, m.live, m.start, m.checked_at, a.title
     FROM official_videos o JOIN events e ON e.season = o.season AND e.code = o.code
     LEFT JOIN video_meta m ON m.video_id = o.video_id LEFT JOIN official_audit_videos a ON a.video_id = o.video_id
-    WHERE o.removed_at IS NULL AND o.kind = 'recording' AND o.source IN ('list', 'watcher')`);
+    WHERE o.removed_at IS NULL AND o.kind = 'recording' AND o.source IN ('list', 'watcher') AND o.rowid > ?`, [], "rid", 300);
   const out: Candidate[] = [];
   for (const r of rows) {
     const title = r.title && !placeholder(r.title) ? String(r.title) : null;
