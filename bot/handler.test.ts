@@ -653,6 +653,13 @@ describe("\"Report this to ControlScout\"", () => {
     expect(vi.mocked(report).mock.calls[0][0]).toMatchObject({ thread: turns, logs: [] });
   });
 
+  it("over the hourly cap, it says so instead of filing", async () => {
+    const report = vi.fn(async (): Promise<Filed> => ({ ok: false, limited: true, reason: "too many reports from that person this hour" }));
+    const { m, sent } = message(`<@${BOT}> report this to ControlScout`);
+    await createHandler(() => {}, lookups({ report })).mention(m, BOT);
+    expect(sent[0].embeds[0].title).toBe("That's a lot of reports");
+  });
+
   it("when it can't file, it says so plainly and logs why (never throwing)", async () => {
     const log = vi.fn();
     const report = vi.fn(async () => ({ ok: false as const, reason: "GitHub answered 403" }));

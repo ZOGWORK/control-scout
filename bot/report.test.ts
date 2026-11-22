@@ -2,8 +2,8 @@
 // when it can't. Filing goes through the site's own GitHub client (server/errorReports.ts gh), so the token is the one
 // the site already has: GITHUB_REPORT_TOKEN.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setGithubFetch } from "../server/errorReports";
-import { REPORT_LABELS, REPORT_TITLE, fileReport, reportBody, wantsReport, type Filed, type Report } from "./report";
+import { resetReportLimits, setGithubFetch } from "../server/errorReports";
+import { REPORT_LABELS, REPORT_LIMITS, REPORT_TITLE, fileReport, reportBody, wantsReport, type Report } from "./report";
 
 const report = (over: Partial<Report> = {}): Report => ({
   guild: "g1", channel: "c1", user: "u1", name: "Alex",
@@ -70,6 +70,7 @@ describe("filing it", () => {
   const saved = process.env.GITHUB_REPORT_TOKEN;
   beforeEach(() => {
     calls.length = 0;
+    resetReportLimits();
     process.env.GITHUB_REPORT_TOKEN = "token-123";
     setGithubFetch((async (url: string, init: RequestInit) => {
       calls.push({ method: init.method!, url: String(url), body: init.body ? JSON.parse(String(init.body)) : undefined, auth: (init.headers as Record<string, string>)?.Authorization });
@@ -101,6 +102,16 @@ describe("filing it", () => {
     process.env.GITHUB_REPORT_TOKEN = "token-123";
     setGithubFetch((async () => new Response("{}", { status: 403 })) as typeof fetch);
     expect(await fileReport(report())).toEqual({ ok: false, reason: "GitHub answered 403" });
+  });
+
+  it("caps one person and one server an hour, and files nothing past it", async () => {
+    for (let i = 0; i < REPORT_LIMITS.user; i++) expect((await fileReport(report())).ok).toBe(true);
+    const over = await fileReport(report());
+    expect(over).toMatchObject({ ok: false, limited: true });
+    expect((over as { reason: string }).reason).toContain("that person");
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(REPORT_LIMITS.user);
+    // Someone else, in another server, still gets their own few.
+    expect((await fileReport(report({ user: "u2", guild: "g2" }))).ok).toBe(true);
   });
 
   it("never throws, whatever the network does", async () => {

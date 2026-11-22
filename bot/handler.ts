@@ -232,7 +232,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const r = await flight;
     if (!r.ok) {
       logLine(`report failed: ${r.reason}`);
-      await post(errorEmbed("Couldn't file that report", "Something on my side stopped the report from reaching GitHub. Try again in a moment, or report it on controlscout.org."));
+      await post(r.limited
+        ? errorEmbed("That's a lot of reports", "This person or server has asked for a few this hour. Try again later, or report it on controlscout.org.")
+        : errorEmbed("Couldn't file that report", "Something on my side stopped the report from reaching GitHub. Try again in a moment, or report it on controlscout.org."));
       return;
     }
     if (filed.size > 200) filed.clear();
