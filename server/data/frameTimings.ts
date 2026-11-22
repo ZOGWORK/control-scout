@@ -33,8 +33,11 @@ export interface FrameTiming {
   starts: Record<string, number>;
   /** Placed matches filled between two agreeing reads (the rest of `starts` were read themselves). */
   medium?: string[];
-  /** Starts with one signal only, or implausible: for the owner to check, never a clip. */
-  review?: Record<string, { t: number; why: string }>;
+  /** Starts with one signal only, or implausible: for the owner to check, never a clip. `again`: the autopilot's
+   *  second look at it (scripts/lib/reviewRecheck.ts: frames a few seconds after `t` read for its match and timer)
+   *  couldn't settle it, on `on`, with what those frames showed (`saw`): it isn't looked at again until the video is
+   *  read again; it stays for the owner. */
+  review?: Record<string, { t: number; why: string; again?: { on: string; saw: string } }>;
   /** Matches the frames gave no start for, and why. */
   missing?: Record<string, string>;
   /** Matches the frames show starting while the match before is still being played: `t`, the second it starts at in
@@ -47,6 +50,10 @@ export interface FrameTiming {
   /** Starts already live before openings were checked whose opening frame named nothing (blank, a transition): they
    *  keep playing at the usual lead-in until a re-read confirms or pulls them. Never set on a new placement. */
   unconfirmed?: string[];
+  /** Starts the autopilot's second look moved out of `review`: the video seconds of the two or more frames (at or after
+   *  its start, inside the match) whose bar named the match with its timer giving that same start. The second signal a
+   *  review entry lacked (server/data/frameRowRules.ts checks it), so such a start goes live with no owner. */
+  confirmed?: Record<string, number[]>;
   /** Starts the owner approved from the frames' review (Owner › Clip coverage, Waiting for approval;
    *  server/videos/autoReads.ts approveReview): served whatever the plausibility check says, and kept through later
    *  re-reads unless a frame at the clip's opening names another match (carryApproved, server/data/frameRowRules.ts). */
