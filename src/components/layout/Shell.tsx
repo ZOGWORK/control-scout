@@ -510,8 +510,9 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
           {!bare && <MobileTabs />}
-          {/* v8: Report a bug, a quiet circle in the screen's bottom corner (above the phone's tab bar). */}
-          {!bare && v8 && <div className="fixed bottom-0 right-0 z-30 size-0 transition-[bottom] duration-200 motion-reduce:transition-none max-md:bottom-(--tabbar-h) max-md:[[data-sticky-actions-shown]_&]:bottom-[calc(var(--tabbar-h)+3.25rem)]"><BugReportButton corner /></div>}
+          {/* v8: Report a bug, a quiet circle in the screen's bottom corner (above the phone's tab bar, and above a page's bar
+              of actions while that shows); out of the way while a team card is open over that corner. */}
+          {!bare && v8 && <div className="fixed bottom-0 right-0 z-30 size-0 transition-[bottom] duration-200 motion-reduce:transition-none max-md:bottom-(--tabbar-h) max-md:[[data-sticky-actions-shown]_&]:bottom-[calc(var(--tabbar-h)+3.25rem)] [html:has([data-team-snack])_&]:hidden"><BugReportButton corner /></div>}
           <WhatsNewHost />
           <Sheet open={menu} onOpenChange={setMenu}>
             <SheetContent side="left" returnFocus={toMenu} className="w-[85vw] max-w-[320px] p-3">
