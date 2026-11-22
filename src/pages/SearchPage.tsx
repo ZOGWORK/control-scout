@@ -40,6 +40,7 @@ import { openFamilies, type FamilyStatus } from "../components/search/page/event
 import { eventSections, eventStatuses, localDay } from "../components/search/page/eventSections";
 import { TONE, V8_STAGGER, V8_STATUS } from "../components/search/page/v8tone";
 import { useIsV8 } from "../lib/v8";
+import { HighlightReel } from "../components/search/page/HighlightReel";
 import { EventRow, FollowChips, MatchRows, PlainRow, RowGroup, TeamRow, UnderstoodLine, V8TeamAnswer, standoutRows } from "../components/search/page/V8Results";
 import { EventTree } from "../components/search/page/EventTree";
 import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters, type Statuses } from "../components/search/page/results";
@@ -232,6 +233,9 @@ export default function SearchPage() {
     return null;
   }, [v8, answer, hits, ax, topTeam, compares.length]);
   const standout = v8 ? standoutRows(answer?.stat) : null;
+  // v8: a team's highlights as video cards, first when the search asked for highlights (its answer lists every match:
+  // a "videos" block), else under the team's card.
+  const reel = v8 && answer?.stat?.intent === "team-highlights" ? (answer.stat.blocks.some((b) => b.kind === "videos") ? "lead" : "under") : null;
   const summary = (
     <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
@@ -348,6 +352,9 @@ export default function SearchPage() {
               {sideColumn}
               <div className={cn("min-w-0 lg:col-start-1 lg:row-start-1", V8_STAGGER)} data-stagger>
                 {/* The answer, sized to the question: a team asked for by itself is its compact summary. */}
+                {/* A highlights search leads with the team's videos (./search/page/HighlightReel.tsx); a team searched alone
+                    shows its standout matches' clips under its card. */}
+                {reel === "lead" && <HighlightReel stat={answer!.stat!} className="mb-5" />}
                 {teamAnswer ? <V8TeamAnswer team={teamAnswer.number} name={teamAnswer.name} place={teamAnswer.place} summary={summaries.get(teamAnswer.number)} stat={answer?.stat} />
                   : answer?.stat ? <StatAnswerCard stat={answer.stat} heading={title ?? undefined} explain={inStat ? answer.card : undefined} />
                   : apps.length ? <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} headline={answer!.card!.headline} trip={answer!.card!.trip} apps={apps} />
@@ -355,6 +362,7 @@ export default function SearchPage() {
                   : answer?.card && !inStat ? <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />
                   : null}
                 {!answer?.stat && !answer?.card && !teamAnswer && <AnswerVideo className="mt-0 max-sm:mx-0" />}
+                {reel === "under" && <HighlightReel stat={answer!.stat!} className="mt-5" />}
                 <FollowChips ask={askAside ? [] : follow.ask} related={follow.related} seeAll={follow.asked ?? query} className="mt-4" />
                 {/* Going deeper: plain rows, grouped, five each. */}
                 {standout && <RowGroup key={standout.rows.map((r) => r.href).join("|")} id="standout" title={standout.title} count={standout.rows.length}>{[<MatchRows key="m" rows={standout.rows} />]}</RowGroup>}

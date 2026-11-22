@@ -176,9 +176,10 @@ export function useAnyVideo(): boolean {
 /** A listed match's play button, when it has a clip: it plays in the app's video dialog. `label` names the match in it.
  *  A row with no clip in an answer that plays others says "No video" (never a button that goes nowhere); the match the
  *  card already plays, and an answer with no video at all (its one line says so: NoVideoLine), say nothing. */
-export function RowPlay({ href, label, className }: { href: string; label: string; className?: string }) {
+/** `withMain`: the answer's own match plays here too (a page with no card player: v8's standout rows). */
+export function RowPlay({ href, label, className, withMain }: { href: string; label: string; className?: string; withMain?: boolean }) {
   const { video, rowPlayed } = useContext(Video);
-  const v = video?.rows?.[href];
+  const v = video?.rows?.[href] ?? (withMain && video?.mainRow === href ? video.main : undefined);
   if (!v) {
     // Another match plays (a row's clip, or the card's own match, never the event's recording from its start).
     const others = !!(video?.rows && Object.keys(video.rows).length) || (!!video?.mainRow && video.main?.kind !== "stream");

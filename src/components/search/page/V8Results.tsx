@@ -12,6 +12,7 @@ import { useApi } from "../../../lib/api";
 import { dateRange, seasonLabel } from "../../../lib/format";
 import { cn } from "../../cn";
 import { RecordText } from "./answerCells";
+import { RowPlay } from "./AnswerVideo";
 import { V8_SOFT, v8Tile, type SoftColour } from "./v8tone";
 import { eventFacts, teamParts } from "./results";
 import type { SeasonSummary } from "./ResultCards";
@@ -144,7 +145,8 @@ export function LastScore({ own, opp }: { own: number; opp: number }) {
   );
 }
 
-/** A team-highlights answer's matches (best score, best Auto, closest win) as plain rows: what it was, the match, the score. */
+/** A team-highlights answer's matches (best score, best Auto, closest win) as plain rows: what it was, the match, the
+ *  score, and its clip's play button when it has one. */
 export function standoutRows(stat: StatAnswer | undefined): { title: string; rows: StatMatchRow[] } | null {
   const b = stat?.intent === "team-highlights" ? stat.blocks.find((x) => x.kind === "matches") : undefined;
   return b && b.kind === "matches" && b.rows.length ? { title: "Standout matches", rows: b.rows } : null;
@@ -154,8 +156,8 @@ export function MatchRows({ rows }: { rows: StatMatchRow[] }) {
   return (
     <ul className="divide-y divide-line">
       {rows.map((r) => (
-        <li key={`${r.href}-${r.label}`}>
-          <Link to={r.href} className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-sm hover:bg-ink/[0.04]" data-match-row>
+        <li key={`${r.href}-${r.label}`} className="flex items-center">
+          <Link to={r.href} className="flex min-h-[44px] min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-sm hover:bg-ink/[0.04]" data-match-row>
             <Swords className="size-4 shrink-0 text-text-muted" aria-hidden />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-foreground">{r.note && <span className="text-text-muted">{r.note}: </span>}{r.label} at {r.event.label}</span>
@@ -163,6 +165,8 @@ export function MatchRows({ rows }: { rows: StatMatchRow[] }) {
             </span>
             <span className="shrink-0 tabular-nums"><span className={cn("font-semibold", r.result === "W" ? "text-foreground" : "text-text-muted")}>{r.own}</span><span className="text-text-faint">–{r.opp}</span></span>
           </Link>
+          {/* Its clip, beside the row (a button can't sit inside the link): the same one its card in the videos plays. */}
+          <RowPlay href={r.href} label={`${r.label} · ${r.event.label}`} className="mr-1.5" withMain />
         </li>
       ))}
     </ul>
