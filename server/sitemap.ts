@@ -17,6 +17,7 @@ import { recordSplitLastmods, recordSplitPath } from "./teamRecordPage.js";
 import { eventHighlightsLastmods, eventHighlightsPath } from "./eventHighlightsPage.js";
 import { leagueHref } from "../src/shared/leagues.js";
 import { SEASON_NUMBERS } from "./data/seasons.js";
+import { sitemapRowsOffThread } from "./sitemapOffThread.js";
 
 // The pages whose first HTML is their content (server/seoMeta.ts bodyHtml): the home page, the event list, the world
 // rankings, the record tables (their top rows), both How it works pages, the FAQ and the plain content pages
@@ -38,9 +39,21 @@ const day = (s: string | null | undefined) => (s && /^\d{4}-\d{2}-\d{2}/.test(s)
 const lastmodOf = (w: { published: string; generated?: { updated: string | null } }) => w.generated?.updated && w.generated.updated > w.published ? w.generated.updated : w.published;
 const xmlEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 
-/** Every URL for the sitemap, in a stable order. */
-export async function sitemapEntries(): Promise<Entry[]> {
-  const today = new Date().toISOString().slice(0, 10);
+/** The database reads behind the sitemap (sitemapRows). */
+export interface SitemapRows {
+  lastmods: { number: number; lastmod: string | null }[];
+  teamRows: { number: number }[];
+  events: { season: number; code: string; upstream_updated: string | null }[];
+  leagues: { season: number; region: string; code: string; ranked_at: string | null }[];
+  highlights: { number: number; lastmod: string | null }[];
+  recordSplits: { number: number; lastmod: string | null }[];
+  eventHighlights: { season: number; code: string; lastmod: string | null }[];
+}
+
+/** The sitemap's database reads, for the day `today` (YYYY-MM-DD). Each is one statement over a whole table's history
+ *  (on the prod data copy, 2026-11-22: 20 s together, two of them 7 and 8 s), so the server runs them on a worker
+ *  thread (sitemapOffThread.ts); this is the code that worker runs. */
+export async function sitemapRows(today: string): Promise<SitemapRows> {
   const [lastmods, teamRows, events, leagues, highlights, recordSplits, eventHighlights] = await Promise.all([
     // A team page changes when the team plays: its lastmod is the last day of its latest event that has started (today
     // while one is on), or a later change the source marked on one. Not teams.updated_at: every sync stamps that on
@@ -84,6 +97,13 @@ export async function sitemapEntries(): Promise<Entry[]> {
     // with a match to pick from. lastmod: the last day those matches changed.
     eventHighlightsLastmods(),
   ]);
+  return { lastmods, teamRows, events, leagues, highlights, recordSplits, eventHighlights };
+}
+
+/** Every URL for the sitemap, in a stable order (`read`: the database reads, here unless given another way to run them). */
+export async function sitemapEntries(read: (today: string) => Promise<SitemapRows> = sitemapRows): Promise<Entry[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { lastmods, teamRows, events, leagues, highlights, recordSplits, eventHighlights } = await read(today);
   const lastmod = new Map(lastmods.map((t) => [t.number, t.lastmod]));
   const listed = new Set(teamRows.map((t) => Number(t.number)));
   // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).
@@ -127,12 +147,14 @@ export function buildSitemap(e: Entry[], chunk = CHUNK): { main: string; chunks:
   return { main: index(chunks.length), chunks };
 }
 
-// The finished XML, built at most once an hour (about 30,000 URLs): requests just send it.
+// The finished XML, built at most once an hour (about 35,000 URLs): requests just send it. Its reads run on a worker
+// (sitemapOffThread.ts): here they held the site still, 07:35:48 and 09:24:53Z on 2026-11-22, 14 s each, ended by the
+// crawler's /sitemap.xml.
 let cache: { at: number; built: Promise<{ main: string; chunks: string[] }> } | null = null;
 function built() {
   if (!cache || Date.now() - cache.at > 3600_000) {
     const at = Date.now();
-    const p = sitemapEntries().then((e) => buildSitemap(e));
+    const p = sitemapEntries(sitemapRowsOffThread).then((e) => buildSitemap(e));
     p.catch(() => { if (cache?.at === at) cache = null; }); // a failed build isn't kept
     cache = { at, built: p };
   }
