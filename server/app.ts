@@ -122,7 +122,7 @@ import { regionRankings, regionsList, seasonLeagueList } from "./api/regionRanki
 import { REGION_SORTS, isRegionSort, type LeaguesResponse } from "../src/shared/regionRankings.js";
 import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
 import { registerCache } from "./caches.js";
-import { requestMetrics } from "./metrics.js";
+import { normalizeRoute, requestMetrics } from "./metrics.js";
 import { allFlags, featureDisabled, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFlags } from "./flags.js";
 import type { FlagsAnswer } from "../src/shared/flags.js";
 import { currentUser } from "./auth/session.js";
@@ -1189,9 +1189,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     }));
   }
 
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     const status = err instanceof HttpError ? err.status : 500;
-    if (status >= 500) console.error("[api]", err);
+    // Which route, as the owner portal names it (ids and queries left out): the driver's stacks (SQLITE_BUSY) end in
+    // node_modules, so without it a 5xx in the log can't be told to any route.
+    if (status >= 500) console.error(`[api] ${req.method} ${normalizeRoute(req.path)}`, err);
     res.status(status).json({ error: status >= 500 && !(err instanceof HttpError) ? "Something went wrong on our side." : (err as Error).message });
   });
   return app;
