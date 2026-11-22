@@ -376,6 +376,24 @@ describe("when no chat can answer", () => {
     expect((await ask(records, plain(records), SITE)).chat).toBeUndefined();
   });
 
+  it("the screenshot's maths question is a chat, not a records miss: the cosine posts", async () => {
+    // "what is the cosine of 35 degrees i need it for a auto trust": 35 is a measurement, nowhere near a team, so his
+    // value (0.8192) isn't a record claim, and the card no longer says no team matched.
+    const q = "what is the cosine of 35 degrees i need it for a auto trust";
+    const d = deps(nothing(q), {
+      facts: vi.fn(async () => []), refine: vi.fn(async () => null),
+      chat: vi.fn(async () => ({ text: "**cos(35°) ≈ 0.8192.** For an auto that swings an arm 35° from vertical, that's the height factor: about 0.82 of the arm's length.", search: false, unknown: ["0", "8192", "35"] })),
+    });
+    const r = await ask(q, d, SITE);
+    expect(r.chat?.text).toContain("0.8192");
+    expect(r.chat?.by).toBeUndefined();
+    // No chat answer: the one plain line, not "No team, event or match matched".
+    const none = deps(nothing(q), { chat: vi.fn(async () => null), facts: vi.fn(async () => []), refine: vi.fn(async () => null) });
+    const line = await ask(q, none, SITE);
+    expect(line.chat?.text).toBe(NO_REPLY);
+    expect(line.embed.title).toBe(SORRY_SENTENCE);
+  });
+
   it("a message naming a number is a records question, even when search finds nothing for it", async () => {
     const d = deps(nothing("99999 swerve ratio"), {
       facts: vi.fn(async () => []), refine: vi.fn(async () => null),
