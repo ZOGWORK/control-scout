@@ -19,6 +19,7 @@ import { FOOTER, VOLT, teamLink } from "./views.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 import { answerScope, answerStyle, productFacts, zogModeReply } from "./productFacts.js";
 import { RECORD_NUMBER, smallTalk } from "./smallTalk.js";
+import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -98,11 +99,11 @@ export async function realAskDeps(): Promise<AskDeps> {
     chat: async (message, facts, history, memory = []) => {
       // Why a chat didn't happen is logged (never the message or the key): a deployment is diagnosed from these lines.
       if (!brunoAvailable()) {
-        console.info("[bot] chat off: Control Point isn't configured (CONTROL_POINT_INTERNAL_URL and CONTROL_POINT_INTERNAL_KEY)");
+        console.info(`[bot] chat off: ${CHAT_OFF_UNCONFIGURED}`);
         return null;
       }
       if (!(await isEnabled("discordBruno").catch(() => false))) {
-        console.info("[bot] chat off: the discordBruno switch is off");
+        console.info(`[bot] chat off: ${CHAT_OFF_SWITCH}`);
         return null;
       }
       // Product knowledge first, every line inside Control Point's per-fact cap: one longer line and it refuses the

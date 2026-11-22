@@ -67,6 +67,20 @@ Whether reporting is wired up is said once at startup (`report filing on: GITHUB
 filing off: …`), so the journal answers it — `journalctl -u control-scout-bot | grep 'report filing'` — without filing
 a test issue. It says whether the variable is set, never its value; a token added later shows on the next restart.
 
+**What it can do, at startup** (`bot/config.ts`): five lines starting `config:`, said once the database is open —
+
+```
+config: season 2025 (2025–26 DECODE)
+config: site http://127.0.0.1:3000 (its own API, on loopback)
+config: chat on: Control Point is configured and the discordBruno switch is on
+config: report filing on: GITHUB_REPORT_TOKEN is set
+config: follow posts on — 12 follows in 4 servers (a tick a minute while connected)
+```
+
+so `journalctl -u control-scout-bot | grep 'config:'` answers "what can this bot do here, and what is it missing?" in
+one look: the chat says `off —` with the reason ask.ts itself gives (Control Point unconfigured, or the switch off), the
+follows are counted (or it says none yet, or that they couldn't be read), and no line ever carries a secret's value.
+
 The issue is as public as the repository's issues: it posts what
 the channel said, which is the point of the request — with an `@mention` and a `#123` neutralised, since it's filed
 under the bot's own GitHub identity and a member must not be able to ping a stranger or cross-reference an issue with it.

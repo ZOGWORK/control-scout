@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.8.5 — 2026-11-22
+
+One startup summary of the bot's whole configuration, so a single journal look says what it can do and what it is missing.
+
+### Highlights
+- [alerts] The bot logs what it can do at startup, one config block
+- [fixes] Chat says off and why, follow posts count their follows
+- [alerts] Season, site, chat, reporting and follows, and no secrets
+
+### Discord bot
+- `bot/config.ts` builds five `config:` lines, logged once the database is open: the season with its game, the site it talks to (its own API on loopback), the chat (on, or off with the very reason `bot/ask.ts` gives, from the same constants in the new `bot/chatState.ts`), report filing, and the follow posts with how many follows in how many servers the minute tick will serve (or that none are followed yet, or that they couldn't be read).
+- `journalctl -u control-scout-bot | grep 'config:'` is then the whole answer to "what can this bot do here?": no test message and no test issue needed, and no line carries a secret's value — only whether it is set. `bot/config.test.ts` covers the chat's two off reasons and the on case, a switch the database can't answer, every follow count in words, and that neither the Control Point key nor the GitHub token ever appears. `bot/README.md` shows the block.
+
 ## 7.8.4 — 2026-11-22
 
 The bot's journal now says at startup whether "Report this to ControlScout" can file, so it can be confirmed without filing a test issue.
