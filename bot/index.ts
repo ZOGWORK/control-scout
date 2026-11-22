@@ -16,6 +16,7 @@ import { COMMANDS, sameCommands } from "./commands.js";
 import { createHandler } from "./handler.js";
 import { notifyTick, type Send } from "./follows.js";
 import { site } from "./lookups.js";
+import { reportSetup } from "./report.js";
 import { beat } from "../server/uptime.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] [bot] ${m}`);
@@ -27,6 +28,9 @@ if (!token) {
   log("DISCORD_BOT_TOKEN is not set: add it to .env (see bot/README.md). Not starting.");
   process.exit(78);
 }
+
+// Said at startup so the journal says whether "Report this to ControlScout" will work, without filing a test issue.
+log(reportSetup().line);
 
 // WAL and a busy wait on the local database, as the site sets them; no migrations (the site owns the
 // schema). A remote database (Turso) is read directly: the embedded replica file belongs to the site.
