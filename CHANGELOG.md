@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Searching again from the results page's own search bar starts from that bar's answer too, with no loading screen.
 
 ### Highlights
-- [speed] Searching again from `/search` keeps the answer its own bar already had
+- [speed] Searching again from the results page keeps the answer its own bar already had
 - [speed] No loading screen over results the box already found
 - [fixes] A query still goes straight to its page when it names one
 
