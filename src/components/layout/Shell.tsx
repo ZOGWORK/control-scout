@@ -432,7 +432,8 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <AccountProvider>
     <AccountSetupProvider>
-    <AccountSheetBridge menu={menu} openMenu={() => openMenu(menuRef.current)} />
+    {/* v8 keeps your menu under your picture in the top row on every screen (#2091): only the classic look moves it into the sheet. */}
+    {!v8 && <AccountSheetBridge menu={menu} openMenu={() => openMenu(menuRef.current)} />}
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
         {/* At least a screen tall; sideways overflow is clipped (clip, not hidden: no scroll box, so the sticky bars still stick). */}
