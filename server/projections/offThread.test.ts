@@ -81,6 +81,7 @@ describe("workerEntry", () => {
     expect(workerEntry(src, ["--max-old-space-size=1536", "--import", "tsx"]).execArgv).toEqual(["--import", "tsx"]);
     expect(workerEntry(src, ["--max-old-space-size", "1536", "--enable-source-maps"]).execArgv).toEqual(["--enable-source-maps", "--import", "tsx"]);
     expect(workerFlags(["--max-semi-space-size=64", "--max_old_space_size=900", "--enable-source-maps"])).toEqual(["--enable-source-maps"]);
+    expect(workerFlags(["--max_young_generation_size=32", "--max-young-generation-size", "16", "--max_semi-space_size=8", "--max-old-space-sizes=1"])).toEqual(["--max-old-space-sizes=1"]);
   });
 
   it("a worker started with the bot's flags runs (Node accepts what's left)", async () => {
