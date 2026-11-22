@@ -147,7 +147,7 @@ export function OnboardingDialog({ step, savedHere }: { step: number; savedHere:
     window.scrollTo({ top: 0 });
     if (savedTeam == null) {
       window.setTimeout(() => {
-        const input = [...document.querySelectorAll<HTMLInputElement>("[data-search-box] input")].find((el) => el.getClientRects().length > 0);
+        const input = [...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-search-box] :is(input, textarea)")].find((el) => el.getClientRects().length > 0);
         input?.focus();
       }, 60);
     }

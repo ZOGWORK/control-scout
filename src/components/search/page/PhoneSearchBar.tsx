@@ -84,7 +84,7 @@ export function PhoneSearchBar({ query }: { query: string }) {
         discover examples syncQuery={query}
         onPick={(h) => nav(hitHref(h))}
         onEscape={restoreFocus}
-        glide
+        glide wrap
         fieldClassName={cn("transition-[height] duration-150", small ? "h-[44px]" : "h-[48px]")}
       />
       </div>

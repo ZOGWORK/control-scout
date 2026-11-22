@@ -316,7 +316,7 @@ export interface SearchBoxProps {
   className?: string;
   /** Extra classes for the field's own bordered row (e.g. a taller bar on a phone). */
   fieldClassName?: string;
-  inputRef?: Ref<HTMLInputElement>;
+  inputRef?: Ref<SearchFieldEl>;
   /** Shown under the field while it's empty and focused (e.g. quick picks). */
   emptyHint?: ReactNode;
   autoFocus?: boolean;
@@ -339,7 +339,27 @@ export interface SearchBoxProps {
    *  changes, without opening the list. Until it's edited it isn't searched again (the page already shows its
    *  results); Enter or the magnifier run it again. Undefined on other pages. */
   syncQuery?: string;
+  /** The site's search bar (top bar, phone results bar, Home): a long query shows on one line at rest, fading where it
+   *  runs on, and grows over the page to show all of it, wrapped, while it's being edited, the caret at its end. */
+  wrap?: boolean;
 }
+
+/** The element a search box types into: a one-line input, or the growing textarea of a `wrap` box. */
+export type SearchFieldEl = HTMLInputElement | HTMLTextAreaElement;
+
+/** A query is one line of text: line breaks (typed, or in a pasted paragraph) become single spaces. */
+export const oneLine = (v: string): string => v.replace(/[^\S\r\n]*[\r\n]+[^\S\r\n]*/g, " ");
+
+/** The caret at the very end of the field's text, scrolled into view. */
+export function caretToEnd(el: SearchFieldEl): void {
+  const n = el.value.length;
+  try { el.setSelectionRange(n, n); } catch { /* a field type without a selection */ }
+  el.scrollTop = el.scrollHeight;
+}
+
+/** The tallest a grown field gets, as a share of the visible screen (a phone's keyboard up: what's above it). Past
+ *  that it scrolls inside, so the list under it still has room. */
+export const GROW_MAX_SHARE = 0.4;
 
 /** A phone's keyboard (and its accessory bar) covers the bottom of the page without making it shorter: while it's
  *  up, the list's height is what's left between its top and the keyboard, so no row sits underneath. Null otherwise
@@ -414,7 +434,7 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   );
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, fieldClassName, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, initialQuery, seeAll = true, discover, examples, syncQuery, glide }: SearchBoxProps) {
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, fieldClassName, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, initialQuery, seeAll = true, discover, examples, syncQuery, glide, wrap = false }: SearchBoxProps) {
   const [q, setQ] = useState(initialQuery ?? syncQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
   const synced = useRef(syncQuery);
@@ -439,11 +459,11 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const box = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   // The field itself (the caller's inputRef is set too): the magnifier focuses it when there's nothing to search.
-  const field = useRef<HTMLInputElement | null>(null);
-  const setField = useCallback((el: HTMLInputElement | null) => {
+  const field = useRef<SearchFieldEl | null>(null);
+  const setField = useCallback((el: SearchFieldEl | null) => {
     field.current = el;
     if (typeof inputRef === "function") inputRef(el);
-    else if (inputRef) (inputRef as { current: HTMLInputElement | null }).current = el;
+    else if (inputRef) (inputRef as { current: SearchFieldEl | null }).current = el;
   }, [inputRef]);
   // How many results sit below the visible part of the dropdown (drives the "more below" cue).
   const [below, setBelow] = useState(0);
@@ -601,47 +621,148 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   useEffect(() => { if (!showList) { setActive(-1); activeKey.current = null; } }, [showList]);
   const room = useRoomAboveKeyboard(list, showList);
   const lg = size === "lg";
-  return (
-    <div ref={box} data-search-box data-opens-search={seeAll && !kinds ? "" : undefined} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); onClose?.(); } }}>
-      <div data-glide-box={glide ? "" : undefined} className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground v8:border-input v8:bg-muted transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3", fieldClassName)}>
+  // `wrap`: the field's resting height while it's grown (0: at rest), read as it takes focus.
+  const row = useRef<HTMLDivElement>(null);
+  const [grownAt, setGrownAt] = useState(0);
+  const grown = wrap && grownAt > 0;
+  // The first line sits where the resting field showed it; the controls beside it stay put.
+  // (Its line height, read as it grows: touch screens draw field text at 16px, and v8 scales the root size.)
+  const [line, setLine] = useState(lg ? 24 : 20);
+  const pad = Math.max(0, (grownAt - 2 - line) / 2);
+  const pressed = useRef(false);
+  // At rest, the text runs past the field's end: it fades out there instead of stopping dead.
+  const [clipped, setClipped] = useState(false);
+  useLayoutEffect(() => {
+    const el = field.current;
+    if (!wrap || !(el instanceof HTMLTextAreaElement)) return;
+    const fit = () => {
+      if (!grown) {
+        el.style.height = "";
+        // Back to the start of the query, as a one-line field shows it.
+        el.scrollLeft = 0; el.scrollTop = 0;
+        setClipped(el.scrollWidth > el.clientWidth + 1);
+        return;
+      }
+      // Its height follows its lines, from where it was (so the grow eases; none under reduced motion).
+      const from = el.getBoundingClientRect().height;
+      el.style.height = "auto";
+      const cap = Math.round((window.visualViewport?.height ?? window.innerHeight) * GROW_MAX_SHARE);
+      const to = Math.max(line, Math.min(el.scrollHeight, cap - 2 * pad));
+      el.style.height = `${from}px`;
+      void el.offsetHeight;
+      el.style.height = `${to}px`;
+      if (el.selectionStart === el.value.length) el.scrollTop = el.scrollHeight;
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [wrap, grown, q, line, pad]);
+  // The field's handlers, shared by the one-line input and the growing textarea (`wrap`).
+  const onFieldChange = (e: React.ChangeEvent<SearchFieldEl>) => { setQ(wrap ? oneLine(e.target.value) : e.target.value); setOpen(true); };
+  const onFieldFocus = (e: React.FocusEvent<SearchFieldEl>) => {
+    if (wrap) {
+      // Grows over the page from the height it rests at (read before it grows), the caret at the very end of the query.
+      setGrownAt(row.current?.offsetHeight || (lg ? 56 : 36));
+      const lh = parseFloat(getComputedStyle(e.currentTarget).lineHeight);
+      if (lh > 0) setLine(lh);
+      caretToEnd(e.currentTarget);
+    }
+    // Focus handed over by Home's glide (search/glide.ts): the caret lands here, the list stays shut over the results.
+    if ("quietFocus" in e.currentTarget.dataset) { delete e.currentTarget.dataset.quietFocus; return; }
+    setOpen(true);
+  };
+  const onFieldKeyDown = (e: React.KeyboardEvent<SearchFieldEl>) => {
+    // The query is one line, only wrapped for showing: Enter (Shift+Enter too) never types a line break into it.
+    if (wrap && e.key === "Enter" && !e.nativeEvent.isComposing) e.preventDefault();
+    // Escape: closes the list and stays in the field; again clears it; on an empty, closed field, leaves it.
+    if (e.key === "Escape") { if (showList) setOpen(false); else if (q) setQ(""); else { e.currentTarget.blur(); onClose?.(); onEscape?.(); } return; }
+    // Enter: the highlighted row; with none, the full results page (a picker box: its top result, once it's current).
+    if (e.key === "Enter" && query) { e.preventDefault(); submit(true); return; }
+    // Enter on the empty field: the highlighted suggestion; nothing highlighted, nothing to search.
+    if (e.key === "Enter") { if (active >= 0 && suggestions[active]) { e.preventDefault(); runQuery(suggestions[active].text); } return; }
+    if (!count) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); if (!showList) { setOpen(true); return; } setActive((i) => (i + 1) % count); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i <= 0 ? count - 1 : i - 1)); }
+  };
+  const fieldAria = {
+    placeholder, "aria-label": label,
+    role: "combobox", "aria-expanded": showList, "aria-controls": listId, "aria-autocomplete": "list" as const,
+    "aria-activedescendant": showList && active >= 0 && active < count ? `${listId}-${active}` : undefined,
+  };
+  const text = lg ? "text-base" : "text-sm";
+  // `wrap`: the controls at either side stay on the first line while the field grows under them.
+  const side = (node: ReactNode, cls?: string) => !wrap ? node
+    : <span data-search-side className={cn("flex shrink-0 items-center self-stretch", cls)} style={grown ? { height: grownAt - 2, alignSelf: "flex-start" } : undefined}>{node}</span>;
+  const inner = (
+    <>
+      <div ref={row} data-search-field data-glide-box={glide ? "" : undefined} data-grown={grown ? "" : undefined}
+        style={grown ? { height: "auto", minHeight: grownAt, alignItems: "flex-start" } : undefined}
+        className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground v8:border-input v8:bg-muted transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3", fieldClassName)}>
         {/* The magnifier searches, like Enter: it never just focuses the field (only an empty one, with nothing to
             search). The press keeps focus in the field so the list stays open until the search goes; going closes
             the keyboard. */}
-        <button
+        {side(<button
           type="button" aria-label="Run search" data-search-submit
           onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()}
           onClick={() => { if (query) submit(false); else field.current?.focus(); }}
           className={cn("-ml-1 flex shrink-0 items-center justify-center rounded-lg outline-none hover:bg-accent/10 v8:hover:bg-ink/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:size-[44px] pointer-coarse:-my-1", lg ? "size-9 -mr-1" : "size-7 -mr-1.5")}
         >
           {busy ? <Loader2 className={cn("animate-spin text-muted-foreground", lg ? "size-5" : "size-4")} /> : <Search className={cn("text-accent v8:text-muted-foreground", lg ? "size-5" : "size-4")} />}
-        </button>
-        <input
-          ref={setField} value={q} autoFocus={autoFocus} enterKeyHint={full ? "search" : "go"}
-          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-          onFocus={(e) => {
-            // Focus handed over by Home's glide (search/glide.ts): the caret lands here, the list stays shut over the results.
-            if ("quietFocus" in e.currentTarget.dataset) { delete e.currentTarget.dataset.quietFocus; return; }
-            setOpen(true);
-          }}
-          onKeyDown={(e) => {
-            // Escape: closes the list and stays in the field; again clears it; on an empty, closed field, leaves it.
-            if (e.key === "Escape") { if (showList) setOpen(false); else if (q) setQ(""); else { (e.target as HTMLInputElement).blur(); onClose?.(); onEscape?.(); } return; }
-            // Enter: the highlighted row; with none, the full results page (a picker box: its top result, once it's current).
-            if (e.key === "Enter" && query) { e.preventDefault(); submit(true); return; }
-            // Enter on the empty field: the highlighted suggestion; nothing highlighted, nothing to search.
-            if (e.key === "Enter") { if (active >= 0 && suggestions[active]) { e.preventDefault(); runQuery(suggestions[active].text); } return; }
-            if (!count) return;
-            if (e.key === "ArrowDown") { e.preventDefault(); if (!showList) { setOpen(true); return; } setActive((i) => (i + 1) % count); }
-            else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i <= 0 ? count - 1 : i - 1)); }
-          }}
-          placeholder={placeholder} aria-label={label}
-          role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list"
-          aria-activedescendant={showList && active >= 0 && active < count ? `${listId}-${active}` : undefined}
-          className={cn("min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground", lg ? "text-base" : "text-sm")}
-        />
-        {!q && hint && <kbd className="hidden shrink-0 rounded border border-border px-1.5 font-mono text-[10px] text-muted-foreground v8:border-input v8:text-[0.6875rem] sm:inline">{hint}</kbd>}
-        {/* A touch screen: a 44px target (the icon alone is too small to hit), pulled into the row's padding. */}
-        {q && <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="flex shrink-0 items-center justify-center rounded p-0.5 text-muted-foreground hover:text-foreground pointer-coarse:-my-1 pointer-coarse:-mr-2 pointer-coarse:size-[44px]"><X className="size-4" /></button>}
+        </button>)}
+        {wrap ? (
+          // One line at rest (fading out where it runs on), the whole query wrapped while it's being edited. A
+          // textarea, so the wrapped text is the text being edited; still the list's combobox, and still one line of
+          // query (line breaks typed or pasted become spaces).
+          // (The padding that keeps its first line where the resting field shows it is the wrapper's: a textarea's own
+          // padding goes missing from its scrollHeight while its text overflows, in Chrome.)
+          <span className="flex min-w-0 flex-1 items-center self-stretch" style={grown ? { paddingTop: pad, paddingBottom: pad, alignItems: "flex-start" } : undefined}>
+          <textarea
+            ref={setField} value={q} autoFocus={autoFocus} enterKeyHint={full ? "search" : "go"} rows={1}
+            wrap={grown ? "soft" : "off"} autoComplete="off"
+            onChange={onFieldChange} onFocus={onFieldFocus} onKeyDown={onFieldKeyDown}
+            onBlur={() => setGrownAt(0)}
+            // A click or tap into the resting field puts the caret at the end (where it landed means nothing once the
+            // text has re-flowed into lines); later clicks place it as usual. The browser places the caret on the
+            // release, which may land outside the grown field (the click then never reaches it): so after the release
+            // anywhere, and on the click.
+            onPointerDown={(e) => {
+              const el = e.currentTarget;
+              // Every press sets it afresh: one into the field already focused places the caret as usual.
+              pressed.current = document.activeElement !== el;
+              if (!pressed.current) return;
+              const released = () => {
+                window.removeEventListener("pointerup", released, true);
+                window.removeEventListener("pointercancel", released, true);
+                // (Not yet focused, as on an iPhone, which focuses after the release: the click does it.)
+                requestAnimationFrame(() => { if (pressed.current && document.activeElement === el) { pressed.current = false; caretToEnd(el); } });
+              };
+              window.addEventListener("pointerup", released, true);
+              window.addEventListener("pointercancel", released, true);
+            }}
+            onClick={(e) => { if (pressed.current) { pressed.current = false; caretToEnd(e.currentTarget); } }}
+            {...fieldAria}
+            className={cn("block min-w-0 flex-1 resize-none bg-transparent outline-none placeholder:text-muted-foreground", text, "h-[1lh] leading-[1.35]",
+              grown ? "overflow-y-auto whitespace-pre-wrap break-words motion-safe:transition-[height] motion-safe:duration-150 motion-safe:ease-out"
+                : "overflow-hidden whitespace-pre",
+              clipped && !grown && "[mask-image:linear-gradient(to_right,#000_calc(100%-2rem),transparent)]")}
+          />
+          </span>
+        ) : (
+          <input
+            ref={setField} value={q} autoFocus={autoFocus} enterKeyHint={full ? "search" : "go"}
+            onChange={onFieldChange} onFocus={onFieldFocus} onKeyDown={onFieldKeyDown}
+            {...fieldAria}
+            className={cn("min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground", text)}
+          />
+        )}
+        {(q || hint) && side(<>
+          {!q && hint && <kbd className="hidden shrink-0 rounded border border-border px-1.5 font-mono text-[10px] text-muted-foreground v8:border-input v8:text-[0.6875rem] sm:inline">{hint}</kbd>}
+          {/* A touch screen: a 44px target (the icon alone is too small to hit), pulled into the row's padding. A
+              growing field keeps focus on the press, so it doesn't shrink under the pointer before the click lands. */}
+          {q && <button type="button" onClick={() => { setQ(""); if (wrap) field.current?.focus(); }} aria-label="Clear search"
+            onPointerDown={wrap ? (e) => e.preventDefault() : undefined} onMouseDown={wrap ? (e) => e.preventDefault() : undefined}
+            className="flex shrink-0 items-center justify-center rounded p-0.5 text-muted-foreground hover:text-foreground pointer-coarse:-my-1 pointer-coarse:-mr-2 pointer-coarse:size-[44px]"><X className="size-4" /></button>}
+        </>, !q ? "max-sm:hidden" : undefined)}
       </div>
       {showList && (
         <DropPanel v8={v8} grow={!!query}>
@@ -706,6 +827,17 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
         )}
         </DropPanel>
       )}
+    </>
+  );
+  return (
+    <div ref={box} data-search-box data-opens-search={seeAll && !kinds ? "" : undefined} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); onClose?.(); } }}>
+      {wrap ? (
+        // While it's grown, the field and its list lie over the page from where it rests; the page under it keeps the
+        // resting height, so nothing moves.
+        <div data-search-frame className="relative" style={grown ? { height: grownAt } : undefined}>
+          <div data-search-layer className={cn(grown && "absolute inset-x-0 top-0 z-50")}>{inner}</div>
+        </div>
+      ) : inner}
     </div>
   );
 }
