@@ -16,7 +16,7 @@ import { computeRecords } from "../stats/records.js";
 import { loadSeason } from "../stats/load.js";
 import { resultsAtKey } from "../api/readiness.js";
 import { childCycle } from "./jobs.js";
-import { runScriptInChild } from "./cycle.js";
+import { runScriptInChild, withHeapCap } from "./cycle.js";
 import { appPath } from "../appRoot.js";
 
 type Log = (m: string) => void;
@@ -92,23 +92,15 @@ export const FOLLOW_UP_HEAP_MB = 1024;
 /** Starts a child script (runScriptInChild's shape; tests pass a stand-in). */
 export type ChildRunner = typeof runScriptInChild;
 
-/** A child that ran out of its heap: V8 aborts the process (exit by SIGABRT), with no error message sent. */
-const outOfMemory = (e: unknown) => /\bSIGABRT$/.test((e as Error)?.message ?? "");
-
 /**
  * The follow-up in a child Node process; resolves with its counts. A failure in the child is rethrown here with its
  * message and code, so the caller tells "database busy" from a real failure as it would in-process. The child gets
  * FOLLOW_UP_HEAP_MB of heap; one that runs out of it (a weekend busier than any measured) runs once more without the
- * limit, so live results never stop on it. Each step rewrites what it covers, so the second run stores what one would.
+ * limit (cycle.ts withHeapCap), so live results never stop on it. Each step rewrites what it covers, so the second run
+ * stores what one would.
  */
-export async function runFollowUpInChild(job: FollowUpJob, h: Omit<FollowUpHooks, "now" | "log"> = {}, timeoutMs = 10 * 60_000, run: ChildRunner = runScriptInChild): Promise<FollowUpResult> {
-  try {
-    return await followUpOnce(job, h, timeoutMs, [...process.execArgv, `--max-old-space-size=${FOLLOW_UP_HEAP_MB}`], run);
-  } catch (e) {
-    if (!outOfMemory(e)) throw e;
-    console.warn(`live follow-up ran out of its ${FOLLOW_UP_HEAP_MB} MB heap: running it again without the limit`);
-    return followUpOnce(job, h, timeoutMs, process.execArgv, run);
-  }
+export function runFollowUpInChild(job: FollowUpJob, h: Omit<FollowUpHooks, "now" | "log"> = {}, timeoutMs = 10 * 60_000, run: ChildRunner = runScriptInChild): Promise<FollowUpResult> {
+  return withHeapCap(FOLLOW_UP_HEAP_MB, "live follow-up", (execArgv) => followUpOnce(job, h, timeoutMs, execArgv, run));
 }
 
 async function followUpOnce(job: FollowUpJob, h: Omit<FollowUpHooks, "now" | "log">, timeoutMs: number, execArgv: readonly string[], run: ChildRunner): Promise<FollowUpResult> {
