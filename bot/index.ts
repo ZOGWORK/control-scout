@@ -18,6 +18,7 @@ import { notifyTick, type Send } from "./follows.js";
 import { site } from "./lookups.js";
 import { configEmbed, configLines, type Config } from "./config.js";
 import { chatSetup } from "./chatState.js";
+import { RELEASE } from "../server/release.js";
 import { beat } from "../server/uptime.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] [bot] ${m}`);
@@ -41,8 +42,10 @@ await db().execute("PRAGMA busy_timeout = 5000").catch(() => {});
 await configure(db()).catch((e) => log(`database not ready yet (${(e as Error).message}); lookups will say so until it is`));
 
 // One startup summary of what this process can do (bot/config.ts): chat and why not, report filing, follow posts, the
-// site it talks to and the season. `journalctl -u control-scout-bot | grep 'config:'` then answers it, with no test
-// message and no test issue filed. Said after the database is open, since the chat switch and the follows live there.
+// site it talks to, the season, the release it runs and when it last reached Discord. `journalctl -u control-scout-bot
+// | grep 'config:'` then answers it, with no test message and no test issue filed. Said after the database is open,
+// since the chat switch and the follows live there.
+let connectedAt: number | null = null;
 for (const line of configLines(await configHere())) log(line);
 
 /** What this bot can do here, read now: the startup summary and /config both come from this, so the journal and the
@@ -51,7 +54,15 @@ async function configHere(): Promise<Config> {
   const follows = await get<{ n: number; g: number }>("SELECT COUNT(*) AS n, COUNT(DISTINCT guild_id) AS g FROM discord_follows")
     .then((r) => ({ follows: Number(r?.n ?? 0), servers: Number(r?.g ?? 0) }))
     .catch(() => null);
-  return { season: CURRENT_SEASON, sitePort: env.port, commands: { guild: env.discordDevGuildId }, chat: await chatSetup(), follows };
+  // The newest heartbeat (server/uptime.ts), written once a minute while connected: the last time it was connected, which
+  // outlives a restart — the startup summary asks before this process has reached the gateway.
+  const beatAt = await get<{ at: number }>("SELECT at FROM service_heartbeats WHERE service = 'bot'")
+    .then((r) => (r ? Number(r.at) : null))
+    .catch(() => null);
+  return {
+    release: RELEASE, season: CURRENT_SEASON, sitePort: env.port, commands: { guild: env.discordDevGuildId },
+    chat: await chatSetup(), follows, discord: { since: connectedAt, last: connectedAt ?? beatAt },
+  };
 }
 
 async function waitForSite(timeoutMs = 180_000): Promise<void> {
@@ -87,6 +98,8 @@ async function register(appId: string): Promise<void> {
 }
 
 client.once(Events.ClientReady, (c) => {
+  // The moment /config's and the journal's "discord connected since" count from.
+  connectedAt = Date.now();
   log(`ready as ${c.user.tag} in ${c.guilds.cache.size} server${c.guilds.cache.size === 1 ? "" : "s"}`);
   void registerUntilDone(c.application.id);
   // Warm the season's ratings so the first /predict doesn't wait for them.
