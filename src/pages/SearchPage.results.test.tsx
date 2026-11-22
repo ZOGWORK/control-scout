@@ -688,20 +688,27 @@ describe("search results page, phone (Part B 3b)", () => {
     expect(loc).toBe("/search?q=simply%20complex%20in%20nj");
   });
 
-  it("sits on the page's wash in v8: no solid panel behind the bar, only a translucent frosted veil once scrolled", () => {
+  it("is solid in v8, never see-through or blurred, with its own copy of the wash behind the field (#2148)", () => {
     state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
+    document.documentElement.setAttribute("data-v8", "");
+    try {
     const { container } = withTopBar("/search?q=simply%20complex");
     const bar = container.querySelector("[data-phone-search]") as HTMLElement;
-    const v8Bg = () => bar.className.split(/\s+/).filter((c) => c.startsWith("v8:bg-"));
-    // At the top: see-through, so the wash runs on behind the field (the classic look keeps its own bg-primary).
-    expect(v8Bg()).toEqual(["v8:bg-transparent"]);
-    // Scrolled: a translucent, blurred veil, never the opaque page colour.
+    const check = () => {
+      // Opaque page colour underneath, no translucent v8 override and no frosted blur.
+      expect(bar.className.split(" ")).toContain("bg-primary");
+      expect(bar.className).not.toMatch(/v8:bg-|backdrop-blur/);
+      expect(bar.querySelector("[data-bar-wash] [data-wash]")).not.toBeNull();
+    };
+    check();
     Object.defineProperty(window, "scrollY", { value: 200, configurable: true });
     act(() => { window.dispatchEvent(new Event("scroll")); });
     expect(bar.getAttribute("data-phone-search")).toBe("compact");
-    expect(v8Bg()).toEqual(["v8:bg-primary/45"]);
-    expect(bar.className).toContain("v8:backdrop-blur-lg");
-    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    check();
+    } finally {
+      Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+      document.documentElement.removeAttribute("data-v8");
+    }
   });
 
   it("what's typed in the bar while a search loads is still there, in the same field, when its results arrive", () => {

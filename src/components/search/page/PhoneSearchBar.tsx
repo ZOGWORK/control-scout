@@ -5,11 +5,13 @@
 // top bar's field, all selected, on top of it, and an iPhone tap on a selection only offers Cut/Copy/Paste).
 // Phones only (md:hidden): from md up the query sits in the top bar's own field. SearchPage puts it above the results
 // column (and the loading screen), with a negative bottom margin for the column's top padding.
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { usePageSearch, useSearch } from "../../layout/Search";
 import { SearchBox, hitHref } from "../SearchBox";
 import { cn } from "../../cn";
+import { Wash, washSize } from "../../layout/Wash";
+import { isV8 } from "../../../lib/v8";
 
 /** Scrolled past the page's top: the bar draws in. */
 function useScrolled(px = 24) {
@@ -36,18 +38,45 @@ function usePhoneSearchHeight() {
   return ref;
 }
 
+/** v8: keeps the bar's own copy of the wash (`--bar-wash-y`) lined up with the page's, which scrolls under it, so the
+ *  bar is solid (no row shows through, no frosted blur: #2148) yet looks like the wash it sits on (no black band). */
+function useWashUnder(el: RefObject<HTMLDivElement | null>, on: boolean) {
+  useEffect(() => {
+    const bar = el.current;
+    if (!on || !bar) return;
+    let frame = 0;
+    const place = () => {
+      frame = 0;
+      const wash = document.querySelector("[data-wash]");
+      if (wash) bar.style.setProperty("--bar-wash-y", `${Math.round(wash.getBoundingClientRect().top - bar.getBoundingClientRect().top)}px`);
+    };
+    const later = () => { if (!frame) frame = requestAnimationFrame(place); };
+    place();
+    window.addEventListener("scroll", later, { passive: true });
+    window.addEventListener("resize", later);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", later); window.removeEventListener("resize", later); };
+  }, [el, on]);
+}
+
 export function PhoneSearchBar({ query }: { query: string }) {
   const pageRef = usePageSearch();
   const { restoreFocus } = useSearch();
   const nav = useNavigate();
   const small = useScrolled();
   const ref = usePhoneSearchHeight();
+  const v8 = isV8();
+  const { pathname } = useLocation();
+  useWashUnder(ref, v8);
   return (
     <div ref={ref} data-phone-search={small ? "compact" : "full"}
       className={cn("sticky top-(--header-h) z-20 -mx-4 -mb-1 border-b bg-primary px-4 sm:-mx-6 sm:-mb-5 sm:px-6 transition-[padding,border-color,background-color] duration-150 md:hidden",
-        // v8: no panel of its own: the bar sits on the page's wash. Once it has scrolled, a light frosted veil keeps the
-        // field readable over the rows passing under it, never a solid black band across the wash.
-        small ? "border-line py-1.5 v8:border-transparent v8:bg-primary/45 v8:backdrop-blur-lg" : "border-transparent py-2 v8:bg-transparent")}>
+        // v8: solid, never see-through or blurred (#2148), drawn with its own copy of the wash behind the field, so at the
+        // top it is the wash itself and once scrolled it is a strip of it, never a black band across the wash.
+        small ? "border-line py-1.5 v8:border-transparent" : "border-transparent py-2")}>
+      {v8 && <div aria-hidden data-bar-wash className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute inset-x-0 top-0" style={{ transform: "translateY(var(--bar-wash-y, 0px))" }}><Wash size={washSize(pathname)} includeParticleWave={false} /></div>
+      </div>}
+      <div className="relative">
       <SearchBox
         inputRef={pageRef}
         label="Search teams, events and matches"
@@ -58,6 +87,7 @@ export function PhoneSearchBar({ query }: { query: string }) {
         glide
         fieldClassName={cn("transition-[height] duration-150", small ? "h-[44px]" : "h-[48px]")}
       />
+      </div>
     </div>
   );
 }
