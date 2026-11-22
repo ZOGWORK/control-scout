@@ -100,7 +100,8 @@ describe("the wash (owner console)", () => {
     expect(before.json).toMatchObject({ custom: false, wash: before.json.defaults, updatedAt: null });
     const saved = await call("PUT", "/api/owner/wash", { cookie: ownerCookie, body: { wash: MINE } });
     expect(saved.status).toBe(200);
-    const clean = { a: "#aa0000", b: "#00bb00", c: "#0000cc", strength: 1.3, spread: 0.7 };
+    // No glow colours sent: the saved wash keeps the default glow (older saves have none).
+    const clean = { a: "#aa0000", b: "#00bb00", c: "#0000cc", ga: "#be6937", gb: "#795fa7", gc: "#556496", strength: 1.3, spread: 0.7 };
     expect(saved.json).toMatchObject({ custom: true, wash: clean, updatedBy: "owner@example.com" });
     const pub = await call("GET", "/api/wash");
     expect(pub.json).toEqual({ wash: clean, custom: true });

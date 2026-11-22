@@ -10,7 +10,7 @@ import { renderPage, washStyle } from "./seo";
 import { BOOT_STYLE } from "./bootShell";
 import { DEFAULT_WASH, WASH_STYLE_ID } from "../src/shared/wash";
 
-const MINE = { a: "#112233", b: "#445566", c: "#778899", strength: 0.6, spread: 1.4 };
+const MINE = { a: "#112233", b: "#445566", c: "#778899", ga: "#aa3300", gb: "#3300aa", gc: "#00aa33", strength: 0.6, spread: 1.4 };
 
 beforeEach(async () => {
   const c = openDb(":memory:");
@@ -75,7 +75,7 @@ describe("the first paint", () => {
     for (const p of ["/", "/events", "/teams/4215"]) {
       const html = (await renderPage(file, p)).html;
       const head = html.slice(0, html.indexOf("</head>"));
-      expect(head, p).toContain(`<style id="${WASH_STYLE_ID}">html[data-v8]:root{--wash-a:#112233;--wash-b:#445566;--wash-c:#778899;--wash-strength:0.6;--wash-spread:1.4}</style>`);
+      expect(head, p).toContain(`<style id="${WASH_STYLE_ID}">html[data-v8]:root{--wash-a:#112233;--wash-b:#445566;--wash-c:#778899;--glow-a:#aa3300;--glow-b:#3300aa;--glow-c:#00aa33;--wash-strength:0.6;--wash-spread:1.4}</style>`);
     }
   });
 

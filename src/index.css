@@ -505,7 +505,7 @@ a.underline:visited:where(.text-accent-text), .prose-links a:visited { color: co
   background-attachment: local;
 }
 
-/* A warm, grainy horizon at the end of v8 pages. Anchored to the content, not
+/* A warm, grainy horizon at the end of v8 pages (its colours: --glow-a/b/c, the owner's Appearance tab, src/shared/wash.ts). Anchored to the content, not
    the viewport: it enters naturally near the footer without scroll listeners,
    animation, extra page height or an overlay over controls. */
 [data-page-end-glow] {
@@ -516,9 +516,9 @@ a.underline:visited:where(.text-accent-text), .prose-links a:visited { color: co
   height: min(32rem, 55svh, 100%);
   overflow: hidden;
   background-image:
-    radial-gradient(ellipse 38% 100% at 43% 115%, rgb(190 105 55 / 0.75), transparent 75%),
-    radial-gradient(ellipse 36% 95% at 65% 110%, rgb(121 95 167 / 0.65), transparent 75%),
-    radial-gradient(ellipse 30% 80% at 52% 100%, rgb(85 100 150 / 0.3), transparent 80%);
+    radial-gradient(ellipse 38% 100% at 43% 115%, color-mix(in srgb, var(--glow-a, #be6937) 75%, transparent), transparent 75%),
+    radial-gradient(ellipse 36% 95% at 65% 110%, color-mix(in srgb, var(--glow-b, #795fa7) 65%, transparent), transparent 75%),
+    radial-gradient(ellipse 30% 80% at 52% 100%, color-mix(in srgb, var(--glow-c, #556496) 30%, transparent), transparent 80%);
   mask-image: radial-gradient(ellipse 65% 110% at 50% 110%, #000 25%, transparent 78%);
 }
 /* One gradient at a time: hidden while the top wash is on screen (PageEndGlow.tsx), fading in once it has scrolled away. */
