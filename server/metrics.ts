@@ -82,14 +82,19 @@ export function recordRequest(method: string, path: string, status: number, ms: 
 
 /**
  * Which paths are counted: /api and /packs, except /api/health (monitors) and the owner portal's own calls.
- * Streamed downloads (CSV exports) are timed to their first byte, and live streams (text/event-stream) to the
- * moment they open (requestMetrics), so a big download or a stream left open for hours doesn't read as a slow route.
+ * Streamed downloads (CSV exports) are timed to their first byte, file downloads (packs, bundles) to their headers,
+ * and live streams (text/event-stream) to the moment they open (requestMetrics), so a big download or a stream left
+ * open for hours doesn't read as a slow route.
  */
 export const isMeasured = (path: string) =>
   /^\/(api|packs)\//i.test(path) && !/^\/api\/(health|owner)(\/|$)/i.test(path);
 
 /** A live stream (server-sent events): it stays open as long as the page does, so its length is no latency. */
 export const isEventStream = (res: Response) => /^text\/event-stream/i.test(String(res.getHeader("Content-Type") ?? ""));
+
+/** A file download (Content-Disposition: attachment, as res.download sends it): an offline pack of up to ~14 MB or an
+ *  event bundle. How long its body takes to arrive is the visitor's connection, not the server. */
+export const isDownload = (res: Response) => /^\s*attachment\b/i.test(String(res.getHeader("Content-Disposition") ?? ""));
 
 /** Express middleware: times every request isMeasured() counts. */
 export function requestMetrics() {
@@ -106,9 +111,10 @@ export function requestMetrics() {
     } as typeof res.writeHead;
     res.once("close", () => {
       try {
-        // A streamed download (CSV exports) counts to its first byte: how long the rest takes is the client's connection.
-        // A live stream counts to its opening; a client leaving it later is no error (the status was sent long before).
-        const end = (isEventStream(res) ? headersAt : res.locals.firstByteAt) ?? performance.now();
+        // A streamed download (CSV exports) counts to its first byte, and a file download (packs, bundles) to its
+        // headers: how long the rest takes is the client's connection. A live stream counts to its opening; a client
+        // leaving it later is no error (the status was sent long before).
+        const end = (isEventStream(res) || isDownload(res) ? headersAt : res.locals.firstByteAt) ?? performance.now();
         recordRequest(req.method, p, res.statusCode, end - t0, Date.now(), res.statusCode >= 500 && res.locals.notAnError !== true);
       } catch { /* never break a response */ }
     });
