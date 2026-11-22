@@ -18,6 +18,7 @@ vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../..
 vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useServerFlag: () => false }));
 
 const { SearchBox, SEARCH_DEBOUNCE_MS } = await import("./SearchBox");
+const { handedAnswer } = await import("./handoff");
 
 beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); Element.prototype.scrollIntoView = () => {}; });
 afterEach(() => { cleanup(); pending.length = 0; vi.useRealTimers(); });
@@ -86,6 +87,35 @@ describe("the magnifier searches (Req 5, test 10)", () => {
     fireEvent.click(magnifier);
     await reply(/q=hypno/, { hits: [t("4215", "Hypnotic Robotics")] });
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ ref: "4215" }));
+  });
+});
+
+describe("Enter hands the dropdown's answer to /search", () => {
+  it("a question the box has already answered: the page starts from that answer, so it never shows its loading screen", async () => {
+    const { input, onPick } = mount();
+    change(input, "top rookie teams");
+    await pause();
+    await reply(/q=top%20rookie%20teams&/, answer("top rookie teams", {
+      hits: [t("19666", "Forever Knight")], understood: { kind: "names", label: "Top rookie teams" },
+    }));
+    // The answer is on screen in the dropdown before Enter…
+    expect(shown().join("|")).toContain("Forever Knight");
+    fireEvent.keyDown(input, { key: "Enter" });
+    // …so /search, which never waits, opens with it already in hand (src/components/search/handoff.ts).
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/search?q=top%20rookie%20teams" }));
+    expect(handedAnswer("top rookie teams")?.hits.map((h) => h.ref)).toEqual(["19666"]);
+  });
+
+  it("a team number still goes straight to its page, handing nothing over", async () => {
+    const { input, onPick } = mount();
+    change(input, "6980");
+    await pause();
+    await reply(/q=6980&/, answer("6980", {
+      hits: [{ ...t("6980", "Bad Wolf"), match: "exact" }], understood: { kind: "team", label: "Bad Wolf (6980)" },
+    }));
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ ref: "6980" }));
+    expect(handedAnswer("6980")).toBeNull();
   });
 });
 
