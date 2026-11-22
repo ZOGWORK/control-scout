@@ -19,7 +19,10 @@ export const GIVE_UP = 3;
 export const WAIT_MS = 6 * 3600_000;
 export const waitBackoff = (waits: number) => Math.min(RETRY_MS, WAIT_MS * 2 ** Math.max(0, waits - 1));
 
-export interface Queued { season: number; code: string; name: string; frames: { state: string; due: number; rank?: number } }
+export interface Queued { season: number; code: string; name: string; frames: { state: string; due: number; rank?: number; recheck?: number } }
+/** An event queued only for the second look at its review entries (every match due is one: frameQueue's `recheck`):
+ *  read with --recheck alone, never read again whole for it. */
+export const recheckOnly = (q: Queued): boolean => !!q.frames.recheck && q.frames.recheck === q.frames.due;
 
 /** The events this run reads: queued ones, in the queue's order, not held (`inPr`: in another session's open PR, or
  *  in a job a lane is reading), not waiting out a retry, at most `max`. `skipped` says why each other queued event wasn't picked. */
@@ -75,15 +78,15 @@ export function parseLanes(s: string | undefined, shard: { k: number; n: number 
  *  trusted: its state only says which step comes next, checked against the coordinator's own record of the job. */
 export interface LaneState { state: "idle" | "queued" | "running" | "done" | "failed"; id?: string; at?: string; why?: string }
 /** A job the coordinator sent (its own record, .data/autopilot/lanes/<K>/job.json): never the lane's word for it. */
-export interface LaneJob { id: string; seasons: { season: number; codes: string[] }[] }
+export interface LaneJob { id: string; seasons: { season: number; codes: string[]; recheck?: string[] }[] }
 /** A job sent but not started within this long: the lane is started again. */
 export const LANE_KICK_MS = 3600_000;
 /** The longest a lane's run of `job` can take: per season, its read calls' own limits (two reads, those not read yet
- *  and those read again, each readCallMs of the season's events; 3 h each for --verify and --bounds), and an hour more.
+ *  and those read again, each readCallMs of the season's events; 3 h each for --verify, --bounds and --recheck), and an hour more.
  *  `limitOf`: an event's own read limit (eventLimitMs; unknown: 0, a day's call). A lane still "running" after that was
  *  killed (a reboot, a power cut) before it could say so: what it finished is collected, as for a failed job. */
 export const laneJobMs = (job: LaneJob, limitOf: (season: number, code: string) => number = () => 0) =>
-  job.seasons.reduce((s, x) => s + 2 * readCallMs(x.codes.map((c) => limitOf(x.season, c))) + 6 * 3600_000, 0) + 3600_000;
+  job.seasons.reduce((s, x) => s + 2 * readCallMs(x.codes.map((c) => limitOf(x.season, c))) + 9 * 3600_000, 0) + 3600_000;
 /** A job id the coordinator makes (its run's stamp): used in paths and commands, so nothing else is taken. */
 export const LANE_ID = /^[\w-]{1,64}$/;
 /** What the coordinator does with a lane this run, from its state file's text ("" when it has none) and the job it sent
