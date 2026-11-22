@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { APIEmbed } from "discord.js";
 import { createHandler, type Lookups, type Memory, type MentionMessage } from "./handler";
+import type { Report } from "./report";
 import { Friendly } from "./views";
 import { AnswerCache } from "./guard";
 import { COMMANDS, sameCommands } from "./commands";
@@ -565,6 +566,7 @@ describe("what the server has taught the bot", () => {
   });
 
   it("a memory that fails changes nothing: the question is still answered", async () => {
+    // (kept last in this block: it is the only one that lets every memory call throw)
     const mem = memory({
       recall: async () => { throw new Error("database is locked"); },
       learn: async () => { throw new Error("database is locked"); },
@@ -576,5 +578,80 @@ describe("what the server has taught the bot", () => {
     await createHandler(() => {}, l).mention(m, BOT);
     expect(l.ask).toHaveBeenCalledTimes(1);
     expect(sent[0].embeds).toEqual([]);
+  });
+});
+
+describe("\"Report this to ControlScout\"", () => {
+  const BOT = "1562258217873047562";
+  const filed = { ok: true as const, number: 42, url: "https://github.com/ZOGWORK/control-scout/issues/42" };
+
+  function message(content: string, over: Partial<MentionMessage> = {}) {
+    const sent: { kind: string; embeds: APIEmbed[] }[] = [];
+    const m: MentionMessage = {
+      author: { id: "u1", bot: false, globalName: "Alex" }, guildId: "g1", channelId: "c1", content,
+      reply: vi.fn(async (o) => { sent.push({ kind: "reply", embeds: o.embeds }); return { id: "m1" }; }),
+      channel: { send: vi.fn(async (o) => { sent.push({ kind: "send", embeds: o.embeds }); }), sendTyping: vi.fn(async () => {}) },
+      ...over,
+    };
+    return { m, sent };
+  }
+
+  it("files one report with what the bot can see, and says where it is", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const l = lookups({ report });
+    const { m, sent } = message(`<@${BOT}> Report this to ControlScout`);
+    await createHandler(() => {}, l).mention(m, BOT);
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(report).mock.calls[0][0]).toMatchObject({
+      guild: "g1", channel: "c1", user: "u1", name: "Alex", message: "Report this to ControlScout", thread: [], logs: [],
+    });
+    expect(sent[0].embeds[0].title).toBe("Reported");
+    expect(sent[0].embeds[0].description).toContain("#42");
+    expect(sent[0].embeds[0].description).toContain("issues/42");
+    // A report is not a chat: the search answer is never asked for.
+    expect(l.ask).not.toHaveBeenCalled();
+  });
+
+  it("the same report a moment later points at the same issue instead of opening another", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const h = createHandler(() => {}, lookups({ report }));
+    await h.mention(message(`<@${BOT}> report this to ControlScout`).m, BOT);
+    const second = message(`<@${BOT}> report this to ControlScout`);
+    await h.mention(second.m, BOT);
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(second.sent[0].embeds[0].title).toBe("Reported");
+    expect(second.sent[0].embeds[0].description).toContain("#42");
+  });
+
+  it("the thread before it goes with the report, and its log too", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const turns = [{ role: "user" as const, text: "who won decode" }, { role: "bruno" as const, text: "30030 won." }];
+    const h = createHandler(() => {}, lookups({ report, memory: { recall: vi.fn(async () => ({ teams: [], name: null })), learn: vi.fn(async () => {}), thread: vi.fn(async () => turns), keep: vi.fn(async () => {}) } }));
+    await h.mention(message(`<@${BOT}> report this to ControlScout`, { reference: { messageId: "old" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
+    expect(vi.mocked(report).mock.calls[0][0]).toMatchObject({ thread: turns, logs: [] });
+  });
+
+  it("when it can't file, it says so plainly and logs why (never throwing)", async () => {
+    const log = vi.fn();
+    const report = vi.fn(async () => ({ ok: false as const, reason: "GitHub answered 403" }));
+    const { m, sent } = message(`<@${BOT}> report this to ControlScout`);
+    await createHandler(log, lookups({ report })).mention(m, BOT);
+    expect(sent[0].embeds[0].title).toBe("Couldn't file that report");
+    expect(log.mock.calls.flat().join(" ")).toContain("report failed: GitHub answered 403");
+  });
+
+  it("a report that throws is a failed report, not a failed mention", async () => {
+    const report = async () => { throw new Error("no answer"); };
+    const { m, sent } = message(`<@${BOT}> report this to ControlScout`);
+    await createHandler(() => {}, lookups({ report })).mention(m, BOT);
+    expect(sent[0].embeds[0].title).toBe("Couldn't file that report");
+  });
+
+  it("an ordinary question never files one", async () => {
+    const report = vi.fn(async () => filed);
+    const l = lookups({ report, ask: vi.fn(async (q: string) => ({ embed: ok(`ask ${q}`), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: "30030 won." } })) });
+    await createHandler(() => {}, l).mention(message(`<@${BOT}> who won decode`).m, BOT);
+    expect(report).not.toHaveBeenCalled();
+    expect(l.ask).toHaveBeenCalledTimes(1);
   });
 });

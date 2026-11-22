@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.8.3 — 2026-11-22
+
+Say "Report this to ControlScout" in a Discord server and the bot files the report itself: one GitHub issue with the message, the thread and its own log.
+
+### Highlights
+- [alerts] "Report this to ControlScout" files a GitHub issue itself
+- [alerts] The issue carries the message, the thread and the bot's log
+- [fixes] A report that can't be filed says so, and never throws
+
+### Discord bot
+- `bot/report.ts`: the words "report this to ControlScout" (any case, `Control Scout` or `ControlScout`, `this`/`that`/`it`) file one issue titled **Discord type issue**, labelled `bug` and `auto-reported`, through the site's own GitHub client (`server/errorReports.ts` `gh`) with `GITHUB_REPORT_TOKEN` — no new secret and no second client. The body has the message, the thread it replies to, the server/channel/user ids, the asker's display name, the bot's last 20 log lines and the release.
+- The bot answers with the issue number and link. The same report within 10 minutes in the same server points at that issue instead of opening another; a failed report (no token, GitHub refusing, the network gone) says so in the channel and logs the reason, never throws, and still answers the message.
+- A report is not a chat: it skips the per-server chat limit, the answer cache and search. Works from a mention or `/ask`. (#0000)
+
 ## 7.8.2 — 2026-11-22
 
 The Discord bot answers the channel's own questions — a cosine, a unit, a design trade-off — instead of replying with a guess at a team.
