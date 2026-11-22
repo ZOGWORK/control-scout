@@ -31,4 +31,16 @@ describe("tidyStoredPlaces", () => {
     await db().batch(teamStatements([{ number: 9999, name: "New", fullName: null, school: "St Louis Day Sch", sponsors: [], city: "Greeensboro", state: "NC", country: "USA", rookieYear: 2026, website: null, homeRegion: null }]), "write");
     expect(await all("SELECT school, city FROM teams WHERE number = 9999")).toEqual([{ school: "St Louis Day School", city: "Greensboro" }]);
   });
+
+  it("read and cleaned in parts, it still finds a row past the first parts", async () => {
+    // More rows than a few parts (2,000 each), the ones to clean at the very end.
+    await db().batch(Array.from({ length: 4_500 }, (_, i) => ({ sql: "INSERT INTO teams (number, name, school, city, state, country) VALUES (?, 'T', 'Clean School', 'Ridgewood', 'NJ', 'USA')", args: [100_000 + i] })), "write");
+    await db().batch(Array.from({ length: 4_500 }, (_, i) => ({ sql: "INSERT INTO events (season, code, name, type, city, state, country, source, synced_at) VALUES (2024, ?, 'Meet', 'LeagueMeet', 'Ridgewood', 'NJ', 'USA', 'first', '2026-01-01')", args: [`E${i}`] })), "write");
+    await run("INSERT INTO teams (number, name, school, city, state, country) VALUES (200000, 'Last', 'Last High Sch', 'Ridgewood', 'NJ', 'USA')");
+    await run("INSERT INTO events (season, code, name, type, city, state, country, source, synced_at) VALUES (2024, 'ZLAST', 'Meet', 'LeagueMeet', 'Oradelll', 'NJ', 'USA', 'first', '2026-01-01')");
+    expect(await tidyStoredPlaces()).toEqual({ teams: 1, events: 1 });
+    expect(await all("SELECT school FROM teams WHERE number = 200000")).toEqual([{ school: "Last High School" }]);
+    expect(await all("SELECT city FROM events WHERE code = 'ZLAST'")).toEqual([{ city: "Oradell" }]);
+    expect(await tidyStoredPlaces()).toEqual({ teams: 0, events: 0 });
+  });
 });
