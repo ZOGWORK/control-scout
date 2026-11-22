@@ -25,3 +25,10 @@ export function handOffAnswer(answer: SearchAnswer): void {
 export function handedAnswer(q: string, now = Date.now()): SearchAnswer | null {
   return last && now - last.at <= HANDOFF_MS && same(last.answer.q, q) ? last.answer : null;
 }
+
+/** Forget the answer handed for `q`: the results page has started from it, so it is used up. Words come back to later
+ *  (a link, Back, the first one again) then arrive with nothing in hand and wait for their own answer, and for the one
+ *  page it may name — a handoff is a head start for the visit it was made for, never a stored result. */
+export function forgetHandoff(q: string): void {
+  if (last && same(last.answer.q, q)) last = null;
+}
