@@ -82,14 +82,40 @@ export type FollowUpMessage =
   | { error: { message: string; code?: string } };
 
 /**
- * The follow-up in a child Node process; resolves with its counts. A failure in the child is rethrown here with its
- * message and code, so the caller tells "database busy" from a real failure as it would in-process.
+ * The child's heap limit (MB). Without one V8 sizes a short-lived process's heap for the machine (about 4 GB on the VM)
+ * and barely collects before it exits: the child held 1.3 GB for a job whose heap was under 400 MB, every minute of an
+ * event day, on top of the web process. With 1024 it peaked at 0.88 GB in the same time (measured on the VM
+ * 2026-11-22, on a copy of its data: 16 live events and the season's records).
  */
-export async function runFollowUpInChild(job: FollowUpJob, h: Omit<FollowUpHooks, "now" | "log"> = {}, timeoutMs = 10 * 60_000): Promise<FollowUpResult> {
+export const FOLLOW_UP_HEAP_MB = 1024;
+
+/** Starts a child script (runScriptInChild's shape; tests pass a stand-in). */
+export type ChildRunner = typeof runScriptInChild;
+
+/** A child that ran out of its heap: V8 aborts the process (exit by SIGABRT), with no error message sent. */
+const outOfMemory = (e: unknown) => /\bSIGABRT$/.test((e as Error)?.message ?? "");
+
+/**
+ * The follow-up in a child Node process; resolves with its counts. A failure in the child is rethrown here with its
+ * message and code, so the caller tells "database busy" from a real failure as it would in-process. The child gets
+ * FOLLOW_UP_HEAP_MB of heap; one that runs out of it (a weekend busier than any measured) runs once more without the
+ * limit, so live results never stop on it. Each step rewrites what it covers, so the second run stores what one would.
+ */
+export async function runFollowUpInChild(job: FollowUpJob, h: Omit<FollowUpHooks, "now" | "log"> = {}, timeoutMs = 10 * 60_000, run: ChildRunner = runScriptInChild): Promise<FollowUpResult> {
+  try {
+    return await followUpOnce(job, h, timeoutMs, [...process.execArgv, `--max-old-space-size=${FOLLOW_UP_HEAP_MB}`], run);
+  } catch (e) {
+    if (!outOfMemory(e)) throw e;
+    console.warn(`live follow-up ran out of its ${FOLLOW_UP_HEAP_MB} MB heap: running it again without the limit`);
+    return followUpOnce(job, h, timeoutMs, process.execArgv, run);
+  }
+}
+
+async function followUpOnce(job: FollowUpJob, h: Omit<FollowUpHooks, "now" | "log">, timeoutMs: number, execArgv: readonly string[], run: ChildRunner): Promise<FollowUpResult> {
   let result: FollowUpResult | null = null;
   let failure: { message: string; code?: string } | null = null;
   try {
-    await runScriptInChild(SCRIPT, "live follow-up", timeoutMs, process.execArgv, [JSON.stringify(job)], {
+    await run(SCRIPT, "live follow-up", timeoutMs, execArgv, [JSON.stringify(job)], {
       onMessage: (m) => {
         const msg = m as FollowUpMessage;
         if ("records" in msg) h.onRecords?.(msg.records);

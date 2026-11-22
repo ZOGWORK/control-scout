@@ -3,11 +3,14 @@
 // job comes as JSON in the first argument, the counts go back over the IPC channel.
 import "../server/env.js";
 import { configure } from "../server/db.js";
+import { replayOnThisThread } from "../server/predict/offThread.js";
 import { runFollowUp, type FollowUpJob, type FollowUpMessage } from "../server/data/liveFollowUp.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
 const send = (m: FollowUpMessage) => new Promise<void>((r) => { if (process.send) process.send(m, () => r()); else r(); });
 
+// No requests to keep answering here: the ratings replay on this thread, not a worker (server/predict/offThread.ts).
+replayOnThisThread();
 try {
   const job = JSON.parse(process.argv[2] ?? "") as FollowUpJob;
   await configure(); // same busy wait as the server: both processes write this file

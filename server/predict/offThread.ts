@@ -167,11 +167,24 @@ function assemble(p: Pending, done: Extract<FromRebuildWorker, { t: "done" }>): 
   return parts;
 }
 
+/** Set by a one-shot child script (scripts/live-follow-up.ts, data-cycle.ts, build-packs.ts): replay here, no worker. */
+let hereOnly = false;
+/**
+ * For a process that serves no requests (a child script): the replay runs on its own thread, never the rebuild worker.
+ * The worker is there to keep a web server's event loop free; a child has none to keep, and with the worker it held
+ * the window twice (the worker's season reads and the parts it sent back): the live follow-up child peaked at 1.5 GB
+ * and took 29 s, against 1.3 GB and 19 s with the replay here (measured on the VM 2026-11-22, on a copy of its data).
+ * `on` false puts the worker back (tests).
+ */
+export function replayOnThisThread(on = true): void { hereOnly = on; }
+
 /**
  * The window's replay (replayWindow) on the rebuild worker. Null when the database isn't a file the worker can open
- * (in memory, an embedded replica, remote): the caller replays on this thread as before. Rejects if the worker fails.
+ * (in memory, an embedded replica, remote) or this process replays here (replayOnThisThread): the caller replays on
+ * this thread as before. Rejects if the worker fails.
  */
 export async function replayOffThread(anchor: number, seasons: number[], timeoutMs = REBUILD_TIMEOUT_MS): Promise<ForecasterParts | null> {
+  if (hereOnly) return null;
   const file = await localDbFile();
   if (!file) return null;
   if (worker && workerFile !== file) stop(new Error("database changed"));

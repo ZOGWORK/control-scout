@@ -7,7 +7,7 @@ import { all, kvGet, kvSet, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON } from "../data/seasons";
 import { ScoutForecaster, buildForecaster, forecasterFor, resetForecasters } from "./engine";
 import { partnershipPrefix } from "./partnerships";
-import { offThreadRebuilds, rebuildWorkerAlive, rebuildWorkerEntry, replayOffThread, stopRebuildWorker } from "./offThread";
+import { offThreadRebuilds, rebuildWorkerAlive, rebuildWorkerEntry, replayOffThread, replayOnThisThread, stopRebuildWorker } from "./offThread";
 import { bigWindowDb, WINDOW } from "./__fixtures__/bigWindow";
 import type { Client } from "@libsql/client";
 
@@ -96,6 +96,27 @@ describe("the forecaster rebuilt on the worker", () => {
       await kvSet(prefixKv, prefix);
       resetForecasters();
     }
+  }, 120_000);
+});
+
+describe("a child script (replayOnThisThread)", () => {
+  it("replays on its own thread with a database file the worker could open, and builds the same forecaster", async () => {
+    const there = await buildForecaster(S);
+    resetForecasters();
+    replayOnThisThread();
+    try {
+      const runs = offThreadRebuilds();
+      expect(await replayOffThread(S, WINDOW)).toBeNull();
+      const here = await buildForecaster(S);
+      expect(offThreadRebuilds()).toBe(runs);
+      expectSame(there, here);
+    } finally {
+      replayOnThisThread(false);
+    }
+    // Put back, the next build goes to the worker again.
+    const runs = offThreadRebuilds();
+    await buildForecaster(S);
+    expect(offThreadRebuilds()).toBe(runs + 1);
   }, 120_000);
 });
 
