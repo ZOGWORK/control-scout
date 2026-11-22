@@ -9,6 +9,8 @@ export interface Config {
   season: number;
   /** The site's own port: the bot reads its API and database on loopback (bot/index.ts waitForSite). */
   sitePort: number;
+  /** Where the slash commands are registered: a test server's id (DISCORD_DEV_GUILD_ID), or null for globally. */
+  commands: { guild: string | null };
   chat: ChatSetup;
   /** The follows the tick will post for; null when they couldn't be read (the database wasn't ready). */
   follows: { follows: number; servers: number } | null;
@@ -21,6 +23,7 @@ export function configLines(c: Config): string[] {
   return [
     `config: season ${c.season} (${seasonWithGame(c.season)})`,
     `config: site http://127.0.0.1:${c.sitePort} (its own API, on loopback)`,
+    `config: slash commands ${c.commands.guild ? `in server ${c.commands.guild} only (DISCORD_DEV_GUILD_ID)` : "globally (no DISCORD_DEV_GUILD_ID)"}`,
     `config: chat ${c.chat.on ? "on: Control Point is configured and the discordBruno switch is on" : `off — ${c.chat.why}`}`,
     `config: ${reportSetup().line}`,
     `config: follow posts ${follows === null

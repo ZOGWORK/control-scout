@@ -1,5 +1,6 @@
 // The startup summary: one grep's worth of lines saying what the bot can do (chat and why not, report filing, follow
-// posts, the site, the season), and never a secret's value — the journal is wider than the .env it describes.
+// posts, the site, where its commands are registered, the season), and never a secret's value — the journal is wider
+// than the .env it describes.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({ flag: vi.fn(async () => true) }));
@@ -19,6 +20,13 @@ beforeEach(() => {
 afterEach(() => {
   for (const k of KEYS) if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k];
 });
+
+/** A summary with everything on, as the VM's would read (commands global unless a test says otherwise). */
+const all = (over: Partial<Parameters<typeof configLines>[0]> = {}) =>
+  configLines({
+    season: 2025, sitePort: 3000, commands: { guild: null }, chat: { on: true }, follows: { follows: 3, servers: 2 },
+    ...over,
+  });
 
 describe("chat setup", () => {
   it("is off when Control Point isn't configured, and says which settings", async () => {
@@ -52,43 +60,47 @@ describe("chat setup", () => {
 });
 
 describe("the startup summary", () => {
-  it("says the season, the site, the chat, report filing and the follow posts, one line each", () => {
+  it("says the season, the site, where commands register, the chat, report filing and the follow posts", () => {
     process.env.GITHUB_REPORT_TOKEN = "ghp-report-token";
-    const lines = configLines({ season: 2025, sitePort: 3000, chat: { on: true }, follows: { follows: 3, servers: 2 } });
-    expect(lines).toHaveLength(5);
+    const lines = all();
+    expect(lines).toHaveLength(6);
     expect(lines.every((l) => l.startsWith("config: "))).toBe(true);
     expect(lines[0]).toContain("season 2025");
     expect(lines[1]).toBe("config: site http://127.0.0.1:3000 (its own API, on loopback)");
-    expect(lines[2]).toContain("chat on");
-    expect(lines[3]).toBe("config: report filing on: GITHUB_REPORT_TOKEN is set");
-    expect(lines[4]).toContain("3 follows in 2 servers");
+    expect(lines[2]).toBe("config: slash commands globally (no DISCORD_DEV_GUILD_ID)");
+    expect(lines[3]).toContain("chat on");
+    expect(lines[4]).toBe("config: report filing on: GITHUB_REPORT_TOKEN is set");
+    expect(lines[5]).toContain("3 follows in 2 servers");
+  });
+
+  it("says when the commands are registered in the test server alone, and names it", () => {
+    expect(all({ commands: { guild: "123456789012345678" } })[2]).toBe(
+      "config: slash commands in server 123456789012345678 only (DISCORD_DEV_GUILD_ID)",
+    );
   });
 
   it("says why the chat is off, and that report filing is off", () => {
-    const lines = configLines({ season: 2025, sitePort: 3100, chat: { on: false, why: CHAT_OFF_SWITCH }, follows: { follows: 0, servers: 0 } });
-    expect(lines[2]).toBe(`config: chat off — ${CHAT_OFF_SWITCH}`);
-    expect(lines[3]).toContain("report filing off");
-    expect(lines[3]).toContain("GITHUB_REPORT_TOKEN is not set");
+    const lines = all({ season: 2025, sitePort: 3100, chat: { on: false, why: CHAT_OFF_SWITCH }, follows: { follows: 0, servers: 0 } });
+    expect(lines[3]).toBe(`config: chat off — ${CHAT_OFF_SWITCH}`);
+    expect(lines[4]).toContain("report filing off");
+    expect(lines[4]).toContain("GITHUB_REPORT_TOKEN is not set");
   });
 
   it("counts one follow in one server, no follows, and follows it couldn't read, in words", () => {
-    const one = configLines({ season: 2025, sitePort: 3000, chat: { on: true }, follows: { follows: 1, servers: 1 } });
-    expect(one[4]).toContain("1 follow in 1 server (");
-    const none = configLines({ season: 2025, sitePort: 3000, chat: { on: true }, follows: { follows: 0, servers: 0 } });
-    expect(none[4]).toContain("nothing followed yet");
-    const unread = configLines({ season: 2025, sitePort: 3000, chat: { on: true }, follows: null });
-    expect(unread[4]).toContain("couldn't be read");
+    expect(all({ follows: { follows: 1, servers: 1 } })[5]).toContain("1 follow in 1 server (");
+    expect(all({ follows: { follows: 0, servers: 0 } })[5]).toContain("nothing followed yet");
+    expect(all({ follows: null })[5]).toContain("couldn't be read");
   });
 
   it("never prints a secret's value, only whether it is set", async () => {
     process.env.CONTROL_POINT_INTERNAL_URL = "http://127.0.0.1:3000";
     process.env.CONTROL_POINT_INTERNAL_KEY = "shared-secret-value";
     process.env.GITHUB_REPORT_TOKEN = "ghp-report-token";
-    const all = [
-      ...configLines({ season: 2025, sitePort: 3000, chat: await chatSetup(), follows: { follows: 1, servers: 1 } }),
-      ...configLines({ season: 2025, sitePort: 3000, chat: { on: false, why: CHAT_OFF_UNCONFIGURED }, follows: { follows: 1, servers: 1 } }),
+    const text = [
+      ...all({ chat: await chatSetup() }),
+      ...all({ chat: { on: false, why: CHAT_OFF_UNCONFIGURED }, commands: { guild: "123456789012345678" } }),
     ].join("\n");
-    expect(all).not.toContain("shared-secret-value");
-    expect(all).not.toContain("ghp-report-token");
+    expect(text).not.toContain("shared-secret-value");
+    expect(text).not.toContain("ghp-report-token");
   });
 });
