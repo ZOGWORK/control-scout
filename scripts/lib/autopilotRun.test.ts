@@ -1,11 +1,18 @@
 // The clip autopilot's choices (scripts/lib/autopilotRun.ts): which queued events a run reads, when one that gave
 // nothing new is tried again, and what a delivery's rows change.
 import { describe, expect, it } from "vitest";
-import { GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
+import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
 const q = (code: string, rank: number, state = "queued"): Queued => ({ season: 2025, code, name: code, frames: { state, due: 10, rank } });
+
+describe("recheckOnly", () => {
+  it("is an event every due match of which is a review entry's second look: --recheck alone, no whole re-read", () => {
+    const f = (due: number, recheck?: number): Queued => ({ season: 2025, code: "X", name: "X", frames: { state: "queued", due, ...(recheck != null ? { recheck } : {}) } });
+    expect([f(2, 2), f(3, 1), f(2), f(0, 0)].map(recheckOnly)).toEqual([true, false, false, false]);
+  });
+});
 
 describe("pickEvents", () => {
   it("reads queued events in the queue's order, at most max, the rest next run", () => {
@@ -193,10 +200,10 @@ describe("lanes: computers with no credentials, each reading a shard for the one
   });
   it("a lane still running past every read's limits was killed: what it finished is collected", () => {
     const at = new Date(NOW).toISOString();
-    // One season of 2 events, lengths unknown: two day-long reads, 6 h of checks, an hour.
-    expect(laneJobMs(job)).toBe(55 * 3600_000);
+    // One season of 2 events, lengths unknown: two day-long reads, 9 h of checks, an hour.
+    expect(laneJobMs(job)).toBe(58 * 3600_000);
     // Long events (27 h each): each read call covers both and an hour, so a long read is never called killed.
-    expect(laneJobMs(job, () => 27 * 3600_000)).toBe((2 * 55 + 6 + 1) * 3600_000);
+    expect(laneJobMs(job, () => 27 * 3600_000)).toBe((2 * 55 + 9 + 1) * 3600_000);
     expect(laneStep(st({ state: "running", id: job.id, at }), job, NOW + laneJobMs(job)).do).toBe("wait");
     const late = laneStep(st({ state: "running", id: job.id, at }), job, NOW + laneJobMs(job) + 1);
     expect(late.do).toBe("collect");

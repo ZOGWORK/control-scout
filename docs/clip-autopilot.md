@@ -38,7 +38,12 @@ computer at home, in a clone kept for it alone. Each run:
    rows waited last time (read again after 6 h, doubling each wait in a row up to 3 days; waits never count toward
    the 3);
 4. reads up to `--max` events (12) with `scripts/video-frames.ts --season N --codes … --live <the season file as live>`
-   (`--all` for an event with rows already), then `--verify`, then `--bounds`. The reader's output goes into the run's
+   (`--all` for an event with rows already), then `--verify`, then `--bounds`, then `--recheck`: a second look at each
+   review entry not looked at again yet (frames 2, 8, 20 and 40 s after it read for FTC's bar and timer,
+   scripts/lib/reviewRecheck.ts). Two agreeing frames move it into the row's starts (`confirmed`: their seconds, which
+   the server's rules check), so it goes live with no owner; otherwise it stays for the owner, marked `again` so it
+   isn't looked at every run. An event queued only for that look (the queue's `recheck`) gets `--recheck` alone, never
+   a whole re-read. The reader's output goes into the run's
    log as it comes (lines starting `  | `, one when each video starts and when it's done), so a long read shows it's
    working. One event may take at most as long as its videos' summed length, and never less than 3 hours (`--event-limit`,
    minutes, is that floor; `eventLimitMs` in scripts/lib/videoFrames.ts): a read slower than watching is broken. Real
@@ -49,7 +54,7 @@ computer at home, in a clone kept for it alone. Each run:
    no new row at all is read again after 6 hours; the second such stop in a row counts as a try (then the usual 3 days,
    left after 3 tries), so a video that never gets past the limit isn't read every run. The run's log ends with every
    event stopped that way and the video it was on, to look at by hand. A whole
-   reader call past its own limit (a backstop over the events' own: a day a read, or the sum of its events' limits and an hour when that's more; 3 for `--verify` and `--bounds`) is stopped with its whole process
+   reader call past its own limit (a backstop over the events' own: a day a read, or the sum of its events' limits and an hour when that's more; 3 for `--verify`, `--bounds` and `--recheck`) is stopped with its whole process
    tree (`scripts/lib/streamRun.ts`);
 5. checks every row it changed against what's live (`rowProblems`, server/data/frameRowRules.ts, the one definition
    the server checks with too; scripts/lib/autopilotRows.ts re-exports it) and logs any rule a row breaks:
