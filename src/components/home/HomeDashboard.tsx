@@ -119,7 +119,7 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
           {examples.map((s) => (
             <Link
               key={s.q} data-example-chip to={hitHref(searchPagePick(s.q))} onClick={() => addRecentSearch(s.q)}
-              className="tap-44 inline-flex h-8 items-center rounded-full border border-ink/15 bg-ink/[0.03] px-3 text-sm text-text-base transition-colors hover:border-ink/30 hover:bg-ink/[0.07] active:scale-[0.97] motion-reduce:active:scale-100"
+              data-press className="tap-44 inline-flex h-8 items-center rounded-full border border-ink/15 bg-ink/[0.03] px-3 text-sm text-text-base transition-[color,background-color,border-color,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-ink/30 hover:bg-ink/[0.07] active:scale-[0.97] motion-reduce:active:scale-100"
             >{suggestionLabel(s)}</Link>
           ))}
         </div>
@@ -430,4 +430,5 @@ function PickTeamCard({ onPick }: { onPick: () => void }) {
 
 /** Picking a team: a plain icon-and-label button like the sidebar's rows (no colour, no fill, no border; a faint
  *  wash on hover), where the other cards' links sit. */
-const pickTeam = "mt-auto -ml-2.5 inline-flex h-10 items-center gap-2.5 self-start rounded-lg px-2.5 text-sm font-medium text-text-base transition-colors hover:bg-ink/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+// Pressed like the other buttons: shrinks to 0.97 while held, 150ms strong ease-out, not under reduced motion.
+const pickTeam = "mt-auto -ml-2.5 inline-flex h-10 items-center gap-2.5 self-start rounded-lg px-2.5 text-sm font-medium text-text-base transition-[color,background-color,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] motion-reduce:active:scale-100 hover:bg-ink/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
