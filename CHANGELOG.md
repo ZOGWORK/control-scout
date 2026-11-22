@@ -26,7 +26,7 @@ One startup summary of the bot's whole configuration, so a single journal look s
 
 ### Discord bot
 - `bot/config.ts` builds five `config:` lines, logged once the database is open: the season with its game, the site it talks to (its own API on loopback), the chat (on, or off with the very reason `bot/ask.ts` gives, from the same constants in the new `bot/chatState.ts`), report filing, and the follow posts with how many follows in how many servers the minute tick will serve (or that none are followed yet, or that they couldn't be read).
-- `journalctl -u control-scout-bot | grep 'config:'` is then the whole answer to "what can this bot do here?": no test message and no test issue needed, and no line carries a secret's value — only whether it is set. `bot/config.test.ts` covers the chat's two off reasons and the on case, a switch the database can't answer, every follow count in words, and that neither the Control Point key nor the GitHub token ever appears. `bot/README.md` shows the block.
+- `journalctl -u control-scout-bot | grep 'config:'` is then the whole answer to "what can this bot do here?": no test message and no test issue needed, and no line carries a secret's value — only whether it is set. `bot/config.test.ts` covers the chat's two off reasons and the on case, a switch the database can't answer, every follow count in words, and that neither the Control Point key nor the GitHub token ever appears. `bot/README.md` shows the block. (#2152)
 
 ## 7.8.4 — 2026-11-22
 
