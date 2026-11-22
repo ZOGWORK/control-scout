@@ -10,6 +10,7 @@
 // gone; not there, it waits for the member. Another account's attempts are never read: the key names the account.
 import { useSyncExternalStore } from "react";
 import { apiFetch } from "./api";
+import { onBackOnline } from "./connection";
 import { CommentWriteError, COMMENT_NOT_ARRIVED, COMMENT_UNCONFIRMED, postComment, SCOUT_COMMENT, SCOUT_COMMENTS_RESYNC } from "./scoutComments";
 import { noteUnstoredSending, publishPending, type PendingItem } from "./pendingWork";
 import { isCommentEvent, isEntryComment } from "../shared/comments";
@@ -232,7 +233,7 @@ if (typeof window !== "undefined") {
     if (a.state === "attention") drop(e.comment.authorAccountId, e.workspaceId, e.entryUuid, e.comment.opId);
   });
   window.addEventListener(SCOUT_COMMENTS_RESYNC, (ev) => { const s = (ev as CustomEvent<{ space?: string }>).detail?.space; if (s) recheckCommentAttempts(s); });
-  window.addEventListener("online", () => recheckCommentAttempts());
+  onBackOnline(() => recheckCommentAttempts()); // the online event, or the connection check finding internet again
 }
 
 /** Tests: forget everything held in memory (a fresh page). */

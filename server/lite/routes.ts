@@ -10,7 +10,7 @@ import { eventHasDataSql, teamHasDataSql } from "../indexable.js";
 import { CURRENT_SEASON, SEASON_NUMBERS, isLegacy, seasonInfo } from "../data/seasons.js";
 import { cachedEventDetail, listEvents } from "../api/events.js";
 import { matchDetail, matchViews } from "../api/matches.js";
-import { compareAnswer, teamProfile, teamSummaries } from "../api/teams.js";
+import { cachedTeamProfile, compareAnswer, teamSummaries } from "../api/teams.js";
 import { ensureSearchIndex } from "../api/search.js";
 import { MAX_QUERY } from "../api/searchAnswer.js";
 import { pageAnswer } from "../api/answers/followUps.js";
@@ -38,7 +38,7 @@ import { fullHref, liteHref } from "../../src/shared/lite.js";
 import { liteEvent, liteMatch, litePicks, liteTeam } from "./trim.js";
 import { esc, eventPage, liteDocument, list as rowList, listRow, matchPage, messagePage, picklistPage, teamPage, type LitePage, type LiteView } from "./render.js";
 import {
-  LITE_COOKIE, LITE_PICKED_COOKIE, TEXT_SIZE_COOKIE, TEXT_SIZE_COOKIES, THEME_COOKIE, THEME_COOKIES, cookieValue, pickedOnLite, textSizeFromCookie, themeFromCookie, type LitePick,
+  LITE_COOKIE, LITE_PICKED_COOKIE, TEXT_SIZE_COOKIE, TEXT_SIZE_COOKIES, THEME_COOKIE, THEME_COOKIES, V8_COOKIE, cookieValue, pickedOnLite, v8FromCookie, textSizeFromCookie, themeFromCookie, type LitePick,
 } from "../../src/shared/themeTokens.js";
 import { storedEventCode } from "../eventCodes.js";
 import { presentManifest } from "../packs/routes.js";
@@ -78,6 +78,9 @@ export const viewOf = (req: Request): LiteView => ({
   textSize: textSizeFromCookie(cookieValue(req.headers.cookie, TEXT_SIZE_COOKIE)),
   sticky: isSticky(req),
   here: req.originalUrl,
+  // The app's look (src/lib/v8.ts): ?v8=1 or ?v8=0 on the address for this load, as the app takes it; else the
+  // look the app last drew in on this device (cs-v8), v8 when it never said.
+  v8: req.query.v8 === "1" || req.query.v8 === "0" ? req.query.v8 === "1" : v8FromCookie(cookieValue(req.headers.cookie, V8_COOKIE)),
 });
 
 type Cache = "public" | "revalidate" | "private";
@@ -316,7 +319,7 @@ export function liteRouter(): Router {
     const n = Number(req.params.number);
     const season = seasonOf(req.query.season);
     if (!Number.isInteger(n) || n < 1 || n > 999999 || season === null) return notFound(req, res, "There's no such team or season.");
-    const p = await teamProfile(n, season);
+    const p = await cachedTeamProfile(n, season);
     if (!p) return notFound(req, res, `No FTC team ${n} in our data.`);
     const matches = await matchViews({ season: p.season, team: n }, { predictUnplayed: true });
     // Revalidated while the team has a match today or later (its results move); otherwise the usual minute.

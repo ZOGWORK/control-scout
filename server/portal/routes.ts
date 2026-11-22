@@ -10,6 +10,8 @@ import type { User } from "../auth/session.js";
 import { listErrorReports, OWNER_NOTE_MAX, setErrorNote } from "../errorReports.js";
 import { abuseSummary, flushAbuse } from "../moderation.js";
 import { publishUsageSetting, setPublishUsage } from "../ownerSettings.js";
+import { ownerWash, resetWash, setWash } from "../wash.js";
+import { parseWash } from "../../src/shared/wash.js";
 import { ownerAnalytics } from "./ownerAnalytics.js";
 import { featureOwnerRoutes } from "./features.js";
 import { bugReportOwnerRoutes } from "../bugReports.js";
@@ -17,7 +19,7 @@ import { flushMetrics, usageSummary } from "../metrics.js";
 import { vitalsSummary } from "../vitals.js";
 import { onboardingSummary } from "../onboardingStats.js";
 import { liveConnections } from "../liveConnections.js";
-import { statsSummary } from "../analytics.js";
+import { publicUsage, statsSummary } from "../analytics.js";
 import type { OwnerUsage } from "../../src/shared/owner.js";
 import { listAudit, recordAudit } from "./audit.js";
 import { isFeedbackStatus, isTriageState, listFeedback, setFeedbackStatus, setTriage, TriageError, triageQueue } from "./feedback.js";
@@ -36,7 +38,7 @@ import { predictionEngine } from "./predictionEngine.js";
 import { StreamError, listStreams, setEventStream } from "./streams.js";
 import { commonsOwnerRoutes } from "../scout/commons.js";
 import { contributorOwnerRoutes } from "../videos/ownerRoutes.js";
-import { clipCoverageOwnerRoutes, officialVideoOwnerRoutes } from "../videos/officialOwnerRoutes.js";
+import { clipCoverageOwnerRoutes, eventRecordingOwnerRoutes, officialVideoOwnerRoutes } from "../videos/officialOwnerRoutes.js";
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);
@@ -112,6 +114,8 @@ export function ownerRouter(): Router {
   // Official event videos (server/videos/officialWatch.ts): the auto-watcher's review queue, runs and watched channels.
   officialVideoOwnerRoutes(r, h, actor, (s) => console.log(`[${new Date().toISOString()}] ${s}`));
   clipCoverageOwnerRoutes(r, h, actor);
+  // An event's recordings, corrected from its own page (server/videos/ownerRecordings.ts).
+  eventRecordingOwnerRoutes(r, h, actor);
 
   // Event live streams (server/portal/streams.ts): the list, and set / remove one (an empty url removes it).
   r.get("/streams", h(async () => ({ streams: await listStreams() })));
@@ -188,6 +192,9 @@ export function ownerRouter(): Router {
     await flushMetrics().catch(() => {});
     return ownerAnalytics(num(req.query.days, 14, 1, 90));
   }));
+  // The home page's "Control Scout, in use" figures as the owner console shows them (Analytics): always, published or
+  // not (the switch below only decides whether visitors see them). The new home page has no such section.
+  r.get("/public-usage", h(async () => publicUsage(true)));
   r.put("/settings/public-usage", h(async (req, res) => {
     if (req.body?.confirm !== true) { res.status(400).json({ error: "Confirm with {\"confirm\": true}" }); return; }
     if (typeof req.body?.enabled !== "boolean") { res.status(400).json({ error: "Send {\"enabled\": true | false, \"confirm\": true}" }); return; }
@@ -241,6 +248,22 @@ export function ownerRouter(): Router {
   powerRankingsOwnerRoutes(r, h, actor);
   // The home page's hero lines (./heroLinesRoutes.ts).
   heroLinesOwnerRoutes(r, h, actor);
+  // The v8 wash across the top of every page (server/wash.ts): three colours, brightness and spread, or the defaults.
+  // Every save and reset is in the audit log with the wash it replaced (null: the defaults).
+  r.get("/wash", h(async () => ownerWash()));
+  r.put("/wash", h(async (req, res) => {
+    const p = parseWash(req.body?.wash);
+    if ("problem" in p) { res.status(400).json({ error: p.problem }); return; }
+    const was = await setWash(p.wash, actor(req));
+    await recordAudit(actor(req), "settings.wash", null, null, { from: was, to: p.wash });
+    return ownerWash();
+  }));
+  r.post("/wash/reset", h(async (req, res) => {
+    if (req.body?.confirm !== true) { res.status(400).json({ error: "Confirm with {\"confirm\": true}" }); return; }
+    const was = await resetWash();
+    await recordAudit(actor(req), "settings.wash", { reset: true }, null, { from: was, to: null });
+    return ownerWash();
+  }));
   // The email digest (server/digest/ownerRoutes.ts): subscribers, the next send, and a test send to the owner's own account.
   digestOwnerRoutes(r, h, actor, (req) => owner(req).id);
 

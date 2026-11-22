@@ -1,6 +1,6 @@
 // Runtime feature flags, shared by the server and the web app. One registry, two groups:
-// - "feature": the owner console's feature toggles (its Features tab). Every one's routes are gated on the
-//   server (403 {error: "feature_disabled", feature}); public team and event data is never behind one.
+// - "feature": the owner console's feature toggles (its Features tab). Gated routes return
+//   403 {error: "feature_disabled", feature}; public team and event data is never behind one.
 // - "kill": operational kill switches (live updates, error reports, photos, ...), listed below the toggles.
 // Scope "workspace" flags also take per-workspace overrides (migration 53). Resolution: the workspace's
 // override, else the global switch, else its default: on, except the few in OFF_BY_DEFAULT. A key that isn't registered here is never gated.
@@ -9,7 +9,7 @@
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest", "publicAccess",
-  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage",
+  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage", "particleWave", "pageEndGlow",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
@@ -43,6 +43,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   rulesReference: { group: "feature", scope: "global" },
   venueLightMode: { group: "feature", scope: "global" },
   statusPage: { group: "feature", scope: "global" },
+  particleWave: { group: "feature", scope: "global" },
   dogTheme: { group: "feature", scope: "global" },
   realtime: { group: "kill", scope: "global" },
   errorReporting: { group: "kill", scope: "global" },
@@ -58,10 +59,13 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   brunoAnswers: { group: "feature", scope: "global" },
   discordBruno: { group: "feature", scope: "global" },
   searchLearning: { group: "feature", scope: "global" },
+  pageEndGlow: { group: "feature", scope: "global" },
 };
 
 /** The owner console's feature toggles, in the order its Features tab lists them. */
 export const FEATURE_FLAGS: readonly Flag[] = FLAGS.filter((f) => FLAG_META[f].group === "feature");
+/** The toggles that only change how pages look: the owner console's Appearance tab lists them, not Features. */
+export const APPEARANCE_FLAGS: readonly Flag[] = ["particleWave", "pageEndGlow", "dogTheme"];
 /** The kill switches, listed below the feature toggles. */
 export const KILL_SWITCHES: readonly Flag[] = FLAGS.filter((f) => FLAG_META[f].group === "kill");
 /** Flags that take per-workspace overrides. */
@@ -105,6 +109,16 @@ export interface FlagsAnswer { flags: FlagSet; workspaces?: Record<string, Parti
 /** What each switch does, for the owner console. `pending`: the feature it guards hasn't shipped yet, so
  *  the switch is stored but nothing reads it (said in the console, never implied otherwise). */
 export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; pending?: string }> = {
+  particleWave: {
+    label: "Particle wave",
+    on: "The particle wave appears behind pages in the v8 look. It stays still for visitors who prefer reduced motion.",
+    off: "The v8 background keeps its color wash and removes the particle wave for everyone.",
+  },
+  pageEndGlow: {
+    label: "Page-end glow",
+    on: "A soft, grainy orange-to-purple glow sits at the end of every v8 page: it scrolls into view as the footer approaches, and rests at the bottom of a short page. The footer text stays readable over it.",
+    off: "Pages end on the plain background without the glow. Nothing else changes, and switching it back on brings it straight back.",
+  },
   livePredictions: {
     label: "Live predictions",
     on: "Anyone can ask for a match prediction, the upcoming matches list, an event forecast, partner scenarios and match share cards.",
@@ -177,7 +191,7 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
   },
   dogTheme: {
     label: "Dog theme",
-    on: "Every page is tinted yellow in every theme (Light, Dim, Dark and Midnight), with the dog's photo faintly across the background. Cards, text and answer colours stay as they are.",
+    on: "Every page is tinted yellow in every theme (Light, Dim and Dark), with the dog's photo faintly across the background. Cards, text and answer colours stay as they are.",
     off: "The usual page colours, no photo.",
   },
   statusPage: {

@@ -17,6 +17,7 @@ import { registerCache } from "../caches.js";
 import { onPartnershipPrefixReady, partnershipPrefix } from "./partnerships.js";
 import { callOptions } from "../../src/shared/predictView.js";
 import { pairsAmong } from "../../src/shared/eventBundle.js";
+import { onWorkerPrefixReady, replayOffThread, resetOffThread } from "./offThread.js";
 
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
@@ -88,56 +89,37 @@ export class ScoutForecaster extends Forecaster {
     return new Set((ev?.matches ?? []).map((m) => `${m.level}:${m.series}:${m.number}`));
   }
 
-  /** Replay the window from the database (oldest season first). */
+  /** Replay the window from the database (oldest season first), here on this thread (tests, a database the
+   *  rebuild worker can't open). forecasterFor runs the replay on the rebuild worker instead (offThread.ts). */
   async rebuild(): Promise<void> {
-    const book = new RatingBook(FITTED_MODEL.rating);
+    await this.install(await replayWindow(this.anchor, this.seasons));
+  }
+
+  /**
+   * Take on a replay's result (replayWindow, here or on the rebuild worker): the derived indexes are worked out
+   * here, from the same records in the same order, a season at a time with the event loop let go in between.
+   */
+  async install(p: ForecasterParts): Promise<void> {
     const records: AwardRecord[] = [];
-    const pastTables = new Map<number, PartnershipTable>();
-    // Seasons whose every event is fetched and final (sync freezes them): no result can still arrive.
-    const closed = new Set((await all<{ season: number }>("SELECT season FROM seasons WHERE frozen = 1").catch(() => [])).map((r) => Number(r.season)));
-    const books = new Map<number, RatingBook>(), events = new Map<number, EventRecord[]>(), advancement = new Map<number, AdvancementRecord[]>();
-    // Pair history: the finished seasons before the window from kv (null while it builds), then the window as it replays.
-    const prefix = await partnershipPrefix(this.seasons[0] ?? this.anchor);
-    const pairs = prefix ?? new PartnershipBook(FITTED_MODEL.rating);
-    for (const s of this.seasons) {
-      const d = await seasonData(s);
-      if (!d) continue;
-      for (const [code, region] of d.regions) { this.regionByCode.set(code, region); this.regions.add(region); }
-      events.set(s, d.events);
-      advancement.set(s, d.advancement);
-      for (const e of d.events) for (const a of e.awards) records.push({ season: s, team: a.team, time: e.startTime, type: a.type, placement: a.placement });
-      book.startSeason(s);
-      // Yield every few thousand matches so pages keep answering during a rebuild.
-      let n = 0;
-      for (const [code, name] of d.names) pairs.nameEvent(s, code, name);
-      for (const m of d.matches) { pairs.observe(m); book.update(m); if (++n % 4000 === 0) await yieldLoop(); }
-      books.set(s, book.clone());
-      // An earlier season's calls read the pairs through its own end only, never a later season's matches.
-      // The weak pairs only matter when an event's unsynced results fold in (PartnershipOverlay): a season
-      // that can still receive results keeps them, a closed (frozen) one leaves them out (about 3.5x the rows).
-      if (s < this.anchor && pairs.season === s) {
-        // The oldest window season's "season before" isn't replayed here; a forecaster anchored on it would rate it.
-        const before = !books.has(s - 1) && PREDICT_SEASONS.includes(s - 1) ? await ratedTeams(s - 1) : [];
-        const table = PartnershipTable.fromData({ ...pairs.toData({ teams: activeTeams(books, s, before), keepWeak: !closed.has(s) }), season: s });
-        if (table) pastTables.set(s, table);
+    const stored = new Map<string, MatchRecord>();
+    for (const [s, evs] of p.events) {
+      for (const e of evs) {
+        for (const a of e.awards) records.push({ season: s, team: a.team, time: e.startTime, type: a.type, placement: a.placement });
+        for (const m of e.matches) stored.set(`${m.season}|${m.eventCode}|${m.level}:${m.series}:${m.number}`, m);
       }
       await yieldLoop();
     }
-    this.books = books;
-    this.events = events;
-    this.stored = new Map([...events.values()].flat().flatMap((e) => e.matches.map((m) => [`${m.season}|${m.eventCode}|${m.level}:${m.series}:${m.number}`, m] as [string, MatchRecord])));
-    this.advancement = advancement;
+    for (const [code, region] of p.regionByCode) this.regionByCode.set(code, region);
+    for (const r of p.regions) this.regions.add(r);
+    this.books = p.books;
+    this.events = p.events;
+    this.stored = stored;
+    this.advancement = p.advancement;
     this.awardHistory = indexAwards(records);
-    // Valid for the anchor season, even before its first match (the history is all earlier seasons then).
-    // Only pairs of teams active in the anchor season or the one before (the ones a call can be about): keeps the pack small.
-    const active = activeTeams(books, this.anchor);
-    // The server's table keeps the weak pairs too: an event's fresh results fold into it (PartnershipOverlay) and
-    // must count a pair's one earlier match. The offline pack's copy (explanations only, no overlay) leaves them out.
-    const ready = pairs.season != null && pairs.season <= this.anchor;
-    this.partnershipData = ready ? { ...pairs.toData({ teams: active }), season: this.anchor } : null;
-    this.pairTable = ready ? PartnershipTable.fromData({ ...pairs.toData({ teams: active, keepWeak: true }), season: this.anchor }) : null;
-    this.pastPairTables = pastTables;
-    this.partnershipComplete = !!prefix;
+    this.partnershipData = p.partnershipData;
+    this.pairTable = p.pairTable;
+    this.pastPairTables = p.pastPairTables;
+    this.partnershipComplete = p.partnershipComplete;
     this.builtAt = new Date().toISOString();
   }
 
@@ -385,6 +367,70 @@ export class ScoutForecaster extends Forecaster {
   }
 }
 
+/** What a rebuild works out from the database: plain data and engine objects only, so it can cross from the rebuild
+ *  worker to this thread (offThread.ts) and come out the same. ScoutForecaster.install takes it on. */
+export interface ForecasterParts {
+  books: Map<number, RatingBook>;
+  events: Map<number, EventRecord[]>;
+  advancement: Map<number, AdvancementRecord[]>;
+  regionByCode: Map<string, string>;
+  regions: Set<string>;
+  partnershipData: PartnershipData | null;
+  pairTable: PartnershipTable | null;
+  pastPairTables: Map<number, PartnershipTable>;
+  partnershipComplete: boolean;
+}
+
+/** The window's replay (oldest season first): every rated match into the ratings and the pair history. The CPU-heavy
+ *  part of a rebuild; forecasterFor runs it on the rebuild worker (rebuildWorker.ts), the same code on the same data. */
+export async function replayWindow(anchor: number, seasons: number[]): Promise<ForecasterParts> {
+  const book = new RatingBook(FITTED_MODEL.rating);
+  const pastTables = new Map<number, PartnershipTable>();
+  const regionByCode = new Map<string, string>(), regions = new Set<string>();
+  // Seasons whose every event is fetched and final (sync freezes them): no result can still arrive.
+  const closed = new Set((await all<{ season: number }>("SELECT season FROM seasons WHERE frozen = 1").catch(() => [])).map((r) => Number(r.season)));
+  const books = new Map<number, RatingBook>(), events = new Map<number, EventRecord[]>(), advancement = new Map<number, AdvancementRecord[]>();
+  // Pair history: the finished seasons before the window from kv (null while it builds), then the window as it replays.
+  const prefix = await partnershipPrefix(seasons[0] ?? anchor);
+  const pairs = prefix ?? new PartnershipBook(FITTED_MODEL.rating);
+  for (const s of seasons) {
+    const d = await seasonData(s);
+    if (!d) continue;
+    for (const [code, region] of d.regions) { regionByCode.set(code, region); regions.add(region); }
+    events.set(s, d.events);
+    advancement.set(s, d.advancement);
+    book.startSeason(s);
+    // Yield every few thousand matches so pages keep answering during a rebuild (here on this thread).
+    let n = 0;
+    for (const [code, name] of d.names) pairs.nameEvent(s, code, name);
+    for (const m of d.matches) { pairs.observe(m); book.update(m); if (++n % 4000 === 0) await yieldLoop(); }
+    books.set(s, book.clone());
+    // An earlier season's calls read the pairs through its own end only, never a later season's matches.
+    // The weak pairs only matter when an event's unsynced results fold in (PartnershipOverlay): a season
+    // that can still receive results keeps them, a closed (frozen) one leaves them out (about 3.5x the rows).
+    if (s < anchor && pairs.season === s) {
+      // The oldest window season's "season before" isn't replayed here; a forecaster anchored on it would rate it.
+      const before = !books.has(s - 1) && PREDICT_SEASONS.includes(s - 1) ? await ratedTeams(s - 1) : [];
+      const table = PartnershipTable.fromData({ ...pairs.toData({ teams: activeTeams(books, s, before), keepWeak: !closed.has(s) }), season: s });
+      if (table) pastTables.set(s, table);
+    }
+    await yieldLoop();
+  }
+  // Valid for the anchor season, even before its first match (the history is all earlier seasons then).
+  // Only pairs of teams active in the anchor season or the one before (the ones a call can be about): keeps the pack small.
+  const active = activeTeams(books, anchor);
+  // The server's table keeps the weak pairs too: an event's fresh results fold into it (PartnershipOverlay) and
+  // must count a pair's one earlier match. The offline pack's copy (explanations only, no overlay) leaves them out.
+  const ready = pairs.season != null && pairs.season <= anchor;
+  return {
+    books, events, advancement, regionByCode, regions,
+    partnershipData: ready ? { ...pairs.toData({ teams: active }), season: anchor } : null,
+    pairTable: ready ? PartnershipTable.fromData({ ...pairs.toData({ teams: active, keepWeak: true }), season: anchor }) : null,
+    pastPairTables: pastTables,
+    partnershipComplete: !!prefix,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Season data, read once per frozen season. A finished season's rows never
 // change once frozen (sync skips it), so a new data version (a sync of the
@@ -445,10 +491,26 @@ export async function forecasterFor(season: number): Promise<ScoutForecaster> {
   const version = await dataVersion();
   const hit = cache.get(anchor);
   if (hit && hit.version === version) return hit.f;
-  const f = (async () => { const x = new ScoutForecaster(anchor); await x.rebuild(); return x; })();
+  const f = buildForecaster(anchor);
   cache.set(anchor, { version, f });
   f.then(() => { if (cache.get(anchor)?.f === f) { built.set(anchor, { version, f }); buildsDone++; } }, () => { if (cache.get(anchor)?.f === f) cache.delete(anchor); });
   return f;
+}
+
+/**
+ * A new forecaster for the anchor from the database as it is now. The replay (every rated match of the window into
+ * the ratings and the pair history) runs on the rebuild worker (offThread.ts), so this thread's event loop stays free
+ * while it runs; only taking its result in happens here. Where the worker can't open the database (in memory, a
+ * replica) or fails, the replay runs here as before: same numbers either way.
+ */
+export async function buildForecaster(anchor: number): Promise<ScoutForecaster> {
+  const x = new ScoutForecaster(anchor);
+  const parts = await replayOffThread(anchor, x.seasons).catch((e: Error) => {
+    console.warn(`forecaster rebuild worker failed (${e.message}); rebuilding on the main thread`);
+    return null;
+  });
+  if (parts) await x.install(parts); else await x.rebuild();
+  return x;
 }
 
 /** How many forecaster builds have finished: search's kept answers carry it in their key, so an answer worked out
@@ -496,13 +558,14 @@ export async function refreshForecasters(): Promise<void> {
 }
 
 /** Drop cached forecasters and season data (tests, or after a manual data change). Not for syncs: a new data version already rebuilds, without making pages wait. */
-export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); ratedTeamsCache.clear(); }
+export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); ratedTeamsCache.clear(); resetOffThread(); }
 registerCache("Prediction ratings", resetForecasters);
 
 // A forecaster built while the finished seasons' pair history was still building went ahead with its
 // window's pairs only. Once that history is ready, rebuild it in the background (pages keep answering
 // with it meanwhile, through `built`), so its facts don't stay incomplete until the next data version.
-onPartnershipPrefixReady((before) => {
+// The history builds wherever the replay asked for it: here, or on the rebuild worker (which says when it's done).
+function prefixReady(before: number): void {
   for (const [anchor, hit] of [...cache]) {
     hit.f.then((f) => {
       if (f.partnershipComplete || (f.seasons[0] ?? f.anchor) !== before || cache.get(anchor) !== hit) return;
@@ -510,7 +573,9 @@ onPartnershipPrefixReady((before) => {
       forecasterFor(anchor).catch(() => {});
     }, () => {});
   }
-});
+}
+onPartnershipPrefixReady(prefixReady);
+onWorkerPrefixReady(prefixReady);
 
 /**
  * Teams' recent records (latest RECENT qualification matches) from the stored reliability index, for the

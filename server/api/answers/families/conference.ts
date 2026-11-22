@@ -130,6 +130,19 @@ export function matchConference(words: string[], list: Stored[]): { hits: Stored
   return { hits: [], lead: words };
 }
 
+/** The season's stored conferences some words name as a place ("bergen": every conference with Bergen in its name):
+ *  each word a word of the conference's name (FTC New Jersey's or FIRST's). A conference named whole stands alone
+ *  ("east bergen" is East Bergen, never Hudson/East Bergen too); words part of several names name all of them. */
+export function conferencesNamed(words: string[], list: Stored[], season: number): Stored[] {
+  const said = words.map((w) => w.toLowerCase());
+  if (!said.length) return [];
+  const inSeason = list.filter((c) => c.season === season);
+  const fits = (c: Stored) => c.aliases.map(tokens).filter((t) => said.every((w) => t.includes(w)));
+  const hits = inSeason.filter((c) => fits(c).length);
+  const whole = hits.filter((c) => fits(c).some((t) => t.length === said.length));
+  return whole.length ? whole : hits;
+}
+
 const rec = (r: ConferenceRow) => (r.wins == null || r.losses == null ? "—" : `${r.wins}-${r.losses}-${r.ties ?? 0}`);
 const teams = (n: number) => `${n} team${n === 1 ? "" : "s"}`;
 const who = (t: { team: number; name: string | null }) => `${t.team}${t.name ? ` ${t.name}` : ""}`;

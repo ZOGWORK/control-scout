@@ -27,6 +27,9 @@
 //   --verify  read no starts: check where each placed match's clip opens, for rows not yet checked (opens)
 //   --bounds  read no starts: read each read video's first and last frames (opensOn, endsOn), the proof that a match
 //             was played before it starts or after it ends (outsideRecording); a normal read reads them too
+//   --recheck read no starts: a second look at each row's review entries (scripts/lib/reviewRecheck.ts): frames 2, 8,
+//             20 and 40 s after each read for its match and timer; two agreeing move it into the starts (`confirmed`),
+//             else it stays for the owner, marked looked at (`again`)
 //   --clips   read no starts: check each clip the live site plays from the clock by its first frame, paused (ok,
 //             pulled when it names another match, unconfirmed when it names none), into server/data/clipChecks.ts
 //   --event-limit <minutes>  the least one event's read may take before it's stopped (default 180; a long event gets
@@ -38,14 +41,15 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, ReadHung, onceMoreIfHung } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
+import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type RecheckRead, type RecheckVerdict } from "./lib/reviewRecheck";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live", "event-limit"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "trace", "verify"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live", "event-limit"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "recheck", "trace", "verify"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -57,7 +61,7 @@ const args = new Map<string, string | true>();
       if (v == null || v === "" || v.startsWith("--")) { console.error(`--${name}: give it a value`); process.exit(2); }
       args.set(name, v);
     } else if (m && BOOL_FLAGS.has(name) && m[2] == null) args.set(name, true);
-    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --event-limit, --all, --check, --dry, --trace, --verify, --clips, --live <file>)`); process.exit(2); }
+    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --event-limit, --all, --check, --dry, --trace, --verify, --recheck, --clips, --live <file>)`); process.exit(2); }
   }
 }
 const arg = (k: string) => { const v = args.get(k); return typeof v === "string" ? v : undefined; };
@@ -91,7 +95,7 @@ const pageDeadline = new WeakMap<Page, Deadline>();
  *  server/data/frameTimings.ts, before it can be read). */
 const FRAMES_FILE = `server/data/frameTimings/${season}.ts`;
 if (!existsSync(FRAMES_FILE)) { console.error(`--season ${season}: no ${FRAMES_FILE} (add it, and its import in server/data/frameTimings.ts)`); process.exit(2); }
-const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds"), CLIPS = flag("clips");
+const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds"), CLIPS = flag("clips"), RECHECK = flag("recheck");
 
 const { migrate, all } = await import("../server/db.js");
 await migrate();
@@ -109,12 +113,17 @@ const liveRows = (path: string) => {
 };
 const LIVE_ROWS = arg("live") ? liveRows(arg("live")!) : [];
 const LIVE = new Map<string, Record<string, number>>(LIVE_ROWS.map((f) => [`${f.videoId}|${f.code}`, f.starts]));
+/** --live's rows whole: what a second look's row (--recheck) is checked against, as the server will. */
+const LIVE_FULL = new Map<string, import("../server/data/frameTimings.js").FrameTiming>(LIVE_ROWS.map((f) => [`${f.videoId}|${f.code}`, f as unknown as import("../server/data/frameTimings.js").FrameTiming]));
 /** The live starts placed from the clock between two reads, not read off the video (a row's `medium`): a live clip
  *  a read leaves out keeps that confidence when it goes back for its opening check. */
 const LIVE_MEDIUM = new Map<string, Set<string>>(LIVE_ROWS.map((f) => [`${f.videoId}|${f.code}`, new Set(f.medium ?? [])]));
 // A --live copy that gives no rows (a wrong file) would protect no live clip: stop, as an unknown --codes does.
 if (arg("live") && !LIVE.size) { console.error(`--live ${arg("live")}: no frame timing rows in it (a copy of main's server/data/frameTimings/${season}.ts?)`); process.exit(2); }
 type FrameTiming = import("../server/data/frameTimings.js").FrameTiming;
+/** --recheck: review entries the owner rejected, at their second: never looked at again (reviewEntries doesn't list them). */
+const REJECTED = new Map<string, number>(RECHECK ? (await all<{ video_id: string; code: string; label: string; t: number }>("SELECT video_id, code, label, t FROM review_decisions WHERE decision = 'rejected'")).map((d) => [`${d.video_id}|${d.code}|${d.label}`, Number(d.t)]) : []);
+const rejectedAt = (row: { videoId: string; code: string }) => (label: string, t: number) => { const no = REJECTED.get(`${row.videoId}|${row.code}|${label}`); return no != null && Math.abs(no - t) <= SAME_S; };
 const T: any = await import(process.env.TESSERACT_JS ?? "tesseract.js");
 const createWorker = T.createWorker ?? T.default?.createWorker;
 
@@ -226,14 +235,20 @@ const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: nu
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
 type TimerCrop = (typeof TIMER_CROPS)[number];
+type CropId = TimerCrop | "box";
 /** The crop whose two readings last showed a running clock on this page's video, read first from then on (unless the
  *  frame's bar names its own, `first`): the other crops look at the field or the crowd there, and a stray number in one
  *  (a robot's sticker, a sign) would otherwise be taken for the clock before the real one is reached. Arizona's 2022
  *  championship (USAZCMPGC23), its bar flipped to the top: the bottom crops read "4", "1", "5" off the field, paired
  *  with the top's "114" and "52", and no start was confirmed. Dropped when its pair doesn't run. */
-const timerCrop = new WeakMap<Page, TimerCrop>();
-async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: TimerCrop | null } | null> {
-  for (const t of cropOrder(TIMER_CROPS, first ?? timerCrop.get(page))) {
+const timerCrop = new WeakMap<Page, CropId>();
+async function timer(page: Page, first?: CropId | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: CropId | null } | null> {
+  let found: { top: number; bottom: number } | null | undefined, boxUnread = false;
+  const bandOf = async () => (found === undefined ? (found = await barBand(page)) : found);
+  for (const t of timerSteps(TIMER_CROPS, first ?? timerCrop.get(page), TOP_BAR_TIMER)) {
+    if (t === "band") break;
+    if (boxUnread && !afterUnreadBox(t, TOP_BAR_TIMER)) continue;
+    if (t === "box") { const b = await bandOf(); const r = b && await boxTimer(page, b); if (r === "unread") boxUnread = true; else if (r) return r; continue; }
     const shot = await page.screenshot({ clip: t.clip });
     const text = (await digits.recognize(shot)).data.text;
     let left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
@@ -256,9 +271,11 @@ async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bo
   }
   // None of the known places: the bar found in the frame itself (overlayBand), its timer read in the centre column.
   // Read as a bottom bar: a reading over 2:00 is then a 2:30 count's Auto (elapsed), which a 2:00 TeleOp never shows.
-  const band = await barBand(page);
+  if (boxUnread) return null;
+  const band = await bandOf();
   if (!band) return null;
-  // The digits fill the bar's upper half; the icon under them (a gamepad, a hand) reads as digits too ("1:17" as "127").
+  // No timer box found: the digits fill the bar's upper half; the icon under them (a gamepad, a hand) reads as digits
+  // too ("1:17" as "127").
   const top = Math.max(0, band.top - 4);
   const clip = { x: 565, y: top, width: 150, height: Math.min(720, band.top + Math.round((band.bottom - band.top) * 0.55) + 4) - top };
   const left = secondsOf((await digits.recognize(await page.screenshot({ clip }))).data.text);
@@ -299,6 +316,26 @@ async function barBand(page: Page): Promise<{ top: number; bottom: number } | nu
     (window as any).__frame = g.getImageData(0, 0, c.width, c.height);
   }, png);
   return page.evaluate(`(${overlayBand.toString()})(window.__frame.data, window.__frame.width, window.__frame.height)`) as Promise<{ top: number; bottom: number } | null>;
+}
+
+/** The most one timer box read may take (boxTimer). */
+const BOX_LIMIT_S = 20;
+/** The timer read in its own box in the bar found in the frame (overlayBand, timerDigits): only the digits' rows, so
+ *  neither the icon under them nor the bar round them is read (boxSeconds). Its crop is "box" (found again on each
+ *  frame); "unread": a box whose digits didn't read. */
+async function boxTimer(page: Page, band: { top: number; bottom: number }): Promise<{ where: "bottom" | "plain"; left: number; auto: boolean; crop: "box" } | "unread" | null> {
+  const clip = await page.evaluate(`(${timerDigits.toString()})(window.__frame.data, window.__frame.width, window.__frame.height, ${JSON.stringify(band)})`) as { x: number; y: number; width: number; height: number } | null;
+  if (!clip) return null;
+  // Bounded on its own (BOX_LIMIT_S), well inside the frame read's READ_LIMIT_S: a box read that stalls the digit
+  // worker replaces the workers (waited on, so the next crop reads on the new ones) and counts as a box that didn't read.
+  const shot = await page.screenshot({ clip });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const text = await Promise.race([
+    digits.recognize(shot).then((o: { data: { text: string } }) => o.data.text),
+    new Promise<null>((ok) => { timer = setTimeout(() => { console.error(`a timer box read hung over ${BOX_LIMIT_S} s`); void renewOcr().then(() => ok(null)); }, BOX_LIMIT_S * 1000); }),
+  ]).finally(() => clearTimeout(timer));
+  const r = text == null ? null : boxSeconds(text, season <= 2022);
+  return r ? { ...r, auto: false, crop: "box" } : "unread";
 }
 
 const now = (page: Page) => page.evaluate(() => document.querySelector("video")!.currentTime);
@@ -572,7 +609,9 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   }
   if (why) return why;
   // The crop the confirming reads ran in, taken now: the read 25 s before may change the page's crop.
-  const card = timerCrop.get(page)?.card ? timerCrop.get(page)! : null;
+  // The bar's box (timerSteps' "box") is never an audience display's card.
+  const last = timerCrop.get(page);
+  const card = last && last !== "box" && last.card ? last : null;
   const before = await readAt(page, start - 25);
   if (before.label === label) { own ||= before.division === "own"; byTeams ||= teams(before.text) === "own"; }
   if (before.label === label && before.start != null) return `25 s before it was already running (start ${Math.round(before.start - start)} s off)`;
@@ -668,7 +707,25 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
       if (r.division === "other") { named = "another division's match"; return false; }
       // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it; a
       // semifinal's match by its series and number ("M1-2"), that match only (sameMatch).
-      if (sameMatch(r.label ?? "", label)) return true;
+      if (sameMatch(r.label ?? "", label)) {
+        // On the overlay's switch to it (a second before names another match): not this lead; the next one in. Only for
+        // the leads of 5 s or more: the 2 and 0 s leads are for a results card that stays up until the match's own
+        // overlay comes on (CAONMIQ 2025 M7), where the second before names the match before by design.
+        const lead = p.t - t;
+        if (lead > 2 && t >= 1) {
+          let before: Read | null = null;
+          let why = "";
+          try { before = await readAt(page, t - 1, true); } catch (e) { if (e instanceof EventOverTime) throw e; why = (e as Error).message.split("\n")[0]; }
+          const b = beforeLead(before, t - 1, label);
+          // A failed read here is a failed opening read: the rest are left unchecked, never taken as no switch.
+          if (b === "failed") { broken = true; log(`    an opening read failed (${why}): the rest are left unchecked`); return "stop"; }
+          if (b === "switch") {
+            log(`    ${label}: its ${lead} s lead sits on the overlay's switch from ${before!.division === "other" ? "another division's match" : eventLabel(before!.label!)}; trying the next lead`);
+            return false;
+          }
+        }
+        return true;
+      }
       if (r.label) named = eventLabel(r.label);
       return false;
     });
@@ -717,6 +774,7 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
       ...(j.earlyStart.size ? { earlyStart: Object.fromEntries(j.earlyStart) } : {}),
       opens: Object.fromEntries(j.opens),
       ...(unread.size ? { unconfirmed: [...unread] } : {}),
+      ...(row.confirmed && Object.keys(row.confirmed).some((l) => l in starts) ? { confirmed: Object.fromEntries(Object.entries(row.confirmed).filter(([l]) => l in starts)) } : {}),
     });
   } catch (e) {
     log(`    couldn't check: ${(e as Error).message.split("\n")[0]} (the row is kept unchecked; the next --verify tries it again)`);
@@ -804,6 +862,53 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
     keep(`${row.videoId}|${row.code}`, { ...row, ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) });
   } catch (e) {
     log(`    couldn't read its edges: ${(e as Error).message.split("\n")[0]} (the row is kept as it was)`);
+    failedVideos++;
+  } finally {
+    await closePage(page);
+  }
+}
+
+// --- A second look at the review entries (--recheck) ---------------------------------------------------------------
+
+/** --recheck: each due review entry of a read row (recheckDue) read again on frames RECHECK_AFTER its second, the bar
+ *  and the timer as any start read takes them (readAt: the bar's match, this event's and division's only); the row
+ *  written with what they settled (recheckRow), checked against the live row as the server will. */
+async function recheckVideo(row: FrameTiming, length: number, due: { label: string; t: number }[], division: DivisionCtx | null, order: string[], deadline: Deadline, log: (s: string) => void): Promise<void> {
+  let page: Page | null = null;
+  try {
+    page = await player();
+    if (division) divisions.set(page, division);
+    { const e = eventNames.get(row.code); if (e) pageEvent.set(page, e); }
+    pageDeadline.set(page, deadline);
+    await open(page, row.videoId);
+    log(`  ${row.videoId}: a second look at ${due.length} for review (${due.map((e) => `${e.label} at ${e.t} s`).join(", ")})`);
+    const verdicts = new Map<string, { verdict: RecheckVerdict; saw: string }>();
+    let unreadLooks = 0;
+    for (const e of due) {
+      const reads: RecheckRead[] = [];
+      let missed = 0;
+      for (const after of RECHECK_AFTER) {
+        const r = await readAt(page, e.t + after);
+        // A seek that never landed shows the frame before it: it says nothing of this second.
+        if (Math.abs(r.at - (e.t + after)) > 2) { missed++; continue; }
+        reads.push({ at: r.at, label: r.label, start: r.start, division: r.division ?? null });
+      }
+      const verdict = recheckVerdict(e.label, e.t, reads, missed), saw = sawText(e.t, reads);
+      verdicts.set(e.label, { verdict, saw });
+      // Frames not read and nothing settled: no look taken (the entry isn't marked), and the read counts as failed, so
+      // the autopilot doesn't count the event as tried.
+      if ("unread" in verdict) unreadLooks++;
+      log(`    ${e.label}: ${"settled" in verdict ? `confirmed, start ${verdict.settled.start} s, opening ${verdict.settled.open} s (frames ${verdict.settled.frames.join(", ")})` : "stays" in verdict ? `stays for the owner: ${verdict.stays}` : `not looked at: ${verdict.unread}`} (${saw})`);
+    }
+    if (unreadLooks) failedVideos++;
+    const key = `${row.videoId}|${row.code}`;
+    const r = recheckRow(row, verdicts, LIVE_FULL.get(key), order, today, length);
+    if (!r.row) { log(`    nothing written: ${r.why}`); return; }
+    keep(key, r.row);
+    log(`    second look: ${r.settled.length} into the starts${r.settled.length ? ` (${r.settled.join(" ")})` : ""}, ${r.stays.length} left for the owner${r.stays.length ? ` (${r.stays.join(" ")})` : ""}`);
+  } catch (e) {
+    if (e instanceof EventOverTime) throw e;
+    log(`    couldn't look again: ${(e as Error).message.split("\n")[0]} (the row is kept as it was; the next run tries again)`);
     failedVideos++;
   } finally {
     await closePage(page);
@@ -1047,6 +1152,10 @@ const browser = await launchPlayerBrowser((o) => chromium.launch(o), (s) => cons
 const today = new Date().toISOString().slice(0, 10);
 let done = 0;
 const report: string[] = [];
+// Linked recordings skipped (undetailed): for want of details a fetch would give, or gone/still live; and the events
+// left with nothing to read until their details are fetched.
+let undetailedVideos = 0, unreadableVideos = 0;
+const undetailedEvents: string[] = [];
 
 /** Write the timings kept so far (after each event, so a run cut short keeps what it read). A file another program
  *  holds open for a moment (an editor, git, a test run reading it) only delays the write: it's tried again, and if it
@@ -1261,6 +1370,9 @@ async function doCode(code: string): Promise<void> {
   const rec = recs.get(code)!, began = Date.now(), deadline: Deadline = { code, ms: EVENT_LIMIT_MS, at: began + EVENT_LIMIT_MS };
   const rows = await all<{ label: string; time: string | null; timezone: string | null; played: number }>(
     "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1", [season, code]);
+  // The event's played matches in the order they were played, as the server's order check takes them (playedOrder):
+  // before enteredLater sets any time aside.
+  const order = rows.filter((r) => r.time != null).sort((a, b) => (a.time! < b.time! ? -1 : a.time! > b.time! ? 1 : 0)).map((r) => String(r.label));
   // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
   // its time orders it among the others and places nothing.
   // A match with no time at all is read the same way, after the timed ones in its label's order (playedMatches).
@@ -1310,7 +1422,7 @@ async function doCode(code: string): Promise<void> {
   if (CLIPS) return checkClips(code, rec, views, span, division);
   const placed = R.withClips(views, rec, Date.now(), span, { frames: false });
   const missing = placed.filter((v) => !v.clip).map((v) => v.label);
-  if (CHECK ? !placed.some((v) => v.clip) : !ALL && !VERIFY && !BOUNDS && !missing.length) return;
+  if (CHECK ? !placed.some((v) => v.clip) : !ALL && !VERIFY && !BOUNDS && !RECHECK && !missing.length) return;
   // Read on an earlier run (each event is written as it finishes): not again, unless --all.
   // Any of its videos that couldn't be played at all keeps the event unread, so the next run tries it again. (An event's
   // rows are saved once all its videos are read, so a run cut short leaves none of them.)
@@ -1331,11 +1443,13 @@ async function doCode(code: string): Promise<void> {
   };
   const rowOf = (v: (typeof own)[number]) => kept.get(`${v.videoId}|${code}`);
   const read = own.filter(holds).every((v) => { const f = rowOf(v); return f && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)); });
-  if (!CHECK && !ALL && !VERIFY && !BOUNDS && !waiting && own.some(holds) && read) return;
+  if (!CHECK && !ALL && !VERIFY && !BOUNDS && !RECHECK && !waiting && own.some(holds) && read) return;
   // --verify: an event none of whose rows still has openings to check doesn't count against --limit.
   if (VERIFY && !own.some((v) => { const f = rowOf(v); return f && (!f.opens || f.unconfirmed?.length) && Object.keys(f.starts).length; })) return;
   // --bounds: likewise an event none of whose rows still lacks an edge (every row, with --all).
   if (BOUNDS && !own.some((v) => { const f = rowOf(v); return f && (ALL || !f.opensOn || !f.endsOn); })) return;
+  // --recheck: likewise an event none of whose rows has a review entry due a second look.
+  if (RECHECK && !own.some((v) => { const f = rowOf(v); return f && recheckDue(f, rejectedAt(f)).length; })) return;
   // Checked again once claimed: a lane that passed its check while another was still loading would read past --limit.
   if (++done > limit) return;
   // An event's lines together (events run side by side).
@@ -1351,7 +1465,17 @@ async function doCode(code: string): Promise<void> {
     if ("length" in p) { v.meta = { ...v.meta, length: p.length }; log(`  ${v.videoId}: no duration from YouTube, ${p.length} s from the player`); }
     else log(`  ${v.videoId}: no duration from YouTube, not read: ${p.why}`);
   }
-  const videos = [rec, ...(rec.more ?? [])].filter((v) => v.meta?.status === "ok" && v.meta.length);
+  // A linked recording that can't be read is said now (stderr, not only in the event's lines) and counted: one a fetch
+  // of its details would fix apart from one that's gone or still live (undetailed).
+  const unread = undetailed(own);
+  for (const s of unread.skipped) {
+    const line = `${code}: linked recording ${s.videoId} skipped: ${s.why}`;
+    log(`  ${line}`);
+    console.error(`!! ${line}`);
+  }
+  for (const s of unread.skipped) if (s.fixable) undetailedVideos++; else unreadableVideos++;
+  if (unread.fails) undetailedEvents.push(code);
+  const videos = own.filter((v) => v.meta?.status === "ok" && v.meta.length);
   // Its own limit, now its videos' lengths are known: a long event gets its time, from when it began.
   deadline.ms = eventLimitMs(EVENT_LIMIT_MS, videos.map((v) => v.meta!.length!));
   deadline.at = began + deadline.ms;
@@ -1379,6 +1503,12 @@ async function doCode(code: string): Promise<void> {
     if (BOUNDS) {
       // Only a video's first and last frames, for a row read before they were (or every row, with --all).
       if (prior && (ALL || !prior.opensOn || !prior.endsOn)) await boundsRow(prior, m.length!, division, log);
+      continue;
+    }
+    if (RECHECK) {
+      // Only a second look at its review entries: its starts stay as read.
+      const due = prior ? recheckDue(prior, rejectedAt(prior)) : [];
+      if (prior && due.length) await recheckVideo(prior, m.length!, due, division, order, deadline, log);
       continue;
     }
     if (VERIFY) {
@@ -1532,6 +1662,12 @@ if (failedEvents) { console.error(`${failedEvents} events failed before their vi
 if (overTime) { console.error(`${overTime} events stopped at their limit (their finished videos written)`); process.exitCode = 1; }
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
+// Linked recordings skipped (undetailed): counted by kind. Only an event left with nothing to read for want of details
+// a fetch would give is flagged in the exit, and with its own code (UNDETAILED_EXIT), not 1: the read ran, so a caller
+// (clip-autopilot's readFailed) doesn't take it for a crash. Any real failure above or below still exits 1.
+if (undetailedVideos) console.error(`${undetailedVideos} linked recordings skipped: no details on file, or the fetch failed (fetch them, then read again)`);
+if (unreadableVideos) console.error(`${unreadableVideos} linked recordings not read: removed or private on YouTube, or no length (a live stream the player can't time) (said per event above)`);
+if (undetailedEvents.length) { console.error(`${undetailedEvents.join(", ")}: no linked recording could be read for want of details (exit ${UNDETAILED_EXIT})`); if (!process.exitCode) process.exitCode = UNDETAILED_EXIT; }
 if (!CHECK && !DRY) {
   // The last save may have failed with no save after it (retried above): the run then says so and fails.
   if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }

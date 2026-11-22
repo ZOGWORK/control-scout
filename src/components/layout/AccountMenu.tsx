@@ -14,7 +14,8 @@ import { createContext, useContext, useEffect, useId, useRef, useState, type Dis
 import { AnimatePresence } from "motion/react";
 import { m } from "../motion";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { CheckCircle2, ExternalLink, KeyRound, LogIn, LogOut, Mail, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { CheckCircle2, ExternalLink, KeyRound, LogIn, LogOut, Mail, Megaphone, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { openWhatsNew } from "../WhatsNew";
 import { apiFetch } from "../../lib/api";
 import { SIGNED_IN, usePersonal, type AccountUser, type SyncStatus } from "../../lib/personal";
 import { OtpInput } from "../arc/otp-input/otp-input";
@@ -159,11 +160,12 @@ function Avatar({ name, url, dot }: { name: string; url?: string | null; dot: st
 }
 
 /**
- * `place`: "sidebar" (the full sidebar: one row, the panel opens above it), "rail" (the icon rail: the avatar
+ * `place`: "corner" (v8: your profile picture top-right; the panel drops below it with Settings, What's new and the
+ * owner console above the account), "sidebar" (the full sidebar: one row, the panel opens above it), "rail" (the icon rail: the avatar
  * and Settings stacked, names in tooltips, the panel opens beside it) or "sheet" (the phone's menu sheet).
  * `onNavigate`: called by every link in it (Settings, Account settings, a team), even to the page already open.
  */
-export function AccountFooter({ place, onNavigate }: { place: "sidebar" | "rail" | "sheet"; onNavigate?: () => void }) {
+export function AccountFooter({ place, onNavigate }: { place: "corner" | "sidebar" | "rail" | "sheet"; onNavigate?: () => void }) {
   const { user, sync, offlineAccount, signOut } = usePersonal();
   const { open, setOpen, flow, setFlow, merging, added, endMerge } = useAccountPanel();
   const panelId = useId();
@@ -193,7 +195,14 @@ export function AccountFooter({ place, onNavigate }: { place: "sidebar" | "rail"
   return (
     // While the panel is open it owns Escape, so the menu sheet around it stays open (src/components/ui/overlay.tsx).
     <div data-account-box data-slot="account-panel" data-esc-owner={open ? "" : undefined} className="relative">
-      {rail ? (
+      {place === "corner" ? (
+        // v8 (docs/design/v8-revamp-brief.md §6): just the picture (a guest one signed out), beside the inbox.
+        <button type="button" {...toggle} data-profile aria-label={user ? `Account: ${name}` : "Sign in"} title={user ? name : "Sign in"}
+          className="flex size-11 items-center justify-center rounded-full outline-none transition-[scale] duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring/60">
+          {user ? <UserAvatar url={user.avatarUrl} name={name} className="size-8 bg-ink/10 text-text-base ring-1 ring-ink/15" />
+            : <span data-guest className="flex size-8 items-center justify-center rounded-full bg-ink/[0.08] text-text-muted ring-1 ring-ink/15"><UserRound className="size-[1.125rem]" aria-hidden /></span>}
+        </button>
+      ) : rail ? (
         <div className="flex flex-col items-center gap-1">
           {ownerConsole}
           {settings}
@@ -230,9 +239,10 @@ export function AccountFooter({ place, onNavigate }: { place: "sidebar" | "rail"
       {open && (
         <m.div id={panelId} role="region" aria-label={user ? "Your account" : "Sign in"} key="panel"
           initial={{ opacity: 0, y: 6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 4, scale: 0.98 }}
-          transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }} style={{ transformOrigin: "bottom left" }}
+          transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }} style={{ transformOrigin: place === "corner" ? "top right" : "bottom left" }}
           className={cn("absolute z-50 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]",
-            place === "rail" ? "bottom-0 left-full ml-3 w-96" : place === "sidebar" ? "bottom-full left-0 mb-2 w-96" : "inset-x-0 bottom-full mb-2")}>
+            place === "corner" ? "right-0 top-full mt-2 w-[min(24rem,calc(100vw-1.5rem))] max-sm:-right-2" : place === "rail" ? "bottom-0 left-full ml-3 w-96" : place === "sidebar" ? "bottom-full left-0 mb-2 w-96" : "inset-x-0 bottom-full mb-2")}>
+          {place === "corner" && !merging && <CornerLinks owner={!!user?.isOwner} onLeave={leave} />}
           {merging ? <MergeScreen user={merging} added={added} onDone={endMerge} />
             : user ? <SignedInPanel user={user} onClose={leave} onSignOut={signOutNow} />
             : <SignInPanel flow={flow} setFlow={setFlow} />}
@@ -240,6 +250,19 @@ export function AccountFooter({ place, onNavigate }: { place: "sidebar" | "rail"
       )}
       </AnimatePresence>
     </div>
+  );
+}
+
+/** The corner panel's own rows, above the account: what used to sit at the sidebar's foot. */
+function CornerLinks({ owner, onLeave }: { owner: boolean; onLeave: () => void }) {
+  const row = "flex h-10 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-text-base outline-none transition-colors hover:bg-ink/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-4 [&_svg]:text-text-muted";
+  return (
+    <nav aria-label="Account" data-corner-links className="-mx-2 -mt-2 mb-3 flex flex-col border-b border-line pb-2">
+      <Link to="/settings" onClick={onLeave} className={row}><Settings aria-hidden /> Settings</Link>
+      <button type="button" onClick={() => { onLeave(); openWhatsNew(); }} className={cn(row, "text-left")}><Megaphone aria-hidden /> What’s new</button>
+      {/* The owner only: /api/auth/me marks isOwner, and the server checks every /api/owner/* call itself. */}
+      {owner && <Link to="/owner" onClick={onLeave} data-owner-console className={row}><ShieldCheck aria-hidden /> Owner console</Link>}
+    </nav>
   );
 }
 

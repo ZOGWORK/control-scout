@@ -1,0 +1,55 @@
+// v8, the new look (docs/design/v8-revamp-brief.md), the default since 7.7.0; /legacy picks the classic one.
+// index.html sets <html data-v8> before first paint when this device has it on: `?v8=1` on any URL turns it on
+// (remembered in localStorage cs-v8), `?v8=0` turns it off. CSS opts in with the `v8:` variant (src/index.css).
+
+import { useSyncExternalStore } from "react";
+
+export const V8_KEY = "cs-v8";
+/** The look a device gets before it picks one (index.html's boot script must match: `=== '1'` while this is false,
+ *  `!== '0'` once it's true). The choice itself is stored as "1" (v8) or "0" (the classic look, /legacy). */
+export const V8_DEFAULT = true;
+
+/** Whether this page load is drawn in v8 (fixed for the load: index.html decides before anything paints). */
+export const isV8 = () => typeof document !== "undefined" && document.documentElement.hasAttribute("data-v8");
+
+/** isV8() that follows the attribute while the page is open (the /preview/kit page switches it on for its own visit),
+ *  so anything derived from it, the theme first (src/hooks/useTheme.ts), redraws when it changes. */
+export function useIsV8(): boolean {
+  return useSyncExternalStore(subscribe, isV8, () => false);
+}
+function subscribe(onChange: () => void) {
+  const mo = new MutationObserver(onChange);
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-v8"] });
+  return () => mo.disconnect();
+}
+
+/** `dest` with ?v8=1 or ?v8=0 in its query (before any #fragment), replacing one it already has. */
+export function withLookParam(dest: string, on: boolean): string {
+  const hash = dest.indexOf("#");
+  const [path, frag] = hash < 0 ? [dest, ""] : [dest.slice(0, hash), dest.slice(hash)];
+  const q = path.indexOf("?");
+  const params = new URLSearchParams(q < 0 ? "" : path.slice(q + 1));
+  params.set("v8", on ? "1" : "0");
+  return `${q < 0 ? path : path.slice(0, q)}?${params.toString()}${frag}`;
+}
+
+/** Picks v8 or the classic look on this device (remembered, so it holds after v8 becomes the default), then loads
+ *  `to` (this page when left out) so the whole page is drawn in the chosen look. */
+export function setV8(on: boolean, to?: string) {
+  try {
+    localStorage.setItem(V8_KEY, on ? "1" : "0");
+  } catch {
+    // Storage blocked: load the page with ?v8=, which index.html obeys for that load without storage. In the query,
+    // before any #fragment (after it, index.html never sees it, and the look a reset asked for never came: a loop).
+    location.assign(withLookParam(to ?? location.pathname + location.search + location.hash, on));
+    return;
+  }
+  if (to) location.assign(to);
+  else location.reload();
+}
+
+/** v8's colour for numbers and event data (team numbers, a row's key stat, headline stat values): the wash's light
+ *  slate blue, the accent (#a3b6e0, 9.7:1 on the page). Ordinary text stays white or grey; scores keep their
+ *  alliance colours, live its red, and "yours" and wins stay white, so leave this off those. The classic look
+ *  ignores it (the `v8:` variant). */
+export const V8_NUM = "v8:text-accent";

@@ -23,7 +23,7 @@ import { ENGINE_VERSION, REASON_RULE } from "@control-scout/predict-engine";
 import type { RecentRow } from "../../src/shared/predictView.js";
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, seasonInfo } from "../data/seasons.js";
-import { ScoutForecaster, dataVersion, forecasterFor } from "../predict/engine.js";
+import { ScoutForecaster, buildForecaster, dataVersion, forecasterFor } from "../predict/engine.js";
 import { partnershipPrefix } from "../predict/partnerships.js";
 import { encodeLitePairs } from "../../src/shared/litePairs.js";
 import { LEARNED_DAYS, type LiteLearned } from "../../src/shared/liteLearned.js";
@@ -96,7 +96,7 @@ export async function buildLite(version: string, dir: string, log: (m: string) =
   }
   // Pair history (engine 2.4) through the newest season, the finished seasons' part included.
   let pf = await forecasterFor(CURRENT_SEASON);
-  if (!pf.partnershipComplete && (await partnershipPrefix(pf.seasons[0] ?? pf.anchor, { wait: true }))) { pf = new ScoutForecaster(pf.anchor); await pf.rebuild(); }
+  if (!pf.partnershipComplete && (await partnershipPrefix(pf.seasons[0] ?? pf.anchor, { wait: true }))) pf = await buildForecaster(pf.anchor);
   // Only a small cut ships (src/shared/litePairs.ts): the pack is downloaded at venues, and the history is a reason only.
   const pairs = pf.partnershipData ? encodeLitePairs(pf.partnershipData) : null;
   const teams = (await all<any>("SELECT number, name, city, state, country FROM teams ORDER BY number"))

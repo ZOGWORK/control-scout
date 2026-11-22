@@ -161,18 +161,19 @@ describe("highlights over a scope", () => {
     expect(v.empty).toBeUndefined();
   });
 
-  it("a recap, the videos, a replay, a stream: a video page, every match first, led by the latest playoff match", async () => {
+  it("a recap, the videos, a replay, a stream: a video page without a score headline", async () => {
     for (const q of ["worlds recap", "worlds videos", "watch worlds", "worlds replay", "worlds vods", "worlds stream"]) {
       const s = await stat(q);
       expect(s.title, q).toBe("Match videos at Worlds, 2024–25");
       expect(s.blocks.map((b) => b.kind), q).toEqual(["videos"]);
-      expect(s.headline?.label, q).toBe("Latest playoff match: F1 at Worlds finals");
+      expect(s.headline, q).toBeUndefined();
     }
     const v = (await stat("worlds recap")).blocks[0] as Extract<StatBlock, { kind: "videos" }>;
     // Across divisions: each tile says its event; the divisions before the finals they feed.
     expect(v.tiles.map((t) => `${t.event} ${t.label}`)).toEqual(["Worlds · Jackson Division Q16", "Worlds · Jackson Division Q17", "Worlds · Ross Division Q3", "Worlds · Ross Division M1", "Worlds finals F1"]);
     expect(v.streams?.map((l) => l.label)).toEqual(["Worlds · Jackson Division", "Worlds · Ross Division", "Worlds finals"]);
-    expect(v.empty?.text).toBe("No match videos at Worlds in 2024–25 yet.");
+    // Q16 has a video: no line saying there are none.
+    expect(v.empty).toBeUndefined();
   });
 
   it("a calendar year with Worlds is the Worlds held that year", async () => {
@@ -292,9 +293,9 @@ describe("a team's highlights", () => {
     expect((await ask("best match 2024-25")).stat?.intent).not.toBe("highest-score");
   });
 
-  it("a recap leads with the last playoff match even when its highlights list it under another reason", async () => {
+  it("a recap focuses on videos while highlights keep their best-score headline", async () => {
     expect((await stat("colorado highlights")).headline?.label).toBe("Best score without penalties: M2 at Peak Qualifier");
-    expect((await stat("colorado recap")).headline).toMatchObject({ label: "Latest playoff match: M2 at Peak Qualifier", value: "300 points" });
+    expect((await stat("colorado recap")).headline).toBeUndefined();
   });
 
   it("a team's videos lead with its last playoff match, won or lost", async () => {

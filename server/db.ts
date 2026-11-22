@@ -3,6 +3,7 @@
 // applied once each, in order, inside a transaction.
 import { createClient, type Client, type InArgs, type InStatement, type Row } from "@libsql/client";
 import { mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { env } from "./env.js";
 
@@ -2601,6 +2602,45 @@ CREATE TABLE IF NOT EXISTS manual_starts (
 );
 `,
   },
+  {
+    version: 98,
+    name: "auto reads",
+    sql: `
+-- What the clip autopilot read, handed to the live server (server/videos/autoReads.ts) instead of a data PR: one row per
+-- kind ('frames': a frame-read row of server/data/frameTimings; 'clips': a first-frame check of server/data/clipChecks),
+-- video and event. live_json: the row served now, laid over the code's row of the same video and event; pending_json:
+-- a read that broke a rule against it, waiting for the owner (Owner › Clip coverage, Waiting for approval), with its
+-- problems (a JSON list of plain-words strings). A later read replaces a pending one; approve puts it live, reject drops it.
+CREATE TABLE IF NOT EXISTS auto_reads (
+  kind TEXT NOT NULL,
+  video_id TEXT NOT NULL,
+  code TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  live_json TEXT,
+  live_at TEXT,
+  pending_json TEXT,
+  pending_problems TEXT,
+  pending_at TEXT,
+  decided_by TEXT,
+  source TEXT,
+  PRIMARY KEY (kind, video_id, code)
+);
+CREATE INDEX IF NOT EXISTS auto_reads_pending ON auto_reads (pending_at) WHERE pending_json IS NOT NULL;
+-- The owner's word on a frame row's review entry (a match the frames saw at second t, kept off the site): approved (its
+-- start written into the event's live row in auto_reads, owner-approved) or rejected (no longer listed for that t).
+CREATE TABLE IF NOT EXISTS review_decisions (
+  video_id TEXT NOT NULL,
+  code TEXT NOT NULL,
+  label TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  t INTEGER NOT NULL,
+  decision TEXT NOT NULL,
+  decided_by TEXT NOT NULL,
+  decided_at TEXT NOT NULL,
+  PRIMARY KEY (video_id, code, label)
+);
+`,
+  },
 ];
 
 export type Db = Client;
@@ -2652,7 +2692,99 @@ export function openDb(url: string, authToken?: string | null): Client {
     const path = url.slice(5);
     if (path && path !== ":memory:") mkdirSync(dirname(resolve(path)), { recursive: true });
   }
-  return createClient({ url, authToken: authToken ?? undefined });
+  const c = createClient({ url, authToken: authToken ?? undefined });
+  const path = url.startsWith("file:") ? url.slice(5) : "";
+  return path && path !== ":memory:" && !path.startsWith(":memory:") ? patient(c, url) : c;
+}
+
+/** How long a write waits, with the event loop free, for another connection's write to finish (lockWait) before it
+ *  goes ahead anyway (and SQLite's own busy timeout, configure, takes over). */
+export const LOCK_WAIT_MS = 5000;
+/** SQLite "database is locked": another connection holds the write lock. */
+export const lockBusy = (e: unknown): boolean => {
+  const x = e as { code?: unknown; extendedCode?: unknown; rawCode?: unknown } | null;
+  return /^SQLITE_BUSY/.test(String(x?.code ?? "")) || /^SQLITE_BUSY/.test(String(x?.extendedCode ?? "")) || (typeof x?.rawCode === "number" && (x.rawCode & 0xff) === 5);
+};
+
+/** `fn` again while it fails with SQLITE_BUSY, the wait between tries spent with the event loop free, for up to
+ *  `budget` ms; then its last error. Any other error at once. */
+export async function lockWait<T>(fn: () => Promise<T>, budget = LOCK_WAIT_MS, now = () => performance.now()): Promise<T> {
+  const t0 = now();
+  for (let pause = 2; ; pause = Math.min(pause * 2, 50)) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (!lockBusy(e) || now() - t0 + pause > budget) throw e;
+      await new Promise((r) => setTimeout(r, pause));
+    }
+  }
+}
+
+/** A statement that writes (a lone SELECT, PRAGMA or EXPLAIN never takes the write lock). */
+const WRITES = /^\s*(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|VACUUM|REINDEX|ANALYZE)\b|^\s*WITH\b[\s\S]*\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i;
+/** A statement that opens or closes a transaction by hand: run as it is. */
+const TX_CONTROL = /^\s*(?:BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i;
+const sqlOf = (s: unknown) => (typeof s === "string" ? s : Array.isArray(s) ? String(s[0] ?? "") : String((s as { sql?: unknown })?.sql ?? ""));
+
+/** The driver's own connection (the libsql package @libsql/client opens its connections with), for the lock probe:
+ *  only exec on it, so no statement is ever left open on it, and closing it closes the file at once (a client's pool
+ *  keeps its first check's statement, and with it the file, until collected: the file then can't leave WAL). */
+type LockProbe = { exec(sql: string): unknown; close(): unknown };
+function openProbe(path: string): LockProbe {
+  const req = createRequire(createRequire(import.meta.url).resolve("@libsql/client"));
+  const Database = req("libsql") as new (path: string, opts: { timeout: number }) => LockProbe;
+  // The driver's errors carry SQLite's code as `code` ("SQLITE_BUSY"), as lockBusy reads.
+  return new Database(path, { timeout: 0 });
+}
+
+/**
+ * `c` with each write first waiting, with the event loop free, until no other connection holds the write lock.
+ *
+ * SQLite's busy timeout waits out a lock by sleeping the thread, and the driver runs on this process's one thread: a
+ * write behind another process's write (the data cycle's child process, its long transactions every 15 minutes on
+ * event days) held every request for up to 5 s, /api/health and searches included; a signed-in visitor's requests
+ * write too (last_seen). And a statement that does fail busy is left mid-run on its connection by the driver, so that
+ * connection's next COMMIT fails ("SQL statements in progress") until it is collected: waiting by retrying the write
+ * itself would break the writes after it.
+ *
+ * So the lock is asked about on a connection of its own (openProbe): BEGIN IMMEDIATE, then ROLLBACK, run as one script
+ * (the driver's exec finalizes its statements even when one fails), no busy timeout. Free: the write runs, at once
+ * after. Held: asked again in a few ms, up to LOCK_WAIT_MS, then the write runs anyway with the busy timeout as before.
+ * Reads never wait (WAL: a reader never waits for a writer).
+ */
+function patient(c: Client, url: string): Client {
+  let probe: LockProbe | null = null;
+  const free = async (): Promise<void> => {
+    try {
+      probe ??= openProbe(url.slice(5).replace(/\?.*$/, ""));
+      await lockWait(async () => { probe!.exec("BEGIN IMMEDIATE; ROLLBACK"); });
+    } catch { /* still held after LOCK_WAIT_MS, or the probe can't open: the write goes ahead as before */ }
+  };
+  const dropProbe = () => { try { probe?.close(); } catch { /* already closed */ } probe = null; };
+  const execute = c.execute.bind(c) as (...a: unknown[]) => Promise<unknown>;
+  const batch = c.batch.bind(c) as (...a: unknown[]) => Promise<unknown>;
+  const transaction = c.transaction.bind(c) as (...a: unknown[]) => Promise<unknown>;
+  const close = c.close.bind(c);
+  Object.assign(c, {
+    execute: async (...a: unknown[]) => {
+      const sql = sqlOf(a[0]);
+      // Leaving write-ahead logging needs the file to itself: the probe's idle connection would keep it busy.
+      if (/^\s*PRAGMA\s+(?:main\.)?journal_mode\s*=/i.test(sql)) dropProbe();
+      if (WRITES.test(sql) && !TX_CONTROL.test(sql)) await free();
+      return execute(...a);
+    },
+    batch: async (...a: unknown[]) => {
+      const stmts = Array.isArray(a[0]) ? (a[0] as unknown[]) : [];
+      if (a[1] === "write" || stmts.some((s) => WRITES.test(sqlOf(s)))) await free();
+      return batch(...a);
+    },
+    transaction: async (...a: unknown[]) => {
+      if ((a[0] ?? "write") === "write") await free();
+      return transaction(...a);
+    },
+    close: () => { dropProbe(); close(); },
+  });
+  return c;
 }
 
 const fileKind = new WeakMap<Client, boolean>();
@@ -2698,6 +2830,19 @@ export async function inSnapshot<T>(fn: (read: <R = Row>(sql: string, args?: InA
   }
 }
 
+const filePaths = new WeakMap<Client, string | null>();
+/** The file the database is, when it is a local file of its own that another connection (a worker thread's) can open
+ *  and see the same data: null in memory, as an embedded replica, or remote. Kept once known per client. */
+export async function localDbFile(c: Client = db()): Promise<string | null> {
+  if (filePaths.has(c)) return filePaths.get(c)!;
+  if (!(await fileOfItsOwn(c))) { filePaths.set(c, null); return null; }
+  const main = (await c.execute("PRAGMA database_list").catch(() => null))?.rows.find((r) => r.name === "main");
+  if (!main) return null; // the probe failed: asked again next time
+  const path = String(main.file ?? "") || null;
+  filePaths.set(c, path);
+  return path;
+}
+
 let primaryClient: Client | null = null;
 /**
  * The database itself, bypassing the embedded replica: for the few small reads that must see another
@@ -2713,7 +2858,8 @@ export function primaryDb(): Client {
 /** Use a specific client (tests). */
 export function setDb(c: Client): void { client = c; }
 
-/** Per-connection settings: WAL and a 5 s busy wait on local files, foreign keys everywhere. */
+/** Per-connection settings: WAL and a 5 s busy wait on local files, foreign keys everywhere. A client from openDb
+ *  waits for the write lock with the event loop free first (patient), so the busy wait is only what's left. */
 export async function configure(c: Client = db()): Promise<void> {
   if ((!c.protocol || c.protocol === "file") && c !== replicaClient) { // a replica manages its own journal
     await c.execute("PRAGMA journal_mode = WAL");

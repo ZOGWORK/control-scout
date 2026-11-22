@@ -6,7 +6,8 @@
 // server says no). Matches the video showed with no clip (findings) are cards of chips too. Only Actionable events are
 // "To review"; "Not yet checked against the video" is a pending check, never reviewed. Bulk Reviewed (a category or a
 // season, confirmed with its count, audited) and the check pass in numbers are folded under "Bulk review and check
-// details". Nothing here changes a clip.
+// details". Nothing here changes a clip, except Waiting for approval on top (./AutoReadsPanel.tsx): the clip
+// autopilot's reads that broke a rule, for the owner to approve (live as read) or reject.
 import { Link } from "react-router-dom";
 import { Check, ChevronDown, CircleSlash, ExternalLink, Film, Play, X } from "lucide-react";
 import { Section, EmptyState } from "../page";
@@ -27,6 +28,7 @@ import { chipTone } from "../contributors/RecordingGaps";
 import { SEARCH_PALETTE } from "../../lib/textTones";
 import { hms, KIND, kindOf, kindTotals, MISS_KINDS, secondOf, type MissKind } from "./clipReview";
 import { cn } from "../cn";
+import { AutoReadsPanel } from "./AutoReadsPanel";
 
 const PATH = "/api/owner/clip-coverage";
 type List = CoverageTriage | "reviewed";
@@ -92,6 +94,7 @@ export function ClipCoveragePanel() {
         const shown = list === "reviewed" ? d.reviewed : d.categories[list];
         return (
           <div className="grid gap-5">
+            <AutoReadsPanel />
             <Progress d={d} />
             <ListTiles d={d} list={list} onList={(k) => { setList(k); setOnly(null); done(); }} />
             <ReasonTiles p={d.lastPass} only={only} onOnly={setOnly} />
@@ -147,7 +150,7 @@ function Progress({ d }: { d: OwnerClipCoverage }) {
       <p className="text-xs text-muted-foreground" data-coverage-pending>
         {p ? <>Checked {ago(p.at)}</> : "No check pass yet: the next one runs within 5 minutes"}
         {p?.pending != null && <> · <span className="tabular-nums font-medium text-text-base">{n(p.pending)}</span> waiting for their video check
-          {moved != null && moved !== 0 && <span className={cn("ml-1 font-medium tabular-nums", moved > 0 ? "text-success" : "text-text-muted")}>{moved > 0 ? `↓ ${n(moved)}` : `↑ ${n(-moved)}`}</span>}</>}
+          {moved != null && moved !== 0 && <span className={cn("ml-1 font-medium tabular-nums", moved > 0 ? "text-success v8:text-emerald-400" : "text-text-muted")}>{moved > 0 ? `↓ ${n(moved)}` : `↑ ${n(-moved)}`}</span>}</>}
       </p>
     </div>
   );
@@ -381,7 +384,7 @@ function Details({ e }: { e: OwnerCoverageEvent }) {
             <li key={v.videoId}>
               <a href={watchUrl(v.videoId)} target="_blank" rel="noreferrer noopener" title={v.why ?? v.basis}
                 className={cn("inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 hover:underline", TOUCH, tone === "short" ? "border-warning/50 bg-warning/[0.07]" : "border-line")}>
-                {tone === "done" && <Check className="size-3.5 text-success" aria-hidden />}
+                {tone === "done" && <Check className="size-3.5 text-success v8:text-emerald-400" aria-hidden />}
                 {v.label} <span className="tabular-nums">{v.clipped}/{v.matches}</span><ExternalLink className="size-3" aria-hidden />
               </a>
             </li>

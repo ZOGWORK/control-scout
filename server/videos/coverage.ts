@@ -356,18 +356,23 @@ export async function eventClipCoverage(season: number, code: string, now = Date
   return clipCoverage(rows.get(code) ?? [], recs.get(code) ?? null, full.get(code) ?? null, ev.timezone, now);
 }
 
+/** How many events' matches eventMatchRows reads at a time. The driver reads synchronously on the server's one thread:
+ *  200 events' matches and their teams (a busy season's 10,000-odd matches, 40,000-odd team rows) held it for up to
+ *  0.6 s a read in the clip coverage check's first pass after every deploy (every event checked, 2026-11-22). A part
+ *  of 10 is a few hundred matches, tens of milliseconds; the reads let the loop turn between them (db.ts busyTurn). */
+export const MATCH_ROWS_PART = 10;
+
 /** Matches as coverage reads them, for some events of a season (by code), with their teams. */
 export async function eventMatchRows(season: number, codes: string[]): Promise<Map<string, CoverageInput[]>> {
   const out = new Map<string, CoverageInput[]>();
-  for (let i = 0; i < codes.length; i += 200) {
-    const part = codes.slice(i, i + 200), q = part.map(() => "?").join(",");
-    const [rows, teams] = await Promise.all([
-      all<{ code: string; level: string; series: number; number: number; label: string; time: string | null; played: number; video: string | null; timezone: string | null }>(
+  for (let i = 0; i < codes.length; i += MATCH_ROWS_PART) {
+    const part = codes.slice(i, i + MATCH_ROWS_PART), q = part.map(() => "?").join(",");
+    // One after the other: started together, both reads wait for the same turn of the loop and then run in it.
+    const rows = await all<{ code: string; level: string; series: number; number: number; label: string; time: string | null; played: number; video: string | null; timezone: string | null }>(
         `SELECT m.code, m.level, m.series, m.number, m.label, m.time, m.played, m.video, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
-         WHERE m.season = ? AND m.code IN (${q}) ORDER BY m.code, m.time, m.level DESC, m.series, m.number`, [season, ...part]),
-      all<{ code: string; level: string; series: number; number: number; team: number }>(
-        `SELECT code, level, series, number, team FROM match_teams WHERE season = ? AND code IN (${q}) ORDER BY alliance DESC, station`, [season, ...part]),
-    ]);
+         WHERE m.season = ? AND m.code IN (${q}) ORDER BY m.code, m.time, m.level DESC, m.series, m.number`, [season, ...part]);
+    const teams = await all<{ code: string; level: string; series: number; number: number; team: number }>(
+      `SELECT code, level, series, number, team FROM match_teams WHERE season = ? AND code IN (${q}) ORDER BY alliance DESC, station`, [season, ...part]);
     const byMatch = new Map<string, number[]>();
     for (const t of teams) { const k = `${t.code}|${t.level}:${t.series}:${t.number}`; (byMatch.get(k) ?? byMatch.set(k, []).get(k)!).push(Number(t.team)); }
     for (const r of rows) {

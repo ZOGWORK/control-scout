@@ -47,9 +47,12 @@ export function markDirect(query: string) { marked = { q: norm(query), at: Date.
 /** /search's side (src/pages/SearchPage.tsx): a new query is asked at once (it was submitted, not typed: no typing
  *  pause), and a query marked by a box goes on to the one page it names once the page's own answer for it is in
  *  (`live`: answered by this page's request, never the first paint's hits it may open with). True while that's
- *  pending: the page keeps its loading screen rather than flash results it may leave. */
-export function useSubmittedSearch(query: string, s: { answer: SearchAnswer | undefined; live: boolean; error: string | null; searchNow: () => void }) {
-  const { answer, live, error, searchNow } = s;
+ *  pending: the page keeps its loading screen rather than flash results it may leave.
+ *  `seeded`: the page already has these words' answer on screen (the search box's handoff, ./handoff.ts, or a first
+ *  paint's hits), which the box itself read before sending the query here and found no single page in. Nothing is
+ *  waited for then: the page shows what it has, and never goes on to a page it already knew these words don't name. */
+export function useSubmittedSearch(query: string, s: { answer: SearchAnswer | undefined; live: boolean; error: string | null; searchNow: () => void; seeded?: boolean }) {
+  const { answer, live, error, searchNow, seeded } = s;
   const nav = useNavigate();
   const mark = useSyncExternalStore(subscribe, markedNow, () => null);
   const q = norm(query);
@@ -64,8 +67,10 @@ export function useSubmittedSearch(query: string, s: { answer: SearchAnswer | un
   useEffect(() => {
     if (!mine || !(live || error)) return;
     setClaim(null);
+    // The answer was already read where the query was typed: it named no one page to open.
+    if (seeded) return;
     const d = live ? directHit(answer, query) : null;
     if (d) nav(hitHref(d), { replace: true });
-  }, [mine, live, error, answer, query, nav]);
-  return mine && !error && (!live || !!directHit(answer, query));
+  }, [mine, seeded, live, error, answer, query, nav]);
+  return !seeded && mine && !error && (!live || !!directHit(answer, query));
 }

@@ -88,7 +88,7 @@ function FileRow({ f }: { f: PackFileRow }) {
         <code className="min-w-0 flex-1 break-all rounded-md bg-muted/50 px-2 py-1 font-mono text-[11px] leading-relaxed text-muted-foreground" aria-label={`SHA-256 of ${title}`}>{f.sha256}</code>
         <button type="button" onClick={() => void copy()} aria-label={`Copy SHA-256 of ${title}`}
           className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:border-accent/50 hover:text-foreground">
-          {copied ? <Check className="size-4 text-success" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+          {copied ? <Check className="size-4 text-success v8:text-emerald-400" aria-hidden /> : <Copy className="size-4" aria-hidden />}
         </button>
       </div>
     </li>

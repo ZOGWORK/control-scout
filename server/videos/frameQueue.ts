@@ -7,10 +7,14 @@
 // frame read can place: that video hasn't been read for this event yet (or its read couldn't play it), or it was read
 // on or before the event's last day, while matches could still be coming (read again once, after the event). The
 // current season's events go first, then any event with an official video added in the last week, then the rest; the
-// most missing first within each (rankQueue). A match no frame read can help (no video, a private one, no real start time from FIRST) never
+// most missing first within each (rankQueue). An event read after it ended whose rows hold a review entry not yet given
+// the autopilot's second look (secondLookDue: frames a few seconds after it, scripts/lib/reviewRecheck.ts) is due for
+// that look alone (`recheck`), once: the look marks what it couldn't settle (`again`). A match no frame read can help (no video, a private one, no real start time from FIRST) never
 // queues: its reason stands as it is.
 import { all, busyTurn } from "../db.js";
 import { WHY, videoCheck } from "./coverage.js";
+import { frameRow } from "../data/frameTimings.js";
+import { SAME_S, secondLookDue } from "../data/frameRowRules.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import type { CoverageFrames, CoverageMatch, CoverageReason, FrameQueueSummary } from "../../src/shared/api.js";
@@ -23,8 +27,11 @@ const FACTS_PENDING: CoverageReason = "video-unread";
 /** One event as the queue reads it: its last day (YYYY-MM-DD, the venue's), the venue's time zone, and its missing
  *  matches with their video checks. */
 export interface QueueEvent { season: number; code: string; name: string; end: string | null; timezone?: string | null; missing: CoverageMatch[] }
-/** An event's place with the frame reader, before ranking: `due`, the missing matches a read could place now. */
-export interface FrameStatus extends CoverageFrames { due: number }
+/** An event's place with the frame reader, before ranking: `due`, the missing matches a read could place now;
+ *  `recheck`, those of them due only the second look at their review entry (the reader's --recheck). */
+export interface FrameStatus extends CoverageFrames { due: number; recheck?: number }
+/** Whether the owner rejected a review entry at its second (review_decisions): never looked at again for it. */
+export type Rejected = (videoId: string, code: string, label: string, t: number) => boolean;
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "es"}`;
 /** The UTC date of a moment, YYYY-MM-DD: the calendar a read's `checked` date is written in. */
@@ -41,8 +48,23 @@ function lastUtcDay(end: string, timezone: string | null | undefined): string {
  *  of both (betweenCheck) stands. */
 const checkedOf = (m: CoverageMatch, code: string) => (m.videoId ? videoCheck(m.videoId, code, m.label, []).checked : m.video?.checked) ?? null;
 
+/** Whether a match's video was read for this event with starts placed but its edges (opensOn, endsOn: the proof that a
+ *  match was played before the recording starts or after it ends) not both read yet. Off the frame rows as the site
+ *  serves them (the code's, with the autopilot's live database rows laid over: setAutoFrameRows), so edges read since
+ *  count at once. */
+const lacksEdges = (m: CoverageMatch, code: string) => {
+  const row = m.videoId ? frameRow(m.videoId, code) : null;
+  return !!row && Object.keys(row.starts).length > 0 && (!row.opensOn || !row.endsOn);
+};
+
+/** Whether a match's video row holds its review entry due the second look (secondLookDue), not rejected by the owner. */
+const recheckDue = (m: CoverageMatch, code: string, rejected?: Rejected) => {
+  const row = m.videoId ? frameRow(m.videoId, code) : null;
+  return !!row && secondLookDue(row, m.label) && !rejected?.(m.videoId!, code, m.label, Math.round(row.review![m.label].t));
+};
+
 /** How one missing match stands with the frame reader. */
-function matchState(m: CoverageMatch, checked: string | null, last: string | null): "unreadable" | "facts" | "unread" | "stale" | "read" {
+function matchState(m: CoverageMatch, checked: string | null, last: string | null, code: string, rejected?: Rejected): "unreadable" | "facts" | "unread" | "stale" | "edges" | "recheck" | "read" {
   const reason = m.reason ?? "unexplained";
   // Between two recordings it has no video of its own, only its check of both.
   const between = reason === "between-recordings" && !!m.video;
@@ -52,18 +74,24 @@ function matchState(m: CoverageMatch, checked: string | null, last: string | nul
   // Read on or before the UTC day the event's last day ends on: matches played after that read may not be in it. The
   // queue only reads after that day (frameStatus), so a read it makes settles: never read twice for this.
   // No last day known: the event may still be on, so no read of it is taken as after it.
-  return !last || checked.slice(0, 10) <= last ? "stale" : "read";
+  if (!last || checked.slice(0, 10) <= last) return "stale";
+  // Read after the event, but its video's edges never were: the autopilot's --bounds pass could still show it played
+  // outside the recording. Due until both are in; an edge no read finds leaves the row as it was, so the autopilot's
+  // retry and give-up counts (pickEvents, scripts/lib/autopilotRun.ts) keep it from being read forever.
+  // Read after the event, edges in, but the frames held it for review and the second look at it hasn't been taken:
+  // due for that look alone (once: it marks what it couldn't settle).
+  return lacksEdges(m, code) ? "edges" : recheckDue(m, code, rejected) ? "recheck" : "read";
 }
 
 /** Where one event stands with the frame reader (not yet ranked): queued, waiting for the event to end or for its
  *  video's facts, read (with what's still missing), or nothing a read can fix. */
-export function frameStatus(e: QueueEvent, now = Date.now()): FrameStatus {
+export function frameStatus(e: QueueEvent, now = Date.now(), rejected?: Rejected): FrameStatus {
   // The last day: the event's own, else its latest missing match's.
   const end = e.end ?? e.missing.map((m) => m.date).filter((d): d is string => !!d).sort().at(-1) ?? null;
   const last = end ? lastUtcDay(end, e.timezone) : null;
-  const states = e.missing.map((m) => { const checked = checkedOf(m, e.code); return { m, checked, s: matchState(m, checked, last) }; });
+  const states = e.missing.map((m) => { const checked = checkedOf(m, e.code); return { m, checked, s: matchState(m, checked, last, e.code, rejected) }; });
   const n = (s: string) => states.filter((x) => x.s === s).length;
-  const due = n("unread") + n("stale"), readable = due + n("read") + n("facts");
+  const due = n("unread") + n("stale") + n("edges") + n("recheck"), readable = due + n("read") + n("facts");
   if (!readable) {
     const top = topReason(e.missing);
     return { state: "unreadable", matches: 0, due: 0, why: `Nothing a frame read can place${top ? `: ${top}` : ""}` };
@@ -72,8 +100,10 @@ export function frameStatus(e: QueueEvent, now = Date.now()): FrameStatus {
   if (due && !last) return { state: "waiting", matches: due, due: 0, why: `Waits for the event's last day to be known: ${plural(due, "match")} to read then` };
   if (due && last && last >= utcDay(now)) return { state: "waiting", matches: due, due: 0, why: `Waits for the event to finish (last day ${end}): ${plural(due, "match")} to read then` };
   if (due) {
-    const stale = n("stale");
-    return { state: "queued", matches: due, due, why: `Queued for a frame read: ${plural(due, "match")}${stale === due ? ", read before the event finished" : stale ? ` (${stale} read before the event finished)` : ""}` };
+    const stale = n("stale"), edges = n("edges"), recheck = n("recheck");
+    const notes = [stale ? `${stale} read before the event finished` : "", edges ? `${edges} in a video whose first and last frames aren't read yet` : "", recheck ? `${recheck} held for review, not looked at again yet` : ""].filter(Boolean);
+    const said = stale === due ? ", read before the event finished" : edges === due ? ", its video's first and last frames not read yet" : recheck === due ? ", held for review: a second look at the frames after each" : notes.length ? ` (${notes.join("; ")})` : "";
+    return { state: "queued", matches: due, due, ...(recheck ? { recheck } : {}), why: `Queued for a frame read: ${plural(due, "match")}${said}` };
   }
   // A video whose facts aren't in yet is still to read, whatever the event's other videos showed.
   if (n("facts")) return { state: "waiting", matches: n("facts"), due: 0, why: `Waits for YouTube's facts for its video: ${plural(n("facts"), "match")}${n("read") ? ` (${n("read")} more read, no clip)` : ""}` };
@@ -118,6 +148,12 @@ export async function frameQueue(now = Date.now(), read: Read = all): Promise<{ 
        (SELECT MAX(o.added_at) FROM official_videos o WHERE o.season = c.season AND o.code = c.code AND o.removed_at IS NULL) AS added
      FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
      WHERE c.with_clip < c.played AND c.state != 'none'`);
+  // Review entries the owner rejected, at their second: never queued for a second look.
+  const no = new Map<string, number>();
+  try {
+    for (const d of await read<{ video_id: string; code: string; label: string; t: number }>("SELECT video_id, code, label, t FROM review_decisions WHERE decision = 'rejected'")) no.set(`${d.video_id}|${d.code}|${d.label}`, Number(d.t));
+  } catch (e) { if (!/no such table/i.test((e as Error).message)) throw e; }
+  const rejected: Rejected = (videoId, code, label, t) => { const x = no.get(`${videoId}|${code}|${label}`); return x != null && Math.abs(x - t) <= SAME_S; };
   const out: { season: number; code: string; name: string; added: string | null; frames: FrameStatus }[] = [];
   for (let i = 0; i < rows.length; i++) {
     // Parsing hundreds of missing lists is work between reads: let other requests in as it goes.
@@ -126,7 +162,7 @@ export async function frameQueue(now = Date.now(), read: Read = all): Promise<{ 
     let missing: CoverageMatch[] = [];
     try { missing = (JSON.parse(String(r.detail)) ?? {}).missing ?? []; } catch { /* an unreadable detail: nothing to queue */ }
     const e: QueueEvent = { season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), end: r.end ?? null, timezone: r.timezone ?? null, missing };
-    out.push({ season: e.season, code: e.code, name: e.name, added: r.added ? String(r.added) : null, frames: frameStatus(e, now) });
+    out.push({ season: e.season, code: e.code, name: e.name, added: r.added ? String(r.added) : null, frames: frameStatus(e, now, rejected) });
   }
   rankQueue(out, now);
   return out;

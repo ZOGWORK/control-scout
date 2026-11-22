@@ -1,6 +1,7 @@
 // /api/owner/official-videos/*: Owner › Official videos (behind the owner gate in server/portal/routes.ts): the
 // auto-watcher's review queue, its runs and quota, and the watched channels. Every decision is audited where it's
-// made (./officialWatch.ts).
+// made (./officialWatch.ts). /api/owner/clip-coverage and /api/owner/auto-reads: Owner › Clip coverage, with the clip
+// autopilot's reads waiting for approval (./autoReads.ts).
 import type { NextFunction, Request, Response, Router } from "express";
 import { isEventCodeParam } from "../../src/shared/eventCode.js";
 import { markCoverageBulkReviewed, markCoverageReviewed, openCoverageCount, ownerClipCoverage, TRIAGES } from "./coverageCheck.js";
@@ -8,6 +9,8 @@ import type { CoverageTriage } from "../../src/shared/api.js";
 import { approveWatched, ownerOfficial, pendingCount, rejectWatched, removeChannel, removeOfficial, runNow, saveChannel } from "./officialWatch.js";
 import { dismissFinding, ownerAudit, queueFinding, runChannelAudit } from "./officialAudit.js";
 import { deleteManualStart, manualStarts, setManualStart } from "./manualStarts.js";
+import { approveAutoRead, approveReview, ownerAutoReads, pendingAutoReadCount, rejectAutoRead, rejectReview } from "./autoReads.js";
+import { addEventRecording, ownerEventRecordings, removeEventRecording, replaceEventRecording } from "./ownerRecordings.js";
 
 type H = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => void;
 const str = (v: unknown, max = 300) => (typeof v === "string" ? v.trim().slice(0, max) : "");
@@ -36,7 +39,21 @@ export function clipCoverageOwnerRoutes(r: Router, h: H, actor: (req: Request) =
     if (out.status === "changed") { res.status(409).json({ error: `The list changed since you confirmed: ${out.count} now. Look again.`, count: out.count }); return; }
     return { marked: out.count, ...(await ownerClipCoverage()) };
   }));
-  r.get("/clip-coverage/counts", h(async () => ({ open: await openCoverageCount() })));
+  r.get("/clip-coverage/counts", h(async () => ({ open: await openCoverageCount(), approvals: await pendingAutoReadCount() })));
+  // The clip autopilot's reads waiting for approval (server/videos/autoReads.ts): the list; Approve (live as read) and
+  // Reject (dropped), each { kind, videoId, code, pendingAt } for the read the owner saw, answered with the list.
+  r.get("/auto-reads", h(async () => ownerAutoReads()));
+  const decide = (fn: typeof approveAutoRead) => h(async (req, res) => {
+    const out = await fn(req.body ?? {}, actor(req));
+    if (!out.ok) { res.status(out.status).json({ error: out.error }); return; }
+    return ownerAutoReads();
+  });
+  r.post("/auto-reads/approve", decide(approveAutoRead));
+  r.post("/auto-reads/reject", decide((b, a) => rejectAutoRead(b, a)));
+  // A frame row's review entry (a match the frames saw at second t, kept off the site), { videoId, code, label, t }:
+  // Approve makes t its clip start (owner-approved), Reject stops listing it.
+  r.post("/auto-reads/review/approve", decide((b, a) => approveReview(b, a)));
+  r.post("/auto-reads/review/reject", decide((b, a) => rejectReview(b, a)));
   r.post("/clip-coverage/:season/:code/reviewed", h(async (req, res) => {
     const season = Number(req.params.season), code = String(req.params.code), version = str(req.body?.version, 64);
     if (!Number.isInteger(season) || !isEventCodeParam(code)) { res.status(400).json({ error: "Not an event." }); return; }
@@ -101,4 +118,28 @@ export function officialVideoOwnerRoutes(r: Router, h: H, actor: (req: Request) 
     void runChannelAudit(log).catch((e) => log(`official videos: audit: ${(e as Error).message}`));
     return { run: out.run, ...(await full()) };
   }));
+}
+
+/** /api/owner/event-recordings/:season/:code: the owner's corrections to an event's recordings from its own page
+ *  (server/videos/ownerRecordings.ts). GET lists; POST add { video, day }, replace { from, video, day }, remove
+ *  { videoId }. Each answers with the event's list again, and is audited where it's made. */
+export function eventRecordingOwnerRoutes(r: Router, h: H, actor: (req: Request) => string): void {
+  const event = (req: Request) => ({ season: Number(req.params.season), code: String(req.params.code).toUpperCase() });
+  r.get("/event-recordings/:season/:code", h(async (req, res) => {
+    const { season, code } = event(req);
+    const out = Number.isInteger(season) && isEventCodeParam(code) ? await ownerEventRecordings(season, code) : null;
+    if (!out) { res.status(404).json({ error: "No such event." }); return; }
+    return out;
+  }));
+  type Change = (season: number, code: string, body: Record<string, unknown>, who: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  const change = (fn: Change) => h(async (req, res) => {
+    const { season, code } = event(req);
+    if (!Number.isInteger(season) || !isEventCodeParam(code)) { res.status(400).json({ error: "Not an event." }); return; }
+    const out = await fn(season, code, req.body ?? {}, actor(req));
+    if (!out.ok) { res.status(400).json({ error: out.error }); return; }
+    return ownerEventRecordings(season, code);
+  });
+  r.post("/event-recordings/:season/:code/add", change(addEventRecording));
+  r.post("/event-recordings/:season/:code/replace", change(replaceEventRecording));
+  r.post("/event-recordings/:season/:code/remove", change(removeEventRecording));
 }

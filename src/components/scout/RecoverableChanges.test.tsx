@@ -9,6 +9,7 @@ import { resetCommentAttempts, sendComment } from "../../lib/commentAttempts";
 import { announceComment, announceCommentsResync, COMMENT_NOT_ARRIVED, COMMENT_UNCONFIRMED, CommentWriteError } from "../../lib/scoutComments";
 import { isScoutQueued, localScoutEntries, saveScoutEntry, syncScouting } from "../../lib/scouting";
 import { RecoverableChanges } from "./RecoverableChanges";
+import { checkInternet, resetConnection } from "../../lib/connection";
 
 vi.mock("../ui/sonner", () => ({ toast: Object.assign(() => undefined, { error: () => undefined, warning: () => undefined }) }));
 
@@ -256,12 +257,13 @@ describe("RecoverableChanges: queued entries", () => {
 
   it("offline: listed calmly as waiting (it goes up by itself)", async () => {
     saveScoutEntry({ uuid: "eeeeeeeeeeee", ...base, workspaceId: "901" });
-    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
-    // Really no signal: the sync is tried (navigator.onLine is only a hint) and fails.
+    // Really no signal: the connection check finds none, and the sync is still tried and fails.
     const real = globalThis.fetch;
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    expect(await checkInternet()).toBe("no");
     await syncScouting("901").catch(() => undefined);
     vi.stubGlobal("fetch", real);
+    resetConnection();
     render(<RecoverableChanges account={1} workspaces={WS} />);
     expect(view()!.textContent).toContain("Waiting for a connection");
     expect(view()!.className).not.toMatch(/warning/);

@@ -13,6 +13,8 @@ import { asGiven, asOfDate, conferenceHref, CONFERENCE_LABEL, ordinal, type Conf
 import { leagueTitle } from "../shared/leagues";
 import { Move, TrendBadge, active, idle, trigger } from "../pages/RankingsPage";
 import type { MoverItem, NewItem } from "./rankings/MoverCards";
+import { V8_NUM } from "../lib/v8";
+import { v8Medal } from "./rankings/v8";
 
 export const CONFERENCE_PAGE = 50;
 
@@ -132,15 +134,16 @@ export function ConferenceTable({ c, team }: { c: Conference; team: number | nul
     setPage(0);
   };
   if (!ranked.length) {
-    return <p className="rounded-xl border border-border bg-card p-3 text-sm" data-conference-empty>{!c.rows.length ? "No teams are listed for this tournament yet." : c.rs.kind === "gone" ? "The league standing these teams went in with can't be read any more: they're listed below." : "No team in this conference has a league standing yet: they're listed below."}</p>;
+    return <p className="rounded-xl border border-border bg-card p-3 text-sm v8:border-line v8:text-text-muted" data-conference-empty>{!c.rows.length ? "No teams are listed for this tournament yet." : c.rs.kind === "gone" ? "The league standing these teams went in with can't be read any more: they're listed below." : "No team in this conference has a league standing yet: they're listed below."}</p>;
   }
   return (
     <div className="space-y-2">
-      <div className="custom-scrollbar overflow-x-auto rounded-xl border border-border bg-card" data-conference-table>
+      {/* v8: the table is the page: no box, a quiet head on a hairline, 44px rows. */}
+      <div className="custom-scrollbar overflow-x-auto rounded-xl border border-border bg-card v8:rounded-none v8:border-0 v8:bg-transparent" data-conference-table>
         <table className="w-full text-sm">
           <caption className="sr-only">{c.name}: {CONFERENCE_LABEL}</caption>
-          <thead className="bg-card">
-            <tr className="border-b border-border">
+          <thead className="bg-card v8:bg-background">
+            <tr className="border-b border-border v8:h-11 v8:border-ink/[0.12]">
               <Th k="rank" sort={sort} pick={pick} label="Rank" title="Rank among this conference's teams, in FIRST's league order; the league rank under it" />
               <th scope="col" className={cn(TH, "text-left")}>Team</th>
               <Th k="rs" sort={sort} pick={pick} label="RS" title="Ranking score: FIRST's first sort key, over the league meets" />
@@ -161,14 +164,14 @@ export function ConferenceTable({ c, team }: { c: Conference; team: number | nul
               const href = `/teams/${r.team}?season=${c.season}`;
               return (
                 <tr key={r.team} data-marked={mine ? "" : undefined} aria-current={mine ? "true" : undefined} data-team={r.team}
-                  className={cn("border-b border-border last:border-b-0", mine && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)]")}>
-                  <td className={cn(TD, "text-right tabular-nums")} data-rank>
+                  className={cn("border-b border-border last:border-b-0 v8:h-11 v8:border-ink/[0.08] v8:transition-colors v8:duration-150 v8:hover:bg-ink/[0.03]", mine && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)] v8:bg-ink/[0.05] v8:shadow-[inset_2px_0_0_var(--color-text-base)]")}>
+                  <td className={cn(TD, "text-right tabular-nums", r.rank != null && r.rank <= 3 && cn("v8:font-medium", v8Medal(r.rank)))} data-rank>
                     <span className="max-sm:hidden">{ordinal(r.rank!)} in conference</span><span className="sm:hidden">{ordinal(r.rank!)}</span>
-                    {r.leagueRank != null && <span className="block text-[11px] font-normal text-muted-foreground"><span className="max-sm:hidden">{ordinal(r.leagueRank)} in league</span><span className="sm:hidden">{ordinal(r.leagueRank)} lg</span></span>}
+                    {r.leagueRank != null && <span className="block text-[11px] font-normal text-muted-foreground v8:text-[0.6875rem] v8:leading-3 v8:text-text-faint"><span className="max-sm:hidden">{ordinal(r.leagueRank)} in league</span><span className="sm:hidden">{ordinal(r.leagueRank)} lg</span></span>}
                   </td>
                   <td className={cn(TD, "max-w-[16rem] truncate max-sm:max-w-[9rem]")}>
                     <span className="sm:hidden"><TeamNumber team={r.team} name={r.name ?? ""} href={href} /></span>
-                    <Link to={href} className="hover:underline max-sm:hidden"><span className="font-mono font-medium tabular-nums">{r.team}</span> <span className={cn(!mine && "text-muted-foreground")}>{r.name}</span></Link>
+                    <Link to={href} className="hover:underline max-sm:hidden"><span className={cn("font-mono font-medium tabular-nums v8:font-sans", !mine && V8_NUM)}>{r.team}</span> <span className={cn(!mine && "text-muted-foreground")}>{r.name}</span></Link>
                     {r.registered === "pending" && <span className="ml-1 text-xs font-normal text-muted-foreground">(waitlist)</span>}
                   </td>
                   <td className={cn(TD, "text-right tabular-nums")}>{asGiven(r.rs) ?? "—"}</td>
@@ -189,7 +192,7 @@ export function ConferenceTable({ c, team }: { c: Conference; team: number | nul
       </div>
       {pages > 1 && (
         <nav className="flex items-center justify-between gap-3" aria-label="Conference table pages">
-          <p className="text-sm text-text-muted">{page * CONFERENCE_PAGE + 1}–{Math.min(rows.length, (page + 1) * CONFERENCE_PAGE)} of {rows.length}</p>
+          <p className="text-sm tabular-nums text-text-muted v8:text-text-faint">{page * CONFERENCE_PAGE + 1}–{Math.min(rows.length, (page + 1) * CONFERENCE_PAGE)} of {rows.length}</p>
           <div className="flex items-center gap-2">
             <button type="button" className={NAV} disabled={page <= 0} onClick={() => setPage(page - 1)}><ChevronLeft className="size-4" />Previous</button>
             <span className="px-1 text-sm tabular-nums text-text-muted">{page + 1} / {pages}</span>
@@ -209,12 +212,12 @@ export function ConferenceUnranked({ c, team }: { c: Conference; team: number | 
   const label = c.rs.kind === "gone" ? "Not available — the going-in standing can't be read any more" : "Not ranked yet — no league meets played";
   return (
     <section aria-labelledby="conference-unranked" className="space-y-2" data-conference-unranked>
-      <h2 id="conference-unranked" className="font-display text-lg font-semibold">{c.rs.kind === "gone" ? "Standing not available" : "Not ranked yet"} ({none.length})</h2>
+      <h2 id="conference-unranked" className="font-display text-lg font-semibold v8:font-sans v8:text-base">{c.rs.kind === "gone" ? "Standing not available" : "Not ranked yet"} ({none.length})</h2>
       <ul className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2 lg:grid-cols-3">
         {none.map((r) => (
           <li key={r.team} data-team={r.team} data-marked={r.team === team ? "" : undefined} className={cn("flex min-w-0 flex-col", r.team === team && "font-semibold")}>
-            <Link to={`/teams/${r.team}?season=${c.season}`} className="truncate hover:underline"><span className="font-mono tabular-nums">{r.team}</span> {r.name ?? ""}{r.registered === "pending" ? " (waitlist)" : ""}</Link>
-            <span className="text-xs font-normal text-text-muted" data-unranked>{label}</span>
+            <Link to={`/teams/${r.team}?season=${c.season}`} className="truncate hover:underline"><span className={cn("font-mono tabular-nums v8:font-sans", V8_NUM)}>{r.team}</span> {r.name ?? ""}{r.registered === "pending" ? " (waitlist)" : ""}</Link>
+            <span className="text-xs font-normal text-text-muted v8:text-text-faint" data-unranked>{label}</span>
           </li>
         ))}
       </ul>
@@ -222,17 +225,18 @@ export function ConferenceUnranked({ c, team }: { c: Conference; team: number | 
   );
 }
 
-const TH = "h-9 whitespace-nowrap px-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-text-muted max-sm:px-1.5";
+const TH = "h-9 whitespace-nowrap px-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint max-sm:px-1.5";
 const TD = "whitespace-nowrap px-2.5 py-1.5 max-sm:px-1.5";
-const NAV = "inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-card px-3 text-sm font-medium hover:border-text-base/25 disabled:pointer-events-none disabled:opacity-40 max-sm:h-10";
+const NAV = "inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-card px-3 text-sm font-medium hover:border-text-base/25 disabled:pointer-events-none disabled:opacity-40 max-sm:h-10 max-sm:v8:h-11 v8:border-ink/[0.12] v8:bg-transparent v8:transition-[background-color,scale] v8:duration-150 v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
 
 function Th({ k, sort, pick, label, title, border }: { k: SortKey; sort: { key: SortKey; dir: "asc" | "desc" }; pick: (k: SortKey) => void; label: string; title: string; border?: boolean }) {
   const on = sort.key === k;
   const Arrow = on ? (sort.dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
   return (
     <th scope="col" aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className={cn(TH, border && "border-l border-border")}>
-      <button type="button" onClick={() => pick(k)} title={title} className="group inline-flex items-center gap-1 uppercase hover:text-text-base">
-        {label}<Arrow className={cn("size-3", !on && "opacity-40")} />
+      {/* v8: the picked sort is the slate-blue head; the others stay faint. */}
+      <button type="button" onClick={() => pick(k)} title={title} className={cn("group inline-flex items-center gap-1 uppercase hover:text-text-base v8:min-h-11 v8:normal-case v8:transition-colors v8:duration-150", on && "v8:text-accent")}>
+        {label}<Arrow className={cn("size-3", !on && "opacity-40 v8:opacity-0 v8:group-hover:opacity-60 v8:pointer-coarse:opacity-40")} />
       </button>
     </th>
   );

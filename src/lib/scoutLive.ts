@@ -16,6 +16,7 @@
 //   every (re)connect (`ready`) and every poll, open threads and the counts
 //   refetch instead (anything said while away comes with them).
 import { useEffect, useState } from "react";
+import { onBackOnline } from "./connection";
 import { ACCOUNT_STALE, applyLiveEntries, notifyScoutChanged, pullScouting, scoutCursor, type ScoutEntry, type ScoutSpace } from "./scouting";
 import { announceTemplateChange } from "./scoutTemplates";
 import { announceSettingsChange } from "./workspaceSettings";
@@ -204,7 +205,7 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
     if (stopped) return;
     flushPendingNow();
     stopped = true;
-    window.removeEventListener("online", online);
+    offBack();
     close(); stopPolling(); clearRetry();
     setMode("revoked");
   }
@@ -212,11 +213,11 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
   function flushPendingNow() { if (flushTimer) { clearTimeout(flushTimer); flush(); } }
 
   const online = () => { if (!stopped && !es) { failures = 0; clearRetry(); connect(); } };
-  window.addEventListener("online", online);
+  const offBack = onBackOnline(online); // the online event, or the connection check finding internet again
   connect();
   return () => {
     stopped = true;
-    window.removeEventListener("online", online);
+    offBack();
     flushPendingNow();
     close(); clearRetry(); stopPolling();
     setMode("off");

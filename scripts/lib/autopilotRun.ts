@@ -1,7 +1,8 @@
 // The clip autopilot's choices (scripts/clip-autopilot.ts), kept apart so they're tested: which queued events a run
-// reads, when an event that gave nothing new is tried again, and what a data PR says (its CHANGELOG entry).
+// reads, and when an event that gave nothing new is tried again.
 import { playableStarts } from "../../server/data/frameTimings.js";
-import { rowKey, type Keyed, type Row } from "./autopilotRows.js";
+import { rowKey, type Row } from "./autopilotRows.js";
+export { nothingRead } from "../../server/data/frameRowRules.js";
 
 /** What the runner remembers of each event between runs (by "season/code"): how often it read it with nothing new to
  *  ship, and when it last tried. */
@@ -12,16 +13,19 @@ export type Memory = Record<string, EventMemory>;
  *  left (said in the run's log and the owner console's own reasons) until its recording or matches change. */
 export const RETRY_MS = 3 * 24 * 3600_000;
 export const GIVE_UP = 3;
-/** An event whose good rows waited (they touch an open PR's lines, or didn't fit this run's PRs) is read again after
- *  WAIT_MS, doubling with each wait in a row up to RETRY_MS: the PR in its way usually merges within hours, and the
- *  waits never count toward GIVE_UP (its rows were good). */
+/** An event whose good rows waited (another session's open PR carries the event) is read again after WAIT_MS,
+ *  doubling with each wait in a row up to RETRY_MS: the PR in its way usually merges within hours, and the waits never
+ *  count toward GIVE_UP (its rows were good). */
 export const WAIT_MS = 6 * 3600_000;
 export const waitBackoff = (waits: number) => Math.min(RETRY_MS, WAIT_MS * 2 ** Math.max(0, waits - 1));
 
-export interface Queued { season: number; code: string; name: string; frames: { state: string; due: number; rank?: number } }
+export interface Queued { season: number; code: string; name: string; frames: { state: string; due: number; rank?: number; recheck?: number } }
+/** An event queued only for the second look at its review entries (every match due is one: frameQueue's `recheck`):
+ *  read with --recheck alone, never read again whole for it. */
+export const recheckOnly = (q: Queued): boolean => !!q.frames.recheck && q.frames.recheck === q.frames.due;
 
-/** The events this run reads: queued ones, in the queue's order, not already in an open autopilot PR, not waiting out a
- *  retry, at most `max`. `skipped` says why each other queued event wasn't picked. */
+/** The events this run reads: queued ones, in the queue's order, not held (`inPr`: in another session's open PR, or
+ *  in a job a lane is reading), not waiting out a retry, at most `max`. `skipped` says why each other queued event wasn't picked. */
 export function pickEvents(queue: Queued[], inPr: Set<string>, memory: Memory, max: number, now = Date.now()): { picked: Queued[]; skipped: { event: string; why: string }[] } {
   const picked: Queued[] = [], skipped: { event: string; why: string }[] = [];
   const queued = queue.filter((q) => q.frames.state === "queued").sort((a, b) => (a.frames.rank ?? Infinity) - (b.frames.rank ?? Infinity));
@@ -39,7 +43,7 @@ export function pickEvents(queue: Queued[], inPr: Set<string>, memory: Memory, m
 }
 
 /** Several computers each run the autopilot on their own shard of the queue (--shard K/N), so no two read the same
- *  event or open PRs for it. An event ("season/code") is in shard FNV-1a(key) mod N: the same on every computer and
+ *  event. An event ("season/code") is in shard FNV-1a(key) mod N: the same on every computer and
  *  every run, whatever else is queued. */
 export function shardOf(key: string, n: number): number {
   let h = 0x811c9dc5;
@@ -53,18 +57,9 @@ export function parseShard(s: string | undefined): { k: number; n: number } | nu
   const k = Number(m[1]), n = Number(m[2]);
   return n >= 1 && k < n ? { k, n } : null;
 }
-/** The shard that keeps an open autopilot PR (rebuilds it, labels it, asks for its review): a frame-read PR's, that of
- *  its first event (its rows' "season/code", sorted), the one that opened it; a sweep PR's (no events of its own)
- *  shard 0's, the one that sweeps. */
-export function prShard(p: { season: number; rows: string[]; file?: string }, n: number): number {
-  if (p.file) return 0;
-  const events = p.rows.map((k) => `${p.season}/${k.split("|")[1]}`).sort();
-  return events.length ? shardOf(events[0], n) : 0;
-}
-
 /** A computer with no credentials (no gh, no VM key) that reads one shard for the computer that has them (--lanes
  *  "K=user@host,…" there): that one sends it a job (a snapshot and the events to read), collects what it read, and
- *  opens the PRs itself. Each lane's shard and ssh address, or why the list isn't one. */
+ *  hands the server what it read itself. Each lane's shard and ssh address, or why the list isn't one. */
 export interface Lane { k: number; host: string }
 export function parseLanes(s: string | undefined, shard: { k: number; n: number }): Lane[] | string {
   if (!s) return [];
@@ -83,15 +78,15 @@ export function parseLanes(s: string | undefined, shard: { k: number; n: number 
  *  trusted: its state only says which step comes next, checked against the coordinator's own record of the job. */
 export interface LaneState { state: "idle" | "queued" | "running" | "done" | "failed"; id?: string; at?: string; why?: string }
 /** A job the coordinator sent (its own record, .data/autopilot/lanes/<K>/job.json): never the lane's word for it. */
-export interface LaneJob { id: string; seasons: { season: number; codes: string[] }[] }
+export interface LaneJob { id: string; seasons: { season: number; codes: string[]; recheck?: string[] }[] }
 /** A job sent but not started within this long: the lane is started again. */
 export const LANE_KICK_MS = 3600_000;
 /** The longest a lane's run of `job` can take: per season, its read calls' own limits (two reads, those not read yet
- *  and those read again, each readCallMs of the season's events; 3 h each for --verify and --bounds), and an hour more.
+ *  and those read again, each readCallMs of the season's events; 3 h each for --verify, --bounds and --recheck), and an hour more.
  *  `limitOf`: an event's own read limit (eventLimitMs; unknown: 0, a day's call). A lane still "running" after that was
  *  killed (a reboot, a power cut) before it could say so: what it finished is collected, as for a failed job. */
 export const laneJobMs = (job: LaneJob, limitOf: (season: number, code: string) => number = () => 0) =>
-  job.seasons.reduce((s, x) => s + 2 * readCallMs(x.codes.map((c) => limitOf(x.season, c))) + 6 * 3600_000, 0) + 3600_000;
+  job.seasons.reduce((s, x) => s + 2 * readCallMs(x.codes.map((c) => limitOf(x.season, c))) + 9 * 3600_000, 0) + 3600_000;
 /** A job id the coordinator makes (its run's stamp): used in paths and commands, so nothing else is taken. */
 export const LANE_ID = /^[\w-]{1,64}$/;
 /** What the coordinator does with a lane this run, from its state file's text ("" when it has none) and the job it sent
@@ -207,8 +202,8 @@ export function rememberWait(memory: Memory, key: string, result: string, now = 
 }
 
 /** What became of one event's read this run, and so what the runner remembers of it (remember / rememberWait / nothing).
- *  `rows`: its good rows; `opened`: those a PR opened with; `waiting`: those that wait (prChunks later); `tooBig`: those
- *  no PR Loopy can review holds (the owner's). */
+ *  `rows`: its good rows (no problem against the live row); `opened`: those handed to the server (delivered);
+ *  `waiting`: those that wait (another open PR carries the event); `tooBig`: always 0 now that nothing ships as a PR. */
 export type Outcome = "shipped" | "waits" | "timed out" | "open failed" | "read failed" | "too big" | "nothing new";
 export function readOutcome(o: { rows: number; opened: number; waiting: number; tooBig: number; readFailed: boolean; timedOut?: boolean; changed?: number }): Outcome {
   if (o.opened) return "shipped";
@@ -220,29 +215,11 @@ export function readOutcome(o: { rows: number; opened: number; waiting: number; 
   return o.readFailed ? "read failed" : "nothing new";
 }
 
-/** Why an open autopilot PR is rebuilt on main (none: it's left as it is; never to renumber): it conflicts; main
- *  changed or removed one of its rows since it branched (`baseRows`: its file at the merge base, [] where it didn't
- *  exist); or it still carries a release file (`changedFiles`: its files changed since the merge base). */
-export function needsRebuild(o: { mergeable: string; want: Set<string>; baseRows: Keyed[]; mainRows: Keyed[]; changedFiles: string[]; releaseFiles: string[] }): string[] {
-  const was = new Map(o.baseRows.map((r) => [rowKey(r), JSON.stringify(r)])), now = new Map(o.mainRows.map((r) => [rowKey(r), JSON.stringify(r)]));
-  const mainMoved = [...o.want].some((k) => was.get(k) !== now.get(k));
-  const release = o.changedFiles.some((f) => o.releaseFiles.includes(f.trim()));
-  return [o.mergeable === "CONFLICTING" && "conflict", mainMoved && "main changed its rows", release && "release dropped"].filter((x): x is string => !!x);
-}
-
-/** Whether to ask Loopy to review a PR's `head`: not while Loopy's latest summary already names it (`reviewed`), and at
- *  most once a day for the same head (`asked`: the last ask). A new head (a rebuild) asks at once. */
-export const ASK_EVERY_MS = 24 * 3600_000;
-export function askDue(asked: { head: string; at: string } | undefined, head: string, reviewed: string | null, now = Date.now()): boolean {
-  if (reviewed && head.startsWith(reviewed)) return false;
-  return !asked || asked.head !== head || now - Date.parse(asked.at) >= ASK_EVERY_MS;
-}
-
 /** A memory from before a change to the event (its recording or matches) is forgotten: the queue only queues it again
  *  when something changed, or for a read before the event ended. `queuedKeys`: events queued now. */
 export const forgetSettled = (memory: Memory, queuedKeys: Set<string>) => { for (const k of Object.keys(memory)) if (!queuedKeys.has(k)) delete memory[k]; };
 
-/** What a data PR's rows change against the live rows: clips added (playable starts the live site doesn't have),
+/** What a delivery's rows change against the live rows: clips added (playable starts the live site doesn't have),
  *  matches settled with a reason, and recordings and events read. */
 export function rowsDelta(rows: Row[], live: Map<string, Row>): { clips: number; recordings: number; events: string[]; reasons: number } {
   let clips = 0, reasons = 0;
@@ -252,33 +229,4 @@ export function rowsDelta(rows: Row[], live: Map<string, Row>): { clips: number;
     reasons += Object.keys(r.missing ?? {}).length + Object.keys(r.review ?? {}).length + Object.keys(r.earlyStart ?? {}).length;
   }
   return { clips, recordings: rows.length, events: [...new Set(rows.map((r) => r.code))].sort(), reasons };
-}
-
-const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
-
-/** The PR's CHANGELOG entry, "VERSION" and "PR" left for the runner to fill (the version is taken when the PR is made
- *  or rebuilt on main; the PR number once it exists). */
-export function changelogEntry(season: number, d: ReturnType<typeof rowsDelta>, date: string): string {
-  const where = `${n(d.recordings, "recording")} of ${n(d.events.length, "event")}`;
-  const lead = d.clips
-    ? `Videos › ${n(d.clips, "more match", "more matches")} get clips, each start read off its recording's own frames (${where}, ${season}), read and checked by the clip autopilot.`
-    : `Videos › ${where} (${season}) are checked against their frames by the clip autopilot: no new clip, and every match they hold has its reason.`;
-  const highlights = d.clips
-    ? [`[fixes] ${n(d.clips, "more match", "more matches")} get clips read off their recordings`, "[fixes] Each clip opens on a frame naming its match", "[fixes] Read automatically once the event ended"]
-    : [`[fixes] ${n(d.recordings, "more recording")} checked against their frames`, "[fixes] Each missing match says what the video shows", "[fixes] No clip changes"];
-  return [
-    `## VERSION — ${date}`, "", lead, "", "### Highlights", ...highlights.map((h) => `- ${h}`), "", "### Fixed",
-    `- Videos: frame-read rows for ${d.events.join(", ")} (${season}): ${n(d.clips, "clip")} added, ${n(d.reasons, "match", "matches")} given a reason from the frames. Every start passed the autopilot's checks (opening frame 20/12/5/2/0 s before or 2/4 s after the start, naming the match, plausible, no live clip pulled without a frame naming another match). (\`server/data/frameTimings/${season}.ts\`) (#PR)`,
-    "",
-  ].join("\n");
-}
-
-/** The next release after `v` (src/lib/changelog.ts nextRelease, here without its browser imports): the last number
- *  steps, carrying at 9. */
-export function nextVersion(v: string): string {
-  const p = v.split(".").map(Number);
-  let i = p.length - 1;
-  p[i]++;
-  while (i > 0 && p[i] > 9) { p[i] = 0; p[--i]++; }
-  return p.join(".");
 }

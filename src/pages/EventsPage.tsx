@@ -18,7 +18,9 @@ import { CurrentlyTracking } from "../components/CurrentlyTracking";
 import { seasonLabel } from "../lib/format";
 import { useCompactFilters } from "../components/CompactFilters";
 import { EventFilterBar, EventWeeks } from "../components/EventBrowse";
-import { readFilters, statusParam } from "./eventsList";
+import { EventsNow } from "../components/EventsNow";
+import { useIsV8 } from "../lib/v8";
+import { readFilters, statusParam, weekOf } from "./eventsList";
 
 export default function EventsPage() {
   const current = useCurrentSeason();
@@ -50,6 +52,41 @@ export default function EventsPage() {
   const active = !!(region || type !== "all" || status !== "all" || from || to || q || video !== "all");
   const compact = useCompactFilters();
   const nav = useNavigate();
+  const v8 = useIsV8();
+  const events = state.data?.events;
+  const filterBar = <EventFilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={events ?? []} {...{ region, type, status, from, to, q, video, listQ, onQ, set, active }} onClear={clear} />;
+  const list = (
+    <Async state={state} loading={<div className="min-h-[100svh]"><LoadingBlock rows={8} label="Loading events" /></div>} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
+      {(d) => <><OfflineNote data={d} what="Events list" /><EventWeeks events={d.events} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} /></>}
+    </Async>
+  );
+  if (v8) {
+    // v8 (docs/design/v8-revamp-brief.md §7.9, the PR's page plan): what's on now and next first, then search and
+    // filters, then the long list. The summary line is one line whether the list is in or not, so nothing moves.
+    const live = events?.filter((e) => e.status === "live").length ?? 0;
+    const thisWeek = weekOf(new Date().toISOString().slice(0, 10));
+    const week = events?.filter((e) => e.start && weekOf(e.start) === thisWeek).length ?? 0;
+    // The season leads on wide screens; a phone has it in the season picker under, and keeps the live and week counts.
+    const counts = [live ? `${live} live now` : null, season === current && week ? `${week} this week` : null].filter(Boolean).join(" · ");
+    const summary = <><span className={counts ? "max-sm:hidden" : undefined}>{seasonLabel(season)} season{counts && " · "}</span>{counts}</>;
+    return (
+      <div data-events-page="v8">
+        <header className="mb-5 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">Events</h1>
+            <p className="mt-1 truncate text-sm tabular-nums text-text-muted" data-events-summary>{summary}</p>
+          </div>
+          <Button variant="ghost" size="sm" className="shrink-0" asChild><Link to={`/teams${season !== current ? `?season=${season}` : ""}`}><Users /> Team records</Link></Button>
+        </header>
+        {season === current && <EventsNow events={events} loading={state.loading} onLive={() => set({ status: "live" }, false)} className="mb-5" />}
+        {compact && <SearchBox kinds={["event", "place"]} label="Search events" placeholder="Find an event…" onPick={(h) => nav(hitHref(h))} className="mb-5 [&>div:first-child]:h-11" />}
+        <CurrentlyTracking season={season} current={current} events={events} listSettled={!state.loading} className="mb-5" />
+        {season === current && <CoinFlipRadarSection className="mb-6" />}
+        {filterBar}
+        {list}
+      </div>
+    );
+  }
   return (
     <div>
       <PageHeader
@@ -66,12 +103,10 @@ export default function EventsPage() {
       {/* Today's coin flips across every event on today: only this season's events can be on today. Left out on a day with none. */}
       {season === current && <CoinFlipRadarSection className="mb-8" />}
       {/* The filter bar stays up while loading or on an error, so another season can always be picked. */}
-      <EventFilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={state.data?.events ?? []} {...{ region, type, status, from, to, q, video, listQ, onQ, set, active }} onClear={clear} />
+      {filterBar}
       {/* The placeholder is a screen tall, so the footer starts below the fold: the list arriving pushes nothing
           a reader can see (it used to shove a footer in view down the screen, the page's layout shift on a phone). */}
-      <Async state={state} loading={<div className="min-h-[100svh]"><LoadingBlock rows={8} label="Loading events" /></div>} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
-        {(d) => <><OfflineNote data={d} what="Events list" /><EventWeeks events={d.events} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} /></>}
-      </Async>
+      {list}
     </div>
   );
 }

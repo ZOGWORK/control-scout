@@ -15,6 +15,89 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.7.5 — 2026-11-22
+
+Enter now really opens the results with no loading screen: the results page no longer hides the answer it was handed.
+
+### Highlights
+- [speed] Enter opens the dropdown's results, with no loading screen
+- [speed] A submitted search keeps showing what the box already found
+- [fixes] The page's own answer still replaces it a moment later
+
+### Search
+- A query submitted from the search box keeps the answer it was handed (`src/components/search/handoff.ts`) on screen, instead of hiding it behind the loading screen until the page's own answer arrived. `/search` waits only when it has nothing yet — the case where that answer may still name one page to open (`src/components/search/direct.ts`). (#2112)
+
+## 7.7.4 — 2026-11-22
+
+Enter shows the results the box already found, with no loading screen — this time on the release that actually serves it.
+
+### Highlights
+- [speed] Enter opens results with the dropdown's answer already on screen
+- [speed] A team number or event code still goes straight to its page
+- [speed] The page then confirms them with the server's own answer
+
+### Search
+- Enter, the magnifier and "See all results" open `/search` with the answer the dropdown already had (`src/components/search/handoff.ts`), so a submitted search draws its teams, events and cards at once. Merging main's direct-hit shortcut into 7.7.3 dropped that handoff from the Enter path, so every submitted question showed the loading screen again; a query that names one team or event still goes straight to its page, handing nothing over. (#2106)
+
+## 7.7.3 — 2026-11-21
+
+Enter opens the results page with what the search box already found, instead of a loading screen.
+
+### Highlights
+- [speed] Enter shows the results the box already found, with no loading screen
+- [speed] The page then confirms them with the server's own answer
+- [speed] Typing still waits a second, so no request goes out per keystroke
+
+### Search
+- The results page starts from the answer the box's dropdown already had when Enter was pressed (`src/components/search/handoff.ts`), so a submitted search draws its teams, events and cards at once; the page's own answer replaces it as soon as it arrives. The typing pause is unchanged at one second (`SEARCH_DEBOUNCE_MS`); only Enter is served instantly. (#2037)
+
+## 7.7.2 — 2026-11-21
+
+The Discord bot's mentions are a conversation first: Bruno's chat answers them, and when no model can, one honest line says so instead of a canned persona.
+
+### Highlights
+- [alerts] Mentions get Bruno's chat, not a canned reply
+- [alerts] One honest fallback when the AI can't answer
+- [fixes] Discord chats reach Bruno again: the facts were over his cap
+- [fixes] A chat that didn't happen says why in the bot's log
+
+### Changed
+- `@Control Scout …`, a reply to its answer and `/ask` ask Bruno's chat first, before search's query rewrite, so the model leads and the website's card is the fallback. A chat waits up to 30 s, with the mention's typing indicator kept up. (`bot/ask.ts`, `bot/handler.ts`) (#2071)
+- A short message that isn't a records question and that no chat answered gets one line from `bot/smallTalk.ts` — "I can't chat right now — my AI answers aren't reachable…" — credited to Control Scout, in place of eleven keyword replies that read as canned. A message with a number in it, or a long one search couldn't answer, keeps the honest card. (`bot/smallTalk.ts`, `bot/ask.ts`)
+
+### Fixed
+- Bruno's Discord chats were refused by Control Point: it caps one fact line at 400 characters, and two of the product facts the bot always sent were longer (434 and 470), so every packet got a 400 `facts[i]` and the card posted instead. Both facts now fit under the cap as whole sentences — Zog Mode keeps its owner-only rule — and every line is still cut to the cap as a guard. (`bot/ask.ts`, `bot/productFacts.ts`)
+- A chat that wasn't configured, was refused, timed out or came back empty now says why in the bot's log (`[bot] chat off: …`, `[bot] chat failed: …`, `[bot] chat empty: …`), so a deployment is diagnosed from `journalctl -u control-scout-bot` without a code change. (`bot/ask.ts`)
+- `bot/README.md` lists the Control Point settings Bruno's chat needs, and how the bot says a chat didn't happen.
+
+## 7.7.1 — 2026-11-21
+
+Search keeps the thread: a follow-up like "and last season?" or "who beat them?" is answered about the team you just asked about.
+
+### Highlights
+- [scout] "And last season?" asks about the team you just asked about
+- [scout] "Who beat them?" knows who "them" is
+- [scout] A question about many teams carries nothing to the next
+
+### Search
+- The results page and the header's search keep the team the last answer was about (`src/components/search/thread.ts`): a follow-up naming no team of its own ("and last season?", "who beat them?", "what about at Worlds?") is asked about that team, so search answers the question instead of reading one with no subject. A question's card team, a stat answer's single team or the one team its results name is carried, for half an hour in that tab; a set of teams or a place leaves nothing, and the question asked is the one in the address and the heading. (#2041)
+
+## 7.7.0 — 2026-11-19
+
+A new look for Control Scout: calmer and darker, with each page built around what you came for. The classic look is one click away at Settings › Display › Look.
+
+### Highlights
+- [appearance] A new look: near-black, a soft wash up top, a soft-white logo
+- [home] Home is search first, with live events, top teams and your team below
+- [teams] Team, event and match pages lead with the answer you came for
+- [appearance] Prefer the old one? Settings › Display › Look switches back
+
+### Appearance
+- A quieter sidebar; your picture top-right holds Settings, What's new and your account.
+- Everything a little more compact, with quick, light presses and menus.
+- One quiet colour: white for wins and your team, a light slate blue for progress and the #1 rank, lighter red and blue for the alliances.
+- The new look is dark only for now; the classic look keeps your saved theme. (#1981)
+
 ## 7.6.9 — 2026-11-17
 
 Event videos › a clip whose video plays on YouTube only now opens there, at the match's second, instead of an embedded player that can't play it.

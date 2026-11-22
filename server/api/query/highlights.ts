@@ -18,7 +18,8 @@ import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
 import { EVENT_FIT } from "./context.js";
 import { names } from "./names.js";
 import { initialismEvent } from "./initialisms.js";
-import { FROM, MARGIN, NP, where, type MatchScope } from "./matchFind.js";
+import { FROM, MARGIN, NP, videoKeys, where, type MatchScope } from "./matchFind.js";
+import { MAX_EVENTS } from "../answers/video.js";
 import { withoutPenalties } from "../../../src/shared/seasonRecord.js";
 
 export interface HighlightFind extends MatchScope {
@@ -173,6 +174,36 @@ function byEvent(events: { season: number; code: string }[], alias: string) {
   };
 }
 
+/** A video page too big to list whole: its matches with video. */
+const WITH_VIDEO = (at: string, S: string) =>
+  `The matches with video${at ? ` ${at}` : ""} in ${S}: FIRST's own video of the match, or its place in the event's recording (the same clip its Play button plays). The latest playoff match with video first, then the best scores (an alliance's points without penalties). Only played matches at official events held in person, with both alliances' points on record.`;
+
+/** A video page's matches with video (a scope with more than GALLERY matches): the latest playoff match with
+ *  video first, then the best-scoring, at most GALLERY from at most MAX_EVENTS events (the most an
+ *  answer's video reads, ../answers/video.ts); null when the scope has none with video (the old list stands). */
+async function withVideo(f: HighlightFind): Promise<{ rows: Scored[]; count: number } | null> {
+  const keys = await videoKeys(f).catch(() => [] as string[]);
+  if (!keys.length) return null;
+  const w = where({ ...f, video: true, videoKeys: keys });
+  const latest = REASONS.find((r) => r.note === "Latest playoff match")!.sql!;
+  const [count, best, last] = await Promise.all([
+    get<{ n: number }>(`SELECT COUNT(*) n ${FROM} WHERE ${w.sql}`, w.args),
+    all<Row>(`SELECT ${COLS} ${FROM} WHERE ${w.sql} ORDER BY ${NP} DESC, ${ORDER} LIMIT ?`, [...w.args, GALLERY * 5]),
+    get<Row>(`SELECT ${COLS} ${FROM} WHERE ${w.sql} AND ${latest.only} ORDER BY ${latest.order} LIMIT 1`, w.args),
+  ]);
+  if (!best.length) return null;
+  const evs = new Set<string>(), seen = new Set<string>();
+  const rows: Scored[] = [];
+  for (const r of [...(last ? [last] : []), ...best]) {
+    const e = `${r.season}|${r.code}`;
+    if (seen.has(key(r)) || (!evs.has(e) && evs.size >= MAX_EVENTS)) continue;
+    evs.add(e); seen.add(key(r));
+    rows.push({ ...r, at: rows.length, p_red: null });
+    if (rows.length >= GALLERY) break;
+  }
+  return { rows, count: Number(count?.n ?? 0) };
+}
+
 const DEFINITION = (at: string, S: string, upset: boolean, named = false) =>
   `The standout matches${at ? ` ${at}` : ""} in ${S}: the best score (an alliance's points without penalties), the biggest margin, the latest playoff match, the best Auto, the closest finish (the smallest winning margin)${upset ? " and the biggest upset (a favourite's loss: the losing alliance had over a 50% predicted chance before the match)" : ""}, each match once. Only played matches ${named ? "at the event named" : "at official events"} held in person, with both alliances' points on record. A match with a video plays here.`;
 
@@ -260,7 +291,7 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const scope = [S, ...(ev ? [...(ev.when ? [ev.when] : []), ...(ev.where ? [ev.where] : [])] : []), ...f.chips, ...(f.named ? [] : ["Official events"])];
   const where2 = `${at ? ` ${at}` : ""}${f.window ? ` ${f.window.label}` : ` in ${S}`}`;
   const base = {
-    family: "superlative" as const, intent: "scope-highlights", title: `Highlights${at ? ` ${at}` : ""}, ${S}`, scope,
+    family: "superlative" as const, intent: "scope-highlights", title: `${f.videos ? "Match videos" : "Highlights"}${at ? ` ${at}` : ""}, ${S}`, scope,
     definition: DEFINITION(at, S, whole, !!f.named),
     source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}`,
   };
@@ -270,7 +301,10 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
     const unplayed = !!ev && !f.window && !!events?.length && await playedAt(f.season, events) === 0;
     return { ...base, blocks: [], none: unplayed ? NO_EVENT_HIGHLIGHTS : `No played matches${f.named ? "" : " at official events"}${where2} yet.` };
   }
-  const gallery = await galleryOf(whole ? scored : null, events, f.videos ? (f.named && ev ? "No recording for this event — stats only." : `No match videos${where2} yet.`) : null, ev ? f.eventName : undefined);
+  // A video page with too many matches to list them all lists its matches with video (issue #1997: "bio buzz videos",
+  // a whole season, listed none and kept its standout matches, none with video); a smaller one lists every match.
+  const keyed = f.videos && count > GALLERY ? await withVideo(f) : null;
+  const gallery = await galleryOf(whole ? scored : null, events, f.videos ? (f.named && ev ? "No recording for this event — stats only." : `No match videos${where2} yet.`) : null, ev ? f.eventName : undefined, keyed, f);
   // A video page leads with the scope's latest playoff match (a recap ends on the final, whatever reason it was
   // listed under), highlights with the best score.
   const last = f.videos ? (scored?.filter((r) => r.level === "playoff").at(-1) ?? picks.find((p) => p.note === "Latest playoff match")?.r) : undefined;
@@ -283,22 +317,23 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const top = lead.r, best = allianceRow(top, top.side, named);
   const standout: StatBlock = { kind: "matches", title: `${picks.length} standout ${picks.length === 1 ? "match" : "matches"}`, rows };
   return {
-    ...base, ...(f.videos ? { title: `Match videos${at ? ` ${at}` : ""}, ${S}` } : {}),
-    headline: { value: `${best.ownNp ?? best.own} points`, label: `${withoutPenalties(lead.note, best.ownNp)}: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
+    ...base, ...(f.videos ? { title: `Match videos${at ? ` ${at}` : ""}, ${S}` } : {}), ...(keyed ? { definition: WITH_VIDEO(at, S) } : {}),
+    ...(!f.videos ? { headline: { value: `${best.ownNp ?? best.own} points`, label: `${withoutPenalties(lead.note, best.ownNp)}: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
       sub: `${best.ownNp != null && best.own !== best.ownNp ? `${best.own} with penalties · ` : ""}${best.alliance === "red" ? "Red" : "Blue"} ${best.result === "W" ? "won" : best.result === "L" ? "lost" : "tied"} ${best.own}–${best.opp}`,
-      teams: best.partners, alliance: best.alliance },
+      teams: best.partners, alliance: best.alliance } } : {}),
     // A scope too big to list keeps its standout matches, the gallery saying why it lists none.
-    blocks: f.videos && gallery.kind === "videos" && gallery.tiles.length ? [gallery] : [standout, gallery],
+    blocks: f.videos ? [gallery] : [standout, gallery],
   };
 }
 
 /** A video page's list: the scope's matches in the events' order (read whole), each with both alliances' team
  *  numbers, and each event's stream. A scope with more than GALLERY matches lists its playoffs, more still none. */
 async function galleryOf(xs: Scored[] | null, events: { season: number; code: string }[] | undefined, empty: string | null,
-  named?: HighlightFind["eventName"]): Promise<StatBlock> {
+  named?: HighlightFind["eventName"], keyed?: { rows: Scored[]; count: number } | null, scope?: HighlightFind): Promise<StatBlock> {
   const playoffs = xs?.filter((r) => r.level === "playoff") ?? [];
-  const listed = !xs ? [] : xs.length <= GALLERY ? xs : playoffs.length <= GALLERY ? playoffs : [];
-  const more = !xs || listed.length < xs.length ? (listed.length ? `Playoff matches only: ${xs!.length.toLocaleString("en-US")} matches in all.` : "Too many matches to list here; open an event for each match's video.") : undefined;
+  const listed = keyed ? keyed.rows : !xs ? [] : xs.length <= GALLERY ? xs : playoffs.length <= GALLERY ? playoffs : [];
+  const more = keyed ? (keyed.rows.length < keyed.count ? `The ${keyed.rows.length.toLocaleString("en-US")} best-scoring of ${keyed.count.toLocaleString("en-US")} matches with video.` : undefined)
+    : !xs || listed.length < xs.length ? (listed.length ? `Playoff matches only: ${xs!.length.toLocaleString("en-US")} matches in all.` : "Too many matches to list here; open an event for each match's video.") : undefined;
   const sides = new Map<string, number[]>();
   if (listed.length) {
     const p = byEvent([...new Map(listed.map((r) => [`${r.season}|${r.code}`, r])).values()], "x");
@@ -315,7 +350,12 @@ async function galleryOf(xs: Scored[] | null, events: { season: number; code: st
   const at = listed.length ? listed : xs ?? [];
   const streams: StatLink[] = [...new Map(at.map((r) => [`${r.season}|${r.code}`, { label: shortEvent(r.name, r.type), href: eventHref(r.season, r.code) }])).values()].slice(0, STREAMS);
   const first = events?.[0];
-  return { kind: "videos", title: "Every match", tiles, ...(streams.length ? { streams } : {}), ...(more ? { more } : {}),
+  // "No match videos yet" only when no listed match has one (the same keys as each Play button): 2 of 2026–27's 158
+  // matches with video said there were none.
+  const anyVideo = !!empty && !more && !!scope && listed.length > 0
+    && await videoKeys(scope).then((ks) => { const has = new Set(ks); return listed.some((r) => has.has(key(r))); }, () => false);
+  if (anyVideo) empty = null;
+  return { kind: "videos", title: keyed ? "Matches with video" : "Every match", tiles, ...(streams.length ? { streams } : {}), ...(more ? { more } : {}),
     // Nothing with a video says so only when every match was listed; a list cut short says why instead.
     ...(empty && !more ? { empty: { text: empty, ...(named && first ? { href: eventHref(first.season, first.code) } : {}) } } : {}) };
 }

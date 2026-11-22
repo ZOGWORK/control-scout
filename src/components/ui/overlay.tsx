@@ -33,6 +33,9 @@ function outsideGuards<P extends { onPointerDownOutside?: (e: any) => void; onIn
   };
 }
 const fade = 'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0';
+// v8 (docs/design/v8-revamp-brief.md §4.2): menus, popovers and tooltips grow from 0.97 out of their trigger (each
+// one's Radix origin), 180ms in and 120ms out on the strong ease-out; under reduced motion they only fade.
+const grow = 'v8:[--tw-enter-scale:0.97] v8:[--tw-exit-scale:0.97] v8:duration-[180ms] v8:data-[state=closed]:duration-[120ms] v8:ease-out motion-reduce:v8:[--tw-enter-scale:1] motion-reduce:v8:[--tw-exit-scale:1]';
 
 /**
  * Focus goes back to whatever opened a dialog or sheet when it closes. Radix only returns it to a
@@ -84,6 +87,8 @@ export function DialogContent({ className, children, showClose = true, returnFoc
           panel,
           'fixed left-1/2 top-1/2 z-[81] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl p-6 max-h-[calc(100dvh-2rem)] overflow-y-auto custom-scrollbar',
           fade,
+          // v8: a dialog has no trigger to grow from, so from the centre: 0.96, 220ms (fade only under reduced motion).
+          'v8:[--tw-enter-scale:0.96] v8:[--tw-exit-scale:0.96] v8:duration-[220ms] v8:data-[state=closed]:duration-150 v8:ease-out motion-reduce:v8:[--tw-enter-scale:1] motion-reduce:v8:[--tw-exit-scale:1]',
           className,
         )}
         {...props}
@@ -133,6 +138,14 @@ const sides = {
   bottom: 'inset-x-0 bottom-0 max-h-[90dvh] border-t rounded-t-2xl pb-[env(safe-area-inset-bottom)]',
   top: 'inset-x-0 top-0 max-h-[90dvh] border-b rounded-b-2xl',
 } as const;
+// v8: a sheet slides in by its own size from its edge on the drawer curve (380ms in, 240ms out); reduced motion fades.
+const v8Drawer = 'v8:duration-[380ms] v8:data-[state=closed]:duration-[240ms] v8:ease-drawer';
+const v8Slide = {
+  right: `${v8Drawer} v8:data-[state=open]:slide-in-from-right v8:data-[state=closed]:slide-out-to-right motion-reduce:v8:[--tw-enter-translate-x:0] motion-reduce:v8:[--tw-exit-translate-x:0]`,
+  left: `${v8Drawer} v8:data-[state=open]:slide-in-from-left v8:data-[state=closed]:slide-out-to-left motion-reduce:v8:[--tw-enter-translate-x:0] motion-reduce:v8:[--tw-exit-translate-x:0]`,
+  bottom: `${v8Drawer} v8:data-[state=open]:slide-in-from-bottom v8:data-[state=closed]:slide-out-to-bottom motion-reduce:v8:[--tw-enter-translate-y:0] motion-reduce:v8:[--tw-exit-translate-y:0]`,
+  top: `${v8Drawer} v8:data-[state=open]:slide-in-from-top v8:data-[state=closed]:slide-out-to-top motion-reduce:v8:[--tw-enter-translate-y:0] motion-reduce:v8:[--tw-exit-translate-y:0]`,
+} as const;
 
 export function SheetContent({ className, children, side = 'right', returnFocus: fallback, ...props }: React.ComponentProps<typeof D.Content> & { side?: keyof typeof sides } & ReturnFocus) {
   const returnFocus = useReturnFocus(props, fallback);
@@ -144,7 +157,7 @@ export function SheetContent({ className, children, side = 'right', returnFocus:
         ref={setEl}
         data-slot="sheet-content"
         data-esc-owner=""
-        className={cn(panel, 'fixed z-[81] flex flex-col gap-4 overflow-y-auto custom-scrollbar p-6', sides[side], fade, className)}
+        className={cn(panel, 'fixed z-[81] flex flex-col gap-4 overflow-y-auto custom-scrollbar p-6', sides[side], fade, v8Slide[side], className)}
         {...props}
         {...outsideGuards(props, 'sheet-content')}
         {...returnFocus}
@@ -179,7 +192,7 @@ const menuItem =
 export function DropdownMenuContent({ className, sideOffset = 6, ...props }: React.ComponentProps<typeof DM.Content>) {
   return (
     <DM.Portal>
-      <DM.Content data-slot="dropdown-menu-content" data-esc-owner="" sideOffset={sideOffset} className={cn(menuPanel, className)} {...props} />
+      <DM.Content data-slot="dropdown-menu-content" data-esc-owner="" sideOffset={sideOffset} className={cn(menuPanel, grow, 'v8:origin-(--radix-dropdown-menu-content-transform-origin)', className)} {...props} />
     </DM.Portal>
   );
 }
@@ -226,7 +239,7 @@ export function DropdownMenuSubTrigger({ className, children, ...props }: React.
 export function DropdownMenuSubContent({ className, ...props }: React.ComponentProps<typeof DM.SubContent>) {
   return (
     <DM.Portal>
-      <DM.SubContent data-slot="dropdown-menu-sub-content" data-esc-owner="" className={cn(menuPanel, className)} {...props} />
+      <DM.SubContent data-slot="dropdown-menu-sub-content" data-esc-owner="" className={cn(menuPanel, grow, 'v8:origin-(--radix-dropdown-menu-content-transform-origin)', className)} {...props} />
     </DM.Portal>
   );
 }
@@ -248,7 +261,7 @@ export function PopoverContent({ className, align = 'center', sideOffset = 6, co
         data-esc-owner=""
         align={align}
         sideOffset={sideOffset}
-        className={cn(panel, 'z-[90] w-72 rounded-xl p-4 outline-none', fade, className)}
+        className={cn(panel, 'z-[90] w-72 rounded-xl p-4 outline-none', fade, grow, 'v8:origin-(--radix-popover-content-transform-origin)', className)}
         {...props}
       />
     </P.Portal>
@@ -280,7 +293,10 @@ export function TooltipContent({ className, sideOffset = 6, children, ...props }
       <T.Content
         data-slot="tooltip-content"
         sideOffset={sideOffset}
-        className={cn('z-[95] rounded-lg bg-text-base px-2.5 py-1.5 text-xs font-medium text-primary shadow-lg', fade, className)}
+        className={cn('z-[95] rounded-lg bg-text-base px-2.5 py-1.5 text-xs font-medium text-primary shadow-lg', fade, grow,
+          // v8: a dark tip on the menu surface; moving from one tip to the next (Radix's instant-open) shows it at once.
+          'v8:origin-(--radix-tooltip-content-transform-origin) v8:bg-popover v8:text-text-base v8:ring-1 v8:ring-ink/10 v8:data-[state=instant-open]:animate-none',
+          className)}
         {...props}
       >
         {children}

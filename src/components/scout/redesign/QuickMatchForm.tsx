@@ -57,7 +57,7 @@ export function quickFields(template: ScoutTemplate): QuickFields {
 }
 
 const tap = "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50";
-const pill = "min-h-[40px] min-w-0 rounded-lg border px-1 text-xs font-semibold break-words";
+const pill = "min-h-[40px] min-w-0 rounded-lg border px-1 text-xs font-semibold break-words v8:min-h-11 v8:active:scale-[0.97] motion-reduce:v8:active:scale-100 v8:transition-[color,background-color,border-color,scale]";
 
 function withValue(value: Record<string, ScoutValue>, id: string, v: ScoutValue | undefined) {
   const next = { ...value };
@@ -112,7 +112,7 @@ function QuickRow({ t, q, onChange, onOpenFull, disabled }: { t: TeamState; q: Q
   };
   return (
     <section aria-label={`${team}, ${red ? "red" : "blue"} ${station}, ${STATUS_TEXT[t.status]}`} data-team={team}
-      className="rounded-xl border border-border bg-card p-2 text-card-foreground">
+      className="rounded-xl border border-border bg-card p-2 text-card-foreground v8:border-line">
       <div className="grid grid-cols-[64px_minmax(0,1fr)_44px_44px] items-center gap-1.5">
         <div className={cn("min-w-0 border-l-[3px] pl-2", red ? "border-red-alliance" : "border-blue-alliance")}>
           <div className="flex items-center gap-1.5 font-mono text-sm font-bold tabular-nums"><StatusDot status={t.status} className="size-2" />{team}</div>
@@ -122,19 +122,20 @@ function QuickRow({ t, q, onChange, onOpenFull, disabled }: { t: TeamState; q: Q
           <>
             <button type="button" aria-label={`${team} ${c.label}: ${range.n}. Add one`} disabled={disabled || range.n >= range.hi}
               onClick={() => set(c.id, Math.min(range.hi, range.n + 1))}
-              className={cn(tap, "flex h-[44px] min-w-0 items-center justify-between gap-2 rounded-lg border border-input px-3 text-left hover:bg-text-base/[0.04] active:border-accent/60 active:bg-accent/10")}>
+              className={cn(tap, "flex h-[44px] min-w-0 items-center justify-between gap-2 rounded-lg border border-input px-3 text-left hover:bg-text-base/[0.04] active:border-accent/60 active:bg-accent/10",
+                "v8:h-12 v8:transition-[background-color,border-color,scale] v8:duration-150 v8:ease-out v8:active:scale-[0.97] v8:active:border-ink/25 v8:active:bg-ink/[0.08] motion-reduce:v8:active:scale-100")}>
               <span className="truncate text-xs font-semibold">{c.label}</span>
               <span className="font-mono text-xl font-bold tabular-nums" aria-hidden>{range.n}</span>
             </button>
             <button type="button" aria-label={`${team} ${c.label} minus one`} disabled={disabled || range.n <= range.lo}
               onClick={() => set(c.id, Math.max(range.lo, range.n - 1))}
-              className={cn(buttonVariants({ variant: "secondary" }), "h-[44px] w-[44px] rounded-lg px-0")}>
+              className={cn(buttonVariants({ variant: "secondary" }), "h-[44px] w-[44px] rounded-lg px-0 v8:h-12")}>
               <Minus className="size-4" />
             </button>
           </>
         ) : <span className="col-span-2 text-xs text-muted-foreground">No scoring counter in this template.</span>}
         <button type="button" aria-label={`Full form for ${team}`} title="All fields" onClick={() => onOpenFull(team)}
-          className={cn(buttonVariants({ variant: "ghost" }), "h-[44px] w-[44px] flex-col gap-0 rounded-lg px-0 text-[10px] leading-tight")}>
+          className={cn(buttonVariants({ variant: "ghost" }), "h-[44px] w-[44px] flex-col gap-0 rounded-lg px-0 text-[10px] leading-tight v8:h-12 v8:text-[0.625rem] v8:text-text-muted")}>
           <ChevronRight className="size-4" /><span aria-hidden>More</span>
         </button>
       </div>
@@ -149,7 +150,7 @@ function QuickRow({ t, q, onChange, onOpenFull, disabled }: { t: TeamState; q: Q
                 return (
                   <button key={o} type="button" role="radio" aria-checked={on} disabled={disabled} tabIndex={i === stop ? 0 : -1} data-index={i}
                     onClick={() => set(q.choice!.id, on ? undefined : o)}
-                    className={cn(tap, pill, on ? "border-accent/60 bg-accent/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground")}>{o}</button>
+                    className={cn(tap, pill, on ? "border-accent/60 bg-accent/10 text-foreground v8:border-ink/30 v8:bg-ink/10" : "border-border text-muted-foreground hover:text-foreground v8:border-ink/[0.12]")}>{o}</button>
                 );
               })}
             </div>
@@ -161,7 +162,7 @@ function QuickRow({ t, q, onChange, onOpenFull, disabled }: { t: TeamState; q: Q
                 return (
                   <button key={field.id} type="button" aria-pressed={on} aria-label={`${team} ${field.label}`} title={field.label} disabled={disabled}
                     onClick={() => set(field.id, !on)}
-                    className={cn(tap, pill, !on ? "border-border text-muted-foreground hover:text-foreground" : bad ? "border-danger/50 bg-danger/10 text-danger-text" : "border-success/50 bg-success/10 text-success-text")}>{short}</button>
+                    className={cn(tap, pill, !on ? "border-border text-muted-foreground hover:text-foreground" : bad ? "border-danger/50 bg-danger/10 text-danger-text" : "border-success/50 v8:border-emerald-400/50 bg-success/10 v8:bg-emerald-400/10 text-success-text v8:text-emerald-400")}>{short}</button>
                 );
               })}
             </div>

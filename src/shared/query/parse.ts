@@ -91,6 +91,9 @@ export interface Parsed {
   recordSaid?: string;
   /** A score an alliance had to reach ("where the losing alliance scored over 200"): the match finder's filter. */
   scoreCond?: ScoreCond;
+  /** Words left over that name New Jersey conferences as a board's place ("best auto in nj bergen"): set by the server's
+   *  executor (server/api/query/execute.ts), never by the parser. */
+  conference?: string[];
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -392,7 +395,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
 
   // 1. Teams by their whole name, longest first: a name made only of search's own words ("The Best") isn't claimed,
   // so "best team" stays a question.
-  for (let len = Math.min(ctx.names.longest, 12); len >= 1; len--) {
+  // Whole stored names win before shortened aliases, even when an alias starts
+  // earlier ("of The Bot Patrol" must not become "Out of the Bot Robotics").
+  for (const exactOnly of [true, false]) for (let len = Math.min(ctx.names.longest, 12); len >= 1; len--) {
     for (let i = 0; i + len <= toks.length; i++) {
       const span = toks.slice(i, i + len);
       if (span.some((t) => t.used) || span.every((t) => isLex(t.w) || /^\d+$/.test(t.w))) continue;
@@ -408,7 +413,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const said = span.map((t) => t.w).join(" ");
       // A name's own part never takes a word of a longer place's name ("north" of "north carolina").
       const inPlace = [1, 2, 3].some((n) => n > len && Array.from({ length: n - len + 1 }, (_, o) => i - o).some((a) => placeAt(a, a + n)));
-      const named = ctx.names.teamsNamed(said).length ? ctx.names.teamsNamed(said) : inPlace ? [] : ctx.names.teamsCalled(said);
+      const exact = ctx.names.teamsNamed(said);
+      const named = exact.length ? exact : exactOnly || inPlace ? [] : ctx.names.teamsCalled(said);
       if (!named.length) continue;
       // What a question asks about ("alliances", "inspire", "stats") names a team only typed as its whole name: "nj
       // states alliances" is never team Alliance, "most inspire awards" never team Inspires (onlyTopicWords).

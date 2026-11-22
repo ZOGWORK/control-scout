@@ -16,7 +16,8 @@ import type { StatAnswer } from "../shared/searchStat";
 
 interface EventHighlights { event: { season: number; code: string; name: string }; stat: StatAnswer; video?: SearchVideo }
 
-const linkClass = "inline-flex h-[44px] items-center rounded-lg border border-border bg-card px-3 text-sm font-medium hover:border-accent/60";
+// v8: an outlined button's look, with a fill on hover rather than a mint edge.
+const linkClass = "inline-flex h-[44px] items-center rounded-lg border border-border bg-card px-3 text-sm font-medium hover:border-accent/60 v8:border-ink/[0.12] v8:bg-transparent v8:transition-colors v8:duration-150 v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
 
 export default function EventHighlightsPage() {
   const { season = "", code = "" } = useParams();

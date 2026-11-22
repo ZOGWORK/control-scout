@@ -21,7 +21,7 @@ import { RANKED_MIN_MATCHES, parsePlaces } from "../../src/shared/rankings.js";
 import { predictHref } from "../../src/shared/predictUrl.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import type { Region } from "../../src/shared/regions.js";
-import { dateRange, possessive, seasonLabel } from "../../src/shared/format.js";
+import { dateRange, plainText, possessive, seasonLabel } from "../../src/shared/format.js";
 import { matchDay } from "../../src/shared/coinFlips.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, SEASONS, isLegacy } from "../data/seasons.js";
@@ -165,7 +165,8 @@ export function readAsk(q: string): Ask | null {
   m = /^(.+?) (?:rankings?|standings|leaderboard|top teams|best teams?)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
   // Stat leaders, the whole season (scope words like "in the world" or "this season" change nothing) or a place's.
-  m = /^(?:(?:who )?(?:has|had|is) (?:the )?)?(?:the )?(?:highest|best|top|most|biggest|strongest|greatest|number one|no 1|1) (opr|auto(?:nomous)?|tele ?op|driver(?: ?controlled)?|end ?game|wins)(?: opr| scores?| scoring| points| period)?(?: teams?| robots?)?(?: (?:in|from|of) (.+))?$/.exec(lw.t)
+  // Leading it is the same ask ("who leads auto in texas", "who is leading in opr"), as the parser's lexicon reads it.
+  m = /^(?:(?:who )?(?:has|had|is) (?:the )?)?(?:the )?(?:highest|best|top|most|biggest|strongest|greatest|number one|no 1|1|leads(?: in)?|(?:is )?leading(?: in)?) (opr|auto(?:nomous)?|tele ?op|driver(?: ?controlled)?|end ?game|wins)(?: opr| scores?| scoring| points| period)?(?: teams?| robots?)?(?: (?:in|from|of) (.+))?$/.exec(lw.t)
     ?? /^(?:which|what) team has (?:the )?(?:highest|best|most) (opr|wins)(?: in (.+))?$/.exec(t.replace(SCOPE_WORDS, " ").replace(/\s+/g, " ").trim());
   if (m) {
     const stat = statOf(m[1]);
@@ -221,7 +222,7 @@ async function eventAwards(season: number, code: string, name: string): Promise<
   const rows = await all<any>(
     `SELECT a.type, a.placement, a.team, a.name, t.name team_name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ?
      ORDER BY CASE a.type WHEN 'Inspire' THEN 0 WHEN 'Winner' THEN 1 WHEN 'Finalist' THEN 2 ELSE 3 END, a.type, (a.type NOT IN ('Winner', 'Finalist') AND COALESCE(a.name, '') LIKE '%Finalist'), a.placement`, [season, code]);
-  const awards: SearchCardAward[] = rows.map((r) => ({ type: r.type, placement: Number(r.placement), team: Number(r.team), teamName: r.team_name ?? null, name: r.name ?? null }));
+  const awards: SearchCardAward[] = rows.map((r) => ({ type: r.type, placement: Number(r.placement), team: Number(r.team), teamName: r.team_name ?? null, name: r.name ? plainText(r.name) || null : null }));
   return { event: { season, code, name }, awards };
 }
 

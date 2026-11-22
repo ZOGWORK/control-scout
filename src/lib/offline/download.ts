@@ -10,7 +10,8 @@
 //
 // Browsers send `Accept-Encoding: identity` with any Range request (Fetch standard), so a resumed piece comes
 // uncompressed: big files are offered pre-compressed (the season pack's .db.gz, the lite .json.gz), where a
-// range is a range of the small file.
+/// range is a range of the small file.
+import { offlineNow } from "../connection";
 
 export interface DownloadFile { url: string; bytes: number; sha256: string }
 /** What the download is for, so a paused one can be listed and resumed ("2025–26 season", "Predictions"). */
@@ -321,7 +322,7 @@ const RANGE = /^bytes (\d+)-(\d+)\/(\d+|\*)$/;
 /** The connection dropped: a pause when something is kept to pick up from, else a plain "try again" (nothing came). */
 function stoppedAt(have: number, total: number): Error {
   if (have > 0) return new DownloadPaused(have, total);
-  return new NoConnection(typeof navigator !== "undefined" && navigator.onLine === false ? "You're offline: the download starts when you're back online." : "Can't reach the server right now. Try again in a moment.");
+  return new NoConnection(offlineNow() ? "You're offline: the download starts when you're back online." : "Can't reach the server right now. Try again in a moment.");
 }
 
 async function attempt(file: DownloadFile, prev: PartialDownload | undefined, opts: DownloadOptions): Promise<Uint8Array> {

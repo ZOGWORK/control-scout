@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="brand/wordmark-master.png" alt="Control Scout" width="420" />
+  <img src="brand/wordmark-master-white.png#gh-dark-mode-only" alt="Control Scout" width="420" />
+  <img src="brand/wordmark-master.png#gh-light-mode-only" alt="Control Scout" width="420" />
 </p>
 
 <h3 align="center">Free-forever FTC scouting and predictions for <em>every</em> team.</h3>
@@ -23,14 +24,6 @@ Sister app of Control Point (team management).
 Same design language, and the **same prediction engine**: both apps run
 [`@control-scout/predict-engine`](packages/predict-engine), one versioned
 package, so predictions can never be better in one app than the other.
-
-## Screenshots
-
-<!-- Screenshots are captured from the live app with `npm run shots` (see AGENTS.md). -->
-
-| Home | Team page |
-|---|---|
-| <img src="docs/screenshots/home.png" alt="Control Scout home" /> | <img src="docs/screenshots/team.png" alt="Control Scout team page" /> |
 
 ## Features
 

@@ -5,7 +5,7 @@
 // Lite's own Settings page changes those cookies too (server/lite/routes.ts /lite/theme, /lite/size) and notes which
 // (cs-lite-picked). The app then takes that value once when it starts, instead of writing its older choice over it:
 // one setting, whichever page it was changed on.
-import { LITE_PICKED_COOKIE, TEXT_SIZE_COOKIE, THEME_COOKIE, THEME_COOKIES, TEXT_SIZE_COOKIES, cookieValue, pickedOnLite, type LitePick, type ThemeCookie } from "../shared/themeTokens";
+import { LITE_PICKED_COOKIE, TEXT_SIZE_COOKIE, THEME_COOKIE, V8_COOKIE, THEME_COOKIES, TEXT_SIZE_COOKIES, cookieValue, pickedOnLite, type LitePick, type ThemeCookie } from "../shared/themeTokens";
 
 const YEAR = 31536000;
 
@@ -23,6 +23,8 @@ function write(name: string, value: string | null): void {
 export const writeThemeCookie = (theme: ThemeCookie) => write(THEME_COOKIE, theme);
 /** The text size ("m", the default, clears the cookie). */
 export const writeTextSizeCookie = (size: "s" | "m" | "l" | "xl") => write(TEXT_SIZE_COOKIE, size === "m" ? null : size);
+/** The look this load is drawn in (src/lib/v8.ts): v8, the default, clears the cookie; "0" is the classic look. */
+export const writeV8Cookie = (v8: boolean) => write(V8_COOKIE, v8 ? null : "0");
 
 const readCookie = (name: string) => {
   try { return typeof document === "undefined" ? "" : cookieValue(document.cookie, name); } catch { return ""; }

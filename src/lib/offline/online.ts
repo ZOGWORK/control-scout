@@ -1,17 +1,20 @@
-// Is there a connection right now? The browser's own word (navigator.onLine), kept behind this one hook so the
-// connection check the offline program is building (src/lib/connection.ts useConnection) is a one-line swap here.
-import { useSyncExternalStore } from "react";
+// Is there a connection right now? The connection check's word (src/lib/connection.ts), never navigator.onLine on its
+// own: iOS (above all a home-screen app back from the background) says offline while the phone is online, and a
+// video button greyed out on that word was wrong.
+import { offlineNow, shownOffline, useConnection } from "../connection";
 
-function subscribe(fn: () => void) {
-  window.addEventListener("online", fn);
-  window.addEventListener("offline", fn);
-  return () => { window.removeEventListener("online", fn); window.removeEventListener("offline", fn); };
-}
-
-/** False when the browser knows it has no connection (true when it can't tell). */
+/** False only when the connection check found no internet, or a Wi-Fi sign-in page (true while it can't tell). */
 export function useOnline(): boolean {
-  return useSyncExternalStore(subscribe, () => typeof navigator === "undefined" || navigator.onLine !== false, () => true);
+  return !shownOffline(useConnection());
 }
 
-/** Does the device say it has no network? For code outside React (the same word useOnline reads). */
-export const deviceOffline = (): boolean => typeof navigator !== "undefined" && navigator.onLine === false;
+/** Is the device known to have no internet (the same word useOnline reads)? For code outside React. */
+export const deviceOffline = (): boolean => offlineNow();
+
+/** Videos can't play: no internet (the connection check), or the page's data came from saved data (`fromSaved`) while
+ *  the check hasn't yet found internet. Saved data on screen while the check has found it is a slow connection, not
+ *  an offline one: videos still play then. */
+export function useNoVideoSignal(fromSaved?: boolean): boolean {
+  const conn = useConnection();
+  return shownOffline(conn) || (!!fromSaved && conn.internet !== "yes");
+}

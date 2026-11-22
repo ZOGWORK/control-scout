@@ -120,7 +120,7 @@ describe("search results page", () => {
     expect(within(frame as HTMLElement).getAllByText("Oradell, NJ, USA")).toHaveLength(1);
     expect(container.querySelector('[data-result="team"]')).toBeNull();
     expect(container.querySelector('[data-section="team"]')).toBeNull();
-    expect(frame.innerHTML).not.toMatch(/(border|bg)-accent/);
+    expect(frame.innerHTML.replace(/v8:\S+/g, "")).not.toMatch(/(border|bg)-accent/);
     // The results column is 720px at most, centred; the team page link a text link (one primary action per page).
     expect(container.querySelector("[data-results-column]")!.className).toMatch(/\bmx-auto\b.*\bmax-w-\[720px\]/);
     expect(frame.querySelector("[data-secondary]")!.className).toContain("underline");
@@ -529,7 +529,9 @@ describe("search results page, Phase 2 cards", () => {
     // The type only where the name doesn't already say it.
     expect(families[0].querySelector("[data-family-type]")).toBeNull();
     // The accent is the selected control's alone: none in the tree.
-    expect(container.querySelectorAll('[data-event-family] [class*="accent"]')).toHaveLength(0);
+    // (v8 off: its v8: classes, the slate-blue team counts, don't apply.)
+    const classic = (el: Element) => (el.getAttribute("class") ?? "").split(" ").filter((t) => !t.startsWith("v8:")).join(" ");
+    expect([...container.querySelectorAll("[data-event-family] [class]")].filter((el) => classic(el).includes("accent"))).toHaveLength(0);
     expect(families[0].querySelector("[data-family-link]")!.getAttribute("href")).toBe("/events?season=2025&q=FTCCMP1");
     expect(families[0].querySelector("[data-family-count]")!.textContent).toBe("3 divisions and finals · 120 teams");
     // The newest finished season opens; an older one shows its event only, its divisions a tap away (still counted).
@@ -684,6 +686,22 @@ describe("search results page, phone (Part B 3b)", () => {
     fireEvent.change(field, { target: { value: "simply complex in nj" } });
     fireEvent.keyDown(field, { key: "Enter" });
     expect(loc).toBe("/search?q=simply%20complex%20in%20nj");
+  });
+
+  it("sits on the page's wash in v8: no solid panel behind the bar, only a translucent frosted veil once scrolled", () => {
+    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
+    const { container } = withTopBar("/search?q=simply%20complex");
+    const bar = container.querySelector("[data-phone-search]") as HTMLElement;
+    const v8Bg = () => bar.className.split(/\s+/).filter((c) => c.startsWith("v8:bg-"));
+    // At the top: see-through, so the wash runs on behind the field (the classic look keeps its own bg-primary).
+    expect(v8Bg()).toEqual(["v8:bg-transparent"]);
+    // Scrolled: a translucent, blurred veil, never the opaque page colour.
+    Object.defineProperty(window, "scrollY", { value: 200, configurable: true });
+    act(() => { window.dispatchEvent(new Event("scroll")); });
+    expect(bar.getAttribute("data-phone-search")).toBe("compact");
+    expect(v8Bg()).toEqual(["v8:bg-primary/45"]);
+    expect(bar.className).toContain("v8:backdrop-blur-lg");
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
   });
 
   it("what's typed in the bar while a search loads is still there, in the same field, when its results arrive", () => {

@@ -37,6 +37,7 @@
 //   listed on its own as damaged, with only Discard, which removes that one record (audit V4-PRIVATE-001).
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { apiFetch, ApiError, isFeatureDisabled } from "./api";
+import { onBackOnline } from "./connection";
 import { offlineSource } from "./offline/saved";
 import { keepAnswer, keptOwner } from "./offline/kept";
 import type { LiveMode } from "./scoutLive";
@@ -490,7 +491,8 @@ export function sendOfflineChanges(): Promise<void> {
   });
   return sendingOffline;
 }
-if (typeof window !== "undefined") window.addEventListener("online", () => { void sendOfflineChanges(); });
+// Back online: the browser's event, or the connection check finding internet again (iOS sends no event).
+onBackOnline(() => { void sendOfflineChanges(); });
 
 /** A list the server sent back after a change: kept as the list's last answer (lib/offline/kept.ts), so a page opened
  *  with no signal shows the order as saved, not the one read before the change.

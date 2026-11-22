@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { useSearchParams } from "react-router-dom";
 import { Clapperboard,
   Activity, AlertTriangle, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, Gauge, HardDrive, HardDriveDownload,
-  Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Trophy, Unlink, UserRound, Users, Tv, Film,
+  Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Palette, Trophy, Unlink, UserRound, Users, Tv, Film,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
@@ -36,6 +36,7 @@ import { PowerRankingsPanel } from "../components/owner/PowerRankingsPanel";
 import { StreamsPanel } from "../components/owner/StreamsPanel";
 import { PredictionEnginePanel, TierCalibrationList } from "../components/owner/PredictionEnginePanel";
 import { HeroLinesPanel } from "../components/owner/HeroLinesPanel";
+import { WashPanel } from "../components/owner/WashPanel";
 import { WhatsNewPanel } from "../components/owner/WhatsNewPanel";
 import { VitalsTable } from "../components/owner/VitalsTable";
 import { OnboardingFunnel } from "../components/owner/OnboardingFunnel";
@@ -51,6 +52,8 @@ import { ContributorsPanel } from "../components/owner/ContributorsPanel";
 import { OfficialVideosPanel } from "../components/owner/OfficialVideosPanel";
 import { ClipCoveragePanel } from "../components/owner/ClipCoveragePanel";
 import { AnalyticsPanel } from "../components/owner/AnalyticsPanel";
+import { useIsV8 } from "../lib/v8";
+import { SYNC_LATE_HOURS, syncTone } from "../components/owner/syncTone";
 
 const PANELS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, group: "Health" },
@@ -61,6 +64,7 @@ const PANELS = [
   { id: "predictions", label: "Predictions & ledger", icon: Target, group: "Product" },
   { id: "content", label: "Rankings & content", icon: Trophy, group: "Product" },
   { id: "features", label: "Features", icon: ToggleRight, group: "Product" },
+  { id: "appearance", label: "Appearance", icon: Palette, group: "Product" },
   { id: "moderation", label: "Moderation", icon: ShieldAlert, group: "People & trust" },
   { id: "contributors", label: "Video contributors", icon: Clapperboard, group: "People & trust" },
   { id: "feedback", label: "Feedback & errors", icon: Inbox, group: "People & trust" },
@@ -72,8 +76,8 @@ const PANELS = [
 ] as const;
 /** Links made before the console grouped its panels into sections: each opens the section that holds it. */
 const PANEL_ALIASES: Record<string, string> = {
-  ops: "data", users: "accounts", orphaned: "accounts", usage: "analytics", flags: "features", errors: "feedback",
-  powerRankings: "content", streams: "content", whatsNew: "content",
+  ops: "data", users: "accounts", orphaned: "accounts", usage: "analytics", "in-use": "analytics", flags: "features", errors: "feedback",
+  powerRankings: "content", streams: "content", whatsNew: "content", wash: "appearance", gradients: "appearance",
 };
 type PanelId = (typeof PANELS)[number]["id"];
 
@@ -98,13 +102,14 @@ export default function OwnerPage() {
   // The official-video watcher's review queue (docs/official-videos.md).
   const ov = useApi<{ pending: number }>("/api/owner/official-videos/counts").data;
   // Recorded events with played matches missing a clip, not yet reviewed (server/videos/coverageCheck.ts).
-  const cc = useApi<{ open: number }>("/api/owner/clip-coverage/counts").data;
+  // And the clip autopilot's reads waiting for approval (server/videos/autoReads.ts).
+  const cc = useApi<{ open: number; approvals?: number }>("/api/owner/clip-coverage/counts").data;
   const badges: Partial<Record<PanelId, { n: number; what: string; urgent?: boolean }[]>> = o ? {
     feedback: [{ n: o.inbox.openFeedback, what: "open feedback" }, { n: o.inbox.errorReports, what: "error reports", urgent: true }],
     accounts: [{ n: o.orphanedWorkspaces ?? 0, what: "orphaned spaces" }],
     moderation: [{ n: o.commonsReports ?? 0, what: "reported commons entries", urgent: true }],
     ...(ov ? { officialVideos: [{ n: ov.pending, what: "to review" }] } : {}),
-    ...(cc ? { clipCoverage: [{ n: cc.open, what: "actionable events to review" }] } : {}),
+    ...(cc ? { clipCoverage: [{ n: cc.approvals ?? 0, what: "clip reads and matches waiting for approval", urgent: true }, { n: cc.open, what: "actionable events to review" }] } : {}),
     ...(vc ? { contributors: [{ n: vc.requests, what: "verification requests" }, { n: vc.reports, what: "reported videos", urgent: true }] } : {}),
   } : {};
   // Phones and tablets: keep the open section's chip in view in the scrolling row.
@@ -176,6 +181,7 @@ export default function OwnerPage() {
             </div>
           )}
           {panel === "features" && <FeaturesPanel />}
+          {panel === "appearance" && <div className="space-y-8"><WashPanel /><FeaturesPanel appearance /></div>}
           {panel === "moderation" && <div className="space-y-8"><CommonsPanel /><ModerationPanel onOpenResync={() => go("data")} /></div>}
           {panel === "feedback" && <div className="space-y-8"><FeedbackPanel onOpenResync={() => go("data")} /><ErrorsPanel /></div>}
           {panel === "bugs" && <BugReportsPanel />}
@@ -214,6 +220,7 @@ function Facts({ rows, single }: { rows: [ReactNode, ReactNode][]; single?: bool
 
 function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
   const state = useApi<OwnerOverview>("/api/owner/overview");
+  const v8 = useIsV8();
   return (
     <Async state={state}>
       {(o) => (
@@ -230,7 +237,7 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
                 hint={o.workspaces == null ? "Counted once workspace scouting ships" : "Control Point workspaces that have used Scout"} />
               <StatTile tone="emerald" icon={ClipboardList} label="Scout entries" value={int(o.scoutEntries.personal + (o.scoutEntries.workspace ?? 0))}
                 hint={`${int(o.scoutEntries.personal)} personal · ${o.scoutEntries.workspace == null ? "shared: —" : `${int(o.scoutEntries.workspace)} shared`}`} />
-              <StatTile tone="amber" icon={Database} label="Database" value={bytes(o.storage.databaseBytes)} hint={o.storage.databaseLocal ? "Local file, write-ahead log included" : "Remote database (pages in use)"} />
+              <StatTile tone={v8 ? "sky" : "amber"} icon={Database} label="Database" value={bytes(o.storage.databaseBytes)} hint={o.storage.databaseLocal ? "Local file, write-ahead log included" : "Remote database (pages in use)"} />
               <StatTile tone="sky" icon={HardDriveDownload} label="Offline packs" value={bytes(o.storage.packsBytes)}
                 hint={o.storage.packsBytes == null ? "None built on this server" : `${o.storage.packFiles} pack file${o.storage.packFiles === 1 ? "" : "s"}${o.health.packsAt ? ` · built ${ago(o.health.packsAt)}` : ""}`} />
             </TileGrid>
@@ -238,7 +245,7 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
           <Section title="Waiting for you">
             <TileGrid cols={3}>
               <StatTile tone="accent" icon={Inbox} label="Open feedback" value={int(o.inbox.openFeedback)} hint="Messages from the contact form" onClick={() => onOpen("feedback")} action="Show the inbox" />
-              <StatTile tone="amber" icon={Bug} label="Error reports" value={int(o.inbox.errorReports)} hint={o.inbox.unfiledErrors ? `${int(o.inbox.unfiledErrors)} not on GitHub yet` : "All filed on GitHub"} onClick={() => onOpen("feedback")} action="Show them" />
+              <StatTile tone={!v8 ? "amber" : o.inbox.errorReports ? "rose" : "emerald"} icon={Bug} label="Error reports" value={int(o.inbox.errorReports)} hint={o.inbox.unfiledErrors ? `${int(o.inbox.unfiledErrors)} not on GitHub yet` : "All filed on GitHub"} onClick={() => onOpen("feedback")} action="Show them" />
               {o.orphanedWorkspaces != null && (
                 <StatTile tone="violet" icon={Unlink} label="Orphaned spaces" value={int(o.orphanedWorkspaces)}
                   hint={o.orphanedWorkspaces ? "Read-only: deleted in Control Point, or no admin left" : "Every scout space has its workspace"}
@@ -263,29 +270,39 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
   );
 }
 
-/** Hours after which the last data sync reads as late (the data cycle runs far more often). */
-const SYNC_LATE_HOURS = 6;
+
+/** v8's meaning for each health tile (the classic look keeps its own tones): green is fine, orange late, red wrong. */
+function healthTones(h: OwnerOverview["health"], v8: boolean) {
+  const late = !h.dataAsOf || Date.now() - new Date(h.dataAsOf).getTime() > SYNC_LATE_HOURS * 3600e3;
+  const errors = h.errors.server5xxToday + h.errors.reports24h;
+  if (!v8) return { sync: late ? "amber" : "sky", engine: "violet", ledger: "accent", pack: "amber", errors: h.errors.server5xxToday ? "amber" : "emerald" } as const;
+  return {
+    sync: syncTone(h.dataAsOf),
+    engine: "accent", ledger: "violet", pack: "sky", errors: errors ? "rose" : "emerald",
+  } as const;
+}
 
 /** The site's health at a glance: the first thing the console shows. Read-only. */
 function HealthSection({ o, onOpen }: { o: OwnerOverview; onOpen: (id: string) => void }) {
   const h = o.health;
   const syncLate = !h.dataAsOf || Date.now() - new Date(h.dataAsOf).getTime() > SYNC_LATE_HOURS * 3600e3;
   const e = h.errors;
+  const tone = healthTones(h, useIsV8());
   return (
     <Section title="Health" description="Is the site up, is the data fresh, and what's in production right now.">
       <TileGrid cols={3}>
         <StatTile tone="emerald" icon={ServerCog} label="Site" value="Up" hint={`Answering for ${uptime(h.uptimeSeconds)} · release ${h.release ? h.release.slice(0, 7) : "development"}`} />
-        <StatTile tone={syncLate ? "amber" : "sky"} icon={RefreshCw} label="Last data sync" value={h.dataAsOf ? ago(h.dataAsOf) : "Never"}
+        <StatTile tone={tone.sync} icon={RefreshCw} label="Last data sync" value={h.dataAsOf ? ago(h.dataAsOf) : "Never"}
           hint={h.dataAsOf ? `${when(h.dataAsOf)}${syncLate ? ` · later than ${SYNC_LATE_HOURS} hours` : ""}` : "No sync has finished on this database"}
           onClick={() => onOpen("data")} action="Data & sync" />
-        <StatTile tone="violet" icon={Gauge} label="Engine in production" value={`v${h.engineVersion}`} hint="The champion: what every prediction is served from" onClick={() => onOpen("predictions")} action="Predictions & ledger" />
-        <StatTile tone="accent" icon={Target} label={h.ledger?.kind === "backtest" ? "Ledger (replay until enough live calls)" : "Live ledger"}
+        <StatTile tone={tone.engine} icon={Gauge} label="Engine in production" value={`v${h.engineVersion}`} hint="The champion: what every prediction is served from" onClick={() => onOpen("predictions")} action="Predictions & ledger" />
+        <StatTile tone={tone.ledger} icon={Target} label={h.ledger?.kind === "backtest" ? "Ledger (replay until enough live calls)" : "Live ledger"}
           value={h.ledger ? pct(h.ledger.accuracy) : "—"}
           hint={h.ledger ? `${int(h.ledger.n)} ${h.ledger.kind === "live" ? "live calls" : "replayed matches"} · ${seasonLabel(h.ledger.season)}` : "The track record isn't built yet"}
           onClick={() => onOpen("predictions")} action="Predictions & ledger" />
-        <StatTile tone="amber" icon={PackageOpen} label="Pack manifest" value={h.packManifest ? day(h.packManifest.builtAt) : "None"}
+        <StatTile tone={tone.pack} icon={PackageOpen} label="Pack manifest" value={h.packManifest ? day(h.packManifest.builtAt) : "None"}
           hint={h.packManifest ? `Version ${h.packManifest.version} · engine v${h.packManifest.engineVersion}${h.packManifest.dataAsOf ? ` · data as of ${day(h.packManifest.dataAsOf)}` : ""}` : "No pack built on this server"} />
-        <StatTile tone={e.server5xxToday ? "amber" : "emerald"} icon={AlertTriangle} label="Recent errors" value={`${int(e.server5xxToday)} server · ${int(e.reports24h)} app`}
+        <StatTile tone={tone.errors} icon={AlertTriangle} label="Recent errors" value={`${int(e.server5xxToday)} server · ${int(e.reports24h)} app`}
           hint={`Server errors today (UTC), distinct app errors in the last 24 h · this week: ${int(e.server5xx7d)} server, ${int(e.reports7d)} distinct app`}
           onClick={() => onOpen("feedback")} action="Feedback & errors" />
       </TileGrid>

@@ -388,16 +388,35 @@ export function looseWord(w: string, v: Vocab): WordFix | null {
   return found.length === 1 ? { word: found[0], own: true } : null;
 }
 
+/** Two words typed apart that a stored name has as one ("long horn round up" for "Longhorn Roundup"): joined when
+ *  the joined word is a name's word seen three times or more and isn't one of search's own. Search reads both
+ *  queries and keeps the better answer (spelled), so "Long Horn" as a team's own two words still reads as typed. */
+export function joinWords(parts: string[], v: Vocab): { parts: string[]; fixes: [string, string][] } {
+  const out = [...parts];
+  const fixes: [string, string][] = [];
+  for (let i = 0; i + 2 < out.length; i += 2) {
+    const a = out[i], b = out[i + 2];
+    if (!/^\p{L}{2,}$/u.test(a) || !/^\p{L}{2,}$/u.test(b) || a === a.toUpperCase() || b === b.toUpperCase()) continue;
+    const joined = (a + b).toLowerCase();
+    if (joined.length < 6 || v.own.has(joined) || (v.count.get(joined) ?? 0) < 3) continue;
+    fixes.push([`${a} ${b}`.toLowerCase(), joined]);
+    out.splice(i, 3, a[0] === a[0].toUpperCase() ? joined[0].toUpperCase() + joined.slice(1) : joined);
+  }
+  return { parts: out, fixes };
+}
+
 /** A query with its misspelled words corrected, each in the case it was typed in ("Hypnotc" → "Hypnotic"), or null
  *  when nothing needs correcting, with each fix (typed, corrected; lower case). `own`: every fix is to one of search's own words ("oper" → "opr"), so it may be
  *  offered even when the query as typed found something. Only whole words of letters are read: numbers, codes and
  *  punctuation stay as typed. */
 export async function correctQuery(q: string, loose = false): Promise<{ q: string; own: boolean; fixes: [string, string][] } | null> {
-  const parts = q.split(/(\s+)/);
-  if (!parts.some((p) => (loose ? /^\p{L}{3,}$/u : /^\p{L}{4,}$/u).test(p))) return null;
+  const typed = q.split(/(\s+)/);
+  if (!typed.some((p) => (loose ? /^\p{L}{3,}$/u : /^\p{L}{4,}$/u).test(p)) && typed.length < 3) return null;
   const v = await vocab();
-  let own = true;
-  const fixes: [string, string][] = [];
+  const joins = loose ? { parts: typed, fixes: [] as [string, string][] } : joinWords(typed, v);
+  const parts = joins.parts;
+  let own = !joins.fixes.length;
+  const fixes: [string, string][] = [...joins.fixes];
   let lastWord = parts.length - 1;
   while (lastWord > 0 && !parts[lastWord].trim()) lastWord--;
   const out = parts.map((p, i) => {

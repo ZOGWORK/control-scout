@@ -62,7 +62,7 @@ import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTab
 
 /** The site's link-preview card (scripts/og-image.ts renders public/og-image.png). The version is bumped whenever the
  *  card is redrawn: Discord, Slack and iMessage cache a preview image by its URL, so a new one needs a new address. */
-export const OG_IMAGE_PATH = "/og-image.png?v=2";
+export const OG_IMAGE_PATH = "/og-image.png?v=3";
 /** What the card says, for screen readers in apps that show it. */
 export const OG_IMAGE_ALT = "Control Scout: every FTC match, predicted. Free scouting with OPR, win odds and advancement.";
 import { answerDescription, badgeUnder, contextBadge, headingOver, isQualityQuestion, pageTitle, repeats, unreadNote } from "../src/shared/searchPage.js";
@@ -178,6 +178,8 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/contact": { title: "Contact", description: "Contact the Control Scout team: report a bug, ask for a data correction, suggest a feature or ask a question about your data or the site." },
   "/donate": { title: "Support Control Scout", description: "Control Scout is free and stays free. Donations through GitHub Sponsors help pay for the domain, hosting and email. Not tax-deductible, and they unlock nothing." },
   "/preview/home": { title: "Sample home", description: "A sample of the new Control Scout home page, for review.", noindex: true },
+  "/legacy": { title: "Classic look", description: "Switch between Control Scout's new look and the classic one on this device.", noindex: true },
+  "/preview/kit": { title: "Kit", description: "Every part of the new Control Scout look, for review.", noindex: true },
   "/my-team": { title: "My team", description: "Your team's dashboard on Control Scout.", noindex: true },
   "/my-teams": { title: "My teams", description: "The FTC teams you're on or manage, with their stats.", noindex: true },
   "/shortlist": { title: "Shortlist", description: "Your shortlisted FTC teams on Control Scout.", noindex: true },
@@ -684,10 +686,12 @@ export function teamTableHtml(t: TeamTable, label: string): string {
 const NO_PREFER: ReadonlySet<string> = new Set();
 
 /** How long a search's first paint waits for its follow-ups (People also ask, Related searches) once its answer is
- *  read. Each is a search run to check it answers directly, kept a minute (keptFollowUps): most are already kept, and
- *  the app asked for them right after the page anyway. Still making past this, the page goes without them and the app
- *  asks for the same kept ones, so a slow set never holds the answer back. */
-export const FOLLOW_FIRST_PAINT_MS = 1200;
+ *  read. Each is a search run to check it answers directly, kept a minute (keptFollowUps): a kept set is there at
+ *  once, and the app asks for them right after the page anyway. Still making past this, the page goes without them
+ *  (they keep being made, and are kept) and the app shows the same kept ones a moment later, so a slow set never holds
+ *  the answer back. Was 1200 ms: a new search's page then took 1.2 s on the server (VM, 2026-11-22) for a set that
+ *  takes 0.3–0.9 s to make cold; the page is never indexed ("noindex, follow"), so nothing is lost by not waiting. */
+export const FOLLOW_FIRST_PAINT_MS = 250;
 
 /** The follow-ups for `q`, or null when they take longer than `ms`. */
 async function followUpsWithin(q: string, ms: number): Promise<SearchFollowUps | null> {

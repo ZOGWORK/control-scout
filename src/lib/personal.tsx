@@ -4,6 +4,7 @@
 // data into the account so nothing is lost.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "./api";
+import { onBackOnline } from "./connection";
 import type { OrphanState } from "../shared/orphaned";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
 import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, setScoutViewer, storedScoutEntry } from "./scouting";
@@ -38,8 +39,11 @@ export type SyncStatus = "local" | "synced" | "syncing" | "offline" | "error";
 interface PersonalApi {
   state: PersonalState;
   user: AccountUser | null;
-  /** Null until /api/auth/me has answered. */
+  /** Null until /api/auth/me has answered (or failed: then no providers). */
   providers: AuthProviders | null;
+  /** /api/auth/me has answered on this page, so `user` is the server's word on who's here (not a failed lookup's
+   *  null, nor the offline copy). For decisions that must never rest on a guess: the owner's look (src/lib/ownerLook.tsx). */
+  accountAnswered: boolean;
   /**
    * True while `user` is the account this device last saw signed in (ACCOUNT_CACHE_KEY), because the
    * app opened offline and /api/auth/me couldn't answer. Its workspaces still pick the scout space,
@@ -197,6 +201,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PersonalState>(() => toState(stamped.current));
   const [user, setUser] = useState<AccountUser | null>(null);
   const [providers, setProviders] = useState<PersonalApi["providers"]>(null);
+  const [accountAnswered, setAccountAnswered] = useState(false);
   const [offlineAccount, setOfflineAccount] = useState(false);
   const offlineRef = useRef(false);
   const [sync, setSync] = useState<SyncStatus>("local");
@@ -338,6 +343,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       .then((r) => {
         if (generation.current !== asked) return;
         setProviders(r.providers);
+        setAccountAnswered(true);
         if (r.user) { connect(r.user); return; }
         cacheAccount(null);
         if (offlineRef.current) { offlineRef.current = false; setOfflineAccount(false); generation.current++; userRef.current = null; setUser(null); setSync("local"); }
@@ -359,7 +365,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       if (!readyRef.current) connect(u); // the sign-in sync didn't finish (e.g. offline): redo it
       else if (Object.keys(pending()).length) push();
     };
-    window.addEventListener("online", retry);
+    const offBack = onBackOnline(retry); // the online event, or the connection check finding internet again
     const t = setInterval(retry, 30_000);
     // Another tab changed something: reload it.
     const onStorage = (e: StorageEvent) => {
@@ -367,7 +373,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       if (k && e.newValue) { try { const s = JSON.parse(e.newValue); stamped.current[k] = s; setState((p) => ({ ...p, [k]: s.value })); } catch { /* ignore */ } }
     };
     window.addEventListener("storage", onStorage);
-    return () => { window.removeEventListener("online", retry); window.removeEventListener("storage", onStorage); clearInterval(t); };
+    return () => { offBack(); window.removeEventListener("storage", onStorage); clearInterval(t); };
   }, [connect, push]);
 
   const set = useCallback(<K extends PersonalKey>(key: K, value: PersonalState[K]) => {
@@ -449,14 +455,14 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onFront); window.removeEventListener("focus", onFront); };
   }, [refreshUser]);
 
-  const api = useMemo<PersonalApi>(() => ({ state, user, providers, offlineAccount, sync, syncReady, set, update, stored, signedIn, signOut, refreshUser, clearLocal }), [state, user, providers, offlineAccount, sync, syncReady, set, update, stored, signedIn, signOut, refreshUser, clearLocal]);
+  const api = useMemo<PersonalApi>(() => ({ state, user, providers, accountAnswered, offlineAccount, sync, syncReady, set, update, stored, signedIn, signOut, refreshUser, clearLocal }), [state, user, providers, accountAnswered, offlineAccount, sync, syncReady, set, update, stored, signedIn, signOut, refreshUser, clearLocal]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 
 /** A fresh, signed-out device's personal data, fixed: for the server's render of a page (src/prerender/page.tsx),
  *  where there's no device. Every change is a no-op. */
 const FRESH: PersonalApi = {
-  state: EMPTY_STATE, user: null, providers: null, offlineAccount: false, sync: "local", syncReady: false,
+  state: EMPTY_STATE, user: null, providers: null, accountAnswered: false, offlineAccount: false, sync: "local", syncReady: false,
   set: () => false, update: () => false, stored: () => undefined,
   signedIn: async () => {}, signOut: async () => {}, refreshUser: async () => {}, clearLocal: () => {},
 };

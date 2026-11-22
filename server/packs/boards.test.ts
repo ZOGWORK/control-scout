@@ -20,7 +20,7 @@ import { idle, writeState, writing } from "../data/writeGen";
 import { lockHolder, withDataLock } from "../data/lock";
 import { liveIo, liveTick } from "../data/live";
 import { setBoardReads } from "./boards";
-import { buildPackApi, setPackReads, PACK_READS } from "./eventApi";
+import { buildPackApi, setPackReads, PACE_SLICE_MS, PACK_READS } from "./eventApi";
 import { eventDetail } from "../api/events";
 import { WEEK_MS, weekOf } from "../../src/shared/rankings";
 import { RANKING_PACK_WEEKS } from "../../src/shared/packSchema";
@@ -226,6 +226,17 @@ describe("event pack", () => {
     const parts = await buildPackApi(S, ev!);
     const got = packLookup(parts.api, `/api/leagues/${S}/USTX/LS`);
     expect(got && "body" in got ? got.body : null).toEqual((await get(`/api/leagues/${S}/USTX/LS`)).body);
+  }, 60_000);
+
+  it("a background build (rewarmPacks) gives the loop back as long as it ran, with the same answers", async () => {
+    setPackReads(PACK_READS);
+    const ev = (await eventDetail(S, "USTXLM1"))!;
+    const plain = await buildPackApi(S, ev);
+    // Started as if it had already run ten slices: its first pause waits at least that long.
+    const t0 = performance.now();
+    const paced = await buildPackApi(S, ev, PACK_READS, { since: t0 - 10 * PACE_SLICE_MS });
+    expect(performance.now() - t0).toBeGreaterThanOrEqual(10 * PACE_SLICE_MS - 5);
+    expect(paced).toEqual(plain);
   }, 60_000);
 });
 

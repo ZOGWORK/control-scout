@@ -3,6 +3,7 @@
 // first answer, and whenever it can't be had (offline), every flag is on: the server still
 // enforces its own switches, so a stale "on" here only means a feature that politely refuses.
 import { useSyncExternalStore } from "react";
+import { onBackOnline } from "./connection";
 import { DEFAULT_FLAGS, type Flag, type FlagSet, type FlagsAnswer } from "../shared/flags";
 
 let flags: FlagSet = { ...DEFAULT_FLAGS };
@@ -95,7 +96,7 @@ export function startFlags(): void {
   void refreshFlags();
   window.setInterval(() => { if (document.visibilityState === "visible") void refreshFlags(); }, REFRESH_MS);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void refreshFlags(); });
-  window.addEventListener("online", () => { void refreshFlags(); });
+  onBackOnline(() => { void refreshFlags(); });
 }
 
 /**
