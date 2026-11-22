@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.8.9 — 2026-11-22
+
+/config and the startup block now name the bot's own account and how many servers it is in, the facts the journal's ready line reports.
+
+### Highlights
+- [alerts] /config names the bot's tag and how many servers it is in
+- [fixes] The startup block says it too, or that it's not connected yet
+- [alerts] Still one source: the journal and /config can't disagree
+
+### Discord bot
+- `bot/config.ts` adds a ninth line to the summary, second among them: `config: bot Control Scout#1234 in 4 servers` — the Discord tag and `guilds.cache` size the journal's `ready as … in N servers` line already reports, so `/config` is still everything the journal would tell you. Before the gateway reports ready (the startup block, or a bot that hasn't connected) it says `config: bot not ready yet …` rather than `0 servers`, which would be true only for a bot that had looked.
+- `bot/index.ts` keeps the tag and the count in one small record the summary reads, set when Discord reports ready and updated on every `GuildCreate`/`GuildDelete` (the same events that log the count), so the number `/config` shows is live rather than the one from startup. `bot/config.test.ts` covers the line, its singular "1 server", the not-ready wording and the embed; `bot/README.md` shows the nine lines.
+
 ## 7.8.8 — 2026-11-22
 
 /config now names the release the bot is running and when it last reached Discord, so one command answers what the journal's ready line does without an SSH session.

@@ -1,6 +1,6 @@
 // What this process can do, said once at startup so one journalctl look answers it — chat and why not, report filing,
-// follow posts, the site it talks to, the season, the release it runs and when it last reached Discord — without a
-// test message or a filed issue. Every line says whether something is set, never a secret's value (bot/index.ts logs
+// follow posts, the site it talks to, the season, the release it runs, the account it is and its servers, and when it
+// last reached Discord — without a test message or a filed issue. Every line says whether something is set, never a secret's value (bot/index.ts logs
 // these, `journalctl -u control-scout-bot | grep 'config:'`).
 import type { APIEmbed } from "discord.js";
 import { seasonWithGame } from "../server/data/seasons.js";
@@ -33,6 +33,9 @@ const JOURNAL: Clock = {
 export interface Config {
   /** The commit this process runs (server/release.ts, the same string /api/health reports); null in development. */
   release: string | null;
+  /** The account this process is and how many servers it is in (`guilds.cache`), as the journal's ready line says it;
+   *  null until the gateway reports ready, since the startup block runs before that and "0 servers" would be a lie. */
+  bot: { tag: string; servers: number } | null;
   season: number;
   /** The site's own port: the bot reads its API and database on loopback (bot/index.ts waitForSite). */
   sitePort: number;
@@ -55,6 +58,9 @@ export function configLines(c: Config, clock: Clock = JOURNAL): string[] {
     c.release
       ? `config: release ${c.release}`
       : "config: release development (no RELEASE file: the commit isn't known here)",
+    c.bot
+      ? `config: bot ${c.bot.tag} in ${plural(c.bot.servers, "server", "servers")}`
+      : "config: bot not ready yet (the gateway hasn't said which account this is; the ready line follows)",
     `config: season ${c.season} (${seasonWithGame(c.season)})`,
     `config: site http://127.0.0.1:${c.sitePort} (its own API, on loopback)`,
     `config: slash commands ${c.commands.guild ? `in server ${c.commands.guild} only (DISCORD_DEV_GUILD_ID)` : "globally (no DISCORD_DEV_GUILD_ID)"}`,
