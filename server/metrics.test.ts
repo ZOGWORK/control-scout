@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, MIGRATIONS, openDb, run, setDb } from "./db";
 import type { AddressInfo } from "node:net";
 import express from "express";
-import { MAX_ROUTES, OTHER_ROUTE, flushMetrics, isMeasured, isSyncRoute, normalizeRoute, percentile, recordRequest, requestMetrics, resetMetrics, usageSummary } from "./metrics";
+import { MAX_ROUTES, OTHER_ROUTE, flushMetrics, isMeasured, isSyncRoute, markNotAnError, normalizeRoute, percentile, recordRequest, requestMetrics, resetMetrics, usageSummary } from "./metrics";
 import { driftAlerts, MIN_BASELINE, MIN_WEEK } from "./portal/predictionHealth";
 
 describe("normalizeRoute", () => {
@@ -111,6 +111,27 @@ describe("request counters", () => {
       ["GET /api/projections/:n/:id/stream", 1, 0],
     ]);
     expect(Number(rows[1].max_ms)).toBeLessThan(200);
+  });
+
+  it("a deliberate 503 (the shutdown message) is counted and timed but isn't an error; any other 5xx still is", async () => {
+    const app = express();
+    app.use(requestMetrics());
+    app.get("/api/alerts-feed", (_req, res) => { res.status(503); markNotAnError(res); res.json({ error: "unavailable" }); });
+    app.get("/api/weather", (_req, res) => { res.status(503).json({ error: "down" }); });
+    const srv = app.listen(0);
+    await new Promise((r) => srv.once("listening", r));
+    const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+    try {
+      for (let i = 0; i < 3; i++) expect((await fetch(`${base}/api/alerts-feed?teams=1`)).status).toBe(503);
+      expect((await fetch(`${base}/api/weather`)).status).toBe(503);
+      await new Promise((r) => setTimeout(r, 50)); // the close events
+    } finally { srv.closeAllConnections(); srv.close(); }
+    await flushMetrics();
+    const rows = await all<any>("SELECT * FROM request_metrics_daily ORDER BY route");
+    expect(rows.map((r) => [r.route, r.count, r.errors])).toEqual([
+      ["GET /api/alerts-feed", 3, 0],
+      ["GET /api/weather", 1, 1],
+    ]);
   });
 
   it("migration 67 drops live stream rows timed until they closed, and keeps the rest", async () => {
