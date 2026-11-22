@@ -51,6 +51,16 @@ every server today — is unlimited: nothing is counted, nothing is written and 
 and a mention get a plain note with when it resets, while the site and the server's follow posts keep working.
 `setGuildLimit(guild, { perHour, perDay }, by)` sets or clears one; a zero or a null is no cap.
 
+**"Report this to ControlScout"** (`bot/report.ts`): a message with those words — any case, `Control Scout` or
+`ControlScout` — files one GitHub issue titled `Discord type issue`, through the site's own GitHub path
+(`server/errorReports.ts` `gh`, `GITHUB_REPORT_TOKEN`, the same token and client the site's error reports use, so no
+second secret). The issue carries the message that asked, the turns of the thread it replies to, the server, channel and
+user ids, the asker's display name, the bot's last 20 log lines and the release. The bot answers with the issue number
+and link; the same words in the same server within 10 minutes point at that issue instead of opening another; a report
+that can't be filed (no token, GitHub refusing) says so in the channel and logs the reason, never throws. A report is
+never counted as a chat, so a server at its cap can still report a bug. The issue is as public as the repository's
+issues: it posts what the channel said, which is the point of the request.
+
 **What a server teaches it.** `bot/memory.ts` (migration 100) keeps three things per server, so answers get smarter the
 longer it's there: `discord_guild_teams`, the teams its people ask about (a 3 to 5 digit number that could be one —
 years are skipped, so "who won decode 2025" teaches nothing), most asked first; `discord_people`, the name each person
