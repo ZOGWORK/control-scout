@@ -18,7 +18,8 @@ import { liveForecaster, liveVersion } from "../predict/engine.js";
 import { matchViews } from "../api/matches.js";
 import { seasonInfo } from "../data/seasons.js";
 import { registerCache } from "../caches.js";
-import { CARD_VERSION, renderCard, type CardModel } from "./card.js";
+import { CARD_VERSION, type CardModel } from "./card.js";
+import { renderCardOffThread } from "./offThread.js";
 import type { ShareCardQuery } from "../../src/shared/share.js";
 
 export class ShareError extends Error { constructor(readonly status: number, message: string) { super(message); } }
@@ -115,7 +116,7 @@ export function cachedCard(key: string): Promise<Card> | undefined {
 export function matchCard(key: string, q: ShareCardQuery): Promise<Card> {
   return cards.getOrCreate(key, async () => {
     const model = await cardModel(q);
-    const png = await renderCard(model);
+    const png = await renderCardOffThread(model); // on the card worker: never the event loop (offThread.ts)
     // The ETag is the data version the card was drawn from (in the key) plus a hash of the image.
     const etag = `"sc${CARD_VERSION}-${createHash("sha1").update(key).update(png).digest("base64url").slice(0, 22)}"`;
     return { png, etag };
