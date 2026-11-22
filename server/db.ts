@@ -2709,6 +2709,17 @@ CREATE TABLE IF NOT EXISTS video_storyboards (
 );
 `,
   },
+  {
+    version: 102,
+    name: "discord thread server",
+    sql: `
+-- The server a reply thread belongs to (bot/memory.ts), so removing the bot from a server deletes the threads it kept
+-- there (bot/forget.ts). Threads kept before this have no server; they are still read by their message id and expire
+-- 14 days after their last turn, as before.
+ALTER TABLE discord_threads ADD COLUMN guild_id TEXT;
+CREATE INDEX IF NOT EXISTS discord_threads_guild ON discord_threads (guild_id);
+`,
+  },
 ];
 
 export type Db = Client;

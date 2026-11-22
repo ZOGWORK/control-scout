@@ -14,7 +14,7 @@ an embed that links back to controlscout.org:
 | `/following` | The server's followed teams and where each posts (up to 10 per server) |
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below) |
 | `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking |
-| `/config` | What the bot is and can do here, read live: the release it runs, the account it is and how many servers it is in, the season, the site it talks to, chat on (or why it isn't), report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
+| `/config` | What the bot is and can do here, read live: the release it runs, the account it is and how many servers it is in, the season, the site it talks to, chat on (or why it isn't) and the chat limit this server has, report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
 
 ## /ask
@@ -46,11 +46,16 @@ Pace: none per person — every message is answered, so two in a row get two ans
 a minute is the answer already given (one lookup, whoever asks). Every ask is logged as the command, the step, whether Bruno helped
 and the time, never who asked. The bot reads the site's search index and never writes it.
 
-**Per-server limits: built, none set.** `bot/quota.ts` holds a server's cap (chats per UTC hour and per UTC day,
-table `discord_limits`) and counts usage (`discord_chat_usage`) only once a server has one. A server with no row —
-every server today — is unlimited: nothing is counted, nothing is written and nothing is refused. At a cap, `/ask`
-and a mention get a plain note with when it resets, while the site and the server's follow posts keep working.
-`setGuildLimit(guild, { perHour, perDay }, by)` sets or clears one; a zero or a null is no cap.
+**Per-server chat limits: 30 an hour, 100 a day.** `bot/quota.ts` gives every server the same default cap (chats per
+UTC hour and per UTC day, counted in UTC windows) and counts what it uses (`discord_chat_usage`); a server with its own
+row in `discord_limits` has that instead. A row replaces both windows, and a zero or a null there is no cap for that
+window — how a big event server is exempted — while `clearGuildLimit(guild)` deletes the row and puts the server back
+on the default. Both are the owner console's write (Product › Discord bot, `server/portal/discordLimits.ts`): it lists
+every server the bot knows with its cap and what it has used today, and sets or clears one server's cap, every change
+in the audit log. Either write deletes that server's usage, so its counters start with its cap: nothing it asked
+earlier counts against it. At a cap, `/ask` and a mention get a plain note with
+when it resets, while the site and the server's follow posts keep working. `/config` says which limit the server it
+was asked in has, and whether it is the default or that server's own.
 
 **"Report this to ControlScout"** (`bot/report.ts`): a message with those words — any case, `Control Scout` or
 `ControlScout` — files one GitHub issue titled `Discord type issue`, through the site's own GitHub path
@@ -82,6 +87,9 @@ config: follow posts on — 12 follows in 4 servers (a tick a minute while conne
 config: discord not connected now (last connected 2 minutes ago)
 ```
 
+`/config` adds a tenth line for the server it was asked in: `config: chat limit 30 an hour, 100 a day (the default for
+every server)` — or `(set for this server)`, or `none`, or that the limit couldn't be read.
+
 so `journalctl -u control-scout-bot | grep 'config:'` answers "what can this bot do here, and what is it missing?" in
 one look: the chat says `off —` with the reason ask.ts itself gives (Control Point unconfigured, or the switch off), the
 follows are counted (or it says none yet, or that they couldn't be read), the commands are placed (`globally`, or `in
@@ -92,8 +100,9 @@ the gateway only knows them once it reports ready, so before that (the startup b
 the line says so rather than claiming 0 servers. The Discord line is when this process reached the gateway, or —
 before it has, as at startup — the last heartbeat it wrote (`service_heartbeats`, once a minute while connected),
 which outlives a restart. `/config` (Manage Server, answered privately) shows the same nine lines in Discord, read
-live — same function, so the two can't disagree — with the times as Discord timestamps (`<t:…:R>`), so "3 minutes
-ago" is in each reader's own clock.
+live — same function, so the two can't disagree — plus the chat limit of the server it was asked in, which the startup
+block has no server to know, with the times as Discord timestamps (`<t:…:R>`), so "3 minutes ago" is in each reader's
+own clock.
 
 The issue is as public as the repository's issues: it posts what
 the channel said, which is the point of the request — with an `@mention` and a `#123` neutralised, since it's filed
@@ -107,7 +116,10 @@ reads — the server's teams ("when a question doesn't name a team, it means one
 picked") and the asker's name — so "what was our auto OPR last event" resolves to the team the server keeps asking
 about, and an answer can use the person's name. The answer style asks for one short suggested next question the facts
 can answer ("Also want 4215's record?"), so a good answer offers the follow-up instead of waiting to be asked. Both
-tables are private: a Discord id, the name Discord already shows, and nothing else.
+tables are private: a Discord id, the name Discord already shows, and nothing else. All of it is deleted when the bot
+is removed from a server (`bot/forget.ts`): the follows and the posts they sent, the chat limit and its usage, the
+teams, the names and the reply threads — which is why a thread records its server now (migration 102). A server that is
+only unreachable (`GuildDelete` with `available: false`, a Discord outage) is not a removal, and keeps everything.
 
 **@mention answers: a chat with Bruno.** `@Control Scout who won decode` or `@Control Scout hi bruno` goes to Control
 Point's Bruno chat (`POST /internal/bruno/discord-chat`) with the facts the website's search found for it, and his

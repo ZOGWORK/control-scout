@@ -1,6 +1,7 @@
 // What a Discord server teaches the bot, kept in the database (migration 100) so it survives a restart: the teams its
 // people ask about, the name each person goes by there, and the turns of a reply thread. Nothing is personal beyond a
-// Discord id and the display name Discord already shows; the tables are private (server/data/snapshot.ts).
+// Discord id and the display name Discord already shows; the tables are private (server/data/snapshot.ts), and all of
+// it is deleted when the bot is removed from the server (bot/forget.ts).
 //
 // Teams are learned from the message itself (teamsAsked, below): a 3 to 5 digit number that could be one. Years are
 // skipped (1900–2099) so "who won decode 2025" doesn't teach the bot that 2025 is this server's team.
@@ -63,12 +64,14 @@ export async function thread(root: string, now = Date.now()): Promise<BrunoChatT
   } catch { return []; }
 }
 
-/** Keep a thread's last turns, and forget the threads nobody has carried on in THREAD_DAYS. */
-export async function keep(root: string, turns: BrunoChatTurn[], now = Date.now()): Promise<void> {
+/** Keep a thread's last turns in its server (`guild`: which server, so it can be forgotten with the rest of that
+ *  server's data), and forget the threads nobody has carried on in THREAD_DAYS. */
+export async function keep(root: string, turns: BrunoChatTurn[], guild: string | null, now = Date.now()): Promise<void> {
   const at = new Date(now).toISOString();
   await run(
-    `INSERT INTO discord_threads (root_id, turns, updated_at) VALUES (?, ?, ?)
-     ON CONFLICT(root_id) DO UPDATE SET turns = excluded.turns, updated_at = excluded.updated_at`,
-    [root, JSON.stringify(turns.slice(-TURNS_MAX)), at]);
+    `INSERT INTO discord_threads (root_id, turns, updated_at, guild_id) VALUES (?, ?, ?, ?)
+     ON CONFLICT(root_id) DO UPDATE SET turns = excluded.turns, updated_at = excluded.updated_at,
+       guild_id = COALESCE(excluded.guild_id, discord_threads.guild_id)`,
+    [root, JSON.stringify(turns.slice(-TURNS_MAX)), at, guild]);
   await run("DELETE FROM discord_threads WHERE updated_at < ?", [new Date(now - THREAD_DAYS * 86_400_000).toISOString()]);
 }
