@@ -432,7 +432,8 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <AccountProvider>
     <AccountSetupProvider>
-    <AccountSheetBridge menu={menu} openMenu={() => openMenu(menuRef.current)} />
+    {/* v8 keeps your menu under your picture in the top row on every screen (#2091): only the classic look moves it into the sheet. */}
+    {!v8 && <AccountSheetBridge menu={menu} openMenu={() => openMenu(menuRef.current)} />}
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
         {/* At least a screen tall; sideways overflow is clipped (clip, not hidden: no scroll box, so the sticky bars still stick). */}
@@ -472,7 +473,8 @@ export function Shell({ children }: { children: ReactNode }) {
               </div>
             </header>}
             <div className="relative flex-1">
-              {!bare && v8 && glow && <PageEndGlow />}
+              {/* Home has none: its dashboard sits under the top wash, and the page shows one gradient at a time. */}
+              {!bare && v8 && glow && !isHomePath(loc.pathname) && <PageEndGlow />}
               {/* The ambient layer fills the screen under the top bar and stays there while the page scrolls
                   over it (sticky, and pulled out of the flow by its negative margin). svh, not dvh: a phone's
                   toolbar folding away must not resize it mid-scroll. */}
