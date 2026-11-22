@@ -1,7 +1,9 @@
-// /legacy: pick the new look (v8, docs/design/v8-revamp-brief.md) or the classic one, on this device. Linked from
-// Settings → Display → Look; noindex. The choice is stored (src/lib/v8.ts), so the classic look stays reachable after
-// the new one becomes the default.
+// /legacy: pick the new look (v8, docs/design/v8-revamp-brief.md) or the classic one, on this device. The owner's
+// alone (src/lib/ownerLook.tsx): linked from the owner console's Features tab; anyone else is sent Home. noindex. The
+// choice is stored (src/lib/v8.ts).
 import { Check } from "lucide-react";
+import { Navigate } from "react-router-dom";
+import { useMayPickLook } from "../lib/ownerLook";
 import { Button } from "../components/ui/button";
 import { useTitle } from "../lib/meta";
 import { setV8, useIsV8 } from "../lib/v8";
@@ -14,6 +16,10 @@ const LOOKS = [
 export default function LegacyPage() {
   useTitle("Classic look");
   const v8 = useIsV8();
+  const may = useMayPickLook();
+  // Nothing until the server has said who's here; then the owner picks, and anyone else goes Home.
+  if (may === undefined) return null;
+  if (!may) return <Navigate to="/" replace />;
   return (
     <div className="mx-auto max-w-xl space-y-6 py-6">
       <div className="space-y-1.5">
