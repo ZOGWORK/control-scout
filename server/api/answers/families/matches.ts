@@ -298,7 +298,8 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         headline: { value: mean(ms.map((m) => m.own)).toFixed(1), label: `points per match with penalties, over ${ms.length} match${ms.length === 1 ? "" : "es"}`, sub: [seasonLabel(ms[0].season), events.size === 1 ? ms[0].event : ""].filter(Boolean).join(" · ") },
         blocks: [
           { kind: "kpis", items: [{ label: "Without penalties", value: mean(ms.map(np)).toFixed(1) }, { label: "Best", value: String(Math.max(...ms.map((m) => m.own))) }, { label: "Lowest", value: String(Math.min(...ms.map((m) => m.own))) }] },
-          { kind: "series", title: "Average by event", unit: "points", points: [...events.values()].map((xs) => ({ x: xs[0].event, y: Number(mean(xs.map((m) => m.own)).toFixed(1)), href: eventHref(xs[0].season, xs[0].code, team.number), note: `${xs.length} matches` })) },
+          // One event ("… average points last meet"): the headline is its average, so no one-point chart repeats it.
+          ...events.size < 2 ? [] : [{ kind: "series" as const, title: "Average by event", unit: "points", points: [...events.values()].map((xs) => ({ x: xs[0].event, y: Number(mean(xs.map((m) => m.own)).toFixed(1)), href: eventHref(xs[0].season, xs[0].code, team.number), note: `${xs.length} matches` })) }],
         ],
         definition: def,
       };
