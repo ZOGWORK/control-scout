@@ -27,6 +27,6 @@ export const BOT_COMMANDS: { usage: string; what: string; admin?: true }[] = [
   { usage: "/follow team: channel:", what: "Posts in a channel for a team: the evening before an event, its schedule, 15 minutes before each match and its result, and a recap each day.", admin: true },
   { usage: "/unfollow team:", what: "Stop those posts for a team.", admin: true },
   { usage: "/following", what: "The teams this server follows, and where each one posts." },
-  { usage: "/config", what: "What the bot can do here: the season, chat, report filing, follow posts and where its commands are registered.", admin: true },
+  { usage: "/config", what: "What the bot is and can do here: the release it runs, when it last reached Discord, the season, chat, report filing, follow posts and where its commands are registered.", admin: true },
   { usage: "/help", what: "This list." },
 ];

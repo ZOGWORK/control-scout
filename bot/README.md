@@ -14,7 +14,7 @@ an embed that links back to controlscout.org:
 | `/following` | The server's followed teams and where each posts (up to 10 per server) |
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below) |
 | `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking |
-| `/config` | What the bot can do here, read live: the season, the site it talks to, chat on (or why it isn't), report filing, the follow posts, and whether its commands are registered globally or only in the test server. Private, Manage Server only |
+| `/config` | What the bot is and can do here, read live: the release it runs, the season, the site it talks to, chat on (or why it isn't), report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
 
 ## /ask
@@ -68,22 +68,28 @@ Whether reporting is wired up is said once at startup (`report filing on: GITHUB
 filing off: …`), so the journal answers it — `journalctl -u control-scout-bot | grep 'report filing'` — without filing
 a test issue. It says whether the variable is set, never its value; a token added later shows on the next restart.
 
-**What it can do, at startup** (`bot/config.ts`): six lines starting `config:`, said once the database is open —
+**What it is and can do, at startup** (`bot/config.ts`): eight lines starting `config:`, said once the database is open —
 
 ```
+config: release 8f6f706044289bd4fa632aaa84a9b1d15434c1c8
 config: season 2025 (2025–26 DECODE)
 config: site http://127.0.0.1:3000 (its own API, on loopback)
 config: slash commands globally (no DISCORD_DEV_GUILD_ID)
 config: chat on: Control Point is configured and the discordBruno switch is on
 config: report filing on: GITHUB_REPORT_TOKEN is set
 config: follow posts on — 12 follows in 4 servers (a tick a minute while connected)
+config: discord not connected now (last connected 2 minutes ago)
 ```
 
 so `journalctl -u control-scout-bot | grep 'config:'` answers "what can this bot do here, and what is it missing?" in
 one look: the chat says `off —` with the reason ask.ts itself gives (Control Point unconfigured, or the switch off), the
 follows are counted (or it says none yet, or that they couldn't be read), the commands are placed (`globally`, or `in
-server <id> only (DISCORD_DEV_GUILD_ID)`), and no line ever carries a secret's value. `/config` (Manage Server, answered
-privately) shows the same six lines in Discord, read live — same function, so the two can't disagree.
+server <id> only (DISCORD_DEV_GUILD_ID)`), and no line ever carries a secret's value. The release is the commit
+`/api/health` reports (the `RELEASE` file the deploy writes; `development` without one), and the Discord line is when
+this process reached the gateway, or — before it has, as at startup — the last heartbeat it wrote
+(`service_heartbeats`, once a minute while connected), which outlives a restart. `/config` (Manage Server, answered
+privately) shows the same eight lines in Discord, read live — same function, so the two can't disagree — with the
+times as Discord timestamps (`<t:…:R>`), so "3 minutes ago" is in each reader's own clock.
 
 The issue is as public as the repository's issues: it posts what
 the channel said, which is the point of the request — with an `@mention` and a `#123` neutralised, since it's filed

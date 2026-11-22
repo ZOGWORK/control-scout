@@ -18,6 +18,7 @@ import { notifyTick, type Send } from "./follows.js";
 import { site } from "./lookups.js";
 import { configEmbed, configLines, type Config } from "./config.js";
 import { chatSetup } from "./chatState.js";
+import { RELEASE } from "../server/release.js";
 import { beat } from "../server/uptime.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] [bot] ${m}`);
@@ -41,8 +42,12 @@ await db().execute("PRAGMA busy_timeout = 5000").catch(() => {});
 await configure(db()).catch((e) => log(`database not ready yet (${(e as Error).message}); lookups will say so until it is`));
 
 // One startup summary of what this process can do (bot/config.ts): chat and why not, report filing, follow posts, the
-// site it talks to and the season. `journalctl -u control-scout-bot | grep 'config:'` then answers it, with no test
-// message and no test issue filed. Said after the database is open, since the chat switch and the follows live there.
+// site it talks to, the season, the release it runs and when it last reached Discord. `journalctl -u control-scout-bot
+// | grep 'config:'` then answers it, with no test message and no test issue filed. Said after the database is open,
+// since the chat switch and the follows live there.
+// When the gateway is up: `since` while this process is connected, `last` when the moment it was connected, kept after a
+// drop so /config says "not connected now (last connected …)" rather than claiming a connection it lost.
+const gateway: { since: number | null; last: number | null } = { since: null, last: null };
 for (const line of configLines(await configHere())) log(line);
 
 /** What this bot can do here, read now: the startup summary and /config both come from this, so the journal and the
@@ -51,7 +56,18 @@ async function configHere(): Promise<Config> {
   const follows = await get<{ n: number; g: number }>("SELECT COUNT(*) AS n, COUNT(DISTINCT guild_id) AS g FROM discord_follows")
     .then((r) => ({ follows: Number(r?.n ?? 0), servers: Number(r?.g ?? 0) }))
     .catch(() => null);
-  return { season: CURRENT_SEASON, sitePort: env.port, commands: { guild: env.discordDevGuildId }, chat: await chatSetup(), follows };
+  // The newest heartbeat (server/uptime.ts), written once a minute while connected: the last time it was connected, which
+  // outlives a restart — the startup summary asks before this process has reached the gateway.
+  const beatAt = await get<{ at: number }>("SELECT at FROM service_heartbeats WHERE service = 'bot'")
+    .then((r) => (r ? Number(r.at) : null))
+    .catch(() => null);
+  // The newest of the two: a heartbeat a minute into a session is later than its connect, and a beat from before a restart
+  // is later than nothing.
+  const lastConnected = Math.max(gateway.last ?? 0, beatAt ?? 0) || null;
+  return {
+    release: RELEASE, season: CURRENT_SEASON, sitePort: env.port, commands: { guild: env.discordDevGuildId },
+    chat: await chatSetup(), follows, discord: { since: gateway.since, last: gateway.since ?? lastConnected },
+  };
 }
 
 async function waitForSite(timeoutMs = 180_000): Promise<void> {
@@ -86,7 +102,14 @@ async function register(appId: string): Promise<void> {
   log(`commands registered (${COMMANDS.length}, ${where})`);
 }
 
+/** The gateway is up: the moment /config's and the journal's "discord connected since" count from. */
+const connected = () => { gateway.since = gateway.last = Date.now(); };
+client.on(Events.ShardReady, () => connected());
+// Resumed after a network drop, without a fresh ready: the bot is connected again from now.
+client.on(Events.ShardResume, () => { connected(); log("gateway resumed"); });
+
 client.once(Events.ClientReady, (c) => {
+  connected();
   log(`ready as ${c.user.tag} in ${c.guilds.cache.size} server${c.guilds.cache.size === 1 ? "" : "s"}`);
   void registerUntilDone(c.application.id);
   // Warm the season's ratings so the first /predict doesn't wait for them.
@@ -137,7 +160,12 @@ client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m 
 client.on(Events.GuildCreate, (g) => log(`added to a server (${client.guilds.cache.size} now): ${g.id}`));
 client.on(Events.GuildDelete, (g) => log(`removed from a server (${client.guilds.cache.size} now): ${g.id}`));
 client.on(Events.Error, (e) => log(`client error: ${e.message}`));
-client.on(Events.ShardDisconnect, () => log("gateway disconnected; reconnecting"));
+client.on(Events.ShardDisconnect, () => {
+  // Not connected any more: the summary says so, with when it last was (a heartbeat a minute at most).
+  gateway.last = gateway.since ?? gateway.last;
+  gateway.since = null;
+  log("gateway disconnected; reconnecting");
+});
 // A stray rejection anywhere is logged, never fatal: the bot stays online.
 process.on("unhandledRejection", (e) => log(`unhandled: ${(e as Error)?.message ?? String(e)}`));
 
