@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.8.4 — 2026-11-22
+
+The bot's journal now says at startup whether "Report this to ControlScout" can file, so it can be confirmed without filing a test issue.
+
+### Highlights
+- [alerts] Startup logs whether report filing is on or off
+- [fixes] Confirmed from the journal, without filing a test issue
+- [alerts] Only whether the token is set is logged, never the token
+
+### Discord bot
+- `bot/index.ts` logs one line at startup after the token check: `report filing on: GITHUB_REPORT_TOKEN is set` or `report filing off: GITHUB_REPORT_TOKEN is not set (a report says it couldn't be filed)`. "Is reporting wired up?" is then answered by `journalctl -u control-scout-bot | grep 'report filing'` on any restart, with no issue filed to find out. It says whether the variable is set, never its value, and a token added later shows up on the next restart. (#2143)
+- `bot/report.ts` `reportSetup()` builds that line (and `bot/report.test.ts` checks both states, and that the token never appears in it). `bot/README.md` says so.
+
 ## 7.8.3 — 2026-11-22
 
 Say "Report this to ControlScout" in a Discord server and the bot files the report itself: one GitHub issue with the message, the thread and its own log.
