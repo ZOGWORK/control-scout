@@ -61,7 +61,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     name: "config",
-    description: "What this bot can do here: chat, report filing, follows and where its commands register",
+    description: "This bot's own setup and status: release, Discord connection, chat, reports, follows",
     ...MANAGE,
   },
   {
