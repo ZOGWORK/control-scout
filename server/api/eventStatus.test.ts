@@ -25,6 +25,8 @@ async function event(code: string, start: string, timezone: string | null, o: { 
     await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, ?, 'qual', 0, ?, ?, ?, ?, ?, ?, ?, 'test')",
       [S, code, n, `Q${n}`, done, done ? 50 : null, done ? 50 : null, done ? 40 : null, done ? 40 : null]);
   }
+  // As a sync does: new data moves the version (the events list's rows are cached by it, server/api/events.ts).
+  await kvSet("data:version", `test-${code}`);
 }
 
 /** The status every surface reads (summary, list, detail) and whether the live lane counts the event as on. */
