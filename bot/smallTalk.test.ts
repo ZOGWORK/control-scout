@@ -50,6 +50,16 @@ describe("the one fallback", () => {
     expect(smallTalk("highest score in new jersey")).toBe(NO_CHAT);
   });
 
+  it("a build question with a ratio gets the one line however long it is", () => {
+    // The screenshot's message: search guessed "Team 12499 Gear Up" from "gear reduction", which answers nothing.
+    const q = "should I use a 42:15 gear reduction on my robot turret because it is my team numebr";
+    expect(smallTalk(q)).toBe(NO_CHAT);
+    expect(smallTalk(q, true)).toBe(NO_REPLY);
+    // A records question still keeps its card.
+    expect(smallTalk("6980", true)).toBeNull();
+    expect(smallTalk("is it true that 4215 hypnotic robotics beat 6980 bad wolf at worlds this season", true)).toBeNull();
+  });
+
   it("counts words, so the length rule is the one the bot documents", () => {
     const words = (n: number) => Array.from({ length: n }, () => "word").join(" ");
     expect(SMALL_TALK_WORDS).toBe(12);
