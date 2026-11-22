@@ -123,6 +123,27 @@ describe("frameStatus against frame rows merged since the coverage check", () =>
       .toBe("Queued for a frame read: 2 matches (1 read before the event finished; 1 in a video whose first and last frames aren't read yet)");
   });
 
+  it("queues a review entry not yet given its second look, for that look alone, once; never one the owner rejected", () => {
+    const edges = { opensOn: { at: 3, label: "Q2" }, endsOn: { at: 9000, fromEnd: 20, label: "Q40" } };
+    const row = (review: FrameTiming["review"]): FrameTiming => ({ videoId: "VIDEOaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: { Q2: 400 }, review, ...edges });
+    const status = (rejected?: Parameters<typeof frameStatus>[2]) => frameStatus(ev([miss("Q1")]), NOW, rejected);
+    // Held for review, not looked at again: due, and only for the second look (the autopilot reads nothing else of it).
+    setFrameTimingsForTests([row({ Q1: { t: 200, why: "one frame read, and nothing else agrees where the video sits" } })]);
+    expect(status()).toMatchObject({ state: "queued", due: 1, recheck: 1, why: "Queued for a frame read: 1 match, held for review: a second look at the frames after each" });
+    // Looked at again and not settled (`again`): read, left for the owner; never queued for it again.
+    setFrameTimingsForTests([row({ Q1: { t: 200, why: "one frame read, and nothing else agrees where the video sits", again: { on: "2026-11-17", saw: "2 s on: nothing" } } })]);
+    expect(status()).toMatchObject({ state: "read", due: 0 });
+    expect(status().recheck).toBeUndefined();
+    // Rejected by the owner at that second: not queued; at another second (a re-read placed it elsewhere): queued.
+    setFrameTimingsForTests([row({ Q1: { t: 200, why: "one frame read, and nothing else agrees where the video sits" } })]);
+    expect(status((v, c, l, t) => v === "VIDEOaaaaa1" && c === "USXXQ" && l === "Q1" && Math.abs(t - 202) <= 6).state).toBe("read");
+    expect(status((v, c, l, t) => l === "Q1" && Math.abs(t - 900) <= 6).state).toBe("queued");
+    // Beside a match read before the event finished: both counted, the event read whole (not a look alone).
+    setFrameTimingsForTests([row({ Q1: { t: 200, why: "x" } }), { videoId: "READ20261114", code: "USXXQ", checked: "2026-11-14", starts: {}, missing: {} }]);
+    expect(frameStatus(ev([miss("Q1"), miss("Q9", { videoId: "READ20261114" })]), NOW))
+      .toMatchObject({ due: 2, recheck: 1, why: "Queued for a frame read: 2 matches (1 read before the event finished; 1 held for review, not looked at again yet)" });
+  });
+
   it("sees the edges of the database's live rows laid over the code's (auto_reads)", () => {
     setFrameTimingsForTests([{ videoId: "VIDEOaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: { Q2: 400 }, missing: { Q1: "no frame read of it" } }]);
     try {

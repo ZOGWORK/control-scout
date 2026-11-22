@@ -76,7 +76,7 @@ describe("who gets in", () => {
     const id = await add("data");
     await run("INSERT INTO error_reports (fingerprint, message, first_seen, last_seen, sample) VALUES (?, 'Boom', ?, ?, '{}')", [FP, "2026-10-01", "2026-10-01"]);
     const routes: [string, string, unknown?][] = [
-      ["GET", "/api/owner/moderation"], ["GET", "/api/owner/analytics"],
+      ["GET", "/api/owner/moderation"], ["GET", "/api/owner/analytics"], ["GET", "/api/owner/public-usage"],
       ["PATCH", `/api/owner/feedback/${id}/triage`, { triage: "accepted" }],
       ["PUT", `/api/owner/errors/${FP}/note`, { note: "mine" }],
       ["PUT", "/api/owner/settings/public-usage", { enabled: true, confirm: true }],
@@ -238,6 +238,8 @@ describe("analytics and the \"in use\" choice", () => {
     let a = await call("GET", "/api/owner/analytics", { cookie: ownerCookie });
     expect(a.json.publishUsage).toMatchObject({ enabled: false, source: "env", envDefault: false });
     expect((await call("GET", "/api/public-usage")).json.reason).toBe("not-published");
+    // The owner console's copy shows the figures while they aren't published (Analytics › "Control Scout, in use").
+    expect((await call("GET", "/api/owner/public-usage", { cookie: ownerCookie })).json).toMatchObject({ status: "available", totals: { pageViews: 1, sessionStarts: 1 } });
 
     expect((await call("PUT", "/api/owner/settings/public-usage", { cookie: ownerCookie, body: { enabled: true } })).status).toBe(400);
     expect((await call("PUT", "/api/owner/settings/public-usage", { cookie: ownerCookie, body: { enabled: "yes", confirm: true } })).status).toBe(400);
