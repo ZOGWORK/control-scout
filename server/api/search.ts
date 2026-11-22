@@ -4,7 +4,7 @@
 // event codes/names/places; exact team numbers jump to the top; a query like
 // "USNJQ1 Q12" or "2025 USNJQ1 M3" resolves straight to a match.
 import { all, get } from "../db.js";
-import { CURRENT_SEASON, isLegacy } from "../data/seasons.js";
+import { CURRENT_SEASON, SEASON_NUMBERS, isLegacy } from "../data/seasons.js";
 import type { SearchHit } from "../../src/shared/api.js";
 import { SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, sectionFor, type SearchTopic } from "../../src/shared/search.js";
 import { teamAtEvent, teamEvents, teamFacts, teamSeason } from "./searchFacts.js";
@@ -33,13 +33,25 @@ const MATCH_RE = /^(?:(20\d\d)\s+)?([a-z0-9]{3,16})\s+(q|qual|m|match|f|final)\s
  *  has matches in (a code's new season is listed before it's played). An event split in divisions has its
  *  qualification and division playoff matches on each division, and its finals on the event itself, so a match the
  *  code doesn't hold is looked for there: the event's own "Q12" is each division's, a division's "F1" the event's. */
+/** The seasons the data holds, inline: with `season IN (…)` a code is found by primary key, season by season. Neither
+ *  matches' nor events' key starts with the code, so `code = ?` alone read every match (20 ms a match search, 157 of
+ *  them in an event pack's build, each holding the event loop). */
+const SEASONS_IN = SEASON_NUMBERS.map((s) => Math.trunc(s)).join(", ");
+/** The newest season a code has matches in, its own or (an event split in divisions) a division's: two arms, so each
+ *  finds its codes by key (the same answer as one `code = ? OR code IN (…)` scan; checked on every stored code). */
+export const NEWEST_MATCH_SEASON = `SELECT MAX(s) s FROM (
+  SELECT MAX(season) s FROM matches WHERE season IN (${SEASONS_IN}) AND code = ?
+  UNION ALL
+  SELECT MAX(season) s FROM matches WHERE season IN (${SEASONS_IN}) AND code IN (SELECT d.code FROM events d JOIN events e ON e.season = d.season AND e.code = ?
+    WHERE e.season IN (${SEASONS_IN}) AND d.code LIKE e.code || '_%' AND d.name LIKE e.name || ' - %'))`;
+
 async function matchHits(q: string): Promise<SearchHit[]> {
   const m = MATCH_RE.exec(q.trim());
   if (!m) return [];
   const code = m[2].toUpperCase();
   const season = m[1] ? Number(m[1])
-    : Number((await get<{ s: number }>("SELECT MAX(season) s FROM matches WHERE code = ? OR code IN (SELECT d.code FROM events d JOIN events e ON e.season = d.season AND e.code = ? WHERE d.code LIKE e.code || '_%' AND d.name LIKE e.name || ' - %')", [code, code]))?.s
-      ?? (await get<{ s: number }>("SELECT MAX(season) s FROM events WHERE code = ?", [code]))?.s ?? 0);
+    : Number((await get<{ s: number }>(NEWEST_MATCH_SEASON, [code, code]))?.s
+      ?? (await get<{ s: number }>(`SELECT MAX(season) s FROM events WHERE season IN (${SEASONS_IN}) AND code = ?`, [code]))?.s ?? 0);
   if (!season) return [];
   const kind = m[3].toLowerCase()[0];
   const n = Number(m[4]);
@@ -218,10 +230,12 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
     const preferred = [...prefer].map((k) => /^team:(\d+)$/.exec(k)?.[1]).filter(Boolean).map(Number);
     const ranges: [number, number][] = [];
     for (let m = 1; p * m < 1_000_000; m *= 10) ranges.push([p * m, (p + 1) * m - 1]);
+    // "+t.number" in the team-page check: its "BETWEEN 1 AND 999999" otherwise drove the plan (every team read, then
+    // the ranges filtered: 6 ms locally, ~57 ms on the VM, each holding the event loop); the ranges now pick the rows.
     const rows = await searchRead<any>(
       `SELECT t.number, t.name, t.city, t.state, t.country, cs.season last
        FROM teams t LEFT JOIN team_seasons cs ON cs.team = t.number AND cs.season = ?
-       WHERE (${ranges.map(() => "t.number BETWEEN ? AND ?").join(" OR ")}) AND ${teamPageSql("t.number", "t.name")}
+       WHERE (${ranges.map(() => "t.number BETWEEN ? AND ?").join(" OR ")}) AND ${teamPageSql("+t.number", "t.name")}
        ORDER BY t.number = ? DESC, t.number IN (${preferred.map(() => "?").join(",") || "NULL"}) DESC, cs.season IS NOT NULL DESC, t.number LIMIT ?`,
       [CURRENT_SEASON, ...ranges.flat(), p, ...preferred, query.length >= 4 ? Math.ceil(limit / 2) : limit],
     );
