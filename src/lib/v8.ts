@@ -23,15 +23,25 @@ function subscribe(onChange: () => void) {
   return () => mo.disconnect();
 }
 
+/** `dest` with ?v8=1 or ?v8=0 in its query (before any #fragment), replacing one it already has. */
+export function withLookParam(dest: string, on: boolean): string {
+  const hash = dest.indexOf("#");
+  const [path, frag] = hash < 0 ? [dest, ""] : [dest.slice(0, hash), dest.slice(hash)];
+  const q = path.indexOf("?");
+  const params = new URLSearchParams(q < 0 ? "" : path.slice(q + 1));
+  params.set("v8", on ? "1" : "0");
+  return `${q < 0 ? path : path.slice(0, q)}?${params.toString()}${frag}`;
+}
+
 /** Picks v8 or the classic look on this device (remembered, so it holds after v8 becomes the default), then loads
  *  `to` (this page when left out) so the whole page is drawn in the chosen look. */
 export function setV8(on: boolean, to?: string) {
   try {
     localStorage.setItem(V8_KEY, on ? "1" : "0");
   } catch {
-    // Storage blocked: load the page with ?v8=, which index.html obeys for that load without storage.
-    const dest = to ?? location.pathname + location.search;
-    location.assign(`${dest}${dest.includes("?") ? "&" : "?"}v8=${on ? 1 : 0}`);
+    // Storage blocked: load the page with ?v8=, which index.html obeys for that load without storage. In the query,
+    // before any #fragment (after it, index.html never sees it, and the look a reset asked for never came: a loop).
+    location.assign(withLookParam(to ?? location.pathname + location.search + location.hash, on));
     return;
   }
   if (to) location.assign(to);
