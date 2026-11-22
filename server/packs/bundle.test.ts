@@ -6,7 +6,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createHash } from "node:crypto";
-import { gunzipSync } from "node:zlib";
+import { gunzipSync, gzipSync } from "node:zlib";
 import express from "express";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -474,6 +474,14 @@ describe("offline predictions are the server's", () => {
     expect(r.status).toBe(200);
     return r.json as MatchExplanationView;
   };
+
+  it("the gzip made off the event loop is gzipSync's, byte for byte (the manifest's size and SHA-256 hold)", async () => {
+    const b = (await buildBundle({ season: S, code: EV, team: 12, workspace: null }))!;
+    const text = gunzipSync(b.gz);
+    expect(gzipSync(text, { level: 9 }).equals(b.gz)).toBe(true);
+    expect(b.manifest.bytes).toBe(b.gz.length);
+    expect(b.manifest.sha256).toBe(createHash("sha256").update(b.gz).digest("hex"));
+  });
 
   it("from the event bundle", async () => {
     const b = await buildBundle({ season: S, code: EV, team: null, workspace: null });
