@@ -11,6 +11,7 @@ import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, 
 import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
 import { ask as askSearch, chatPost, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
+import { takeChat, type Quota } from "./quota.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 
 export type Log = (m: string) => void;
@@ -28,6 +29,8 @@ export interface Lookups {
   ask: (question: string, history?: BrunoChatTurn[]) => Promise<AskReply>;
   /** The owner's feature toggles the bot follows (server/flags.ts); absent: always on. */
   enabled?: (flag: "discordBot" | "livePredictions") => Promise<boolean>;
+  /** The server's chat limit (bot/quota.ts); absent: none enforced. No server has one set yet. */
+  quota?: (guild: string) => Promise<Quota>;
 }
 
 export const realLookups: Lookups = {
@@ -41,11 +44,25 @@ export const realLookups: Lookups = {
   following: async (guild) => followingEmbed(await listFollows(guild), site()),
   ask: async (question, history) => askSearch(question, await (askDeps ??= realAskDeps()), site(), history),
   enabled: (flag) => isEnabled(flag),
+  quota: takeChat,
 };
 let askDeps: Promise<AskDeps> | undefined;
 
 /** What every command answers while the owner has the bot switched off (the discordBot feature toggle). */
 export const BOT_OFF_TITLE = "Turned off for now";
+
+/** A server that has reached its chat limit (bot/quota.ts): said plainly, with when it resets. Nothing else stops. */
+export function limitEmbed(q: { limited: "hour" | "day"; retryAfter: number }): APIEmbed {
+  const mins = Math.max(1, Math.ceil(q.retryAfter / 60));
+  const wait = q.limited === "hour"
+    ? `${mins} minute${mins === 1 ? "" : "s"}`
+    : `${Math.max(1, Math.ceil(mins / 60))} hour${Math.ceil(mins / 60) === 1 ? "" : "s"}`;
+  return {
+    title: "This server's limit is reached",
+    description: `Control Scout answers a set number of chats in this server each ${q.limited}. The next one resets in ${wait}. Everything on controlscout.org still works, and this server's follow posts keep coming.`,
+    color: VOLT, footer: FOOTER,
+  };
+}
 
 /** /help: every command, from the same list the site shows (src/shared/discord.ts). */
 export function helpEmbed(): APIEmbed {
@@ -92,6 +109,11 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   // Nobody is paced per person: every message is answered (a person asking twice in a row gets both answers). Only the
   // same question within a minute is the answer already given, whoever asks.
   const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
+  // The server's chat limit (bot/quota.ts). No row — every server today — is no limit, and a read that fails allows the
+  // chat: a database blip must never silence the bot.
+  const quota = lookups.quota;
+  const mayChat = async (guild: string | null | undefined): Promise<Quota> =>
+    !guild || !quota ? { ok: true } : quota(guild).catch((): Quota => ({ ok: true }));
 
   /**
    * /ask and a mention, logged with the question and how it was answered (never who asked). Cached by the whole
@@ -176,6 +198,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     await i.deferReply();
     if (i.commandName === "ask") {
       const question = i.options.getString("question", true);
+      // The server's chat limit, if one is set (none is, today): said plainly, before any lookup.
+      const over = await mayChat(i.guildId);
+      if (!over.ok) { await i.editReply({ embeds: [pride(limitEmbed(over))] }); return; }
       let post: AskPost;
       let r: AskReply | undefined;
       try {
@@ -237,6 +262,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         await card(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."));
         return;
       }
+      // The server's chat limit, if one is set (none is, today): said in the channel, before the typing indicator goes up.
+      const over = await mayChat(m.guildId);
+      if (!over.ok) { await card(limitEmbed(over)); return; }
       if (!q) {
         await card({ title: "Ask me anything", description: "Write your question after the mention, like the website's search box:\n`@Control Scout who won decode` · `@Control Scout 4215 vs 6980`\nOr use `/ask question:`. Reply to my answer to keep talking.", color: VOLT, footer: FOOTER });
         return;
