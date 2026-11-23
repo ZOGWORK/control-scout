@@ -199,7 +199,7 @@ describe("AnswerCache", () => {
 
 describe("registration", () => {
   it("the commands, each one on the site's list; follow, unfollow and config need Manage Server, in servers only", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "config", "help"]);
+    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "compare", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "config", "help"]);
     for (const c of COMMANDS) expect(BOT_COMMANDS.some((b) => b.usage.startsWith(`/${c.name}`)), c.name).toBe(true);
     for (const name of ["follow", "unfollow", "config"]) {
       const c = COMMANDS.find((x) => x.name === name)!;
@@ -444,6 +444,21 @@ describe("a chat with Bruno in Discord", () => {
     const c = command("ask", { question: "who won decode" });
     await h(c.i);
     expect(c.calls.at(-1)!.payload).toMatchObject({ content: "> **who won decode**\nre: who won decode (0)\n-# Bruno AI · controlscout.org", embeds: [], allowedMentions: { parse: [], repliedUser: false } });
+  });
+
+  it("/compare asks the two teams as a comparison, and refuses the same team twice", async () => {
+    const ask = chatAsk();
+    const h = createHandler(() => {}, lookups({ ask }));
+    const c = command("compare", { team: 4215, other: 6980 });
+    await h(c.i);
+    // The question search reads is the site's own head-to-head, so the answer is the compare card, quoted like /ask's.
+    expect(ask.mock.calls[0][0]).toBe("4215 vs 6980");
+    expect(c.calls.at(-1)!.payload).toMatchObject({ content: "> **4215 vs 6980**\nre: 4215 vs 6980 (0)\n-# Bruno AI · controlscout.org", embeds: [] });
+    // The same number twice is not a comparison: said so, and search never asked.
+    const same = command("compare", { team: 4215, other: 4215 });
+    await h(same.i);
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(same.calls.at(-1)!.payload.embeds[0].title).toBe("Two teams, please");
   });
 
   it("a reply the records answered posts the site's card beside his words", async () => {
