@@ -70,8 +70,8 @@ function Issue({ r }: { r: BugReportItem }) {
         </a>
         {c && (
           <span className="inline-flex flex-wrap items-center gap-1.5 text-muted-foreground" data-testid="bug-report-issue-closed">
-            {c.reason === "completed" ? "Fixed" : "Closed as not planned"}
-            {c.by && <>by <a href={c.by.url} target="_blank" rel="noopener noreferrer" className={LINK}>{c.by.label}<ExternalLink className="size-3" aria-hidden /></a></>}
+            <span>{c.reason === "completed" ? (c.by ? "Fixed by" : "Fixed") : (c.by ? "Closed as not planned by" : "Closed as not planned")}</span>
+            {c.by && <><a href={c.by.url} target="_blank" rel="noopener noreferrer" className={LINK}>{c.by.label}<ExternalLink className="size-3" aria-hidden /></a></>}
             {c.at && <span>· {ago(c.at)}</span>}
           </span>
         )}
