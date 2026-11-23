@@ -21,6 +21,7 @@ import { LockBusy, withDataLock } from "../data/lock.js";
 import { applyStoryboards, isStoryboardDelivery, storyboardShape, type StoryboardDelivery } from "./storyboards.js";
 import { recordAudit } from "../portal/audit.js";
 import { clearClipCaches } from "../caches.js";
+import { seenUnserved } from "./coverage.js";
 import type { AutoReadChange, AutoReadKind, OwnerAutoReads, PendingAutoRead, PendingReview } from "../../src/shared/api.js";
 
 /** Who the audit names for what the autopilot hands over. */
@@ -438,7 +439,11 @@ async function unservedStart(row: FrameTiming, label: string, t: number): Promis
   let missing: { label?: string; videoId?: string | null; video?: { seenAt?: number } }[] = [];
   try { missing = JSON.parse(String(c?.detail ?? "{}")).missing ?? []; } catch { /* unreadable: not listed */ }
   const listed = missing.some((m) => m.label === label && m.videoId === row.videoId && m.video?.seenAt != null && Math.round(m.video.seenAt) === t);
-  return listed ? { t, why: "Seen in the video at this second, but the site didn't serve it as a clip" } : null;
+  if (!listed) return null;
+  // And still not a clip now (a neighbour approved, a re-read since the stored check): worked out live.
+  const live = await seenUnserved(season, row.code);
+  const now = live?.get(label);
+  return !live || (now?.videoId === row.videoId && now.t === t) ? { t, why: "Seen in the video at this second, but the site didn't serve it as a clip" } : null;
 }
 
 /** Whether the owner already said Not this match at (about) that second: decided, so a stale Clip from (another tab)

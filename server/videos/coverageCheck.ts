@@ -18,7 +18,7 @@ import { frameRow } from "../data/frameTimings.js";
 import { SAME_S } from "../data/frameRowRules.js";
 import { reviewFindings } from "./autoReads.js";
 import { seasonRecordings, type Recording, isPartial } from "./recordings.js";
-import { clipCoverage, eventMatchRows, UNPLAYABLE } from "./coverage.js";
+import { clipCoverage, eventMatchRows, seenUnserved, UNPLAYABLE } from "./coverage.js";
 import { baseTriage, seasonTriage, type BaseTriage } from "./coverageTriage.js";
 import { currentSeason } from "../api/answers/season.js";
 import { frameQueue, queueSummary, type FrameStatus, type Read } from "./frameQueue.js";
@@ -39,12 +39,12 @@ function fingerprint(r: Recording | null, playable: Recording | null, timezone: 
   return sha1(JSON.stringify([BOOT, videos, r?.daily ?? false, playable?.daily ?? false, plays, timezone, matches]));
 }
 
-/** A video's frame read for an event as far as its clips go (its starts, openings, the owner's approvals, its review
- *  entries): an owner's Clip from, or a re-read, checks the event again, so a pass that ran meanwhile never leaves its
- *  older answer standing. */
+/** A video's frame read for an event, whole: an owner's Clip from, or any re-read (even the same day's), checks the
+ *  event again, so a pass that ran meanwhile never leaves its older answer standing. */
 function frameSig(videoId: string, code: string): string | null {
   const f = code ? frameRow(videoId, code) : null;
-  return f ? sha1(JSON.stringify([f.checked, f.starts, f.opens ?? null, f.approved ?? null, f.review ? Object.entries(f.review).map(([l, e]) => [l, e.t]) : null])) : null;
+  // The whole row: every verdict in it (missing, early starts, its recording's edges, unconfirmed …) shapes the check.
+  return f ? sha1(JSON.stringify(f)) : null;
 }
 
 /** The missing matches and their reasons, as a hash: the same list, however often checked, is the same key. It's also the
@@ -264,6 +264,14 @@ export async function coverageFindings(): Promise<CoverageFinding[]> {
   const names = new Map(rows.map((r) => [`${r.season}/${r.code}`, String(r.name ?? r.code)]));
   const out: CoverageFinding[] = [];
   const have = new Set<string>();
+  // Each event with a start to list: what isn't a clip right now, worked out live (a neighbour approved since the stored
+  // check, or a re-read, may have made it one). Only these events, a handful.
+  const live = new Map<string, Awaited<ReturnType<typeof seenUnserved>>>();
+  const nowUnserved = async (season: number, code: string) => {
+    const k = `${season}/${code}`;
+    if (!live.has(k)) live.set(k, await seenUnserved(season, code).catch(() => null));
+    return live.get(k) ?? null;
+  };
   for (const r of rows) {
     for (const m of readDetail(r.detail).missing ?? []) {
       if (m.video?.seenAt == null || !m.videoId) continue;
@@ -274,6 +282,8 @@ export async function coverageFindings(): Promise<CoverageFinding[]> {
       // match accept): a re-read that moved it waits for the next pass.
       const t = Math.round(row.starts[m.label]), x = no.get(`${m.videoId}|${r.code}|${m.label}`);
       if (Math.round(m.video.seenAt) !== t || (x != null && Math.abs(x - t) <= SAME_S)) continue;
+      const now = (await nowUnserved(Number(r.season), String(r.code)))?.get(m.label);
+      if (!now || now.videoId !== m.videoId || now.t !== t) continue;
       have.add(`${r.season}/${r.code}/${m.label}`);
       out.push({ kind: "seen", source: "start", season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), label: m.label, videoId: m.videoId, at: t, why: m.why ?? "" });
     }
@@ -289,6 +299,8 @@ export async function coverageFindings(): Promise<CoverageFinding[]> {
     if (have.has(`${e.season}/${e.code}/${e.label}`)) continue;
     out.push({ kind: "seen", source: "review", season: e.season, code: e.code, name: names.get(`${e.season}/${e.code}`) ?? e.code, label: e.label, videoId: e.videoId, at: e.t, why: e.why });
   }
+  out.sort((a, b) => b.season - a.season || a.code.localeCompare(b.code) || a.at - b.at);
+  // Pulled clips after every seen one: a match with both reads as pulled on its chip (the panel keeps a label's last).
   const pulled = clipCheckFindings();
   if (pulled.length) {
     const missing = pulled.filter((p) => !names.has(`${p.season}/${p.code}`));
@@ -303,7 +315,7 @@ export async function coverageFindings(): Promise<CoverageFinding[]> {
         why: `Clip pulled: its first frame shows ${p.showed}, not ${p.label}` });
     }
   }
-  return out.sort((a, b) => b.season - a.season || a.code.localeCompare(b.code) || a.at - b.at);
+  return out;
 }
 
 /** Events with a played match missing a clip, a page at a time: one category's events not reviewed yet (actionable by
