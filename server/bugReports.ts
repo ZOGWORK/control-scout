@@ -32,7 +32,10 @@
 // accepted reports and one on upload requests.
 //
 // The owner reads, closes and deletes reports in the owner console (bugReportOwnerRoutes, mounted under /api/owner,
-// whose gate already refused everyone else).
+// whose gate already refused everyone else). A filed report follows its issue: once the issue is closed on GitHub the
+// report closes here too, with the PR or commit that closed it (syncBugIssues: one GraphQL request per 50 open reports,
+// from the sweep and, at most once a minute, when the console loads the list). Closing or deleting the report here
+// never touches the issue.
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -448,6 +451,90 @@ export async function bugFiling(id: number): Promise<BugFiling> {
   return r && Number(r.file_attempts) > 0 && r.file_error ? { state: "failed" } : { state: "pending" };
 }
 
+/** Issues asked about per GitHub request (GraphQL aliases), and at most this many requests per check. */
+const ISSUE_BATCH = 50;
+const ISSUE_BATCHES = 4;
+/** The owner console's list asks GitHub itself at most this often (the 10-minute sweep asks too). */
+export const ISSUE_SYNC_MS = 60_000;
+/** How long the list waits for that check before answering with what it has (the check carries on). */
+const LIST_SYNC_WAIT_MS = 3_000;
+let lastIssueSync = 0;
+let issueSync: Promise<number> | null = null;
+/** Tests: forget when GitHub was last asked. */
+export const resetIssueSync = () => { lastIssueSync = 0; issueSync = null; };
+
+type Closer = { __typename: string; number?: number; url?: string; abbreviatedOid?: string } | null;
+interface IssueNode { number: number; state: string; stateReason: string | null; closedAt: string | null; timelineItems?: { nodes?: ({ closer?: Closer } | null)[] } }
+
+/** The pull request or commit GitHub says closed an issue, as a label and a GitHub link, or null. */
+export function closerOf(c: Closer): { label: string; url: string } | null {
+  if (!c?.url || !c.url.startsWith("https://github.com/")) return null;
+  if (c.__typename === "PullRequest" && Number.isInteger(c.number)) return { label: `PR #${c.number}`, url: c.url };
+  if (c.__typename === "Commit") return { label: `commit ${(c.abbreviatedOid ?? "").slice(0, 7) || "on main"}`.trim(), url: c.url };
+  return null;
+}
+
+/**
+ * Open reports follow their GitHub issue: one GraphQL request per 50 open filed reports asks for each issue's state and
+ * what closed it. A closed issue closes the report here (status done) and records how ("completed" or "not_planned",
+ * when, and the closing PR or commit). Only reports whose issue was last seen open (or never checked) are asked about,
+ * so a report the owner reopens here stays open. An issue GitHub no longer finds is left as it is. Returns how many
+ * reports it closed. No token: nothing.
+ */
+export async function syncBugIssues(now = Date.now()): Promise<number> {
+  const token = env.githubReportToken;
+  if (!token || now < githubPausedUntil) return 0;
+  const rows = await all<{ id: number; issue_number: number }>(
+    `SELECT id, issue_number FROM bug_reports WHERE status = 'open' AND issue_number IS NOT NULL
+       AND (issue_state IS NULL OR issue_state = 'open') ORDER BY id DESC LIMIT ?`, [ISSUE_BATCH * ISSUE_BATCHES]);
+  const [owner, name] = GITHUB_REPO.split("/");
+  let closed = 0;
+  for (let i = 0; i < rows.length; i += ISSUE_BATCH) {
+    const batch = rows.slice(i, i + ISSUE_BATCH);
+    const numbers = [...new Set(batch.map((r) => Number(r.issue_number)).filter((n) => Number.isInteger(n) && n > 0))];
+    if (!numbers.length) continue;
+    const fields = "number state stateReason closedAt timelineItems(itemTypes: CLOSED_EVENT, last: 1) { nodes { ... on ClosedEvent { closer { __typename ... on PullRequest { number url } ... on Commit { url abbreviatedOid } } } } }";
+    const query = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${numbers.map((n) => `i${n}: issue(number: ${n}) { ${fields} }`).join(" ")} } }`;
+    let answer: { data?: { repository?: Record<string, IssueNode | null> | null } };
+    try {
+      answer = await gh(token, "POST", "/graphql", { query, variables: { owner, name } });
+    } catch (e) {
+      if (e instanceof GithubError && e.retryAt) githubPausedUntil = Math.max(githubPausedUntil, e.retryAt);
+      throw e;
+    }
+    const repo = answer.data?.repository;
+    if (!repo) throw new Error("GitHub didn't answer for the repository");
+    for (const r of batch) {
+      const issue = repo[`i${Number(r.issue_number)}`];
+      if (!issue) continue;
+      if (issue.state !== "CLOSED") {
+        await run("UPDATE bug_reports SET issue_state = 'open' WHERE id = ? AND issue_state IS NULL", [r.id]);
+        continue;
+      }
+      const reason = issue.stateReason === "NOT_PLANNED" || issue.stateReason === "DUPLICATE" ? "not_planned" : "completed";
+      const by = closerOf(issue.timelineItems?.nodes?.at(-1)?.closer ?? null);
+      const done = await get<{ id: number }>(
+        `UPDATE bug_reports SET status = 'done', issue_state = ?, issue_closed_at = ?, closed_by_url = ?, closed_by_label = ?
+           WHERE id = ? AND status = 'open' AND (issue_state IS NULL OR issue_state = 'open') RETURNING id`,
+        [reason, issue.closedAt ?? new Date(now).toISOString(), by?.url ?? null, by?.label ?? null, r.id]);
+      if (!done) continue;
+      closed++;
+      await recordAudit("system", "bugReport.issueClosed", { id: Number(r.id), issue: Number(r.issue_number), reason, by: by?.label ?? null }).catch(() => {});
+    }
+  }
+  return closed;
+}
+
+/** For the owner console's list: checks GitHub when it wasn't asked in the last minute, waiting up to 3 seconds. */
+export async function freshIssueStates(now = Date.now()): Promise<void> {
+  if (!env.githubReportToken) return;
+  if (!issueSync && now - lastIssueSync >= ISSUE_SYNC_MS) {
+    lastIssueSync = now;
+    issueSync = syncBugIssues(now).catch(() => 0).finally(() => { issueSync = null; });
+  }
+  if (issueSync) await Promise.race([issueSync, new Promise((r) => setTimeout(r, LIST_SYNC_WAIT_MS).unref())]);
+}
+
 /**
  * Every 10 minutes (server/index.ts): emails reports that are due and unsent (finished, or left mid-upload past the
  * upload window; a failed or interrupted send included), and clears uploads left unfinished past the window.
@@ -471,6 +558,9 @@ export async function sweepBugReports(now = Date.now()): Promise<{ emailed: numb
       `SELECT DISTINCT f.report_id FROM bug_report_files f JOIN bug_reports r ON r.id = f.report_id
        WHERE r.issue_number IS NOT NULL AND f.github_url IS NOT NULL AND f.on_disk = 1 LIMIT 20`);
     for (const { report_id } of kept) await clearUploaded(Number(report_id), now).catch(() => 0);
+    // Filed and still open here: close the ones whose issue is now closed on GitHub.
+    lastIssueSync = now;
+    await syncBugIssues(now).catch(() => 0);
   }
   // Uploads stop at the window's end; clearing waits a second window, skips a file still being written, and removes
   // files only for a row it actually deleted (a piece finishing meanwhile keeps its row, so its file stays).
@@ -663,9 +753,12 @@ type Wrap = (fn: Handler) => (req: Request, res: Response, next: NextFunction) =
 
 /** One page of reports, newest first: open ones or closed ones, older than report `before` when given. */
 export async function listBugReports(status: "open" | "done" = "open", before: number | null = null, limit = OWNER_PAGE): Promise<BugReportList> {
-  type ListRow = ReportRow & { issue_number: number | null; issue_url: string | null; file_error: string | null; to_github: number };
+  type ListRow = ReportRow & {
+    issue_number: number | null; issue_url: string | null; file_error: string | null; to_github: number;
+    issue_state: string | null; issue_closed_at: string | null; closed_by_url: string | null; closed_by_label: string | null;
+  };
   const rows = await all<ListRow>(
-    `SELECT ${REPORT_COLS}, issue_number, issue_url, file_error, to_github FROM bug_reports
+    `SELECT ${REPORT_COLS}, issue_number, issue_url, file_error, to_github, issue_state, issue_closed_at, closed_by_url, closed_by_label FROM bug_reports
      WHERE status = ? ${before ? "AND id < ?" : ""} ORDER BY id DESC LIMIT ?`,
     [status, ...(before ? [before] : []), limit + 1]);
   const more = rows.length > limit;
@@ -694,6 +787,12 @@ export async function listBugReports(status: "open" | "done" = "open", before: n
         githubUrl: f.github_url, uploadError: f.upload_error,
       })),
       issue, notFiled,
+      issueClosed: issue && (r.issue_state === "completed" || r.issue_state === "not_planned")
+        ? {
+          reason: r.issue_state, at: r.issue_closed_at,
+          by: r.closed_by_url && r.closed_by_label ? { label: r.closed_by_label, url: r.closed_by_url } : null,
+        }
+        : null,
     };
   });
   return { reports: reportsOut, open: Number(counts?.open ?? 0), closed: Number(counts?.closed ?? 0), more, storedBytes: stored, capBytes: STORAGE_CAP_BYTES };
@@ -714,6 +813,8 @@ export async function deleteBugReport(id: number): Promise<boolean> {
 export function bugReportOwnerRoutes(r: Router, h: Wrap, actor: (req: Request) => string, audit: (who: string, what: string, detail: Record<string, unknown>) => Promise<void>) {
   r.get("/bug-reports", h(async (req) => {
     const before = Number(req.query.before);
+    // The first page follows GitHub: an issue closed since the last check leaves the open list now, not at the next sweep.
+    if (!(Number.isInteger(before) && before > 0)) await freshIssueStates();
     return listBugReports(req.query.status === "done" ? "done" : "open", Number.isInteger(before) && before > 0 ? before : null);
   }));
 

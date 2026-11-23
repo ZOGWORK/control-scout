@@ -13,7 +13,7 @@ import { createApp } from "./app";
 import { setMailer, type MailOptions } from "./auth/email";
 import { randomUUID } from "node:crypto";
 import {
-  BUG_RATE, bugDir, bugIssueTitle, clearing, clearRetries, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
+  BUG_RATE, bugDir, bugIssueTitle, closerOf, freshIssueStates, ISSUE_SYNC_MS, resetIssueSync, syncBugIssues, clearing, clearRetries, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
   STORAGE_CAP_BYTES, sweepBugReports, UPLOAD_ROUTE, UPLOAD_WINDOW_MS, validateBugReport,
 } from "./bugReports";
 import { resetRepositoryId, setGithubFetch } from "./errorReports";
@@ -29,7 +29,8 @@ const saved = { to: process.env.CONTACT_TO, dir: process.env.DATA_DIR, token: pr
 // issue uses them, as on GitHub).
 type Call = { method: string; url: string; body?: unknown };
 let calls: Call[] = [];
-let issues: { number: number; title: string; body: string; labels: string[] }[] = [];
+type FakeIssue = { number: number; title: string; body: string; labels: string[]; state?: "OPEN" | "CLOSED"; stateReason?: string; closer?: unknown };
+let issues: FakeIssue[] = [];
 let gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0 };
 const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) => {
   const url = new URL(String(input));
@@ -53,6 +54,18 @@ const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) =>
     issues.push(issue);
     if (gitHub.loseReply) return new Response("{}", { status: 502 });
     return Response.json({ number: issue.number, labels: issue.labels.map((name) => ({ name })) }, { status: 201 });
+  }
+  // GraphQL: each aliased issue(number: N) answered with its state and closer (null for one GitHub doesn't have).
+  if (method === "POST" && url.pathname === "/graphql") {
+    const repository: Record<string, unknown> = {};
+    for (const [, alias, n] of String(body.query).matchAll(/(i\d+): issue\(number: (\d+)\)/g)) {
+      const i = issues.find((x) => x.number === Number(n));
+      repository[alias] = i ? {
+        number: i.number, state: i.state ?? "OPEN", stateReason: i.state === "CLOSED" ? (i.stateReason ?? "COMPLETED") : null,
+        closedAt: i.state === "CLOSED" ? "2026-11-22T15:08:53Z" : null, timelineItems: { nodes: i.state === "CLOSED" ? [{ closer: i.closer ?? null }] : [] },
+      } : null;
+    }
+    return Response.json({ data: { repository } });
   }
   if (method === "GET" && url.pathname === "/search/issues") {
     // searchLags: GitHub's search hasn't indexed the new issues yet.
@@ -94,6 +107,7 @@ beforeEach(async () => {
   issues = [];
   gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0 };
   resetBugFilingPause();
+  resetIssueSync();
   resetRepositoryId();
   resetBugLimits();
   await run("DELETE FROM bug_report_files");
@@ -576,6 +590,85 @@ describe("filing on GitHub", () => {
   it("still limits each IP to a few reports an hour", async () => {
     for (let i = 0; i < BUG_RATE.max; i++) expect((await create(good)).status).toBe(200);
     expect((await create(good)).status).toBe(429);
+  });
+});
+
+describe("following the GitHub issue", () => {
+  beforeEach(async () => {
+    process.env.GITHUB_REPORT_TOKEN = TOKEN;
+    auditFrom = Number((await all<{ m: number | null }>("SELECT MAX(id) AS m FROM owner_audit"))[0]?.m ?? 0);
+  });
+
+  it("closes a report once its issue is closed on GitHub, with the PR that fixed it, in one request for all", async () => {
+    const a = await send(good), b = await send({ ...good, message: "Another bug report that is long enough." }), c = await send({ ...good, message: "A third report, still being worked on." });
+    const [ia, ib] = issues;
+    ia.state = "CLOSED"; ia.closer = { __typename: "PullRequest", number: 1561, url: "https://github.com/ZOGWORK/control-scout/pull/1561" };
+    ib.state = "CLOSED"; ib.stateReason = "NOT_PLANNED";
+    const before = calls.length;
+    expect(await syncBugIssues()).toBe(2);
+    expect(calls.slice(before).map((x) => `${x.method} ${new URL(x.url).pathname}`)).toEqual(["POST /graphql"]);
+    const open = await listBugReports("open");
+    expect(open.reports.map((r) => r.id)).toEqual([c.id]);
+    expect(open.reports[0].issueClosed).toBeNull();
+    const closed = await listBugReports("done");
+    expect(closed.reports.find((r) => r.id === a.id)?.issueClosed).toEqual({
+      reason: "completed", at: "2026-11-22T15:08:53Z", by: { label: "PR #1561", url: "https://github.com/ZOGWORK/control-scout/pull/1561" },
+    });
+    expect(closed.reports.find((r) => r.id === b.id)?.issueClosed).toEqual({ reason: "not_planned", at: "2026-11-22T15:08:53Z", by: null });
+    expect(await audits("bugReport.issueClosed")).toEqual([
+      { id: b.id, issue: ib.number, reason: "not_planned", by: null },
+      { id: a.id, issue: ia.number, reason: "completed", by: "PR #1561" },
+    ]);
+    // Nothing left to ask about but the open one; closed reports aren't asked about again.
+    const again = calls.length;
+    expect(await syncBugIssues()).toBe(0);
+    expect(String((calls.at(-1)?.body as { query: string }).query).match(/issue\(number/g)).toHaveLength(1);
+    expect(calls.length).toBe(again + 1);
+  });
+
+  it("a report the owner reopens stays open, though its issue is still closed", async () => {
+    const a = await send(good);
+    issues[0].state = "CLOSED";
+    await syncBugIssues();
+    await run("UPDATE bug_reports SET status = 'open' WHERE id = ?", [a.id]);
+    expect(await syncBugIssues()).toBe(0);
+    expect((await listBugReports("open")).reports.map((r) => r.id)).toEqual([a.id]);
+  });
+
+  it("the sweep closes them, and the console's list checks GitHub at most once a minute", async () => {
+    await send(good);
+    issues[0].state = "CLOSED";
+    await sweepBugReports();
+    expect((await listBugReports("open")).reports).toEqual([]);
+    await send({ ...good, message: "Another bug report that is long enough." });
+    issues[1].state = "CLOSED";
+    // The sweep just asked: the list doesn't ask again within the minute…
+    const before = calls.length;
+    await freshIssueStates(Date.now() + 30_000);
+    expect(calls.length).toBe(before);
+    expect((await listBugReports("open")).reports).toHaveLength(1);
+    // …and asks once the minute is up, before answering, so the closed issue's report is already gone.
+    await freshIssueStates(Date.now() + ISSUE_SYNC_MS);
+    expect(calls.length).toBe(before + 1);
+    expect((await listBugReports("open")).reports).toHaveLength(0);
+  });
+
+  it("an issue GitHub doesn't find, or no token: the report is left as it is", async () => {
+    const a = await send(good);
+    issues.length = 0;
+    expect(await syncBugIssues()).toBe(0);
+    delete process.env.GITHUB_REPORT_TOKEN;
+    const before = calls.length;
+    expect(await syncBugIssues()).toBe(0);
+    expect(calls.length).toBe(before);
+    expect((await listBugReports("open")).reports.map((r) => r.id)).toEqual([a.id]);
+  });
+
+  it("names a PR or a commit only with a GitHub link", () => {
+    expect(closerOf({ __typename: "PullRequest", number: 7, url: "https://github.com/ZOGWORK/control-scout/pull/7" })).toEqual({ label: "PR #7", url: "https://github.com/ZOGWORK/control-scout/pull/7" });
+    expect(closerOf({ __typename: "Commit", abbreviatedOid: "abc1234", url: "https://github.com/ZOGWORK/control-scout/commit/abc1234ff" })).toEqual({ label: "commit abc1234", url: "https://github.com/ZOGWORK/control-scout/commit/abc1234ff" });
+    expect(closerOf({ __typename: "PullRequest", number: 7, url: "javascript:alert(1)" })).toBeNull();
+    expect(closerOf(null)).toBeNull();
   });
 });
 
