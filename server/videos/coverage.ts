@@ -356,6 +356,17 @@ export async function eventClipCoverage(season: number, code: string, now = Date
   return clipCoverage(rows.get(code) ?? [], recs.get(code) ?? null, full.get(code) ?? null, ev.timezone, now);
 }
 
+/** An event's matches with no clip served right now that a video's frames saw, by label: the video and the second (its
+ *  coverage worked out now, not the stored check, so a start that has since become a clip is never one). Null: no such
+ *  event. Owner › Clip coverage's Found in the video, and its Clip from / Not this match. */
+export async function seenUnserved(season: number, code: string): Promise<Map<string, { videoId: string; t: number }> | null> {
+  const c = await eventClipCoverage(season, code);
+  if (!c) return null;
+  const out = new Map<string, { videoId: string; t: number }>();
+  for (const m of c.matches) if (!m.clip && m.videoId && m.video?.seenAt != null) out.set(m.label, { videoId: m.videoId, t: Math.round(m.video.seenAt) });
+  return out;
+}
+
 /** How many events' matches eventMatchRows reads at a time. The driver reads synchronously on the server's one thread:
  *  200 events' matches and their teams (a busy season's 10,000-odd matches, 40,000-odd team rows) held it for up to
  *  0.6 s a read in the clip coverage check's first pass after every deploy (every event checked, 2026-11-22). A part

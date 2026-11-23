@@ -274,12 +274,25 @@ describe("clip coverage check and triage", () => {
       expect(await checkClipCoverage((l) => logged.push(l))).toBe(1);
       expect(logged[0]).toMatch(/^clip coverage: checked 1 event \(1 recorded\) · 0 fully clipped · \d+ matches clipped · \d+ missing \(.*seen in the video, no clip \(a finding\) 1/);
       const o = await ownerClipCoverage();
-      expect(o.findings).toEqual(expect.arrayContaining([
-        { kind: "seen", season: S, code: "TWODAY", name: "Two Day Qualifier", label: "Q1", videoId: "SATURDAYv01", at: 1800, why: "Checked in the video (2026-11-15): seen at 0:30:00, not yet confirmed (one signal only)" },
+      // The review entry, listed once (from the entry itself, with its own why), for the owner to decide.
+      expect(o.findings.filter((f) => f.code === "TWODAY")).toEqual([
+        { kind: "seen", source: "review", season: S, code: "TWODAY", name: "Two Day Qualifier", label: "Q1", videoId: "SATURDAYv01", at: 1800, why: "one signal only" },
         { kind: "pulled", season: S, code: "TWODAY", name: "Two Day Qualifier", label: "Q2", videoId: "SATURDAYv01", at: 3600, why: "Clip pulled: its first frame shows Q1, not Q2" },
-      ]));
+      ]);
       expect(o.clipChecks).toMatchObject({ pulled: 1 });
       expect(o.lastPass).toMatchObject({ checked: 1, events: 1, why: expect.objectContaining({ "seen in the video, no clip (a finding)": 1 }), pending: expect.any(Number) });
+      // The breakdown over every stored event, not only this pass's: at least this pass's own.
+      expect(o.lastPass!.all!.why["seen in the video, no clip (a finding)"]).toBeGreaterThanOrEqual(1);
+      expect(o.lastPass!.all!.missing).toBeGreaterThanOrEqual(o.lastPass!.missing);
+      // A start the read holds that the site doesn't serve (Q1 overlaps Q3's) is one too, from the coverage row; rejected at
+      // that second, it leaves the list.
+      setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: { Q1: 1800, Q3: 1805 } }]);
+      await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+      await checkClipCoverage(() => {});
+      expect((await ownerClipCoverage()).findings.filter((f) => f.code === "TWODAY" && f.kind === "seen").map((f) => `${f.source} ${f.label}@${f.at}`)).toEqual(["start Q1@1800"]);
+      await run("INSERT INTO review_decisions (video_id, code, label, season, t, decision, decided_by, decided_at) VALUES ('SATURDAYv01', 'TWODAY', 'Q1', ?, 1800, 'rejected', 'o', 'x')", [S]);
+      expect((await ownerClipCoverage()).findings.filter((f) => f.code === "TWODAY" && f.kind === "seen")).toEqual([]);
+      await run("DELETE FROM review_decisions WHERE code = 'TWODAY'");
       expect(o.lastPass!.pendingBefore === null || typeof o.lastPass!.pendingBefore === "number").toBe(true);
       // A finding stays until a pass clears it: here a re-read shows Q1 isn't in the video and the pulled clip's check is
       // gone, so the next pass drops both (never by marking reviewed). The pass before's pending count is kept beside it.
