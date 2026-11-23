@@ -764,6 +764,15 @@ html.compact .density-card { padding: 0.875rem; }
   animation: none;
 }
 .cs-hero-search > div:first-child input { font-size: 1.0625rem; }
+/* The v8 wash's glows (Wash.tsx) drift: each a slow wave of a few percent with a soft swell, never more. Transform
+   and opacity only (the compositor's), three lengths that never line up; still for reduced motion. */
+.wash-glow { will-change: transform, opacity; animation: wash-drift-a 19s ease-in-out infinite alternate; }
+.wash-glow[data-wash-glow="1"] { animation-name: wash-drift-b; animation-duration: 23s; animation-delay: -8s; }
+.wash-glow[data-wash-glow="2"] { animation-name: wash-drift-c; animation-duration: 29s; animation-delay: -15s; }
+@keyframes wash-drift-a { 0% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; } 50% { transform: translate3d(3%, 4%, 0) scale(1.06); opacity: 0.8; } 100% { transform: translate3d(-1.5%, 2%, 0) scale(1.03); opacity: 0.95; } }
+@keyframes wash-drift-b { 0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.95; } 50% { transform: translate3d(-3%, 5%, 0) scale(1.08); opacity: 0.78; } 100% { transform: translate3d(2%, 1.5%, 0) scale(1.02); opacity: 1; } }
+@keyframes wash-drift-c { 0% { transform: translate3d(0, 0, 0) scale(1.02); opacity: 1; } 50% { transform: translate3d(-3.5%, 3%, 0) scale(1.07); opacity: 0.82; } 100% { transform: translate3d(1.5%, 4%, 0) scale(1); opacity: 0.92; } }
+@media (prefers-reduced-motion: reduce) { .wash-glow { animation: none; will-change: auto; } }
 @keyframes cs-hero-glow {
   0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 14%, transparent), 0 0 28px -6px color-mix(in srgb, var(--color-accent) 30%, transparent); }
   50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 22%, transparent), 0 0 34px -4px color-mix(in srgb, var(--color-accent) 42%, transparent); }
