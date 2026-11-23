@@ -90,8 +90,8 @@ export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentenc
  * buttons (bot/buttons.ts); `watch`: the videos, as link buttons.
  */
 export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string;   chat?: { text: string; video?: string; page?: string; card?: boolean; by?: "bruno" | "scout" }; next?: string[]; watch?: { label: string; url: string }[];
-  /** What was actually asked, when a reply said yes to the question Bruno offered ("yes" after "Also want 4215's
-   *  record?"): the post quotes it and the thread keeps it, not the word "yes". */
+  /** What was actually asked, when a reply answered the question Bruno offered ("yes" — or "no" — after "Also want
+   *  4215's record?"): the post quotes it and the thread keeps it, not the word. */
   resolved?: string }
 
 /** Whether an answer has records to show — a card, a stat or results, never the sorry a message-level search gives
@@ -134,6 +134,34 @@ export function offeredQuestion(history: BrunoChatTurn[]): string | null {
     if (found.length) return found.at(-1)![1].trim();
   }
   return null;
+}
+
+/** A whole message that declines the offer: "no", "no thanks", "not now", "maybe later". */
+const NO_PHRASES = [
+  /^(?:no|nope|nah|naw)$/, /^no (?:thanks|thank you)$/, /^not (?:right )?now$/, /^(?:maybe )?later$/, /^not today$/,
+  /^(?:i'?m|im) (?:good|fine|ok|okay)(?: thanks| thank you)?$/, /^(?:we'?re|were) good(?: thanks)?$/, /^no need(?: thanks)?$/,
+  /^don'?t bother$/, /^skip(?: it)?$/, /^pass$/,
+];
+
+/** Whether a message only declines the question Bruno offered: a decline answers it, while searching the word "no"
+ *  answers with whatever team or person the index has nearest it, the way "yes" did. A no with a question after it
+ *  ("no, what about 6980") asks that question, and "not sure" neither accepts nor declines. */
+export function declined(q: string): boolean {
+  if (/\d/.test(q)) return false;
+  const said = q.toLowerCase().replace(/[^a-z\s']/g, " ").replace(/\s+/g, " ").trim();
+  return !!said && NO_PHRASES.some((re) => re.test(said));
+}
+
+/** A no to the offer, said politely and left for later, with nothing searched. `by: "scout"`: the bot's own words, not
+ *  a reply of Bruno's, so it is never remembered as one of his turns. */
+function declinedReply(offer: string): AskReply {
+  const text = `No problem — I'll leave ${offer} for now. Ask me anything else, or say the word and I'll pull it up.`;
+  return {
+    embed: { title: "No problem", description: text, color: VOLT, footer: FOOTER },
+    meta: { step: "deterministic", refined: false, sentence: false, chat: true },
+    chat: { text, by: "scout" },
+    resolved: offer,
+  };
 }
 
 /** How long a chat waits for Bruno before the card posts instead. Generous: a model reply takes a while (Control
@@ -216,12 +244,15 @@ export const chatContext = (facts: string[], memory: string[] = []): string[] =>
  *  `guild`: the server it was asked in (never who asked), for the site's failed-search queue. */
 /**
  * /ask and a mention: the message's answer, with a "yes" to the question Bruno ended his last reply with asked as that
- * question (`resolved`: what was asked, so the post quotes it and the thread keeps it), never as the word "yes".
+ * question (`resolved`: what was asked, so the post quotes it and the thread keeps it), never as the word "yes"; a
+ * "no" to it declines it politely, with nothing searched.
  */
 export async function ask(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[] = [], memory: string[] = [], guild: string | null = null): Promise<AskReply> {
-  const offered = affirmative(q) ? offeredQuestion(history) : null;
-  const r = await answerAsk(offered ?? q, deps, site, history, memory, guild);
-  return offered ? { ...r, resolved: offered } : r;
+  const offered = offeredQuestion(history);
+  if (offered && declined(q)) return declinedReply(offered);
+  const subject = offered && affirmative(q) ? offered : null;
+  const r = await answerAsk(subject ?? q, deps, site, history, memory, guild);
+  return subject ? { ...r, resolved: subject } : r;
 }
 
 async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[], memory: string[], guild: string | null): Promise<AskReply> {
