@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The owner console, as Control Point's: "Owner console" with Refresh, one tab per section of the owner's
-// brief showing what's waiting, Health first on Overview, an Accounts tab (search, then an account in a
-// side sheet), the Scout workspaces on Overview, and an audit log with every change's old and new value.
+// brief showing what's waiting, Overview opening on what's waiting (each with its Open button) then Health, an
+// Accounts tab (search, an account in a side sheet, the Scout workspaces), and an audit log with every change's old and new value.
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -36,6 +36,9 @@ const AUDIT: AuditEntry[] = [
   { id: 1, at: "2026-10-18T09:00:00.000Z", actor: "owner@example.test", action: "ops.caches", details: null, result: null, change: null },
 ];
 const asked: string[] = [];
+/** The queue counts' answers: "ok" (all empty), "pending" (not in yet) or "failed". */
+let counts: "ok" | "pending" | "failed" = "pending";
+let overview: OwnerOverview = OVERVIEW;
 const stale = vi.fn();
 
 vi.mock("../lib/api", async (orig) => ({
@@ -43,8 +46,13 @@ vi.mock("../lib/api", async (orig) => ({
   markStale: (p: string) => stale(p),
   useApi: (path: string | null) => {
     if (path) asked.push(path);
+    if (path?.endsWith("/counts") && counts !== "pending") {
+      return counts === "failed" && path.includes("official-videos")
+        ? { data: undefined, error: new Error("offline"), loading: false, reload: () => {} }
+        : { data: { requests: 0, reports: 0, pending: 0, open: 0, approvals: 0 }, error: undefined, loading: false, reload: () => {} };
+    }
     const data = !path ? undefined
-      : path === "/api/owner/overview" ? OVERVIEW
+      : path === "/api/owner/overview" ? overview
       : path.startsWith("/api/owner/users/") ? DETAIL
       : path.startsWith("/api/owner/users") ? (path.includes("q=sam") ? { users: [USERS[1]], total: 1 } : { users: USERS, total: 2 })
       : path === "/api/owner/workspaces" ? { workspaces: WORKSPACES }
@@ -63,7 +71,7 @@ const mount = (url = "/owner") => render(<TooltipProvider><MemoryRouter initialE
 
 let phone = false;
 beforeEach(() => {
-  asked.length = 0; stale.mockClear(); phone = false;
+  asked.length = 0; stale.mockClear(); phone = false; counts = "pending"; overview = OVERVIEW;
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("max-width") ? phone : false, media: q, addEventListener() {}, removeEventListener() {} }));
 });
 afterEach(cleanup);
@@ -82,13 +90,14 @@ describe("owner console", () => {
     expect(screen.queryAllByRole("tab")).toEqual([]);
     expect(within(nav).getAllByText(/^(Health|Data|Product|People & trust|Record)$/).map((g) => g.textContent)).toEqual(["Health", "Data", "Product", "People & trust", "Record"]);
     expect(within(nav).getAllByRole("button").map((t) => t.textContent?.replace(/\d+/g, ""))).toEqual([
-      "Overview", "Data & sync", "Packs & offline", "Official videos", "Clip coverage", "Predictions & ledger", "Rankings & content", "Features", "Discord bot", "Appearance", "Moderation", "Video contributors", "Feedback & errors", "Bug reports", "Analytics", "Accounts", "Photo storage", "Audit log",
+      "Overview", "Server & speed", "Data & sync", "Packs & offline", "Official videos", "Clip coverage", "Predictions & ledger", "Rankings & content", "Features", "Discord bot", "Appearance", "Moderation", "Video contributors", "Feedback & errors", "Bug reports", "Analytics", "Accounts", "Photo storage", "Audit log",
     ]);
     const section = (name: RegExp) => within(nav).getByRole("button", { name });
     const feedback = section(/Feedback & errors/);
     expect(within(feedback).getByLabelText("3 open feedback")).toBeTruthy();
     expect(within(feedback).getByLabelText("2 error reports")).toBeTruthy();
-    expect(within(section(/Accounts/)).getByLabelText("1 orphaned spaces")).toBeTruthy();
+    // Orphaned spaces need nothing from the owner (they're writable again on their own), so they're no badge.
+    expect(within(section(/Accounts/)).queryByText(/\d/)).toBeNull();
     // Counts never push past the row: the badges don't shrink, the label gives way.
     expect(within(feedback).getByLabelText("3 open feedback").parentElement!.className).toContain("shrink-0");
     expect(within(section(/Analytics/)).queryByText(/\d/)).toBeNull();
@@ -99,17 +108,54 @@ describe("owner console", () => {
     expect(section(/Overview/).getAttribute("aria-current")).toBeNull();
   });
 
-  it("opens on Overview with Health first: site, sync, engine, ledger, packs and errors", () => {
+  it("opens on Overview with what's waiting first, urgent first, each with its Open button", () => {
+    mount();
+    expect(screen.getAllByRole("heading", { level: 2 })[0].textContent).toBe("Waiting for you");
+    // The queue counts aren't in yet: the list says it's partial, and which it's still counting.
+    expect(screen.getByText(/The queues counted so far, urgent first\. Still counting Official videos, Clip coverage, Video contributors/)).toBeTruthy();
+    const items = within(screen.getByRole("list", { name: "Waiting for you" })).getAllByRole("listitem");
+    expect(items.map((i) => i.textContent?.replace("Open", ""))).toEqual(["2 error reportsFeedback & errors", "3 open feedbackFeedback & errors"]);
+    // Orphaned spaces aren't waiting on anyone.
+    expect(screen.queryByText(/orphaned/i)).toBeNull();
+    fireEvent.click(within(items[0]).getByRole("button", { name: "Open Feedback & errors: 2 error reports" }));
+    expect(screen.getByRole("button", { name: /^Feedback & errors/ }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("says nothing is waiting only once every queue has answered, and names a queue it couldn't count", () => {
+    overview = { ...OVERVIEW, inbox: { openFeedback: 0, errorReports: 0, unfiledErrors: 0 } };
+    mount();
+    expect(screen.getByText("Counting the queues…")).toBeTruthy();
+    expect(screen.queryByText(/Nothing waiting/)).toBeNull();
+    cleanup(); counts = "ok";
+    mount();
+    expect(screen.getByText(/Nothing waiting/)).toBeTruthy();
+    cleanup(); counts = "failed";
+    mount();
+    expect(screen.queryByText(/Nothing waiting/)).toBeNull();
+    expect(screen.getByRole("alert").textContent).toMatch(/Couldn't count Official videos/);
+  });
+
+  it("then Health: sync, errors and the ledger; release, engine and storage folded under Server details", () => {
     mount();
     const health = screen.getByRole("heading", { name: "Health" }).closest("section")!;
-    expect(screen.getAllByRole("heading", { level: 2 })[0].textContent).toBe("Health");
-    expect(within(health).getByText("Up")).toBeTruthy();
     expect(within(health).getByText("Never")).toBeTruthy();
-    expect(within(health).getByText("v2.1.1")).toBeTruthy();
     expect(within(health).getByText("Live ledger")).toBeTruthy();
     expect(within(health).getByText(/4,321 live calls/)).toBeTruthy();
-    expect(within(health).getByText(/Version 2026-10-28\.1/)).toBeTruthy();
     expect(within(health).getByText("2 server · 1 app")).toBeTruthy();
+    expect(within(health).queryByText("v2.1.1")).toBeNull();
+    const details = screen.getByRole("button", { name: /^Server details/ });
+    expect(details.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(details);
+    expect(screen.getByText(/built Oct 28, 2026 · engine v2\.1\.1/)).toBeTruthy();
+  });
+
+  it("server traffic has its own tab, Server & speed (old usage links land there), apart from Analytics", () => {
+    mount("/owner?panel=usage");
+    expect(screen.getByRole("button", { name: /^Server & speed/ }).getAttribute("aria-current")).toBe("page");
+    expect(asked.some((p) => p.startsWith("/api/owner/usage"))).toBe(true);
+    cleanup(); asked.length = 0;
+    mount("/owner?panel=analytics");
+    expect(asked.some((p) => p.startsWith("/api/owner/usage"))).toBe(false);
   });
 
   it("old per-panel links open the section that holds the panel now", () => {
@@ -120,8 +166,8 @@ describe("owner console", () => {
     expect(screen.getByRole("button", { name: /^Overview/ }).getAttribute("aria-current")).toBe("page");
   });
 
-  it("lists the Scout workspaces on Overview", () => {
-    mount();
+  it("lists the Scout workspaces under Accounts", () => {
+    mount("/owner?panel=accounts");
     const table = screen.getByText("Workspaces (1)").closest("section")!;
     expect(within(table).getByText("Hypnotic Robotics")).toBeTruthy();
   });
@@ -147,7 +193,9 @@ describe("owner console", () => {
 
   it("What's new: the releases visitors see, from CHANGELOG.md", async () => {
     mount("/owner?panel=whatsNew");
-    const rail = await screen.findByRole("navigation", { name: "Releases" });
+    // Something to look up, not to act on: folded until asked for.
+    fireEvent.click(screen.getByRole("button", { name: /^What's new/ }));
+    const rail = await screen.findByRole("navigation", { name: "Releases" }, { timeout: 8000 });
     expect(within(rail).getAllByRole("button")[0].textContent).toMatch(/^v\d+\.\d+\.\d+Latest$/);
   });
 

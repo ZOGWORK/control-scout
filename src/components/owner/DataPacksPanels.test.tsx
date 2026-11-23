@@ -53,8 +53,10 @@ afterEach(() => { cleanup(); fetched.mockClear(); copied.mockClear(); });
 const renderIn = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe("DataPanel", () => {
-  it("shows each season's sync, with the current one marked and failed fetches counted", () => {
+  it("shows each season's sync, folded, with the current one marked and failed fetches counted", () => {
     renderIn(<DataPanel />);
+    expect(screen.queryAllByRole("row")).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: /^By season/ }));
     const rows = screen.getAllByRole("row").slice(1);
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText("Current")).toBeTruthy();
@@ -66,10 +68,13 @@ describe("DataPanel", () => {
     expect(heads.filter((h) => !h.className.includes("max-sm:hidden")).map((h) => h.textContent)).toEqual(["Season", "Last sync", "Events"]);
   });
 
-  it("lists every flag with its count, its first rows as links, and a failed check as failed", () => {
+  it("lists the flags that found something with their counts, first rows as links, a failed check as failed; passing ones folded", () => {
     renderIn(<DataPanel />);
-    const flags = screen.getAllByRole("heading", { level: 3 }).filter((h) => DATA.flags.some((f) => h.textContent?.startsWith(f.title)));
-    expect(flags).toHaveLength(5);
+    const flags = () => screen.getAllByRole("heading", { level: 3 }).filter((h) => DATA.flags.some((f) => h.textContent?.startsWith(f.title)));
+    expect(flags()).toHaveLength(3);
+    expect(screen.queryAllByText("None")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: /^Checks that passed/ }));
+    expect(flags()).toHaveLength(5);
     expect(screen.getByText("12")).toBeTruthy();
     expect(screen.getByRole("link", { name: "2026 BROKEN" }).getAttribute("href")).toBe("/events/2026/BROKEN");
     expect(screen.getByText("Check failed")).toBeTruthy();
@@ -90,8 +95,10 @@ describe("DataPanel", () => {
 });
 
 describe("PacksPanel", () => {
-  it("shows the manifest facts and every file's size and full SHA-256, wrapping instead of overflowing", () => {
+  it("shows the manifest facts and, folded, every file's size and full SHA-256, wrapping instead of overflowing", () => {
     renderIn(<PacksPanel />);
+    expect(screen.queryByRole("list", { name: "Pack files" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Files/ }));
     expect(screen.getAllByText("2026-10-29.2").length).toBe(2); // the Version tile and the release badge
     expect(screen.getByText("2.11.0")).toBeTruthy();
     const files = within(screen.getByRole("list", { name: "Pack files" })).getAllByRole("listitem");
@@ -107,6 +114,7 @@ describe("PacksPanel", () => {
 
   it("copies a SHA-256", () => {
     renderIn(<PacksPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /^Files/ }));
     fireEvent.click(screen.getByRole("button", { name: "Copy SHA-256 of 2025–26" }));
     expect(copied.mock.calls[0][0]).toBe(PACKS.files[1].sha256);
   });
