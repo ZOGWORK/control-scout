@@ -32,6 +32,12 @@ describe("wash drift", () => {
       for (const [, n] of f.matchAll(/scale\(([\d.]+)\)/g)) expect(Number(n)).toBeLessThanOrEqual(1.08);
       for (const [, n] of f.matchAll(/opacity: ([\d.]+)/g)) expect(Number(n)).toBeGreaterThanOrEqual(0.75);
     }
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.wash-glow \{ animation: none;/);
+    // The still rule must reach every glow: a per-glow rule (`.wash-glow[data-wash-glow="1"]`) outranks a bare
+    // `.wash-glow`, so the reduced-motion rule names the attributed glows too.
+    const still = /@media \(prefers-reduced-motion: reduce\) \{ ([^{]*\.wash-glow[^{]*) \{ animation: none;/.exec(css);
+    expect(still).not.toBeNull();
+    const selectors = still![1].split(",").map((x) => x.trim());
+    expect(selectors).toContain(".wash-glow");
+    expect(selectors).toContain(".wash-glow[data-wash-glow]");
   });
 });
