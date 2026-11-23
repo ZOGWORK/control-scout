@@ -44,6 +44,13 @@ describe("what the bot was asked", () => {
     expect(await topUnanswered(1, NOW)).toHaveLength(1);
   });
 
+  it("a question asked only in a DM counts no server", async () => {
+    await ask("how did our alliance do", { answered: false, chat: false, step: "no-match", guild: null });
+    await ask("how did our alliance do", { answered: false, chat: false, step: "no-match", guild: null });
+    // A DM has no server, so "1 server" for it would be a claim the data doesn't support.
+    expect((await topUnanswered(10, NOW))[0]).toMatchObject({ count: 2, servers: 0 });
+  });
+
   it("counts chats today and this week, how often Bruno answered, and the middle answer time", async () => {
     await ask("a");
     await ask("b", { answered: false, chat: false, step: "recovery" });

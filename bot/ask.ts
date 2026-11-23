@@ -194,7 +194,9 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
   // A records question search couldn't answer and no chat did: the site's failed-search queue gets the phrasing. Only a
   // records question (one that could be about a team, a match or a season), and only when search found nothing: an
   // answer it did give teaches the queue nothing, and a greeting is not a failed search.
-  if (asksRecords(q, answer, history) && !answer.hits.length && !answer.card && !answer.stat) deps.miss?.(q, answer, guild);
+  // The question's own words decide, not the thread's: a "thanks" in a thread that named a team is still a greeting,
+  // and smallTalk answers it below — a follow-up that names a record is the records question it is.
+  if (RECORD_NUMBER.test(q) && !answer.hits.length && !answer.card && !answer.stat) deps.miss?.(q, answer, guild);
   // Search found nothing and no chat answered either: one honest line rather than "Sorry — I can't answer that yet"
   // with the closest matches. Only a short message that isn't a records question reaches here (bot/smallTalk.ts).
   if (!answer.hits.length && !answer.card && !answer.stat) {
