@@ -18,7 +18,7 @@ import { Wash } from "../layout/Wash";
 import { apiFetch, ApiError, markStale, prime, useApi } from "../../lib/api";
 import { applyWash } from "../../lib/wash";
 import {
-  COLOUR_KEYS, WASH_KEYS, WASH_PRESETS, WASH_SPREAD, WASH_STRENGTH, cleanHex, isDefaultWash, parseWash, presetOf, sameWash, washVars,
+  COLOUR_KEYS, WASH_KEYS, WASH_PRESETS, WASH_SPREAD, WASH_STRENGTH, cleanHex, isDefaultWash, parseWash, presetOf, sameWash, softStops, washVars,
   type ColourKey, type OwnerWash, type WashSettings,
 } from "../../shared/wash";
 
@@ -100,7 +100,7 @@ export function WashPreview({ wash, mode = "dark" }: { wash: WashSettings; mode?
 function PresetSwatch({ wash, mode }: { wash: WashSettings; mode: Mode }) {
   const bg = mode === "light" ? LIGHT_BG : DARK_BG;
   const tint = (c: string, a: number) => `color-mix(in srgb, color-mix(in srgb, ${c} ${mode === "light" ? 42 : 100}%, ${bg}) ${a}%, transparent)`;
-  const top = `radial-gradient(60% 75% at 12% 0%, ${tint(wash.a, 95)}, transparent 72%), radial-gradient(55% 70% at 52% 0%, ${tint(wash.b, 95)}, transparent 72%), radial-gradient(60% 75% at 90% 0%, ${tint(wash.c, 95)}, transparent 72%)`;
+  const top = `radial-gradient(52% 66% at 12% 0%, ${softStops(tint(wash.a, 95))}), radial-gradient(48% 62% at 52% 0%, ${softStops(tint(wash.b, 95))}), radial-gradient(52% 66% at 90% 0%, ${softStops(tint(wash.c, 95))})`;
   const glow = `radial-gradient(40% 60% at 43% 112%, ${tint(wash.ga, 80)}, transparent 75%), radial-gradient(38% 55% at 65% 110%, ${tint(wash.gb, 70)}, transparent 75%), radial-gradient(32% 45% at 52% 105%, ${tint(wash.gc, 40)}, transparent 80%)`;
   return <div aria-hidden className="h-24 w-full" style={{ backgroundColor: bg, backgroundImage: `${top}, ${glow}` }} />;
 }

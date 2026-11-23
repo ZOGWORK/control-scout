@@ -16,6 +16,7 @@ import { isBareRoute, pageTitle } from "../src/shared/routes.js";
 import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, PAGE_DATA_ID, PAGE_FRAME, homeHeadlineAt } from "../src/shared/boot.js";
 import { DEFAULT_HERO_LINES, HERO_LINES_ID, type HeroLinesResponse } from "../src/shared/heroLines.js";
 import { LITE_BOOT_S } from "../src/shared/lite.js";
+import { softStops } from "../src/shared/wash.js";
 import { footerLinks } from "../src/shared/footer.js";
 import type { Flag } from "../src/shared/flags.js";
 
@@ -135,7 +136,7 @@ export const BOOT_STYLE = `<style>
       html[data-v8] .csb-top{position:static;height:56px;border-bottom-color:transparent;background:transparent}
       html[data-v8] .csb .csb-crumb{display:none}
       html[data-v8] .csb-main{background:none}
-      html[data-v8] .csb-col{background-repeat:no-repeat;background-image:radial-gradient(60% calc(42vh * var(--wash-spread,1)) at 12% 0,color-mix(in srgb,color-mix(in srgb,var(--wash-a,#5a76ad) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent),transparent 72%),radial-gradient(55% calc(40vh * var(--wash-spread,1)) at 52% 0,color-mix(in srgb,color-mix(in srgb,var(--wash-b,#5f5785) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent),transparent 72%),radial-gradient(60% calc(42vh * var(--wash-spread,1)) at 90% 0,color-mix(in srgb,color-mix(in srgb,var(--wash-c,#91689c) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent),transparent 72%)}
+      html[data-v8] .csb-col{background-repeat:no-repeat;background-image:radial-gradient(52% calc(37vh * var(--wash-spread,1)) at 12% 0,${softStops("color-mix(in srgb,color-mix(in srgb,var(--wash-a,#5a76ad) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent)")}),radial-gradient(48% calc(35vh * var(--wash-spread,1)) at 52% 0,${softStops("color-mix(in srgb,color-mix(in srgb,var(--wash-b,#5f5785) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent)")}),radial-gradient(52% calc(37vh * var(--wash-spread,1)) at 90% 0,${softStops("color-mix(in srgb,color-mix(in srgb,var(--wash-c,#91689c) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent)")})}
       html[data-v8] .csb-home .csb-hl,html[data-v8] .csb-home>p{display:none}
       html[data-v8] .csb-home{display:flex;flex-direction:column;align-items:center;padding-top:15vh}
       html[data-v8] .csb-home>div:not(.csb-hl){width:100%;max-width:40rem;height:50px;margin:0;border-color:#ffffff1f;border-radius:13px;background:#1b1b1e}
