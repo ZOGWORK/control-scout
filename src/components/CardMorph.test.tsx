@@ -78,6 +78,18 @@ describe("card morph", () => {
     expect(morphAllowed()).toBe(false);
   });
 
+  it("a run that is ended (a reset, the page torn down) leaves no poll behind still reading the page", async () => {
+    render(<MemoryRouter><MorphScope name="list"><Card /></MorphScope></MemoryRouter>);
+    // No title ever lands, so the run polls for it.
+    expect(launchMorph(screen.getByTestId("card"), KEY, () => {})).toBe(true);
+    await new Promise((r) => setTimeout(r, 60));
+    resetMorphForTests();
+    await new Promise((r) => setTimeout(r, 40)); // the poll's next tick sees the run is over
+    const reads = vi.spyOn(document, "querySelector");
+    await new Promise((r) => setTimeout(r, 120));
+    expect(reads.mock.calls.filter(([sel]) => String(sel).includes("data-morph-target"))).toEqual([]);
+  });
+
   it("a modified click (new tab) doesn't start a run", () => {
     render(<MemoryRouter><MorphScope name="list"><Card /></MorphScope></MemoryRouter>);
     fireEvent.click(screen.getByTestId("card"), { metaKey: true });
