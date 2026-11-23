@@ -10,8 +10,10 @@ describe("wash drift", () => {
   it("draws the three glows as their own layers, left, middle and right colours", () => {
     const { container } = render(<Wash includeParticleWave={false} />);
     const glows = [...container.querySelectorAll<HTMLElement>("[data-wash] .wash-glow")];
-    expect(glows.map((g) => g.getAttribute("data-wash-glow"))).toEqual(["0", "1", "2"]);
-    expect(glows.map((g) => g.style.backgroundImage.match(/--wash-[abc]/)?.[0])).toEqual(["--wash-a", "--wash-b", "--wash-c"]);
+    // Painted right, middle, left (later siblings paint on top): the left glow on top where they overlap, as the one
+    // background list (first image on top) drew them before.
+    expect(glows.map((g) => g.getAttribute("data-wash-glow"))).toEqual(["2", "1", "0"]);
+    expect(glows.map((g) => g.style.backgroundImage.match(/--wash-[abc]/)?.[0])).toEqual(["--wash-c", "--wash-b", "--wash-a"]);
     for (const g of glows) expect(g.style.animation).toBe("");
     // No blur over the moving layers (it would be redrawn every frame).
     expect(container.querySelector("[data-wash] [class*='blur']")).toBeNull();
@@ -24,7 +26,9 @@ describe("wash drift", () => {
     for (const f of frames) {
       const props = [...f.matchAll(/([a-z-]+):/g)].map((m) => m[1]);
       expect(new Set(props)).toEqual(new Set(["transform", "opacity"]));
-      for (const [, n] of f.matchAll(/translate3d\(([-\d.]+)%/g)) expect(Math.abs(Number(n))).toBeLessThanOrEqual(4);
+      const moves = [...f.matchAll(/translate3d\(([-\d.]+)%?, ([-\d.]+)%?, 0\)/g)];
+      expect(moves.length).toBeGreaterThan(0);
+      for (const [, x, y] of moves) for (const n of [x, y]) expect(Math.abs(Number(n))).toBeLessThanOrEqual(4);
       for (const [, n] of f.matchAll(/scale\(([\d.]+)\)/g)) expect(Number(n)).toBeLessThanOrEqual(1.08);
       for (const [, n] of f.matchAll(/opacity: ([\d.]+)/g)) expect(Number(n)).toBeGreaterThanOrEqual(0.75);
     }

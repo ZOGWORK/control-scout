@@ -39,7 +39,9 @@ export function Wash({ size = "tall", className, includeParticleWave = true }: {
         {/* No blur here: the glows are already soft (each fades out by 72%), and a blur over moving layers is redrawn
             every frame (measured: a frame every ~67 ms with it, every 16.7 ms without, same look). */}
         <div className="absolute -inset-x-[10%] -top-1/2 bottom-0">
-          {GLOWS.map((g, i) => <div key={i} data-wash-glow={i} className="wash-glow absolute inset-0" style={{ backgroundImage: g }} />)}
+          {/* Painted right, middle, left: the left glow on top where they overlap, as the single background list
+              (whose first image painted on top) always drew them. */}
+          {[2, 1, 0].map((i) => <div key={i} data-wash-glow={i} className="wash-glow absolute inset-0" style={{ backgroundImage: GLOWS[i] }} />)}
         </div>
         <svg data-grain className="absolute inset-0 size-full opacity-[var(--wash-grain,0.12)] mix-blend-overlay" xmlns="http://www.w3.org/2000/svg">
           <filter id={grain}><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves={2} stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
