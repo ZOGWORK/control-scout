@@ -97,6 +97,11 @@ describe("the owner console's Discord bot panel", () => {
     expect(h.reload).not.toHaveBeenCalled();
     expect((screen.getByLabelText("Chats an hour") as HTMLInputElement).value).toBe("60");
     expect((screen.getByLabelText("Server id") as HTMLInputElement).value).toBe(GUILD);
+    // A transient failure leaves the panel usable: the button is back and the same save can be retried.
+    const save = screen.getByRole("button", { name: "Save cap" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(false);
+    fireEvent.click(save);
+    await waitFor(() => expect(h.success).toHaveBeenCalled());
   });
 
   it("doesn't read a failed blank save as already uncapped, and keeps the server id", async () => {
@@ -125,6 +130,8 @@ describe("the owner console's Discord bot panel", () => {
     await waitFor(() => expect(h.error).toHaveBeenCalledWith("Something broke"));
     expect(h.success).not.toHaveBeenCalled();
     expect(h.reload).not.toHaveBeenCalled();
+    // The row's clear button is usable again, so the owner can retry.
+    await waitFor(() => expect((screen.getByRole("button", { name: "Back to default" }) as HTMLButtonElement).disabled).toBe(false));
   });
 
   it("allows one cap write at a time: the other controls wait for it", async () => {
