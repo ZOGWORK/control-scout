@@ -40,6 +40,21 @@ export const WASH_PRESETS: readonly { id: string; name: string; wash: Readonly<W
   { id: "nebula", name: "Nebula", wash: { a: "#b0469e", b: "#5a4fc4", c: "#2f8fb8", ga: "#c24fa8", gb: "#6a4fd0", gc: "#2fa0c8", strength: 1, spread: 1 } },
 ]);
 
+/** How strong a glow is from its centre (0) to its edge (1): 1 - smoothstep, flat at the centre and flat at the edge,
+ *  so neither its middle nor its rim shows as a circle. A two-stop gradient (colour → transparent) falls off in a
+ *  straight line and stops dead at its end, and the eye picks out that corner as a ring (Mach bands). */
+const FALLOFF = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] as const;
+const ease = (t: number) => (1 - t * t * (3 - 2 * t)) ** 1.4;
+/** A radial glow's colour stops, `colour` fading out smoothly by `end` (a percentage of the gradient's radius). */
+export const softStops = (colour: string, end = 100) =>
+  FALLOFF.map((t) => {
+    const a = Math.round(ease(t) * 1000) / 10;
+    const at = `${Math.round(t * end * 10) / 10}%`;
+    return a >= 100 ? `${colour} ${at}` : a <= 0 ? `transparent ${at}` : `color-mix(in srgb,${colour} ${a}%,transparent) ${at}`;
+  }).join(",");
+/** The wash's fade to the page at its bottom: eased too, so it has no line where the old two-slope fade turned. */
+export const WASH_FADE = "linear-gradient(to bottom,#000 0%,rgb(0 0 0/.97) 20%,rgb(0 0 0/.88) 40%,rgb(0 0 0/.7) 55%,rgb(0 0 0/.46) 70%,rgb(0 0 0/.22) 84%,rgb(0 0 0/.06) 94%,transparent 100%)";
+
 /** The keys that make up a wash, in the order the console lists them. */
 export const WASH_KEYS = ["a", "b", "c", "ga", "gb", "gc", "strength", "spread"] as const;
 export const COLOUR_KEYS = ["a", "b", "c", "ga", "gb", "gc"] as const;
