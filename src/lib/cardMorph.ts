@@ -44,6 +44,12 @@ export function setMorphSpeed(x: number) { speed = x > 0 && Number.isFinite(x) ?
 let leaving: Leaving | null = null;
 let running: (() => void) | null = null;
 
+/** The page now: a run ends the moment the reader leaves the page it is drawn for. The path only: a page changing its
+ *  own query (a tab, a filter) is still the same page. */
+const address = () => location.pathname;
+/** Input that means the reader has taken over (as the page's scroll restore also stops on it, src/lib/pageScroll.ts). */
+const TAKEOVER = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
+
 /** For tests: forget every run. */
 export function resetMorphForTests() { running?.(); landed = null; leaving = null; }
 
@@ -193,10 +199,15 @@ function run(card: HTMLElement, key: string, go: () => void): boolean {
   const pageAnim: { stop?: () => void } = {};
   let over = false;
   let went = false;
-  const leave = () => { if (went) return; went = true; if (page) page.style.opacity = "0"; go(); };
+  // Once the page has changed, the reader may move on again (a tab, Back) before the run ends: the layer and the hidden
+  // page must never outlast the page they're for.
+  let dest: string | null = null;
+  const moved = setInterval(() => { if (dest !== null && address() !== dest) finish(); }, 50);
+  const leave = () => { if (went) return; went = true; if (page) page.style.opacity = "0"; go(); dest = address(); };
   const finish = () => {
     if (over) return;
     over = true;
+    clearInterval(moved);
     leave(); // whatever happened, the tap still opens its page
     l.root.remove();
     if (page) { page.style.opacity = ""; pageAnim.stop?.(); }
@@ -274,12 +285,16 @@ export function maybeReturn(key: string): boolean {
   let over = false;
   let hidden: HTMLElement | null = null;
   // The reader may move on before it ends (a tab, a link): the layer must never sit over the next page.
-  const here = location.pathname + location.search;
-  const moved = setInterval(() => { if (location.pathname + location.search !== here) finish(); }, 50);
+  const here = address();
+  const moved = setInterval(() => { if (address() !== here) finish(); }, 50);
+  // The reader scrolling, touching or typing while the list's scroll is still on its way back: the list is theirs now.
+  const takeOver = () => finish();
+  for (const t of TAKEOVER) window.addEventListener(t, takeOver, { capture: true, passive: true });
   const finish = () => {
     if (over) return;
     over = true;
     clearInterval(moved);
+    for (const t of TAKEOVER) window.removeEventListener(t, takeOver, { capture: true });
     l.root.remove();
     if (hidden) hidden.style.visibility = "";
     if (running === finish) running = null;

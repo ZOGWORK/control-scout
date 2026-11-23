@@ -214,4 +214,26 @@ describe("card morph", () => {
     await vi.waitFor(() => expect(document.querySelector("[data-card-morph]")).toBeNull(), { timeout: 500 });
     window.history.pushState({}, "", "/");
   });
+
+  it("a forward run ends the moment the reader moves on from the page it opened, showing the new page", async () => {
+    render(<MemoryRouter><MorphScope name="list"><Card /></MorphScope></MemoryRouter>);
+    // The page it opens never draws its title (slow), and the reader taps a tab meanwhile.
+    expect(launchMorph(screen.getByTestId("card"), KEY, () => window.history.pushState({}, "", "/events/2025/USCAFFFAQ"))).toBe(true);
+    await vi.waitFor(() => expect(location.pathname).toBe("/events/2025/USCAFFFAQ"));
+    window.history.pushState({}, "", "/teams");
+    await vi.waitFor(() => expect(document.querySelector("[data-card-morph]")).toBeNull(), { timeout: 500 });
+    expect(document.getElementById("main")!.style.opacity).toBe("");
+    window.history.pushState({}, "", "/");
+  });
+
+  it("a return run waiting for the list's scroll gives way as soon as the reader scrolls", async () => {
+    const view = render(<MemoryRouter><MorphScope name="list"><Card /></MorphScope><Title /></MemoryRouter>);
+    await land(screen.getByTestId("card"));
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(500); // the saved position, never reached
+    view.rerender(<MemoryRouter><MorphScope name="list"><Card /></MorphScope></MemoryRouter>);
+    expect(maybeReturn(KEY)).toBe(true);
+    expect(document.querySelector("[data-card-morph]")).not.toBeNull();
+    window.dispatchEvent(new WheelEvent("wheel", { deltaY: 40 }));
+    expect(document.querySelector("[data-card-morph]")).toBeNull();
+  });
 });
