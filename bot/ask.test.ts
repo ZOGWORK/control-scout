@@ -1,7 +1,7 @@
 // /ask: the website's search answer as one embed, Bruno only where the site would use him, credited only then.
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
-import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, askNext, chatContext, chatPost, fitLines, videoLinks, type AskDeps } from "./ask";
+import { BRUNO_CREDIT, DESCRIPTION_MAX, affirmative, ask, askEmbed, askNext, chatContext, chatPost, fitLines, offeredQuestion, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 import { SORRY_SENTENCE } from "../src/shared/search";
 import { NO_CHAT, NO_REPLY } from "./smallTalk";
@@ -319,6 +319,37 @@ describe("a chat with Bruno", () => {
     const answer = "**A coaxial swerve puts both drive motors on one axis.**\n\nThat keeps the wheel's turning on the module's pivot.\n- **Coaxial**: both motors share a shaft\n- **Offset**: the motors sit beside the pivot";
     expect(chatPost("explain a coaxial swerve", { text: answer }, { quote: false })).toBe(`${answer}\n-# Bruno AI · controlscout.org`);
     expect(chatPost("x", { text: "y".repeat(3000) }, { quote: false })).toHaveLength(2000);
+  });
+});
+
+describe("a yes to the question he offered", () => {
+  // The screenshot: his records answer ends with an offer, and the person replies "yes".
+  const offer = { role: "bruno" as const, text: "The BIOBUZZ world record is 288 points, scored twice: by 19666 Forever Knight and 19641 APEX at the China Shanghai #2 Qualifier, and by 13684 Infinity Tech and 10016 Clarkston RoboWolves at the Bedford Qualifier. Also want 4215's record?" };
+  const thread = [{ role: "user" as const, text: "what is the bio buzz world record rn and who is by" }, offer];
+
+  it("reads the question he ended his answer with", () => {
+    for (const y of ["yes", "Yes!", "yeah please", "sure", "go ahead", "ok", "why not"]) expect(affirmative(y), y).toBe(true);
+    for (const q of ["what about 6980", "yes but what about 6980", "no", ""]) expect(affirmative(q), q).toBe(false);
+    expect(offeredQuestion(thread)).toBe("4215's record");
+    expect(offeredQuestion([])).toBeNull();
+    expect(offeredQuestion([{ role: "bruno", text: "4215 is 26-6-0." }])).toBeNull();
+  });
+
+  it("asks that question, not the word: never a team called \"It worked yesterday\"", async () => {
+    const d = deps(base());
+    const r = await ask("yes", d, SITE, thread);
+    expect(d.search).toHaveBeenCalledWith("4215's record");
+    expect(r.resolved).toBe("4215's record");
+    expect(r.embed.author).toEqual({ name: "Asked: 4215's record" });
+  });
+
+  it("leaves a real question alone, and a yes with nothing offered as it is", async () => {
+    const d = deps(base());
+    await ask("yes but what about 6980", d, SITE, thread);
+    expect(d.search).toHaveBeenLastCalledWith("yes but what about 6980");
+    const e = deps(base());
+    expect((await ask("yes", e, SITE)).resolved).toBeUndefined();
+    expect(e.search).toHaveBeenCalledWith("yes");
   });
 });
 

@@ -89,12 +89,33 @@ export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentenc
  * bot's own when it answers a greeting without a model (bot/smallTalk.ts). `next`: the questions the answer offers as
  * buttons (bot/buttons.ts); `watch`: the videos, as link buttons.
  */
-export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string; chat?: { text: string; video?: string; page?: string; card?: boolean; by?: "bruno" | "scout" }; next?: string[]; watch?: { label: string; url: string }[] }
+export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string;   chat?: { text: string; video?: string; page?: string; card?: boolean; by?: "bruno" | "scout" }; next?: string[]; watch?: { label: string; url: string }[];
+  /** What was actually asked, when a reply said yes to the question Bruno offered ("yes" after "Also want 4215's
+   *  record?"): the post quotes it and the thread keeps it, not the word "yes". */
+  resolved?: string }
 
 /** Whether an answer has records to show — a card, a stat or results, never the sorry a message-level search gives
  *  when it can't read the whole question. A chat beside no records posts its words alone. */
 export const showsRecords = (a: SearchAnswer) =>
   !a.sorry && !(a.step === "recovery" && !a.card && !a.stat) && !!(a.card || a.stat || a.hits.length);
+
+/** The words a message may have and still only say yes. */
+const YES_WORDS = new Set(["yes", "yeah", "yep", "yup", "yea", "ya", "sure", "ok", "okay", "please", "pls", "do", "it", "go", "ahead", "why", "not", "sounds", "good", "absolutely", "definitely", "thanks"]);
+
+/** A message that only says yes ("yes", "yeah please", "go ahead"): the answer to the question Bruno ended his last
+ *  reply with, never a search of its own — searching "yes" answers with whatever team or name is nearest it. */
+export function affirmative(q: string): boolean {
+  const words = q.toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  return words.length > 0 && words.every((w) => YES_WORDS.has(w));
+}
+
+/** The question Bruno offered at the end of his last turn in the thread — "…at the Bedford Qualifier. Also want 4215's
+ *  record?" is "4215's record" — or null when he offered none. */
+export function offeredQuestion(history: BrunoChatTurn[]): string | null {
+  const said = [...history].reverse().find((t) => t.role === "bruno")?.text ?? "";
+  const m = /(?:^|[.!?]\s+)(?:also\s+)?(?:want|would you like|do you want|should i (?:get|pull|look up))\s+([^?.!]{2,80})\?/i.exec(said);
+  return m ? m[1].trim() : null;
+}
 
 /** How long a chat waits for Bruno before the card posts instead. Generous: a model reply takes a while (Control
  *  Point's one-sentence answers take about 11 s on the live deployment, and a structured explanation of a few
@@ -174,7 +195,17 @@ export const chatContext = (facts: string[], memory: string[] = []): string[] =>
 /** The website's answer to `q`, with Bruno's help where the site would use it: his chat reply first (the reply
  *  thread before it in `history`), else the card. `memory`: the server's own lines for the chat (bot/memory.ts);
  *  `guild`: the server it was asked in (never who asked), for the site's failed-search queue. */
+/**
+ * /ask and a mention: the message's answer, with a "yes" to the question Bruno ended his last reply with asked as that
+ * question (`resolved`: what was asked, so the post quotes it and the thread keeps it), never as the word "yes".
+ */
 export async function ask(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[] = [], memory: string[] = [], guild: string | null = null): Promise<AskReply> {
+  const offered = affirmative(q) ? offeredQuestion(history) : null;
+  const r = await answerAsk(offered ?? q, deps, site, history, memory, guild);
+  return offered ? { ...r, resolved: offered } : r;
+}
+
+async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[], memory: string[], guild: string | null): Promise<AskReply> {
   const zog = zogModeReply(q);
   if (zog) return {
     embed: { title: "Zog Mode", description: zog, footer: FOOTER },

@@ -462,6 +462,19 @@ describe("a chat with Bruno in Discord", () => {
     expect(hello.sent[0].embeds).toEqual([]);
   });
 
+  it("a reply of \"yes\" to his offer is posted as the question he offered", async () => {
+    const ask = vi.fn()
+      .mockResolvedValueOnce({ embed: ok("board"), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: "288 points. Also want 4215's record?" } })
+      .mockResolvedValueOnce({ embed: ok("4215 | Hypnotic Robotics"), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: "4215 is 26-6-0." }, resolved: "4215's record" });
+    const h = createHandler(() => {}, lookups({ ask }));
+    await h.mention(message(`<@${BOT}> bio buzz world record`, {}, "m1").m, BOT);
+    const follow = message("yes", { reference: { messageId: "m1" }, mentions: { repliedUser: { id: BOT } } }, "m2");
+    await h.mention(follow.m, BOT);
+    // The thread he leaned on is the offer, and the post is his record answer — never the word "yes" answered.
+    expect(ask.mock.calls[1][1]).toContainEqual({ role: "bruno", text: "288 points. Also want 4215's record?" });
+    expect(follow.sent[0].content).toMatch(/^4215 is 26-6-0\./);
+  });
+
   it("a reply to his answer carries the thread on, even without a mention; replies to others or with no text are left alone", async () => {
     const ask = chatAsk();
     const h = createHandler(() => {}, lookups({ ask }));

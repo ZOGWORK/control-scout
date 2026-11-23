@@ -405,7 +405,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       let r: AskReply | undefined;
       try {
         r = await askReply(question, describe(i), [], lines, i.guildId);
-        post = askPost(question, r, true);
+        // What was asked when a "yes" answered the question Bruno offered (bot/ask.ts): the reply quotes that, not "yes".
+        post = askPost(r.resolved ?? question, r, true);
       } catch (e) {
         logLine(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
@@ -413,7 +414,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
       // Only an answer takes votes: the failure notice above is not one.
       if (r) {
-        remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId);
+        remember((sent as { id?: string } | undefined)?.id, [], r.resolved ?? question, r, i.guildId);
         watchVotes(sent, i.guildId ?? null);
       }
       return;
@@ -499,9 +500,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         return;
       }
       clearInterval(typing);
-      // The reply quotes the message it answers: no need to repeat the question.
-      const sent = await send(askPost(q, r, false));
-      remember((sent as { id?: string } | undefined)?.id, history, q, r, m.guildId ?? null);
+      // The reply quotes the message it answers: no need to repeat the question (a "yes" becomes the question it
+      // answered, so the thread carries on from 4215's record rather than from the word).
+      const sent = await send(askPost(r.resolved ?? q, r, false));
+      remember((sent as { id?: string } | undefined)?.id, history, r.resolved ?? q, r, m.guildId ?? null);
       watchVotes(sent, m.guildId ?? null);
     } catch (e) {
       logLine(`mention failed: ${(e as Error)?.message ?? String(e)}`);
@@ -531,8 +533,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     let post: AskPost;
     let r: AskReply | undefined;
     try {
-      r = await askReply(question, `/ask question=${question.toUpperCase().slice(0, 100)}`, [], lines, i.guildId ?? null);
-      post = askPost(question, r, true);
+              r = await askReply(question, `/ask question=${question.toUpperCase().slice(0, 100)}`, [], lines, i.guildId ?? null);
+        post = askPost(r.resolved ?? question, r, true);
     } catch (e) {
       logLine(`button ask failed: ${(e as Error)?.message ?? String(e)}`);
       post = { embeds: [pride(unavailableEmbed())] };
@@ -540,7 +542,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
     // Only an answer takes votes: the failure notice above is not one.
     if (r) {
-      remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId ?? null);
+              remember((sent as { id?: string } | undefined)?.id, [], r.resolved ?? question, r, i.guildId ?? null);
       watchVotes(sent, i.guildId ?? null);
     }
   }
