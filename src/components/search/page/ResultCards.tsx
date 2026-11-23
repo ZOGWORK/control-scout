@@ -16,6 +16,7 @@ import { V8_STATUS } from "./v8tone";
 import { RecordText, better } from "./answerCells";
 import { compareSides, compareTeams, eventFacts, teamParts } from "./results";
 import { eventName } from "./records";
+import { eventMorphKey, teamMorphKey, useMorphCard, warmEvent, warmTeam } from "../../CardMorph";
 
 /** "View event →": where the card goes, as part of the card's own link. */
 function Cta({ children }: { children: string }) {
@@ -65,8 +66,11 @@ export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: (h: SearchHit) 
   const tone = typeTone(e.type);
   const { title, badges } = eventName(h.title);
   const [s, c] = h.ref.split(":");
+  // The card grows into the event's page (only inside a MorphScope: the search page's results). The key sits on the
+  // card, the tap on its title's link (which covers the card).
+  const { onClick: morphTap, ...morphCard } = useMorphCard(eventMorphKey(Number(s), c), hitHref(h), () => warmEvent(Number(s), c));
   return (
-    <div data-result="event" className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3 v8:border-line v8:p-5">
+    <div data-result="event" {...morphCard} className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3 v8:border-line v8:p-5">
       <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1 v8:hidden", tone?.bar ?? "bg-text-base/25")} />
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {e.status === "started"
@@ -75,7 +79,7 @@ export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: (h: SearchHit) 
         {e.type && <span className={cn("truncate font-semibold", tone?.text ?? "text-muted-foreground", "v8:font-normal v8:text-text-muted")}>{e.typeLabel ?? eventTypeLabel(e.type)}</span>}
         {e.teams != null && e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" aria-hidden /><span className="v8:text-accent">{e.teams}</span><span className="sr-only"> teams registered</span></span>}
       </div>
-      <Link to={hitHref(h)} onClick={() => onOpen(h)} className="mt-2 line-clamp-2 font-medium leading-snug text-foreground outline-none group-hover:underline after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent">{title}</Link>
+      <Link to={hitHref(h)} data-morph-title onClick={(ev) => { onOpen(h); morphTap?.(ev); }} className="mt-2 line-clamp-2 font-medium leading-snug text-foreground outline-none group-hover:underline after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent">{title}</Link>
       <p className="mt-1.5 flex flex-wrap gap-1 text-[11px]">
         {[...badges, e.place, h.season != null ? seasonLabel(h.season) : null].filter(Boolean).map((b) => <span key={b} className="rounded-full border border-border bg-muted/50 px-2 py-0.5 font-medium text-foreground/80">{b}</span>)}
       </p>
@@ -116,11 +120,15 @@ export function TeamBadges({ summary, className }: { summary: SeasonSummary | un
 export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?: SeasonSummary; bare?: boolean; onOpen: () => void }) {
   // The title's link covers the whole card (the tap target). On a phone its own actions (VS Compare, Shortlist,
   // Matches) sit under it (PhoneTeamActions.tsx).
+  // The card grows into the team's page, its number gliding onto the page's big number (src/components/CardMorph.tsx).
+  const parts = teamParts(h.title);
+  const team = Number(h.ref);
+  const { onClick: morphTap, ...morphCard } = useMorphCard(teamMorphKey(team), hitHref(h), () => warmTeam(team));
   return (
-    <div data-result="team" className="lift group relative flex min-h-14 items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
+    <div data-result="team" {...morphCard} className="lift group relative flex min-h-14 items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
       <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Shield className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
-        <Link to={hitHref(h)} onClick={onOpen} className="block break-words text-sm font-medium text-foreground outline-none group-hover:text-accent-text v8:group-hover:text-foreground after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent max-md:text-base">{teamTitle(h.title)}</Link>
+        <Link to={hitHref(h)} onClick={(ev) => { onOpen(); morphTap?.(ev); }} className="block break-words text-sm font-medium text-foreground outline-none group-hover:text-accent-text v8:group-hover:text-foreground after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent max-md:text-base">{parts?.name ? <><span data-morph-title>{parts.number}</span> | {parts.name}</> : teamTitle(h.title)}</Link>
         {h.subtitle && <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground max-md:text-sm"><MapPin className="size-3.5 shrink-0 md:hidden" aria-hidden /><span className="truncate">{h.subtitle}</span></span>}
         {bare ? null : h.facts?.length ? <HitFacts facts={h.facts} /> : <TeamBadges summary={summary} />}
       </span>
