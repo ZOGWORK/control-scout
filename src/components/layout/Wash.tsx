@@ -1,4 +1,4 @@
-// The v8 background combines a still wash near the top with a moving particle wave lower down.
+// The v8 background combines a softly moving wash near the top with a moving particle wave lower down.
 // The wash is taller on top-level pages. Both layers sit behind the content.
 import { useEffect, useId } from "react";
 import { DotWave } from "./DotWave";
@@ -10,7 +10,13 @@ const FADE = "linear-gradient(to bottom,#000 0%,rgb(0 0 0/.85) 50%,transparent 1
 // The colours, strength and reach are CSS variables (index.css, html[data-v8]); the owner console can change them.
 // Each colour is mixed into the page by --wash-mix (all of it on Dark; Light takes a pale dawn tint of the same ones).
 const tint = (v: string) => `color-mix(in srgb,var(${v}) var(--wash-mix,100%),var(--color-background))`;
-const GLOWS = `radial-gradient(55% 95% at 12% 0%,${tint("--wash-a")} 0%,transparent 72%),radial-gradient(50% 90% at 52% 0%,${tint("--wash-b")} 0%,transparent 72%),radial-gradient(55% 95% at 90% 0%,${tint("--wash-c")} 0%,transparent 72%)`;
+/** The three glows, left, middle and right. Each is its own layer so each can drift on its own (index.css,
+ *  `.wash-glow`): a slow wave of a few percent and a soft swell, at different lengths so they never line up. */
+const GLOWS = [
+  `radial-gradient(55% 95% at 12% 0%,${tint("--wash-a")} 0%,transparent 72%)`,
+  `radial-gradient(50% 90% at 52% 0%,${tint("--wash-b")} 0%,transparent 72%)`,
+  `radial-gradient(55% 95% at 90% 0%,${tint("--wash-c")} 0%,transparent 72%)`,
+] as const;
 /** One solid colour for the wash's top edge, for the phone's top patch (Shell.tsx): its middle colour about half
  *  mixed into the page, the strength the owner set, which is where the drawn wash starts (dark: ~rgb 57 54 77). */
 const edge = (v: string) => `color-mix(in srgb,${tint(v)} calc(55% * var(--wash-strength,1)),var(--color-background))`;
@@ -30,7 +36,13 @@ export function Wash({ size = "tall", className, includeParticleWave = true }: {
       <div aria-hidden data-wash={size}
         style={{ maskImage: FADE, WebkitMaskImage: FADE, height: HEIGHT[size], opacity: "var(--wash-strength, 1)" }}
         className={cn("pointer-events-none absolute inset-x-0 top-0 overflow-hidden", className)}>
-        <div className="absolute -inset-x-[10%] -top-1/2 bottom-0 blur-2xl" style={{ backgroundImage: GLOWS }} />
+        {/* No blur here: the glows are already soft (each fades out by 72%), and a blur over moving layers is redrawn
+            every frame (measured: a frame every ~67 ms with it, every 16.7 ms without, same look). */}
+        <div className="absolute -inset-x-[10%] -top-1/2 bottom-0">
+          {/* Painted right, middle, left: the left glow on top where they overlap, as the single background list
+              (whose first image painted on top) always drew them. */}
+          {[2, 1, 0].map((i) => <div key={i} data-wash-glow={i} className="wash-glow absolute inset-0" style={{ backgroundImage: GLOWS[i] }} />)}
+        </div>
         <svg data-grain className="absolute inset-0 size-full opacity-[var(--wash-grain,0.12)] mix-blend-overlay" xmlns="http://www.w3.org/2000/svg">
           <filter id={grain}><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves={2} stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
           <rect width="100%" height="100%" filter={`url(#${grain})`} />
