@@ -46,16 +46,16 @@ Pace: none per person — every message is answered, so two in a row get two ans
 a minute is the answer already given (one lookup, whoever asks). Every ask is logged as the command, the step, whether Bruno helped
 and the time, never who asked. The bot reads the site's search index and never writes it.
 
-**Per-server chat limits: 30 an hour, 100 a day.** `bot/quota.ts` gives every server the same default cap (chats per
-UTC hour and per UTC day, counted in UTC windows) and counts what it uses (`discord_chat_usage`); a server with its own
-row in `discord_limits` has that instead. A row replaces both windows, and a zero or a null there is no cap for that
-window — how a big event server is exempted — while `clearGuildLimit(guild)` deletes the row and puts the server back
-on the default. Both are the owner console's write (Product › Discord bot, `server/portal/discordLimits.ts`): it lists
-every server the bot knows with its cap and what it has used today, and sets or clears one server's cap, every change
-in the audit log. Either write deletes that server's usage, so its counters start with its cap: nothing it asked
-earlier counts against it. At a cap, `/ask` and a mention get a plain note with
-when it resets, while the site and the server's follow posts keep working. `/config` says which limit the server it
-was asked in has, and whether it is the default or that server's own.
+**Per-server chat limits: built, off by default.** `bot/quota.ts` caps a server at `perHour` chats a UTC hour and
+`perDay` a UTC day, counted in UTC windows, but no server has a cap until one is set: the default (`DEFAULT_LIMIT`) is
+none in either window, and an uncapped chat is allowed at once and writes nothing. A server with a row in
+`discord_limits` has that cap instead; a row replaces both windows, and a zero or a null there is no cap for that
+window, while `clearGuildLimit(guild)` deletes the row and leaves the server uncapped again. Both are the owner
+console's write (Product › Discord bot, `server/portal/discordLimits.ts`): it lists every server the bot knows with its
+cap and what it has used today, and sets or clears one server's cap, every change in the audit log. Either write
+deletes that server's usage, so its counters start with its cap: nothing it asked earlier counts against it. At a cap,
+`/ask` and a mention get a plain note with when it resets, while the site and the server's follow posts keep working.
+`/config` says which limit the server it was asked in has — `none` until the owner sets one.
 
 **"Report this to ControlScout"** (`bot/report.ts`): a message with those words — any case, `Control Scout` or
 `ControlScout` — files one GitHub issue titled `Discord type issue`, through the site's own GitHub path
@@ -87,8 +87,8 @@ config: follow posts on — 12 follows in 4 servers (a tick a minute while conne
 config: discord not connected now (last connected 2 minutes ago)
 ```
 
-`/config` adds a tenth line for the server it was asked in: `config: chat limit 30 an hour, 100 a day (the default for
-every server)` — or `(set for this server)`, or `none`, or that the limit couldn't be read.
+`/config` adds a tenth line for the server it was asked in: `config: chat limit none (the default: no cap)` — or
+`config: chat limit 60 an hour, 300 a day (set for this server)`, or that the limit couldn't be read.
 
 so `journalctl -u control-scout-bot | grep 'config:'` answers "what can this bot do here, and what is it missing?" in
 one look: the chat says `off —` with the reason ask.ts itself gives (Control Point unconfigured, or the switch off), the
@@ -120,6 +120,13 @@ tables are private: a Discord id, the name Discord already shows, and nothing el
 is removed from a server (`bot/forget.ts`): the follows and the posts they sent, the chat limit and its usage, the
 teams, the names and the reply threads — which is why a thread records its server now (migration 102). A server that is
 only unreachable (`GuildDelete` with `available: false`, a Discord outage) is not a removal, and keeps everything.
+
+**His name is Bruno, and he's a golden retriever in spirit.** `brunoPersona()` (`bot/productFacts.ts`) goes with every
+chat: friendly, loyal, eager to help, a little goofy, never pushy — a light touch, not a paragraph of self-introduction,
+and software rather than a real dog or a person. `brunoMethod()` goes with it: work out what is really being asked (a
+follow-up leans on the thread and the channel's teams), pick the fact that answers it, show a calculation's steps
+briefly, and say what's missing rather than guess. Both sit inside Control Point's 400-character fact cap, like every
+other line sent with a chat.
 
 **@mention answers: a chat with Bruno.** `@Control Scout who won decode` or `@Control Scout hi bruno` goes to Control
 Point's Bruno chat (`POST /internal/bruno/discord-chat`) with the facts the website's search found for it, and his

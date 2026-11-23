@@ -17,7 +17,7 @@ import type { StatAnswer, StatBlock, StatLink, StatMatchRow } from "../src/share
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search.js";
 import { FOOTER, VOLT, teamLink } from "./views.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
-import { answerScope, answerStyle, productFacts, zogModeReply } from "./productFacts.js";
+import { answerScope, answerStyle, brunoMethod, brunoPersona, productFacts, zogModeReply } from "./productFacts.js";
 import { RECORD_NUMBER, smallTalk } from "./smallTalk.js";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
 
@@ -108,10 +108,7 @@ export async function realAskDeps(): Promise<AskDeps> {
       }
       // Product knowledge first, every line inside Control Point's per-fact cap: one longer line and it refuses the
       // whole packet (400 `facts[i]`), which used to fall back to the card with nothing in the log.
-      // Product knowledge and how to shape the answer (a records question short, an explanation structured), then what
-      // the server has taught the bot, every line inside Control Point's per-fact cap.
-      const head = [...productFacts(), answerStyle(), answerScope(), ...memory].map(clip);
-      const context = [...head, ...fit(facts, CHAT_FACTS - head.length, CHAT_FACTS_CHARS - chars(head))];
+      const context = chatContext(facts, memory);
       let r: { text: string; search: boolean };
       try { r = await brunoDiscordChat(message, context, history, CHAT_TIMEOUT_MS); }
       catch (e) {
@@ -127,6 +124,14 @@ export async function realAskDeps(): Promise<AskDeps> {
     },
   };
 }
+
+/** What a chat is sent: who he is and how to work a question out (`brunoPersona`, `brunoMethod`), the product and
+ *  answer guidance, what the server has taught the bot, then search's facts — every line inside Control Point's
+ *  per-fact cap, and as many facts as its line and character caps leave room for. */
+export const chatContext = (facts: string[], memory: string[] = []): string[] => {
+  const head = [...productFacts(), brunoPersona(), brunoMethod(), answerStyle(), answerScope(), ...memory].map(clip);
+  return [...head, ...fit(facts, CHAT_FACTS - head.length, CHAT_FACTS_CHARS - chars(head))];
+};
 
 /** The website's answer to `q`, with Bruno's help where the site would use it: his chat reply first (the reply
  *  thread before it in `history`), else the card. `memory`: the server's own lines for the chat (bot/memory.ts). */

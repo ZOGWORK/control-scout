@@ -1,7 +1,7 @@
 // The owner console's Discord chat caps (server/portal/discordLimits.ts, bot/quota.ts) against the real app on an
 // in-memory database: owner only; every server the bot kept something for listed with the cap it has and what it has
-// used; setting a server's own cap and clearing it back to the default, both audited; and either write starting that
-// server's counters afresh, so a cap set after chats under the default isn't refused at once.
+// used; setting a server's own cap and clearing it back to no cap, both audited; and either write starting that
+// server's counters afresh, so a cap set after chats under an older one isn't refused at once.
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -93,7 +93,7 @@ describe("the owner console's Discord caps", () => {
     await run("INSERT INTO discord_threads (root_id, turns, updated_at, guild_id) VALUES ('r1', '[]', ?, ?)", [at, G2]);
     const r = await call("GET", "/api/owner/discord/limits", { cookie: ownerCookie });
     expect(r.status).toBe(200);
-    expect(r.json.defaultLimit).toEqual({ ...DEFAULT_LIMIT });
+    expect(r.json.defaultLimit).toEqual({ perHour: null, perDay: null });
     expect(r.json.servers.map((s: any) => s.guild)).toEqual([G1, G2]);
     expect(serverRow(r.json, G1)).toMatchObject({
       perHour: DEFAULT_LIMIT.perHour, perDay: DEFAULT_LIMIT.perDay, custom: false, usedHour: 4, usedDay: 4, follows: 1, lastAsk: at,
@@ -114,23 +114,23 @@ describe("the owner console's Discord caps", () => {
     expect(set).toHaveLength(1);
     expect(set[0]).toMatchObject({ actor: "owner@example.com", action: "discord.limit" });
     expect(JSON.parse(set[0].details!)).toMatchObject({ guild: G1, perHour: 10, perDay: null });
-    expect(JSON.parse(set[0].old_value!)).toMatchObject({ perHour: 30, perDay: 100, custom: false });
+    expect(JSON.parse(set[0].old_value!)).toMatchObject({ perHour: null, perDay: null, custom: false });
 
     // 0 (like a blank box) is no cap for that window, not the default.
     const none = await call("PUT", `/api/owner/discord/limits/${G1}`, { cookie: ownerCookie, body: { perHour: 0, perDay: 0 } });
     expect(serverRow(none.json, G1)).toMatchObject({ perHour: null, perDay: null, custom: true });
 
-    // Clearing the row puts it back on the default every server has, its counts gone with it.
+    // Clearing the row takes the cap away (the default is no cap), its counts gone with it.
     await run("INSERT INTO discord_chat_usage (guild_id, window, used) VALUES (?, ?, 7)", [G1, chatWindows().day]);
     const del = await call("DELETE", `/api/owner/discord/limits/${G1}`, { cookie: ownerCookie, body: {} });
     expect(del.status).toBe(200);
-    expect(serverRow(del.json, G1)).toMatchObject({ perHour: 30, perDay: 100, custom: false, usedHour: 0, usedDay: 0 });
+    expect(serverRow(del.json, G1)).toMatchObject({ perHour: null, perDay: null, custom: false, usedHour: 0, usedDay: 0 });
     expect(await get("SELECT 1 FROM discord_chat_usage WHERE guild_id = ?", [G1])).toBeUndefined();
     const cleared = await audit();
     expect(cleared.map((a) => JSON.parse(a.details!).clear === true ? "clear" : "set")).toEqual(["set", "set", "clear"]);
-    expect(JSON.parse(cleared[2].new_value!)).toMatchObject({ perHour: 30, perDay: 100, custom: false });
+    expect(JSON.parse(cleared[2].new_value!)).toMatchObject({ perHour: null, perDay: null, custom: false });
 
-    // A server already on the default has nothing to clear.
+    // A server with no cap of its own has nothing to clear.
     expect((await call("DELETE", `/api/owner/discord/limits/${G1}`, { cookie: ownerCookie, body: {} })).status).toBe(409);
   });
 
