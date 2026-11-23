@@ -1,7 +1,7 @@
 // The wash settings (src/shared/wash.ts): only hex colours get through, numbers are clamped to their ranges, and the
 // CSS made from them is the same for the first paint and the console's preview.
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WASH, WASH_PRESETS, WASH_SPREAD, WASH_STRENGTH, cleanHex, isDefaultWash, parseWash, presetOf, washCss, washVars } from "./wash";
+import { DEFAULT_WASH, WASH_PRESETS, WASH_SPREAD, WASH_STRENGTH, cleanHex, isDefaultWash, parseWash, presetOf, softStops, washCss, washVars } from "./wash";
 
 const ok = (x: unknown) => {
   const p = parseWash(x);
@@ -72,5 +72,27 @@ describe("washVars and washCss", () => {
     expect(cleanHex("#5a76ad80")).toBeNull();
     expect(isDefaultWash({ ...DEFAULT_WASH })).toBe(true);
     expect(isDefaultWash({ ...DEFAULT_WASH, spread: 1.1 })).toBe(false);
+  });
+});
+
+describe("softStops", () => {
+  // A glow that fell off in a straight line and stopped dead showed its rim as a circle (owner, 2026-11-23).
+  const stops = softStops("red").split(/,(?![^(]*\))/);
+  const share = (s: string) => (s.startsWith("red ") ? 100 : s.startsWith("transparent") ? 0 : Number(/red ([\d.]+)%/.exec(s)![1]));
+  it("starts at the full colour and ends transparent at the radius", () => {
+    expect(stops[0]).toBe("red 0%");
+    expect(stops.at(-1)).toBe("transparent 100%");
+  });
+  it("eases at both ends and only ever fades", () => {
+    const a = stops.map(share);
+    for (let i = 1; i < a.length; i++) expect(a[i]).toBeLessThan(a[i - 1]);
+    // Flat by the centre and by the rim: the first and last steps are far smaller than the middle ones.
+    const steps = a.slice(1).map((x, i) => a[i] - x);
+    const mid = Math.max(...steps);
+    expect(steps[0]).toBeLessThan(mid / 3);
+    expect(steps.at(-1)!).toBeLessThan(mid / 3);
+  });
+  it("scales its stops to a shorter end", () => {
+    expect(softStops("red", 80).split(/,(?![^(]*\))/).at(-1)).toBe("transparent 80%");
   });
 });
