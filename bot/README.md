@@ -6,6 +6,7 @@ an embed that links back to controlscout.org:
 | Command | What it shows |
 | --- | --- |
 | `/team number:` | Location, season record, OPR (total and auto / TeleOp / endgame), world ranking, next event (or the last one) |
+| `/compare team: other:` | Two teams side by side: records and OPR, and who wins the head-to-head |
 | `/predict event: match:` | The lineup, the favourite's win chance (or "Even call"), the predicted score and its confidence for a qualification match. Once it's played: the score, and the call against it (called, upset, or an even call) |
 | `/event code:` | Dates, place, status, matches played, top 5 by OPR, and the winning alliance once it's over |
 | `/rankings` | The world top 10 by rating, with movement since last week |

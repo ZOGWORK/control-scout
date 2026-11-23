@@ -172,6 +172,10 @@ export const answered = (r: AskReply): boolean => (r.chat ? r.chat.by !== "scout
 /** The question a post quotes and its thread keeps: what a yes asked, or what a no declined — never the word alone. */
 const quoted = (q: string, r: AskReply) => r.resolved ?? r.declined ?? q;
 
+/** /compare's question: the two teams as search reads a head-to-head ("4215 vs 6980"), so the answer is the site's
+ *  compare card rather than a command of its own. */
+const compareQuestion = (i: ChatInputCommandInteraction) => `${i.options.getInteger("team", true)} vs ${i.options.getInteger("other", true)}`;
+
 /** The command and its arguments as one line, for the cache key and the log. */
 export function describe(i: Pick<ChatInputCommandInteraction, "commandName" | "options">): string {
   const args = i.options.data.map((o) => `${o.name}=${String(o.value ?? "").trim().toUpperCase().slice(0, 100)}`).sort();
@@ -404,8 +408,13 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     
     // /config answers privately: it describes this bot's own setup, which a channel doesn't need to read.
     await i.deferReply(i.commandName === "config" ? { flags: MessageFlags.Ephemeral } : undefined);
-    if (i.commandName === "ask") {
-      const question = i.options.getString("question", true);
+    if (i.commandName === "ask" || i.commandName === "compare") {
+      const question = i.commandName === "ask" ? i.options.getString("question", true) : compareQuestion(i);
+      // A team compared with itself answers nothing: say so instead of asking search for it.
+      if (i.commandName === "compare" && i.options.getInteger("team", true) === i.options.getInteger("other", true)) {
+        await i.editReply({ embeds: [pride(errorEmbed("Two teams, please", "Pick two different numbers: `/compare team:4215 other:6980`."))] });
+        return;
+      }
       // The server's chat limit (bot/quota.ts): said plainly, before any lookup.
       const over = await mayChat(i.guildId);
       if (!over.ok) { await i.editReply({ embeds: [pride(limitEmbed(over))] }); return; }
