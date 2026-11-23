@@ -167,7 +167,8 @@ export function ownerRouter(): Router {
     if (typeof resolved !== "boolean") { res.status(400).json({ error: 'Send {"resolved": true} or {"resolved": false}' }); return; }
     const out = await resolveErrorReport(fp, resolved);
     if (!out) { res.status(404).json({ error: "No such report" }); return; }
-    await recordAudit(actor(req), "error.resolve", { fingerprint: fp, resolved, issueClosed: out.issueClosed });
+    // Done either way: a failed audit write doesn't turn a clear (and a closed issue) into an error.
+    await recordAudit(actor(req), "error.resolve", { fingerprint: fp, resolved, issueClosed: out.issueClosed }).catch(() => {});
     return out;
   }));
   // The owner's note on an error report (an empty note clears it). Console only: never sent to GitHub.

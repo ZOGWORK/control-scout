@@ -13,7 +13,7 @@ import { createApp } from "./app";
 import { setMailer, type MailOptions } from "./auth/email";
 import { randomUUID } from "node:crypto";
 import {
-  BUG_RATE, bugDir, bugIssueTitle, freshIssueStates, ISSUE_SYNC_MS, resetIssueSync, syncBugIssues, clearing, clearRetries, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
+  BUG_RATE, bugDir, bugIssueTitle, freshIssueStates, ISSUE_SYNC_MS, resetIssueSync, syncBugIssues, syncIssueStates, clearing, clearRetries, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
   STORAGE_CAP_BYTES, sweepBugReports, UPLOAD_ROUTE, UPLOAD_WINDOW_MS, validateBugReport,
 } from "./bugReports";
 import { closerOf, fingerprintOf, listErrorReports, resetRepositoryId, resolveErrorReport, setGithubFetch, storeReport, syncErrorIssues } from "./errorReports";
@@ -729,6 +729,19 @@ describe("error reports follow their issue", () => {
     expect(await syncErrorIssues()).toBe(1);
     const list = await listErrorReports();
     expect(list.map((r) => [r.fingerprint, !!r.resolvedAt, r.issueState])).toEqual([["bbbbbbbb", false, null], ["aaaaaaaa", true, "closed"]]);
+  });
+
+  it("one put back on the list after its issue closed stays there; one last seen open is cleared by the combined check", async () => {
+    await addError("aaaaaaaa", 104, "closed");
+    issues[0].state = "CLOSED";
+    expect(await syncErrorIssues()).toBe(0);
+    expect((await listErrorReports())[0].resolvedAt).toBeNull();
+    await run("UPDATE error_reports SET issue_state = 'open'");
+    gitHub.graphqlError = "";
+    const before = calls.length;
+    await syncIssueStates(Date.now());
+    expect(calls.length).toBe(before + 1);
+    expect((await listErrorReports())[0].resolvedAt).not.toBeNull();
   });
 
   it("Clear closes the open issue on GitHub; Clear on one never filed just clears it; a new occurrence brings it back", async () => {
