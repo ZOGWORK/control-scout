@@ -24,6 +24,7 @@ import { addRecentSearch } from "../search/discover";
 import { nextMatch } from "./HomeSections";
 import { myTeamsOf } from "../../lib/myTeams";
 import { cn } from "../cn";
+import { eventMorphKey, useMorphCard, warmEvent } from "../CardMorph";
 import { V8_NUM } from "../../lib/v8";
 import { v8Rank } from "../../lib/v8colour";
 import { V8_PHASE } from "../../lib/records/describe";
@@ -147,7 +148,7 @@ function Failed({ what, retry }: { what: string; retry: () => void }) {
 
 // --- Events live now ---------------------------------------------------------------------------------------------
 
-function LiveCard({ season }: { season: number }) {
+export function LiveCard({ season }: { season: number }) {
   // From yesterday (a multi-day event that's on still counts) to a week out (the next event, when nothing is live).
   const [win] = useState(() => { const now = Date.now(); return { from: iso(new Date(now - 864e5)), to: iso(new Date(now + 7 * 864e5)) }; });
   const res = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, from: win.from, to: win.to })}`);
@@ -190,12 +191,14 @@ function LiveCard({ season }: { season: number }) {
 function LiveRow({ e }: { e: EventListItem }) {
   const share = e.matchesTotal > 0 ? Math.min(1, e.matchesPlayed / e.matchesTotal) : 0;
   const where = place(e.city, e.state, e.country);
+  const href = `/events/${e.season}/${encodeURIComponent(e.code)}`;
+  const morph = useMorphCard(eventMorphKey(e.season, e.code), href, () => warmEvent(e.season, e.code));
   return (
     <li data-live-event>
-      <Link to={`/events/${e.season}/${encodeURIComponent(e.code)}`} className={cn(rowLink, "py-2")}>
+      <Link to={href} {...morph} className={cn(rowLink, "py-2")}>
         <Radio className="size-4 shrink-0 text-live" aria-hidden />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium group-hover:underline" title={e.name}>{e.name}</span>
+          <span className="block truncate text-sm font-medium group-hover:underline" title={e.name} data-morph-title>{e.name}</span>
           {e.matchesTotal > 0 && e.matchesPlayed > 0 ? (
             <span className="mt-1.5 flex items-center gap-2">
               <span className="h-1 flex-1 overflow-hidden rounded-full bg-ink/10" aria-hidden>
