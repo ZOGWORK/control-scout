@@ -74,6 +74,20 @@ describe("the thumbs on an answer", () => {
     expect(await failed()).toHaveLength(1);
   });
 
+  it("adds weight to an entry already on the list instead of rewriting it", async () => {
+    // Search already failed this question its own way, with the spellings it saw: a 👎 says the entry matters, and must
+    // not turn a no-match (with its own re-check) into a downvote or throw its examples away.
+    await run(
+      `INSERT INTO search_failures (key, hash, result_type, intent, reading, examples, count, first_seen, last_seen)
+       VALUES ('4215 opr', 'h', 'no-match', 'opr', '{}', '["4215 opr rn"]', 3, '2026-11-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z')`,
+    );
+    await trackAnswer("m9", "g1", "4215 opr");
+    await downVote("m9");
+    expect(await failed()).toEqual([
+      { key: "4215 opr", result_type: "no-match", intent: "opr", count: 4, examples: JSON.stringify(["4215 opr rn"]) },
+    ]);
+  });
+
   it("files nothing the queue may not hold, and still counts the vote", async () => {
     // All personal data: the vote counts, the question has nothing the list may keep.
     await trackAnswer("m4", "g1", "someone@example.com");

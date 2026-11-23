@@ -58,8 +58,9 @@ other numbers. The row also keeps the **question the answer was given for**, so 
 question in the site's failed-search list as a `downvoted` failure (`server/searchFailures.ts` `downvoteFailure`) —
 the one failure search can't read for itself, having called that answer answered. The filing is written in the same
 batch as the vote, so a restart can't spend it without making it and two 👎 can't make it twice; a second 👎 on the
-same answer is counted and files nothing, and one question downvoted in two servers is one entry counted twice. An
-answer's votes are applied in the order Discord sent them, so a 👎 taken back within a moment leaves nothing behind.
+same answer is counted and files nothing, one question downvoted in two servers is one entry counted twice, and a
+question already on the list keeps its own type and examples (the vote only adds to its count). An answer's votes are
+applied in the order Discord sent them, so a 👎 taken back within a moment leaves nothing behind.
 
 **What it was asked** (`bot/asks.ts`, migration 104). Every ask is recorded — the words as typed with personal data
 redacted, the step search answered it at, whether Bruno's chat answered it, and how long it took; never who asked,
