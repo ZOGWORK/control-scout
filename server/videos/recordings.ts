@@ -19,7 +19,7 @@ import { youtubeId } from "../../src/shared/personal.js";
 import { countryOf } from "../../src/shared/countries.js";
 import { linkAiredOff, linkTooShort, localDate, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
-import { frameOpen, frameStart, hasFrames } from "../data/frameTimings.js";
+import { frameApproved, frameOpen, frameStart, hasFrames } from "../data/frameTimings.js";
 import { clipPulled } from "../data/clipChecks.js";
 
 /** unplayableSince: when it was first read as one no one can play here (unavailable, or embedding off), kept while it
@@ -410,7 +410,13 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     ...whole.starts.map((s) => ({ label: s.label, at: s.startsAt ? Date.parse(s.startsAt) : NaN })),
     ...untimed.map((s) => { const at = s.startsAt ? Date.parse(s.startsAt) : NaN; return { label: s.label, at: Number.isFinite(at) ? at : Infinity }; }),
   ];
-  const framedStarts = new Map(framed.map((v) => [v.videoId, inOrder(order.map((s) => ({ ...s, t: frameStart(v.videoId, r.code!, s.label) })))]));
+  // A start the owner approved is served as it is, out of that order or not (it never pushes another out either).
+  const framedStarts = new Map(framed.map((v) => {
+    const approved = order.filter((s) => frameApproved(v.videoId, r.code!, s.label));
+    const kept = inOrder(order.filter((s) => !approved.includes(s)).map((s) => ({ ...s, t: frameStart(v.videoId, r.code!, s.label) })));
+    for (const s of approved) { const t = frameStart(v.videoId, r.code!, s.label); if (t != null) kept.set(s.label, t); }
+    return [v.videoId, kept];
+  }));
   const fromFrames = (label: string) => {
     for (const v of framed) {
       const starts = framedStarts.get(v.videoId)!;

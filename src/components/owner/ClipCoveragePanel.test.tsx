@@ -1,15 +1,16 @@
 // @vitest-environment jsdom
-// Owner console › Clip coverage as a review screen: two progress meters; the triage lists as count tiles (Actionable
-// the default, "To review"); why matches are missing as coloured tiles that filter the chips; one card per event with
-// its missing matches as chips coloured by kind, each opening the app's video dialog at its second; Reviewed on the
-// card at once (back if the server says no); findings as chips too; bulk Reviewed folded, asking first with its count.
+// Owner console › Clip coverage as a review screen: three progress meters (the last, clipped of what can be); Found in
+// the video with Clip from that second and Not this match on each; why matches are missing as coloured tiles (still
+// workable, then can't be clipped) that filter the chips; To review, one card per event with its missing matches as
+// chips coloured by kind, each opening the app's video dialog at its second; Reviewed on the card at once (back if the
+// server says no); the lists with nothing to do, a season's To review at once and the check in numbers, folded.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { CoverageMatch, CoverageTriage, OwnerAutoReads, OwnerClipCoverage, OwnerCoverageEvent } from "../../shared/api";
 import { onVideoDialog, type MatchPlay } from "../../lib/streamSeek";
 import { resetOptimistic } from "../../lib/optimistic";
-import { kindOf, kindTotals, secondOf } from "./clipReview";
+import { clippable, kindOf, kindTotals, secondOf } from "./clipReview";
 
 const miss = (label: string, o: Partial<CoverageMatch> = {}): CoverageMatch => ({ key: `k-${label}`, label, date: "2025-11-01", clip: false, videoId: "vidA0000001", ...o });
 const ev = (code: string, triage: CoverageTriage, triageWhy: string, o: Partial<OwnerCoverageEvent> = {}): OwnerCoverageEvent => ({
@@ -39,8 +40,10 @@ const page = (list: string): OwnerClipCoverage => ({
   categories: { actionable: h.actionable, unchecked: 4, "no-timing": 1, "early-start": 1, unplayable: 0, "old-season": 0 },
   clipChecks: { checked: 120, ok: 117, pulled: 1, unconfirmed: 2, noOverlayVideos: 3 },
   findings: [{ kind: "pulled", season: 2026, code: "USAZFLQ", name: "Flagstaff", label: "Q7", videoId: "flagVideo01", at: 3600, why: "Clip pulled: its first frame shows Q6, not Q7" },
-    { kind: "seen", season: 2025, code: "ROCMPCND", name: "Romania COANDA", label: "Q2", videoId: "pvmxbH8YW-k", at: 9952, why: "Checked in the video (2026-11-15): seen at 2:45:52, not yet confirmed" }],
-  lastPass: { at: new Date().toISOString(), checked: 1397, events: 1397, full: 770, clipped: 31981, missing: 13947, why: { "not yet checked against the video": 2400, "no-clock": 300, "video-unread": 50 }, unplayable: 900, opened: 0, pending: 2323, pendingBefore: 2400 },
+    { kind: "seen", source: "start", season: 2025, code: "ROCMPCND", name: "Romania COANDA", label: "Q2", videoId: "pvmxbH8YW-k", at: 9952, why: "Checked in the video (2026-11-15): seen at 2:45:52, not yet confirmed" },
+    { kind: "seen", source: "review", season: 2025, code: "USTXHOQ", name: "Houston Qualifier", label: "Q14", videoId: "revVideo001", at: 5400, why: "its clip's opening shows Q13, the match before" }],
+  lastPass: { at: new Date().toISOString(), checked: 1397, events: 1397, full: 770, clipped: 31981, missing: 13947, why: { "no-clock": 9 }, unplayable: 900, opened: 0, pending: 2323, pendingBefore: 2400,
+    all: { missing: 2850, unplayable: 900, why: { "not yet checked against the video": 2400, "no-clock": 300, "video-unread": 50, "no-recording-day": 100 } } },
   seasons: [{ season: 2026, open: 2, actionable: 0 }, { season: 2025, open: 3, actionable: 1 }],
   totals: { events: 1392, played: 45695, withClip: 29333, full: 708 },
 });
@@ -80,9 +83,10 @@ let off = () => {};
 beforeEach(() => { h.actionable = 1; h.fail = false; h.ver = "v-AUSYQ2"; h.paths = []; h.sent = []; played = []; resetOptimistic(); off = onVideoDialog((p) => played.push(p)); });
 afterEach(() => { off(); cleanup(); });
 const show = () => render(<MemoryRouter><ClipCoveragePanel /></MemoryRouter>);
-const rows = () => [...document.querySelectorAll("[data-coverage-event]")].map((r) => [r.getAttribute("data-coverage-event"), r.getAttribute("data-triage")]);
+const rows = (root: ParentNode = document) => [...root.querySelectorAll("[data-coverage-event]")].map((r) => [r.getAttribute("data-coverage-event"), r.getAttribute("data-triage")]);
 const chips = (root: ParentNode = document) => [...root.querySelectorAll("[data-coverage-event] [data-chip]")].map((c) => `${c.getAttribute("data-chip")}:${c.getAttribute("data-kind")}`);
-const openMore = () => fireEvent.click(screen.getByRole("button", { name: /Bulk review and check details/ }));
+const other = () => document.querySelector("[data-coverage-other]")!;
+const openMore = () => fireEvent.click(screen.getByRole("button", { name: /Other lists and check details/ }));
 
 describe("clipReview kinds", () => {
   it("sorts each missing match into a kind: a pulled clip, what the frames showed, else its reason", () => {
@@ -100,6 +104,9 @@ describe("clipReview kinds", () => {
     expect(kindOf(miss("Q1", { reason: "gap-unplaced", video: { checked: "x", found: "its frames didn't confirm a start" } }))).toBe("notfound");
     expect(kindTotals({ "checked in the video, not in the recording": 2, "checked in the video, no start found": 1 })).toEqual([{ kind: "outside", n: 2 }, { kind: "notfound", n: 1 }]);
     expect(kindOf(miss("Q1", { reason: "gap-unplaced" }))).toBe("unplaced");
+    // Clippable: every played match less the kinds no clip can come from and the unplayable.
+    expect(clippable(100, 60, { "no-recording-day": 10, "checked in the video, not in the recording": 5, "checked in the video, no start found": 3, "no-clock": 7 }, 2)).toEqual({ have: 60, of: 80, cant: 20 });
+    expect(clippable(10, 10, { "no-recording-day": 30 })).toEqual({ have: 10, of: 10, cant: 0 });
     expect(kindOf(miss("Q1", { reason: "video-unavailable" }))).toBe("unavailable");
     expect(kindOf(miss("Q1", { video: { checked: "x", seenAt: 5 } }), true)).toBe("pulled");
     expect(kindTotals({ "no-clock": 3, "video-unread": 2, "seen in the video, no clip (a finding)": 4 })).toEqual([{ kind: "noclock", n: 5 }, { kind: "seen", n: 4 }]);
@@ -120,21 +127,42 @@ describe("ClipCoveragePanel, a review screen", () => {
     fireEvent.click(card.querySelector("[data-auto-read-approve]")!);
     await waitFor(() => expect(h.sent.at(-1)).toEqual({ path: "/api/owner/auto-reads/approve", json: { kind: "frames", videoId: "autoVideo01", code: "USCOLIQ", pendingAt: "2026-11-21T10:05:00.000Z" } }));
   });
-  it("lists the matches the frames saw but kept off the site: plays the second in the app's player, Approve and Reject send it", async () => {
+  it("Found in the video: each match plays its second, Clip from sends it, Not this match too, and it leaves at once", async () => {
     show();
-    const card = document.querySelector('[data-auto-review="revVideo001/USTXHOQ/Q14"]')!;
-    expect(card.querySelector("[data-review-why]")!.textContent).toBe("its clip's opening shows Q13, the match before");
-    fireEvent.click(card.querySelector("[data-review-play]")!);
+    expect(screen.getByRole("heading", { name: "Found in the video (2)" })).toBeTruthy();
+    // A pulled clip is nothing to decide: not listed, only a chip's kind.
+    expect(document.querySelector('[data-coverage-finding="2026/USAZFLQ/Q7"]')).toBeNull();
+    // The review list moved here: none left under Waiting for approval.
+    expect(document.querySelector("[data-auto-review]")).toBeNull();
+    const row = document.querySelector('[data-coverage-finding="2025/USTXHOQ/Q14"]')!;
+    expect(row.querySelector("[data-finding-why]")!.textContent).toBe("its clip's opening shows Q13, the match before");
+    fireEvent.click(row.querySelector("[data-finding-play]")!);
     expect(played.at(-1)).toMatchObject({ videoId: "revVideo001", t: 5400 });
-    fireEvent.click(card.querySelector("[data-review-reject]")!);
+    expect(row.querySelector("[data-finding-approve]")!.textContent?.trim()).toBe("Clip from 1:30:00");
+    expect(row.querySelector("[data-finding-reject]")!.textContent?.trim()).toBe("Not Q14");
+    fireEvent.click(row.querySelector("[data-finding-reject]")!);
+    expect(document.querySelector('[data-coverage-finding="2025/USTXHOQ/Q14"]')).toBeNull();
+    expect(screen.getByRole("heading", { name: "Found in the video (1)" })).toBeTruthy();
     await waitFor(() => expect(h.sent.at(-1)).toEqual({ path: "/api/owner/auto-reads/review/reject", json: { videoId: "revVideo001", code: "USTXHOQ", label: "Q14", t: 5400 } }));
+    fireEvent.click(document.querySelector('[data-coverage-finding="2025/ROCMPCND/Q2"] [data-finding-approve]')!);
+    await waitFor(() => expect(h.sent.at(-1)).toEqual({ path: "/api/owner/auto-reads/review/approve", json: { videoId: "pvmxbH8YW-k", code: "ROCMPCND", label: "Q2", t: 9952 } }));
+    expect(screen.getByText(/None: every match a frame read saw is a clip or was answered/)).toBeTruthy();
   });
-  it("shows the two meters and opens on To review, one card per event with a chip per missing match", () => {
+  it("a finding the server says no to comes back", async () => {
+    h.fail = true;
+    show();
+    fireEvent.click(document.querySelector('[data-coverage-finding="2025/USTXHOQ/Q14"] [data-finding-approve]')!);
+    expect(document.querySelector('[data-coverage-finding="2025/USTXHOQ/Q14"]')).toBeNull();
+    await waitFor(() => expect(document.querySelector('[data-coverage-finding="2025/USTXHOQ/Q14"]')).toBeTruthy());
+  });
+  it("shows the three meters and opens on To review, one card per event with a chip per missing match", () => {
     show();
     expect(h.paths[0]).toBe("/api/owner/clip-coverage?list=actionable");
     const events = document.querySelector('[data-coverage-meter="events"]')!;
     expect(events.textContent).toMatch(/^51%708 of 1,392Events fully clipped$/);
     expect(document.querySelector('[data-coverage-meter="matches"]')?.textContent).toMatch(/^64%29,333 of 45,695Matches with a clip$/);
+    // Of what can be: 45,695 played less 100 with no recording and 900 whose recording can't be played.
+    expect(document.querySelector('[data-coverage-meter="clippable"]')?.textContent).toMatch(/^66%29,333 of 44,695Clipped of what can be1,000 can't be clipped/);
     expect(document.querySelector("[data-coverage-pending]")?.textContent).toMatch(/2,323 waiting for their video check↓ 77$/);
     expect(screen.getByRole("heading", { name: "To review (1)" })).toBeTruthy();
     expect(rows()).toEqual([["2025/AUSYQ2", "actionable"]]);
@@ -155,30 +183,33 @@ describe("ClipCoveragePanel, a review screen", () => {
     expect(played).toEqual([{ videoId: "vidA0000001", t: 580, label: "2025 AUSYQ2 Q2 · Seen, no clip · 0:09:40" }]);
     // No video, nothing to open: not a button.
     expect(document.querySelector('[data-chip="M9"]')?.tagName).toBe("SPAN");
-    // A finding opens at its own frame.
-    fireEvent.click(document.querySelector('[data-coverage-finding="2025/ROCMPCND/Q2"] [data-chip]')!);
-    expect(played.at(-1)).toEqual({ videoId: "pvmxbH8YW-k", t: 9952, label: "2025 ROCMPCND Q2 · Seen, no clip · 2:45:52" });
-    expect(document.querySelector('[data-coverage-finding="2026/USAZFLQ/Q7"] [data-chip]')?.getAttribute("data-kind")).toBe("pulled");
-    expect(screen.getByRole("heading", { name: "Found in the video (2)" })).toBeTruthy();
   });
 
-  it("the list tiles switch the list: Early start shows Flagstaff, No timing shows Glendale", () => {
+  it("the folded list tiles open a list: Early start shows Flagstaff, No timing shows Glendale, none with Reviewed", () => {
     show();
+    expect(document.querySelector("[data-coverage-list]")).toBeNull();
+    openMore();
     expect(document.querySelector('[data-coverage-list="unchecked"]')?.textContent).toBe("4Not yet checked");
     fireEvent.click(document.querySelector('[data-coverage-list="early-start"]')!);
     expect(h.paths.at(-1)).toBe("/api/owner/clip-coverage?list=early-start");
-    expect(rows()).toEqual([["2026/USAZFLQ", "early-start"]]);
+    expect(rows(other())).toEqual([["2026/USAZFLQ", "early-start"]]);
     fireEvent.click(document.querySelector('[data-coverage-list="no-timing"]')!);
-    expect(rows()).toEqual([["2026/USAZGLQ1", "no-timing"]]);
+    expect(rows(other())).toEqual([["2026/USAZGLQ1", "no-timing"]]);
     expect(document.querySelector('[data-coverage-list="no-timing"]')?.getAttribute("aria-pressed")).toBe("true");
+    // Reviewing an event that never shows under To review changes nothing: not offered, nor in bulk.
+    expect(document.querySelector("[data-coverage-other] [data-coverage-reviewed]")).toBeNull();
+    expect(document.querySelector('[data-coverage-bulk="no-timing"]')).toBeNull();
   });
 
-  it("the reason tiles count every missing match by kind and show only that kind's chips", () => {
+  it("the reason tiles count every stored event's missing matches by kind, workable first, and show only that kind's chips", () => {
     show();
-    const tiles = [...document.querySelectorAll("[data-coverage-kind]")].map((t) => `${t.getAttribute("data-coverage-kind")} ${t.textContent}`);
-    // A match whose recording can't be played isn't missing (the pass counts it apart): no tile, a count in the heading.
-    expect(tiles).toEqual(["unchecked Not checked2,400", "noclock No clock350"]);
-    expect(document.querySelector("[data-coverage-pass] h3")?.textContent).toContain("900 more whose recording can't be played");
+    const tiles = (sel: string) => [...document.querySelectorAll(`${sel} [data-coverage-kind]`)].map((t) => `${t.getAttribute("data-coverage-kind")} ${t.textContent}`);
+    // Every stored event (the pass's `all`), not only the ones the last pass checked. A match whose recording can't be
+    // played isn't missing (counted apart): no tile, a count in the heading.
+    expect(tiles("[data-coverage-workable]")).toEqual(["unchecked Not checked2,400", "noclock No clock350"]);
+    expect(tiles("[data-coverage-cant]")).toEqual(["novideo No video100"]);
+    expect(document.querySelector("[data-coverage-cant] p")?.textContent).toBe("No clip can come from these (1,000 with the unplayable): left out of the clippable share");
+    expect(document.querySelector("[data-coverage-pass] h3")?.textContent).toBe("Why 2,850 matches have no clip · 900 more whose recording can't be played");
     fireEvent.click(document.querySelector('[data-coverage-kind="noclock"]')!);
     expect(chips()).toEqual(["Q6:noclock"]);
     // No finding is that kind: the findings step aside.
@@ -192,12 +223,9 @@ describe("ClipCoveragePanel, a review screen", () => {
     fireEvent.click(document.querySelector("[data-coverage-reviewed]")!);
     expect(rows()).toEqual([]);
     await waitFor(() => expect(h.sent).toEqual([{ path: "/api/owner/clip-coverage/2025/AUSYQ2/reviewed", json: { version: "v-AUSYQ2" } }]));
-    // It's on the Reviewed list.
+    // It's on the Reviewed list (folded).
+    openMore();
     fireEvent.click(document.querySelector('[data-coverage-list="reviewed"]')!);
-    expect(rows()).toEqual([["2025/AUSYQ2", "actionable"]]);
-    // Its missing list changes (a new version) and it opens again: back on To review, not left hidden.
-    h.ver = "v-AUSYQ2-new";
-    fireEvent.click(document.querySelector('[data-coverage-list="actionable"]')!);
     expect(rows()).toEqual([["2025/AUSYQ2", "actionable"]]);
     cleanup();
     h.fail = true;
@@ -209,52 +237,29 @@ describe("ClipCoveragePanel, a review screen", () => {
 
   it("never offers Reviewed for a match not yet checked against the video", () => {
     show();
+    openMore();
     fireEvent.click(document.querySelector('[data-coverage-list="unchecked"]')!);
     expect(h.paths.at(-1)).toBe("/api/owner/clip-coverage?list=unchecked");
-    expect(rows()).toEqual([["2026/USAZFLQ", "unchecked"]]);
-    expect(document.querySelector("[data-coverage-reviewed]")).toBeNull();
+    expect(rows(other())).toEqual([["2026/USAZFLQ", "unchecked"]]);
+    expect(other().querySelector("[data-coverage-reviewed]")).toBeNull();
     expect(document.querySelector('[data-coverage-bulk="unchecked"]')).toBeNull();
   });
 
-  it("Mark all non-actionable asks first, says how many, and sends that count; Cancel marks nothing", async () => {
+  it("marks a season's To review at once, asking first with its count; Cancel marks nothing", async () => {
     show();
     openMore();
-    expect(document.querySelector('[data-coverage-bulk="non-actionable"]')?.textContent).toMatch(/\(2\)$/);
-    fireEvent.click(document.querySelector('[data-coverage-bulk="non-actionable"]')!);
+    // Only seasons with events To review (2026 has none).
+    expect([...document.querySelectorAll("[data-coverage-season] option")].map((o) => o.getAttribute("value"))).toEqual(["2025"]);
+    fireEvent.click(document.querySelector('[data-coverage-bulk="season"]')!);
     let dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(h.sent).toEqual([]);
-    fireEvent.click(document.querySelector('[data-coverage-bulk="non-actionable"]')!);
-    dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "Mark 2 events reviewed?" })).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("button", { name: /Mark 2 events reviewed/ }));
-    await waitFor(() => expect(h.sent).toEqual([{ path: "/api/owner/clip-coverage/bulk-reviewed", json: { category: "non-actionable", season: undefined, expected: 2 } }]));
-  });
-
-  it("marks a whole category, or a whole season, the same way", async () => {
-    show();
-    fireEvent.click(document.querySelector('[data-coverage-list="no-timing"]')!);
-    fireEvent.click(document.querySelector('[data-coverage-bulk="no-timing"]')!);
-    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /Mark 1 event reviewed/ }));
-    await waitFor(() => expect(h.sent.at(-1)?.json).toEqual({ category: "no-timing", season: undefined, expected: 1 }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    openMore();
-    fireEvent.change(document.querySelector("[data-coverage-season]")!, { target: { value: "2025" } });
-    fireEvent.click(document.querySelector('[data-coverage-bulk="season"]')!);
-    let dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "Mark 2 events reviewed?" })).toBeTruthy();
-    expect(dialog.textContent).toMatch(/that isn't Actionable \(1 Actionable event stays under To review\)/);
-    fireEvent.click(within(dialog).getByRole("button", { name: /Mark 2 events reviewed/ }));
-    await waitFor(() => expect(h.sent.at(-1)?.json).toEqual({ category: "non-actionable", season: 2025, expected: 2 }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    fireEvent.click(document.querySelector("[data-coverage-season-actionable]")!);
     fireEvent.click(document.querySelector('[data-coverage-bulk="season"]')!);
     dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "Mark 3 events reviewed?" })).toBeTruthy();
-    expect(dialog.textContent).toMatch(/including its 1 Actionable/);
-    fireEvent.click(within(dialog).getByRole("button", { name: /Mark 3 events reviewed/ }));
-    await waitFor(() => expect(h.sent.at(-1)?.json).toEqual({ category: undefined, season: 2025, expected: 3 }));
+    expect(within(dialog).getByRole("heading", { name: "Mark 1 event reviewed?" })).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: /Mark 1 event reviewed/ }));
+    await waitFor(() => expect(h.sent).toEqual([{ path: "/api/owner/clip-coverage/bulk-reviewed", json: { category: "actionable", season: 2025, expected: 1 } }]));
   });
 
   it("keeps the clip checks and the last pass in numbers, folded", () => {
