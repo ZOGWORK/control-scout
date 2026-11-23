@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.6 — 2026-11-23
+
+Saying "no" to Bruno's offer — "Also want 4215's record?" — declines it politely instead of searching the word and answering with the nearest team.
+
+### Highlights
+- [alerts] "No" to his offer declines it politely
+- [fixes] "No" is no longer searched as a team's name
+- [speed] A no is answered without a search or a model call
+
+### Discord bot
+- **A no declines what he offered** (`bot/ask.ts` `declined`): "no", "no thanks", "not now", "maybe later", "I'm good thanks" after an offer answer with "No problem — I'll leave 4215's record for now. Ask me anything else, or say the word and I'll pull it up." Neither search nor the model is called, and the reply carries the question it declined so the post quotes that rather than the word. A no with a question after it ("no, what about 6980"), a number ("no 4215") and "not sure" are left as typed, and so is a no with nothing offered. The words are the bot's own (`by: "scout"`), so they are never kept as a turn of Bruno's, while the decline's post keeps the thread it answered — a later "yes" to it still takes the record up (`bot/handler.ts` `remember`) — and the console counts it as handled rather than an unanswered question (`declined`). A curly apostrophe ("don’t bother", "I’m good thanks") reads as a decline too. `bot/ask.test.ts` covers the phrasings and the offer thread, `bot/handler.test.ts` the offer, its "no" and the "yes" to that reply. (#2206)
+
 ## 7.9.5 — 2026-11-23
 
 Saying "yes" to Bruno's own offer — "Also want 4215's record?" — now asks that question instead of searching the word and answering with a team called "It worked yesterday".
