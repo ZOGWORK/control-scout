@@ -271,7 +271,11 @@ let botQuestions = 0;
  *  Written only while that answer's down count has just become 1, a condition the statement carries, so two 👎 arriving
  *  together can't both file it. A vote doesn't settle like a visitor's typing (nothing more is coming), so it skips the
  *  buffer and the hourly cap; it is the same table row either way. Null: nothing to file (the question was all personal
- *  data). */
+ *  data).
+ *
+ *  A key already on the list keeps its row as it is, and the vote only adds weight: its type is what search read (a
+ *  no-match whose issue is open stays a no-match, and its re-check and close condition stay right), and its examples
+ *  are the spellings search has seen. A vote says "this one matters", not "forget all that". */
 export function downvoteFailure(question: string, messageId: string, now = Date.now()): { sql: string; args: (string | null)[] } | null {
   const safe = safeQuery(question);
   const n = normalizeQuery(safe);
@@ -285,8 +289,7 @@ export function downvoteFailure(question: string, messageId: string, now = Date.
     sql: `INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen)
             SELECT ?, ?, 'downvoted', ?, ?, '', ?, 1, ?, ?
              WHERE (SELECT down FROM discord_answers WHERE message_id = ?) = 1
-            ON CONFLICT (key) DO UPDATE SET count = count + 1, last_seen = MAX(last_seen, excluded.last_seen),
-              result_type = excluded.result_type, examples = excluded.examples`,
+            ON CONFLICT (key) DO UPDATE SET count = count + 1, last_seen = MAX(last_seen, excluded.last_seen)`,
     args: [key, keyHash(key), intentsIn(n)[0] ?? null, JSON.stringify(trace), JSON.stringify([safe]), at, at, messageId],
   };
 }
