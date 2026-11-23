@@ -138,10 +138,13 @@ const done = (a: { finished?: Promise<unknown> } | PromiseLike<unknown>) => ("fi
 function main(): HTMLElement | null { return document.getElementById("main"); }
 
 /** Waits (frames, then timers when frames are held) until `get` gives something, or `ms` runs out. */
-function waitFor<T>(get: () => T | null, ms: number): Promise<T | null> {
+/** Polls `get` every frame-ish until it answers, `ms` runs out, or `stop` says the run it's for is over (then null:
+ *  a finished run leaves no poll behind, still reading a page that may be gone). */
+function waitFor<T>(get: () => T | null, ms: number, stop: () => boolean): Promise<T | null> {
   return new Promise((resolve) => {
     const end = performance.now() + ms;
     const tick = () => {
+      if (stop()) return resolve(null);
       const v = get();
       if (v || performance.now() > end) return resolve(v);
       setTimeout(tick, 16);
@@ -235,7 +238,7 @@ function run(card: HTMLElement, key: string, go: () => void): boolean {
   const hardStop = setTimeout(finish, (MORPH_MS + MORPH_WAIT_MS) * speed + 600);
   afterPaint(leave);
   void (async () => {
-    const target = await waitFor(() => (went ? targetTitle(key) : null), (MORPH_MS + MORPH_WAIT_MS) * speed);
+    const target = await waitFor(() => (went ? targetTitle(key) : null), (MORPH_MS + MORPH_WAIT_MS) * speed, () => over);
     if (over) return;
     if (target) {
       // From wherever the copy is now to the page's title, in the time the surface has left (never under 160 ms).
@@ -315,7 +318,7 @@ export function maybeReturn(key: string): boolean {
   void (async () => {
     // The list puts its scroll back first (src/lib/pageScroll.ts, once its data has drawn): wait for the place it was
     // left at, so the card is measured where it will stay.
-    const el = await waitFor(() => (Math.abs(scrollY() - l0.scroll) < 2 ? cardFor(key, l0.slot) : null), restoreWait);
+    const el = await waitFor(() => (Math.abs(scrollY() - l0.scroll) < 2 ? cardFor(key, l0.slot) : null), restoreWait, () => over);
     if (over) return;
     const titleEl = el?.querySelector<HTMLElement>("[data-morph-title]");
     const to = el ? boxOf(el) : null;
