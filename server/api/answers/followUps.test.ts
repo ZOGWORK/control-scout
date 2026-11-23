@@ -169,7 +169,7 @@ describe("people also ask", () => {
     expect((await both("4215 record")).related.every((x) => /\b4215\b/.test(x.q) || x.family !== "team")).toBe(true);
   });
 
-  it("never follows a number the answer read as a threshold as if it were a team", async () => {
+  it("never follows a number the answer read as a threshold, nor a filtered list's first row, as a team", async () => {
     // Team 50 exists, so the parser reads "50" as it; the answer reads it as the OPR floor of a board.
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (50, 'Fifty', 'Town', 'CA', 'USA')");
     await rebuildSearch();
@@ -183,6 +183,11 @@ describe("people also ask", () => {
       expect(f.about).not.toBe(50);
       expect(f.highlights?.team).not.toBe(50);
       expect([...f.ask, ...f.related].filter((x) => /\b50\b/.test(x.q)).map((x) => x.q)).toEqual([]);
+      // Nor is a filtered list about its first row: no team's follow-ups at all, the place's instead.
+      expect(f.about).toBeUndefined();
+      expect(f.highlights).toBeUndefined();
+      expect([...f.ask, ...f.related].filter((x) => /\b\d{3,}\b/.test(x.q)).map((x) => x.q)).toEqual([]);
+      expect(f.ask.some((x) => /New Jersey/.test(x.q))).toBe(true);
     } finally {
       await run("DELETE FROM teams WHERE number = 50");
       await rebuildSearch();
