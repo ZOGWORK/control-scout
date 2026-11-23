@@ -461,6 +461,16 @@ describe("the site's failed-search queue", () => {
     // A greeting is not a records question just because an earlier turn in the thread named a team: smallTalk answers it.
     await ask("thanks", deps(nothing("thanks"), { refine: vi.fn(async () => null), miss }), SITE, [{ role: "user", text: "who won 4215" }], [], "g1");
     expect(miss).not.toHaveBeenCalled();
+    // And a question about the records with no number in it is one, even where the bot answers with its one plain line.
+    for (const q of ["who won decode", "how did our alliance do at austin"]) {
+      await ask(q, deps(nothing(q), { refine: vi.fn(async () => null), miss }), SITE, [], [], "g1");
+      expect(miss).toHaveBeenLastCalledWith(q, expect.objectContaining({ step: "recovery" }), "g1");
+    }
+    // A greeting, and a build question, are not.
+    for (const q of ["hi", "should i use a 42:15 gear reduction on my turret"]) {
+      await ask(q, deps(nothing(q), { refine: vi.fn(async () => null), miss }), SITE, [], [], "g1");
+      expect(miss).not.toHaveBeenCalledWith(q, expect.anything(), expect.anything());
+    }
   });
 });
 

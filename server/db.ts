@@ -2765,14 +2765,15 @@ CREATE TABLE discord_follows_new (
   kind TEXT NOT NULL DEFAULT 'team',
   team INTEGER,
   event TEXT,
+  season INTEGER,
   target TEXT NOT NULL,
   created_at TEXT NOT NULL,
   created_by TEXT,
   failures INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (guild_id, channel_id, target)
 );
-INSERT INTO discord_follows_new (guild_id, channel_id, kind, team, event, target, created_at, created_by, failures)
-  SELECT guild_id, channel_id, 'team', team, NULL, 'team:' || team, created_at, created_by, failures FROM discord_follows;
+INSERT INTO discord_follows_new (guild_id, channel_id, kind, team, event, season, target, created_at, created_by, failures)
+  SELECT guild_id, channel_id, 'team', team, NULL, NULL, 'team:' || team, created_at, created_by, failures FROM discord_follows;
 DROP TABLE discord_follows;
 ALTER TABLE discord_follows_new RENAME TO discord_follows;
 CREATE INDEX IF NOT EXISTS discord_follows_team ON discord_follows (team);

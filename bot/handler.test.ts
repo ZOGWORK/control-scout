@@ -276,7 +276,7 @@ describe("follows", () => {
     await h(u.i);
     expect(l.unfollow).toHaveBeenLastCalledWith("g1", { kind: "event", event: "USTXAUQ" }, null);
     // An event from an earlier season isn't in the list any more, and its follow can still be stopped by its code.
-    const l2 = lookups({ eventCode: vi.fn(async () => { throw new Error("Event not found"); }) });
+    const l2 = lookups({ eventCode: vi.fn(async () => { throw new Friendly("Event not found", "No event this season matches that."); }) });
     const h2 = createHandler(() => {}, l2);
     await h2(inGuild("unfollow", { event: "ustxauq" }).i);
     expect(l2.unfollow).toHaveBeenCalledWith("g1", { kind: "event", event: "USTXAUQ" }, null);
@@ -579,7 +579,7 @@ describe("the answer's buttons", () => {
     expect(react.mock.calls.map((x) => x[0])).toEqual(["👍", "👎"]);
   });
 
-  it("the bot's own fallback is counted as not answered, Bruno's reply as answered", async () => {
+  it("the bot's own fallback is neither answered nor Bruno's; his own reply is both", async () => {
     const noteAsk = vi.fn(async () => {});
     const h = createHandler(() => {}, lookups({
       noteAsk,
@@ -590,6 +590,15 @@ describe("the answer's buttons", () => {
     await h(c.i);
     // A chat that is the bot's own fallback is neither answered nor Bruno's.
     expect(noteAsk).toHaveBeenLastCalledWith(expect.objectContaining({ chat: false, answered: false }));
+    // Bruno's own reply (no `by`, so not the fallback) is his chat and an answer.
+    const h2 = createHandler(() => {}, lookups({
+      noteAsk,
+      ask: vi.fn(async (q: string) => ({ embed: { title: q }, meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: "4215 won." } })),
+    }));
+    const c2 = command("ask", { question: "who won 4215" });
+    c2.i.guildId = "g1";
+    await h2(c2.i);
+    expect(noteAsk).toHaveBeenLastCalledWith(expect.objectContaining({ chat: true, answered: true }));
   });
 });
 
