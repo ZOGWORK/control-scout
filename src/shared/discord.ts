@@ -20,6 +20,7 @@ export function discordInviteUrl(clientId: string | null = DISCORD_CLIENT_ID): s
 /** Every bot command in words: the bot's /help and the site's "Control Scout in Discord" card read this list. */
 export const BOT_COMMANDS: { usage: string; what: string; admin?: true }[] = [
   { usage: "/team number:", what: "A team's season: record, OPR, world ranking and its next event." },
+  { usage: "/compare team: other:", what: "Two teams side by side: their records and OPR, and who wins the head-to-head." },
   { usage: "/predict event: match:", what: "Win odds and predicted score for a qual match; once played, how the call went." },
   { usage: "/event code:", what: "An event's status, matches played, top 5 by OPR and the winning alliance." },
   { usage: "/rankings", what: "The world top 10 by rating, with movement since last week." },
