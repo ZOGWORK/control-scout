@@ -255,6 +255,20 @@ describe("matches read off a recording's own frames", () => {
       setFrameTimingsForTests([]);
     }
   });
+  it("serve a start the owner approved out of the played order, and never push the order's own run out for it", async () => {
+    // Played Q1, Q2, Q3; Q1 at 9000 breaks the order. Q2 at 1000 (approved) and Q3 at 1400 are the run either way.
+    setFrameTimingsForTests([{ videoId: GAPPED_ID, code: "GAPPED", checked: "2026-11-14", starts: { Q1: 9000, Q2: 1000, Q3: 1400 }, approved: ["Q1"] }]);
+    try {
+      const rec = (await seasonRecordings(S)).get("GAPPED")!;
+      const m: Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">[] = [1, 2, 3].map((n) => ({ label: `Q${n}`, time: `${DAY}T10:3${n}:13`, startsAt: `${DAY}T10:3${n}:13.000Z`, played: true, clip: undefined }));
+      expect(withClips(m, rec).map((x) => x.clip?.t ?? null)).toEqual([8980, 980, 1380]);
+      // Approving the one in the run's way instead (Loopy's A, B, C): the rest's run is worked out over every start first.
+      setFrameTimingsForTests([{ videoId: GAPPED_ID, code: "GAPPED", checked: "2026-11-14", starts: { Q1: 1000, Q2: 200, Q3: 400 }, approved: ["Q2"] }]);
+      expect(withClips(m, rec).map((x) => x.clip?.t ?? null)).toEqual([null, 180, 380]);
+    } finally {
+      setFrameTimingsForTests([]);
+    }
+  });
   it("open a checked frame clip where its first frame names the match, and play no unchecked start of that row", async () => {
     // Q1's overlay named it 12 s before its start (1000 → opens at 988); Q3's opening couldn't be checked.
     setFrameTimingsForTests([{ videoId: GAPPED_ID, code: "GAPPED", checked: "2026-11-15", starts: { Q1: 1000, Q3: 1600 }, opens: { Q1: 988 } }]);

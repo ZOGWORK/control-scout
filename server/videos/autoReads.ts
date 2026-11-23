@@ -441,6 +441,13 @@ async function unservedStart(row: FrameTiming, label: string, t: number): Promis
   return listed ? { t, why: "Seen in the video at this second, but the site didn't serve it as a clip" } : null;
 }
 
+/** Whether the owner already said Not this match at (about) that second: decided, so a stale Clip from (another tab)
+ *  is refused, never turning the rejection round. */
+async function rejectedAt(k: { videoId: string; code: string; label: string; t: number }): Promise<boolean> {
+  const d = await get<{ t: number }>("SELECT t FROM review_decisions WHERE video_id = ? AND code = ? AND label = ? AND decision = 'rejected'", [k.videoId, k.code, k.label]);
+  return d != null && Math.abs(Number(d.t) - k.t) <= SAME_S;
+}
+
 type ReviewBody = { videoId?: unknown; code?: unknown; label?: unknown; t?: unknown };
 function reviewKey(b: ReviewBody): { videoId: string; code: string; label: string; t: number } | null {
   const videoId = typeof b.videoId === "string" && VIDEO_ID.test(b.videoId) ? b.videoId : null;
@@ -465,7 +472,7 @@ async function approveReviewLocked(body: ReviewBody, actor: string, now = Date.n
   // A review entry not served yet; else a start the read already holds at that second that the site doesn't serve
   // (it breaks the played order, overlaps another, or its opening frame didn't name it: Found in the video).
   const e = r ? (Math.round(r.t) === k.t && frameStart(k.videoId, k.code, k.label) == null ? r : null) : row && await unservedStart(row, k.label, k.t);
-  if (!row || !e) return reviewGone;
+  if (!row || !e || await rejectedAt(k)) return reviewGone;
   const next: FrameTiming = { ...row, starts: { ...row.starts, [k.label]: k.t } };
   if (row.opens) next.opens = { ...row.opens, [k.label]: Math.max(0, k.t - CLIP_LEAD_S) };
   if (row.opens?.[k.label] != null && !r) next.opens = row.opens;
@@ -494,6 +501,8 @@ export async function rejectReview(body: ReviewBody, actor: string, now = Date.n
 async function rejectReviewLocked(body: ReviewBody, actor: string, now = Date.now()): Promise<Out> {
   const k = reviewKey(body);
   if (!k) return { ok: false, status: 400, error: "Not a match waiting for approval." };
+  // The live rows another process may have changed (an approval, a newer read): never a decision on a start gone.
+  if ((await liveSig()) !== loadedSig) await loadAutoReads();
   const row = frameRow(k.videoId, k.code), r = row?.review?.[k.label];
   const e = r ? (Math.round(r.t) === k.t ? r : null) : row && await unservedStart(row, k.label, k.t);
   if (!e) return reviewGone;

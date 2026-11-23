@@ -33,10 +33,18 @@ const sha1 = (s: string) => createHash("sha1").update(s).digest("hex");
  *  since when it can't be played), whether it's broadcast a day
  *  at a time (which matches each video holds), which of its videos the page plays, the event's time zone, and each of its
  *  matches (played, its time, FIRST's video): any of them moving checks the event again. */
-function fingerprint(r: Recording | null, playable: Recording | null, timezone: string | null, matches: string): string {
-  const videos = r ? [r, ...(r.more ?? [])].map((v) => [v.videoId, v.day ?? null, v.part ?? null, v.meta?.status ?? null, v.meta?.start ?? null, v.meta?.end ?? null, v.meta?.length ?? null, v.meta?.live ?? null, v.meta?.chapters ?? null, checkedTo(v.videoId), v.meta?.embeddable ?? null, v.meta?.unplayableSince ?? null]) : [];
+function fingerprint(r: Recording | null, playable: Recording | null, timezone: string | null, matches: string, code = r?.code ?? ""): string {
+  const videos = r ? [r, ...(r.more ?? [])].map((v) => [v.videoId, frameSig(v.videoId, code), v.day ?? null, v.part ?? null, v.meta?.status ?? null, v.meta?.start ?? null, v.meta?.end ?? null, v.meta?.length ?? null, v.meta?.live ?? null, v.meta?.chapters ?? null, checkedTo(v.videoId), v.meta?.embeddable ?? null, v.meta?.unplayableSince ?? null]) : [];
   const plays = playable ? [playable, ...(playable.more ?? [])].map((v) => v.videoId) : [];
   return sha1(JSON.stringify([BOOT, videos, r?.daily ?? false, playable?.daily ?? false, plays, timezone, matches]));
+}
+
+/** A video's frame read for an event as far as its clips go (its starts, openings, the owner's approvals, its review
+ *  entries): an owner's Clip from, or a re-read, checks the event again, so a pass that ran meanwhile never leaves its
+ *  older answer standing. */
+function frameSig(videoId: string, code: string): string | null {
+  const f = code ? frameRow(videoId, code) : null;
+  return f ? sha1(JSON.stringify([f.checked, f.starts, f.opens ?? null, f.approved ?? null, f.review ? Object.entries(f.review).map(([l, e]) => [l, e.t]) : null])) : null;
 }
 
 /** The missing matches and their reasons, as a hash: the same list, however often checked, is the same key. It's also the
@@ -134,7 +142,7 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
           if (e) e.matches = String(r.m ?? "");
         }
       }
-      const todo = codes.map((code) => ({ code, fp: fingerprint(full.get(code) ?? null, recs.get(code) ?? null, shape.get(code)?.tz ?? null, shape.get(code)?.matches ?? "") })).filter((x) => was.get(x.code)?.fingerprint !== x.fp);
+      const todo = codes.map((code) => ({ code, fp: fingerprint(full.get(code) ?? null, recs.get(code) ?? null, shape.get(code)?.tz ?? null, shape.get(code)?.matches ?? "", code) })).filter((x) => was.get(x.code)?.fingerprint !== x.fp);
       if (!todo.length) continue;
       const rows = await eventMatchRows(season, todo.map((t) => t.code));
       const writes: { sql: string; args: (string | number | null)[] }[] = [];
@@ -262,8 +270,10 @@ export async function coverageFindings(): Promise<CoverageFinding[]> {
       const row = frameRow(m.videoId, String(r.code));
       // A review entry is listed from the entries themselves (below); an approved start is served.
       if (!row || row.review?.[m.label] || row.approved?.includes(m.label) || row.starts[m.label] == null) continue;
+      // Listed at the second the row holds now, only while the stored check saw it there (what Clip from and Not this
+      // match accept): a re-read that moved it waits for the next pass.
       const t = Math.round(row.starts[m.label]), x = no.get(`${m.videoId}|${r.code}|${m.label}`);
-      if (x != null && Math.abs(x - t) <= SAME_S) continue;
+      if (Math.round(m.video.seenAt) !== t || (x != null && Math.abs(x - t) <= SAME_S)) continue;
       have.add(`${r.season}/${r.code}/${m.label}`);
       out.push({ kind: "seen", source: "start", season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), label: m.label, videoId: m.videoId, at: t, why: m.why ?? "" });
     }
