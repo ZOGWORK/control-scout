@@ -515,7 +515,7 @@ function UsagePanel() {
     <>
       <div className="mb-4 flex items-center justify-end gap-1" role="group" aria-label="Period">
         {[7, 14, 30].map((d) => (
-          <Button key={d} size="sm" variant={d === days ? "default" : "outline"} aria-pressed={d === days} onClick={() => setDays(d)}>{d} days</Button>
+          <Button key={d} size="sm" variant={d === (usage.data?.days ?? days) ? "default" : "outline"} aria-pressed={d === (usage.data?.days ?? days)} onClick={() => setDays(d)}>{d} days</Button>
         ))}
       </div>
       <KeptLast stale={stale} failed={failed} onRetry={() => void state.reload()}>
@@ -674,7 +674,7 @@ function PredictionsPanel() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-1" role="group" aria-label="Which calls">
           {(["live", "backtest"] as const).map((k) => (
-            <Button key={k} size="sm" variant={k === kind ? "default" : "outline"} aria-pressed={k === kind} onClick={() => setKind(k)}>
+            <Button key={k} size="sm" variant={k === (health.data?.kind ?? kind) ? "default" : "outline"} aria-pressed={k === (health.data?.kind ?? kind)} onClick={() => setKind(k)}>
               {k === "live" ? "Live calls" : "Backtest"}
             </Button>
           ))}
@@ -690,11 +690,11 @@ function PredictionsPanel() {
       <KeptLast stale={stale} failed={failed} onRetry={() => void state.reload()}>
       <Async state={health}>
         {(p) => !p.summary ? (
-          <EmptyState icon={Target} title={kind === "live" ? "No live calls scored yet" : "No backtest on this server"}
-            description={kind === "live" ? "Live calls are logged before each match and scored once it's played. They show here after the first event of the season." : "The stats job writes the backtest; it shows here after the next run."} />
+          <EmptyState icon={Target} title={p.kind === "live" ? "No live calls scored yet" : "No backtest on this server"}
+            description={p.kind === "live" ? "Live calls are logged before each match and scored once it's played. They show here after the first event of the season." : "The stats job writes the backtest; it shows here after the next run."} />
         ) : (
           <>
-            <Section title={`${kind === "live" ? "Live calls" : "Backtest"}, ${seasonLabel(p.season!)}`} description={kind === "live" ? "Logged before each match, scored once it was played." : "Walk-forward replay: each match predicted from the data before it. Never mixed with live calls."}>
+            <Section title={`${p.kind === "live" ? "Live calls" : "Backtest"}, ${seasonLabel(p.season!)}`} description={p.kind === "live" ? "Logged before each match, scored once it was played." : "Walk-forward replay: each match predicted from the data before it. Never mixed with live calls."}>
               <TileGrid>
                 <StatTile tone="accent" icon={Target} label="Scored calls" value={int(p.summary.n)} />
                 <StatTile tone="emerald" icon={CheckCircle2} label="Called right" value={pct(p.summary.accuracy, 1)} hint="Favourite won, ties and coin flips left out" />
