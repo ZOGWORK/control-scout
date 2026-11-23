@@ -29,15 +29,15 @@ export async function trackAnswer(messageId: string, guild: string | null, quest
  *  or a later 👎 on the same answer — the same complaint about the same question, counted and not filed again. */
 export async function downVote(messageId: string, now = Date.now()): Promise<{ question: string | null; guild: string | null } | null> {
   if (!messageId) return null;
-  // The claim is the update itself, not a read before it: two 👎 arriving together (two gateway events, interleaved at
-  // their awaits) can't both find `down = 0`, so only one of them can file the question. The other still counts, below.
-  const first = await run("UPDATE discord_answers SET down = down + 1, voted_at = ? WHERE message_id = ? AND down = 0", [new Date(now).toISOString(), messageId]);
-  if (!first) {
-    await vote(messageId, BAD, 1, now);
-    return null;
-  }
-  const row = await get<{ question: string | null; guild_id: string | null }>("SELECT question, guild_id FROM discord_answers WHERE message_id = ?", [messageId]);
-  return row ? { question: row.question ?? null, guild: row.guild_id ?? null } : null;
+  // One statement counts the vote and says whether it was the first (`down` comes back 1 only on the 0 → 1 step). Two 👎
+  // arriving together (two gateway events, interleaved at their awaits) can't both see the step, and a count that hasn't
+  // landed yet can't let a third voter's claim through: the counting and the claim are the same write.
+  const row = await get<{ question: string | null; guild_id: string | null; down: number }>(
+    "UPDATE discord_answers SET down = down + 1, voted_at = ? WHERE message_id = ? RETURNING down, question, guild_id",
+    [new Date(now).toISOString(), messageId],
+  );
+  if (!row) return null; // a message the bot never posted
+  return Number(row.down) === 1 ? { question: row.question ?? null, guild: row.guild_id ?? null } : null;
 }
 
 /** One vote on an answer: `delta` 1 for a reaction added, -1 for one taken back. Never below zero. */
