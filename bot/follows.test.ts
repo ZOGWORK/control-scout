@@ -142,6 +142,18 @@ describe("follows and the tick, on a database", () => {
     expect(await removeFollow("g", { kind: "event", event: "USTXAUQ" })).toBe(1);
   });
 
+  it("an event follow belongs to the season it was made in: last season's code never posts this season's event", async () => {
+    expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u", NOW - 864e5)).toBe("added");
+    // The row as a season rollover leaves it: the code exists this season too, and the follow is last season's.
+    await run("UPDATE discord_follows SET season = season - 1 WHERE guild_id = 'g'");
+    const send = vi.fn(async () => "ok" as const);
+    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW)).toBe(0);
+    expect(send).not.toHaveBeenCalled();
+    // Following the event again this season moves that follow to it, and its posts resume.
+    expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u", NOW)).toBe("already");
+    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
+  });
+
   it("posts the reminder once, even across ticks and with two followed teams in the match", async () => {
     await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5);
     await addFollow("g", "c1", { kind: "team", team: 4215 }, "u", NOW - 864e5);

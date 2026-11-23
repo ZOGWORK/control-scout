@@ -226,6 +226,8 @@ code; you can also type a code yourself).
   sent, so nothing posts twice; a passing failure retries, a channel that's gone is dropped after 5 failures.
   A follow is a team (`team:4215`) or an event (`event:USTXAUQ`) by its `target` key, so the two never collide; an
   event follow posts the event's evening-before, schedule and day recaps, keyed `event:` and never a per-match post.
+  An event follow also carries the season it was made in: codes repeat, so last season's `event:USTXAUQ` never ticks
+  this season's event of the same code, and following that code again this season moves the follow forward.
 - **Load protection.** One answer per command and arguments for 60 seconds (`bot/guard.ts`): fifty people
   asking for the same match cost one lookup. Nobody is paced per person: every command and every mention is
   answered, however fast it follows the last. Autocomplete reads the event list once a minute and returns at

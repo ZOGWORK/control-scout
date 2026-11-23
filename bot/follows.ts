@@ -43,6 +43,9 @@ export interface Follow {
   team: number | null;
   /** An event follow's code; null on a team follow. */
   event?: string | null;
+  /** The season an event follow belongs to: codes repeat (an event code names a different event next season), so a
+   *  follow only ever ticks for the season it was made in. Unset on a team follow, and on a hand-built one. */
+  season?: number | null;
   created_at: string; failures: number;
 }
 
@@ -55,12 +58,18 @@ export async function addFollow(guild: string, channel: string, target: FollowTa
   } else if (!(await get("SELECT 1 FROM events WHERE season = ? AND code = ?", [CURRENT_SEASON, target.event]))) {
     throw new Friendly("Event not found", `There's no event ${target.event} this season. Pick one with /follow event: from the list.`);
   }
+  // A follow belongs to the season it is made in: the same code next season is a different event, so following it
+  // again moves the follow to this season rather than leaving last season's row to tick (or to say "already").
+  if (target.kind === "event") {
+    await run("UPDATE discord_follows SET season = ? WHERE guild_id = ? AND channel_id = ? AND target = ? AND season IS NOT ?",
+      [CURRENT_SEASON, guild, channel, followKey(target), CURRENT_SEASON]);
+  }
   // The limit check and the insert are one statement, so two managers following at once can't pass it together.
   const added = await run(
-    `INSERT OR IGNORE INTO discord_follows (guild_id, channel_id, kind, team, event, target, created_at, created_by)
-     SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM discord_follows WHERE guild_id = ?) < ?`,
+    `INSERT OR IGNORE INTO discord_follows (guild_id, channel_id, kind, team, event, season, target, created_at, created_by)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM discord_follows WHERE guild_id = ?) < ?`,
     [guild, channel, target.kind, target.kind === "team" ? target.team : null, target.kind === "event" ? target.event : null,
-      followKey(target), new Date(now).toISOString(), by, guild, MAX_FOLLOWS_PER_SERVER]);
+      target.kind === "event" ? CURRENT_SEASON : null, followKey(target), new Date(now).toISOString(), by, guild, MAX_FOLLOWS_PER_SERVER]);
   if (added) return "added";
   if (await get("SELECT 1 FROM discord_follows WHERE guild_id = ? AND channel_id = ? AND target = ?", [guild, channel, followKey(target)])) return "already";
   throw new Friendly("Too many follows", `A server can follow up to ${MAX_FOLLOWS_PER_SERVER} teams and events. Remove one with /unfollow first.`);
@@ -194,14 +203,16 @@ export type Send = (channel: string, embed: APIEmbed) => Promise<"ok" | "gone" |
 export async function notifyTick(send: Send, site: string, log: (m: string) => void, now = Date.now()): Promise<number> {
   // Switched off by the owner (the discordBot feature toggle): nothing is posted, every follow is kept.
   if (!(await isEnabled("discordBot"))) return 0;
-  const follows: Follow[] = (await all<any>("SELECT guild_id, channel_id, kind, team, event, created_at, failures FROM discord_follows"))
+  const follows: Follow[] = (await all<any>("SELECT guild_id, channel_id, kind, team, event, season, created_at, failures FROM discord_follows"))
     .map((r) => ({
       guild_id: String(r.guild_id), channel_id: String(r.channel_id), kind: r.kind === "event" ? "event" as const : "team" as const,
-      team: r.team == null ? null : Number(r.team), event: r.event ?? null, created_at: String(r.created_at), failures: Number(r.failures),
+      team: r.team == null ? null : Number(r.team), event: r.event ?? null, season: r.season == null ? null : Number(r.season),
+      created_at: String(r.created_at), failures: Number(r.failures),
     }));
   if (!follows.length) return 0;
   const teams = [...new Set(follows.filter((f) => f.kind !== "event" && f.team != null).map((f) => f.team!))];
-  const codes = [...new Set(follows.filter((f) => f.kind === "event" && f.event).map((f) => f.event!))];
+  // Only this season's event follows: a code repeats, and last season's follow must not post this season's event.
+  const codes = [...new Set(follows.filter((f) => f.kind === "event" && f.event && f.season === CURRENT_SEASON).map((f) => f.event!))];
   const day = (n: number) => new Date(now + n * 864e5).toISOString().slice(0, 10);
   // The events to look at: the followed teams' events on around today (entered, or with matches, from yesterday to
   // tomorrow), and every event a server follows by code. A stale event's posts are keyed by day (bot/eventAlerts.ts),

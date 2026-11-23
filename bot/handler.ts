@@ -340,7 +340,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     } catch (e) {
       // Unfollowing takes what was typed as a code too: a follow from an earlier season is no longer in the event list,
       // and it must still be possible to stop it.
-      if (keepStale) return { kind: "event", event: event.toUpperCase() };
+      // Only "no such event": a database failure must say so rather than report a follow that never stopped.
+      if (keepStale && e instanceof Friendly && e.title === "Event not found") return { kind: "event", event: event.toUpperCase() };
       throw e;
     }
   }
@@ -408,8 +409,11 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         post = { embeds: [pride(unavailableEmbed())] };
       }
       const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
-      if (r) remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId);
-      watchVotes(sent, i.guildId ?? null);
+      // Only an answer takes votes: the failure notice above is not one.
+      if (r) {
+        remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId);
+        watchVotes(sent, i.guildId ?? null);
+      }
       return;
     }
     let embed: APIEmbed;
@@ -532,8 +536,11 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       post = { embeds: [pride(unavailableEmbed())] };
     }
     const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
-    if (r) remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId ?? null);
-    watchVotes(sent, i.guildId ?? null);
+    // Only an answer takes votes: the failure notice above is not one.
+    if (r) {
+      remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId ?? null);
+      watchVotes(sent, i.guildId ?? null);
+    }
   }
 
   async function handle(i: Interaction): Promise<void> {

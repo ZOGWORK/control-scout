@@ -191,27 +191,25 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
     const r = await deps.refine(q).catch(() => null);
     if (r) { answer = r; refined = r.step === "ai"; }
   }
-  // A records question search couldn't answer and no chat did: the site's failed-search queue gets the phrasing. Only a
-  // records question (one that could be about a team, a match or a season), and only when search found nothing: an
-  // answer it did give teaches the queue nothing, and a greeting is not a failed search.
-  // The question's own words decide, not the thread's: a "thanks" in a thread that named a team is still a greeting,
-  // and smallTalk answers it below — a follow-up that names a record is the records question it is.
-  if (RECORD_NUMBER.test(q) && !answer.hits.length && !answer.card && !answer.stat) deps.miss?.(q, answer, guild);
   // Search found nothing and no chat answered either: one honest line rather than "Sorry — I can't answer that yet"
-  // with the closest matches. Only a short message that isn't a records question reaches here (bot/smallTalk.ts).
-  if (!answer.hits.length && !answer.card && !answer.stat) {
-    // Why no chat: a chat that's wired, configured and still on gave nothing about this one message (a reply with a
-    // number the facts haven't, an empty one, a failure), and saying its AI is unreachable would contradict the answer
-    // it just posted in the same channel. Only a chat that's actually off is reported as off.
-    const reachable = chatting && deps.available() && (await deps.enabled().catch(() => false));
-    const talk = smallTalk(q, reachable);
-    if (talk) return {
-      embed: askEmbed(q, answer, null, site),
-      meta: { step: answer.step, refined, sentence: false, chat: true },
-      chat: { text: talk, by: "scout", page: searchHref(q, site) },
-      next: askNext(answer),
-    };
-  }
+  // with the closest matches. Only a greeting or a working question reaches here (bot/smallTalk.ts).
+  const empty = !answer.hits.length && !answer.card && !answer.stat;
+  // Why no chat: a chat that's wired, configured and still on gave nothing about this one message (a reply with a
+  // number the facts haven't, an empty one, a failure), and saying its AI is unreachable would contradict the answer
+  // it just posted in the same channel. Only a chat that's actually off is reported as off.
+  const talk = empty ? smallTalk(q, chatting && deps.available() && (await deps.enabled().catch(() => false))) : null;
+  // What nothing answered, and that isn't a greeting or a working question either, is a real miss: the site's
+  // failed-search queue gets the phrasing. A question about the records is one even with no number in it ("who won
+  // decode", "how did our alliance do at austin"), and those count even where the bot answers with its one plain line —
+  // the line is not an answer. The question's own words decide, not the thread's (a "thanks" after "who won 4215" is
+  // still a greeting), and an answer search gave teaches the queue nothing.
+  if (empty && (!talk || RECORD_WORDS.test(q))) deps.miss?.(q, answer, guild);
+  if (talk) return {
+    embed: askEmbed(q, answer, null, site),
+    meta: { step: answer.step, refined, sentence: false, chat: true },
+    chat: { text: talk, by: "scout", page: searchHref(q, site) },
+    next: askNext(answer),
+  };
   const sentence = !chatting && deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
   const video = deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
   const watch = videoLinks(video);
@@ -230,6 +228,10 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
  *  screenshot's "should I use a 42:15 gear reduction" was refused as a record claim only because it had digits in it. */
 const asksRecords = (q: string, a: SearchAnswer, history: BrunoChatTurn[]) =>
   RECORD_NUMBER.test(q) || history.some((t) => RECORD_NUMBER.test(t.text)) || !!(a.hits.length || a.card || a.stat);
+
+/** The words that make an unanswered message a question about the records even with no number in it. Filing only: the
+ *  reply is unchanged, and a greeting or a build question has none of these. */
+const RECORD_WORDS = /\b(?:teams?|alliances?|partners?|events?|matches?|quals?|qualifiers?|playoffs?|oprs?|ranks?|rankings?|scores?|records?|won|wins?|lost|losses?|tied?|seasons?|worlds|championships?|divisions?|awards?|schedules?|standings?)\b/i;
 
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
  *  second place?" has the records it's about), then his reply. */
