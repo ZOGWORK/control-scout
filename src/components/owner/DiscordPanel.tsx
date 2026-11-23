@@ -143,11 +143,11 @@ export function DiscordPanel() {
                 </label>
                 <label className="block min-w-0 text-sm">
                   <span className="mb-1 block text-muted-foreground">Chats an hour</span>
-                  <Input value={hour} onChange={(e) => setHour(e.target.value)} placeholder="30" inputMode="numeric" className="tabular-nums max-sm:h-10" />
+                  <Input value={hour} onChange={(e) => setHour(e.target.value)} placeholder="No cap" inputMode="numeric" className="tabular-nums max-sm:h-10" />
                 </label>
                 <label className="block min-w-0 text-sm">
                   <span className="mb-1 block text-muted-foreground">Chats a day</span>
-                  <Input value={day} onChange={(e) => setDay(e.target.value)} placeholder="100" inputMode="numeric" className="tabular-nums max-sm:h-10" />
+                  <Input value={day} onChange={(e) => setDay(e.target.value)} placeholder="No cap" inputMode="numeric" className="tabular-nums max-sm:h-10" />
                 </label>
                 <Button type="submit" disabled={!!busy}>{busy === "save" ? "Saving…" : "Save cap"}</Button>
               </div>
