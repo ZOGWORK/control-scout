@@ -24,6 +24,7 @@ import { AnswerNotesView, useSearchHits, useSections } from "../components/searc
 import { SeasonPickContext, pickedSeason, type SeasonPick } from "../components/search/page/SeasonPick";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults, SorryNote } from "../components/search/page/NoResults";
+import { MorphScope } from "../components/CardMorph";
 import { NotInPackCard } from "../components/search/page/NotInPack";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { AnswerClip, AnswerVideo, AnswerVideoProvider, clipLabel } from "../components/search/page/AnswerVideo";
@@ -373,7 +374,7 @@ export default function SearchPage() {
                   </section>
                 )}
                 {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mt-6"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
-                {view.filter((x) => x !== placesAside).map((s) => <V8Group key={s.id} s={s} statuses={statuses} summaries={summaries} skip={teamAnswer?.number ?? null} fuzzyWord={fuzzyWords(hits) ?? undefined} picks={picks} onPick={pick} phone={phone} twoCol={side} onOpen={open} />)}
+                {view.filter((x) => x !== placesAside).map((s) => <MorphScope key={s.id} name={`search-${s.id}`}><V8Group s={s} statuses={statuses} summaries={summaries} skip={teamAnswer?.number ?? null} fuzzyWord={fuzzyWords(hits) ?? undefined} picks={picks} onPick={pick} phone={phone} twoCol={side} onOpen={open} /></MorphScope>)}
                 {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                   <div className="mt-4 rounded-xl border border-line bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                     <p className="text-foreground">{emptyLine(filters, hits)}</p>
@@ -436,7 +437,7 @@ export default function SearchPage() {
                   )}
                   {/* Phones: a versus query's side-by-side numbers under its Compare (desktop has them beside it). */}
                   {shownH2h && <div className="mb-5 lg:hidden"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
-                  {view.map((s) => <ResultSection key={s.id} s={s} statuses={statuses} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={side} onOpen={open} />)}
+                  {view.map((s) => <MorphScope key={s.id} name={`search-${s.id}`}><ResultSection s={s} statuses={statuses} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={side} onOpen={open} /></MorphScope>)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     // Never a dead end: what's empty, said plainly, and each choice that isn't, one tap away.
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>

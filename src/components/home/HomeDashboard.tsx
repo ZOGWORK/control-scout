@@ -24,7 +24,7 @@ import { addRecentSearch } from "../search/discover";
 import { nextMatch } from "./HomeSections";
 import { myTeamsOf } from "../../lib/myTeams";
 import { cn } from "../cn";
-import { eventMorphKey, useMorphCard, warmEvent } from "../CardMorph";
+import { eventMorphKey, MorphScope, teamMorphKey, useMorphCard, warmEvent, warmTeam } from "../CardMorph";
 import { V8_NUM } from "../../lib/v8";
 import { v8Rank } from "../../lib/v8colour";
 import { V8_PHASE } from "../../lib/records/describe";
@@ -127,11 +127,14 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
       </section>
 
       {/* Three cards of the same weight. On a phone, your teams come first when you have any. */}
-      <div className={cn("grid gap-4 lg:grid-cols-3", framed ? "mt-20 max-sm:mt-12" : "mt-16 max-sm:mt-10")}>
-        <LiveCard season={season} />
-        <TopTeamsCard season={season} />
-        {teams.length ? <TeamsCard teams={teams} season={season} /> : <PickTeamCard onPick={search.open} />}
-      </div>
+      {/* A tapped event or team card grows into its page (src/components/CardMorph.tsx); Top teams stays a ranking list. */}
+      <MorphScope name="home">
+        <div className={cn("grid gap-4 lg:grid-cols-3", framed ? "mt-20 max-sm:mt-12" : "mt-16 max-sm:mt-10")}>
+          <LiveCard season={season} />
+          <TopTeamsCard season={season} />
+          {teams.length ? <TeamsCard teams={teams} season={season} /> : <PickTeamCard onPick={search.open} />}
+        </div>
+      </MorphScope>
 
       <p className="mt-10 text-center text-xs text-text-muted">{HOME_ABOUT}</p>
     </div>
@@ -318,11 +321,12 @@ function OneTeam({ team, season, t, loaded }: { team: number; season: number; t:
   const next = sched.data ? nextMatch(sched.data.matches) : undefined;
   const pWin = next ? callFor(next, team) : null;
   const eventName = next && t?.nextEvent?.code === next.code ? t.nextEvent.name : next?.code;
+  const morph = useMorphCard(teamMorphKey(team), `/teams/${team}`, () => warmTeam(team));
   return (
     <>
-      <Link to={`/teams/${team}`} className="group -mt-1 flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
+      <Link to={`/teams/${team}`} {...morph} className="group -mt-1 flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
         {/* The name and place sit centred on the big number, not hung from its baseline. */}
-        <span className={cn("font-display text-4xl leading-none font-semibold tabular-nums", V8_NUM)}>{team}</span>
+        <span data-morph-title className={cn("font-display text-4xl leading-none font-semibold tabular-nums", V8_NUM)}>{team}</span>
         <span className="min-w-0">
           <span className="block truncate font-medium group-hover:underline">{t?.name ?? (loaded ? `Team ${team}` : " ")}</span>
           {t?.place && <span className="block truncate text-xs text-text-muted">{t.place}</span>}
@@ -399,10 +403,11 @@ function TeamRow({ team, season, t, loaded }: { team: number; season: number; t:
   const sched = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
   const next = sched.data ? nextMatch(sched.data.matches) : undefined;
   const pWin = next ? callFor(next, team) : null;
+  const morph = useMorphCard(teamMorphKey(team), `/teams/${team}`, () => warmTeam(team));
   return (
     <li data-your-team>
-      <Link to={`/teams/${team}`} className={cn(rowLink, "py-1.5")}>
-        <span className={cn("w-14 shrink-0 font-display text-base font-semibold tabular-nums", V8_NUM)}>{team}</span>
+      <Link to={`/teams/${team}`} {...morph} className={cn(rowLink, "py-1.5")}>
+        <span data-morph-title className={cn("w-14 shrink-0 font-display text-base font-semibold tabular-nums", V8_NUM)}>{team}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium group-hover:underline">{t?.name ?? (loaded ? `Team ${team}` : " ")}</span>
           <span data-team-next className="block truncate text-xs text-text-muted">

@@ -4,6 +4,7 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { recordWords } from "../shared/format";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { teamMorphKey, useMorphTarget } from "../components/CardMorph";
 import { leagueHref, leagueTitle } from "../shared/leagues";
 import { CONFERENCE_REGION, ordinal, type TeamConferenceInfo } from "../shared/conferences";
 import { useConferenceGate } from "../lib/conferenceGate";
@@ -185,6 +186,8 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
   // The end of the header: the phone action bar shows once it has scrolled away.
   const [headerEnd, setHeaderEnd] = useState<HTMLDivElement | null>(null);
   const matchHref = predictHref({ mode: "match", season: p.season, red: [t.number] });
+  // The card morph's landing spot: a tapped team card's number glides onto this one (src/components/CardMorph.tsx).
+  const morphNumber = useMorphTarget(teamMorphKey(t.number));
   return (
     <>
     <Reveal fade={false} className="mb-8 max-sm:mb-5 overflow-hidden rounded-2xl border border-border bg-card">
@@ -195,7 +198,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
           <p className="relative text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">FTC team · {seasonLabel(p.season)}</p>
           {/* The heading is the number and name together (what people search for), styled as two lines. */}
           <h1 className="relative mt-1">
-            <span className="block font-display text-5xl font-semibold leading-none tracking-tight sm:text-6xl">{t.number}</span>
+            <span {...morphNumber} className="block w-fit font-display text-5xl font-semibold leading-none tracking-tight sm:text-6xl">{t.number}</span>
             {t.name && <span className="mt-2 block break-words font-sans text-xl font-normal tracking-normal text-foreground/90"><span className="sr-only"> </span>{t.name}</span>}
           </h1>
           {!t.name && <p className="relative mt-2 break-words text-xl text-foreground/90">Name not on file</p>}
@@ -883,6 +886,7 @@ function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s:
   const t = p.team;
   const loc = place(t.city, t.state, t.country);
   const line = [t.school, loc, t.rookieYear ? `Rookie year ${t.rookieYear}` : null].filter(Boolean) as string[];
+  const morphNumber = useMorphTarget(teamMorphKey(t.number));
   return (
     <>
       <header className="mb-5 max-sm:mb-4" data-team-hero>
@@ -891,7 +895,7 @@ function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s:
             <p className="text-xs text-text-faint" data-eyebrow>FTC team</p>
             {/* The heading is the number and name together (what people search for). */}
             <h1 className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="font-display text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums text-accent sm:text-[3.25rem]" data-team-number>{t.number}</span>
+              <span {...morphNumber} className="font-display text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums text-accent sm:text-[3.25rem]" data-team-number>{t.number}</span>
               {t.name && <span className="min-w-0 break-words font-sans text-xl font-semibold tracking-tight text-text-base sm:text-[1.375rem]"><span className="sr-only"> </span>{t.name}</span>}
             </h1>
             {!t.name && <p className="mt-1 text-lg text-text-muted">Name not on file</p>}
