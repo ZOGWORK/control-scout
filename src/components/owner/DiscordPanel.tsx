@@ -53,9 +53,13 @@ export function DiscordPanel() {
       toast.success(none ? "That server has no cap. Its counters start afresh." : `Saved that server's cap: ${capWords({ perHour, perDay })}. Its counters start afresh.`);
       setGuild(""); setHour(""); setDay("");
     } catch (err) {
-      // A server already uncapped has nothing to clear, which is the state a blank save asked for.
-      if (none && (err as ApiError).status === 409) toast.success("That server already has no cap.");
-      else toast.error((err as ApiError).message);
+      // Already uncapped (another owner got there first): that is the state the blank save asked for, so show it and
+      // refresh, so the table can't keep showing a cap someone else has taken away.
+      if (none && (err as ApiError).status === 409) {
+        toast.success("That server already has no cap.");
+        setGuild(""); setHour(""); setDay("");
+        void state.reload();
+      } else toast.error((err as ApiError).message);
     } finally { setBusy(null); }
   };
 
@@ -72,9 +76,11 @@ export function DiscordPanel() {
   return (
     <Section title="Discord bot"
       description="No server is capped by default. Give one a cap in chats an hour and a day (counted in UTC windows) and it replaces both windows for that server; take it away again whenever you like. Either write starts that server's counters afresh. At a cap, /ask and a mention say when it resets; the site and the server's follow posts keep working.">
-      <Async state={state} empty={(d) => !d.servers.length && <EmptyState icon={Bot} title="No servers yet" description="A server appears here once its people ask the bot something or follow a team." />}>
+      {/* The form stays outside the empty state: clearing the last known server's cap must not take the way to set it. */}
+      <Async state={state}>
         {(d) => (
           <div className="space-y-4">
+            {d.servers.length ? (
             <div className="overflow-x-auto rounded-xl border border-border">
               <Table>
                 <TableHeader>
@@ -115,6 +121,9 @@ export function DiscordPanel() {
                 </TableBody>
               </Table>
             </div>
+            ) : (
+              <EmptyState icon={Bot} title="No servers yet" description="A server appears here once its people ask the bot something or follow a team. You can still give one a cap by its id below." />
+            )}
 
             <form onSubmit={save} className="rounded-xl border border-border bg-card p-4">
               <h3 className="font-medium">Give a server its own cap</h3>

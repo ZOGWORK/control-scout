@@ -90,6 +90,13 @@ export function editDistance(a: string, b: string, max: number): number {
   return prev[b.length];
 }
 
+/** The word a typo check draws from: the longest plain word of at least 5 letters, or null when the name has none.
+ *  Search corrects nothing in a word of 3 letters or fewer and one edit in a word of 4 (`allowedEdits`,
+ *  src/shared/fuzzy.ts), so a 4-letter word's one-letter typo is 3 and can never be reached: a check built on it would
+ *  fail on a name search is right not to guess at ("G-Bots", whose "Bots" is 4). */
+export const typoWord = (name: string): string | null =>
+  name.split(/\s+/).filter((w) => /^\p{L}+$/u.test(w) && w.length >= 5).sort((a, b) => b.length - a.length)[0] ?? null;
+
 /** A misspelling a reader could tell apart: one edit from this team's name and more than one from every other's. */
 export const unambiguousTypo = (typo: string, team: number, names: { number: number; name: string }[]): boolean => {
   const t = fold(typo);

@@ -39,7 +39,7 @@ const { completedSeason, refreshSearchSeason, teamSeason } = await import("../se
 const { searchAnswer } = await import("../server/api/searchAnswer.js");
 const { seasonLabel } = await import("../src/shared/format.js");
 const { SHAPES, paraphrases, rng, sample, pick } = await import("../server/api/query/eval/generate.js");
-const { newestSeason, teamTruth, teamsPlayed, opponentsOf, allNames, unambiguousTypo } = await import("../server/api/query/eval/truth.js");
+const { newestSeason, teamTruth, teamsPlayed, opponentsOf, allNames, typoWord, unambiguousTypo } = await import("../server/api/query/eval/truth.js");
 type Answer = Awaited<ReturnType<typeof searchAnswer>>;
 
 const index = await names();
@@ -147,11 +147,13 @@ for (const t of teams) {
   // than one from every other team's, picked from the names table (never search's own nearest-name reader): one a
   // reader could tell apart.
   if (t.name && t.unique) {
-    const words = t.name.split(/\s+/), long = words.reduce((x, y) => (y.length > x.length ? y : x));
-    const i = 1 + Math.floor(r() * (long.length - 2));
-    const typo = words.map((w) => (w === long ? w.slice(0, i) + w.slice(i + 1) : w)).join(" ").toLowerCase();
-    if (long.length >= 6) typoCases++;
-    if (long.length >= 6 && unambiguousTypo(typo, t.number, everyName)) {
+    // A typo search can correct is in a word of 5+ letters (allowedEdits: none up to 3, one up to 7), so a name
+    // without one gets no typo check: its typo would be 3 letters, which search never guesses at ("G-Bots").
+    const long = typoWord(t.name);
+    if (long) typoCases++;
+    const i = long ? 1 + Math.floor(r() * (long.length - 2)) : 0;
+    const typo = long ? t.name.split(/\s+/).map((w) => (w === long ? w.slice(0, i) + w.slice(i + 1) : w)).join(" ").toLowerCase() : "";
+    if (long && unambiguousTypo(typo, t.number, everyName)) {
       typos++;
       const a = await ask(`${typo} record`);
       const reached = a.stat?.team?.number === t.number || a.hits.slice(0, 3).some((h) => h.kind === "team" && h.ref === String(t.number)) || !!a.didYouMean?.toLowerCase().includes(long.toLowerCase());

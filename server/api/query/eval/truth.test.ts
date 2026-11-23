@@ -1,7 +1,7 @@
 // The eval's typo cases (./truth.ts): a misspelling is checked only when it is one edit from its team's name and more
 // than one from every other team's, decided from the names alone, never by search's own nearest-name reader.
 import { describe, expect, it } from "vitest";
-import { editDistance, unambiguousTypo } from "./truth";
+import { editDistance, typoWord, unambiguousTypo } from "./truth";
 
 describe("typo cases", () => {
   it("counts edits, stopping past the limit", () => {
@@ -9,6 +9,14 @@ describe("typo cases", () => {
     expect(editDistance("coper lanterns", "copper lanterns", 1)).toBe(1);
     expect(editDistance("copper", "cobalt", 1)).toBe(2);
     expect(editDistance("a", "abcdef", 1)).toBe(2);
+  });
+
+  it("draws a typo only from a word search can correct", () => {
+    expect(typoWord("RoboFalcons Red")).toBe("RoboFalcons");
+    expect(typoWord("Pymble Pride")).toBe("Pymble");
+    // "Bots" is 4 letters: its one-letter typo is 3, which search never corrects (allowedEdits), so G-Bots gets none.
+    expect(typoWord("G-Bots")).toBeNull();
+    expect(typoWord("Team 42")).toBeNull();
   });
 
   it("keeps a typo only one team's name is near", () => {
