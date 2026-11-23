@@ -171,10 +171,23 @@ answer now, never on a guide or an explanation.
 split where another question starts — "what is like the best team rn, where are they from and what is their auto opr"
 is three parts, while "4215 and 6980 opr" stays whole because the words after "and" aren't a question — filler words
 like "like" and "rn" are dropped, each part is searched on its own with learning off, and every part's facts are sent
-after the message's own, up to three parts and twelve lines so a broad part can't crowd out the records the message is
-about. A part that finds nothing adds nothing; his method line then says to answer each part the facts cover and name
-the part they don't. The board a "best team" question answers with carries where the team is and its OPR phases
-(`server/api/searchBrunoAnswer.ts`), so "where are they from" and "their auto opr" are answered by the same answer.
+after the message's own, up to three parts and eighteen lines, each part keeping its share so a broad board can't crowd
+out the follow-up's records. A part that finds nothing adds nothing; his method line then says to answer each part the
+facts cover and name the part they don't. The board a "best team" question answers with carries where the team is and
+its OPR phases (`server/api/searchBrunoAnswer.ts`), so "where are they from" and "their auto opr" are answered by the
+same answer.
+
+**A part that leans on an earlier one** is asked with its subject, never as the dead fragment nobody can search: a
+pronoun takes the team the earlier part's answer names — after a board whose #1 is 23268, "where are they from" asks
+"where are 23268 from" and "what is their auto opr" asks "what is 23268 auto opr" — and a part with nothing but its own
+frame is asked as the thing it asks about, so "…and who is by" after "what is the bio buzz world record" is
+"bio buzz world record", the record's card naming the alliance that set it. That's the same question typed into
+controlscout.org/search, and the same answer comes back.
+
+**The records post beside his words.** When search found the records a chat is about, the answer posts as Bruno's text
+*and* the site's card: the same board or record card `/search` shows, its video and its "ask next" buttons, linked to the
+part's own answer rather than the whole message search. A message search couldn't read, and Control Scout's own
+fallback for a greeting, post as text alone — never a "Sorry" card next to a good answer.
 
 Replying to his answer
 carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each, and keeps them in the
