@@ -55,6 +55,9 @@ describe("the owner console's Discord bot panel", () => {
   it("reads a server without a cap as No cap, with nothing to clear", () => {
     render(<DiscordPanel />);
     expect(screen.getByText("No cap")).toBeTruthy();
+    // Empty boxes suggest no cap, not the old 30/100 defaults.
+    expect(screen.getByLabelText("Chats an hour").getAttribute("placeholder")).toBe("No cap");
+    expect(screen.getByLabelText("Chats a day").getAttribute("placeholder")).toBe("No cap");
     expect(screen.queryByText("Back to default")).toBeNull();
     expect(screen.getByRole("heading", { name: "Discord bot" })).toBeTruthy();
   });
@@ -94,6 +97,24 @@ describe("the owner console's Discord bot panel", () => {
     expect(h.reload).not.toHaveBeenCalled();
     expect((screen.getByLabelText("Chats an hour") as HTMLInputElement).value).toBe("60");
     expect((screen.getByLabelText("Server id") as HTMLInputElement).value).toBe(GUILD);
+  });
+
+  it("doesn't read a failed blank save as already uncapped, and keeps the server id", async () => {
+    apiFetch.mockRejectedValueOnce(new ApiError(500, "Something broke"));
+    fillAndSave("", "");
+    await waitFor(() => expect(h.error).toHaveBeenCalledWith("Something broke"));
+    expect(h.success).not.toHaveBeenCalled();
+    expect(h.reload).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("Server id") as HTMLInputElement).value).toBe(GUILD);
+  });
+
+  it("doesn't read a 409 on a real cap as already uncapped", async () => {
+    apiFetch.mockRejectedValueOnce(new ApiError(409, "That server has no cap of its own"));
+    fillAndSave("60", "300");
+    await waitFor(() => expect(h.error).toHaveBeenCalledWith("That server has no cap of its own"));
+    expect(h.success).not.toHaveBeenCalled();
+    expect(h.reload).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("Chats an hour") as HTMLInputElement).value).toBe("60");
   });
 
   it("reports a failed clear as an error, without claiming the cap is gone", async () => {
