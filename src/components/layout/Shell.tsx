@@ -362,7 +362,7 @@ function MobileTabs() {
   return (
     // Its colour runs on below the screen's edge (the after: strip): whatever a phone draws under the bar (Safari's
     // toolbar zone, the bounce past the page's end) is the bar, never the page-end glow peeking out.
-    <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary pb-[env(safe-area-inset-bottom)] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-secondary md:hidden" aria-label="Main">
+    <nav data-tab-bar className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary pb-[env(safe-area-inset-bottom)] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-secondary md:hidden" aria-label="Main">
       {tabs.map((id) => {
         const t = tabDef(id);
         // My team / My teams: the YOURS row decides the label, where it goes and when it's lit (src/lib/yoursRow.ts).
