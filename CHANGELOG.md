@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.3 — 2026-11-23
+
+Bruno answers the questions people type in Discord — several at once — with the records for each part, instead of "I couldn't find that in what I have".
+
+### Highlights
+- [alerts] A question that asks three things is answered three times
+- [alerts] "Best team, where from, auto OPR" comes from the board itself
+- [alerts] "BIOBUZZ world record, and who set it" reads each part
+- [alerts] Unit 4215 is still the answer to "who won that match"
+
+### Discord bot
+- **Bruno's lookups** (`bot/tools.ts`, `bot/ask.ts`): a Discord message often asks more than one thing at once — "what is like the best team rn, where are they from and what is their auto opr", "what is the bio buzz world record rn and who is by" — and search answers one question at a time, so the model was left with nothing and said it couldn't find the data. The message is now split at the point another question starts (never inside one: "4215 and 6980 opr" stays whole), filler dropped ("like", "rn"), each part searched on its own with learning off, and every part's facts sent with the message's own — the calls an agent would make, run for him. Bounded to three parts and twelve fact lines, so a broad part can't crowd the message's own records out. `bot/tools.test.ts` covers both screenshot questions, a compound that must stay whole, the cap, and a part that finds nothing; `bot/ask.test.ts` that the parts' facts reach the chat after the message's.
+- **A multi-part message is answered part by part** (`bot/productFacts.ts`): his method line now says so — answer each part the facts cover and name the part they don't — so a missing part is said plainly instead of sinking the whole reply.
+
+### Search
+- **A leaderboard's facts name where the team is, and on an OPR board its Auto, TeleOp and Endgame OPR** (`server/api/searchBrunoAnswer.ts`): the row held them for the page but they never reached Bruno, so "where are they from" and "what's their auto OPR" had no number to stand on and he refused. The line now reads "#1 23268 Ultraviolet (Oradell, NJ): OPR 101.6, record 26-6-0, Auto OPR 30.2 · TeleOp OPR 55.1 · Endgame OPR 16.3"; a board ranked by something else keeps its own `parts` out (a penalty count isn't a phase OPR). `server/api/searchBrunoAnswer.test.ts` covers both.
+
 ## 7.9.2 — 2026-11-23
 
 Discord answers now come with buttons and a 👍/👎, a whole event can be followed, the owner console shows servers by name with the bot's own numbers, and the questions the bot misses feed the site's failed-search list.

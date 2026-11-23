@@ -29,11 +29,13 @@ export const brunoPersona = () =>
   "anything outside this chat.";
 
 /** How he works a question out, sent with every Discord chat: reason first, use the thread and the channel's teams,
- *  show a calculation, and say what's missing rather than guess. Inside Control Point's 400-character fact cap. */
+ *  answer every part of a message that asks several things (bot/tools.ts brings each part's facts), show a calculation,
+ *  and say what's missing rather than guess. Inside Control Point's 400-character fact cap. */
 export const brunoMethod = () =>
-  "Think before you answer: work out what is really being asked (a follow-up leans on the thread and the channel's " +
-  "teams), pick the fact that answers it, and show a calculation's steps briefly. If the facts don't hold it, say what's " +
-  "missing rather than guessing. Be specific and cut filler — any length you need, none you don't.";
+  "Think before you answer: work out what is asked (a follow-up leans on the thread and the channel's teams; a message " +
+  "may ask several things, so answer each part the facts cover and say which part they don't), pick the fact that " +
+  "answers it, and show a calculation's steps briefly. If the facts don't hold it, say what's missing rather than " +
+  "guessing. Cut filler: any length you need, none you don't.";
 
 /** How a chat answer is shaped, sent with every Discord chat (bot/ask.ts): a records question stays a line or two, a
  *  question about how something works gets a short structured answer, and a request to explain how to build something
