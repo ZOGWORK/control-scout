@@ -1,7 +1,7 @@
 // /ask: the website's search answer as one embed, Bruno only where the site would use him, credited only then.
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
-import { BRUNO_CREDIT, DESCRIPTION_MAX, affirmative, ask, askEmbed, askNext, chatContext, chatPost, fitLines, offeredQuestion, videoLinks, type AskDeps } from "./ask";
+import { BRUNO_CREDIT, DESCRIPTION_MAX, affirmative, ask, askEmbed, askNext, chatContext, chatPost, declined, fitLines, offeredQuestion, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 import { SORRY_SENTENCE } from "../src/shared/search";
 import { NO_CHAT, NO_REPLY } from "./smallTalk";
@@ -354,6 +354,34 @@ describe("a yes to the question he offered", () => {
     const e = deps(base());
     expect((await ask("yes", e, SITE)).resolved).toBeUndefined();
     expect(e.search).toHaveBeenCalledWith("yes");
+  });
+});
+
+describe("a no to the question he offered", () => {
+  const offer = { role: "bruno" as const, text: "The BIOBUZZ world record is 288 points, scored twice. Also want 4215's record?" };
+  const thread = [{ role: "user" as const, text: "what is the bio buzz world record rn and who is by" }, offer];
+
+  it("reads a no on its own, never a no that asks something", () => {
+    for (const n of ["no", "No!", "nope", "nah", "no thanks", "no thank you", "not now", "not right now", "maybe later", "not today", "I'm good thanks", "we're good", "no need", "don't bother", "skip it", "pass"]) expect(declined(n), n).toBe(true);
+    // A no with a question after it asks that one, a number names a team, and "not sure" neither accepts nor declines.
+    for (const q of ["no, what about 6980", "no 4215", "no clue who won decode", "not sure", "not bad", "yes", ""]) expect(declined(q), q).toBe(false);
+  });
+
+  it("declines politely: nothing is searched or chatted, and the record is left for later", async () => {
+    const d = deps(base(), { chat: vi.fn(async () => ({ text: "shouldn't be asked", search: false })) });
+    const r = await ask("no thanks", d, SITE, thread);
+    expect(d.search).not.toHaveBeenCalled();
+    expect(d.chat).not.toHaveBeenCalled();
+    expect(r.resolved).toBe("4215's record");
+    expect(r.chat!.by).toBe("scout");
+    expect(r.chat!.text).toMatch(/^No problem — I'll leave 4215's record for now\./);
+    expect(r.chat!.text).toMatch(/say the word/);
+  });
+
+  it("leaves a no with nothing offered as typed", async () => {
+    const d = deps(base());
+    await ask("no", d, SITE);
+    expect(d.search).toHaveBeenCalledWith("no");
   });
 });
 
