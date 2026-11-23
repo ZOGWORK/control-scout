@@ -475,7 +475,7 @@ export async function syncBugIssues(now = Date.now()): Promise<number> {
     `SELECT id, issue_number, reopened_at FROM bug_reports WHERE status = 'open' AND issue_number IS NOT NULL
        ORDER BY issue_checked_at IS NOT NULL, issue_checked_at, id DESC LIMIT ?`, [ISSUE_CHECK_MAX]);
   if (!rows.length) return 0;
-  let states: Map<number, IssueState>;
+  let states: Map<number, IssueState> & { failed?: unknown };
   try {
     states = await issueStates(token, rows.map((r) => Number(r.issue_number)));
   } catch (e) {
@@ -503,6 +503,11 @@ export async function syncBugIssues(now = Date.now()): Promise<number> {
     if (!done) continue;
     closed++;
     await recordAudit("system", "bugReport.issueClosed", { id: Number(r.id), issue: Number(r.issue_number), reason: s.state, by: s.by?.label ?? null }).catch(() => {});
+  }
+  // A later batch failed: the earlier ones are applied above; the failure is still reported (and pauses on a limit).
+  if (states.failed) {
+    if (states.failed instanceof GithubError && states.failed.retryAt) githubPausedUntil = Math.max(githubPausedUntil, states.failed.retryAt);
+    throw states.failed;
   }
   return closed;
 }
