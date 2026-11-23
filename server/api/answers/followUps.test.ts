@@ -188,6 +188,9 @@ describe("people also ask", () => {
       expect(f.highlights).toBeUndefined();
       expect([...f.ask, ...f.related].filter((x) => /\b\d{3,}\b/.test(x.q)).map((x) => x.q)).toEqual([]);
       expect(f.ask.some((x) => /New Jersey/.test(x.q))).toBe(true);
+      // Its related searches are about the place too: its boards there.
+      expect(f.related.length).toBeGreaterThan(0);
+      expect(f.related.every((x) => /new jersey/i.test(x.q)), f.related.map((x) => x.q).join(" ; ")).toBe(true);
     } finally {
       await run("DELETE FROM teams WHERE number = 50");
       await rebuildSearch();
