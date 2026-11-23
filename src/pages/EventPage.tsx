@@ -37,6 +37,7 @@ import { AdvancedTeams } from "../components/AdvancedTeams";
 import { Projections } from "../components/Projections";
 import { OFFLINE_FORECAST } from "../lib/offline/readers";
 import { cn } from "../components/cn";
+import { eventMorphKey, useMorphTarget } from "../components/CardMorph";
 import { ROSTER_CHIP_TONE } from "../lib/textTones";
 import { OfflineNote } from "../components/OfflineNote";
 import { EventGlance } from "../components/EventGlance";
@@ -99,6 +100,8 @@ export default function EventPage() {
 function Event({ d, path }: { d: EventDetail; path: string }) {
   const [sp, setSp] = useSearchParams();
   const e = d.event;
+  // The card morph's landing spot: a tapped event card's title glides here (src/components/CardMorph.tsx).
+  const morphTitle = useMorphTarget(eventMorphKey(e.season, e.code));
   // v8: the page is built around the event's state (live / finished / upcoming), components/EventFocus.tsx.
   const v8 = useIsV8();
   const st = eventState(e.status);
@@ -257,7 +260,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">{statusBadge}<span className="text-xs text-text-faint">{e.typeLabel} · <span className="font-mono">{e.code}</span> · {seasonLabel(e.season)}</span></div>
-            <h1 className="mt-2 text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">{e.name}</h1>
+            <h1 {...morphTitle} className="mt-2 text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">{e.name}</h1>
             <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-muted">
               <span className="inline-flex items-center gap-1.5"><CalendarDays className="size-4" aria-hidden />{dateRange(e.start, e.end)}</span>
               {(e.venue || e.city) && (
@@ -305,7 +308,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent opacity-15 blur-3xl v8:hidden" />
           <div className="relative flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <h1 className={cn("font-display text-xl font-semibold tracking-tight sm:text-2xl", V8_TITLE)}>{e.name}</h1>
+              <h1 {...morphTitle} className={cn("font-display text-xl font-semibold tracking-tight sm:text-2xl", V8_TITLE)}>{e.name}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                 {statusBadge}
                 <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>
@@ -336,7 +339,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               {typeChip}
               <span className="font-mono text-xs text-muted-foreground v8:text-text-faint">{e.code} · {seasonLabel(e.season)}</span>
             </div>
-            <h1 className={cn("mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl", V8_TITLE)}>{e.name}</h1>
+            <h1 {...morphTitle} className={cn("mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl", V8_TITLE)}>{e.name}</h1>
             {live}
             {facts(true)}
           </div>
