@@ -35,14 +35,15 @@ export const brunoMethod = () =>
   "teams), pick the fact that answers it, and show a calculation's steps briefly. If the facts don't hold it, say what's " +
   "missing rather than guessing. Be specific and cut filler — any length you need, none you don't.";
 
-/** How a chat answer is shaped, sent with every Discord chat (bot/ask.ts): a records question stays a line or two, and
- *  a question about how something works gets a short structured answer — a bold summary, a couple of paragraphs or a
- *  few bullets — instead of one clipped sentence. Inside Control Point's 400-character fact cap. */
+/** How a chat answer is shaped, sent with every Discord chat (bot/ask.ts): a records question stays a line or two, a
+ *  question about how something works gets a short structured answer, and a request to explain how to build something
+ *  gets the steps — the shape "write a detailed guide on making a coaxial swerve drive" used to miss, answered as a
+ *  records question with an OPR nudge. Inside Control Point's 400-character fact cap. */
 export const answerStyle = () =>
-  "How to answer in Discord: a records question gets the number first, then a line or two. A question about how or why " +
-  "something works gets a one-line **bold** summary, then 2 or 3 short paragraphs or up to 5 '- ' bullets, key terms in " +
-  "**bold**, 600-1,200 characters. No headings, tables or code. End with one short question the facts can answer, e.g. " +
-  "'Also want 4215's record?'";
+  "Shapes: records gets the number, then a line or two. How/why gets a **bold** summary, 2-3 short paragraphs or 5 " +
+  "'- ' bullets. A how-to or build guide (\"how do I make a swerve drive\") gets a bold one-line answer then 3-6 " +
+  "numbered steps with parts, sizes and numbers; 1,000-1,800 chars is fine. No headings, tables or code. Add \"Also " +
+  "want 4215's record?\" only on a records answer.";
 
 /** Unambiguous product questions bypass team-name search, even when Bruno is unavailable.
  * This is information only: there is deliberately no flag read/write or Discord action. */
