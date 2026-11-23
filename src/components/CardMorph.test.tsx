@@ -1,0 +1,103 @@
+// @vitest-environment jsdom
+// The card morph's guard rails: only cards inside a MorphScope take part, reduced motion (or no Web Animations) is the
+// plain cut, and a run always takes its layer down and shows the page again, even when the page never draws its title.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { MorphScope, eventMorphKey, useMorphCard, useMorphTarget } from "./CardMorph";
+import { MORPH_MS, MORPH_WAIT_MS, launchMorph, morphAllowed, resetMorphForTests } from "../lib/cardMorph";
+
+const KEY = eventMorphKey(2025, "USCAFFFAQ");
+
+function Card() {
+  const morph = useMorphCard(KEY, "/events/2025/USCAFFFAQ");
+  return <a href="#e" {...morph} data-testid="card"><span data-morph-title>Qualifier</span></a>;
+}
+function Title() {
+  const t = useMorphTarget(KEY);
+  return <h1 {...t}>Qualifier</h1>;
+}
+
+let reduce = false;
+beforeEach(() => {
+  reduce = false;
+  vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduce") ? reduce : false, addEventListener() {}, removeEventListener() {} }));
+  // jsdom has no layout: give every element a visible box, and Web Animations that finish at once.
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ left: 10, top: 100, width: 300, height: 48, right: 310, bottom: 148, x: 10, y: 100, toJSON() {} } as DOMRect);
+  (Element.prototype as unknown as { animate: unknown }).animate = function () {
+    // Finishes on the next tick, as a browser's does once its time is up: onfinish, then the finished promise.
+    const a: Record<string, unknown> = { cancel() {}, finish() {}, pause() {}, play() {}, currentTime: 0, playbackRate: 1, effect: null, commitStyles() {}, addEventListener() {}, removeEventListener() {} };
+    a.finished = new Promise<void>((done) => setTimeout(() => { (a.onfinish as (() => void) | undefined)?.(); done(); }, 0));
+    return a;
+  };
+  const main = document.createElement("main");
+  main.id = "main";
+  document.body.append(main);
+});
+afterEach(() => {
+  resetMorphForTests();
+  cleanup();
+  document.body.innerHTML = "";
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+  delete (Element.prototype as unknown as { animate?: unknown }).animate;
+});
+
+describe("card morph", () => {
+  it("cards outside a MorphScope carry nothing: no key, no tap handler (the plain cut)", () => {
+    render(<MemoryRouter><Card /></MemoryRouter>);
+    expect(screen.getByTestId("card").hasAttribute("data-morph-key")).toBe(false);
+  });
+
+  it("inside a MorphScope the card is keyed, and the page's title is marked as the landing spot", () => {
+    render(<MemoryRouter><MorphScope><Card /></MorphScope><Title /></MemoryRouter>);
+    expect(screen.getByTestId("card").getAttribute("data-morph-key")).toBe(KEY);
+    expect(screen.getByRole("heading").getAttribute("data-morph-target")).toBe(KEY);
+  });
+
+  it("reduced motion, or no Web Animations: never runs", () => {
+    reduce = true;
+    expect(morphAllowed()).toBe(false);
+    render(<MemoryRouter><MorphScope><Card /></MorphScope></MemoryRouter>);
+    expect(launchMorph(screen.getByTestId("card"), KEY, () => {})).toBe(false);
+    expect(document.querySelector("[data-card-morph]")).toBeNull();
+    reduce = false;
+    delete (Element.prototype as unknown as { animate?: unknown }).animate;
+    expect(morphAllowed()).toBe(false);
+  });
+
+  it("a modified click (new tab) doesn't start a run", () => {
+    render(<MemoryRouter><MorphScope><Card /></MorphScope></MemoryRouter>);
+    fireEvent.click(screen.getByTestId("card"), { metaKey: true });
+    expect(document.querySelector("[data-card-morph]")).toBeNull();
+  });
+
+  it("a tap draws the layer over the page, lands on the title, then takes the layer down and shows the page", async () => {
+    render(<MemoryRouter><MorphScope><Card /></MorphScope><Title /></MemoryRouter>);
+    fireEvent.click(screen.getByTestId("card"));
+    const layer = document.querySelector("[data-card-morph]");
+    expect(layer?.querySelector("[data-morph-title]")?.textContent).toBe("Qualifier");
+    await vi.waitFor(() => expect(document.querySelector("[data-card-morph]")).toBeNull());
+    expect(document.getElementById("main")!.style.opacity).toBe("");
+  });
+
+  it("the page changes once the layer's first frame is painted, with the old page hidden under the layer", async () => {
+    render(<MemoryRouter><MorphScope><Card /></MorphScope></MemoryRouter>);
+    const go = vi.fn();
+    expect(launchMorph(screen.getByTestId("card"), KEY, go)).toBe(true);
+    expect(go).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(go).toHaveBeenCalledTimes(1));
+    expect(document.getElementById("main")!.style.opacity).toBe("0");
+  });
+
+  it("a page that never draws its title: the layer still goes, the page still opens and is shown", async () => {
+    vi.useFakeTimers();
+    render(<MemoryRouter><MorphScope><Card /></MorphScope></MemoryRouter>);
+    const go = vi.fn();
+    expect(launchMorph(screen.getByTestId("card"), KEY, go)).toBe(true);
+    await vi.advanceTimersByTimeAsync(MORPH_MS + MORPH_WAIT_MS + 700);
+    expect(go).toHaveBeenCalledTimes(1);
+    expect(document.querySelector("[data-card-morph]")).toBeNull();
+    expect(document.getElementById("main")!.style.opacity).toBe("");
+  });
+});
