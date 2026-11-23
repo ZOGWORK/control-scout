@@ -21,6 +21,7 @@ import { LockBusy, withDataLock } from "../data/lock.js";
 import { applyStoryboards, isStoryboardDelivery, storyboardShape, type StoryboardDelivery } from "./storyboards.js";
 import { recordAudit } from "../portal/audit.js";
 import { clearClipCaches } from "../caches.js";
+import { seenUnserved } from "./coverage.js";
 import type { AutoReadChange, AutoReadKind, OwnerAutoReads, PendingAutoRead, PendingReview } from "../../src/shared/api.js";
 
 /** Who the audit names for what the autopilot hands over. */
@@ -427,6 +428,31 @@ async function seasonOf(videoId: string, code: string): Promise<number> {
   return frameRowSeason(videoId, code) ?? Number((await get<{ season: number }>("SELECT MAX(season) AS season FROM events WHERE code = ?", [code]))?.season ?? 0);
 }
 
+/** A start a frame row holds for a match at second `t` (rounded) that the site doesn't serve and the owner hasn't
+ *  approved: one its event's coverage row lists as missing, seen in that video at that second (Found in the video:
+ *  out of the played order, overlapping another, its opening frame not naming it). A served start is never one. */
+async function unservedStart(row: FrameTiming, label: string, t: number): Promise<{ t: number; why: string } | null> {
+  const s = row.starts[label];
+  if (s == null || Math.round(s) !== t || row.approved?.includes(label)) return null;
+  const season = await seasonOf(row.videoId, row.code);
+  const c = await get<{ detail: string }>("SELECT detail FROM clip_coverage WHERE season = ? AND code = ? AND with_clip < played", [season, row.code]);
+  let missing: { label?: string; videoId?: string | null; video?: { seenAt?: number } }[] = [];
+  try { missing = JSON.parse(String(c?.detail ?? "{}")).missing ?? []; } catch { /* unreadable: not listed */ }
+  const listed = missing.some((m) => m.label === label && m.videoId === row.videoId && m.video?.seenAt != null && Math.round(m.video.seenAt) === t);
+  if (!listed) return null;
+  // And still not a clip now (a neighbour approved, a re-read since the stored check): worked out live.
+  const live = await seenUnserved(season, row.code);
+  const now = live?.get(label);
+  return !live || (now?.videoId === row.videoId && now.t === t) ? { t, why: "Seen in the video at this second, but the site didn't serve it as a clip" } : null;
+}
+
+/** Whether the owner already said Not this match at (about) that second: decided, so a stale Clip from (another tab)
+ *  is refused, never turning the rejection round. */
+async function rejectedAt(k: { videoId: string; code: string; label: string; t: number }): Promise<boolean> {
+  const d = await get<{ t: number }>("SELECT t FROM review_decisions WHERE video_id = ? AND code = ? AND label = ? AND decision = 'rejected'", [k.videoId, k.code, k.label]);
+  return d != null && Math.abs(Number(d.t) - k.t) <= SAME_S;
+}
+
 type ReviewBody = { videoId?: unknown; code?: unknown; label?: unknown; t?: unknown };
 function reviewKey(b: ReviewBody): { videoId: string; code: string; label: string; t: number } | null {
   const videoId = typeof b.videoId === "string" && VIDEO_ID.test(b.videoId) ? b.videoId : null;
@@ -437,7 +463,7 @@ function reviewKey(b: ReviewBody): { videoId: string; code: string; label: strin
 }
 const reviewGone = { ok: false as const, status: 409, error: "This match changed or was decided since you opened it: look again." };
 
-/** Approve a review entry: `t` becomes the match's clip start, written into the event's live row in the database (the
+/** Approve a review entry (or a start the read holds that the site doesn't serve, unservedStart): `t` becomes the match's clip start, written into the event's live row in the database (the
  *  code's row copied there first), with its opening CLIP_LEAD_S before it where the row checks openings, out of review
  *  and missing, owner-approved. Only the entry the owner saw (its second `t`). */
 export async function approveReview(body: ReviewBody, actor: string, now = Date.now()): Promise<Out> {
@@ -447,10 +473,14 @@ async function approveReviewLocked(body: ReviewBody, actor: string, now = Date.n
   const k = reviewKey(body);
   if (!k) return { ok: false, status: 400, error: "Not a match waiting for approval." };
   if ((await liveSig()) !== loadedSig) await loadAutoReads();
-  const row = frameRow(k.videoId, k.code), e = row?.review?.[k.label];
-  if (!row || !e || Math.round(e.t) !== k.t || frameStart(k.videoId, k.code, k.label) != null) return reviewGone;
+  const row = frameRow(k.videoId, k.code), r = row?.review?.[k.label];
+  // A review entry not served yet; else a start the read already holds at that second that the site doesn't serve
+  // (it breaks the played order, overlaps another, or its opening frame didn't name it: Found in the video).
+  const e = r ? (Math.round(r.t) === k.t && frameStart(k.videoId, k.code, k.label) == null ? r : null) : row && await unservedStart(row, k.label, k.t);
+  if (!row || !e || await rejectedAt(k)) return reviewGone;
   const next: FrameTiming = { ...row, starts: { ...row.starts, [k.label]: k.t } };
   if (row.opens) next.opens = { ...row.opens, [k.label]: Math.max(0, k.t - CLIP_LEAD_S) };
+  if (row.opens?.[k.label] != null && !r) next.opens = row.opens;
   const review = { ...row.review }; delete review[k.label];
   if (Object.keys(review).length) next.review = review; else delete next.review;
   if (row.missing?.[k.label] != null) { const missing = { ...row.missing }; delete missing[k.label]; if (Object.keys(missing).length) next.missing = missing; else delete next.missing; }
@@ -476,14 +506,22 @@ export async function rejectReview(body: ReviewBody, actor: string, now = Date.n
 async function rejectReviewLocked(body: ReviewBody, actor: string, now = Date.now()): Promise<Out> {
   const k = reviewKey(body);
   if (!k) return { ok: false, status: 400, error: "Not a match waiting for approval." };
-  const e = frameRow(k.videoId, k.code)?.review?.[k.label];
-  if (!e || Math.round(e.t) !== k.t) return reviewGone;
+  // The live rows another process may have changed (an approval, a newer read): never a decision on a start gone.
+  if ((await liveSig()) !== loadedSig) await loadAutoReads();
+  const row = frameRow(k.videoId, k.code), r = row?.review?.[k.label];
+  const e = r ? (Math.round(r.t) === k.t ? r : null) : row && await unservedStart(row, k.label, k.t);
+  if (!e) return reviewGone;
   const season = await seasonOf(k.videoId, k.code);
   await run(`INSERT INTO review_decisions (video_id, code, label, season, t, decision, decided_by, decided_at) VALUES (?, ?, ?, ?, ?, 'rejected', ?, ?)
     ON CONFLICT (video_id, code, label) DO UPDATE SET t = excluded.t, decision = excluded.decision, decided_by = excluded.decided_by, decided_at = excluded.decided_at`,
   [k.videoId, k.code, k.label, season, k.t, actor, new Date(now).toISOString()]);
   await recordAudit(actor, "autoReads.reviewReject", { videoId: k.videoId, season, code: k.code, label: k.label, t: k.t, why: e.why });
   return { ok: true };
+}
+
+/** Every undecided review entry with its event's season: Owner › Clip coverage's Found in the video. */
+export async function reviewFindings(): Promise<{ videoId: string; season: number; code: string; label: string; t: number; why: string }[]> {
+  return Promise.all((await reviewEntries()).map(async (e) => ({ videoId: e.videoId, season: await seasonOf(e.videoId, e.code), code: e.code, label: e.label, t: e.t, why: e.why })));
 }
 
 /** The review entries for the owner's list, newest season first, with each event's name. */

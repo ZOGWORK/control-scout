@@ -351,6 +351,42 @@ describe("the frames' review entries: matches seen in the video, kept off the si
     expect(frameStart(V1, "XXAUTO", "Q3")).toBeNull();
   });
 
+  it("Approve and Reject also take a start the row holds that the site doesn't serve (Found in the video)", async () => {
+    // Its event's coverage row lists the matches missing, seen in the video at that second (the row's season, whichever
+    // the test's frame row reads as).
+    const listed = async (seen: Record<string, number>) => {
+      const missing = Object.entries(seen).map(([label, at]) => ({ key: label, label, date: "2025-11-01", clip: false, videoId: V1, video: { checked: "2026-11-20", seenAt: at } }));
+      for (const season of [0, 2025]) {
+        await run(`INSERT OR REPLACE INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail) VALUES (?, 'XXAUTO', 'x', 'x', 'partial', 10, 5, 'k', ?)`,
+          [season, JSON.stringify({ videos: [], daysMissing: [], missing })]);
+      }
+    };
+    await listed({ Q3: 1010, Q4: 1005 });
+    // Q3 at 1010 overlaps Q2 at 1000: neither served. Approving Q3 serves it as it is; Q2 comes back beside it.
+    setFrameTimingsForTests([frame({ starts: { Q1: 600, Q2: 1000, Q3: 1010 } })]);
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBeNull();
+    // Q1 is served at 600 (not listed missing): nothing to approve or reject there.
+    expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q1", t: 600 })).status).toBe(409);
+    expect((await post("/auto-reads/review/reject", { videoId: V1, code: "XXAUTO", label: "Q1", t: 600 })).status).toBe(409);
+    expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1011 })).status).toBe(409);
+    expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1010 })).status).toBe(200);
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBe(1010);
+    expect(frameStart(V1, "XXAUTO", "Q2")).toBe(1000);
+    expect(frameRow(V1, "XXAUTO")).toMatchObject({ approved: ["Q3"], opens: { Q1: 588, Q2: 995, Q3: 990 } });
+    // Approved already: nothing left to approve.
+    expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1010 })).status).toBe(409);
+    // Not this match: recorded at that second, nothing goes live.
+    setFrameTimingsForTests([frame({ checked: "2026-11-25", starts: { Q1: 600, Q2: 1000, Q4: 1005 } })]);
+    expect((await post("/auto-reads/review/reject", { videoId: V1, code: "XXAUTO", label: "Q4", t: 1005 })).status).toBe(200);
+    expect(await get("SELECT decision, t FROM review_decisions WHERE label = 'Q4'")).toEqual({ decision: "rejected", t: 1005 });
+    expect(frameStart(V1, "XXAUTO", "Q4")).toBeNull();
+    // A stale Clip from (another tab) after that answer is refused: the rejection stands.
+    expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q4", t: 1005 })).status).toBe(409);
+    expect(await get("SELECT decision FROM review_decisions WHERE label = 'Q4'")).toEqual({ decision: "rejected" });
+    // A match the row holds no start for is nothing to decide.
+    expect((await post("/auto-reads/review/reject", { videoId: V1, code: "XXAUTO", label: "Q9", t: 1005 })).status).toBe(409);
+  });
+
   it("Reject stops listing it at that second; nothing goes live", async () => {
     setFrameTimingsForTests([reviewed()]);
     const out = await post("/auto-reads/review/reject", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1400 });
