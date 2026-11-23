@@ -16,7 +16,7 @@ import { V8_STATUS } from "./v8tone";
 import { RecordText, better } from "./answerCells";
 import { compareSides, compareTeams, eventFacts, teamParts } from "./results";
 import { eventName } from "./records";
-import { eventMorphKey, teamMorphKey, useMorphCard, warmEvent, warmTeam } from "../../CardMorph";
+import { eventMorphKey, teamLink, teamMorphKey, useMorphCard, warmEvent, warmTeam } from "../../CardMorph";
 
 /** "View event →": where the card goes, as part of the card's own link. */
 function Cta({ children }: { children: string }) {
@@ -121,9 +121,11 @@ export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?:
   // The title's link covers the whole card (the tap target). On a phone its own actions (VS Compare, Shortlist,
   // Matches) sit under it (PhoneTeamActions.tsx).
   // The card grows into the team's page, its number gliding onto the page's big number (src/components/CardMorph.tsx).
+  // Only a link to the team's own page morphs (a team at an event opens the event's page instead).
   const parts = teamParts(h.title);
-  const team = Number(h.ref);
-  const { onClick: morphTap, ...morphCard } = useMorphCard(teamMorphKey(team), hitHref(h), () => warmTeam(team));
+  const href = hitHref(h);
+  const link = teamLink(href);
+  const { onClick: morphTap, ...morphCard } = useMorphCard(link ? teamMorphKey(link.team) : "", href, () => { if (link) warmTeam(link.team, link.season); });
   return (
     <div data-result="team" {...morphCard} className="lift group relative flex min-h-14 items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
       <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Shield className="size-4" aria-hidden /></span>
