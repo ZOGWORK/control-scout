@@ -11,9 +11,9 @@
 // unconfigured, failing, slow or naming a number not in the facts falls back to the card, and says why in the log
 // (`[bot] chat off: …`, `[bot] chat failed: …`), so a deployment can be diagnosed from the bot's journal.
 //
-// A question search couldn't answer that a records question could be (a number in it, or search found something) is also
-// fed to the site's failed-search queue (server/searchFailures.ts), so the phrasings people use in Discord improve the
-// website's search too: those words never reach the search box.
+// A question the bot couldn't answer that was about the records — a record number in it, or a records word with no build
+// word in it — is also fed to the site's failed-search queue (server/searchFailures.ts, bot/asks.ts's recordsMiss), so
+// the phrasings people use in Discord improve the website's search too: those words never reach the search box.
 import type { APIEmbed } from "discord.js";
 import type { SearchAnswer, SearchCardLine, SearchHit, SearchVideo } from "../src/shared/api.js";
 import { watchUrl } from "../src/shared/recording.js";

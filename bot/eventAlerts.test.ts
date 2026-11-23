@@ -87,6 +87,14 @@ describe("one post per team where it matters", () => {
 describe("an event follow", () => {
   const fe = (event: string, channel = "c1"): Follow => ({ guild_id: "g", channel_id: channel, kind: "event", team: null, event, created_at: "2026-10-01T00:00:00Z", failures: 0 });
 
+  it("the schedule waits for a day: pairings with no time yet would claim the key with a placeholder", () => {
+    const d = detail([{ ...q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4]), startsAt: null, time: null }], { status: "live" });
+    expect(eventDue([fe("X")], d, local("2026-10-24", "10:00")).map((x) => x.kind)).not.toContain("schedule");
+    // Once a day is known it posts, so the placeholder never becomes the event's only schedule post.
+    const timed = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4])], { status: "live" });
+    expect(eventDue([fe("X")], timed, local("2026-10-24", "10:00")).map((x) => x.kind)).toContain("schedule");
+  });
+
   it("the evening before, the schedule once posted, and a recap at the end of each day — with no team named", () => {
     const d = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80])], { status: "live" });
     // The evening before it starts: the event's own eve, and (its quals are posted) its schedule.

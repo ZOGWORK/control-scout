@@ -565,7 +565,9 @@ describe("the answer's buttons", () => {
 
   it("records what it was asked, and adds 👍 and 👎 to the answer", async () => {
     const noteAsk = vi.fn(async () => {});
-    const trackAnswer = vi.fn(async () => {});
+    // A row write the test decides when to finish, so "before" and "after" are both observable.
+    let written: () => void = () => {};
+    const trackAnswer = vi.fn(() => new Promise<void>((r) => { written = r; }));
     const react = vi.fn(async (_emoji: string) => ({}));
     const h = createHandler(() => {}, lookups({ noteAsk, trackAnswer }));
     const c = command("ask", { question: "who won decode" });
@@ -574,7 +576,11 @@ describe("the answer's buttons", () => {
     await h(c.i);
     expect(noteAsk).toHaveBeenCalledWith({ question: "who won decode", step: "deterministic", chat: false, answered: true, ms: expect.any(Number), guild: "g1" });
     expect(trackAnswer).toHaveBeenCalledWith("m9", "g1");
-    // The row goes in first, then the emoji: a click the moment they render must find it.
+    // The row goes in first, then the emoji: a click the moment they render must find it, so nothing is added while the
+    // write is still in flight.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(react).not.toHaveBeenCalled();
+    written();
     await new Promise((r) => setTimeout(r, 0));
     expect(react.mock.calls.map((x) => x[0])).toEqual(["👍", "👎"]);
   });
