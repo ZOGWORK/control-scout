@@ -2720,6 +2720,21 @@ ALTER TABLE discord_threads ADD COLUMN guild_id TEXT;
 CREATE INDEX IF NOT EXISTS discord_threads_guild ON discord_threads (guild_id);
 `,
   },
+  {
+    version: 103,
+    name: "bug reports follow their GitHub issue",
+    sql: `
+-- A filed bug report follows its GitHub issue (server/bugReports.ts, syncBugIssues): once the issue is closed, the
+-- report is closed here too and says how. issue_state: 'open', 'completed' or 'not_planned' as GitHub last answered
+-- (NULL: not checked yet); issue_closed_at: when GitHub closed it; closed_by_url / closed_by_label: the pull request
+-- or commit that closed it, when GitHub names one ("PR #1561"). A report the owner reopens here keeps its closed
+-- issue_state, so the next check doesn't close it again.
+ALTER TABLE bug_reports ADD COLUMN issue_state TEXT;
+ALTER TABLE bug_reports ADD COLUMN issue_closed_at TEXT;
+ALTER TABLE bug_reports ADD COLUMN closed_by_url TEXT;
+ALTER TABLE bug_reports ADD COLUMN closed_by_label TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

@@ -137,9 +137,10 @@ export class GithubError extends Error {
  *  uncertain: the write may have gone through. */
 export const refused = (e: unknown) => e instanceof GithubError && e.status >= 400 && e.status < 500;
 
-/** `path` is under the repository ("/issues"), or absolute from the API root when it starts with "/search/". */
+/** `path` is under the repository ("/issues"), or absolute from the API root when it starts with "/search/" or is
+ *  "/graphql". */
 export async function gh<T>(token: string, method: "GET" | "POST" | "PATCH", path: string, body?: unknown): Promise<T> {
-  const url = path.startsWith("/search/") ? `https://api.github.com${path}` : `https://api.github.com/repos/${GITHUB_REPO}${path}`;
+  const url = path.startsWith("/search/") || path === "/graphql" ? `https://api.github.com${path}` : `https://api.github.com/repos/${GITHUB_REPO}${path}`;
   const res = await (fetchImpl ?? fetch)(url, {
     method,
     headers: {
