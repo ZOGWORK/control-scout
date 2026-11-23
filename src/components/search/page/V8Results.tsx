@@ -16,6 +16,7 @@ import { RowPlay } from "./AnswerVideo";
 import { V8_SOFT, v8Tile, type SoftColour } from "./v8tone";
 import { eventFacts, teamParts } from "./results";
 import type { SeasonSummary } from "./ResultCards";
+import { teamLink, teamMorphKey, useMorphCard, warmTeam } from "../../CardMorph";
 
 const searchHref = (q: string) => `/search?q=${encodeURIComponent(q)}`;
 /** How a reading is said (shared/api SearchUnderstood kinds). */
@@ -196,15 +197,20 @@ export function RowGroup({ title, count, children, cap = 5, id }: { title: strin
 
 const ROW = "flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-sm hover:bg-ink/[0.04]";
 
-/** A team as a plain row: number and name, its place, its record and OPR on the right. */
+/** A team as a plain row: number and name, its place, its record and OPR on the right. Inside a MorphScope (the
+ *  search page's sections) a tap grows the row into the team's page, its number gliding onto the page's big number;
+ *  a team link to anywhere else (a team at an event) stays a plain link. */
 export function TeamRow({ h, summary, onOpen }: { h: SearchHit; summary?: SeasonSummary; onOpen: () => void }) {
   const p = teamParts(h.title);
   const s = summary?.s;
+  const href = hitHref(h);
+  const link = teamLink(href);
+  const { onClick: morphTap, ...morph } = useMorphCard(link ? teamMorphKey(link.team) : "", href, () => { if (link) warmTeam(link.team, link.season); });
   return (
-    <Link to={hitHref(h)} onClick={onOpen} className={ROW} data-row="team">
+    <Link to={href} {...morph} onClick={(ev) => { onOpen(); morphTap?.(ev); }} className={ROW} data-row="team">
       <Shield className="size-4 shrink-0 text-text-muted" aria-hidden />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-foreground"><span className="font-medium tabular-nums text-accent">{p?.number ?? h.ref}</span>{p?.name && <span> {p.name}</span>}</span>
+        <span className="block truncate text-foreground"><span data-morph-title className="font-medium tabular-nums text-accent">{p?.number ?? h.ref}</span>{p?.name && <span> {p.name}</span>}</span>
         {h.subtitle && <span className="block truncate text-xs text-text-muted">{h.subtitle}</span>}
       </span>
       {s && (s.record || s.opr != null) && (

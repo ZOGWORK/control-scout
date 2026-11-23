@@ -7,6 +7,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { SearchHit } from "../shared/api";
 import { EventCard, TeamCard } from "./search/page/ResultCards";
+import { TeamRow } from "./search/page/V8Results";
 import { MorphScope, eventMorphKey, teamLink, teamMorphKey } from "./CardMorph";
 import { resetMorphForTests } from "../lib/cardMorph";
 
@@ -115,5 +116,39 @@ describe("card morph on the search page's cards", () => {
     fireEvent.click(quick!);
     expect(launched.cards).toEqual([]);
     expect(document.querySelector("[data-card-morph]")).toBeNull();
+  });
+});
+
+describe("card morph on the v8 search page's team rows", () => {
+  it("outside a MorphScope a row is a plain link", () => {
+    const { container } = render(<MemoryRouter><TeamRow h={teamHit} onOpen={() => {}} /></MemoryRouter>);
+    expect(container.querySelector("[data-morph-key]")).toBeNull();
+  });
+
+  it("inside one, the row grows into the team's page, its number the title, and the page's request is warmed", () => {
+    const onOpen = vi.fn();
+    const h = { ...teamHit, linkSeason: 2024 } as unknown as SearchHit;
+    const { container } = render(<MemoryRouter><MorphScope name="search-team"><TeamRow h={h} onOpen={onOpen} /></MorphScope></MemoryRouter>);
+    const row = container.querySelector<HTMLElement>("[data-row='team']")!;
+    expect(row.getAttribute("data-morph-key")).toBe(teamMorphKey(4215));
+    expect(row.getAttribute("data-morph-slot")).toBe("search-team");
+    expect(row.querySelector("[data-morph-title]")?.textContent).toBe("4215");
+    fireEvent.click(row);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(launched.cards).toEqual([row]);
+    expect(document.querySelector("[data-card-morph]")).not.toBeNull();
+    expect(loads.paths).toEqual(["/api/teams/4215?season=2024"]);
+  });
+
+  it("a team at an event stays a plain link (its page is the event's)", () => {
+    const onOpen = vi.fn();
+    const h = { ...teamHit, atEvent: "2025:USNJCMP" } as unknown as SearchHit;
+    const { container } = render(<MemoryRouter><MorphScope name="search-team"><TeamRow h={h} onOpen={onOpen} /></MorphScope></MemoryRouter>);
+    const row = container.querySelector<HTMLElement>("[data-row='team']")!;
+    expect(row.hasAttribute("data-morph-key")).toBe(false);
+    fireEvent.click(row);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(launched.cards).toEqual([]);
+    expect(loads.paths).toEqual([]);
   });
 });
