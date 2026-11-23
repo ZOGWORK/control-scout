@@ -37,6 +37,9 @@ export function DiscordPanel() {
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    // One cap write at a time: two overlapping writes could each cache their own snapshot, and the older one could
+    // land last. Every button below is disabled while one is in flight, and this is the guard behind them.
+    if (busy) return;
     const g = guild.trim();
     if (!GUILD.test(g)) { toast.error("That isn't a Discord server id (a long number). In Discord: right-click the server → Copy Server ID."); return; }
     const perHour = fromBox(hour), perDay = fromBox(day);
@@ -64,6 +67,7 @@ export function DiscordPanel() {
   };
 
   const backToDefault = async (g: string) => {
+    if (busy) return;
     setBusy(g);
     try {
       prime(PATH, await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "DELETE", json: {} }));
@@ -115,7 +119,7 @@ export function DiscordPanel() {
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{s.lastAsk ? ago(s.lastAsk) : "never"}</TableCell>
                       <TableCell className="text-right">
                         {s.custom && (
-                          <Button size="sm" variant="ghost" disabled={busy === s.guild} onClick={() => void backToDefault(s.guild)}>
+                          <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => void backToDefault(s.guild)}>
                             {busy === s.guild ? "Clearing…" : "Back to default"}
                           </Button>
                         )}
@@ -145,7 +149,7 @@ export function DiscordPanel() {
                   <span className="mb-1 block text-muted-foreground">Chats a day</span>
                   <Input value={day} onChange={(e) => setDay(e.target.value)} placeholder="100" inputMode="numeric" className="tabular-nums max-sm:h-10" />
                 </label>
-                <Button type="submit" disabled={busy === "save"}>{busy === "save" ? "Saving…" : "Save cap"}</Button>
+                <Button type="submit" disabled={!!busy}>{busy === "save" ? "Saving…" : "Save cap"}</Button>
               </div>
             </form>
           </div>
