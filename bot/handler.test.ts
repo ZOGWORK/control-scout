@@ -2,7 +2,7 @@
 // friendly errors for every failure (never the exception's words).
 import { describe, expect, it, vi } from "vitest";
 import type { APIEmbed } from "discord.js";
-import { answered, createHandler, type Lookups, type Memory, type MentionMessage } from "./handler";
+import { answered, createHandler, shownName, type Lookups, type Memory, type MentionMessage } from "./handler";
 import type { Filed, Report } from "./report";
 import { Friendly } from "./views";
 import { AnswerCache } from "./guard";
@@ -821,6 +821,27 @@ describe("what the server has taught the bot", () => {
     expect(mem.learn).toHaveBeenCalledWith("g1", "u1", "Alex", [4215]);
   });
 
+  it("uses the name Discord shows — the server's nickname first, not the @handle", async () => {
+    // The person is "Lucas" in this server and "ChosenYogurt" as a handle: an answer to "what is my name?" must say
+    // Lucas, so the nickname is what is learned and what this very answer is told.
+    const mem = memory({ recall: vi.fn(async () => ({ teams: [], name: "ChosenYogurt" })) });
+    const l = lookups({ memory: mem, ask: chatAnswer() });
+    const { m } = message(`<@${BOT}> what is my name?`, { globalName: "ChosenYogurt", username: "chosen.yogurt" }, { member: { displayName: "Lucas" } });
+    await createHandler(() => {}, l).mention(m, BOT);
+    expect(mem.learn).toHaveBeenCalledWith("g1", "u1", "Lucas", []);
+    expect(vi.mocked(l.ask).mock.calls[0][2]).toEqual(["The person asking goes by Lucas here."]);
+  });
+
+  it("/ask reads the member's nickname too", async () => {
+    const mem = memory();
+    const c = command("ask", { question: "what is my name?" });
+    c.i.guildId = "g1";
+    c.i.user = { id: "u1", globalName: "ChosenYogurt", username: "chosen.yogurt" };
+    c.i.member = { nick: "Lucas" };
+    await createHandler(() => {}, lookups({ memory: mem, ask: chatAnswer() }))(c.i);
+    expect(mem.learn).toHaveBeenCalledWith("g1", "u1", "Lucas", []);
+  });
+
   it("a reply to an answer from before a restart still carries its thread", async () => {
     const turns = [{ role: "user" as const, text: "who won decode" }, { role: "bruno" as const, text: "30030 won." }];
     const mem = memory({ thread: vi.fn(async () => turns) });
@@ -854,6 +875,17 @@ describe("what the server has taught the bot", () => {
     await createHandler(() => {}, l).mention(m, BOT);
     expect(l.ask).toHaveBeenCalledTimes(1);
     expect(sent[0].embeds).toEqual([]);
+  });
+});
+
+describe("the name an answer uses", () => {
+  it("is the server's nickname, then Discord's display name, then the username — never blank", () => {
+    expect(shownName({ globalName: "ChosenYogurt", username: "chosen.yogurt" }, { displayName: "Lucas" })).toBe("Lucas");
+    expect(shownName({ globalName: "ChosenYogurt", username: "chosen.yogurt" }, { nick: "Lucas" })).toBe("Lucas");
+    expect(shownName({ globalName: "ChosenYogurt", username: "chosen.yogurt" }, null)).toBe("ChosenYogurt");
+    expect(shownName({ username: "chosen.yogurt" })).toBe("chosen.yogurt");
+    expect(shownName({ globalName: "  ", username: "chosen.yogurt" }, { displayName: " " })).toBe("chosen.yogurt");
+    expect(shownName({})).toBeNull();
   });
 });
 

@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.9 — 2026-11-23
+
+Asked "what is my name?", Control Scout answers with the name Discord shows in that server — the nickname everyone sees — instead of the @handle.
+
+### Highlights
+- [scout] The bot calls you by the name Discord shows, not your @handle
+- [scout] A nickname you change is right on the next question
+- [fixes] A server's reports name the reporter the same way
+
+### Discord bot
+- **The name Discord shows** (`bot/handler.ts` `shownName`, `bot/memory.ts`): what an answer calls a person — and what a "Report this to ControlScout" says the reporter is called — is now their nickname in that server, then Discord's display name, then the username, never a blank. The name is read from the message or interaction itself (`member.displayName` is discord.js's own answer, nickname first; `nick` covers an interaction's raw member) and given to that ask's own memory lines, so an answer to "what is my name?" uses the name Discord shows now, not the @handle first remembered, and `/ask`, a mention, a button's follow-up and a report all read the same three steps. The remembered name is still updated on every ask, so a nickname change is right from the next question on. `bot/handler.test.ts` covers the three fallbacks, a mention whose member has a nickname, and a `/ask` that only carries `nick`.
+
 ## 7.9.8 — 2026-11-23
 
 A 👎 on one of Control Scout's answers files the question that got the wrong answer in the site's own failed-search list, so the words people use in Discord improve controlscout.org/search too.
