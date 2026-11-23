@@ -275,6 +275,11 @@ describe("follows", () => {
     const u = inGuild("unfollow", { event: "Austin Qualifier" });
     await h(u.i);
     expect(l.unfollow).toHaveBeenLastCalledWith("g1", { kind: "event", event: "USTXAUQ" }, null);
+    // An event from an earlier season isn't in the list any more, and its follow can still be stopped by its code.
+    const l2 = lookups({ eventCode: vi.fn(async () => { throw new Error("Event not found"); }) });
+    const h2 = createHandler(() => {}, l2);
+    await h2(inGuild("unfollow", { event: "ustxauq" }).i);
+    expect(l2.unfollow).toHaveBeenCalledWith("g1", { kind: "event", event: "USTXAUQ" }, null);
   });
 
   it("never cached: a second /following reads again", async () => {
@@ -569,6 +574,8 @@ describe("the answer's buttons", () => {
     await h(c.i);
     expect(noteAsk).toHaveBeenCalledWith({ question: "who won decode", step: "deterministic", chat: false, answered: true, ms: expect.any(Number), guild: "g1" });
     expect(trackAnswer).toHaveBeenCalledWith("m9", "g1");
+    // The row goes in first, then the emoji: a click the moment they render must find it.
+    await new Promise((r) => setTimeout(r, 0));
     expect(react.mock.calls.map((x) => x[0])).toEqual(["👍", "👎"]);
   });
 

@@ -28,6 +28,10 @@ describe("the question store", () => {
     expect(buttonQuestion(b, "follow:4215")).toBeNull();
     const id = b.put("4215 opr");
     expect(buttonQuestion(b, id, 0)).toBe("4215 opr");
+    // Two processes each count from 0: their first ids still differ, so an old message's button never asks what a
+    // restarted bot's first answer offers.
+    expect(new QuestionButtons().put("who won decode")).not.toBe(new QuestionButtons().put("who won decode"));
+    expect(new QuestionButtons().get(id)).toBeNull();
   });
 
   it("keeps at most QUESTIONS_MAX questions, dropping the oldest", () => {

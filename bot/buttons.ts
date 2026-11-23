@@ -32,10 +32,13 @@ export const buttonLabel = (s: string) => {
 export class QuestionButtons {
   private m = new Map<string, { question: string; at: number }>();
   private n = 0;
+  /** This store's own mark, in every id: a restarted bot starts counting again at 0, and its first `ask:0` must not be
+   *  the answer to an old message's `ask:0` (that would ask a stranger's question in this channel). */
+  private readonly epoch = Math.random().toString(36).slice(2, 8);
 
   /** Keep a question and return the custom id a button uses for it. */
   put(question: string, now = Date.now()): string {
-    const id = `${ASK_PREFIX}${(this.n++).toString(36)}`;
+    const id = `${ASK_PREFIX}${this.epoch}:${(this.n++).toString(36)}`;
     this.m.set(id, { question, at: now });
     // Oldest first: a Map iterates in insertion order.
     while (this.m.size > QUESTIONS_MAX) this.m.delete(this.m.keys().next().value!);

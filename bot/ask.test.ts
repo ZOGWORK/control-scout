@@ -458,6 +458,9 @@ describe("the site's failed-search queue", () => {
     // A chat that answers it does teach it nothing: the person got their answer.
     await ask(q, deps(nothing(q), { refine: vi.fn(async () => null), facts: vi.fn(async () => []), chat: vi.fn(async () => ({ text: "30030 won.", search: false })), miss }), SITE, [], [], "g1");
     expect(miss).not.toHaveBeenCalled();
+    // A greeting is not a records question just because an earlier turn in the thread named a team: smallTalk answers it.
+    await ask("thanks", deps(nothing("thanks"), { refine: vi.fn(async () => null), miss }), SITE, [{ role: "user", text: "who won 4215" }], [], "g1");
+    expect(miss).not.toHaveBeenCalled();
   });
 });
 

@@ -70,7 +70,7 @@ export interface Unanswered {
 export async function topUnanswered(limit = 10, now = Date.now()): Promise<Unanswered[]> {
   if (limit <= 0) return [];
   const rows = await all<{ question: string; count: number; step: string | null; last_at: string; servers: number }>(
-    `SELECT question, COUNT(*) AS count, step, MAX(asked_at) AS last_at, COUNT(DISTINCT COALESCE(guild_id, '')) AS servers
+    `SELECT question, COUNT(*) AS count, step, MAX(asked_at) AS last_at, COUNT(DISTINCT guild_id) AS servers
        FROM discord_asks WHERE answered = 0 AND asked_at >= ?
       GROUP BY lower(trim(question)) ORDER BY count DESC, last_at DESC LIMIT ?`,
     [new Date(now - KEEP_DAYS * 86_400_000).toISOString(), Math.min(50, limit)],

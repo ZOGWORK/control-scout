@@ -227,8 +227,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   function watchVotes(sent: unknown, guild: string | null): void {
     const m = sent as { id?: string; react?: (emoji: string) => Promise<unknown> } | undefined;
     if (!m?.id) return;
-    void lookups.trackAnswer?.(m.id, guild)?.catch(() => {});
-    for (const emoji of [GOOD, BAD]) void m.react?.(emoji)?.catch(() => {});
+    // The row goes in before the emoji does: a click that arrives the moment the emoji renders must find the answer it
+    // counts on, or the vote updates no row and is lost.
+    const tracked = lookups.trackAnswer?.(m.id, guild) ?? Promise.resolve();
+    void Promise.resolve(tracked).catch(() => {}).then(() => {
+      for (const emoji of [GOOD, BAD]) void m.react?.(emoji)?.catch(() => {});
+    });
   }
   /** The thread a post of the bot's carries on, by its message id: every turn up to and including that answer. */
   const threads = new Map<string, BrunoChatTurn[]>();
@@ -324,13 +328,21 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
 
   /** The team or event a /follow or /unfollow names: exactly one of them, or a friendly error. An event is resolved
    *  from its code or its exact name, so `/follow event:Austin Qualifier` works typed by hand as well as picked. */
-  async function followTarget(i: ChatInputCommandInteraction): Promise<FollowTarget> {
+  async function followTarget(i: ChatInputCommandInteraction, keepStale = false): Promise<FollowTarget> {
     const team = i.options.getInteger("team");
     const event = (i.options.getString("event") ?? "").trim();
     if (team && event) throw new Friendly("One at a time", "Follow a team or an event, not both: `/follow team:4215` or `/follow event:USTXAUQ`.");
     if (team) return { kind: "team", team };
-    if (event) return { kind: "event", event: lookups.eventCode ? await lookups.eventCode(event) : event.toUpperCase() };
-    throw new Friendly("Team or event?", "Say what to follow: `/follow team:4215` for a team's matches, or `/follow event:USTXAUQ` for a whole event.");
+    if (!event) throw new Friendly("Team or event?", "Say what to follow: `/follow team:4215` for a team's matches, or `/follow event:USTXAUQ` for a whole event.");
+    if (!lookups.eventCode) return { kind: "event", event: event.toUpperCase() };
+    try {
+      return { kind: "event", event: await lookups.eventCode(event) };
+    } catch (e) {
+      // Unfollowing takes what was typed as a code too: a follow from an earlier season is no longer in the event list,
+      // and it must still be possible to stop it.
+      if (keepStale) return { kind: "event", event: event.toUpperCase() };
+      throw e;
+    }
   }
 
   /** The server's follows: never cached (they change), and only inside a server. */
@@ -338,7 +350,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const guild = i.guildId;
     if (!guild) throw new Friendly("Servers only", "Follows belong to a server: use this in one of its channels.");
     if (i.commandName === "following") return lookups.following(guild);
-    const target = await followTarget(i);
+    const target = await followTarget(i, i.commandName === "unfollow");
     const name = followName(target);
     const picked = i.options.getChannel("channel")?.id ?? null;
     const where = picked ? ` in <#${picked}>` : "";
