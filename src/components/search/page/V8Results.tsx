@@ -37,15 +37,18 @@ export function UnderstoodLine({ query, understood, className }: { query: string
 }
 
 /** The 2–4 most useful next questions as chips: People also ask's first (each a whole question search answers), then
- *  related searches; a link to every related search after them. */
-export function FollowChips({ ask, related, seeAll, className }: { ask: SearchFollowUp[]; related: SearchFollowUp[]; seeAll?: string; className?: string }) {
+ *  related searches; a link to every related search after them. `lead`: the most specific ones, first (a shared
+ *  name's question asked of each of its teams, "is 12096 a real team"): with them the row is titled Related searches,
+ *  one row with the rest, never a second row of its own. */
+export function FollowChips({ lead = [], ask, related, seeAll, className }: { lead?: string[]; ask: SearchFollowUp[]; related: SearchFollowUp[]; seeAll?: string; className?: string }) {
   const chips = useMemo(() => {
     const seen = new Set<string>();
-    return [...ask, ...related].filter((x) => !seen.has(x.q.toLowerCase()) && seen.add(x.q.toLowerCase())).slice(0, 4);
-  }, [ask, related]);
-  if (chips.length < 2) return null;
-  return (
-    <nav aria-label="Ask next" className={cn("flex flex-wrap items-center gap-2", className)} data-follow-chips>
+    const first = lead.map((q) => ({ q }) as SearchFollowUp);
+    return [...first, ...[...ask, ...related].slice(0, 8)].filter((x) => !seen.has(x.q.toLowerCase()) && seen.add(x.q.toLowerCase())).slice(0, first.length + 4);
+  }, [lead, ask, related]);
+  if (chips.length < (lead.length ? 1 : 2)) return null;
+  const row = (
+    <nav aria-label={lead.length ? "Related searches" : "Ask next"} className={cn("flex flex-wrap items-center gap-2", !lead.length && className)} data-follow-chips>
       {chips.map((x) => (
         <Link key={x.q} to={searchHref(x.q)} title={x.preview}
           className="inline-flex min-h-9 max-w-full items-center rounded-full border border-ink/12 px-3.5 text-sm text-foreground transition-[background-color,border-color,transform] duration-150 ease-out hover:border-ink/25 hover:bg-ink/[0.06] active:scale-[0.97] motion-reduce:active:scale-100 max-md:min-h-[44px]"
@@ -59,6 +62,13 @@ export function FollowChips({ ask, related, seeAll, className }: { ask: SearchFo
         </Link>
       )}
     </nav>
+  );
+  if (!lead.length) return row;
+  return (
+    <section className={className} data-related-lead>
+      <h2 className="mb-2 text-sm font-medium text-text-muted">Related searches</h2>
+      {row}
+    </section>
   );
 }
 

@@ -15,7 +15,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
-import { BrunoAnswer } from "../components/search/BrunoAnswer";
+import { BrunoAnswer, useBrunoAsks } from "../components/search/BrunoAnswer";
 import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
@@ -45,7 +45,7 @@ import { HighlightReel } from "../components/search/page/HighlightReel";
 import { EventRow, FollowChips, MatchRows, PlainRow, RowGroup, TeamRow, UnderstoodLine, V8TeamAnswer, standoutRows } from "../components/search/page/V8Results";
 import { EventTree } from "../components/search/page/EventTree";
 import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters, type Statuses } from "../components/search/page/results";
-import { headingOver, unreadNote } from "../shared/searchPage";
+import { headingOver, namesSaid, unreadNote } from "../shared/searchPage";
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -219,6 +219,13 @@ export default function SearchPage() {
   // Search answered it directly (a card or a stat answer, not a guess): Bruno isn't asked, so the page never shows his
   // card and the answer saying the same thing twice.
   const answered = !!answer && !answer.weak && !!(answer.card || answer.stat);
+  // v8: a question search has no direct answer to (a names reading, a list, a fallback) is Bruno's to answer: his card
+  // leads the page, its slot held from the first frame (the owner, 11-23). A computed summary keeps his card where it was.
+  const brunoAsks = useBrunoAsks(q, answered);
+  // A shared name's reading, said as a plain line heading the names list, never as the page's biggest words.
+  const namesLine = v8 && ax?.understood?.kind === "names"
+    ? namesSaid(ax.understood.label, hits.filter((h) => h.kind === "team").map((h) => teamParts(h.title)?.name ?? "").filter(Boolean))
+    : null;
   // v8: a team asked for by itself (its highlights answer, or a team reading with nothing else to answer) is answered
   // with its compact summary; its standout matches go below as rows.
   const teamAnswer = useMemo(() => {
@@ -237,6 +244,7 @@ export default function SearchPage() {
   // v8: a team's highlights as video cards, first when the search asked for highlights (its answer lists every match:
   // a "videos" block), else under the team's card.
   const reel = v8 && answer?.stat?.intent === "team-highlights" ? (answer.stat.blocks.some((b) => b.kind === "videos") ? "lead" : "under") : null;
+  const brunoLeads = v8 && brunoAsks && !(apps.length > 0 || !!quality);
   const summary = (
     <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
@@ -294,11 +302,21 @@ export default function SearchPage() {
       {/* Phones: the bar (above the column), then a short header ("Results: …"), no eyebrow. */}
       {/* The accent is the selected control's alone on this page (the active time tab): the eyebrow is plain. */}
       <p className="text-xs font-semibold text-muted-foreground v8:hidden max-md:hidden" data-eyebrow>FTC One Search</p>
-      <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl v8:font-sans v8:text-[1.375rem] v8:leading-7 v8:md:text-[1.375rem] v8:lg:text-[1.375rem]" data-page-title>
+      {/* v8: a question search can't answer directly leads with Bruno's answer, under the search box (desktop: the
+          results column's width, beside where People also ask starts). */}
+      {brunoLeads && query && found && !error && (
+        <div className={cn("mb-5", side && "lg:pr-[24rem]")} data-bruno-lead>
+          <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} lead />
+        </div>
+      )}
+      <h1 className={cn("mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl v8:font-sans v8:text-[1.375rem] v8:leading-7 v8:md:text-[1.375rem] v8:lg:text-[1.375rem]",
+        // Under his answer, or a names list's own line: a plain label, never the page's biggest words.
+        (brunoLeads || namesLine) && found && "v8:mt-0 v8:text-base v8:font-medium v8:leading-6 v8:tracking-normal v8:md:text-base v8:lg:text-base")} data-page-title data-heading-size={(brunoLeads || namesLine) && found ? "label" : undefined}>
         {/* Nothing answered (a question search can't answer yet, or nothing found): the page says sorry, once, here. */}
-        {!query ? "Search" : ax?.notInPack && !busy && !error ? "Not in your downloaded pack" : ax?.sorry && !busy && !error ? SORRY_SENTENCE : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : SORRY_SENTENCE}
+        {!query ? "Search" : ax?.notInPack && !busy && !error ? "Not in your downloaded pack" : ax?.sorry && !busy && !error ? SORRY_SENTENCE : found ? namesLine ?? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : SORRY_SENTENCE}
       </h1>
-      {v8 && query && found && !busy && !error && <UnderstoodLine query={query} understood={ax?.understood} className="mt-2" />}
+      {/* Not when the heading already says the reading (a shared name's line). */}
+      {v8 && query && found && !busy && !error && !namesLine && <UnderstoodLine query={query} understood={ax?.understood} className="mt-2" />}
       {badge && !v8 && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground v8:bg-transparent v8:text-muted-foreground" data-context-badge>
           <ScanSearch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span className="min-w-0 break-words">{badge}</span>
@@ -346,8 +364,8 @@ export default function SearchPage() {
                   <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />{ax.understood.fallback}
                 </p>
               )}
-              {ax?.sorry ? <SorryNote sorry={ax.sorry} className="mb-5" />
-                : !!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
+              {/* The team was found but not the answer: what search can answer about it goes first in Related searches. */}
+              {ax?.sorry && <SorryNote sorry={ax.sorry} className="mb-5" />}
               {answer?.verdict && <Verdict v={answer.verdict} />}
               <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)] lg:items-start lg:gap-8")} data-layout={side ? "aside" : "single"}>
               {sideColumn}
@@ -364,7 +382,7 @@ export default function SearchPage() {
                   : null}
                 {!answer?.stat && !answer?.card && !teamAnswer && <AnswerVideo className="mt-0 max-sm:mx-0" />}
                 {reel === "under" && <HighlightReel stat={answer!.stat!} className="mt-5" />}
-                <FollowChips ask={askAside ? [] : follow.ask} related={follow.related} seeAll={follow.asked ?? query} className="mt-4" />
+                <FollowChips lead={ax?.sorry ? [] : ax?.suggest} ask={askAside ? [] : follow.ask} related={follow.related} seeAll={follow.asked ?? query} className={answer?.stat || answer?.card || teamAnswer ? "mt-4" : "mb-1"} />
                 {/* Going deeper: plain rows, grouped, five each. */}
                 {standout && <RowGroup key={standout.rows.map((r) => r.href).join("|")} id="standout" title={standout.title} count={standout.rows.length}>{[<MatchRows key="m" rows={standout.rows} />]}</RowGroup>}
                 {!!compares.length && (
@@ -385,7 +403,7 @@ export default function SearchPage() {
                   </div>
                 )}
                 {(apps.length > 0 || !!quality) && <div className="mt-6">{summary}</div>}
-                {!(apps.length > 0 || !!quality) && <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mt-6" />}
+                {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mt-6" />}
                 {clipFor && <AnswerClip about={clipFor} className="mt-6" />}
               </div>
               </div>
@@ -404,7 +422,7 @@ export default function SearchPage() {
               )}
               {/* The team was found but not the answer: what search can answer about it, one tap each. */}
               {ax?.sorry ? <SorryNote sorry={ax.sorry} className="mb-5" />
-                : !!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
+                : !!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Related searches" className="mb-5" />}
               {/* A yes-or-no question's answer, first: above the summary and the card that proves it. */}
               {answer?.verdict && <Verdict v={answer.verdict} />}
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}

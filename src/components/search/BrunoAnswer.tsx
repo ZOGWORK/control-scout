@@ -16,17 +16,35 @@ import { cn } from "../cn";
 /** How long the question must stay unchanged before Bruno is asked. */
 export const BRUNO_SETTLE_MS = 600;
 
-/** `prefer`: the visitor's preferred teams and events, as the page's own search sent them, so Bruno reads the same results.
+/** Whether the page asks Bruno for this query at all (his flag on, a question, search's own answer not a direct one):
+ *  the page lays itself out from this before he answers, so his card's slot is there from the first frame. */
+export function useBrunoAsks(q: string, answered: boolean): boolean {
+  const on = useServerFlag("brunoAnswers");
+  return on && !answered && isBrunoQuestion(q.trim());
+}
+
+/** A yes-or-no answer's verdict, read off his first word ("Yes, Absolute Zero is …" → Yes + "Absolute Zero is …"). */
+export function brunoVerdict(text: string): { answer: "Yes" | "No"; rest: string } | null {
+  const m = /^\s*(yes|no)\b[\s,.:;!\u2013\u2014-]*/i.exec(text);
+  if (!m) return null;
+  const rest = text.slice(m[0].length).trim();
+  if (!rest) return null;
+  return { answer: m[1].toLowerCase() === "yes" ? "Yes" : "No", rest: rest[0].toUpperCase() + rest.slice(1) };
+}
+
+/** `lead`: his card is the page's answer, at the top: its slot is held (a quiet skeleton) while he writes, and let go
+ *  when he has nothing to add.
+ *  `prefer`: the visitor's preferred teams and events, as the page's own search sent them, so Bruno reads the same results.
  *  `children`: a summary computed from the records (timeline, stat banner), shown at the top of the card, and on its
  *  own (as "Summary") while Bruno is off, still writing, or has nothing to add. A summary never stands in for him: every
  *  question (isBrunoQuestion) asks him, whatever summary the page also shows (SearchPage.bruno.test.tsx), unless
  *  `answered`: search's own answer card (a card or stat answer, not a guess) already says it, and his card beside it
  *  would say the same thing twice. */
-export function BrunoAnswer({ q, prefer = "", ready, answered = false, className, children }: { q: string; prefer?: string; ready: boolean; answered?: boolean; className?: string; children?: ReactNode }) {
-  const on = useServerFlag("brunoAnswers");
+export function BrunoAnswer({ q, prefer = "", ready, answered = false, lead = false, className, children }: { q: string; prefer?: string; ready: boolean; answered?: boolean; lead?: boolean; className?: string; children?: ReactNode }) {
   const query = q.trim();
   // `answered`: search's own answer card already says it; his card would say the same thing twice.
-  const asks = on && ready && !answered && isBrunoQuestion(query);
+  const willAsk = useBrunoAsks(query, answered);
+  const asks = willAsk && ready;
   // An answer belongs to its question and the preferred teams it was read with: either changing hides it.
   const key = `${query}
 ${prefer}`;
@@ -49,6 +67,17 @@ ${prefer}`;
     return () => { live = false; clearTimeout(t); stop.abort(); };
   }, [asks, query, prefer, key]);
   const phone = useMediaQuery("(max-width: 767px)");
+  // Leading the page: his slot is held while he writes (the same card's frame, so his answer fills it in place).
+  if (lead && willAsk && state.key !== key && !children) {
+    return (
+      <div role="status" aria-label="Bruno AI is writing an answer" data-bruno-pending className={cn("rounded-xl border border-violet-400/30 bg-violet-500/[0.07] px-4 py-3.5 v8:border-accent/25 v8:bg-accent/[0.05]", className)}>
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-violet-700 dark:text-violet-300 v8:font-medium v8:text-accent"><Sparkles className="size-3.5 shrink-0" aria-hidden />Bruno AI from Control Point</p>
+        <div className="skeleton mt-3 h-7 w-20" aria-hidden />
+        <div className="skeleton mt-3 h-3.5 w-11/12" aria-hidden />
+        <div className="skeleton mt-2 h-3.5 w-2/3" aria-hidden />
+      </div>
+    );
+  }
   if (!asks || state.key !== key || !state.text) {
     if (!children) return null;
     return (
@@ -59,9 +88,16 @@ ${prefer}`;
       </div>
     );
   }
+  // A yes-or-no question's answer leads with the word, big and in its colour; the sentence after it.
+  const verdict = brunoVerdict(state.text);
   const said = (
     <>
-      <p className="mt-2 text-sm font-medium leading-relaxed text-foreground">{state.text}</p>
+      {verdict ? (
+        <div className="mt-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1.5" data-bruno-verdict={verdict.answer}>
+          <span className={cn("rounded-lg px-3 py-0.5 font-display text-3xl font-semibold leading-tight v8:font-sans", verdict.answer === "Yes" ? "bg-success/10 text-success-text" : "bg-danger/10 text-danger-text")}>{verdict.answer}</span>
+          <span className="min-w-0 basis-full text-base font-medium leading-relaxed text-foreground sm:basis-auto sm:flex-1">{verdict.rest}</span>
+        </div>
+      ) : <p className={cn("mt-2 font-medium leading-relaxed text-foreground", lead ? "text-base" : "text-sm")}>{state.text}</p>}
       {/* With a summary (below), it stands in for his bullets: they'd repeat the same records. */}
       {!children && !!state.points.length && (
         <ul className="mt-2.5 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-foreground/90 marker:text-violet-500 dark:marker:text-violet-300 v8:marker:text-text-faint">
@@ -73,12 +109,12 @@ ${prefer}`;
   // It fades in once, with his answer (no movement under reduced motion).
   return (
     <div role="note" aria-label="Bruno AI's answer" data-bruno-answer
-      className={cn("animate-[cs-call-in_300ms_ease-out] rounded-xl border border-violet-400/30 bg-violet-500/[0.07] px-4 py-3.5 v8:border-line v8:bg-card motion-reduce:animate-none", className)}>
-      <p className="flex items-center gap-1.5 text-xs font-semibold text-violet-700 dark:text-violet-300 v8:text-muted-foreground">
+      className={cn("animate-[cs-call-in_300ms_ease-out] rounded-xl border border-violet-400/30 bg-violet-500/[0.07] px-4 py-3.5 v8:border-accent/25 v8:bg-accent/[0.05] motion-reduce:animate-none", className)}>
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-violet-700 dark:text-violet-300 v8:font-medium v8:text-accent">
         <Sparkles className="size-3.5 shrink-0" />Bruno AI from Control Point
       </p>
-      {phone ? (
-        // Phones: the numbers first; his writing folded away, so the results below stay near the top of the screen.
+      {phone && children ? (
+        // Phones with a summary: the numbers first; his writing folded away, so the results below stay near the top of the screen.
         <>
           {children && <div className="mt-3" data-search-summary>{children}</div>}
           <details className="group mt-2" data-ai-analysis>
@@ -94,7 +130,7 @@ ${prefer}`;
           {children && <div className="mt-3" data-search-summary>{children}</div>}
         </>
       )}
-      <p className="mt-3 border-t border-violet-400/20 pt-2 text-[11px] text-muted-foreground v8:border-line v8:text-[0.75rem] v8:text-text-faint">Written by Bruno AI from Control Point, from the records below. Check them before relying on it.</p>
+      <p className="mt-3 border-t border-violet-400/20 pt-2 text-[11px] text-muted-foreground v8:border-accent/15 v8:text-[0.75rem] v8:text-text-faint">Written by Bruno AI from Control Point, from the records below. Check them before relying on it.</p>
     </div>
   );
 }

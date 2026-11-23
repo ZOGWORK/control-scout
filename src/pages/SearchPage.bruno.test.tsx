@@ -102,7 +102,9 @@ describe.each([
     expect(cards).toHaveLength(1);
     expect(cards[0].textContent).toContain("Bruno AI");
     expect(cards[0].textContent).toContain("Bruno's overview of the records.");
-    // On a phone his writing is folded under "Show AI Analysis", never dropped.
-    if (phone) expect(cards[0].querySelector("[data-ai-analysis]")!.textContent).toContain("Bruno's overview of the records.");
+    // On a phone his writing is folded under "Show AI Analysis" (never dropped) when a summary comes first in his
+    // card; with none, his answer is the page's answer and shows open.
+    if (phone && cards[0].querySelector("[data-search-summary]")) expect(cards[0].querySelector("[data-ai-analysis]")!.textContent).toContain("Bruno's overview of the records.");
+    else expect(cards[0].querySelector("[data-ai-analysis]")).toBeNull();
   });
 });
