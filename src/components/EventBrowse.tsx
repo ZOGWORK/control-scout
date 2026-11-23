@@ -21,6 +21,7 @@ import { eventTypeLabel } from "../shared/labels";
 import { regionLabel, regionNames } from "../shared/regions";
 import { WatchChip } from "./WatchChip";
 import { watchHref } from "../shared/stream";
+import { eventMorphKey, useMorphCard, warmEvent } from "./CardMorph";
 import { applyFilters, FIRST_EVENTS, statusPick, videoPick, groupWeeks, MORE_EVENTS, placeKey, takeBatch, weekOf, type Filters, type Status, type VideoFilter } from "../pages/eventsList";
 
 const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
@@ -362,11 +363,12 @@ export function EventWatch({ e, pill, className }: { e: EventListItem; pill?: bo
 const EventRowV8 = memo(function EventRowV8({ e, action }: { e: EventListItem; action?: TileAction }) {
   const href = `/events/${e.season}/${e.code}`;
   const act = action?.(e);
+  const morph = useMorphCard(eventMorphKey(e.season, e.code), href, () => warmEvent(e.season, e.code));
   const link = (
-    <Link to={href} className="group flex min-h-14 min-w-0 flex-1 items-center gap-4 px-4 py-2.5 transition-colors duration-150 still-hover:bg-ink/[0.03]" data-event-row={e.code}>
+    <Link to={href} {...morph} className="group flex min-h-14 min-w-0 flex-1 items-center gap-4 px-4 py-2.5 transition-colors duration-150 still-hover:bg-ink/[0.03]" data-event-row={e.code}>
       <span className="w-[4.75rem] shrink-0 text-sm tabular-nums text-text-muted max-sm:hidden">{shortDates(e.start, e.end)}</span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium text-text-base" title={e.name}>{e.name}</span>
+        <span className="block truncate font-medium text-text-base" title={e.name} data-morph-title>{e.name}</span>
         <span className="block truncate text-xs text-text-faint"><span className="sm:hidden">{shortDates(e.start, e.end)} · </span>{e.typeLabel} · {where(e)}</span>
       </span>
       {e.teams > 0 && <span className="hidden w-12 shrink-0 items-center justify-end gap-1 text-xs tabular-nums text-text-faint sm:inline-flex" title={`${e.teams} teams`}><Users className="size-3.5" aria-hidden />{e.teams}</span>}
