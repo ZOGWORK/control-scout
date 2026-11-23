@@ -1,13 +1,12 @@
 // Owner console › Analytics (owner only): page views and sessions from visitors who opted into usage
-// statistics, prediction calls (requests to /api/predict/*), the prediction ledger's counts, and the choice
+// statistics (page views first: the owner reads this tab for traffic, not prediction counts), and the choice
 // to publish the home page's "in use" section (server/ownerSettings.ts; confirmed, and audited with the old
 // and new value). Aggregates only: no accounts, emails or addresses.
 import { useState } from "react";
-import { BookCheck, Eye, Globe, MousePointerClick, ScrollText, Target } from "lucide-react";
+import { CalendarDays, Eye, Globe, MousePointerClick } from "lucide-react";
 import { Section } from "../page";
 import { StatTile } from "../StatTile";
 import { Async } from "../states";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/basic";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/controls";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/overlay";
@@ -18,31 +17,49 @@ import { ago, int } from "../../lib/format";
 import type { OwnerAnalytics, PublishUsageSetting } from "../../shared/owner";
 import { PublicUsagePanel } from "../home/HomeSections";
 
-const SERIES: { key: "pageViews" | "sessions" | "predictionCalls"; label: string; cls: string }[] = [
-  { key: "pageViews", label: "Page views", cls: "bg-accent" },
-  { key: "sessions", label: "Sessions", cls: "bg-info" },
-  { key: "predictionCalls", label: "Prediction calls", cls: "bg-violet-500" },
-];
-
-function DailyGroups({ daily }: { daily: OwnerAnalytics["daily"] }) {
-  const max = Math.max(1, ...daily.flatMap((d) => [d.pageViews, d.sessions, d.predictionCalls]));
+/** Page views per day: one bar a day, zero-based, the day's number on hover and in the label read aloud. Sessions are in
+ *  each bar's tooltip, not drawn: the chart answers one question, how many pages were viewed. */
+function DailyViews({ daily }: { daily: OwnerAnalytics["daily"] }) {
+  const busiest = Math.max(0, ...daily.map((d) => d.pageViews));
+  const max = Math.max(1, busiest);
   const every = Math.max(1, Math.ceil(daily.length / 5));
   return (
     <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-      <div className="flex h-36 items-end gap-1" role="img"
-        aria-label={`Per day: ${daily.map((d) => `${d.day} ${d.pageViews} views, ${d.sessions} sessions, ${d.predictionCalls} prediction calls`).join("; ")}`}>
+      <p className="mb-2 text-xs text-muted-foreground tabular-nums">{busiest ? `Busiest day ${int(busiest)} views` : "No page views in this period"}</p>
+      <div className="flex h-40 items-end gap-1" role="img"
+        aria-label={`Page views per day: ${daily.map((d) => `${d.day} ${d.pageViews}`).join("; ")}`}>
         {daily.map((d) => (
-          <div key={d.day} className="flex h-full min-w-0 flex-1 items-end gap-px" title={`${d.day}: ${int(d.pageViews)} views · ${int(d.sessions)} sessions · ${int(d.predictionCalls)} prediction calls`}>
-            {SERIES.map((s) => <span key={s.key} className={cn("block min-w-0 flex-1 rounded-t-[2px]", s.cls)} style={{ height: `${(d[s.key] / max) * 100}%`, minHeight: d[s.key] ? 2 : 0 }} />)}
+          <div key={d.day} className="flex h-full min-w-0 flex-1 items-end" title={`${d.day}: ${int(d.pageViews)} page views · ${int(d.sessions)} sessions`}>
+            <span className="block w-full rounded-t-[3px] bg-accent" style={{ height: `${(d.pageViews / max) * 100}%`, minHeight: d.pageViews ? 2 : 0 }} />
           </div>
         ))}
       </div>
       <div className="mt-1 flex gap-1 text-[11px] text-muted-foreground" aria-hidden>
         {daily.map((d, i) => <span key={d.day} className="min-w-0 flex-1 overflow-visible whitespace-nowrap text-center">{i % every === 0 ? d.day.slice(5) : ""}</span>)}
       </div>
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {SERIES.map((s) => <span key={s.key} className="inline-flex items-center gap-1.5"><span className={cn("size-2.5 rounded-[3px]", s.cls)} aria-hidden />{s.label}</span>)}
-      </div>
+    </div>
+  );
+}
+
+/** A short ranked list with each row's share drawn as a zero-based bar behind it (largest = full width). */
+function Ranked({ title, note, rows, unit, empty }: { title: string; note?: string; rows: { key: string; label: string; value: number; mono?: boolean }[]; unit: string; empty: string }) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return (
+    <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
+      <h3 className="text-sm font-medium text-foreground">{title}</h3>
+      {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
+      <div className="mb-2" />
+      {rows.length ? (
+        <ol className="space-y-1">
+          {rows.map((r) => (
+            <li key={r.key} className="relative flex items-center justify-between gap-3 overflow-hidden rounded-md px-2 py-1 text-sm">
+              <span className="absolute inset-y-0 left-0 rounded-md bg-accent/15" style={{ width: `${(r.value / max) * 100}%` }} aria-hidden />
+              <span className={cn("relative min-w-0 truncate text-foreground", r.mono && "font-mono text-xs")} title={r.label}>{r.label}</span>
+              <span className="relative shrink-0 tabular-nums text-muted-foreground">{int(r.value)} <span className="sr-only">{unit}</span></span>
+            </li>
+          ))}
+        </ol>
+      ) : <p className="text-sm text-muted-foreground">{empty}</p>}
     </div>
   );
 }
@@ -101,9 +118,6 @@ export function AnalyticsPanel() {
   const state = useApi<OwnerAnalytics>(`/api/owner/analytics?days=${days}`);
   return (
     <>
-      {/* "Control Scout, in use": the classic home page's section, as visitors would see it (the new home page has
-          none), published or not. Its own container, as on the home page (its tiles lay out by width). */}
-      <div data-owner-in-use className="@container/home mb-8 [&>section]:border-t-0 [&>section]:pt-0"><PublicUsagePanel path="/api/owner/public-usage" /></div>
       <div className="mb-4 flex items-center justify-end gap-1" role="group" aria-label="Period">
         {[7, 14, 30].map((d) => (
           <Button key={d} size="sm" variant={d === days ? "default" : "outline"} aria-pressed={d === days} onClick={() => setDays(d)}>{d} days</Button>
@@ -112,41 +126,27 @@ export function AnalyticsPanel() {
       <Async state={state}>
         {(a) => (
           <>
-            <Section title="Visitors and predictions" description="Page views and sessions come only from visitors who said yes to usage statistics. Prediction calls are requests to the prediction API.">
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Section title="Page views" description="Counted only from visitors who said yes to usage statistics.">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <StatTile tone="accent" icon={Eye} label="Page views" value={int(a.totals.pageViews)} hint={`${int(a.totals.pageViews / Math.max(1, a.days))} a day on average`} />
                 <StatTile tone="sky" icon={MousePointerClick} label="Sessions" value={int(a.totals.sessions)} hint="Visits started" />
-                <StatTile tone="violet" icon={Target} label="Prediction calls" value={int(a.totals.predictionCalls)} hint={`${int(a.totals.predictionCalls / Math.max(1, a.days))} a day on average`} />
-                <StatTile tone="emerald" icon={BookCheck} label="Live calls scored" value={int(a.ledger.liveScored)} hint={`of ${int(a.ledger.liveLogged)} logged before their match`} />
+                <StatTile className="col-span-2 sm:col-span-1" tone="emerald" icon={CalendarDays} label="Today" value={int(a.daily.at(-1)?.pageViews ?? 0)} hint="page views so far (UTC)" />
               </div>
-              <div className="mt-4"><DailyGroups daily={a.daily} /></div>
-            </Section>
-            <Section title="Prediction ledger" description="Live calls are logged before the match and scored once it's played. The replay (backtest) is counted apart, never blended.">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-border bg-card">
-                  <Table>
-                    <TableHeader><TableRow><TableHead>Ledger</TableHead><TableHead className="text-right">All time</TableHead><TableHead className="text-right">{a.days} days</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      <TableRow><TableCell>Live calls logged</TableCell><TableCell className="text-right tabular-nums">{int(a.ledger.liveLogged)}</TableCell><TableCell className="text-right tabular-nums">{int(a.ledger.liveLoggedInPeriod)}</TableCell></TableRow>
-                      <TableRow><TableCell>Live calls scored</TableCell><TableCell className="text-right tabular-nums">{int(a.ledger.liveScored)}</TableCell><TableCell className="text-right tabular-nums">{int(a.ledger.liveScoredInPeriod)}</TableCell></TableRow>
-                      <TableRow><TableCell>Replay calls scored</TableCell><TableCell className="text-right tabular-nums">{int(a.ledger.backtestScored)}</TableCell><TableCell className="text-right text-muted-foreground">—</TableCell></TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-                <div className="rounded-xl border border-border bg-card">
-                  <Table className="[&_td]:whitespace-nowrap">
-                    <TableHeader><TableRow><TableHead><span className="inline-flex items-center gap-1.5"><ScrollText className="size-3.5" aria-hidden />Prediction route</span></TableHead><TableHead className="text-right">Calls</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {a.predictionRoutes.length ? a.predictionRoutes.map((r) => (
-                        <TableRow key={r.route}><TableCell className="max-w-[14rem] truncate font-mono text-xs" title={r.route}>{r.route}</TableCell><TableCell className="text-right tabular-nums">{int(r.count)}</TableCell></TableRow>
-                      )) : <TableRow><TableCell colSpan={2} className="text-muted-foreground">No prediction calls in this period.</TableCell></TableRow>}
-                    </TableBody>
-                  </Table>
-                </div>
+              <div className="mt-4"><DailyViews daily={a.daily} /></div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <Ranked title="Most viewed kinds of page" note="By route: /teams/:number is every team page together. Which team is never recorded." rows={a.topPages.map((r) => ({ key: r.path, label: r.path, value: r.views, mono: true }))} unit="views" empty="No page views in this period." />
+                <Ranked title="Where visits came from" rows={a.referrers.map((r) => ({ key: r.host, label: r.host, value: r.sessions }))} unit="visits" empty="No visits came from another site in this period." />
               </div>
             </Section>
             <Section title="Home page">
               <PublishUsage s={a.publishUsage} />
+              {/* "Control Scout, in use": the classic home page's section as visitors would see it, published or not.
+                  Folded: it repeats the page views above, and only matters when deciding to publish it. Its own
+                  container, as on the home page (its tiles lay out by width). */}
+              <details className="group mt-3">
+                <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">Preview what visitors would see</summary>
+                <div data-owner-in-use className="@container/home mt-3 [&>section]:border-t-0 [&>section]:pt-0"><PublicUsagePanel path="/api/owner/public-usage" /></div>
+              </details>
             </Section>
           </>
         )}

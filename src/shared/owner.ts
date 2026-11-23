@@ -128,12 +128,11 @@ export interface OwnerModeration {
 export interface OwnerAnalytics {
   days: number; from: string; to: string;
   /** Page views and sessions come from visitors who opted into usage statistics. */
-  totals: { pageViews: number; sessions: number; predictionCalls: number };
-  daily: { day: string; pageViews: number; sessions: number; predictionCalls: number }[];
-  /** Requests to /api/predict/* by route pattern, in the period. */
-  predictionRoutes: { route: string; count: number }[];
-  /** The prediction ledger: live calls logged before their match and scored once it was played (all time, and in the period). */
-  ledger: { liveLogged: number; liveScored: number; liveLoggedInPeriod: number; liveScoredInPeriod: number; backtestScored: number };
+  totals: { pageViews: number; sessions: number };
+  daily: { day: string; pageViews: number; sessions: number }[];
+  /** The 10 most viewed pages in the period, and the 10 sites that started the most visits (by host). */
+  topPages: { path: string; views: number }[];
+  referrers: { host: string; sessions: number }[];
   publishUsage: PublishUsageSetting;
 }
 export interface PublishUsageSetting {
