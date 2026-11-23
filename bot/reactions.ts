@@ -24,18 +24,20 @@ export async function trackAnswer(messageId: string, guild: string | null, quest
   );
 }
 
-/** A 👎 added to an answer: counted, and whether it is the answer's first one — with the question it answered and its
- *  server, so a first downvote can be filed. Null: a message the bot never posted, which has no row to count on. */
-export async function downVote(messageId: string, now = Date.now()): Promise<{ question: string | null; guild: string | null; first: boolean } | null> {
+/** A 👎 added to an answer: counted, and on the answer's first one the question it answered with its server, so that
+ *  question can be filed (bot/index.ts, server/searchFailures.ts `noteBotDownvote`). Null: a message the bot never posted,
+ *  or a later 👎 on the same answer — the same complaint about the same question, counted and not filed again. */
+export async function downVote(messageId: string, now = Date.now()): Promise<{ question: string | null; guild: string | null } | null> {
   if (!messageId) return null;
-  // Read before the count goes up: `first` is what the row was, because a second 👎 on one answer is the same
-  // complaint about the same question, and the queue counts a repeat as a repeat rather than as a new entry.
-  const before = await get<{ question: string | null; guild_id: string | null; down: number }>(
-    "SELECT question, guild_id, down FROM discord_answers WHERE message_id = ?", [messageId],
-  );
-  if (!before) return null;
-  await vote(messageId, BAD, 1, now);
-  return { question: before.question ?? null, guild: before.guild_id ?? null, first: Number(before.down) === 0 };
+  // The claim is the update itself, not a read before it: two 👎 arriving together (two gateway events, interleaved at
+  // their awaits) can't both find `down = 0`, so only one of them can file the question. The other still counts, below.
+  const first = await run("UPDATE discord_answers SET down = down + 1, voted_at = ? WHERE message_id = ? AND down = 0", [new Date(now).toISOString(), messageId]);
+  if (!first) {
+    await vote(messageId, BAD, 1, now);
+    return null;
+  }
+  const row = await get<{ question: string | null; guild_id: string | null }>("SELECT question, guild_id FROM discord_answers WHERE message_id = ?", [messageId]);
+  return row ? { question: row.question ?? null, guild: row.guild_id ?? null } : null;
 }
 
 /** One vote on an answer: `delta` 1 for a reaction added, -1 for one taken back. Never below zero. */
