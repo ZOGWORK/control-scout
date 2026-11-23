@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 `/compare` puts two FTC teams head to head in one command, answered by the same site search that reads "4215 vs 6980" in the search box.
 
 ### Highlights
-- [teams] `/compare team:4215 other:6980` in Discord
+- [teams] A /compare command puts two teams head to head
 - [scout] Records, OPR and the head-to-head in one card
 - [fixes] The same team twice says so
 
