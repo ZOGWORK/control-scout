@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.8 — 2026-11-23
+
+A 👎 on one of Control Scout's answers files the question that got the wrong answer in the site's own failed-search list, so the words people use in Discord improve controlscout.org/search too.
+
+### Highlights
+- [scout] A 👎 files the question that got the wrong answer
+- [scout] Downvoted words reach the site's search work list
+- [fixes] The question is kept redacted, and never who asked
+
+### Discord bot
+- **A 👎 names the question it answered** (`bot/reactions.ts`, migration 105): every answer's row now keeps the question it was given for (redacted and one line, as every ask is), so the first 👎 on an answer files that question in the site's failed-search list (`server/searchFailures.ts` `downvoteFailure`) as a `downvoted` failure — the one failure search can't read for itself, because it called that answer answered. The filing and the vote are one write, so a restart can't spend the filing without making it and two 👎 can't make it twice; a second 👎 on the same answer is counted and files nothing, one question downvoted in two servers is one entry counted twice, a question already on the list keeps its own type and examples (the vote only adds to its count, so a no-match's own re-check stays right), and taking the vote off and adding it again asks again. An answer's votes are applied in the order Discord sent them, so a 👎 taken back within a moment leaves nothing behind. A vote skips the queue's settling and hourly caps (nothing more is coming, and it is one person's one complaint), it is in the owner's list with the intent from the question's own words, and a re-check of a downvoted entry says search answered it when it was voted down, so only a person can judge whether the answer is right now, instead of reporting a direct answer. The list gains a `result:downvoted` label. `bot/reactions.test.ts` covers the kept question, the first vote only, the redaction, one entry across two servers, two 👎 arriving together, and the order votes are applied in; `server/searchFailures.test.ts` the downvoted issue's close condition and its re-check. Answers posted before 7.9.8 have no question: their 👍/👎 still count, and a 👎 on one files nothing. (#2209)
+
 ## 7.9.7 — 2026-11-23
 
 `/compare` puts two FTC teams head to head in one command, answered by the same site search that reads "4215 vs 6980" in the search box.
