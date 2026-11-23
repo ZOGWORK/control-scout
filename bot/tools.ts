@@ -44,9 +44,10 @@ export function splitAsk(q: string): string[] {
   return parts.length > 1 ? parts.slice(0, MAX_PARTS) : [text];
 }
 
-/** A part that names nothing by itself: every word is its frame ("who is by", "where from"). */
+/** A part that names nothing by itself: every word is its frame ("who is by", "where from"). A number is a name, so
+ *  "where is 4215 from" asks about 4215 and is no follow-up. */
 function frameOnly(part: string): boolean {
-  const words = part.toLowerCase().split(/[^a-z']+/).filter(Boolean);
+  const words = part.toLowerCase().split(/[^a-z0-9']+/).filter(Boolean);
   return words.length > 0 && words.every((w) => FRAME_WORDS.has(w.replace(/'s$/, "")));
 }
 
@@ -92,14 +93,25 @@ export function subjectPhrase(text: string): string {
  */
 export function resolveAsk(parts: string[], i: number, answers: (SearchAnswer | null | undefined)[] = []): string {
   const part = parts[i];
-  let j = i - 1;
-  while (j >= 0 && needsSubject(parts[j])) j--;
-  if (j < 0) return part;
-  const team = answerTeam(answers[j]);
-  const phrase = subjectPhrase(parts[j]);
+  // The team is the nearest earlier answer naming one (a follow-up's own answer counts: "…, who beat them, where are
+  // they from" asks where the team that won is); the words are the nearest earlier part that names something.
+  const team = nearestTeam(answers, i);
+  let phraseAt = i - 1;
+  while (phraseAt >= 0 && needsSubject(parts[phraseAt])) phraseAt--;
+  if (phraseAt < 0 && !team) return part;
+  const phrase = phraseAt >= 0 ? subjectPhrase(parts[phraseAt]) : "";
   if (!PRONOUN.test(part)) return phrase || part;
   const said = team ? String(team) : phrase;
   return said ? part.replace(new RegExp(PRONOUN.source, "gi"), said) : part;
+}
+
+/** The team the nearest answer before `i` names, if any. */
+function nearestTeam(answers: (SearchAnswer | null | undefined)[], i: number): number | null {
+  for (let j = i - 1; j >= 0; j--) {
+    const team = answerTeam(answers[j]);
+    if (team) return team;
+  }
+  return null;
 }
 
 /** What a message's lookups found: the facts for the chat, and the site's own answer to the first part search could

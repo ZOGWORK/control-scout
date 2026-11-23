@@ -30,9 +30,15 @@ describe("the parts of a message", () => {
 describe("a part that leans on an earlier one", () => {
   const board = { card: undefined, hits: [{ kind: "team", ref: "23268" }] } as unknown as SearchAnswer;
 
-  it("is one with a pronoun, or nothing but its own frame", () => {
+  it("is one with a pronoun, or nothing but its own frame — never a part naming a number", () => {
     for (const p of ["where are they from", "what is their auto opr", "who is by", "where from"]) expect(needsSubject(p), p).toBe(true);
-    for (const p of ["what is the best team", "who won decode", "what is 4215's record", "4215 opr"]) expect(needsSubject(p), p).toBe(false);
+    for (const p of ["what is the best team", "who won decode", "what is 4215's record", "4215 opr", "where is 4215 from"]) expect(needsSubject(p), p).toBe(false);
+  });
+
+  it("a chain leans on the nearest team an earlier answer named, not the first part's", () => {
+    const board = { stat: { blocks: [{ kind: "leaderboard", rows: [{ team: { label: "23268 Ultraviolet", href: "/teams/23268?season=2026" } }] }] } } as unknown as SearchAnswer;
+    const beaten = { hits: [{ kind: "team", ref: "6980", title: "6980 | Bad Wolf", href: "/teams/6980" }] } as unknown as SearchAnswer;
+    expect(resolveAsk(["what is the best team", "who beat them", "where are they from"], 2, [board, beaten])).toBe("where are 6980 from");
   });
 
   it("is asked with the team the earlier part's answer names, not as a dead fragment", () => {
