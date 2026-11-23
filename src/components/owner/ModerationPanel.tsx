@@ -57,8 +57,11 @@ export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void })
   const last = useRef<OwnerModeration | undefined>(undefined);
   if (state.data) last.current = state.data;
   const shown = state.error ? state : { ...state, data: state.data ?? last.current };
+  // The kept answer is for the old period or queue: dimmed and marked busy until the new one lands, so it's never
+  // read (or triaged from) as the new selection.
+  const stale = !state.data && !state.error && !!last.current;
   return (
-    <>
+    <div aria-busy={stale || undefined} className={cn("transition-opacity", stale && "pointer-events-none opacity-50")} data-stale={stale || undefined}>
       <Async state={shown}>
         {({ abuse: a, triage: t }) => (
           <>
@@ -126,6 +129,6 @@ export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void })
           </>
         )}
       </Async>
-    </>
+    </div>
   );
 }

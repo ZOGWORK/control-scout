@@ -36,6 +36,9 @@ const AUDIT: AuditEntry[] = [
   { id: 1, at: "2026-10-18T09:00:00.000Z", actor: "owner@example.test", action: "ops.caches", details: null, result: null, change: null },
 ];
 const asked: string[] = [];
+/** The queue counts' answers: "ok" (all empty), "pending" (not in yet) or "failed". */
+let counts: "ok" | "pending" | "failed" = "pending";
+let overview: OwnerOverview = OVERVIEW;
 const stale = vi.fn();
 
 vi.mock("../lib/api", async (orig) => ({
@@ -43,8 +46,13 @@ vi.mock("../lib/api", async (orig) => ({
   markStale: (p: string) => stale(p),
   useApi: (path: string | null) => {
     if (path) asked.push(path);
+    if (path?.endsWith("/counts") && counts !== "pending") {
+      return counts === "failed" && path.includes("official-videos")
+        ? { data: undefined, error: new Error("offline"), loading: false, reload: () => {} }
+        : { data: { requests: 0, reports: 0, pending: 0, open: 0, approvals: 0 }, error: undefined, loading: false, reload: () => {} };
+    }
     const data = !path ? undefined
-      : path === "/api/owner/overview" ? OVERVIEW
+      : path === "/api/owner/overview" ? overview
       : path.startsWith("/api/owner/users/") ? DETAIL
       : path.startsWith("/api/owner/users") ? (path.includes("q=sam") ? { users: [USERS[1]], total: 1 } : { users: USERS, total: 2 })
       : path === "/api/owner/workspaces" ? { workspaces: WORKSPACES }
@@ -63,7 +71,7 @@ const mount = (url = "/owner") => render(<TooltipProvider><MemoryRouter initialE
 
 let phone = false;
 beforeEach(() => {
-  asked.length = 0; stale.mockClear(); phone = false;
+  asked.length = 0; stale.mockClear(); phone = false; counts = "pending"; overview = OVERVIEW;
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("max-width") ? phone : false, media: q, addEventListener() {}, removeEventListener() {} }));
 });
 afterEach(cleanup);
@@ -109,6 +117,20 @@ describe("owner console", () => {
     expect(screen.queryByText(/orphaned/i)).toBeNull();
     fireEvent.click(within(items[0]).getByRole("button", { name: "Open Feedback & errors: 2 error reports" }));
     expect(screen.getByRole("button", { name: /^Feedback & errors/ }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("says nothing is waiting only once every queue has answered, and names a queue it couldn't count", () => {
+    overview = { ...OVERVIEW, inbox: { openFeedback: 0, errorReports: 0, unfiledErrors: 0 } };
+    mount();
+    expect(screen.getByText("Counting the queues…")).toBeTruthy();
+    expect(screen.queryByText(/Nothing waiting/)).toBeNull();
+    cleanup(); counts = "ok";
+    mount();
+    expect(screen.getByText(/Nothing waiting/)).toBeTruthy();
+    cleanup(); counts = "failed";
+    mount();
+    expect(screen.queryByText(/Nothing waiting/)).toBeNull();
+    expect(screen.getByRole("alert").textContent).toMatch(/Couldn't count Official videos/);
   });
 
   it("then Health: sync, errors and the ledger; release, engine and storage folded under Server details", () => {

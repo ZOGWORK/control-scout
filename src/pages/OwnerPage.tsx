@@ -101,12 +101,19 @@ export default function OwnerPage() {
   const overview = useApi<OwnerOverview>("/api/owner/overview");
   const o = overview.data;
   // Video contributors' queues (docs/contributors.md): requests waiting, and links with open reports.
-  const vc = useApi<{ requests: number; reports: number }>("/api/owner/contributors/counts").data;
+  const vcState = useApi<{ requests: number; reports: number }>("/api/owner/contributors/counts");
+  const vc = vcState.data;
   // The official-video watcher's review queue (docs/official-videos.md).
-  const ov = useApi<{ pending: number }>("/api/owner/official-videos/counts").data;
+  const ovState = useApi<{ pending: number }>("/api/owner/official-videos/counts");
+  const ov = ovState.data;
   // Recorded events with played matches missing a clip, not yet reviewed (server/videos/coverageCheck.ts).
   // And the clip autopilot's reads waiting for approval (server/videos/autoReads.ts).
-  const cc = useApi<{ open: number; approvals?: number }>("/api/owner/clip-coverage/counts").data;
+  const ccState = useApi<{ open: number; approvals?: number }>("/api/owner/clip-coverage/counts");
+  const cc = ccState.data;
+  // Which queues' counts aren't in yet, and which couldn't be read: "Waiting for you" only says "nothing waiting"
+  // once every count has answered, and names any it couldn't read instead of counting it as empty.
+  const sources: [string, { data: unknown; error: unknown }][] = [["Overview", overview], ["Official videos", ovState], ["Clip coverage", ccState], ["Video contributors", vcState]];
+  const counting = { pending: sources.some(([, s]) => s.data === undefined && !s.error), failed: sources.filter(([, s]) => s.data === undefined && s.error).map(([n]) => n) };
   // Only what waits on the owner's decision: these counts are the nav badges and Overview's "Waiting for you" list.
   // (Orphaned spaces aren't here: nothing about one is the owner's to do, it becomes writable again on its own.)
   const badges: Partial<Record<PanelId, Waiting[]>> = o ? {
@@ -171,7 +178,7 @@ export default function OwnerPage() {
           </ul>
         </nav>
         <div key={refreshKey} className="min-w-0">
-          {panel === "overview" && <OverviewPanel onOpen={go} badges={badges} />}
+          {panel === "overview" && <OverviewPanel onOpen={go} badges={badges} counting={counting} />}
           {panel === "server" && <UsagePanel />}
           {panel === "data" && <DataPanel />}
           {panel === "packs" && <PacksPanel />}
@@ -226,13 +233,15 @@ function Facts({ rows, single }: { rows: [ReactNode, ReactNode][]; single?: bool
 
 type Waiting = { n: number; what: string; urgent?: boolean };
 
-function OverviewPanel({ onOpen, badges }: { onOpen: (id: string) => void; badges: Partial<Record<PanelId, Waiting[]>> }) {
+type Counting = { pending: boolean; failed: string[] };
+
+function OverviewPanel({ onOpen, badges, counting }: { onOpen: (id: string) => void; badges: Partial<Record<PanelId, Waiting[]>>; counting: Counting }) {
   const state = useApi<OwnerOverview>("/api/owner/overview");
   return (
     <Async state={state}>
       {(o) => (
         <>
-          <WaitingSection badges={badges} onOpen={onOpen} />
+          <WaitingSection badges={badges} counting={counting} onOpen={onOpen} />
           <HealthSection o={o} onOpen={onOpen} />
           <Section title="People">
             <TileGrid>
@@ -271,7 +280,7 @@ function OverviewPanel({ onOpen, badges }: { onOpen: (id: string) => void; badge
 }
 
 /** The first thing the console shows: every queue with something in it, each with the button that opens it. */
-function WaitingSection({ badges, onOpen }: { badges: Partial<Record<PanelId, Waiting[]>>; onOpen: (id: string) => void }) {
+function WaitingSection({ badges, counting, onOpen }: { badges: Partial<Record<PanelId, Waiting[]>>; counting: Counting; onOpen: (id: string) => void }) {
   const items = PANELS.flatMap((p) => (badges[p.id] ?? []).filter((b) => b.n > 0).map((b) => ({ ...b, panel: p })))
     .sort((x, y) => Number(!!y.urgent) - Number(!!x.urgent));
   return (
@@ -290,9 +299,17 @@ function WaitingSection({ badges, onOpen }: { badges: Partial<Record<PanelId, Wa
             </li>
           ))}
         </ul>
-      ) : (
+      ) : counting.pending ? (
+        <p role="status" className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">Counting the queues…</p>
+      ) : !counting.failed.length ? (
         <p className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
           <CheckCircle2 aria-hidden className="size-4 shrink-0 text-success v8:text-emerald-400" /> Nothing waiting: every queue is empty.
+        </p>
+      ) : null}
+      {counting.failed.length > 0 && (
+        <p role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/[0.06] px-4 py-3 text-sm text-muted-foreground">
+          <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+          <span>Couldn't count {counting.failed.join(", ")}: open {counting.failed.length === 1 ? "it" : "them"} to check, or Refresh.</span>
         </p>
       )}
     </Section>
