@@ -482,8 +482,9 @@ describe("a chat with Bruno in Discord", () => {
   });
 
   it("a long answer keeps the question it ends with, so a later yes still finds it", async () => {
-    // The thread clips a turn at 600 characters; the offer sits at the end, where the clip cuts first.
-    const ask = vi.fn().mockResolvedValue({ embed: ok("board"), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: `${"x".repeat(700)}. Also want 4215's record?` } });
+    // The thread clips a turn at 600 characters; the offer sits at the end, where the clip cuts first — and the clipped
+    // head mentions 4215's record without asking about it, so the sentence has to be kept, not its words.
+    const ask = vi.fn().mockResolvedValue({ embed: ok("board"), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: `4215's record came up. ${"x".repeat(700)}. Also want 4215's record?` } });
     const h = createHandler(() => {}, lookups({ ask }));
     await h.mention(message(`<@${BOT}> bio buzz world record`, {}, "m1").m, BOT);
     await h.mention(message("yes", { reference: { messageId: "m1" }, mentions: { repliedUser: { id: BOT } } }, "m2").m, BOT);

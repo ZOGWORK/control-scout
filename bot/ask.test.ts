@@ -329,9 +329,12 @@ describe("a yes to the question he offered", () => {
 
   it("reads the question he ended his answer with", () => {
     for (const y of ["yes", "Yes!", "yeah please", "sure", "go ahead", "ok", "why not", "sounds good"]) expect(affirmative(y), y).toBe(true);
-    // A thank-you or a "good" is not a yes: it never asks the record he offered unsolicited.
-    for (const q of ["what about 6980", "yes but what about 6980", "no", "", "thanks", "good", "it"]) expect(affirmative(q), q).toBe(false);
+    // A thank-you or a "good" is not a yes, nor a decline, nor a team named after it: none of them asks the record he
+    // offered unsolicited.
+    for (const q of ["what about 6980", "yes but what about 6980", "no", "", "thanks", "good", "it", "yes 6980", "definitely not", "not sure"]) expect(affirmative(q), q).toBe(false);
     expect(offeredQuestion(thread)).toBe("4215's record");
+    // He ends with one question: that's the one a yes answers, not an offer made earlier in the same turn.
+    expect(offeredQuestion([{ role: "bruno", text: "Want 1111's record? Also want 4215's record?" }])).toBe("4215's record");
     expect(offeredQuestion([])).toBeNull();
     expect(offeredQuestion([{ role: "bruno", text: "4215 is 26-6-0." }])).toBeNull();
   });
