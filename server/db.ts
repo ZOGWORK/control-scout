@@ -2744,6 +2744,66 @@ ALTER TABLE error_reports ADD COLUMN reopened_at TEXT;
 ALTER TABLE error_reports ADD COLUMN issue_checked_at TEXT;
 `,
   },
+  {
+    version: 104,
+    name: "discord bot: server names, asks, votes, event follows",
+    sql: `
+-- The server name Discord shows the bot (bot/guilds.ts), so the owner console's Discord panel lists servers by name instead
+-- of a bare snowflake. Written when the bot is added to a server, when a server is renamed, and once at startup for the
+-- servers it is already in. Deleted with the rest of that server's data when the bot is removed (bot/forget.ts).
+CREATE TABLE IF NOT EXISTS discord_guilds (
+  guild_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  joined_at TEXT NOT NULL,
+  seen_at TEXT NOT NULL
+);
+-- Every question the bot was asked, how it answered and how long it took (bot/asks.ts): the owner console's
+-- "questions the bot couldn't answer" and its chats-a-day, Bruno-share and latency numbers. The question is stored as
+-- typed with personal data redacted; no user id is kept, only the server (so a removed server's rows go with it).
+CREATE TABLE IF NOT EXISTS discord_asks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  guild_id TEXT,
+  question TEXT NOT NULL,
+  step TEXT,
+  chat INTEGER NOT NULL DEFAULT 0,
+  answered INTEGER NOT NULL DEFAULT 0,
+  ms INTEGER,
+  asked_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS discord_asks_time ON discord_asks (asked_at);
+-- The thumbs on an answer (bot/reactions.ts): one row per answer the bot posted, its up and down counts. No voter is
+-- kept, so a vote is a count, not a record of who clicked.
+CREATE TABLE IF NOT EXISTS discord_answers (
+  message_id TEXT PRIMARY KEY,
+  guild_id TEXT,
+  up INTEGER NOT NULL DEFAULT 0,
+  down INTEGER NOT NULL DEFAULT 0,
+  voted_at TEXT
+);
+-- A follow can name an event instead of a team (bot/follows.ts): rewritten rather than altered, because the primary key
+-- changes. \`target\` ('team:4215', 'event:USTXAUQ') is what's followed, and is what the key uses; a row's team or event
+-- is the one it names.
+CREATE TABLE discord_follows_new (
+  guild_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'team',
+  team INTEGER,
+  event TEXT,
+  season INTEGER,
+  target TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  created_by TEXT,
+  failures INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (guild_id, channel_id, target)
+);
+INSERT INTO discord_follows_new (guild_id, channel_id, kind, team, event, season, target, created_at, created_by, failures)
+  SELECT guild_id, channel_id, 'team', team, NULL, NULL, 'team:' || team, created_at, created_by, failures FROM discord_follows;
+DROP TABLE discord_follows;
+ALTER TABLE discord_follows_new RENAME TO discord_follows;
+CREATE INDEX IF NOT EXISTS discord_follows_team ON discord_follows (team);
+CREATE INDEX IF NOT EXISTS discord_follows_event ON discord_follows (event);
+`,
+  },
 ];
 
 export type Db = Client;

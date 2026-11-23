@@ -235,13 +235,51 @@ describe("follows", () => {
     const h = createHandler(() => {}, l);
     const a = inGuild("follow", { team: 18360 });
     await h(a.i);
-    expect(l.follow).toHaveBeenCalledWith("g1", "here", 18360, "u1");
+    expect(l.follow).toHaveBeenCalledWith("g1", "here", { kind: "team", team: 18360 }, "u1");
     expect(a.calls[1].payload.embeds[0].title).toBe("Following 18360");
     await h(inGuild("follow", { team: 4215 }, "c9").i);
-    expect(l.follow).toHaveBeenLastCalledWith("g1", "c9", 4215, "u1");
+    expect(l.follow).toHaveBeenLastCalledWith("g1", "c9", { kind: "team", team: 4215 }, "u1");
     const u = inGuild("unfollow", { team: 18360 });
     await h(u.i);
     expect(u.calls[1].payload.embeds[0].title).toBe("Stopped following 18360");
+  });
+
+  it("/follow event: follows a whole event, and says which; a follow with neither, or both, is a friendly error", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l);
+    const e = inGuild("follow", { event: "ustxauq" });
+    await h(e.i);
+    expect(l.follow).toHaveBeenCalledWith("g1", "here", { kind: "event", event: "USTXAUQ" }, "u1");
+    expect(e.calls[1].payload.embeds[0].title).toBe("Following USTXAUQ");
+    expect(e.calls[1].payload.embeds[0].description).toMatch(/recap at the end of each day/);
+    const u = inGuild("unfollow", { event: "USTXAUQ" });
+    await h(u.i);
+    expect(l.unfollow).toHaveBeenLastCalledWith("g1", { kind: "event", event: "USTXAUQ" }, null);
+    const none = inGuild("follow", {});
+    await h(none.i);
+    expect(none.calls[1].payload.embeds[0].title).toBe("Team or event?");
+    const both = inGuild("follow", { team: 4215, event: "USTXAUQ" });
+    await h(both.i);
+    expect(both.calls[1].payload.embeds[0].title).toBe("One at a time");
+  });
+
+  it("an event typed by its name is followed by its code, the way /event resolves one", async () => {
+    const eventCode = vi.fn(async (input: string) => (input === "Austin Qualifier" ? "USTXAUQ" : input.toUpperCase()));
+    const l = lookups({ eventCode });
+    const h = createHandler(() => {}, l);
+    const e = inGuild("follow", { event: "Austin Qualifier" });
+    await h(e.i);
+    expect(eventCode).toHaveBeenCalledWith("Austin Qualifier");
+    expect(l.follow).toHaveBeenCalledWith("g1", "here", { kind: "event", event: "USTXAUQ" }, "u1");
+    // /unfollow resolves the same way, so a name stops the follow a name started.
+    const u = inGuild("unfollow", { event: "Austin Qualifier" });
+    await h(u.i);
+    expect(l.unfollow).toHaveBeenLastCalledWith("g1", { kind: "event", event: "USTXAUQ" }, null);
+    // An event from an earlier season isn't in the list any more, and its follow can still be stopped by its code.
+    const l2 = lookups({ eventCode: vi.fn(async () => { throw new Friendly("Event not found", "No event this season matches that."); }) });
+    const h2 = createHandler(() => {}, l2);
+    await h2(inGuild("unfollow", { event: "ustxauq" }).i);
+    expect(l2.unfollow).toHaveBeenCalledWith("g1", { kind: "event", event: "USTXAUQ" }, null);
   });
 
   it("never cached: a second /following reads again", async () => {
@@ -330,7 +368,7 @@ describe("@mention answers", () => {
     const h = createHandler(() => {}, l);
     const { m, sent } = msg(`<@${BOT}> who won decode`);
     await h.mention(m, BOT);
-    expect(l.ask).toHaveBeenCalledWith("who won decode", [], []);
+    expect(l.ask).toHaveBeenCalledWith("who won decode", [], [], "g1");
     expect(sent).toHaveLength(1);
     expect(sent[0].kind).toBe("reply");
     expect(sent[0].embeds[0].title).toBe("ask who won decode");
@@ -405,7 +443,7 @@ describe("a chat with Bruno in Discord", () => {
     expect(sent[0]).toMatchObject({ content: "re: hi bruno (0)\n-# Bruno AI · controlscout.org", embeds: [] });
     const c = command("ask", { question: "who won decode" });
     await h(c.i);
-    expect(c.calls.at(-1)!.payload).toEqual({ content: "> **who won decode**\nre: who won decode (0)\n-# Bruno AI · controlscout.org", embeds: [], allowedMentions: { parse: [], repliedUser: false } });
+    expect(c.calls.at(-1)!.payload).toMatchObject({ content: "> **who won decode**\nre: who won decode (0)\n-# Bruno AI · controlscout.org", embeds: [], allowedMentions: { parse: [], repliedUser: false } });
   });
 
   it("a reply to his answer carries the thread on, even without a mention; replies to others or with no text are left alone", async () => {
@@ -414,7 +452,7 @@ describe("a chat with Bruno in Discord", () => {
     await h.mention(message(`<@${BOT}> who won decode`, {}, "bot-1").m, BOT);
     const follow = message("and second?", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }, "bot-2");
     await h.mention(follow.m, BOT);
-    expect(ask).toHaveBeenLastCalledWith("and second?", [{ role: "user", text: "who won decode" }, { role: "bruno", text: "re: who won decode (0)" }], []);
+    expect(ask).toHaveBeenLastCalledWith("and second?", [{ role: "user", text: "who won decode" }, { role: "bruno", text: "re: who won decode (0)" }], [], "g");
     expect(follow.sent[0].content).toMatch(/^re: and second\? \(2\)/);
     await h.mention(message("and third?", { reference: { messageId: "bot-2" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
     expect((ask.mock.calls.at(-1) as unknown[])[1]).toHaveLength(4);
@@ -434,7 +472,7 @@ describe("a chat with Bruno in Discord", () => {
     await h.mention(message(`<@${BOT}> hi`, {}, "bot-1").m, BOT);
     const follow = message("who won decode", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }, "bot-2");
     await h.mention(follow.m, BOT);
-    expect(ask).toHaveBeenLastCalledWith("who won decode", [], []);
+    expect(ask).toHaveBeenLastCalledWith("who won decode", [], [], "g");
   });
 });
 
@@ -451,6 +489,122 @@ describe("answers ping nobody", () => {
     opts.push(c.calls.at(-1)!.payload);
     expect(opts).toHaveLength(3);
     for (const o of opts) expect(o.allowedMentions).toEqual({ parse: [], repliedUser: false });
+  });
+});
+
+describe("the answer's buttons", () => {
+  const card = (q: string) => ({
+    embed: { title: `ask ${q}`, url: `https://controlscout.org/search?q=${encodeURIComponent(q)}` },
+    meta: { step: "deterministic" as const, refined: false, sentence: false },
+    next: ["4215 awards"],
+    watch: [{ label: "Q85", url: "https://youtu.be/A" }],
+  });
+
+  function button(customId: string, over: Record<string, unknown> = {}) {
+    const calls: { kind: string; payload?: any }[] = [];
+    const i = {
+      customId, guildId: "g1", user: { id: "u1" },
+      isChatInputCommand: () => false, isAutocomplete: () => false, isButton: () => true,
+      reply: async (p: any) => { calls.push({ kind: "reply", payload: p }); },
+      deferReply: async (p?: any) => { calls.push({ kind: "defer", payload: p }); },
+      editReply: async (p: any) => { calls.push({ kind: "edit", payload: p }); return { id: "m2" }; },
+      ...over,
+    };
+    return { i: i as any, calls };
+  }
+
+  it("a card carries a row of questions and a row of links; a click asks the question as /ask does", async () => {
+    const ask = vi.fn(async (q: string) => card(q));
+    const h = createHandler(() => {}, lookups({ ask }));
+    const c = command("ask", { question: "4215" });
+    c.i.guildId = "g1";
+    await h(c.i);
+    const post = c.calls.at(-1)!.payload;
+    expect(post.components).toHaveLength(2);
+    expect(post.components[0].components[0]).toMatchObject({ type: 2, style: 2, label: "4215 awards" });
+    expect(post.components[0].components[0].custom_id).toMatch(/^ask:/);
+    expect(post.components[1].components.map((b: any) => b.label)).toEqual(["Open on controlscout.org", "Q85"]);
+    expect(post.components[1].components[0].url).toBe("https://controlscout.org/search?q=4215");
+    // The click answers in the channel, as /ask would (with the make-up the channel needs to see).
+    const b = button(post.components[0].components[0].custom_id);
+    await h(b.i);
+    expect(ask).toHaveBeenLastCalledWith("4215 awards", [], [], "g1");
+    expect(b.calls.map((x) => x.kind)).toEqual(["defer", "edit"]);
+    expect(b.calls[1].payload.embeds[0].title).toBe("ask 4215 awards");
+    expect(b.calls[1].payload.allowedMentions).toEqual({ parse: [], repliedUser: false });
+  });
+
+  it("an expired button (an hour old, or from before a restart) says so instead of guessing", async () => {
+    const ask = vi.fn(async (q: string) => card(q));
+    const b = button("ask:never-made");
+    await createHandler(() => {}, lookups({ ask }))(b.i);
+    expect(b.calls).toHaveLength(1);
+    expect(b.calls[0].kind).toBe("reply");
+    expect(b.calls[0].payload.content).toMatch(/expired/);
+    expect(b.calls[0].payload.flags).toBe(64); // ephemeral
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  it("at a server's chat limit a button says when it resets, and asks nothing", async () => {
+    const ask = vi.fn(async (q: string) => card(q));
+    // The first ask fits (so its answer has a button); the click after it is the one over the limit.
+    type Limit = { ok: true } | { ok: false; limited: "hour"; retryAfter: number };
+    const quota = vi.fn(async (): Promise<Limit> => ({ ok: true }))
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValue({ ok: false, limited: "hour", retryAfter: 1800 });
+    const h = createHandler(() => {}, lookups({ ask, quota }));
+    const c = command("ask", { question: "4215" });
+    c.i.guildId = "g1";
+    await h(c.i);
+    const id = c.calls.at(-1)!.payload.components[0].components[0].custom_id;
+    const b = button(id);
+    await h(b.i);
+    expect(b.calls[0].payload.embeds[0].title).toBe("This server's limit is reached");
+    expect(ask).toHaveBeenCalledTimes(1);
+  });
+
+  it("records what it was asked, and adds 👍 and 👎 to the answer", async () => {
+    const noteAsk = vi.fn(async () => {});
+    // A row write the test decides when to finish, so "before" and "after" are both observable.
+    let written: () => void = () => {};
+    const trackAnswer = vi.fn(() => new Promise<void>((r) => { written = r; }));
+    const react = vi.fn(async (_emoji: string) => ({}));
+    const h = createHandler(() => {}, lookups({ noteAsk, trackAnswer }));
+    const c = command("ask", { question: "who won decode" });
+    c.i.guildId = "g1";
+    c.i.editReply = async (p: any) => { c.calls.push({ kind: "edit", payload: p }); return { id: "m9", react }; };
+    await h(c.i);
+    expect(noteAsk).toHaveBeenCalledWith({ question: "who won decode", step: "deterministic", chat: false, answered: true, ms: expect.any(Number), guild: "g1" });
+    expect(trackAnswer).toHaveBeenCalledWith("m9", "g1");
+    // The row goes in first, then the emoji: a click the moment they render must find it, so nothing is added while the
+    // write is still in flight.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(react).not.toHaveBeenCalled();
+    written();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(react.mock.calls.map((x) => x[0])).toEqual(["👍", "👎"]);
+  });
+
+  it("the bot's own fallback is neither answered nor Bruno's; his own reply is both", async () => {
+    const noteAsk = vi.fn(async () => {});
+    const h = createHandler(() => {}, lookups({
+      noteAsk,
+      ask: vi.fn(async (q: string) => ({ embed: { title: q }, meta: { step: "recovery" as const, refined: false, sentence: false, chat: true }, chat: { text: "I can't chat right now.", by: "scout" as const } })),
+    }));
+    const c = command("ask", { question: "hey" });
+    c.i.guildId = "g1";
+    await h(c.i);
+    // A chat that is the bot's own fallback is neither answered nor Bruno's.
+    expect(noteAsk).toHaveBeenLastCalledWith(expect.objectContaining({ chat: false, answered: false }));
+    // Bruno's own reply (no `by`, so not the fallback) is his chat and an answer.
+    const h2 = createHandler(() => {}, lookups({
+      noteAsk,
+      ask: vi.fn(async (q: string) => ({ embed: { title: q }, meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: "4215 won." } })),
+    }));
+    const c2 = command("ask", { question: "who won 4215" });
+    c2.i.guildId = "g1";
+    await h2(c2.i);
+    expect(noteAsk).toHaveBeenLastCalledWith(expect.objectContaining({ chat: true, answered: true }));
   });
 });
 
@@ -573,7 +727,7 @@ describe("what the server has taught the bot", () => {
     const l = lookups({ memory: mem, ask: chatAnswer() });
     await createHandler(() => {}, l).mention(message("and second?", {}, { reference: { messageId: "old" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
     expect(mem.thread).toHaveBeenCalledWith("old");
-    expect(l.ask).toHaveBeenCalledWith("and second?", turns, []);
+    expect(l.ask).toHaveBeenCalledWith("and second?", turns, [], "g1");
   });
 
   it("keeps the answer's thread, so a reply to it carries on even after a deploy", async () => {

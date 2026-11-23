@@ -1,7 +1,7 @@
 // /ask: the website's search answer as one embed, Bruno only where the site would use him, credited only then.
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
-import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, chatContext, chatPost, fitLines, videoLinks, type AskDeps } from "./ask";
+import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, askNext, chatContext, chatPost, fitLines, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 import { SORRY_SENTENCE } from "../src/shared/search";
 import { NO_CHAT, NO_REPLY } from "./smallTalk";
@@ -80,7 +80,9 @@ describe("the embed, step by step", () => {
     expect(e.title).toBe("Sorry — I can't answer that yet");
     const lines = e.description!.split("\n");
     expect(lines[0]).toBe("I read it as: Team 99999");
-    expect(lines).toContain("`/ask question: 9999 awards`");
+    // The questions that work are buttons now (bot/buttons.ts), not copyable text: askNext hands them over.
+    expect(lines.join("\n")).not.toContain("/ask question:");
+    expect(askNext(a)).toEqual(["9999 awards"]);
     expect(lines).toContain(`[Browse all teams](${SITE}/teams)`);
     expect(lines.at(-1)).toBe(`[Open this answer on controlscout.org](${SITE}/search?q=99999%20robot%20weight)`);
     expect(e.footer!.text).not.toMatch(/Bruno/);
@@ -105,12 +107,16 @@ describe("the embed, step by step", () => {
     expect(lines).not.toContain("*2025–26 matches*");
   });
 
-  it("shows the question as asked above every answer (and the sorry), plus up to 2 questions to ask next", () => {
+  it("shows the question as asked above every answer (and the sorry), and offers up to 2 questions to ask next as buttons", () => {
     expect(askEmbed("who  won decode", base(), null, SITE).author).toEqual({ name: "Asked: who won decode" });
     expect(askEmbed("x", base({ step: "recovery", hits: [], sorry: { understood: [], suggest: [] } }), null, SITE).author!.name).toBe("Asked: x");
-    const e = askEmbed("4215", base({ suggest: ["4215 awards", "4215 opr", "4215 worlds"] }), null, SITE);
-    expect(e.description).toContain("**Ask next:** `/ask question: 4215 awards` · `/ask question: 4215 opr`");
-    expect(e.description).not.toContain("4215 worlds");
+    const a = base({ suggest: ["4215 awards", "4215 opr", "4215 worlds"] });
+    const e = askEmbed("4215", a, null, SITE);
+    // Not copy-paste text in the card: the answer's buttons carry them (bot/handler.ts, bot/buttons.ts).
+    expect(e.description).not.toContain("Ask next");
+    expect(askNext(a)).toEqual(["4215 awards", "4215 opr"]);
+    // An answer's related questions come first, then search's suggestions, deduplicated.
+    expect(askNext(base({ suggest: ["x"], stat: { blocks: [{ kind: "related", title: "More", queries: ["x", "y", "z"] }] } as never }))).toEqual(["x", "y"]);
   });
 
   it("a yes-or-no question leads with its verdict", () => {
@@ -431,6 +437,42 @@ describe("when no chat can answer", () => {
     const r = await ask(q, plain(q), SITE);
     expect(r.chat).toBeUndefined();
     expect(r.embed.title).toBe(SORRY_SENTENCE);
+  });
+});
+
+describe("the site's failed-search queue", () => {
+  it("a records question search couldn't answer is fed to it, with the server; a greeting and an answered one are not", async () => {
+    const miss = vi.fn();
+    const nothing = (q: string) => base({ q, hits: [], step: "recovery", recovery: { understood: ["no team, event or match"], closest: [], browse: [] } });
+    const q = "who had the highest score at 2025 worlds";
+    const d = deps(nothing(q), { refine: vi.fn(async () => null), miss });
+    await ask(q, d, SITE, [], [], "g1");
+    expect(miss).toHaveBeenCalledWith(q, expect.objectContaining({ step: "recovery" }), "g1");
+    // An answer search gave teaches the queue nothing.
+    miss.mockClear();
+    await ask("4215", deps(base(), { miss }), SITE, [], [], "g1");
+    expect(miss).not.toHaveBeenCalled();
+    // A greeting that no chat answered isn't a failed search either.
+    await ask("hi", deps(nothing("hi"), { refine: vi.fn(async () => null), miss }), SITE, [], [], "g1");
+    expect(miss).not.toHaveBeenCalled();
+    // A chat that answers it does teach it nothing: the person got their answer.
+    await ask(q, deps(nothing(q), { refine: vi.fn(async () => null), facts: vi.fn(async () => []), chat: vi.fn(async () => ({ text: "30030 won.", search: false })), miss }), SITE, [], [], "g1");
+    expect(miss).not.toHaveBeenCalled();
+    // A greeting is not a records question just because an earlier turn in the thread named a team: smallTalk answers it.
+    await ask("thanks", deps(nothing("thanks"), { refine: vi.fn(async () => null), miss }), SITE, [{ role: "user", text: "who won 4215" }], [], "g1");
+    expect(miss).not.toHaveBeenCalled();
+    // And a question about the records with no number in it is one, even where the bot answers with its one plain line.
+    for (const q of ["who won decode", "how did our alliance do at austin"]) {
+      await ask(q, deps(nothing(q), { refine: vi.fn(async () => null), miss }), SITE, [], [], "g1");
+      expect(miss).toHaveBeenLastCalledWith(q, expect.objectContaining({ step: "recovery" }), "g1");
+    }
+    // A greeting, a build question (even one whose "team" and "matches" are about the robot), and a long message with
+    // nothing of the records in it are not.
+    for (const q of ["hi", "should i use a 42:15 gear reduction on my turret", "what gear ratio should our team use in matches", "how do we keep our robot cool in a hot venue"]) {
+      miss.mockClear();
+      await ask(q, deps(nothing(q), { refine: vi.fn(async () => null), miss }), SITE, [], [], "g1");
+      expect(miss).not.toHaveBeenCalled();
+    }
   });
 });
 

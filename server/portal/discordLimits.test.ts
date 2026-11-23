@@ -43,7 +43,7 @@ const at = new Date().toISOString();
 /** A follow, today's counts and a team asked about, for one server. */
 async function seed(guild: string, used = 4) {
   const w = chatWindows();
-  await run("INSERT INTO discord_follows (guild_id, channel_id, team, created_at, created_by) VALUES (?, ?, 4215, ?, 'u1')", [guild, `c-${guild}`, at]);
+  await run("INSERT INTO discord_follows (guild_id, channel_id, kind, team, target, created_at, created_by) VALUES (?, ?, 'team', 4215, 'team:4215', ?, 'u1')", [guild, `c-${guild}`, at]);
   await run("INSERT INTO discord_chat_usage (guild_id, window, used) VALUES (?, ?, ?), (?, ?, ?)", [guild, w.hour, used, guild, w.day, used]);
   await run("INSERT INTO discord_guild_teams (guild_id, team, asks, last_at) VALUES (?, 4215, 1, ?)", [guild, at]);
 }
@@ -66,7 +66,7 @@ afterAll(() => {
 });
 beforeEach(async () => {
   process.env.OWNER_EMAILS = "owner@example.com";
-  for (const t of ["discord_follows", "discord_chat_usage", "discord_limits", "discord_guild_teams", "discord_people", "discord_threads"]) {
+  for (const t of ["discord_follows", "discord_chat_usage", "discord_limits", "discord_guild_teams", "discord_people", "discord_threads", "discord_asks", "discord_answers", "discord_guilds"]) {
     await run(`DELETE FROM ${t}`);
   }
   auditFrom = Number((await get<{ n: number }>("SELECT COALESCE(MAX(id), 0) n FROM owner_audit"))!.n);
@@ -87,20 +87,28 @@ describe("the owner console's Discord caps", () => {
     expect(await get("SELECT 1 FROM owner_audit WHERE action = 'discord.limit'")).toBeUndefined();
   });
 
-  it("lists every server the bot kept something for, its cap and today's counts", async () => {
+  it("lists every server the bot kept something for, its name, cap and today's counts, and the bot's own numbers", async () => {
     await seed(G1, 4);
     // A server that left only a thread behind is still one the bot knows.
     await run("INSERT INTO discord_threads (root_id, turns, updated_at, guild_id) VALUES ('r1', '[]', ?, ?)", [at, G2]);
+    // A server the bot has only seen (its name, nothing else yet).
+    await run("INSERT INTO discord_guilds (guild_id, name, joined_at, seen_at) VALUES (?, 'Austin Robotics', ?, ?)", [G1, at, at]);
+    // An ask, and the thumbs on the answer it got.
+    await run("INSERT INTO discord_asks (guild_id, question, step, chat, answered, ms, asked_at) VALUES (?, 'how did our alliance do at worlds', 'no-match', 0, 0, 900, ?), (?, 'who won decode', 'deterministic', 1, 1, 1100, ?)", [G1, at, G1, at]);
+    await run("INSERT INTO discord_answers (message_id, guild_id, up, down, voted_at) VALUES ('m1', ?, 2, 1, ?)", [G1, at]);
     const r = await call("GET", "/api/owner/discord/limits", { cookie: ownerCookie });
     expect(r.status).toBe(200);
     expect(r.json.defaultLimit).toEqual({ perHour: null, perDay: null });
     expect(r.json.servers.map((s: any) => s.guild)).toEqual([G1, G2]);
     expect(serverRow(r.json, G1)).toMatchObject({
-      perHour: DEFAULT_LIMIT.perHour, perDay: DEFAULT_LIMIT.perDay, custom: false, usedHour: 4, usedDay: 4, follows: 1, lastAsk: at,
+      name: "Austin Robotics", perHour: DEFAULT_LIMIT.perHour, perDay: DEFAULT_LIMIT.perDay, custom: false, usedHour: 4, usedDay: 4, follows: 1, lastAsk: at,
     });
-    expect(serverRow(r.json, G2)).toMatchObject({ custom: false, follows: 0, usedHour: 0 });
+    expect(serverRow(r.json, G2)).toMatchObject({ name: null, custom: false, follows: 0, usedHour: 0 });
     // A server's counts are its own.
     expect(serverRow(r.json, G2).usedDay).toBe(0);
+    // The bot's own numbers, and the question it couldn't answer (the one it did isn't listed).
+    expect(r.json.usage).toMatchObject({ servers: 2, asksToday: 2, asksWeek: 2, answeredPct: 50, chatPct: 50, votesUp: 2, votesDown: 1 });
+    expect(r.json.unanswered).toEqual([{ question: "how did our alliance do at worlds", count: 1, step: "no-match", lastAt: at, servers: 1 }]);
   });
 
   it("sets one server's cap, audited, and starts its counters afresh; clearing it is the way back", async () => {

@@ -15,6 +15,26 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.2 — 2026-11-23
+
+Discord answers now come with buttons and a 👍/👎, a whole event can be followed, the owner console shows servers by name with the bot's own numbers, and the questions the bot misses feed the site's failed-search list.
+
+### Highlights
+- [alerts] Ask next is a button on every answer, not text to copy
+- [alerts] 👍 or 👎 on an answer says how it went
+- [alerts] /follow event: follows a whole event, not just a team
+- [alerts] The owner console names servers and shows bot usage
+- [alerts] Discord's missed questions feed the failed-search list
+
+### Discord bot
+- **Buttons instead of copy-paste text** (`bot/buttons.ts`, `bot/handler.ts`): an answer's suggestions are buttons — three at most (the row holds five, so the link buttons always fit), then a link button to the same answer on controlscout.org and one per video — with the question kept in the bot's process for an hour rather than in Discord's 100-character custom id. A click asks it as `/ask` would (same cache, same limit, same memory), and an expired button (an hour old, or from before a restart) says so and names `/ask` instead of guessing. Follows are deliberately not buttons: a button would let anyone follow without Manage Server. `bot/buttons.test.ts` covers the store, its expiry and the components, and `bot/handler.test.ts` the click, the expiry and a capped server.
+- **A quality signal** (`bot/reactions.ts`, migration 104): every posted answer gets 👍 and 👎, and a click is counted on that answer alone — one row per message the bot posted, no user id, so it is a count and not a record of who clicked. The bot now asks Discord for the (non-privileged) reaction intents, without which it would add the emoji and never hear the click, and the invite asks for Add Reactions (`DISCORD_PERMISSIONS`): a server that added the bot before 7.9.2 needs the new invite link before its answers take votes. `bot/reactions.test.ts` covers both, the clamp at zero, and a message it never posted.
+- **Follow an event, not only a team** (`bot/follows.ts`, `bot/eventAlerts.ts`, migration 104): `/follow event:` names an event (autocompleted, this season) and posts its evening-before, its schedule once FIRST publishes it — one line per competition day — and a recap at the end of each day with the day's matches, the calls and the top five. It is keyed `event:` in the posts log, so a server following both an event and a team gets both posts. A follow belongs to the season it is made in — event codes repeat, so last season's `event:USTXAUQ` never posts this season's event with the same code; following it again moves the follow forward. `discord_follows` is rewritten with a `target` key (`team:4215`, `event:USTXAUQ`) and a `season`; existing follows are carried over as team follows, and the 10-follow limit is shared.
+- **Server names and the bot's own numbers** (`bot/guilds.ts`, `server/portal/discordLimits.ts`, `src/components/owner/DiscordPanel.tsx`): the panel lists each server by the name Discord shows beside its id (kept on join, on a rename and once at startup), with chats today and this week, the share answered, the share Bruno answered (the rest fell back to the card), the middle answer time, the follow posts sent today and the thumbs. It also lists the questions the bot couldn't answer, most asked first — the phrasings the website's search box never sees.
+- **Discord's misses feed the failed-search list** (`bot/asks.ts`, `bot/ask.ts`): every ask is recorded (the words with personal data redacted, the step, who answered, how long), and a records question search couldn't answer and no chat did goes through the site's own `noteBotSearch` — one slot per question, so a server's questions never supersede each other and none spends a website visitor's hourly report cap — so the words people use in Discord land in `search_failures` and its GitHub list too. The bot flushes that queue itself, once a minute. `bot/asks.test.ts` covers the log, the unanswered list, the numbers and the prune; `bot/ask.test.ts` covers what is and isn't fed to the queue.
+- **A how-to question gets steps** (`bot/productFacts.ts`, merged ahead as #2192): the style line sent with every chat names a third shape — a build, tuning or guide request — as numbered steps with the straight answer first and no records question closing it when the question isn't about the records, so "write a detailed guide on making a coaxial swerve drive" gets a guide instead of a two-sentence summary ending in an OPR offer. `bot/productFacts.test.ts` and `bot/ask.product.test.ts` cover the line and that it travels with the packet.
+- A server that removes the bot now has its name, its questions and the votes on its answers deleted with the rest (`bot/forget.ts`), and all three tables are private: never shipped in the snapshot (`server/data/snapshot.ts`). `/help` and the site's command list name `/follow event:` and `/unfollow team: event:`, and the bot's README documents all of it. (#2190)
+
 ## 7.9.1 — 2026-11-22
 
 Discord chat caps are built but off: no server is capped until the owner gives it one, and Bruno answers with more reasoning — and knows he is a golden retriever.

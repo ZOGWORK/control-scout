@@ -2,12 +2,16 @@
 // allows 3 seconds for a first response; a cold event can take longer), and every failure becomes a
 // friendly embed, logged here with the command and its arguments. Autocomplete answers from a cached
 // event list and never throws.
-import { MessageFlags, PermissionFlagsBits, type APIEmbed, type AutocompleteInteraction, type ChatInputCommandInteraction, type Interaction } from "discord.js";
+import { MessageFlags, PermissionFlagsBits, type APIActionRowComponent, type APIButtonComponent, type APIEmbed, type AutocompleteInteraction, type ButtonInteraction, type ChatInputCommandInteraction, type Interaction } from "discord.js";
 import { AnswerCache } from "./guard.js";
 import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
-import { addFollow, followingEmbed, listFollows, removeFollow } from "./follows.js";
+import { addFollow, followName, followingEmbed, listFollows, removeFollow, type FollowTarget } from "./follows.js";
+import { answerComponents, buttonQuestion, QuestionButtons } from "./buttons.js";
+import { BAD, GOOD, trackAnswer } from "./reactions.js";
+import { noteAsk, type AskRecord } from "./asks.js";
+import { SORRY_SENTENCE } from "../src/shared/search.js";
 import { BOT_COMMANDS } from "../src/shared/discord.js";
-import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
+import { eventChoices, eventCode, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
 import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
 import { ask as askSearch, chatPost, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
@@ -22,14 +26,22 @@ export interface Lookups {
   team: (n: number) => Promise<APIEmbed>;
   predict: (event: string, match: number) => Promise<APIEmbed>;
   event: (code: string) => Promise<APIEmbed>;
+  /** An event's code from what someone typed: its code (any case) or its exact name, for `/follow event:` typed by
+   *  hand rather than picked from autocomplete. Absent: the text is taken as a code. */
+  eventCode?: (input: string) => Promise<string>;
   rankings: () => Promise<APIEmbed>;
   choices: (typed: string) => Promise<{ name: string; value: string }[]>;
-  follow: (guild: string, channel: string, team: number, by: string) => Promise<"added" | "already">;
-  unfollow: (guild: string, team: number, channel?: string | null) => Promise<number>;
+  follow: (guild: string, channel: string, target: FollowTarget, by: string) => Promise<"added" | "already">;
+  unfollow: (guild: string, target: FollowTarget, channel?: string | null) => Promise<number>;
   following: (guild: string) => Promise<APIEmbed>;
   /** /ask and a mention: Bruno's chat reply, else the website's search answer (bot/ask.ts); `history`: the reply
-   *  thread before it; `memory`: the server's own lines for the chat (bot/memory.ts). */
-  ask: (question: string, history?: BrunoChatTurn[], memory?: string[]) => Promise<AskReply>;
+   *  thread before it; `memory`: the server's own lines for the chat (bot/memory.ts); `guild`: the server it was asked
+   *  in (never who asked), for the site's failed-search queue. */
+  ask: (question: string, history?: BrunoChatTurn[], memory?: string[], guild?: string | null) => Promise<AskReply>;
+  /** Every ask, for the owner console (bot/asks.ts): the words, the step, who answered, how long. */
+  noteAsk?: (r: AskRecord) => Promise<void>;
+  /** An answer the bot posted, so its 👍/👎 reactions count (bot/reactions.ts). */
+  trackAnswer?: (messageId: string, guild: string | null) => Promise<void>;
   /** What a server teaches the bot (bot/memory.ts); absent: nothing is remembered. */
   memory?: Memory;
   /** Files a "Report this to ControlScout" as a GitHub issue (bot/report.ts); absent: reporting is off. */
@@ -61,12 +73,15 @@ export const realLookups: Lookups = {
   team: teamLookup,
   predict: predictLookup,
   event: eventLookup,
+  eventCode,
   rankings: () => rankingsLookup(),
   choices: async (typed) => rankChoices(await eventChoices(), typed),
   follow: addFollow,
   unfollow: removeFollow,
   following: async (guild) => followingEmbed(await listFollows(guild), site()),
-  ask: async (question, history, memory) => askSearch(question, await (askDeps ??= realAskDeps()), site(), history, memory),
+  ask: async (question, history, memory, guild) => askSearch(question, await (askDeps ??= realAskDeps()), site(), history, memory, guild ?? null),
+  noteAsk: (r) => noteAsk(r),
+  trackAnswer: (id, guild) => trackAnswer(id, guild),
   enabled: (flag) => isEnabled(flag),
   quota: takeChat,
   memory: { recall: recallMemory, learn: learnMemory, thread: readThread, keep: keepThread },
@@ -130,8 +145,15 @@ const turn = (role: BrunoChatTurn["role"], text: string): BrunoChatTurn => ({ ro
 /** An answer pings nobody: not the asker, not @everyone, a role or a person named in Bruno's text. */
 export const NO_PINGS = { parse: [] as never[], repliedUser: false };
 
-/** What one answer posts: Bruno's chat reply as text, or the card (with its video link as the text). */
-export interface AskPost { content?: string; embeds: APIEmbed[] }
+/** The answer's buttons (bot/buttons.ts): a row of questions, a row of links. */
+export type AnswerComponents = APIActionRowComponent<APIButtonComponent>[];
+
+/** What one answer posts: Bruno's chat reply as text, or the card (with its video link as the text), and its buttons. */
+export interface AskPost { content?: string; embeds: APIEmbed[]; components?: AnswerComponents }
+
+/** Whether an answer answered: a card, a stat, or Bruno's own words. The bot's "I couldn't" fallback (by: "scout") and
+ *  a sorry card are the two that didn't; the owner console counts them (bot/asks.ts). */
+export const answered = (r: AskReply): boolean => (r.chat ? r.chat.by !== "scout" : r.embed.title !== SORRY_SENTENCE);
 
 /** The command and its arguments as one line, for the cache key and the log. */
 export function describe(i: Pick<ChatInputCommandInteraction, "commandName" | "options">): string {
@@ -157,6 +179,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   // Nobody is paced per person: every message is answered (a person asking twice in a row gets both answers). Only the
   // same question within a minute is the answer already given, whoever asks.
   const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
+  // The questions behind the answers' buttons (bot/buttons.ts), kept an hour or until a restart.
+  const buttons = new QuestionButtons();
   // The server's chat limit (bot/quota.ts): only a server given a cap has one, and a read that fails allows the chat —
   // a database blip must never silence the bot.
   const quota = lookups.quota;
@@ -169,21 +193,47 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
    * questions), the same for /ask and a mention, whatever its case or spacing, and by the thread before it: a
    * follow-up in a thread is its own question.
    */
-  async function askReply(question: string, key: string, history: BrunoChatTurn[] = [], memory: string[] = []): Promise<AskReply> {
+  async function askReply(question: string, key: string, history: BrunoChatTurn[] = [], memory: string[] = [], guild: string | null = null): Promise<AskReply> {
     const t0 = Date.now();
     let fresh = false;
     // The server's own lines are part of the key: two servers asking the same thing get different answers.
     const k = [question, ...history.map((t) => `${t.role}:${t.text}`), ...memory].join("\u0000").trim().replace(/\s+/g, " ").toUpperCase();
-    const r = await asks.get(k, () => { fresh = true; return lookups.ask(question, history, memory); });
+    const r = await asks.get(k, () => { fresh = true; return lookups.ask(question, history, memory, guild); });
+    const ms = Date.now() - t0;
+    // What the bot was asked (bot/asks.ts), once per question rather than once per reader: a cached repeat is the same
+    // ask. Never who asked, never awaited, never able to fail an answer.
+    if (fresh && lookups.noteAsk) {
+      // "Bruno answered" means his chat did: the bot's own smallTalk fallback (`by: "scout"`) is a chat too, but it
+      // isn't Bruno's, and counting it would put that share above the answered one.
+      const brunoChat = r.meta.chat === true && r.chat?.by !== "scout";
+      void lookups.noteAsk({ question, step: r.meta.step, chat: brunoChat, answered: answered(r), ms, guild }).catch(() => {});
+    }
     // The bot's own fallback (bot/smallTalk.ts) is a chat too, but not Bruno's: the log says `talk`.
     const bruno = [r.chat?.by === "scout" ? "talk" : r.meta.chat ? "chat" : null, r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
-    logLine(`${key} step=${r.meta.step} bruno=${bruno}${history.length ? ` thread=${history.length}` : ""}${r.content || r.chat?.video ? " video" : ""} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
+    logLine(`${key} step=${r.meta.step} bruno=${bruno}${history.length ? ` thread=${history.length}` : ""}${r.content || r.chat?.video ? " video" : ""} ${fresh ? "" : "cached "}${ms}ms`);
     return r;
   }
-  /** An answer as a post: Bruno's chat reply as text, else the card with its video link as the text. `quote`: show the
-   *  question (a slash command's reply doesn't; a reply to a message already does). */
-  const askPost = (question: string, r: AskReply, quote: boolean): AskPost =>
-    r.chat ? { content: chatPost(question, r.chat, { quote }), embeds: [] } : { ...(r.content ? { content: r.content } : {}), embeds: [pride(r.embed)] };
+  /** An answer as a post: Bruno's chat reply as text, else the card with its video link as the text, and its buttons
+   *  (bot/buttons.ts). `quote`: show the question (a slash command's reply doesn't; a reply to a message already does). */
+  const askPost = (question: string, r: AskReply, quote: boolean): AskPost => {
+    const components = answerComponents(r, buttons);
+    const post: AskPost = r.chat
+      ? { content: chatPost(question, r.chat, { quote }), embeds: [] }
+      : { ...(r.content ? { content: r.content } : {}), embeds: [pride(r.embed)] };
+    return components.length ? { ...post, components } : post;
+  };
+  /** 👍/👎 on an answer, and its row, so the console can read how answers land (bot/reactions.ts). A message that can't
+   *  take reactions (or a stand-in without them) changes nothing. */
+  function watchVotes(sent: unknown, guild: string | null): void {
+    const m = sent as { id?: string; react?: (emoji: string) => Promise<unknown> } | undefined;
+    if (!m?.id) return;
+    // The row goes in before the emoji does: a click that arrives the moment the emoji renders must find the answer it
+    // counts on, or the vote updates no row and is lost.
+    const tracked = lookups.trackAnswer?.(m.id, guild) ?? Promise.resolve();
+    void Promise.resolve(tracked).catch(() => {}).then(() => {
+      for (const emoji of [GOOD, BAD]) void m.react?.(emoji)?.catch(() => {});
+    });
+  }
   /** The thread a post of the bot's carries on, by its message id: every turn up to and including that answer. */
   const threads = new Map<string, BrunoChatTurn[]>();
   /** A thread's turns: from this process' cache, else from the server's memory (a reply to an answer from before a restart). */
@@ -276,25 +326,49 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     return cache.get(key, () => lookups.predict(i.options.getString("event", true), i.options.getInteger("match", true)));
   }
 
+  /** The team or event a /follow or /unfollow names: exactly one of them, or a friendly error. An event is resolved
+   *  from its code or its exact name, so `/follow event:Austin Qualifier` works typed by hand as well as picked. */
+  async function followTarget(i: ChatInputCommandInteraction, keepStale = false): Promise<FollowTarget> {
+    const team = i.options.getInteger("team");
+    const event = (i.options.getString("event") ?? "").trim();
+    if (team && event) throw new Friendly("One at a time", "Follow a team or an event, not both: `/follow team:4215` or `/follow event:USTXAUQ`.");
+    if (team) return { kind: "team", team };
+    if (!event) throw new Friendly("Team or event?", "Say what to follow: `/follow team:4215` for a team's matches, or `/follow event:USTXAUQ` for a whole event.");
+    if (!lookups.eventCode) return { kind: "event", event: event.toUpperCase() };
+    try {
+      return { kind: "event", event: await lookups.eventCode(event) };
+    } catch (e) {
+      // Unfollowing takes what was typed as a code too: a follow from an earlier season is no longer in the event list,
+      // and it must still be possible to stop it.
+      // Only "no such event": a database failure must say so rather than report a follow that never stopped.
+      if (keepStale && e instanceof Friendly && e.title === "Event not found") return { kind: "event", event: event.toUpperCase() };
+      throw e;
+    }
+  }
+
   /** The server's follows: never cached (they change), and only inside a server. */
   async function manage(i: ChatInputCommandInteraction): Promise<APIEmbed> {
     const guild = i.guildId;
     if (!guild) throw new Friendly("Servers only", "Follows belong to a server: use this in one of its channels.");
     if (i.commandName === "following") return lookups.following(guild);
-    const team = i.options.getInteger("team", true);
+    const target = await followTarget(i, i.commandName === "unfollow");
+    const name = followName(target);
     const picked = i.options.getChannel("channel")?.id ?? null;
     const where = picked ? ` in <#${picked}>` : "";
     if (i.commandName === "unfollow") {
-      const n = await lookups.unfollow(guild, team, picked);
-      if (!n) throw new Friendly("Not following", `This server doesn't follow ${team}${where}.`);
-      return { title: `Stopped following ${team}`, description: `No more automatic posts for **${team}**${where}.`, color: VOLT, footer: FOOTER };
+      const n = await lookups.unfollow(guild, target, picked);
+      if (!n) throw new Friendly("Not following", `This server doesn't follow ${name}${where}.`);
+      return { title: `Stopped following ${name}`, description: `No more automatic posts for **${name}**${where}.`, color: VOLT, footer: FOOTER };
     }
     const channel = picked ?? i.channelId;
+    if (!channel) throw new Friendly("Pick a channel", `Say where to post: /follow ${target.kind === "team" ? `team:${target.team}` : `event:${target.event}`} channel:#scouting.`);
     if (!canPost(i, channel)) throw new Friendly("Can't post there", `Control Scout needs View Channel, Send Messages and Embed Links in <#${channel}>. Give its role those, or pick another channel.`);
-    const r = await lookups.follow(guild, channel, team, i.user.id);
+    const r = await lookups.follow(guild, channel, target, i.user.id);
     return {
-      title: r === "added" ? `Following ${team}` : `Already following ${team}`,
-      description: `<#${channel}> gets posts for **${team}**: the evening before each event, its schedule with win odds once posted, 15 minutes before each match, each result and whether the call was right, and a recap at the end of each day. Stop with /unfollow team:${team}.`,
+      title: r === "added" ? `Following ${name}` : `Already following ${name}`,
+      description: target.kind === "team"
+        ? `<#${channel}> gets posts for **${target.team}**: the evening before each event, its schedule with win odds once posted, 15 minutes before each match, each result and whether the call was right, and a recap at the end of each day. Stop with /unfollow team:${target.team}.`
+        : `<#${channel}> gets posts for **${target.event}**: the evening before it starts, its schedule once posted, and a recap at the end of each day. Stop with /unfollow event:${target.event}.`,
       color: VOLT,
       footer: FOOTER,
     };
@@ -328,14 +402,18 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       let post: AskPost;
       let r: AskReply | undefined;
       try {
-        r = await askReply(question, describe(i), [], lines);
+        r = await askReply(question, describe(i), [], lines, i.guildId);
         post = askPost(question, r, true);
       } catch (e) {
         logLine(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
       }
       const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
-      if (r) remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId);
+      // Only an answer takes votes: the failure notice above is not one.
+      if (r) {
+        remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId);
+        watchVotes(sent, i.guildId ?? null);
+      }
       return;
     }
     let embed: APIEmbed;
@@ -411,7 +489,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       typing.unref?.();
       let r: AskReply;
       try {
-        r = await askReply(q, `@mention question=${q.toUpperCase().slice(0, 100)}`, history, lines);
+        r = await askReply(q, `@mention question=${q.toUpperCase().slice(0, 100)}`, history, lines, m.guildId ?? null);
       } catch (e) {
         clearInterval(typing);
         logLine(`@mention ask failed: ${(e as Error)?.message ?? String(e)}`);
@@ -422,8 +500,46 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // The reply quotes the message it answers: no need to repeat the question.
       const sent = await send(askPost(q, r, false));
       remember((sent as { id?: string } | undefined)?.id, history, q, r, m.guildId ?? null);
+      watchVotes(sent, m.guildId ?? null);
     } catch (e) {
       logLine(`mention failed: ${(e as Error)?.message ?? String(e)}`);
+    }
+  }
+
+  /**
+   * A button under an answer (bot/buttons.ts): the question it offers, asked as /ask would, in the channel. The answer
+   * is public (a button is a quicker way to ask, not a private one), and a button older than an hour says so instead of
+   * guessing: its question lived in this process, so a restart ends it too.
+   */
+  async function pressed(i: ButtonInteraction): Promise<void> {
+    if (lookups.enabled && !(await lookups.enabled("discordBot"))) {
+      await i.reply({ embeds: [pride(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works."))], flags: MessageFlags.Ephemeral });
+      return;
+    }
+    const question = buttonQuestion(buttons, i.customId);
+    if (question === null) {
+      await i.reply({ content: "That question's button has expired (they last an hour). Ask it with `/ask question:`.", flags: MessageFlags.Ephemeral });
+      return;
+    }
+    const over = await mayChat(i.guildId);
+    if (!over.ok) { await i.reply({ embeds: [pride(limitEmbed(over))], flags: MessageFlags.Ephemeral }); return; }
+    await i.deferReply();
+    const lines = await serverLines(i.guildId, i.user.id);
+    learnAsk(i.guildId, i.user.id, i.user.globalName ?? i.user.username ?? null, question);
+    let post: AskPost;
+    let r: AskReply | undefined;
+    try {
+      r = await askReply(question, `/ask question=${question.toUpperCase().slice(0, 100)}`, [], lines, i.guildId ?? null);
+      post = askPost(question, r, true);
+    } catch (e) {
+      logLine(`button ask failed: ${(e as Error)?.message ?? String(e)}`);
+      post = { embeds: [pride(unavailableEmbed())] };
+    }
+    const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
+    // Only an answer takes votes: the failure notice above is not one.
+    if (r) {
+      remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId ?? null);
+      watchVotes(sent, i.guildId ?? null);
     }
   }
 
@@ -431,6 +547,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     try {
       if (i.isChatInputCommand()) await command(i);
       else if (i.isAutocomplete()) await autocomplete(i);
+      else if (i.isButton()) await pressed(i);
     } catch (e) {
       // Discord itself failed (the interaction expired, the network dropped): log it and stay up.
       logLine(`interaction failed: ${(e as Error)?.message ?? String(e)}`);
@@ -453,6 +570,6 @@ export interface MentionMessage {
   /** The message it replies to, and that message's author. */
   reference?: { messageId?: string } | null;
   mentions?: { repliedUser?: { id: string } | null };
-  reply: (opts: { content?: string; embeds: APIEmbed[]; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>;
-  channel: { send?: (opts: { content?: string; embeds: APIEmbed[]; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>; sendTyping?: () => Promise<unknown> };
+  reply: (opts: { content?: string; embeds: APIEmbed[]; components?: AnswerComponents; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>;
+  channel: { send?: (opts: { content?: string; embeds: APIEmbed[]; components?: AnswerComponents; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>; sendTyping?: () => Promise<unknown> };
 }
