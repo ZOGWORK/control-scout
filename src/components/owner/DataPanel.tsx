@@ -37,27 +37,48 @@ export function DataPanel() {
     <>
       <Async state={state}>
         {(d) => (
-          <>
-            <Section title="Sync status" description="Results come from the FIRST Events API on a schedule (often on event days); stats, ratings and live results are rebuilt after each sync.">
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatTile tone={isV8() ? syncTone(d.timestamps.syncAt) : "accent"} icon={CloudDownload} label="Last sync" value={since(d.timestamps.syncAt)} hint={when(d.timestamps.syncAt)} />
-                <StatTile tone="sky" icon={BarChart3} label="Stats rebuilt" value={since(d.timestamps.statsAt)} hint={when(d.timestamps.statsAt)} />
-                <StatTile tone="emerald" icon={Radio} label="Live results" value={since(d.timestamps.recordsAt)} hint={when(d.timestamps.recordsAt)} />
-                <StatTile tone="violet" icon={PackageOpen} label="Packs built" value={since(d.timestamps.packsAt)} hint={when(d.timestamps.packsAt)} />
-              </div>
-              <SeasonTable seasons={d.seasons} />
-            </Section>
-            <Section stackAction title="Data-quality flags" description="Checks over the stored data, for triage. Nothing on this screen changes match data: wrong FTC results are fixed at the source and come in with a re-sync."
-              action={<Button variant="secondary" size="sm" onClick={() => void checkAgain()} disabled={checking}><RefreshCw className={cn(checking && "animate-spin")} /> {checking ? "Checking…" : "Check again"}</Button>}>
-              <p className="mb-3 text-xs text-muted-foreground">Checked {ago(d.computedAt)} ({when(d.computedAt)}).</p>
-              <ul className="grid items-start gap-3 lg:grid-cols-2">
-                {d.flags.map((f) => <FlagCard key={f.id} f={f} />)}
-              </ul>
-            </Section>
-          </>
+          <Section title="Sync status" description="Results come from the FIRST Events API on a schedule (often on event days); stats, ratings and live results are rebuilt after each sync.">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatTile tone={isV8() ? syncTone(d.timestamps.syncAt) : "accent"} icon={CloudDownload} label="Last sync" value={since(d.timestamps.syncAt)} hint={when(d.timestamps.syncAt)} />
+              <StatTile tone="sky" icon={BarChart3} label="Stats rebuilt" value={since(d.timestamps.statsAt)} hint={when(d.timestamps.statsAt)} />
+              <StatTile tone="emerald" icon={Radio} label="Live results" value={since(d.timestamps.recordsAt)} hint={when(d.timestamps.recordsAt)} />
+              <StatTile tone="violet" icon={PackageOpen} label="Packs built" value={since(d.timestamps.packsAt)} hint={when(d.timestamps.packsAt)} />
+            </div>
+          </Section>
         )}
       </Async>
+      {/* The actions sit right under the status they answer, outside the report: a re-sync must stay reachable when the report fails. */}
       <OpsCards ops={["resync", "caches"]} onDone={onDone} />
+      {state.data && <Checks d={state.data} checking={checking} onCheck={() => void checkAgain()} />}
+    </>
+  );
+}
+
+/** The data-quality checks: the ones that found something open (they're the review), the rest and the per-season table folded. */
+function Checks({ d, checking, onCheck }: { d: OwnerDataReport; checking: boolean; onCheck: () => void }) {
+  const found = d.flags.filter((f) => f.error || f.count);
+  const passed = d.flags.filter((f) => !f.error && !f.count);
+  return (
+    <>
+      <Section stackAction title="Data-quality flags" description="Checks over the stored data, for triage. Nothing on this screen changes match data: wrong FTC results are fixed at the source and come in with a re-sync."
+        action={<Button variant="secondary" size="sm" onClick={onCheck} disabled={checking}><RefreshCw className={cn(checking && "animate-spin")} /> {checking ? "Checking…" : "Check again"}</Button>}>
+        <p className="mb-3 text-xs text-muted-foreground">Checked {ago(d.computedAt)} ({when(d.computedAt)}).</p>
+        {found.length ? (
+          <ul className="grid items-start gap-3 lg:grid-cols-2">{found.map((f) => <FlagCard key={f.id} f={f} />)}</ul>
+        ) : (
+          <p className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+            <CheckCircle2 className="size-4 shrink-0 text-success v8:text-emerald-400" aria-hidden /> Every check passed.
+          </p>
+        )}
+      </Section>
+      {passed.length > 0 && (
+        <Section title="Checks that passed" collapsible icon={CheckCircle2} summary={`${passed.length} of ${d.flags.length} checks found nothing`}>
+          <ul className="grid items-start gap-3 lg:grid-cols-2">{passed.map((f) => <FlagCard key={f.id} f={f} />)}</ul>
+        </Section>
+      )}
+      <Section title="By season" collapsible icon={CloudDownload} summary={`${d.seasons.length} season${d.seasons.length === 1 ? "" : "s"}: last sync, events with results, matches`}>
+        <SeasonTable seasons={d.seasons} />
+      </Section>
     </>
   );
 }
@@ -70,7 +91,7 @@ function SeasonStatus({ s }: { s: SeasonSync }) {
 
 function SeasonTable({ seasons }: { seasons: SeasonSync[] }) {
   return (
-    <div className="mt-4 rounded-xl border border-border bg-card">
+    <div className="rounded-xl border border-border bg-card">
       <Table>
         <TableHeader>
           <TableRow>

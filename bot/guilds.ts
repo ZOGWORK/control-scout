@@ -1,4 +1,4 @@
-// The server names Discord shows the bot (migration 103). The console's Discord panel lists servers by name as well as
+// The server names Discord shows the bot (migration 104). The console's Discord panel lists servers by name as well as
 // id, so a cap can be set without hunting for a snowflake; nothing here is read at answer time, and a server's row goes
 // with the rest of its data when the bot is removed (bot/forget.ts).
 //

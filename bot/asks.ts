@@ -1,4 +1,4 @@
-// What the bot was asked, kept so the owner can see it (migration 103): every question, the step search answered it at,
+// What the bot was asked, kept so the owner can see it (migration 104): every question, the step search answered it at,
 // whether Bruno's chat answered it, and how long that took. Two things read it: the console's "questions the bot couldn't
 // answer" (the phrasings people actually use, which the site's own search never sees) and its chats-a-day, Bruno-share
 // and latency numbers.

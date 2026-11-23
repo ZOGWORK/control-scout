@@ -1,4 +1,4 @@
-// The quality signal on an answer: 👍 and 👎 reactions, counted (migration 103). The bot adds both to every answer it
+// The quality signal on an answer: 👍 and 👎 reactions, counted (migration 104). The bot adds both to every answer it
 // posts; a click is a count on that answer, never a record of who clicked (no user id is kept), so the owner console can
 // see whether answers land at all.
 //

@@ -13,8 +13,8 @@ it("sends current product knowledge with Discord chats, reserving room beside se
   const context = state.chat.mock.calls[0] as unknown as [string, string[]];
   expect(context[1].join(" ")).toContain("remodel is complete");
   expect(context[1].join(" ")).toContain("existing, available");
-  // How to shape the answer goes with the facts: a records question short, an explanation in paragraphs or bullets.
-  expect(context[1].join(" ")).toContain("How to answer in Discord");
+  // How to shape the answer goes with the facts: records short, how/why in paragraphs or bullets, a build guide in steps.
+  expect(context[1].join(" ")).toContain("Shapes: records gets the number");
   expect(context[1].join(" ")).toContain("'- ' bullets");
   expect(context[1].join(" ")).toContain("Search record 0");
   expect(context[1].length).toBeLessThanOrEqual(40);
@@ -27,7 +27,7 @@ it("sends current product knowledge with Discord chats, reserving room beside se
   const withMemory = state.chat.mock.calls.at(-1) as unknown as [string, string[]];
   expect(withMemory[1].join(" ")).toContain("teams 4215, 6980");
   expect(withMemory[1].join(" ")).toContain("Alex here");
-  expect(withMemory[1].join(" ")).toContain("How to answer in Discord");
+  expect(withMemory[1].join(" ")).toContain("Shapes: records gets the number");
   expect(withMemory[1].length).toBeLessThanOrEqual(40);
   expect(withMemory[1].join("\n").length).toBeLessThan(8000);
   expect(withMemory[1].every((f) => f.length <= 400)).toBe(true);

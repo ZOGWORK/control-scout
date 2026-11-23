@@ -54,7 +54,7 @@ deliberately not buttons: a button would let anyone follow without Manage Server
 **👍 and 👎** (`bot/reactions.ts`). The bot adds both to every answer it posts; a click is counted on that one answer
 and nowhere else, with no record of who clicked. The owner console shows the totals beside the bot's other numbers.
 
-**What it was asked** (`bot/asks.ts`, migration 103). Every ask is recorded — the words as typed with personal data
+**What it was asked** (`bot/asks.ts`, migration 104). Every ask is recorded — the words as typed with personal data
 redacted, the step search answered it at, whether Bruno's chat answered it, and how long it took; never who asked,
 only the server. The owner console lists the questions it couldn't answer, most asked first. A **records question**
 search couldn't answer and no chat did is also fed to the site's own failed-search queue
@@ -161,7 +161,11 @@ answer's video and a small "more on controlscout.org" link only when the records
 ("explain a coaxial swerve") gets a short structured answer — a one-line **bold** summary, then a couple of short
 paragraphs or up to five `- ` bullets, key terms in bold, about 600 to 1,200 characters — where a records question
 stays the number first and a line or two: the shape is one more instruction sent with his facts (`answerStyle()` in
-`bot/productFacts.ts`), inside Control Point's 400-character line cap. Replying to his answer
+`bot/productFacts.ts`), inside Control Point's 400-character line cap. A request to explain how to build something
+("write a detailed guide on making a coaxial swerve drive") is a third shape: a one-line answer, then three to six
+numbered steps with the parts, sizes and numbers it takes — it used to fall between the two and come back as two
+sentences plus an OPR question. That closing records question ("Also want 4215's record?") is asked only on a records
+answer now, never on a guide or an explanation. Replying to his answer
 carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each, and keeps them in the
 database, so a restart carries on where the conversation was: `bot/memory.ts`). `/ask` answers the same way, with the question quoted. Every number in his reply must be in the facts, the
 message or the thread, or the website's answer card posts instead, as it does when Bruno is off (`discordBruno`),
