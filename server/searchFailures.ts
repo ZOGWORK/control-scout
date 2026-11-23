@@ -30,7 +30,7 @@ import type { SearchAnswer } from "../src/shared/api.js";
 
 // --- What counts as a failed search (brief §12.1) ---------------------------------------------------------------
 
-export type FailureType = "no-match" | "team-fallback" | "weak" | "name-only" | "empty" | "ambiguous";
+export type FailureType = "no-match" | "team-fallback" | "weak" | "name-only" | "empty" | "ambiguous" | "downvoted";
 
 /** How search reached its answer: from the layered reader (Track A) when it reports one, else read from the
  *  answer itself (readTrace). Server-only, never sent to the browser. */
@@ -264,21 +264,44 @@ export function noteBotSearch(q: string, a: SearchAnswer, source: string, trace?
 /** One per bot question: the slot counter that keeps its questions apart. */
 let botQuestions = 0;
 
+/** A question the Discord bot answered and a person voted 👎 (bot/reactions.ts, bot/index.ts): search's answer was
+ *  wrong rather than missing. Search called it answered, so no reading of the answer would ever file it — only a
+ *  reader's vote can. Queued as `downvoted`, in a slot of its own and never against a visitor's hourly report cap,
+ *  exactly as `noteBotSearch`'s questions are. No answer object and no trace: a vote carries neither. */
+export function noteBotDownvote(q: string, source: string, now = Date.now()): void {
+  try {
+    const safe = safeQuery(q);
+    const n = normalizeQuery(safe);
+    if (!n) return;
+    const trace: SearchTrace = { layers: [], won: null, team: null, intents: [], scope: [], filler: [] };
+    queue(`${source}#${++botQuestions}`, false, { q: safe, n, failure: { type: "downvoted", intent: intentsIn(n)[0] ?? null, trace }, key: reportKey(safe), label: "" }, now, []);
+  } catch { /* never breaks a vote */ }
+}
+
+/** One query waiting for its settle, as `noteOnce` and `noteBotDownvote` hand it to `queue`. */
+interface Queued { q: string; n: string; failure: Failure | null; key: string; label: string }
+
 /** Queue one query under `slot`. `capped`: it spends that slot's hourly report allowance (a visitor's, not a bot's). */
 function noteOnce(slot: string, capped: boolean, q: string, a: SearchAnswer, trace?: SearchTrace | null, now = Date.now(), key?: string, missed: string[] = []): void {
-  settle(now);
   const safe = safeQuery(q);
   const n = normalizeQuery(safe);
   if (!n) return;
+  const failure = failureOf(q, a, trace);
+  const legacy = key?.startsWith("pattern: ") ? key : reportKey(safe);
+  queue(slot, capped, { q: safe, n, failure, key: key || legacy, label: redact(a.understood?.label ?? "") }, now, missed);
+}
+
+/** The shared tail: settle, supersede, and put the query in the pending map (in memory only, never awaited). */
+function queue(slot: string, capped: boolean, p: Queued, now: number, missed: string[]): void {
+  settle(now);
   const was = pending.get(slot);
   // The same visitor's next query supersedes one it extends or trims (typing, a retry): only the last one counts.
-  if (was && !related(normalizeQuery(was.q), n)) commit(slot, was);
+  if (was && !related(normalizeQuery(was.q), p.n)) commit(slot, was);
   if (pending.size >= SETTLE_MAX && !pending.has(slot)) { counters.dropped++; return; }
   // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
   pending.delete(slot);
-  const failure = failureOf(q, a, trace);
-  const legacy = key?.startsWith("pattern: ") ? key : reportKey(safe);
-  pending.set(slot, { q: safe, key: key || legacy, legacy, failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now, missed, capped });
+  const legacy = p.key.startsWith("pattern: ") ? p.key : reportKey(p.q);
+  pending.set(slot, { q: p.q, key: p.key, legacy, failure: p.failure && { ...p.failure, trace: redactTrace(p.failure.trace) }, label: p.label, at: now, missed, capped });
 }
 
 /** Moves every query that waited SETTLE_MS into the buffer (failures only). */

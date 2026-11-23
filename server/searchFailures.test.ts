@@ -12,7 +12,7 @@ import { resetReportLimits, setGithubFetch } from "./errorReports";
 import { setFlag } from "./flags";
 import { searchAnswer } from "./api/searchAnswer";
 import {
-  counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteBotSearch, noteSearch, outcomeTrace, recheck, redact, reportKey,
+  counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteBotDownvote, noteBotSearch, noteSearch, outcomeTrace, recheck, redact, reportKey,
   PER_IP_HOUR,
   NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_KEEP, mergeMissed, patternFor } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
@@ -349,6 +349,22 @@ describe("settling (the dropdown searches while typing)", () => {
     const list = await rows();
     expect(list).toHaveLength(PER_IP_HOUR + 7);
     expect(list.reduce((n, r) => n + r.count, 0)).toBe(PER_IP_HOUR + 7);
+  });
+  it("a 👎 on an answer files the question it answered, which search had called answered (bot/reactions.ts)", async () => {
+    // The one failure search can't read for itself: the answer it gave was wrong, so there is no answer object and no
+    // trace, and only the question and the vote. Its intent comes from the question's own words, as anywhere else.
+    noteBotDownvote("who won decode at austin", "discord:g1", clock);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    const list = await rows();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ key: "who won decode at austin", result_type: "downvoted", intent: "winners", count: 1 });
+    expect(JSON.parse(list[0].examples)).toEqual(["who won decode at austin"]);
+    // Two people downvoting answers to it (in two servers) is one entry counted twice, not two issues.
+    clock += 1000; noteBotDownvote("who won decode at austin", "discord:g2", clock);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    expect(await rows()).toMatchObject([{ key: "who won decode at austin", result_type: "downvoted", count: 2 }]);
   });
 });
 

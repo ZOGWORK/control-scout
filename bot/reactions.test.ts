@@ -1,8 +1,9 @@
 // The thumbs on an answer (bot/reactions.ts): a row for each message the bot posted, counts up and down, nothing below
-// zero, and nothing at all for a message that isn't one of its answers.
+// zero, and nothing at all for a message that isn't one of its answers. The row also keeps the question the answer was
+// given for, so the first 👎 on it can file that question (server/searchFailures.ts noteBotDownvote).
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../server/db";
-import { BAD, GOOD, reactionUsage, trackAnswer, vote } from "./reactions";
+import { BAD, GOOD, downVote, reactionUsage, trackAnswer, vote } from "./reactions";
 
 describe("the thumbs on an answer", () => {
   beforeAll(async () => {
@@ -36,5 +37,23 @@ describe("the thumbs on an answer", () => {
     await vote("m2", GOOD);
     await trackAnswer("m2", "g1");
     expect(await reactionUsage()).toEqual({ up: 1, down: 0 });
+  });
+
+  it("keeps the question each answer was given for, and a 👎 names it on the answer's first vote only", async () => {
+    await trackAnswer("m3", "g1", "  who won\n decode  ");
+    // One line, as every ask is kept: the queue's key is the words, not the layout.
+    expect(await downVote("m3")).toEqual({ question: "who won decode", guild: "g1", first: true });
+    // A second 👎 on the same answer is the same complaint about the same question: counted, and not filed again.
+    expect(await downVote("m3")).toEqual({ question: "who won decode", guild: "g1", first: false });
+    expect(await reactionUsage()).toEqual({ up: 0, down: 2 });
+  });
+
+  it("redacts the question it keeps, and has nothing to file for a message it never posted", async () => {
+    await trackAnswer("m4", null, "email someone@example.com about 4215");
+    expect((await downVote("m4"))?.question).toBe("email [email] about 4215");
+    expect(await downVote("never-posted")).toBeNull();
+    // An answer posted before questions were kept: its 👍/👎 still count, and there is nothing to name.
+    await trackAnswer("m5", "g1");
+    expect(await downVote("m5")).toEqual({ question: null, guild: "g1", first: true });
   });
 });

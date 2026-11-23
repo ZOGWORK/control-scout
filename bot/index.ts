@@ -18,8 +18,8 @@ import { notifyTick, type Send } from "./follows.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
 import { rememberGuild } from "./guilds.js";
-import { BAD, GOOD, vote } from "./reactions.js";
-import { flushSearchFailures } from "../server/searchFailures.js";
+import { BAD, GOOD, downVote, vote } from "./reactions.js";
+import { flushSearchFailures, noteBotDownvote } from "../server/searchFailures.js";
 import { site } from "./lookups.js";
 import { configEmbed, configLines, type Config } from "./config.js";
 import { chatSetup } from "./chatState.js";
@@ -183,14 +183,28 @@ client.on(Events.InteractionCreate, (i) => { void handle(i); });
 client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m as never, client.user.id); });
 /** A 👍/👎 on one of the bot's answers, counted (bot/reactions.ts): never who clicked, and only messages it posted have
  *  a row, so a reaction anywhere else changes nothing. */
-const voted = (delta: 1 | -1) => (reaction: { emoji: { name: string | null }; message: { id: string } }, user: { bot?: boolean }) => {
+type Counted = { emoji: { name: string | null }; message: { id: string } };
+const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) => {
   if (user.bot) return;
   const emoji = reaction.emoji.name;
   if (emoji !== GOOD && emoji !== BAD) return;
   void vote(reaction.message.id, emoji, delta).catch(() => {});
 };
-client.on(Events.MessageReactionAdd, (r, u) => voted(1)(r as never, u as never));
-client.on(Events.MessageReactionRemove, (r, u) => voted(-1)(r as never, u as never));
+/** A 👎 added: counted, and — on an answer's first one — the question it answered goes to the site's failed-search queue
+ *  (server/searchFailures.ts). A person saying the answer was wrong is the one failure search can't find for itself,
+ *  having called that answer answered. Taking the vote off and adding it again asks again, and the queue counts a
+ *  repeat as a repeat rather than as a new entry. */
+const disliked = (reaction: Counted, user: { bot?: boolean }) => {
+  if (user.bot) return;
+  void downVote(reaction.message.id)
+    .then((v) => { if (v?.first && v.question) noteBotDownvote(v.question, `discord:${v.guild ?? "dm"}`); })
+    .catch(() => {});
+};
+client.on(Events.MessageReactionAdd, (r, u) => {
+  if (r.emoji.name === BAD) { disliked(r as Counted, u); return; }
+  voted(1)(r as Counted, u);
+});
+client.on(Events.MessageReactionRemove, (r, u) => voted(-1)(r as Counted, u));
 // The site's failed-search queue counts Discord's own misses too (bot/ask.ts): the buffer is in this process, so the bot
 // flushes it as the site does, every minute.
 setInterval(() => {

@@ -2804,6 +2804,17 @@ CREATE INDEX IF NOT EXISTS discord_follows_team ON discord_follows (team);
 CREATE INDEX IF NOT EXISTS discord_follows_event ON discord_follows (event);
 `,
   },
+  {
+    version: 105,
+    name: "the question an answer was given for",
+    sql: `
+-- The question an answer answered (bot/reactions.ts), kept on its row so a 👎 can name it: the bot's process files a
+-- downvoted question in the site's failed-search queue (bot/index.ts, server/searchFailures.ts noteBotDownvote). Redacted
+-- like every ask (bot/asks.ts) and never who asked. Answers posted before this have no question: a 👎 on one is still
+-- counted, and files nothing.
+ALTER TABLE discord_answers ADD COLUMN question TEXT;
+`,
+  },
 ];
 
 export type Db = Client;
