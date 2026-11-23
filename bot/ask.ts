@@ -99,14 +99,22 @@ export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string;   
 export const showsRecords = (a: SearchAnswer) =>
   !a.sorry && !(a.step === "recovery" && !a.card && !a.stat) && !!(a.card || a.stat || a.hits.length);
 
-/** The words a message may have and still only say yes. */
-const YES_WORDS = new Set(["yes", "yeah", "yep", "yup", "yea", "ya", "sure", "ok", "okay", "please", "pls", "do", "it", "go", "ahead", "why", "not", "sounds", "good", "absolutely", "definitely", "thanks"]);
+/** The words that say yes on their own. "Thanks" and "good" aren't here: neither answers an offer. */
+const YES = new Set(["yes", "yeah", "yep", "yup", "yea", "ya", "sure", "ok", "okay", "absolutely", "definitely", "please", "pls"]);
+/** The words that may ride along with one ("yes thanks", "ok then", "of course yes"); none of them is a yes alone. */
+const YES_FILLER = new Set(["do", "it", "go", "ahead", "why", "not", "sounds", "good", "thanks", "then", "of", "course"]);
+/** A whole phrase that is a yes without one of YES. */
+const YES_PHRASES = [/^(?:go ahead|do it|why not|sounds good|of course)$/];
 
 /** A message that only says yes ("yes", "yeah please", "go ahead"): the answer to the question Bruno ended his last
- *  reply with, never a search of its own — searching "yes" answers with whatever team or name is nearest it. */
+ *  reply with, never a search of its own — searching "yes" answers with whatever team or name is nearest it. A
+ *  message that merely thanks him or says "good" is not one. */
 export function affirmative(q: string): boolean {
-  const words = q.toLowerCase().split(/[^a-z]+/).filter(Boolean);
-  return words.length > 0 && words.every((w) => YES_WORDS.has(w));
+  const said = q.toLowerCase().replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+  if (!said) return false;
+  if (YES_PHRASES.some((re) => re.test(said))) return true;
+  const words = said.split(" ");
+  return words.some((w) => YES.has(w)) && words.every((w) => YES.has(w) || YES_FILLER.has(w));
 }
 
 /** The question Bruno offered at the end of his last turn in the thread — "…at the Bedford Qualifier. Also want 4215's
