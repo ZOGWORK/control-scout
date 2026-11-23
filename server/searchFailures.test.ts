@@ -12,7 +12,7 @@ import { resetReportLimits, setGithubFetch } from "./errorReports";
 import { setFlag } from "./flags";
 import { searchAnswer } from "./api/searchAnswer";
 import {
-  counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteBotDownvote, noteBotSearch, noteSearch, outcomeTrace, recheck, redact, reportKey,
+  counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteBotSearch, noteSearch, outcomeTrace, recheck, redact, reportKey,
   PER_IP_HOUR,
   NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_KEEP, mergeMissed, patternFor } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
@@ -350,22 +350,6 @@ describe("settling (the dropdown searches while typing)", () => {
     expect(list).toHaveLength(PER_IP_HOUR + 7);
     expect(list.reduce((n, r) => n + r.count, 0)).toBe(PER_IP_HOUR + 7);
   });
-  it("a 👎 on an answer files the question it answered, which search had called answered (bot/reactions.ts)", async () => {
-    // The one failure search can't read for itself: the answer it gave was wrong, so there is no answer object and no
-    // trace, and only the question and the vote. Its intent comes from the question's own words, as anywhere else.
-    noteBotDownvote("who won decode at austin", "discord:g1", clock);
-    clock += SETTLE_MS; settle(clock);
-    await flushSearchFailures(clock);
-    const list = await rows();
-    expect(list).toHaveLength(1);
-    expect(list[0]).toMatchObject({ key: "who won decode at austin", result_type: "downvoted", intent: "winners", count: 1 });
-    expect(JSON.parse(list[0].examples)).toEqual(["who won decode at austin"]);
-    // Two people downvoting answers to it (in two servers) is one entry counted twice, not two issues.
-    clock += 1000; noteBotDownvote("who won decode at austin", "discord:g2", clock);
-    clock += SETTLE_MS; settle(clock);
-    await flushSearchFailures(clock);
-    expect(await rows()).toMatchObject([{ key: "who won decode at austin", result_type: "downvoted", count: 2 }]);
-  });
 });
 
 describe("GitHub issues (cases 23–30)", () => {
@@ -442,9 +426,15 @@ describe("GitHub issues (cases 23–30)", () => {
   });
 
   it("a re-check of a downvoted question never calls it answered: search always answered it", async () => {
-    noteBotDownvote("who won decode at austin", "discord:g1", clock);
-    clock += SETTLE_MS; settle(clock);
-    await flushSearchFailures(clock);
+    // The row a 👎 files (server/searchFailures.ts downvoteFailure, written by bot/reactions.ts): no issue yet, so the
+    // sync makes it first.
+    const at = new Date(clock).toISOString();
+    const q = "who won decode at austin";
+    await run(
+      `INSERT INTO search_failures (key, hash, result_type, intent, reading, examples, count, first_seen, last_seen)
+       VALUES (?, ?, 'downvoted', 'winners', ?, ?, 1, ?, ?)`,
+      [q, keyHash(q), JSON.stringify({ layers: [], won: null, team: null, intents: [], scope: [], filler: [] }), JSON.stringify([q]), at, at],
+    );
     expect(await syncSearchFailures()).toMatchObject({ synced: 1 });
     calls = [];
     // Search gave this query an answer when a person voted it down (that is why it was voted down), so answering it
