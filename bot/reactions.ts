@@ -6,9 +6,11 @@
 // number by reacting in a channel the bot was never in.
 //
 // The row keeps the question the answer was given for (migration 105), so a 👎 can name it: a downvote says the answer
-// was wrong rather than missing, which search can't see for itself (it called the answer answered). The bot's process
-// feeds that question to the site's failed-search queue (bot/index.ts, server/searchFailures.ts `noteBotDownvote`).
-import { all, get, run } from "../server/db.js";
+// was wrong rather than missing, which search can't see for itself (it called the answer answered). The answer's first
+// 👎 files that question in the site's failed-search queue (server/searchFailures.ts `downvoteFailure`), in the same
+// batch as the vote itself.
+import { get, run, writeBatch } from "../server/db.js";
+import { downvoteFailure } from "../server/searchFailures.js";
 import { askText } from "./asks.js";
 
 export const GOOD = "👍";
@@ -24,20 +26,24 @@ export async function trackAnswer(messageId: string, guild: string | null, quest
   );
 }
 
-/** A 👎 added to an answer: counted, and on the answer's first one the question it answered with its server, so that
- *  question can be filed (bot/index.ts, server/searchFailures.ts `noteBotDownvote`). Null: a message the bot never posted,
- *  or a later 👎 on the same answer — the same complaint about the same question, counted and not filed again. */
-export async function downVote(messageId: string, now = Date.now()): Promise<{ question: string | null; guild: string | null } | null> {
-  if (!messageId) return null;
-  // One statement counts the vote and says whether it was the first (`down` comes back 1 only on the 0 → 1 step). Two 👎
-  // arriving together (two gateway events, interleaved at their awaits) can't both see the step, and a count that hasn't
-  // landed yet can't let a third voter's claim through: the counting and the claim are the same write.
-  const row = await get<{ question: string | null; guild_id: string | null; down: number }>(
-    "UPDATE discord_answers SET down = down + 1, voted_at = ? WHERE message_id = ? RETURNING down, question, guild_id",
-    [new Date(now).toISOString(), messageId],
-  );
-  if (!row) return null; // a message the bot never posted
-  return Number(row.down) === 1 ? { question: row.question ?? null, guild: row.guild_id ?? null } : null;
+/** A 👎 added to an answer: counted, and on the answer's first one the question it answered is filed in the site's
+ *  failed-search queue — the count and the filing in one batch, which is one transaction, so a restart can't spend the
+ *  filing without making it and two 👎 can't make it twice. A later 👎 on the same answer is counted, not filed again:
+ *  it is the same complaint about the same question.
+ *
+ *  The vote is written even when there is nothing to file (a message the bot never posted has no row; an answer from
+ *  before questions were kept has none; an all-personal question has nothing the queue may hold). */
+export async function downVote(messageId: string, now = Date.now()): Promise<void> {
+  if (!messageId) return;
+  const at = new Date(now).toISOString();
+  // Read first for the words; the filing's own condition (`down` = 1) is what says "first", inside the same batch as
+  // the increment, so this read can be a moment stale without two votes both filing.
+  const row = await get<{ question: string | null }>("SELECT question FROM discord_answers WHERE message_id = ?", [messageId]);
+  const failure = row?.question ? downvoteFailure(row.question, messageId, now) : null;
+  await writeBatch([
+    { sql: "UPDATE discord_answers SET down = down + 1, voted_at = ? WHERE message_id = ?", args: [at, messageId] },
+    ...(failure ? [failure] : []),
+  ]);
 }
 
 /** One vote on an answer: `delta` 1 for a reaction added, -1 for one taken back. Never below zero. */
@@ -48,22 +54,6 @@ export async function vote(messageId: string, emoji: string, delta: 1 | -1 = 1, 
     `UPDATE discord_answers SET ${column} = MAX(0, ${column} + ?), voted_at = ? WHERE message_id = ?`,
     [delta, new Date(now).toISOString(), messageId],
   );
-}
-
-/** The 👎s whose question never reached the site's queue: the queue lives in the bot's memory, so a process that dies
- *  before a flush would spend an answer's one filing and never make it. The bot files what this returns on every pass
- *  (bot/index.ts), then marks it (`markFiled`). */
-export async function unfiledDownvotes(limit = 50): Promise<{ messageId: string; question: string; guild: string | null }[]> {
-  const rows = await all<{ message_id: string; question: string; guild_id: string | null }>(
-    "SELECT message_id, question, guild_id FROM discord_answers WHERE filed_at IS NULL AND down > 0 AND question IS NOT NULL LIMIT ?",
-    [limit],
-  );
-  return rows.map((r) => ({ messageId: String(r.message_id), question: String(r.question), guild: r.guild_id ?? null }));
-}
-
-/** An answer's 👎 question is filed: a flush wrote it, or the next pass would file it again. */
-export async function markFiled(messageId: string, now = Date.now()): Promise<void> {
-  await run("UPDATE discord_answers SET filed_at = ? WHERE message_id = ? AND filed_at IS NULL", [new Date(now).toISOString(), messageId]);
 }
 
 /** One answer's votes in the order Discord sent them. An add and its removal must not land the wrong way round — a 👎

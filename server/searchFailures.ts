@@ -264,44 +264,48 @@ export function noteBotSearch(q: string, a: SearchAnswer, source: string, trace?
 /** One per bot question: the slot counter that keeps its questions apart. */
 let botQuestions = 0;
 
-/** A question the Discord bot answered and a person voted 👎 (bot/reactions.ts, bot/index.ts): search's answer was
- *  wrong rather than missing. Search called it answered, so no reading of the answer would ever file it — only a
- *  reader's vote can. Queued as `downvoted`, in a slot of its own and never against a visitor's hourly report cap,
- *  exactly as `noteBotSearch`'s questions are. No answer object and no trace: a vote carries neither. */
-export function noteBotDownvote(q: string, source: string, now = Date.now()): void {
-  try {
-    const safe = safeQuery(q);
-    const n = normalizeQuery(safe);
-    if (!n) return;
-    const trace: SearchTrace = { layers: [], won: null, team: null, intents: [], scope: [], filler: [] };
-    queue(`${source}#${++botQuestions}`, false, { q: safe, n, failure: { type: "downvoted", intent: intentsIn(n)[0] ?? null, trace }, key: reportKey(safe), label: "" }, now, []);
-  } catch { /* never breaks a vote */ }
+/** The row a 👎 files (bot/reactions.ts), as a statement its caller writes in the same batch as the vote's own count:
+ *  a downvote says the answer was wrong rather than missing, which no reading of the answer can find — search called it
+ *  answered.
+ *
+ *  Written only while that answer's down count has just become 1, a condition the statement carries, so two 👎 arriving
+ *  together can't both file it. A vote doesn't settle like a visitor's typing (nothing more is coming), so it skips the
+ *  buffer and the hourly cap; it is the same table row either way. Null: nothing to file (the question was all personal
+ *  data). */
+export function downvoteFailure(question: string, messageId: string, now = Date.now()): { sql: string; args: (string | null)[] } | null {
+  const safe = safeQuery(question);
+  const n = normalizeQuery(safe);
+  if (!n || onlyRedacted(safe)) return null;
+  const key = reportKey(safe);
+  if (onlyRedacted(key)) return null;
+  const at = new Date(now).toISOString();
+  // A vote carries no reading: an empty trace, and the intent from the question's own words.
+  const trace: SearchTrace = { layers: [], won: null, team: null, intents: [], scope: [], filler: [] };
+  return {
+    sql: `INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen)
+            SELECT ?, ?, 'downvoted', ?, ?, '', ?, 1, ?, ?
+             WHERE (SELECT down FROM discord_answers WHERE message_id = ?) = 1
+            ON CONFLICT (key) DO UPDATE SET count = count + 1, last_seen = MAX(last_seen, excluded.last_seen),
+              result_type = excluded.result_type, examples = excluded.examples`,
+    args: [key, keyHash(key), intentsIn(n)[0] ?? null, JSON.stringify(trace), JSON.stringify([safe]), at, at, messageId],
+  };
 }
-
-/** One query waiting for its settle, as `noteOnce` and `noteBotDownvote` hand it to `queue`. */
-interface Queued { q: string; n: string; failure: Failure | null; key: string; label: string }
 
 /** Queue one query under `slot`. `capped`: it spends that slot's hourly report allowance (a visitor's, not a bot's). */
 function noteOnce(slot: string, capped: boolean, q: string, a: SearchAnswer, trace?: SearchTrace | null, now = Date.now(), key?: string, missed: string[] = []): void {
+  settle(now);
   const safe = safeQuery(q);
   const n = normalizeQuery(safe);
   if (!n) return;
-  const failure = failureOf(q, a, trace);
-  const legacy = key?.startsWith("pattern: ") ? key : reportKey(safe);
-  queue(slot, capped, { q: safe, n, failure, key: key || legacy, label: redact(a.understood?.label ?? "") }, now, missed);
-}
-
-/** The shared tail: settle, supersede, and put the query in the pending map (in memory only, never awaited). */
-function queue(slot: string, capped: boolean, p: Queued, now: number, missed: string[]): void {
-  settle(now);
   const was = pending.get(slot);
   // The same visitor's next query supersedes one it extends or trims (typing, a retry): only the last one counts.
-  if (was && !related(normalizeQuery(was.q), p.n)) commit(slot, was);
+  if (was && !related(normalizeQuery(was.q), n)) commit(slot, was);
   if (pending.size >= SETTLE_MAX && !pending.has(slot)) { counters.dropped++; return; }
   // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
   pending.delete(slot);
-  const legacy = p.key.startsWith("pattern: ") ? p.key : reportKey(p.q);
-  pending.set(slot, { q: p.q, key: p.key, legacy, failure: p.failure && { ...p.failure, trace: redactTrace(p.failure.trace) }, label: p.label, at: now, missed, capped });
+  const failure = failureOf(q, a, trace);
+  const legacy = key?.startsWith("pattern: ") ? key : reportKey(safe);
+  pending.set(slot, { q: safe, key: key || legacy, legacy, failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now, missed, capped });
 }
 
 /** Moves every query that waited SETTLE_MS into the buffer (failures only). */
