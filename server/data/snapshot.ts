@@ -52,6 +52,9 @@ export const PRIVATE_TABLES = [
   "discord_limits", "discord_chat_usage",
   // What a Discord server teaches the bot (migration 100): its teams, people's names and reply threads.
   "discord_guild_teams", "discord_people", "discord_threads",
+  // The bot's own record of its servers (migration 103): server names, the questions it was asked, and the thumbs on its
+  // answers. Server ids and people's words, so never shipped.
+  "discord_guilds", "discord_asks", "discord_answers",
   // The weekly email digest (migration 50): who turned it on, their unsubscribe link, and the per-week send log.
   "digest_prefs", "digest_sends",
   // The home page's hero lines (migration 55): owner settings, like feature_flags; who changed them is in owner_audit.

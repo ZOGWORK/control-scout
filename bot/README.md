@@ -10,10 +10,11 @@ an embed that links back to controlscout.org:
 | `/event code:` | Dates, place, status, matches played, top 5 by OPR, and the winning alliance once it's over |
 | `/rankings` | The world top 10 by rating, with movement since last week |
 | `/follow team: channel:` | Automatic posts in a channel: the evening before each event, the schedule once posted, 15 minutes before each match, each result, and a recap at the end of each day. Manage Server only |
-| `/unfollow team: channel:` | Stop them (every channel if none is given). Manage Server only |
-| `/following` | The server's followed teams and where each posts (up to 10 per server) |
-| `/ask question:` | Anything in plain words, answered with the website's own search answer (below) |
-| `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking |
+| `/follow event: channel:` | The same for a whole event instead of a team: the evening before it starts, its schedule once posted (a line per competition day), and a recap at the end of each day. Manage Server only |
+| `/unfollow team: event: channel:` | Stop them (every channel if none is given). Manage Server only |
+| `/following` | What the server follows — teams and events — and where each posts (up to 10 in all) |
+| `/ask question:` | Anything in plain words, answered with the website's own search answer (below), with buttons for what to ask next |
+| `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👍/👎 an answer |
 | `/config` | What the bot is and can do here, read live: the release it runs, the account it is and how many servers it is in, the season, the site it talks to, chat on (or why it isn't) and the chat limit this server has, report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
 
@@ -38,9 +39,28 @@ champions and the finals scores), else its first block cut at 3 rows; a card's h
 About 500 characters as read at most. Everything else (more blocks, the source) is behind the link. The embed also
 carries Bruno's sentence quoted, and a link to the same answer on controlscout.org. Questions it
 can't answer get "Sorry — I can't answer that yet", what was read, and questions that work as copyable
-`/ask question: …` text (no buttons). An answer Bruno helped with carries **Bruno AI, from Control Point** in the
-footer above Control Scout's line; a deterministic one never does. Bruno off, unconfigured, failing or slow: the
-deterministic answer posts anyway.
+buttons instead. An answer Bruno helped with carries **Bruno AI, from Control Point** in the footer above Control
+Scout's line; a deterministic one never does. Bruno off, unconfigured, failing or slow: the deterministic answer
+posts anyway.
+
+**The answer's buttons** (`bot/buttons.ts`). Every answer with something to offer carries one row of questions and
+one row of links: up to four questions to ask next (search's own suggestions for a question it couldn't answer, else
+the answer's related ones), a link button to the same answer on controlscout.org, and a link button per video. A
+question lives in the bot's process for an hour, not in the button's custom id (Discord allows 100 characters, which
+is not a question), so a button clicked within the hour asks it as `/ask` would — same cache, same limit, same
+server memory — and one clicked later, or after a restart, says it has expired and names `/ask`. Follows are
+deliberately not buttons: a button would let anyone follow without Manage Server.
+
+**👍 and 👎** (`bot/reactions.ts`). The bot adds both to every answer it posts; a click is counted on that one answer
+and nowhere else, with no record of who clicked. The owner console shows the totals beside the bot's other numbers.
+
+**What it was asked** (`bot/asks.ts`, migration 103). Every ask is recorded — the words as typed with personal data
+redacted, the step search answered it at, whether Bruno's chat answered it, and how long it took; never who asked,
+only the server. The owner console lists the questions it couldn't answer, most asked first. A **records question**
+search couldn't answer and no chat did is also fed to the site's own failed-search queue
+(`server/searchFailures.ts`, `noteSearch`), so the phrasings people actually use in Discord reach the website's
+search work list too; the bot flushes that queue once a minute from its own process. A greeting, an answer search
+gave, and a chat that answered it are not failed searches and are never filed.
 
 Pace: none per person — every message is answered, so two in a row get two answers. Only the same question within
 a minute is the answer already given (one lookup, whoever asks). Every ask is logged as the command, the step, whether Bruno helped
@@ -121,6 +141,11 @@ is removed from a server (`bot/forget.ts`): the follows and the posts they sent,
 teams, the names and the reply threads — which is why a thread records its server now (migration 102). A server that is
 only unreachable (`GuildDelete` with `available: false`, a Discord outage) is not a removal, and keeps everything.
 
+The owner console's Discord bot panel lists each server by the name Discord shows (kept on join, on a rename and once
+at startup) beside its id, and shows the bot's own numbers: chats today and this week, the share answered and the share
+Bruno answered (the rest fell back to the card), the middle answer time, the follow posts sent today and the thumbs. A
+name Discord hasn't sent since names were kept reads "Name not known yet" rather than a guess.
+
 **His name is Bruno, and he's a golden retriever in spirit.** `brunoPersona()` (`bot/productFacts.ts`) goes with every
 chat: friendly, loyal, eager to help, a little goofy, never pushy — a light touch, not a paragraph of self-introduction,
 and software rather than a real dog or a person. `brunoMethod()` goes with it: work out what is really being asked (a
@@ -190,12 +215,16 @@ code; you can also type a code yourself).
 - **Same data, no API.** It imports the site's own modules (`server/api/teams.ts`, `events.ts`,
   `rankings.ts`, the prediction engine) and reads the same database, so its numbers are the site's. It
   never calls the site over HTTP and never runs migrations; it writes only its own tables
-  (`discord_follows`, `discord_posts`, migration 35, created by the site's deploy), plus its `service_heartbeats` row
-  once a minute while connected, which the site's /status page reads (`server/uptime.ts`, migration 86).
+  (`discord_follows`, `discord_posts` from migration 35 and 103, `discord_guilds`, `discord_asks` and
+  `discord_answers` from 103, all created by the site's deploy), plus its `service_heartbeats` row
+  once a minute while connected, which the site's /status page reads (`server/uptime.ts`, migration 86). Its missed
+  records questions go into the site's `search_failures` through the site's own `noteSearch`.
 - **Automatic posts** (`bot/follows.ts`): every minute it reads the follows, the followed teams' matches at
   events on today, and posts what's due: a reminder within 15 minutes of a start, a result within 6 hours of
   it. Only matches starting after the follow (no backlog). Each post is claimed in `discord_posts` before it's
   sent, so nothing posts twice; a passing failure retries, a channel that's gone is dropped after 5 failures.
+  A follow is a team (`team:4215`) or an event (`event:USTXAUQ`) by its `target` key, so the two never collide; an
+  event follow posts the event's evening-before, schedule and day recaps, keyed `event:` and never a per-match post.
 - **Load protection.** One answer per command and arguments for 60 seconds (`bot/guard.ts`): fifty people
   asking for the same match cost one lookup. Nobody is paced per person: every command and every mention is
   answered, however fast it follows the last. Autocomplete reads the event list once a minute and returns at
