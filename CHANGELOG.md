@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.8 — 2026-11-23
+
+A 👎 on one of Control Scout's answers files the question that got the wrong answer in the site's own failed-search list, so the words people use in Discord improve controlscout.org/search too.
+
+### Highlights
+- [scout] A 👎 files the question that got the wrong answer
+- [scout] Downvoted words reach the site's search work list
+- [fixes] The question is kept redacted, and never who asked
+
+### Discord bot
+- **A 👎 names the question it answered** (`bot/reactions.ts`, migration 105): every answer's row now keeps the question it was given for (redacted and one line, as every ask is), so the first 👎 on an answer hands that question to the site's failed-search queue (`server/searchFailures.ts` `noteBotDownvote`) as a `downvoted` failure — the one failure search can't read for itself, because it called that answer answered. A later 👎 on the same answer is counted and files nothing, and one question downvoted in two servers is one entry counted twice; turning the vote off and adding it again asks again. The filing happens in the bot's own process (`bot/index.ts`), so it flushes with the questions its misses already put there, in a slot of its own and never against a visitor's hourly report cap. `bot/reactions.test.ts` covers the kept question, the first vote only, the redaction and an answer posted before questions were kept; `server/searchFailures.test.ts` the queued entry and its repeat. Answers posted before 7.9.8 have no question: their 👍/👎 still count, and a 👎 on one files nothing. (#NNNN)
+
 ## 7.9.7 — 2026-11-23
 
 `/compare` puts two FTC teams head to head in one command, answered by the same site search that reads "4215 vs 6980" in the search box.
