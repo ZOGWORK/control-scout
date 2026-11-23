@@ -31,10 +31,10 @@ const FADE_MS = 140;
 
 type Box = { x: number; y: number; w: number; h: number };
 type TitleSnap = { box: Box; text: string; style: Partial<CSSStyleDeclaration> };
-/** `nth`: which of the cards with this key was tapped (an event can show twice on one page: Home's live card and the
- *  list), so Back shrinks into that one. */
-type Landed = { key: string; at: number; scroll: number; nth: number };
-type Leaving = { key: string; title: TitleSnap; content: Box; at: number; scroll: number; nth: number };
+/** `slot`: the section the tapped card was in (its MorphScope's name; an event can show twice on one page, in Home's
+ *  live card and in the list), so Back shrinks into the copy in that same section, however the sections loaded. */
+type Landed = { key: string; at: number; scroll: number; slot: string };
+type Leaving = { key: string; title: TitleSnap; content: Box; at: number; scroll: number; slot: string };
 
 let landed: Landed | null = null;
 /** Slow motion for review (/preview/morph's switch): every duration and wait is multiplied by this. */
@@ -162,8 +162,11 @@ export function launchMorph(card: HTMLElement, key: string, go: () => void): boo
   }
 }
 
-/** Every card on the page with `key`, in page order. */
-export const cardsFor = (key: string) => [...document.querySelectorAll<HTMLElement>(`[data-morph-key="${CSS.escape(key)}"]`)];
+/** The card for `key` in section `slot` (its MorphScope's name), else the first card for `key`. */
+export function cardFor(key: string, slot: string): HTMLElement | null {
+  const k = `[data-morph-key="${CSS.escape(key)}"]`;
+  return document.querySelector<HTMLElement>(`${k}[data-morph-slot="${CSS.escape(slot)}"]`) ?? document.querySelector<HTMLElement>(k);
+}
 
 function run(card: HTMLElement, key: string, go: () => void): boolean {
   const titleEl = card.querySelector<HTMLElement>("[data-morph-title]");
@@ -173,8 +176,10 @@ function run(card: HTMLElement, key: string, go: () => void): boolean {
   running?.();
   const fromTitle = snapTitle(titleEl);
   const listScroll = scrollY();
-  const nth = Math.max(0, cardsFor(key).indexOf(card));
-  landed = null; // a new run: whatever an earlier one landed on is no longer the way back
+  const slot = card.getAttribute("data-morph-slot") ?? "";
+  // A new run: whatever an earlier one landed on, or left a way back from, is no longer the way back.
+  landed = null;
+  leaving = null;
   const to = contentBox();
   const l = layer(to, fromTitle);
   const page = main();
@@ -216,7 +221,7 @@ function run(card: HTMLElement, key: string, go: () => void): boolean {
       // Only while this run is still on and its page is still showing: a reader who left mid-flight left nothing to
       // return from (noteLeaving has already run), so nothing is recorded for a page that's gone.
       // (The page may have drawn its title again meanwhile, a fresh element: what counts is that it still shows this key.)
-      if (!over && running === finish && targetTitle(key)) landed = { key, at: Date.now(), scroll: listScroll, nth };
+      if (!over && running === finish && targetTitle(key)) landed = { key, at: Date.now(), scroll: listScroll, slot };
     }
     await done(grow);
     if (over) return;
@@ -240,7 +245,7 @@ export function noteLeaving(key: string, title: HTMLElement | null) {
   if (!morphAllowed()) return;
   const snap = snapTitle(title);
   if (!onScreen(snap.box)) return; // scrolled down the page: the cut on the way back, nothing to glide from
-  leaving = { key, title: snap, content: contentBox(), at: Date.now(), scroll: l0.scroll, nth: l0.nth };
+  leaving = { key, title: snap, content: contentBox(), at: Date.now(), scroll: l0.scroll, slot: l0.slot };
 }
 
 /** The list side, once its card for `key` is drawn after Back: runs the shrink if this card is the one left. */
@@ -268,7 +273,7 @@ export function maybeReturn(key: string): boolean {
   void (async () => {
     // The list puts its scroll back first (src/lib/pageScroll.ts, once its data has drawn): wait for the place it was
     // left at, so the card is measured where it will stay.
-    const el = await waitFor(() => (Math.abs(scrollY() - l0.scroll) < 2 ? cardsFor(key)[l0.nth] ?? null : null), restoreWait);
+    const el = await waitFor(() => (Math.abs(scrollY() - l0.scroll) < 2 ? cardFor(key, l0.slot) : null), restoreWait);
     if (over) return;
     const titleEl = el?.querySelector<HTMLElement>("[data-morph-title]");
     const to = el ? boxOf(el) : null;

@@ -6,11 +6,13 @@ import { useNavigate, useNavigationType } from "react-router-dom";
 import { launchMorph, maybeReturn, noteLeaving } from "../lib/cardMorph";
 import { load } from "../lib/api";
 
-const Scope = createContext(false);
+/** null: no morph here. A string: the section's name (one name per section on a page), so Back finds the copy of a
+ *  card in the section it was tapped in when the same card shows in two. */
+const Scope = createContext<string | null>(null);
 
-/** Turns the morph on for the cards inside (the /preview/morph page, for now). */
-export function MorphScope({ on = true, children }: { on?: boolean; children: ReactNode }) {
-  return <Scope.Provider value={on}>{children}</Scope.Provider>;
+/** Turns the morph on for the cards inside (the /preview/morph page, for now), naming their section. */
+export function MorphScope({ name, children }: { name: string; children: ReactNode }) {
+  return <Scope.Provider value={name}>{children}</Scope.Provider>;
 }
 
 /** The morph key for an event (the card and the event page agree on it). */
@@ -26,8 +28,9 @@ const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey
 
 /** Props for the card's link to `to`: its key, and the tap that starts the morph and then changes the page itself.
  *  `warm`: fetch what the page needs at the tap (its code, its data), so it is drawn by the time the card has grown. */
-export function useMorphCard(key: string, to: string, warm?: () => void): { "data-morph-key"?: string; onClick?: (e: MouseEvent<HTMLElement>) => void } {
-  const on = useContext(Scope);
+export function useMorphCard(key: string, to: string, warm?: () => void): { "data-morph-key"?: string; "data-morph-slot"?: string; onClick?: (e: MouseEvent<HTMLElement>) => void } {
+  const slot = useContext(Scope);
+  const on = slot !== null;
   const navigate = useNavigate();
   const action = useNavigationType();
   // Back to this list: the card left last shrinks the page back into itself (once per arrival).
@@ -46,7 +49,7 @@ export function useMorphCard(key: string, to: string, warm?: () => void): { "dat
       try { warm?.(); } catch { /* warming is a bonus */ }
     }
   }, [key, to, navigate, warm]);
-  return on ? { "data-morph-key": key, onClick } : {};
+  return on ? { "data-morph-key": key, "data-morph-slot": slot, onClick } : {};
 }
 
 /** The destination page's title: marked so a landing morph can find it, and measured on the way out for Back. */

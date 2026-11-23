@@ -38,20 +38,20 @@ export default function MorphPreviewPage() {
           <Switch id={slowId} checked={slow} onCheckedChange={setSlow} data-morph-slow />Slow motion ({SLOW}×)
         </label>
       </PageHeader>
-      <MorphScope>
         <div className="grid gap-8 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
           <section aria-labelledby="morph-home" className="space-y-3">
             <h2 id="morph-home" className="text-sm font-semibold text-text-base">As on Home</h2>
-            <LiveCard season={season} />
+            <MorphScope name="home"><LiveCard season={season} /></MorphScope>
           </section>
           <section aria-labelledby="morph-list" className="min-w-0 space-y-3">
             <h2 id="morph-list" className="text-sm font-semibold text-text-base">As on the Events list</h2>
-            <Async state={state}>
-              {(d) => <EventWeeks events={d.events} region={null} type="all" status="all" from={null} to={null} q="" video="all" onClear={noop} />}
-            </Async>
+            <MorphScope name="list">
+              <Async state={state}>
+                {(d) => <EventWeeks events={d.events} region={null} type="all" status="all" from={null} to={null} q="" video="all" onClear={noop} />}
+              </Async>
+            </MorphScope>
           </section>
         </div>
-      </MorphScope>
     </div>
   );
 }
