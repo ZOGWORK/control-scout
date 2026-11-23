@@ -2727,12 +2727,19 @@ CREATE INDEX IF NOT EXISTS discord_threads_guild ON discord_threads (guild_id);
 -- A filed bug report follows its GitHub issue (server/bugReports.ts, syncBugIssues): once the issue is closed, the
 -- report is closed here too and says how. issue_state: 'open', 'completed' or 'not_planned' as GitHub last answered
 -- (NULL: not checked yet); issue_closed_at: when GitHub closed it; closed_by_url / closed_by_label: the pull request
--- or commit that closed it, when GitHub names one ("PR #1561"). A report the owner reopens here keeps its closed
--- issue_state, so the next check doesn't close it again.
+-- or commit that closed it, when GitHub names one ("PR #1561"). reopened_at: when the owner last reopened it here; only
+-- an issue closed after that closes it again. issue_checked_at: when GitHub was last asked (the oldest are asked first,
+-- so no report is left out however many are open).
 ALTER TABLE bug_reports ADD COLUMN issue_state TEXT;
+ALTER TABLE bug_reports ADD COLUMN reopened_at TEXT;
+ALTER TABLE bug_reports ADD COLUMN issue_checked_at TEXT;
 ALTER TABLE bug_reports ADD COLUMN issue_closed_at TEXT;
 ALTER TABLE bug_reports ADD COLUMN closed_by_url TEXT;
 ALTER TABLE bug_reports ADD COLUMN closed_by_label TEXT;
+-- An error report the owner cleared, or whose GitHub issue was closed (server/errorReports.ts): out of his list and
+-- his badge. The error coming back (a new occurrence) opens it again.
+ALTER TABLE error_reports ADD COLUMN resolved_at TEXT;
+ALTER TABLE error_reports ADD COLUMN issue_checked_at TEXT;
 `,
   },
 ];
