@@ -41,13 +41,21 @@ export function DiscordPanel() {
     if (!GUILD.test(g)) { toast.error("That isn't a Discord server id (a long number). In Discord: right-click the server → Copy Server ID."); return; }
     const perHour = fromBox(hour), perDay = fromBox(day);
     if (perHour === undefined || perDay === undefined) { toast.error(`A cap is a whole number up to ${MAX_CAP.toLocaleString()}; blank or 0 is no cap.`); return; }
+    // Both blank (or 0) is no cap, so it clears the server's row rather than writing one that says nothing: the panel
+    // then reads "No cap", as the hint says, instead of "Own cap · none".
+    const none = perHour == null && perDay == null;
     setBusy("save");
     try {
-      prime(PATH, await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "PUT", json: { perHour, perDay } }));
-      toast.success(`Saved that server's cap: ${capWords({ perHour, perDay })}. Its counters start afresh.`);
+      const next = none
+        ? await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "DELETE", json: {} })
+        : await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "PUT", json: { perHour, perDay } });
+      prime(PATH, next);
+      toast.success(none ? "That server has no cap. Its counters start afresh." : `Saved that server's cap: ${capWords({ perHour, perDay })}. Its counters start afresh.`);
       setGuild(""); setHour(""); setDay("");
     } catch (err) {
-      toast.error((err as ApiError).message);
+      // A server already uncapped has nothing to clear, which is the state a blank save asked for.
+      if (none && (err as ApiError).status === 409) toast.success("That server already has no cap.");
+      else toast.error((err as ApiError).message);
     } finally { setBusy(null); }
   };
 
