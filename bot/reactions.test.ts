@@ -3,7 +3,7 @@
 // given for, so the first 👎 on it can file that question (server/searchFailures.ts noteBotDownvote).
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../server/db";
-import { BAD, GOOD, downVote, reactionUsage, trackAnswer, vote } from "./reactions";
+import { BAD, GOOD, downVote, markFiled, reactionUsage, serialVotes, trackAnswer, unfiledDownvotes, vote } from "./reactions";
 
 describe("the thumbs on an answer", () => {
   beforeAll(async () => {
@@ -46,6 +46,34 @@ describe("the thumbs on an answer", () => {
     // A second 👎 on the same answer is the same complaint about the same question: counted, and not filed again.
     expect(await downVote("m3")).toBeNull();
     expect(await reactionUsage()).toEqual({ up: 0, down: 2 });
+  });
+
+  it("keeps a 👎 unfiled until its question is written, so a restart files it instead of losing it", async () => {
+    await trackAnswer("m7", "g1", "where is 4215 from");
+    expect(await downVote("m7")).toEqual({ question: "where is 4215 from", guild: "g1" });
+    expect(await unfiledDownvotes()).toEqual([{ messageId: "m7", question: "where is 4215 from", guild: "g1" }]);
+    await markFiled("m7");
+    expect(await unfiledDownvotes()).toEqual([]);
+    // Only a 👎 asks for a filing, and an answer with no question has nothing to file.
+    await trackAnswer("m8", "g1", "4215 opr");
+    await vote("m8", GOOD);
+    await trackAnswer("m10", "g1");
+    await downVote("m10");
+    expect(await unfiledDownvotes()).toEqual([]);
+  });
+
+  it("runs one answer's votes in the order Discord sent them, and different answers side by side", async () => {
+    const order: string[] = [];
+    const serial = serialVotes();
+    // An add whose write is slow and the removal after it: the removal must still be second, or a 👎 taken back within a
+    // moment would leave the answer down and file a vote nobody holds.
+    await Promise.all([
+      serial("a", async () => { await new Promise((r) => setTimeout(r, 20)); order.push("add"); }),
+      serial("a", async () => { await new Promise((r) => setTimeout(r, 1)); order.push("remove"); }),
+      serial("b", async () => { order.push("another answer"); }),
+    ]);
+    // The slow add first, its removal second; another answer's vote didn't wait behind either.
+    expect(order).toEqual(["another answer", "add", "remove"]);
   });
 
   it("two 👎 arriving together file once: one of them claims the first vote and both count", async () => {

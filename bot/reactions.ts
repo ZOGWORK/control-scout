@@ -8,7 +8,7 @@
 // The row keeps the question the answer was given for (migration 105), so a 👎 can name it: a downvote says the answer
 // was wrong rather than missing, which search can't see for itself (it called the answer answered). The bot's process
 // feeds that question to the site's failed-search queue (bot/index.ts, server/searchFailures.ts `noteBotDownvote`).
-import { get, run } from "../server/db.js";
+import { all, get, run } from "../server/db.js";
 import { askText } from "./asks.js";
 
 export const GOOD = "👍";
@@ -48,6 +48,36 @@ export async function vote(messageId: string, emoji: string, delta: 1 | -1 = 1, 
     `UPDATE discord_answers SET ${column} = MAX(0, ${column} + ?), voted_at = ? WHERE message_id = ?`,
     [delta, new Date(now).toISOString(), messageId],
   );
+}
+
+/** The 👎s whose question never reached the site's queue: the queue lives in the bot's memory, so a process that dies
+ *  before a flush would spend an answer's one filing and never make it. The bot files what this returns on every pass
+ *  (bot/index.ts), then marks it (`markFiled`). */
+export async function unfiledDownvotes(limit = 50): Promise<{ messageId: string; question: string; guild: string | null }[]> {
+  const rows = await all<{ message_id: string; question: string; guild_id: string | null }>(
+    "SELECT message_id, question, guild_id FROM discord_answers WHERE filed_at IS NULL AND down > 0 AND question IS NOT NULL LIMIT ?",
+    [limit],
+  );
+  return rows.map((r) => ({ messageId: String(r.message_id), question: String(r.question), guild: r.guild_id ?? null }));
+}
+
+/** An answer's 👎 question is filed: a flush wrote it, or the next pass would file it again. */
+export async function markFiled(messageId: string, now = Date.now()): Promise<void> {
+  await run("UPDATE discord_answers SET filed_at = ? WHERE message_id = ? AND filed_at IS NULL", [new Date(now).toISOString(), messageId]);
+}
+
+/** One answer's votes in the order Discord sent them. An add and its removal must not land the wrong way round — a 👎
+ *  clicked and taken back within a moment would otherwise leave the answer at down = 1, and file a vote nobody holds —
+ *  and the filing must follow the count it belongs to. Per message, so different answers never wait on each other. */
+export function serialVotes(): <T>(messageId: string, work: () => Promise<T>) => Promise<T> {
+  const chain = new Map<string, Promise<unknown>>();
+  return <T>(messageId: string, work: () => Promise<T>): Promise<T> => {
+    // Started after whatever the same answer has in flight, whether that finished or failed.
+    const next = (chain.get(messageId) ?? Promise.resolve()).then(work, work);
+    chain.set(messageId, next);
+    void next.catch(() => {}).finally(() => { if (chain.get(messageId) === next) chain.delete(messageId); });
+    return next;
+  };
 }
 
 /** Every vote the bot's answers have collected. */

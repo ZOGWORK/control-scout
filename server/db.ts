@@ -2812,7 +2812,10 @@ CREATE INDEX IF NOT EXISTS discord_follows_event ON discord_follows (event);
 -- downvoted question in the site's failed-search queue (bot/index.ts, server/searchFailures.ts noteBotDownvote). Redacted
 -- like every ask (bot/asks.ts) and never who asked. Answers posted before this have no question: a 👎 on one is still
 -- counted, and files nothing.
+-- filed_at: when that question reached search_failures. The queue is in the bot's memory, so a restart before a flush
+-- would spend the answer's one filing; the bot files whatever is still NULL on its next pass instead.
 ALTER TABLE discord_answers ADD COLUMN question TEXT;
+ALTER TABLE discord_answers ADD COLUMN filed_at TEXT;
 `,
   },
 ];
