@@ -18,7 +18,7 @@ import { notifyTick, type Send } from "./follows.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
 import { rememberGuild } from "./guilds.js";
-import { BAD, GOOD, vote } from "./reactions.js";
+import { BAD, GOOD, downVote, serialVotes, vote } from "./reactions.js";
 import { flushSearchFailures } from "../server/searchFailures.js";
 import { site } from "./lookups.js";
 import { configEmbed, configLines, type Config } from "./config.js";
@@ -181,18 +181,34 @@ setInterval(() => {
 }, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
 client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m as never, client.user.id); });
+/** One answer's 👍/👎 in the order Discord sent them (bot/reactions.ts): an add and its removal must not land the wrong
+ *  way round. */
+const serial = serialVotes();
 /** A 👍/👎 on one of the bot's answers, counted (bot/reactions.ts): never who clicked, and only messages it posted have
  *  a row, so a reaction anywhere else changes nothing. */
-const voted = (delta: 1 | -1) => (reaction: { emoji: { name: string | null }; message: { id: string } }, user: { bot?: boolean }) => {
+type Counted = { emoji: { name: string | null }; message: { id: string } };
+const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) => {
   if (user.bot) return;
   const emoji = reaction.emoji.name;
   if (emoji !== GOOD && emoji !== BAD) return;
-  void vote(reaction.message.id, emoji, delta).catch(() => {});
+  void serial(reaction.message.id, () => vote(reaction.message.id, emoji, delta)).catch(() => {});
 };
-client.on(Events.MessageReactionAdd, (r, u) => voted(1)(r as never, u as never));
-client.on(Events.MessageReactionRemove, (r, u) => voted(-1)(r as never, u as never));
+/** A 👎 added: counted, and — on an answer's first one — the question it answered is filed in the site's failed-search
+ *  queue (bot/reactions.ts `downVote`, written with the vote). A person saying the answer was wrong is the one failure
+ *  search can't find for itself, having called that answer answered. Taking the vote off and adding it again asks
+ *  again, and the queue counts a repeat as a repeat. */
+const disliked = (reaction: Counted, user: { bot?: boolean }) => {
+  if (user.bot) return;
+  void serial(reaction.message.id, () => downVote(reaction.message.id)).catch(() => {});
+};
+client.on(Events.MessageReactionAdd, (r, u) => {
+  if (r.emoji.name === BAD) { disliked(r as Counted, u); return; }
+  voted(1)(r as Counted, u);
+});
+client.on(Events.MessageReactionRemove, (r, u) => voted(-1)(r as Counted, u));
 // The site's failed-search queue counts Discord's own misses too (bot/ask.ts): the buffer is in this process, so the bot
-// flushes it as the site does, every minute.
+// flushes it as the site does, every minute. A 👎's question isn't buffered: it is written with the vote that filed it
+// (bot/reactions.ts), so there is nothing here that a restart could lose.
 setInterval(() => {
   flushSearchFailures()
     .then((n) => { if (n) log(`search-failures: counted ${n}`); })

@@ -674,7 +674,8 @@ describe("the answer's buttons", () => {
     c.i.editReply = async (p: any) => { c.calls.push({ kind: "edit", payload: p }); return { id: "m9", react }; };
     await h(c.i);
     expect(noteAsk).toHaveBeenCalledWith({ question: "who won decode", step: "deterministic", chat: false, answered: true, ms: expect.any(Number), guild: "g1" });
-    expect(trackAnswer).toHaveBeenCalledWith("m9", "g1");
+    // The question goes with the row: a 👎 on it files the words that got this answer (bot/reactions.ts).
+    expect(trackAnswer).toHaveBeenCalledWith("m9", "g1", "who won decode");
     // The row goes in first, then the emoji: a click the moment they render must find it, so nothing is added while the
     // write is still in flight.
     await new Promise((r) => setTimeout(r, 0));

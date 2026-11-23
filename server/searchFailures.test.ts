@@ -425,6 +425,31 @@ describe("GitHub issues (cases 23–30)", () => {
     onlyAllowedActions();
   });
 
+  it("a re-check of a downvoted question never calls it answered: search always answered it", async () => {
+    // The row a 👎 files (server/searchFailures.ts downvoteFailure, written by bot/reactions.ts): no issue yet, so the
+    // sync makes it first.
+    const at = new Date(clock).toISOString();
+    const q = "who won decode at austin";
+    await run(
+      `INSERT INTO search_failures (key, hash, result_type, intent, reading, examples, count, first_seen, last_seen)
+       VALUES (?, ?, 'downvoted', 'winners', ?, ?, 1, ?, ?)`,
+      [q, keyHash(q), JSON.stringify({ layers: [], won: null, team: null, intents: [], scope: [], filler: [] }), JSON.stringify([q]), at, at],
+    );
+    expect(await syncSearchFailures()).toMatchObject({ synced: 1 });
+    calls = [];
+    // Search gave this query an answer when a person voted it down (that is why it was voted down), so answering it
+    // again says nothing about the answer being right: the check must not report a direct answer and invite a close.
+    expect(await recheck(500, async (q) => answered(q))).toMatchObject({ answered: false, voted: true });
+    expect(calls.at(-1)!.body.body).toContain("can't tell whether the answer is right now");
+    expect(calls.at(-1)!.body.body).not.toContain("now returns a direct answer");
+    // And the issue's own Status asks for the answer to be judged, not for the query to answer: it always did.
+    expect(issues[500].body).toContain("hasn't been judged right");
+    expect(issues[500].body).not.toContain("now returns a direct answer");
+    expect((await rows())[0].count).toBe(1);
+    expect(issues[500].state).toBe("open");
+    onlyAllowedActions();
+  });
+
   it("28: nothing in an issue links back to a person, and personal data is redacted", async () => {
     searched("4215 school jane@example.com 201-555-0123", fallback("x", "school"), "192.0.2.77");
     searched(`4215 opr key ${TOKEN}`, fallback("x", "opr key"), "192.0.2.78");

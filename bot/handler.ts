@@ -40,8 +40,9 @@ export interface Lookups {
   ask: (question: string, history?: BrunoChatTurn[], memory?: string[], guild?: string | null) => Promise<AskReply>;
   /** Every ask, for the owner console (bot/asks.ts): the words, the step, who answered, how long. */
   noteAsk?: (r: AskRecord) => Promise<void>;
-  /** An answer the bot posted, so its 👍/👎 reactions count (bot/reactions.ts). */
-  trackAnswer?: (messageId: string, guild: string | null) => Promise<void>;
+  /** An answer the bot posted, so its 👍/👎 reactions count (bot/reactions.ts), with the question it answered, so a 👎
+   *  can name it in the site's failed-search queue. */
+  trackAnswer?: (messageId: string, guild: string | null, question?: string) => Promise<void>;
   /** What a server teaches the bot (bot/memory.ts); absent: nothing is remembered. */
   memory?: Memory;
   /** Files a "Report this to ControlScout" as a GitHub issue (bot/report.ts); absent: reporting is off. */
@@ -81,7 +82,7 @@ export const realLookups: Lookups = {
   following: async (guild) => followingEmbed(await listFollows(guild), site()),
   ask: async (question, history, memory, guild) => askSearch(question, await (askDeps ??= realAskDeps()), site(), history, memory, guild ?? null),
   noteAsk: (r) => noteAsk(r),
-  trackAnswer: (id, guild) => trackAnswer(id, guild),
+  trackAnswer: (id, guild, question) => trackAnswer(id, guild, question),
   enabled: (flag) => isEnabled(flag),
   quota: takeChat,
   memory: { recall: recallMemory, learn: learnMemory, thread: readThread, keep: keepThread },
@@ -244,14 +245,15 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       : { ...(r.content ? { content: r.content } : {}), embeds: [pride(r.embed)] };
     return components.length ? { ...post, components } : post;
   };
-  /** 👍/👎 on an answer, and its row, so the console can read how answers land (bot/reactions.ts). A message that can't
-   *  take reactions (or a stand-in without them) changes nothing. */
-  function watchVotes(sent: unknown, guild: string | null): void {
+  /** 👍/👎 on an answer, and its row, so the console can read how answers land (bot/reactions.ts) and a 👎 can file the
+   *  question it answered (its words, never who asked). A message that can't take reactions (or a stand-in without
+   *  them) changes nothing. */
+  function watchVotes(sent: unknown, guild: string | null, question: string): void {
     const m = sent as { id?: string; react?: (emoji: string) => Promise<unknown> } | undefined;
     if (!m?.id) return;
     // The row goes in before the emoji does: a click that arrives the moment the emoji renders must find the answer it
     // counts on, or the vote updates no row and is lost.
-    const tracked = lookups.trackAnswer?.(m.id, guild) ?? Promise.resolve();
+    const tracked = lookups.trackAnswer?.(m.id, guild, question) ?? Promise.resolve();
     void Promise.resolve(tracked).catch(() => {}).then(() => {
       for (const emoji of [GOOD, BAD]) void m.react?.(emoji)?.catch(() => {});
     });
@@ -444,7 +446,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // Only an answer takes votes: the failure notice above is not one.
       if (r) {
         remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId);
-        watchVotes(sent, i.guildId ?? null);
+        watchVotes(sent, i.guildId ?? null, quoted(question, r));
       }
       return;
     }
@@ -533,7 +535,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // answered, so the thread carries on from 4215's record rather than from the word).
       const sent = await send(askPost(quoted(q, r), r, false));
       remember((sent as { id?: string } | undefined)?.id, history, quoted(q, r), r, m.guildId ?? null);
-      watchVotes(sent, m.guildId ?? null);
+      watchVotes(sent, m.guildId ?? null, quoted(q, r));
     } catch (e) {
       logLine(`mention failed: ${(e as Error)?.message ?? String(e)}`);
     }
@@ -572,7 +574,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // Only an answer takes votes: the failure notice above is not one.
       if (r) {
               remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId ?? null);
-      watchVotes(sent, i.guildId ?? null);
+      watchVotes(sent, i.guildId ?? null, quoted(question, r));
     }
   }
 

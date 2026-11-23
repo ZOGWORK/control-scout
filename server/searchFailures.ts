@@ -30,7 +30,7 @@ import type { SearchAnswer } from "../src/shared/api.js";
 
 // --- What counts as a failed search (brief §12.1) ---------------------------------------------------------------
 
-export type FailureType = "no-match" | "team-fallback" | "weak" | "name-only" | "empty" | "ambiguous";
+export type FailureType = "no-match" | "team-fallback" | "weak" | "name-only" | "empty" | "ambiguous" | "downvoted";
 
 /** How search reached its answer: from the layered reader (Track A) when it reports one, else read from the
  *  answer itself (readTrace). Server-only, never sent to the browser. */
@@ -263,6 +263,36 @@ export function noteBotSearch(q: string, a: SearchAnswer, source: string, trace?
 }
 /** One per bot question: the slot counter that keeps its questions apart. */
 let botQuestions = 0;
+
+/** The row a 👎 files (bot/reactions.ts), as a statement its caller writes in the same batch as the vote's own count:
+ *  a downvote says the answer was wrong rather than missing, which no reading of the answer can find — search called it
+ *  answered.
+ *
+ *  Written only while that answer's down count has just become 1, a condition the statement carries, so two 👎 arriving
+ *  together can't both file it. A vote doesn't settle like a visitor's typing (nothing more is coming), so it skips the
+ *  buffer and the hourly cap; it is the same table row either way. Null: nothing to file (the question was all personal
+ *  data).
+ *
+ *  A key already on the list keeps its row as it is, and the vote only adds weight: its type is what search read (a
+ *  no-match whose issue is open stays a no-match, and its re-check and close condition stay right), and its examples
+ *  are the spellings search has seen. A vote says "this one matters", not "forget all that". */
+export function downvoteFailure(question: string, messageId: string, now = Date.now()): { sql: string; args: (string | null)[] } | null {
+  const safe = safeQuery(question);
+  const n = normalizeQuery(safe);
+  if (!n || onlyRedacted(safe)) return null;
+  const key = reportKey(safe);
+  if (onlyRedacted(key)) return null;
+  const at = new Date(now).toISOString();
+  // A vote carries no reading: an empty trace, and the intent from the question's own words.
+  const trace: SearchTrace = { layers: [], won: null, team: null, intents: [], scope: [], filler: [] };
+  return {
+    sql: `INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen)
+            SELECT ?, ?, 'downvoted', ?, ?, '', ?, 1, ?, ?
+             WHERE (SELECT down FROM discord_answers WHERE message_id = ?) = 1
+            ON CONFLICT (key) DO UPDATE SET count = count + 1, last_seen = MAX(last_seen, excluded.last_seen)`,
+    args: [key, keyHash(key), intentsIn(n)[0] ?? null, JSON.stringify(trace), JSON.stringify([safe]), at, at, messageId],
+  };
+}
 
 /** Queue one query under `slot`. `capped`: it spends that slot's hourly report allowance (a visitor's, not a bot's). */
 function noteOnce(slot: string, capped: boolean, q: string, a: SearchAnswer, trace?: SearchTrace | null, now = Date.now(), key?: string, missed: string[] = []): void {
@@ -505,7 +535,11 @@ export function failureBody(r: Row): string {
     ].join("\n")),
     "",
     "### Status",
-    "Open means this query still fails: to be worked on, or in progress as the owner marks it. Close only after checking live, through the Reproduce link, that the query now returns a direct answer. Never close from a PR, a merge or a deploy note alone. Closed as not planned (or labelled `dismissed`) means not worth fixing: it stays closed.",
+    // A downvoted query answered then and answers now: "returns a direct answer" would close it without anyone reading
+    // the answer a person said was wrong, so its close condition is the answer being right.
+    r.result_type === "downvoted"
+      ? "Open means the answer a person voted down hasn't been judged right yet: search answered this query when it was downvoted, so it answers it now too. Close only after reading that answer at the Reproduce link and finding it correct — never because a re-check says the query answers. Never close from a PR, a merge or a deploy note alone. Closed as not planned (or labelled `dismissed`) means the vote isn't worth acting on: it stays closed."
+      : "Open means this query still fails: to be worked on, or in progress as the owner marks it. Close only after checking live, through the Reproduce link, that the query now returns a direct answer. Never close from a PR, a merge or a deploy note alone. Closed as not planned (or labelled `dismissed`) means not worth fixing: it stays closed.",
   ].join("\n");
 }
 
@@ -648,25 +682,32 @@ export function startSearchFailureJobs(log: (m: string) => void): void {
 /**
  * The owner asks for a re-check of one issue's query: it's searched again now. Answered: a comment says so, and the
  * issue stays open for the owner to close after checking live. Still failing: a comment says that, and the count
- * and last seen go up. Never closes the issue.
+ * and last seen go up. Never closes the issue. A row a person voted down (`downvoted`) is neither: search answered it
+ * when it was downvoted, so answering again says nothing about the answer being right.
  */
-export async function recheck(issueNumber: number, answer: (q: string) => Promise<SearchAnswer>, now = new Date()): Promise<{ answered: boolean; label: string } | null> {
+export async function recheck(issueNumber: number, answer: (q: string) => Promise<SearchAnswer>, now = new Date()): Promise<{ answered: boolean; label: string; voted?: boolean } | null> {
   const row = await get<Row>(`SELECT ${COLUMNS} FROM search_failures WHERE issue_number = ?`, [issueNumber]);
   if (!row) return null;
   const q = (JSON.parse(row.examples) as string[])[0] ?? row.key;
   const a = await answer(q);
-  const f = failureOf(q, a, outcomeTrace(a));
   const label = redact(a.understood?.label ?? "");
   const at = now.toISOString();
+  // A downvoted row can't be cleared by answering: search gave this query an answer when it was downvoted (that is why
+  // it was), so "it answers" is the same result as before. Saying "now returns a direct answer" would invite closing an
+  // entry whose answer is still wrong.
+  const voted = row.result_type === "downvoted";
+  const f = voted ? null : failureOf(q, a, outcomeTrace(a));
   if (f) await run("UPDATE search_failures SET count = count + 1, last_seen = ?, result_type = ? WHERE key = ?", [at, f.type, row.key]);
   const token = env.githubReportToken;
   if (token) {
-    const body = f
-      ? `Re-check ${at}: still fails (result type ${f.type}). Search said:\n\n${fenced(label || "(nothing)")}\n\nLeft open. Count and last seen updated.`
-      : `Re-check ${at}: this query now returns a direct answer. Search said:\n\n${fenced(label || "(nothing)")}\n\nNot closed by this check: the owner closes it after checking live at ${reproduceUrl(latestTyped(row))}.`;
+    const body = voted
+      ? `Re-check ${at}: search answered this query when a person voted its answer down, so answering it again can't tell whether the answer is right now. Search said:\n\n${fenced(label || "(nothing)")}\n\nLeft open for a person to judge at ${reproduceUrl(latestTyped(row))}. Count and last seen unchanged.`
+      : f
+        ? `Re-check ${at}: still fails (result type ${f.type}). Search said:\n\n${fenced(label || "(nothing)")}\n\nLeft open. Count and last seen updated.`
+        : `Re-check ${at}: this query now returns a direct answer. Search said:\n\n${fenced(label || "(nothing)")}\n\nNot closed by this check: the owner closes it after checking live at ${reproduceUrl(latestTyped(row))}.`;
     try { await gh(token, "POST", `/issues/${issueNumber}/comments`, { body }); } catch (e) { pauseFor(e); throw e; }
   }
-  return { answered: !f, label };
+  return voted ? { answered: false, label, voted } : { answered: !f, label };
 }
 
 const page = (title: string, body: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><meta name="robots" content="noindex">
@@ -697,7 +738,8 @@ export function searchFailuresRouter(answer: (q: string) => Promise<SearchAnswer
       const out = await recheck(n, answer);
       res.setHeader("Content-Security-Policy", LITE_CSP);
       if (!out) { res.status(404).type("html").send(page("Re-check failed search", `<p>No failed search is on record for issue #${n}.</p>`)); return; }
-      res.type("html").send(page("Re-check failed search", `<h1>${out.answered ? "Now answers" : "Still fails"}</h1><p>${esc(out.label)}</p><p>A comment is on <a href="https://github.com/${GITHUB_REPO}/issues/${n}">issue #${n}</a>. ${out.answered ? "Close it yourself after checking live." : "It stays open."}</p>`));
+      const heading = out.voted ? "Needs a person" : out.answered ? "Now answers" : "Still fails";
+      res.type("html").send(page("Re-check failed search", `<h1>${heading}</h1><p>${esc(out.label)}</p><p>A comment is on <a href="https://github.com/${GITHUB_REPO}/issues/${n}">issue #${n}</a>. ${out.voted ? "Search answered this one when it was voted down, so only a person can say the answer is right now: it stays open." : out.answered ? "Close it yourself after checking live." : "It stays open."}</p>`));
     })().catch(() => { if (!res.headersSent) res.status(503).json({ error: "Couldn't re-check right now." }); });
   });
   return r;

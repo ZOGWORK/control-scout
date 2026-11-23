@@ -26,7 +26,8 @@ Code: `server/searchFailures.ts`. It files through the in-app error reporter's G
    with resource owner `ZOGWORK`. Without a token, failures are only counted in the `search_failures` table.
 2. **Labels.** Create these once under **Issues → Labels**. GitHub drops a label it won't create from a new issue.
    - `failed-search`
-   - `result:no-match`, `result:team-fallback`, `result:weak`, `result:name-only`, `result:empty`, `result:ambiguous`
+   - `result:no-match`, `result:team-fallback`, `result:weak`, `result:name-only`, `result:empty`, `result:ambiguous`,
+     `result:downvoted`
    - `intent:location`, `intent:opr`, `intent:rating`, `intent:record`, `intent:matches`, `intent:awards`,
      `intent:events`, `intent:next-last`, `intent:championships`, `intent:winners`, `intent:leaderboard`,
      `intent:phase`, `intent:count`, `intent:meaning`, `intent:versus`, `intent:school`
@@ -45,9 +46,12 @@ Code: `server/searchFailures.ts`. It files through the in-app error reporter's G
 | `name-only` | Only names matched, for a query with a team number and an intent word |
 | `weak` | Search flagged its result as a guess, for a query with a team and an intent word |
 | `ambiguous` | Two intents matched equally (reported by the layered reader) |
+| `downvoted` | The Discord bot answered it and a person voted 👎 on that answer (`bot/reactions.ts`) |
 
 Any answer counts as a success: a card, a stat answer, a leaderboard, a team page asked for by name, or a page named
-outright ("privacy", "records"). Only the outcome counts, never the phrasing.
+outright ("privacy", "records"). Only the outcome counts, never the phrasing — except for a 👎 on a Discord answer,
+which files the question it was given for even though search called that answer answered: a person saying the answer
+was wrong is the one failure no reading of the answer can find.
 
 **Who decides.** The layered reader (`server/api/searchLayers.ts`) reports how it reached each answer
 (`SearchOutcome`), and its `result` decides: `answered` is never filed, `name-search-only` is filed as `name-only`,
