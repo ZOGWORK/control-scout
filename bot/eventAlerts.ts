@@ -62,7 +62,9 @@ export function eventDue(follows: Follow[], d: EventDetail, now: number): EventD
       // a current follow is what loaded it.
       if (f.season != null && f.season !== e.season) continue;
       if (e.start && addDays(e.start, -1) === today && hour >= EVE_HOUR) add(f, "eve", "event:eve");
-      if (e.status !== "finished" && d.matches.some((m) => m.level === "qual")) add(f, "schedule", "event:schedule");
+      // A qual with no day yet (pairings posted, no times) would post the "no times yet" placeholder and claim the key,
+      // and the real schedule could never follow: wait until one has a day.
+      if (e.status !== "finished" && d.matches.some((m) => m.level === "qual" && !!(dayOf(m, zone) ?? m.time?.slice(0, 10)))) add(f, "schedule", "event:schedule");
       // The end of an event day: every match that day is scored, and the last was a while ago.
       const todays = d.matches.filter((m) => dayOf(m, zone) === today);
       const last = Math.max(...todays.filter((m) => m.played).map(at));
