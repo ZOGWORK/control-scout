@@ -169,6 +169,27 @@ describe("people also ask", () => {
     expect((await both("4215 record")).related.every((x) => /\b4215\b/.test(x.q) || x.family !== "team")).toBe(true);
   });
 
+  it("never follows a number the answer read as a threshold as if it were a team", async () => {
+    // Team 50 exists, so the parser reads "50" as it; the answer reads it as the OPR floor of a board.
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (50, 'Fifty', 'Town', 'CA', 'USA')");
+    await rebuildSearch();
+    clearAllCaches();
+    try {
+      const q = "teams from new jersey with opr over 50";
+      const a = await pageAnswer(q, 25, new Set());
+      expect(a.intent?.pattern).toMatch(/\[threshold\]/);
+      expect(a.intent?.pattern).not.toMatch(/\[team\]/);
+      const f = await followUps(q, a);
+      expect(f.about).not.toBe(50);
+      expect(f.highlights?.team).not.toBe(50);
+      expect([...f.ask, ...f.related].filter((x) => /\b50\b/.test(x.q)).map((x) => x.q)).toEqual([]);
+    } finally {
+      await run("DELETE FROM teams WHERE number = 50");
+      await rebuildSearch();
+      clearAllCaches();
+    }
+  });
+
   it("says a season the query typed with its preposition once", async () => {
     const q = "4215 record in 2025-26";
     const qs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set())).map((x) => x.q);
