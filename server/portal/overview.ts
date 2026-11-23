@@ -103,8 +103,8 @@ export async function ownerOverview(now = Date.now()): Promise<OwnerOverview> {
   const workspaceEntries = tables.has("workspace_scout_entries") ? await count("SELECT COUNT(*) n FROM workspace_scout_entries WHERE deleted = 0") : null;
   const [openFeedback, errorReports, unfiledErrors] = await Promise.all([
     count("SELECT COUNT(*) n FROM contact_messages WHERE status = 'open'"),
-    count("SELECT COUNT(*) n FROM error_reports"),
-    count("SELECT COUNT(*) n FROM error_reports WHERE issue_number IS NULL"),
+    count("SELECT COUNT(*) n FROM error_reports WHERE resolved_at IS NULL"),
+    count("SELECT COUNT(*) n FROM error_reports WHERE issue_number IS NULL AND resolved_at IS NULL"),
   ]);
   const [sync, stats, records, packsAt, writer] = await Promise.all([
     kvGet<{ at: string }>("sync:last"), kvGet<{ at: string }>("stats:last"), kvGet<{ at: string }>("records:last"),

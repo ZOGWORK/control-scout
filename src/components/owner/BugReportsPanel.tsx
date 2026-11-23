@@ -1,8 +1,9 @@
 // Owner console › Bug reports: what people sent with the top bar's "Report a bug" button (server/bugReports.ts), newest
 // first, open ones and closed ones apart (50 at a time, then Load older), each with its screenshots (click for full
 // size) and video, the details the dialog attached, its GitHub issue (one click to open it) or why it isn't filed yet,
-// and Close / Reopen / Delete. The local report and the issue are two records: closing or deleting here never touches
-// the issue. Attachments load from /api/owner/bug-reports/:id/files/:n (behind the owner gate) while the local copy is
+// and Close / Reopen / Delete. A filed report follows its issue: once the issue is closed on GitHub the server closes
+// the report too (server/bugReports.ts syncBugIssues), so it moves to Closed with "Fixed by PR #…" or "Not planned".
+// Closing or deleting here never touches the issue. Attachments load from /api/owner/bug-reports/:id/files/:n (behind the owner gate) while the local copy is
 // kept; once it's on GitHub and the copy is deleted, they link to GitHub.
 import { useEffect, useRef, useState } from "react";
 import { Bug, CheckCircle2, CircleDashed, ExternalLink, Github, Mail, RotateCcw, Trash2 } from "lucide-react";
@@ -56,14 +57,25 @@ function Attachments({ r }: { r: BugReportItem }) {
   );
 }
 
-/** Its GitHub issue, one click away, or "Not filed yet" and why. */
+const LINK = "inline-flex min-h-8 items-center gap-1.5 font-medium text-accent-text v8:text-accent underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 max-sm:min-h-11";
+
+/** Its GitHub issue, one click away, and how it was closed there (the PR or commit that fixed it); or "Not filed yet" and why. */
 function Issue({ r }: { r: BugReportItem }) {
   if (r.issue) {
+    const c = r.issueClosed;
     return (
-      <a href={r.issue.url} target="_blank" rel="noopener noreferrer" data-testid="bug-report-issue"
-        className="inline-flex min-h-8 items-center gap-1.5 font-medium text-accent-text v8:text-accent underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 max-sm:min-h-11">
-        <Github className="size-3.5" aria-hidden />Issue #{r.issue.number}<ExternalLink className="size-3" aria-hidden />
-      </a>
+      <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+        <a href={r.issue.url} target="_blank" rel="noopener noreferrer" data-testid="bug-report-issue" className={LINK}>
+          <Github className="size-3.5" aria-hidden />Issue #{r.issue.number}<ExternalLink className="size-3" aria-hidden />
+        </a>
+        {c && (
+          <span className="inline-flex flex-wrap items-center gap-1.5 text-muted-foreground" data-testid="bug-report-issue-closed">
+            <span>{c.reason === "completed" ? (c.by ? "Fixed by" : "Fixed") : (c.by ? "Closed as not planned by" : "Closed as not planned")}</span>
+            {c.by && <><a href={c.by.url} target="_blank" rel="noopener noreferrer" className={LINK}>{c.by.label}<ExternalLink className="size-3" aria-hidden /></a></>}
+            {c.at && <span>· {ago(c.at)}</span>}
+          </span>
+        )}
+      </span>
     );
   }
   return (
@@ -91,11 +103,11 @@ function ReportCard({ r, onChanged }: { r: BugReportItem; onChanged: () => void 
     <li className="rounded-xl border border-border bg-card p-4" data-testid="bug-report">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Badge variant={TONE[r.category] ?? "secondary"}>{label(r.category)}</Badge>
-        {r.status === "done" && <Badge variant="success">Closed</Badge>}
+        {r.status === "done" && (r.issueClosed?.reason === "not_planned"
+          ? <Badge variant="secondary">Not planned</Badge>
+          : <Badge variant="success">{r.issueClosed ? "Fixed" : "Closed"}</Badge>)}
         <span className="text-muted-foreground">#{r.id} · {ago(r.createdAt)}</span>
-        {r.email
-          ? <a className="inline-flex min-w-0 items-center gap-1 truncate text-accent-text v8:text-accent underline-offset-4 hover:underline" href={`mailto:${r.email}`}><Mail className="size-3.5 shrink-0" aria-hidden />{r.email}</a>
-          : <span className="text-muted-foreground">No email given</span>}
+        {r.email && <a className="inline-flex min-w-0 items-center gap-1 truncate text-accent-text v8:text-accent underline-offset-4 hover:underline" href={`mailto:${r.email}`}><Mail className="size-3.5 shrink-0" aria-hidden />{r.email}</a>}
       </div>
       <div className="mt-2 text-sm"><Issue r={r} /></div>
       <p className="mt-2 whitespace-pre-wrap break-words text-sm text-foreground">{r.message}</p>
@@ -106,7 +118,6 @@ function ReportCard({ r, onChanged }: { r: BugReportItem; onChanged: () => void 
         <dt>Screen</dt><dd className="text-foreground">{c.viewport || "—"}</dd>
         <dt>Device</dt><dd className="min-w-0 break-words text-foreground">{c.device || "—"}</dd>
         <dt>Theme</dt><dd className="text-foreground">{c.theme || "—"}</dd>
-        <dt>Email</dt><dd className="text-foreground">{r.emailed ? "Sent to you" : "Not emailed"}</dd>
       </dl>
       <div className="mt-3 flex flex-wrap gap-2">
         {r.status === "open"
@@ -153,12 +164,11 @@ export function BugReportsPanel() {
   return (
     <Section
       title="Bug reports"
-      description={d
-        ? `From the Report a bug button in the top bar. Attachments use ${formatBytes(d.storedBytes)} of ${formatBytes(d.capBytes)}.`
-        : "From the Report a bug button in the top bar."}
+      description={`From the Report a bug button in the top bar. A report closes here when its GitHub issue is closed.${
+        d && d.storedBytes >= d.capBytes * 0.75 ? ` Attachments use ${formatBytes(d.storedBytes)} of ${formatBytes(d.capBytes)}: delete old reports to make room.` : ""}`}
     >
       <div role="tablist" aria-label="Which reports" className="mb-3 flex gap-1">{tab("open", "Open", d?.open)}{tab("done", "Closed", d?.closed)}</div>
-      <Async state={state} empty={(x) => !x.reports.length && <EmptyState icon={Bug} title={status === "open" ? "No open bug reports" : "No closed bug reports"} description={status === "open" ? "Nothing waiting on you." : "Closed reports show here."} />}>
+      <Async state={state} empty={(x) => !x.reports.length && <EmptyState icon={Bug} title={status === "open" ? "No open bug reports" : "No closed bug reports"} description={status === "open" ? "Nothing waiting on you." : "Reports whose issue was fixed, or that you closed, show here."} />}>
         {({ reports }) => (
           <>
             <ul className="space-y-3">{[...reports, ...older].map((r) => <ReportCard key={r.id} r={r} onChanged={() => setOlder((o) => o.filter((x) => x.id !== r.id))} />)}</ul>
