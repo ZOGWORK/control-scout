@@ -54,16 +54,27 @@ function frameOnly(part: string): boolean {
  *  all). Searched as typed it's a fragment search can find nothing for. */
 export const needsSubject = (part: string): boolean => PRONOUN.test(part) || frameOnly(part);
 
-/** The team an answer is about, when it's about one: its card's, its stat's, or the first team among its results. A
- *  board answers with its top team's name in the headline ("23268 Ultraviolet") or as its first row, and that team is
- *  what a follow-up like "where are they from" means. */
+/** A team number from a link to its page (`/teams/23268?season=2026`), when it's one. */
+const teamHrefNumber = (href: string | undefined | null): number | null => {
+  const m = href && /\/teams\/(\d{1,6})(?:[/?#]|$)/.exec(href);
+  return m ? Number(m[1]) : null;
+};
+
+/**
+ * The team an answer is about, when it's about one: its card's, its stat's, the first team among its results, or the
+ * top of the board it answered with (a "best team" answer's headline and first row). Only a team link counts — a
+ * headline reading "412 points" is a score, never team 412 — so "where are they from" is asked about the team the
+ * earlier part really named.
+ */
 function answerTeam(a: SearchAnswer | null | undefined): number | null {
-  const direct = a?.card?.team?.number ?? a?.stat?.team?.number ?? Number(a?.hits?.find((h) => h.kind === "team")?.ref);
-  if (Number.isInteger(direct) && direct > 0) return direct;
+  const said = a?.card?.team?.number ?? a?.stat?.team?.number;
+  if (Number.isInteger(said) && said! > 0) return said!;
   const board = a?.stat?.blocks.find((b) => b.kind === "leaderboard");
-  const said = a?.stat?.headline?.value ?? (board?.kind === "leaderboard" ? board.rows[0]?.team.label : undefined) ?? "";
-  const n = /^(\d{1,6})\b/.exec(said)?.[1];
-  return n ? Number(n) : null;
+  const hit = a?.hits?.find((h) => h.kind === "team");
+  return teamHrefNumber(a?.stat?.headline?.teams?.[0]?.href)
+    ?? teamHrefNumber(board?.kind === "leaderboard" ? board.rows[0]?.team.href : undefined)
+    ?? teamHrefNumber(hit?.href)
+    ?? (hit && /^\d{1,6}$/.test(hit.ref) ? Number(hit.ref) : null);
 }
 
 /** What an earlier part asks about, its question's frame dropped: "what is the bio buzz world record" is "bio buzz

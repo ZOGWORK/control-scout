@@ -38,6 +38,15 @@ describe("a part that leans on an earlier one", () => {
   it("is asked with the team the earlier part's answer names, not as a dead fragment", () => {
     expect(resolveAsk(["what is the best team", "where are they from"], 1, [board])).toBe("where are 23268 from");
     expect(resolveAsk(["what is the best team", "what is their auto opr"], 1, [board])).toBe("what is 23268 auto opr");
+    // A board's own top row, and a card's team, are teams too.
+    const leaderboard = { stat: { headline: { value: "23268 Ultraviolet" }, blocks: [{ kind: "leaderboard", rows: [{ team: { label: "23268 Ultraviolet", href: "/teams/23268?season=2026" } }] }] } } as unknown as SearchAnswer;
+    expect(resolveAsk(["what is the best team", "where are they from"], 1, [leaderboard])).toBe("where are 23268 from");
+    expect(resolveAsk(["4215 highest score", "what is their auto opr"], 1, [{ card: { team: { number: 4215 } } } as unknown as SearchAnswer])).toBe("what is 4215 auto opr");
+  });
+
+  it("never takes a score for a team: a headline reading \"412 points\" names no team", () => {
+    const score = { stat: { headline: { value: "412 points", teams: [] }, team: undefined, blocks: [] }, hits: [] } as unknown as SearchAnswer;
+    expect(resolveAsk(["what is the bio buzz world record", "where are they from"], 1, [score])).toBe("where are bio buzz world record from");
   });
 
   it("with nothing but its own frame, is asked as the thing it asks about", () => {
