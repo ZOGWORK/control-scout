@@ -26,7 +26,7 @@ Saying "yes" to Bruno's own offer — "Also want 4215's record?" — now asks th
 
 ### Discord bot
 - **A yes answers what he offered** (`bot/ask.ts` `affirmative`/`offeredQuestion`): a message that only says yes ("yes", "yeah please", "go ahead") is asked as the question Bruno ended his last reply with, read from the thread — "Also want 4215's record?" is "4215's record" — and the answer carries `resolved` so the post quotes the question rather than the word. A real question ("yes but what about 6980") and a yes with no offer are left as typed. `bot/ask.test.ts` covers the screenshot's thread, the affirmative phrasings and both non-cases.
-- **The post and the thread use it** (`bot/handler.ts`): /ask, a mention and a reply to his answer quote the resolved question and remember it, so the next follow-up leans on 4215's record instead of the word "yes". `bot/handler.test.ts` follows a mention, its offer and the "yes" reply.
+- **The post and the thread use it** (`bot/handler.ts`): /ask, a mention and a reply to his answer quote the resolved question and remember it, so the next follow-up leans on 4215's record instead of the word "yes". `bot/handler.test.ts` follows a mention, its offer and the "yes" reply. (#2201)
 
 ## 7.9.4 — 2026-11-23
 
