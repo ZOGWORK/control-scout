@@ -481,6 +481,26 @@ describe("a chat with Bruno in Discord", () => {
     expect(next).not.toContainEqual({ role: "user", text: "yes" });
   });
 
+  it("a reply of \"no\" declines his offer, and a yes to that reply can still take it up", async () => {
+    const reply = (text: string, over: Record<string, unknown> = {}) => ({ embed: ok(text), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text }, ...over });
+    const ask = vi.fn().mockResolvedValue(reply("ok"))
+      .mockResolvedValueOnce(reply("288 points. Also want 4215's record?"))
+      // The bot's own words (every scout reply), quoting the question it declined: nothing was searched for "no".
+      .mockResolvedValueOnce({ ...reply("No problem — I'll leave 4215's record for now.", { resolved: "4215's record" }), chat: { text: "No problem — I'll leave 4215's record for now.", by: "scout" as const } })
+      .mockResolvedValueOnce(reply("4215 is 26-6-0.", { resolved: "4215's record" }));
+    const h = createHandler(() => {}, lookups({ ask }));
+    await h.mention(message(`<@${BOT}> bio buzz world record`, {}, "m1").m, BOT);
+    const no = message("no thanks", { reference: { messageId: "m1" }, mentions: { repliedUser: { id: BOT } } }, "m2");
+    await h.mention(no.m, BOT);
+    expect(no.sent[0]).toMatchObject({ content: expect.stringMatching(/^No problem/), embeds: [] });
+    // "Say the word": the decline's own post carries the thread on, so a yes to it asks the offer he made, not "yes".
+    const take = message("yes please", { reference: { messageId: "m2" }, mentions: { repliedUser: { id: BOT } } }, "m3");
+    await h.mention(take.m, BOT);
+    const history = ask.mock.calls[2][1] as { role: string; text: string }[];
+    expect(history.at(-1)).toEqual({ role: "bruno", text: "288 points. Also want 4215's record?" });
+    expect(take.sent[0].content).toMatch(/^4215 is 26-6-0\./);
+  });
+
   it("a long answer keeps the question it ends with, so a later yes still finds it", async () => {
     // The thread clips a turn at 600 characters; the offer sits at the end, where the clip cuts first — and the clipped
     // head mentions 4215's record without asking about it, so the sentence has to be kept, not its words.

@@ -193,8 +193,8 @@ fallback for a greeting, post as text alone — never a "Sorry" card next to a g
 `affirmative`/`offeredQuestion`): the offer is read from his last turn in the thread, the answer is searched as
 "4215's record", and the post quotes that rather than the word so the thread carries on from it. Without an offer the
 message is asked as typed. **A reply of "no"** to that offer declines it — "No problem — I'll leave 4215's record for
-now" — with nothing searched, since the word alone is no more a question than "yes" was; a no with a question after it
-("no, what about 6980") is asked as typed.
+now" — with nothing searched, since the word alone is no more a question than "yes" was, and a "yes" to that decline's
+own post still takes the record up; a no with a question after it ("no, what about 6980") is asked as typed.
 
 Replying to his answer
 carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each, and keeps them in the

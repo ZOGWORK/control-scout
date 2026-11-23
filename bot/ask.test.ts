@@ -362,7 +362,7 @@ describe("a no to the question he offered", () => {
   const thread = [{ role: "user" as const, text: "what is the bio buzz world record rn and who is by" }, offer];
 
   it("reads a no on its own, never a no that asks something", () => {
-    for (const n of ["no", "No!", "nope", "nah", "no thanks", "no thank you", "not now", "not right now", "maybe later", "not today", "I'm good thanks", "we're good", "no need", "don't bother", "skip it", "pass"]) expect(declined(n), n).toBe(true);
+    for (const n of ["no", "No!", "nope", "nah", "no thanks", "no thank you", "not now", "not right now", "maybe later", "not today", "I'm good thanks", "I’m good thanks", "we're good", "no need", "don't bother", "don’t bother", "skip it", "pass"]) expect(declined(n), n).toBe(true);
     // A no with a question after it asks that one, a number names a team, and "not sure" neither accepts nor declines.
     for (const q of ["no, what about 6980", "no 4215", "no clue who won decode", "not sure", "not bad", "yes", ""]) expect(declined(q), q).toBe(false);
   });
