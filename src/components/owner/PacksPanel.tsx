@@ -52,7 +52,7 @@ export function PacksPanel() {
               )}
             </Section>
             {p.files.length > 0 && (
-              <Section title="Files" description="Each file as the manifest lists it. A device checks the SHA-256 after downloading, so a file that doesn't match is never used.">
+              <Section title="Files" collapsible icon={FileArchive} summary={`${p.files.length} file${p.files.length === 1 ? "" : "s"}, ${fmtBytes(p.totalBytes)}, each with its SHA-256`} description="Each file as the manifest lists it. A device checks the SHA-256 after downloading, so a file that doesn't match is never used.">
                 <ul className="divide-y divide-border rounded-xl border border-border bg-card" aria-label="Pack files">
                   {p.files.map((f) => <FileRow key={f.name} f={f} />)}
                 </ul>
