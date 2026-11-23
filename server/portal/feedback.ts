@@ -99,7 +99,8 @@ export async function setTriage(id: number, to: TriageState | null, now = new Da
   if (!before) throw new TriageError(404, "No such message");
   if (!isTriageTopic(before.topic)) throw new TriageError(400, "Only bug reports, data corrections and feature ideas are triaged");
   if (!canTriage(before.triage, to)) throw new TriageError(409, `Can't go from ${before.triage ?? "not triaged"} to ${to ?? "not triaged"}`);
-  const status = statusForTriage(to);
+  // A message the owner archived stays archived: triage never brings it back into a list he cleared.
+  const status = before.status === "archived" ? "archived" : statusForTriage(to);
   const at = now.toISOString();
   // Guarded on the state just read: two decisions sent at once can't both land.
   const row = await get(

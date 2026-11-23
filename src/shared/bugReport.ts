@@ -136,6 +136,8 @@ export interface BugReportItem {
   issue: { number: number; url: string } | null;
   /** When there's no issue yet: why, in plain words. */
   notFiled: string | null;
+  /** Its issue closed on GitHub (which closed this report): fixed or not planned, when, and the PR or commit, if named. */
+  issueClosed: { reason: "completed" | "not_planned"; at: string | null; by: { label: string; url: string } | null } | null;
 }
 export interface BugReportList { reports: BugReportItem[]; open: number; closed: number; more: boolean; storedBytes: number; capBytes: number }
 
