@@ -220,8 +220,8 @@ code; you can also type a code yourself).
 - **Same data, no API.** It imports the site's own modules (`server/api/teams.ts`, `events.ts`,
   `rankings.ts`, the prediction engine) and reads the same database, so its numbers are the site's. It
   never calls the site over HTTP and never runs migrations; it writes only its own tables
-  (`discord_follows`, `discord_posts` from migration 35 and 103, `discord_guilds`, `discord_asks` and
-  `discord_answers` from 103, all created by the site's deploy), plus its `service_heartbeats` row
+  (`discord_follows`, `discord_posts` from migrations 35 and 104, `discord_guilds`, `discord_asks` and
+  `discord_answers` from 104, all created by the site's deploy), plus its `service_heartbeats` row
   once a minute while connected, which the site's /status page reads (`server/uptime.ts`, migration 86). Its missed
   records questions go into the site's `search_failures` through the site's own `noteBotSearch`.
 - **Automatic posts** (`bot/follows.ts`): every minute it reads the follows, the followed teams' matches at
