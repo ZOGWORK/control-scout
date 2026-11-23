@@ -148,7 +148,8 @@ const NO_PHRASES = [
  *  ("no, what about 6980") asks that question, and "not sure" neither accepts nor declines. */
 export function declined(q: string): boolean {
   if (/\d/.test(q)) return false;
-  const said = q.toLowerCase().replace(/[^a-z\s']/g, " ").replace(/\s+/g, " ").trim();
+  // A phone writes "I’m" and "don’t" with a curly apostrophe: read as the straight one, not as a space.
+  const said = q.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[^a-z\s']/g, " ").replace(/\s+/g, " ").trim();
   return !!said && NO_PHRASES.some((re) => re.test(said));
 }
 

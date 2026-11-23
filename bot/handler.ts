@@ -260,9 +260,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   }
   function remember(id: string | undefined, history: BrunoChatTurn[], question: string, r: AskReply, guild: string | null) {
     // The bot's own words aren't his: a reply to the fallback starts a new thread instead of handing the model turns
-    // it never said (bot/smallTalk.ts).
-    if (!id || !r.chat || r.chat.by === "scout") return;
-    const turns = [...history, turn("user", question), brunoTurn(r.chat.text)].slice(-THREAD_TURNS);
+    // it never said (bot/smallTalk.ts). A decline is the bot's too, but it answered a question of his — the thread
+    // stays as it was, so the "say the word" it offers is a yes to the decline's own post, answered as his question.
+    if (!id || !r.chat) return;
+    const own = r.chat.by === "scout";
+    if (own && !r.resolved) return;
+    const turns = (own ? history : [...history, turn("user", question), brunoTurn(r.chat.text)]).slice(-THREAD_TURNS);
     if (threads.size >= THREADS_MAX) threads.delete(threads.keys().next().value!);
     threads.set(id, turns);
     // Kept past a restart (bot/memory.ts), so a reply to an answer from before a deploy still carries the thread on.
