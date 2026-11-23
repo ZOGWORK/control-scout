@@ -528,7 +528,11 @@ export function failureBody(r: Row): string {
     ].join("\n")),
     "",
     "### Status",
-    "Open means this query still fails: to be worked on, or in progress as the owner marks it. Close only after checking live, through the Reproduce link, that the query now returns a direct answer. Never close from a PR, a merge or a deploy note alone. Closed as not planned (or labelled `dismissed`) means not worth fixing: it stays closed.",
+    // A downvoted query answered then and answers now: "returns a direct answer" would close it without anyone reading
+    // the answer a person said was wrong, so its close condition is the answer being right.
+    r.result_type === "downvoted"
+      ? "Open means the answer a person voted down hasn't been judged right yet: search answered this query when it was downvoted, so it answers it now too. Close only after reading that answer at the Reproduce link and finding it correct — never because a re-check says the query answers. Never close from a PR, a merge or a deploy note alone. Closed as not planned (or labelled `dismissed`) means the vote isn't worth acting on: it stays closed."
+      : "Open means this query still fails: to be worked on, or in progress as the owner marks it. Close only after checking live, through the Reproduce link, that the query now returns a direct answer. Never close from a PR, a merge or a deploy note alone. Closed as not planned (or labelled `dismissed`) means not worth fixing: it stays closed.",
   ].join("\n");
 }
 

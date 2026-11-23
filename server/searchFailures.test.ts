@@ -452,6 +452,9 @@ describe("GitHub issues (cases 23–30)", () => {
     expect(await recheck(500, async (q) => answered(q))).toMatchObject({ answered: false, voted: true });
     expect(calls.at(-1)!.body.body).toContain("can't tell whether the answer is right now");
     expect(calls.at(-1)!.body.body).not.toContain("now returns a direct answer");
+    // And the issue's own Status asks for the answer to be judged, not for the query to answer: it always did.
+    expect(issues[500].body).toContain("hasn't been judged right");
+    expect(issues[500].body).not.toContain("now returns a direct answer");
     expect((await rows())[0].count).toBe(1);
     expect(issues[500].state).toBe("open");
     onlyAllowedActions();
