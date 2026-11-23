@@ -165,8 +165,12 @@ export type AnswerComponents = APIActionRowComponent<APIButtonComponent>[];
 export interface AskPost { content?: string; embeds: APIEmbed[]; components?: AnswerComponents }
 
 /** Whether an answer answered: a card, a stat, or Bruno's own words. The bot's "I couldn't" fallback (by: "scout") and
- *  a sorry card are the two that didn't; the owner console counts them (bot/asks.ts). */
-export const answered = (r: AskReply): boolean => (r.chat ? r.chat.by !== "scout" : r.embed.title !== SORRY_SENTENCE);
+ *  a sorry card are the two that didn't, and a decline did (its words are the bot's, but it handled what was asked);
+ *  the owner console counts them (bot/asks.ts). */
+export const answered = (r: AskReply): boolean => (r.chat ? r.chat.by !== "scout" || !!r.declined : r.embed.title !== SORRY_SENTENCE);
+
+/** The question a post quotes and its thread keeps: what a yes asked, or what a no declined — never the word alone. */
+const quoted = (q: string, r: AskReply) => r.resolved ?? r.declined ?? q;
 
 /** The command and its arguments as one line, for the cache key and the log. */
 export function describe(i: Pick<ChatInputCommandInteraction, "commandName" | "options">): string {
@@ -264,7 +268,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     // stays as it was, so the "say the word" it offers is a yes to the decline's own post, answered as his question.
     if (!id || !r.chat) return;
     const own = r.chat.by === "scout";
-    if (own && !r.resolved) return;
+    if (own && !r.declined) return;
     const turns = (own ? history : [...history, turn("user", question), brunoTurn(r.chat.text)]).slice(-THREAD_TURNS);
     if (threads.size >= THREADS_MAX) threads.delete(threads.keys().next().value!);
     threads.set(id, turns);
@@ -420,8 +424,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       let r: AskReply | undefined;
       try {
         r = await askReply(question, describe(i), [], lines, i.guildId);
-        // What was asked when a "yes" answered the question Bruno offered (bot/ask.ts): the reply quotes that, not "yes".
-        post = askPost(r.resolved ?? question, r, true);
+        // What was asked when a yes — or a no — answered the question Bruno offered (bot/ask.ts): the reply quotes
+        // that, not the word.
+        post = askPost(quoted(question, r), r, true);
       } catch (e) {
         logLine(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
@@ -429,7 +434,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
       // Only an answer takes votes: the failure notice above is not one.
       if (r) {
-        remember((sent as { id?: string } | undefined)?.id, [], r.resolved ?? question, r, i.guildId);
+        remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId);
         watchVotes(sent, i.guildId ?? null);
       }
       return;
@@ -517,8 +522,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       clearInterval(typing);
       // The reply quotes the message it answers: no need to repeat the question (a "yes" becomes the question it
       // answered, so the thread carries on from 4215's record rather than from the word).
-      const sent = await send(askPost(r.resolved ?? q, r, false));
-      remember((sent as { id?: string } | undefined)?.id, history, r.resolved ?? q, r, m.guildId ?? null);
+      const sent = await send(askPost(quoted(q, r), r, false));
+      remember((sent as { id?: string } | undefined)?.id, history, quoted(q, r), r, m.guildId ?? null);
       watchVotes(sent, m.guildId ?? null);
     } catch (e) {
       logLine(`mention failed: ${(e as Error)?.message ?? String(e)}`);
@@ -549,15 +554,15 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     let r: AskReply | undefined;
     try {
               r = await askReply(question, `/ask question=${question.toUpperCase().slice(0, 100)}`, [], lines, i.guildId ?? null);
-        post = askPost(r.resolved ?? question, r, true);
-    } catch (e) {
-      logLine(`button ask failed: ${(e as Error)?.message ?? String(e)}`);
-      post = { embeds: [pride(unavailableEmbed())] };
-    }
-    const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
-    // Only an answer takes votes: the failure notice above is not one.
-    if (r) {
-              remember((sent as { id?: string } | undefined)?.id, [], r.resolved ?? question, r, i.guildId ?? null);
+                post = askPost(quoted(question, r), r, true);
+      } catch (e) {
+        logLine(`button ask failed: ${(e as Error)?.message ?? String(e)}`);
+        post = { embeds: [pride(unavailableEmbed())] };
+      }
+      const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
+      // Only an answer takes votes: the failure notice above is not one.
+      if (r) {
+              remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId ?? null);
       watchVotes(sent, i.guildId ?? null);
     }
   }
