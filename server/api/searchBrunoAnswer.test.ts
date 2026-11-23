@@ -280,6 +280,37 @@ describe("a stat answer's facts (who won, head-to-heads, records …)", () => {
   });
 });
 
+describe("a leaderboard in Bruno's facts", () => {
+  it("names where each team is, and on an OPR board its Auto, TeleOp and Endgame OPR", () => {
+    const f = statFacts({
+      family: "leaderboard", intent: "top-opr", title: "Top 3 teams by OPR · 2025–26", scope: [],
+      blocks: [{ kind: "leaderboard", title: "Top 3 by OPR", stat: { id: "opr", label: "OPR" }, note: "2025–26 · 8,375 ranked teams",
+        rows: [
+          { rank: 1, team: { label: "23268 Ultraviolet", href: "/teams/23268" }, location: "Oradell, NJ", record: "26-6-0", opr: 101.6, value: 101.6, display: "101.6", parts: { auto: 30.2, teleop: 55.1, endgame: 16.3, pen: null } },
+          { rank: 2, team: { label: "4215 Hypnotic Robotics", href: "/teams/4215" }, location: null, record: "20-8-0", opr: 98.4, value: 98.4, display: "98.4", parts: null },
+        ] }],
+    } as never);
+    expect(f).toEqual([
+      "Top 3 teams by OPR · 2025–26:",
+      "Top 3 by OPR:",
+      "- #1 23268 Ultraviolet (Oradell, NJ): OPR 101.6, record 26-6-0, Auto OPR 30.2 · TeleOp OPR 55.1 · Endgame OPR 16.3",
+      "- #2 4215 Hypnotic Robotics: OPR 98.4, record 20-8-0",
+      "2025–26 · 8,375 ranked teams",
+    ]);
+    // "where are they from, and their auto opr" is in the facts, not a number he has to invent.
+    expect(grounded("Ultraviolet is based in Oradell, NJ, with 30.2 Auto OPR.", f, "best team rn")).toBe(true);
+  });
+
+  it("a board not ranked by OPR keeps its own parts out (penalties aren't phase OPRs)", () => {
+    const f = statFacts({
+      family: "leaderboard", intent: "top-penalties", title: "Teams by fewest penalties", scope: [],
+      blocks: [{ kind: "leaderboard", title: "Top 1 by Penalties", stat: { id: "penalties", label: "Penalties a match" }, note: "2025–26",
+        rows: [{ rank: 1, team: { label: "4215 Hypnotic Robotics", href: "/teams/4215" }, location: "Oradell, NJ", record: "20-8-0", opr: 98.4, value: 1.2, display: "1.2", parts: { auto: null, teleop: null, endgame: null, pen: 1.2 } }] }],
+    } as never);
+    expect(f).toContain("- #1 4215 Hypnotic Robotics (Oradell, NJ): Penalties a match 1.2, record 20-8-0");
+  });
+});
+
 describe("a forecast in Bruno's facts", () => {
   it("is never 0% or 100% unless decided, as the page shows it", () => {
     const f = (p: number, decided?: boolean) => statFacts({ family: "x", intent: "x", title: "Advance", scope: [], blocks: [{ kind: "chance", label: "Advances", p, who: "4215", decided }] } as never)[1];

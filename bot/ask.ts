@@ -1,6 +1,9 @@
 // /ask and a mention: a chat first, then the website's own search answer (docs/search.md) as one post.
 //   1. searchAnswer(q, { learn: false })  the facts he reads, deterministic and always (learning off: a Discord ask
 //                                         never teaches search). Its answer is also the card that stands in for him.
+//      the bot's lookups (bot/tools.ts)  a message that asks several things ("best team rn, where are they from and
+//                                         what's their auto opr") has each part searched on its own, and every part's
+//                                         facts go with the message's — the tools an agent would call, run for him.
 //   2. Bruno's chat                       whenever the chat is wired (discordBruno on and Control Point configured):
 //                                         the message and the reply thread before it go to /internal/bruno/discord-chat
 //                                         with search's facts, and his reply is the post: plain text like a chat, the
@@ -24,6 +27,7 @@ import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 import { answerScope, answerStyle, brunoMethod, brunoPersona, productFacts, zogModeReply } from "./productFacts.js";
 import { RECORD_NUMBER, WORKING, smallTalk } from "./smallTalk.js";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
+import { lookupFacts, splitAsk } from "./tools.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -57,6 +61,9 @@ export interface AskDeps {
   /** Bruno's chat reply (Control Point's discord-chat), or null: off, unavailable, or a number not in the facts.
    *  `memory`: what the server has taught the bot (bot/memory.ts) — its teams, the asker's name — sent with the facts. */
   chat?: (message: string, facts: string[], history: BrunoChatTurn[], memory?: string[]) => Promise<ChatReply | null>;
+  /** The facts of a message's parts, when it asks several things (bot/tools.ts): each part searched on its own, its
+   *  facts returned (never throws, never more than the lookups' cap). */
+  lookups?: (q: string) => Promise<string[]>;
   /** A records question search couldn't answer: the site's failed-search queue (server/searchFailures.ts), given the
    *  answer and the server it was asked in (never who asked). Synchronous, never awaited, never throws. */
   miss?: (q: string, a: SearchAnswer, guild: string | null) => void;
@@ -129,6 +136,16 @@ export async function realAskDeps(): Promise<AskDeps> {
       // whether a number could be a record at all), so a reply the check does refuse is traced to the number that failed.
       const unknown = ungrounded(r.text, [...context, ...history.map((t) => t.text)], message);
       return { text: r.text.trim(), search: r.search === true, unknown };
+    },
+    // The bot's lookups (bot/tools.ts): a message asking several things has each part searched on its own, and every
+    // part's facts go to him with the message's own. One part: nothing extra, since the message's facts are its own.
+    lookups: async (q) => {
+      const parts = splitAsk(q);
+      if (parts.length < 2) return [];
+      return lookupFacts(parts, {
+        search: (p) => searchAnswer(p, { learn: false, limit: SEARCH_PAGE_LIMIT }).catch(() => null),
+        facts: (a) => answerFacts(a),
+      });
     },
     // The site's own failed-search queue (server/searchFailures.ts): the words people actually use, which the website's
     // search box never sees. In-memory and synchronous; the bot flushes it once a minute (bot/index.ts). A failure here
@@ -240,7 +257,10 @@ const recordsMiss = (q: string) => !WORKING.test(q) && (RECORD_NUMBER.test(q) ||
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
  *  second place?" has the records it's about), then his reply. */
 async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[], deps: AskDeps, memory: string[] = []): Promise<ChatReply | null> {
-  const facts = await deps.facts!(answer);
+  // The message's own facts, then its parts' (bot/tools.ts): a question with several parts has each one's records.
+  const own = await deps.facts!(answer);
+  const looked = deps.lookups ? await deps.lookups(q).catch(() => [] as string[]) : [];
+  const facts = [...own, ...looked.filter((f) => !own.includes(f))];
   const before = [...history].reverse().find((t) => t.role === "user")?.text;
   if (!before || before.trim().toUpperCase() === q.trim().toUpperCase()) return deps.chat!(q, fit(facts, CHAT_FACTS, CHAT_FACTS_CHARS), history, memory);
   const earlier = (await deps.search(before).then((a) => deps.facts!(a)).catch(() => [] as string[])).filter((f) => !facts.includes(f));

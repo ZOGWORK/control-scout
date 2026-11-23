@@ -8,7 +8,7 @@
 // Streamed to a page that asks for it (?stream=1): the answer shows as he writes it, each part checked the same way
 // before it's sent (previewOf), and ends at the same answer; the model call, prompt and cache are the same.
 import type { SearchAnswer, SearchCardLine, SearchHit } from "../../src/shared/api.js";
-import type { StatAnswer, StatBlock, StatLink } from "../../src/shared/searchStat.js";
+import type { LeaderboardRow, StatAnswer, StatBlock, StatLink } from "../../src/shared/searchStat.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { isBrunoQuestion } from "../../src/shared/search.js";
 import { brunoAvailable, brunoSearchAnswer, brunoSearchAnswerStream } from "../auth/controlPoint.js";
@@ -64,6 +64,15 @@ async function eventWinners(h: SearchHit): Promise<string | null> {
 
 const names = (ls?: StatLink[]) => (ls ?? []).map((l) => l.label).join(", ");
 
+/** A leaderboard row's OPR split, on a board ranked by OPR: its phases are the numbers a follow-up asks for ("and
+ *  what's their auto opr"). Empty on the other boards, whose `parts` aren't phase OPRs. */
+const phaseFacts = (b: Extract<StatBlock, { kind: "leaderboard" }>, r: LeaderboardRow): string => {
+  if (b.stat.id !== "opr" || !r.parts) return "";
+  const said = ([["Auto OPR", r.parts.auto], ["TeleOp OPR", r.parts.teleop], ["Endgame OPR", r.parts.endgame]] as const)
+    .filter(([, v]) => v != null).map(([label, v]) => `${label} ${v}`);
+  return said.length ? `, ${said.join(" · ")}` : "";
+};
+
 /** One stat block as plain lines: the same rows the page shows, every number as the page has it. */
 function blockFacts(b: StatBlock): string[] {
   const title = "title" in b && b.title ? [`${b.title}:`] : [];
@@ -72,7 +81,8 @@ function blockFacts(b: StatBlock): string[] {
     case "record": return [...title, `- record ${b.wins}-${b.losses}-${b.ties} (W-L-T)${b.split ? `; quals ${b.split.quals.wins}-${b.split.quals.losses}-${b.split.quals.ties}, playoffs ${b.split.playoffs.wins}-${b.split.playoffs.losses}-${b.split.playoffs.ties}` : ""}`];
     case "matches": return [...title, ...b.rows.map((r) => `- ${r.label}: ${r.own}-${r.opp} ${r.result === "W" ? "won" : r.result === "L" ? "lost" : "tied"}, ${r.event.label} (${r.season})${r.partners?.length ? `, with ${names(r.partners)}` : ""}${r.opponents?.length ? `, vs ${names(r.opponents)}` : ""}`)];
     case "table": return [...title, ...b.rows.map((r) => `- ${b.columns.map((c) => `${c.label} ${r.cells[c.key] ?? "-"}`).join(", ")}${r.teams ? `; red ${names(r.teams.red)} vs blue ${names(r.teams.blue)}` : ""}`)];
-    case "leaderboard": return [...title, ...b.rows.map((r) => `- #${r.rank} ${r.team.label}: ${b.stat.label} ${r.display}${r.record ? `, record ${r.record}` : ""}`), b.note];
+    // Where the team is and its OPR phases, so "where are they from, and their auto opr" is answered by the board itself.
+    case "leaderboard": return [...title, ...b.rows.map((r) => `- #${r.rank} ${r.team.label}${r.location ? ` (${r.location})` : ""}: ${b.stat.label} ${r.display}${r.record ? `, record ${r.record}` : ""}${phaseFacts(b, r)}`), b.note];
     case "compare": return [...title, `${names(b.teams)}:`, ...b.rows.map((r) => `- ${r.label}: ${r.values.join(" vs ")}${r.gap ? ` (${r.gap})` : ""}`)];
     case "league": return [...title, ...b.rows.map((r) => `- #${r.rank} ${r.team}${r.name ? ` ${r.name}` : ""}${r.wins != null ? `, ${r.wins}-${r.losses ?? 0}-${r.ties ?? 0}` : ""}`)];
     // A forecast is never certain: shown 1% to 99% unless it's decided, as the page shows it, so Bruno can't say 0% or 100%.

@@ -245,6 +245,17 @@ describe("a chat with Bruno", () => {
     expect(d.chat).toHaveBeenCalledWith("hi bruno", ["Result: 4215 | Team 4215"], [], []);
   });
 
+  it("a message that asks several things: each part's facts go with the message's own", async () => {
+    const q = "what is like the best team rn, where are they from and what is their auto opr";
+    const lookups = vi.fn(async () => ["#1 23268 Ultraviolet (Oradell, NJ): OPR 101.6, Auto OPR 30.2"]);
+    const d = chatDeps({ text: "23268 Ultraviolet, from Oradell, NJ: 101.6 OPR, 30.2 on Auto.", search: true }, { lookups });
+    const r = await ask(q, d, SITE);
+    expect(lookups).toHaveBeenCalledWith(q);
+    // The message's facts first, then the parts' (the leaderboard's own line answers "where from" and "auto opr").
+    expect(d.chat).toHaveBeenCalledWith(q, ["Result: 4215 | Team 4215", "#1 23268 Ultraviolet (Oradell, NJ): OPR 101.6, Auto OPR 30.2"], [], []);
+    expect(r.chat?.text).toMatch(/23268/);
+  });
+
   it("a records answer: the answer's video and its page go with his reply", async () => {
     const r = await ask("who won decode", chatDeps({ text: "30030 Exodus won.", search: true }), SITE);
     expect(r.chat).toEqual({ text: "30030 Exodus won.", video: "https://www.youtube.com/watch?v=AAA&t=90s", page: `${SITE}/search?q=who%20won%20decode` });
