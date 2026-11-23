@@ -160,6 +160,14 @@ export const playableStarts = (f: FrameTiming): Record<string, number> => {
 const keyed = () => new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, playableStarts(f)]));
 let opensByKey: Map<string, Record<string, number>> | null = null;
 
+let approvedByKey: Map<string, Set<string>> | null = null;
+/** Whether the owner approved a match's frame start in a video (`approved`, with its start still in the row): served
+ *  as it is, even out of the order the matches were played in (server/videos/recordings.ts withClips). */
+export function frameApproved(videoId: string, code: string, label: string): boolean {
+  approvedByKey ??= new Map(FRAME_TIMINGS.filter((f) => f.approved?.length).map((f) => [`${f.videoId}|${f.code}`, new Set(f.approved!.filter((l) => f.starts[l] != null))]));
+  return approvedByKey.get(`${videoId}|${code}`)?.has(label) ?? false;
+}
+
 /** The second a framed match's clip opens at, where its opening was checked (its overlay names it there), else null. */
 export function frameOpen(videoId: string, code: string, label: string): number | null {
   opensByKey ??= new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, f.opens ?? {}]));
@@ -249,6 +257,7 @@ function relay(): void {
   FRAME_TIMINGS.splice(0, FRAME_TIMINGS.length, ...overlayRows(codeRows ?? [], dbRows));
   byKey = null;
   opensByKey = null;
+  approvedByKey = null;
 }
 
 /** The autopilot's reads the server put live (auto_reads, server/videos/autoReads.ts loadAutoReads): every reader of

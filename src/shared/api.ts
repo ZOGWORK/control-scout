@@ -616,7 +616,10 @@ export interface ClipCoverage {
 
 /** An owner-console finding at `at` seconds into `videoId`: "seen", a match the video's frames saw with no clip; "pulled",
  *  a clip whose first frame showed another match (server/data/clipChecks.ts), so it no longer plays. */
-export interface CoverageFinding { kind: "seen" | "pulled"; season: number; code: string; name: string; label: string; videoId: string; at: number; why: string }
+export interface CoverageFinding { kind: "seen" | "pulled"; season: number; code: string; name: string; label: string; videoId: string; at: number; why: string;
+  /** A "seen" one's source, both decided by the owner with /api/owner/auto-reads/review/approve|reject ({ videoId, code,
+   *  label, t: at }): a frame row's review entry, or a start the row holds that the site doesn't serve. */
+  source?: "review" | "start" }
 /** The frame checks of clips placed from the clock (server/data/clipChecks.ts): clips checked, confirmed, pulled, read
  *  again later (a blank or transition frame), and videos whose overlay can't be read anywhere (never pulled). */
 export interface ClipCheckTotals { checked: number; ok: number; pulled: number; unconfirmed: number; noOverlayVideos: number }
@@ -628,7 +631,9 @@ export interface CoveragePass { at: string; checked: number; events: number; ful
   unplayable?: number;
   /** Every stored event's matches still waiting for their video check after this pass, and after the pass before (null: none
    *  recorded): how the pending work shrinks. */
-  pending?: number; pendingBefore?: number | null }
+  pending?: number; pendingBefore?: number | null;
+  /** The same breakdown over every stored event, not only the ones this pass checked (coverageCheck.ts missingBreakdown). */
+  all?: { missing: number; unplayable: number; why: Record<string, number> } }
 
 /** An event's triage category (server/videos/coverageTriage.ts): only actionable events are the owner's "To review". */
 export type CoverageTriage = "actionable" | "unchecked" | "no-timing" | "early-start" | "unplayable" | "old-season";

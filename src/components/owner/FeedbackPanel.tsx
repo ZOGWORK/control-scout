@@ -140,7 +140,8 @@ export function FeedbackPanel({ onOpenResync }: { onOpenResync?: () => void }) {
             <ul className="space-y-3">
               {[...d.messages, ...(extra?.messages ?? []).filter((m) => !d.messages.some((x) => x.id === m.id))].map((m) => (
                 <MessageCard key={m.id} m={m}>
-                  <div className="mt-3"><TriageActions m={m} onOpenResync={onOpenResync} onChanged={dropOlder} /></div>
+                  {/* Archived: put away, so no triage here (Reopen first to triage it again). */}
+                  {m.status !== "archived" && <div className="mt-3"><TriageActions m={m} onOpenResync={onOpenResync} onChanged={dropOlder} /></div>}
                   <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
                     {m.status !== "resolved" && <Button size="sm" variant="secondary" className="max-sm:h-10" disabled={busy === m.id} onClick={() => void move(m, "resolved")}><CheckCircle2 /> Resolve</Button>}
                     {m.status !== "archived" && <Button size="sm" variant="outline" className="max-sm:h-10" disabled={busy === m.id} onClick={() => void move(m, "archived")}><Archive /> Archive</Button>}

@@ -1,9 +1,9 @@
 // The owner console's Predictions & ledger, top half: the engine in production (the champion), live calls
-// against the replay for each season (never blended), each engine version's own live calls, the shadow model
-// scored on the same live calls, and the simulation settings. All read-only: the console never changes the
+// against the replay for each season (never blended), each engine version's own live calls and the shadow model
+// scored on the same live calls. All read-only: the console never changes the
 // engine, its weights or its calibration, and never promotes a shadow model.
 // Also the calibration-by-tier block the ledger below uses (TierCalibrationList).
-import { Cpu, Crown, Dices, FlaskConical, History, Radio, ShieldCheck } from "lucide-react";
+import { Cpu, Crown, FlaskConical, History, Radio, ShieldCheck } from "lucide-react";
 import { Section, EmptyState } from "../page";
 import { StatTile, Meter } from "../StatTile";
 import { Async } from "../states";
@@ -107,24 +107,12 @@ export function PredictionEnginePanel() {
                 hint={e.headline ? `${e.headline.kind === "live" ? "Live" : "Replay"}, ${seasonLabel(e.headline.season)}, ${int(e.headline.n)} calls` : `Waiting for ${int(e.liveThreshold)} calls`} />
             </div>
           </Section>
-          <Section title="Live against replay" description="Live calls were logged before each match; the replay predicts each match from the data before it. They're never added together.">
+          <Section title="Live against replay" collapsible icon={History}
+            summary={e.seasons.length ? `${e.seasons.length} season${e.seasons.length === 1 ? "" : "s"}, per engine version and the shadow model` : "No scored calls yet"}
+            description="Live calls were logged before each match; the replay predicts each match from the data before it. They're never added together.">
             {e.seasons.length
               ? <ul className="grid gap-3">{e.seasons.map((s) => <SeasonCard key={s.season} s={s} />)}</ul>
               : <EmptyState icon={History} title="No scored calls yet" description="Live calls show once matches are played; the replay once the stats job has run." />}
-          </Section>
-          <Section title="Simulation settings" description="The number of simulations behind each kind of odds. Values only: they're set in code and ship with a release.">
-            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {e.simulation.map((x) => (
-                <li key={x.id} className="flex min-w-0 items-start gap-3 rounded-xl border border-border bg-card p-3">
-                  <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-300"><Dices className="size-4" aria-hidden /></span>
-                  <div className="min-w-0">
-                    <p className="text-sm text-muted-foreground">{x.label}</p>
-                    <p className="font-semibold tabular-nums text-foreground">{int(x.value)} <span className="text-xs font-normal text-muted-foreground">{x.unit}</span></p>
-                    <p className="text-xs text-muted-foreground">{x.note}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
           </Section>
         </>
       )}

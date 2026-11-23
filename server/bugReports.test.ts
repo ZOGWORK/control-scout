@@ -13,10 +13,10 @@ import { createApp } from "./app";
 import { setMailer, type MailOptions } from "./auth/email";
 import { randomUUID } from "node:crypto";
 import {
-  BUG_RATE, bugDir, bugIssueTitle, clearing, clearRetries, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
+  BUG_RATE, bugDir, bugIssueTitle, freshIssueStates, ISSUE_SYNC_MS, resetIssueSync, syncBugIssues, syncIssueStates, clearing, clearRetries, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
   STORAGE_CAP_BYTES, sweepBugReports, UPLOAD_ROUTE, UPLOAD_WINDOW_MS, validateBugReport,
 } from "./bugReports";
-import { resetRepositoryId, setGithubFetch } from "./errorReports";
+import { closerOf, fingerprintOf, listErrorReports, resetRepositoryId, resolveErrorReport, setGithubFetch, storeReport, syncErrorIssues } from "./errorReports";
 import { BUG_LIMITS, isSitePath, sniffType } from "../src/shared/bugReport";
 
 let server: Server;
@@ -29,8 +29,9 @@ const saved = { to: process.env.CONTACT_TO, dir: process.env.DATA_DIR, token: pr
 // issue uses them, as on GitHub).
 type Call = { method: string; url: string; body?: unknown };
 let calls: Call[] = [];
-let issues: { number: number; title: string; body: string; labels: string[] }[] = [];
-let gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0 };
+type FakeIssue = { number: number; title: string; body: string; labels: string[]; state?: "OPEN" | "CLOSED"; stateReason?: string; closer?: unknown };
+let issues: FakeIssue[] = [];
+let gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0, graphqlError: "" };
 const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) => {
   const url = new URL(String(input));
   const method = init?.method ?? "GET";
@@ -47,12 +48,32 @@ const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) =>
   }
   const path = url.pathname.replace("/repos/ZOGWORK/control-scout", "");
   if (method === "GET" && path === "") return Response.json({ id: 1416291522 });
+  const patchIssue = /^\/issues\/(\d+)$/.exec(path);
+  if (method === "PATCH" && patchIssue) {
+    const i = issues.find((x) => x.number === Number(patchIssue[1]));
+    if (!i) return new Response("{}", { status: 404 });
+    if (body.state === "closed") { i.state = "CLOSED"; i.stateReason = String(body.state_reason ?? "completed").toUpperCase(); }
+    return Response.json({ number: i.number, state: "closed" });
+  }
   if (method === "POST" && path === "/issues") {
     if (gitHub.issue !== 201) return new Response("{}", { status: gitHub.issue });
     const issue = { number: 1520 + issues.length, title: body.title, body: body.body, labels: (body.labels as string[]).filter((l) => l !== gitHub.dropLabel) };
     issues.push(issue);
     if (gitHub.loseReply) return new Response("{}", { status: 502 });
     return Response.json({ number: issue.number, labels: issue.labels.map((name) => ({ name })) }, { status: 201 });
+  }
+  // GraphQL: each aliased issue(number: N) answered with its state and closer (null for one GitHub doesn't have).
+  if (method === "POST" && url.pathname === "/graphql") {
+    const repository: Record<string, unknown> = {};
+    for (const [, alias, n] of String(body.query).matchAll(/(i\d+): issue\(number: (\d+)\)/g)) {
+      const i = issues.find((x) => x.number === Number(n));
+      repository[alias] = i ? {
+        number: i.number, state: i.state ?? "OPEN", stateReason: i.state === "CLOSED" ? (i.stateReason ?? "COMPLETED") : null,
+        closedAt: i.state === "CLOSED" ? "2026-11-22T15:08:53Z" : null, timelineItems: { nodes: i.state === "CLOSED" ? [{ closer: i.closer ?? null }] : [] },
+      } : null;
+    }
+    if (gitHub.graphqlError) for (const k of Object.keys(repository)) repository[k] = null;
+    return Response.json({ data: { repository }, ...(gitHub.graphqlError ? { errors: [{ type: gitHub.graphqlError, path: ["repository"] }] } : {}) });
   }
   if (method === "GET" && url.pathname === "/search/issues") {
     // searchLags: GitHub's search hasn't indexed the new issues yet.
@@ -92,8 +113,9 @@ beforeEach(async () => {
   delete process.env.GITHUB_REPORT_TOKEN;
   calls = [];
   issues = [];
-  gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0 };
+  gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0, graphqlError: "" };
   resetBugFilingPause();
+  resetIssueSync();
   resetRepositoryId();
   resetBugLimits();
   await run("DELETE FROM bug_report_files");
@@ -576,6 +598,194 @@ describe("filing on GitHub", () => {
   it("still limits each IP to a few reports an hour", async () => {
     for (let i = 0; i < BUG_RATE.max; i++) expect((await create(good)).status).toBe(200);
     expect((await create(good)).status).toBe(429);
+  });
+});
+
+describe("following the GitHub issue", () => {
+  beforeEach(async () => {
+    process.env.GITHUB_REPORT_TOKEN = TOKEN;
+    auditFrom = Number((await all<{ m: number | null }>("SELECT MAX(id) AS m FROM owner_audit"))[0]?.m ?? 0);
+  });
+
+  it("closes a report once its issue is closed on GitHub, with the PR that fixed it, in one request for all", async () => {
+    const a = await send(good), b = await send({ ...good, message: "Another bug report that is long enough." }), c = await send({ ...good, message: "A third report, still being worked on." });
+    const [ia, ib] = issues;
+    ia.state = "CLOSED"; ia.closer = { __typename: "PullRequest", number: 1561, url: "https://github.com/ZOGWORK/control-scout/pull/1561" };
+    ib.state = "CLOSED"; ib.stateReason = "NOT_PLANNED";
+    const before = calls.length;
+    expect(await syncBugIssues()).toBe(2);
+    expect(calls.slice(before).map((x) => `${x.method} ${new URL(x.url).pathname}`)).toEqual(["POST /graphql"]);
+    const open = await listBugReports("open");
+    expect(open.reports.map((r) => r.id)).toEqual([c.id]);
+    expect(open.reports[0].issueClosed).toBeNull();
+    const closed = await listBugReports("done");
+    expect(closed.reports.find((r) => r.id === a.id)?.issueClosed).toEqual({
+      reason: "completed", at: "2026-11-22T15:08:53Z", by: { label: "PR #1561", url: "https://github.com/ZOGWORK/control-scout/pull/1561" },
+    });
+    expect(closed.reports.find((r) => r.id === b.id)?.issueClosed).toEqual({ reason: "not_planned", at: "2026-11-22T15:08:53Z", by: null });
+    expect(await audits("bugReport.issueClosed")).toEqual([
+      { id: b.id, issue: ib.number, reason: "not_planned", by: null },
+      { id: a.id, issue: ia.number, reason: "completed", by: "PR #1561" },
+    ]);
+    // Nothing left to ask about but the open one; closed reports aren't asked about again.
+    const again = calls.length;
+    expect(await syncBugIssues()).toBe(0);
+    expect(String((calls.at(-1)?.body as { query: string }).query).match(/issue\(number/g)).toHaveLength(1);
+    expect(calls.length).toBe(again + 1);
+  });
+
+  it("a report the owner reopens stays open, though its issue is still closed", async () => {
+    const a = await send(good);
+    issues[0].state = "CLOSED";
+    await syncBugIssues();
+    await run("UPDATE bug_reports SET status = 'open', reopened_at = ? WHERE id = ?", [new Date().toISOString(), a.id]);
+    expect(await syncBugIssues()).toBe(0);
+    expect((await listBugReports("open")).reports.map((r) => r.id)).toEqual([a.id]);
+  });
+
+  it("closed here by hand, its issue closed meanwhile, then reopened: stays open", async () => {
+    const a = await send(good);
+    await run("UPDATE bug_reports SET status = 'done' WHERE id = ?", [a.id]);
+    issues[0].state = "CLOSED"; // closedAt 2026-11-22T15:08:53Z in the fake
+    await run("UPDATE bug_reports SET status = 'open', reopened_at = ? WHERE id = ?", ["2026-11-22T16:00:00.000Z", a.id]);
+    expect(await syncBugIssues()).toBe(0);
+    expect((await listBugReports("open")).reports.map((r) => r.id)).toEqual([a.id]);
+    // Reopened before GitHub closed it: the close counts.
+    await run("UPDATE bug_reports SET reopened_at = ? WHERE id = ?", ["2026-11-22T15:00:00.000Z", a.id]);
+    expect(await syncBugIssues()).toBe(1);
+  });
+
+  it("asks about the reports checked longest ago first, so none is left out", async () => {
+    const a = await send(good), b = await send({ ...good, message: "Another bug report that is long enough." });
+    await run("UPDATE bug_reports SET issue_checked_at = ? WHERE id = ?", ["2026-11-22T10:00:00.000Z", b.id]);
+    await run("UPDATE bug_reports SET issue_checked_at = ? WHERE id = ?", ["2026-11-22T09:00:00.000Z", a.id]);
+    const before = calls.length;
+    await syncBugIssues();
+    const asked = [...String((calls.slice(before).find((c) => c.url.endsWith("/graphql"))?.body as { query: string }).query).matchAll(/issue\(number: (\d+)\)/g)].map((m) => Number(m[1]));
+    expect(asked).toEqual([issues[0].number, issues[1].number]);
+  });
+
+  it("a GraphQL error other than not found is a failure, not a missing issue", async () => {
+    await send(good);
+    issues[0].state = "CLOSED";
+    gitHub.graphqlError = "RATE_LIMITED";
+    await expect(syncBugIssues()).rejects.toThrow(/RATE_LIMITED/);
+    gitHub.graphqlError = "NOT_FOUND";
+    expect(await syncBugIssues()).toBe(0);
+  });
+
+  it("the sweep closes them, and the console's list checks GitHub at most once a minute", async () => {
+    await send(good);
+    issues[0].state = "CLOSED";
+    await sweepBugReports();
+    expect((await listBugReports("open")).reports).toEqual([]);
+    await send({ ...good, message: "Another bug report that is long enough." });
+    issues[1].state = "CLOSED";
+    // The sweep just asked: the list doesn't ask again within the minute…
+    const before = calls.length;
+    await freshIssueStates(Date.now() + 30_000);
+    expect(calls.length).toBe(before);
+    expect((await listBugReports("open")).reports).toHaveLength(1);
+    // …and asks once the minute is up, before answering, so the closed issue's report is already gone.
+    await freshIssueStates(Date.now() + ISSUE_SYNC_MS);
+    expect(calls.length).toBe(before + 1);
+    expect((await listBugReports("open")).reports).toHaveLength(0);
+  });
+
+  it("an issue GitHub doesn't find, or no token: the report is left as it is", async () => {
+    const a = await send(good);
+    issues.length = 0;
+    expect(await syncBugIssues()).toBe(0);
+    delete process.env.GITHUB_REPORT_TOKEN;
+    const before = calls.length;
+    expect(await syncBugIssues()).toBe(0);
+    expect(calls.length).toBe(before);
+    expect((await listBugReports("open")).reports.map((r) => r.id)).toEqual([a.id]);
+  });
+
+  it("names a PR or a commit only with a GitHub link", () => {
+    expect(closerOf({ __typename: "PullRequest", number: 7, url: "https://github.com/ZOGWORK/control-scout/pull/7" })).toEqual({ label: "PR #7", url: "https://github.com/ZOGWORK/control-scout/pull/7" });
+    expect(closerOf({ __typename: "Commit", abbreviatedOid: "abc1234", url: "https://github.com/ZOGWORK/control-scout/commit/abc1234ff" })).toEqual({ label: "commit abc1234", url: "https://github.com/ZOGWORK/control-scout/commit/abc1234ff" });
+    expect(closerOf({ __typename: "PullRequest", number: 7, url: "javascript:alert(1)" })).toBeNull();
+    expect(closerOf(null)).toBeNull();
+  });
+});
+
+describe("error reports follow their issue", () => {
+  beforeEach(async () => {
+    process.env.GITHUB_REPORT_TOKEN = TOKEN;
+    await run("DELETE FROM error_reports");
+  });
+  const addError = async (fp: string, issue: number | null, state: string | null = issue ? "open" : null) => {
+    await run(`INSERT INTO error_reports (fingerprint, message, count, first_seen, last_seen, sample, issue_number, issue_state, reported_count)
+      VALUES (?, 'Boom', 1, ?, ?, ?, ?, ?, 1)`, [fp, "2026-11-01T00:00:00Z", "2026-11-01T00:00:00Z", JSON.stringify({ message: "Boom", stack: "", route: "/", appVersion: "1", userAgent: "x" }), issue, state]);
+    if (issue) issues.push({ number: issue, title: "[auto] Boom", body: "", labels: [] });
+  };
+
+  it("clears one whose issue was closed on GitHub, and leaves the badge count", async () => {
+    await addError("aaaaaaaa", 104);
+    await addError("bbbbbbbb", null);
+    issues[0].state = "CLOSED";
+    expect(await syncErrorIssues()).toBe(1);
+    const list = await listErrorReports();
+    expect(list.map((r) => [r.fingerprint, !!r.resolvedAt, r.issueState])).toEqual([["bbbbbbbb", false, null], ["aaaaaaaa", true, "closed"]]);
+  });
+
+  it("one put back on the list after its issue closed stays there; one last seen open is cleared by the combined check", async () => {
+    await addError("aaaaaaaa", 104, "closed");
+    issues[0].state = "CLOSED";
+    expect(await syncErrorIssues()).toBe(0);
+    expect((await listErrorReports())[0].resolvedAt).toBeNull();
+    await run("UPDATE error_reports SET issue_state = 'open'");
+    gitHub.graphqlError = "";
+    const before = calls.length;
+    await syncIssueStates(Date.now());
+    expect(calls.length).toBe(before + 1);
+    expect((await listErrorReports())[0].resolvedAt).not.toBeNull();
+  });
+
+  it("cleared while its issue was open, the issue closed meanwhile, then put back: stays on the list", async () => {
+    await addError("aaaaaaaa", 104);
+    delete process.env.GITHUB_REPORT_TOKEN;
+    await resolveErrorReport("aaaaaaaa", true); // no token: the issue stays open on GitHub, issue_state stays 'open'
+    process.env.GITHUB_REPORT_TOKEN = TOKEN;
+    issues[0].state = "CLOSED"; // closedAt 2026-11-22T15:08:53Z in the fake
+    await resolveErrorReport("aaaaaaaa", false, new Date("2026-11-22T16:00:00Z"));
+    expect(await syncErrorIssues()).toBe(0);
+    expect((await listErrorReports())[0].resolvedAt).toBeNull();
+    // Put back before GitHub closed it: the close counts.
+    await run("UPDATE error_reports SET reopened_at = ?", ["2026-11-22T15:00:00.000Z"]);
+    expect(await syncErrorIssues()).toBe(1);
+  });
+
+  it("an error that comes back after it was cleared stays on the list, though its issue closed while it was cleared", async () => {
+    await addError("aaaaaaaa", 104);
+    delete process.env.GITHUB_REPORT_TOKEN;
+    await resolveErrorReport("aaaaaaaa", true);
+    process.env.GITHUB_REPORT_TOKEN = TOKEN;
+    issues[0].state = "CLOSED"; // closedAt 2026-11-22T15:08:53Z in the fake
+    const sample = { message: "Boom", stack: "", route: "/", appVersion: "1", userAgent: "x" };
+    await run("UPDATE error_reports SET fingerprint = ?", [fingerprintOf(sample)]);
+    await storeReport(sample as never, new Date("2026-11-22T16:00:00Z"));
+    expect(await syncErrorIssues()).toBe(0);
+    expect((await listErrorReports())[0].resolvedAt).toBeNull();
+  });
+
+  it("Clear closes the open issue on GitHub; Clear on one never filed just clears it; a new occurrence brings it back", async () => {
+    await addError("aaaaaaaa", 104);
+    await addError("bbbbbbbb", null);
+    const a = await resolveErrorReport("aaaaaaaa", true);
+    expect(a).toMatchObject({ issueClosed: true, report: { issueState: "closed" } });
+    expect(a!.report.resolvedAt).not.toBeNull();
+    expect(issues[0].state).toBe("CLOSED");
+    const b = await resolveErrorReport("bbbbbbbb", true);
+    expect(b).toMatchObject({ issueClosed: false });
+    expect(await resolveErrorReport("cccccccc", true)).toBeNull();
+    const sample = { message: "Boom", stack: "", route: "/", appVersion: "1", userAgent: "x" };
+    const fp = fingerprintOf(sample);
+    await run("UPDATE error_reports SET fingerprint = ? WHERE fingerprint = 'bbbbbbbb'", [fp]);
+    await storeReport(sample as never);
+    expect((await listErrorReports()).find((r) => r.fingerprint === fp)?.resolvedAt).toBeNull();
   });
 });
 
