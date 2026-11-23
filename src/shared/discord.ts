@@ -7,8 +7,9 @@
  */
 export const DISCORD_CLIENT_ID: string | null = "1562258217873047562";
 
-/** The bot's only permissions: Send Messages (2048) + Embed Links (16384) + Use Application Commands (2^31). */
-export const DISCORD_PERMISSIONS = 2048 + 16384 + 2 ** 31;
+/** The bot's only permissions: Send Messages (2048) + Embed Links (16384) + Use Application Commands (2^31) + Add
+ *  Reactions (64), for the 👍/👎 it puts on its answers. */
+export const DISCORD_PERMISSIONS = 2048 + 16384 + 64 + 2 ** 31;
 
 /** The OAuth2 invite: scopes bot + applications.commands, the minimal permissions; null without a client ID. */
 export function discordInviteUrl(clientId: string | null = DISCORD_CLIENT_ID): string | null {

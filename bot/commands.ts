@@ -53,7 +53,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     name: "following",
-    description: "The teams this server follows, and where each one posts",
+    description: "The teams and events this server follows, and where each one posts",
     contexts: [InteractionContextType.Guild],
   },
   {

@@ -58,9 +58,10 @@ and nowhere else, with no record of who clicked. The owner console shows the tot
 redacted, the step search answered it at, whether Bruno's chat answered it, and how long it took; never who asked,
 only the server. The owner console lists the questions it couldn't answer, most asked first. A **records question**
 search couldn't answer and no chat did is also fed to the site's own failed-search queue
-(`server/searchFailures.ts`, `noteSearch`), so the phrasings people actually use in Discord reach the website's
-search work list too; the bot flushes that queue once a minute from its own process. A greeting, an answer search
-gave, and a chat that answered it are not failed searches and are never filed.
+(`server/searchFailures.ts`, `noteBotSearch`: one slot per question, so a server's questions never supersede each other
+and none spends a website visitor's hourly report cap), so the phrasings people actually use in Discord reach the
+website's search work list too; the bot flushes that queue once a minute from its own process. A greeting, an answer
+search gave, and a chat that answered it are not failed searches and are never filed.
 
 Pace: none per person — every message is answered, so two in a row get two answers. Only the same question within
 a minute is the answer already given (one lookup, whoever asks). Every ask is logged as the command, the step, whether Bruno helped
@@ -218,7 +219,7 @@ code; you can also type a code yourself).
   (`discord_follows`, `discord_posts` from migration 35 and 103, `discord_guilds`, `discord_asks` and
   `discord_answers` from 103, all created by the site's deploy), plus its `service_heartbeats` row
   once a minute while connected, which the site's /status page reads (`server/uptime.ts`, migration 86). Its missed
-  records questions go into the site's `search_failures` through the site's own `noteSearch`.
+  records questions go into the site's `search_failures` through the site's own `noteBotSearch`.
 - **Automatic posts** (`bot/follows.ts`): every minute it reads the follows, the followed teams' matches at
   events on today, and posts what's due: a reminder within 15 minutes of a start, a result within 6 hours of
   it. Only matches starting after the follow (no backlog). Each post is claimed in `discord_posts` before it's
@@ -243,19 +244,23 @@ code; you can also type a code yourself).
    `DISCORD_CLIENT_ID` in `src/shared/discord.ts` (it's public) and the FAQ answer and footer link appear.
 3. **Bot:** **Reset Token** and copy it into the server's env file as `DISCORD_BOT_TOKEN` (never commit it,
    never paste it anywhere else). Leave **Public Bot** on so any team can add it. No privileged intents
-   are needed (the bot only uses the `Guilds` intent).
+   are needed and none is switched on in the portal: the bot asks for `Guilds`, `GuildMessages`,
+   `GuildMessageReactions` and `DirectMessageReactions`, all of them non-privileged. The reaction intents are
+   what deliver a 👍/👎 on an answer; without them the bot adds the emoji and never hears the click.
 4. **Installation:** set the install link to "None" (the site's invite link is used instead), or to the
    same scopes and permissions as below.
 
 ## Invite link
 
 ```
-https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=2147502080
+https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=2147502144
 ```
 
 - Scopes: `bot` and `applications.commands`.
-- Permissions `2147502080` = Send Messages (2048) + Embed Links (16384) + Use Application Commands
-  (2147483648). Nothing else: the bot never reads messages, manages anything or joins voice.
+- Permissions `2147502144` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Use Application
+  Commands (2147483648). Nothing else: the bot never reads messages, manages anything or joins voice. A server that
+  invited the bot before 7.9.2 has no Add Reactions, so its answers get no 👍/👎 until the bot is re-invited with this
+  link; nothing else changes for it.
 
 `discordInviteUrl()` in `src/shared/discord.ts` builds exactly this link.
 

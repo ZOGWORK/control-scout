@@ -237,7 +237,7 @@ export const PER_IP_HOUR = 30;
 const SETTLE_MAX = 5_000;
 
 /** `legacy`: the key as it was made before 2.8.1 (reportKey), so a query already on record under it stays on its row. */
-interface Pending { q: string; key: string; legacy: string; failure: Failure | null; label: string; at: number; missed: string[] }
+interface Pending { q: string; key: string; legacy: string; failure: Failure | null; label: string; at: number; missed: string[]; capped: boolean }
 /** `missed`: the words search couldn't read in this pattern's queries, with how often. */
 interface Buffered { key: string; legacy: string; count: number; first: number; last: number; examples: string[]; failure: Failure; label: string; missed: Map<string, number> }
 
@@ -252,23 +252,33 @@ const related = (a: string, b: string) => a.startsWith(b) || b.startsWith(a);
  *  `key`: the aggregation key (patternFor, else keyFor), worked out by the caller; reportKey of the query when not
  *  given. `missed`: a pattern's words search couldn't read. A pattern never lands on a query's old row. */
 export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: SearchTrace | null, now = Date.now(), key?: string, missed: string[] = []): void {
-  try {
-    settle(now);
-    const safe = safeQuery(q);
-    const n = normalizeQuery(safe);
-    if (!n) return;
-    const was = pending.get(client);
-    // The same visitor's next query supersedes one it extends or trims (typing, a retry): only the last one counts.
-    if (was && !related(normalizeQuery(was.q), n)) commit(client, was);
-    if (pending.size >= SETTLE_MAX && !pending.has(client)) { counters.dropped++; return; }
-    // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
-    pending.delete(client);
-    const failure = failureOf(q, a, trace);
-    const legacy = key?.startsWith("pattern: ") ? key : reportKey(safe);
-    pending.set(client, { q: safe, key: key || legacy, legacy, failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now, missed });
-  } catch {
-    // Reporting never breaks search.
-  }
+  try { noteOnce(client, true, q, a, trace, now, key, missed); } catch { /* Reporting never breaks search. */ }
+}
+
+/** A question the Discord bot couldn't answer (bot/ask.ts). A server is not a website visitor: its questions arrive
+ *  whole (there is no typing to wait out) and from many people at once, so each one gets a slot of its own — a DISCORD
+ *  question never supersedes another's words — and none of them counts against a visitor's hourly report cap. */
+export function noteBotSearch(q: string, a: SearchAnswer, source: string, trace?: SearchTrace | null, now = Date.now()): void {
+  try { noteOnce(`${source}#${++botQuestions}`, false, q, a, trace, now); } catch { /* never breaks an answer */ }
+}
+/** One per bot question: the slot counter that keeps its questions apart. */
+let botQuestions = 0;
+
+/** Queue one query under `slot`. `capped`: it spends that slot's hourly report allowance (a visitor's, not a bot's). */
+function noteOnce(slot: string, capped: boolean, q: string, a: SearchAnswer, trace?: SearchTrace | null, now = Date.now(), key?: string, missed: string[] = []): void {
+  settle(now);
+  const safe = safeQuery(q);
+  const n = normalizeQuery(safe);
+  if (!n) return;
+  const was = pending.get(slot);
+  // The same visitor's next query supersedes one it extends or trims (typing, a retry): only the last one counts.
+  if (was && !related(normalizeQuery(was.q), n)) commit(slot, was);
+  if (pending.size >= SETTLE_MAX && !pending.has(slot)) { counters.dropped++; return; }
+  // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
+  pending.delete(slot);
+  const failure = failureOf(q, a, trace);
+  const legacy = key?.startsWith("pattern: ") ? key : reportKey(safe);
+  pending.set(slot, { q: safe, key: key || legacy, legacy, failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now, missed, capped });
 }
 
 /** Moves every query that waited SETTLE_MS into the buffer (failures only). */
@@ -284,7 +294,7 @@ function commit(client: string, p: Pending) {
   if (!p.failure) return;
   const { q, key } = p;
   if (onlyRedacted(key)) { counters.skipped++; return; }
-  if (!takeReportSlot(`fs:${client}`, PER_IP_HOUR, p.at).ok) { counters.limited++; return; }
+  if (p.capped && !takeReportSlot(`fs:${client}`, PER_IP_HOUR, p.at).ok) { counters.limited++; return; }
   const b = buffer.get(key);
   if (b) {
     b.count++; b.last = Math.max(b.last, p.at); b.failure = p.failure; b.label = p.label;

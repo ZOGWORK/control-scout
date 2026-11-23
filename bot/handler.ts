@@ -11,7 +11,7 @@ import { BAD, GOOD, trackAnswer } from "./reactions.js";
 import { noteAsk, type AskRecord } from "./asks.js";
 import { SORRY_SENTENCE } from "../src/shared/search.js";
 import { BOT_COMMANDS } from "../src/shared/discord.js";
-import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
+import { eventChoices, eventCode, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
 import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
 import { ask as askSearch, chatPost, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
@@ -26,6 +26,9 @@ export interface Lookups {
   team: (n: number) => Promise<APIEmbed>;
   predict: (event: string, match: number) => Promise<APIEmbed>;
   event: (code: string) => Promise<APIEmbed>;
+  /** An event's code from what someone typed: its code (any case) or its exact name, for `/follow event:` typed by
+   *  hand rather than picked from autocomplete. Absent: the text is taken as a code. */
+  eventCode?: (input: string) => Promise<string>;
   rankings: () => Promise<APIEmbed>;
   choices: (typed: string) => Promise<{ name: string; value: string }[]>;
   follow: (guild: string, channel: string, target: FollowTarget, by: string) => Promise<"added" | "already">;
@@ -70,6 +73,7 @@ export const realLookups: Lookups = {
   team: teamLookup,
   predict: predictLookup,
   event: eventLookup,
+  eventCode,
   rankings: () => rankingsLookup(),
   choices: async (typed) => rankChoices(await eventChoices(), typed),
   follow: addFollow,
@@ -199,7 +203,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     // What the bot was asked (bot/asks.ts), once per question rather than once per reader: a cached repeat is the same
     // ask. Never who asked, never awaited, never able to fail an answer.
     if (fresh && lookups.noteAsk) {
-      void lookups.noteAsk({ question, step: r.meta.step, chat: r.meta.chat === true, answered: answered(r), ms, guild }).catch(() => {});
+      // "Bruno answered" means his chat did: the bot's own smallTalk fallback (`by: "scout"`) is a chat too, but it
+      // isn't Bruno's, and counting it would put that share above the answered one.
+      const brunoChat = r.meta.chat === true && r.chat?.by !== "scout";
+      void lookups.noteAsk({ question, step: r.meta.step, chat: brunoChat, answered: answered(r), ms, guild }).catch(() => {});
     }
     // The bot's own fallback (bot/smallTalk.ts) is a chat too, but not Bruno's: the log says `talk`.
     const bruno = [r.chat?.by === "scout" ? "talk" : r.meta.chat ? "chat" : null, r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
@@ -315,13 +322,14 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     return cache.get(key, () => lookups.predict(i.options.getString("event", true), i.options.getInteger("match", true)));
   }
 
-  /** The team or event a /follow or /unfollow names: exactly one of them, or a friendly error. */
-  function followTarget(i: ChatInputCommandInteraction): FollowTarget {
+  /** The team or event a /follow or /unfollow names: exactly one of them, or a friendly error. An event is resolved
+   *  from its code or its exact name, so `/follow event:Austin Qualifier` works typed by hand as well as picked. */
+  async function followTarget(i: ChatInputCommandInteraction): Promise<FollowTarget> {
     const team = i.options.getInteger("team");
-    const event = (i.options.getString("event") ?? "").trim().toUpperCase();
+    const event = (i.options.getString("event") ?? "").trim();
     if (team && event) throw new Friendly("One at a time", "Follow a team or an event, not both: `/follow team:4215` or `/follow event:USTXAUQ`.");
     if (team) return { kind: "team", team };
-    if (event) return { kind: "event", event };
+    if (event) return { kind: "event", event: lookups.eventCode ? await lookups.eventCode(event) : event.toUpperCase() };
     throw new Friendly("Team or event?", "Say what to follow: `/follow team:4215` for a team's matches, or `/follow event:USTXAUQ` for a whole event.");
   }
 
@@ -330,7 +338,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const guild = i.guildId;
     if (!guild) throw new Friendly("Servers only", "Follows belong to a server: use this in one of its channels.");
     if (i.commandName === "following") return lookups.following(guild);
-    const target = followTarget(i);
+    const target = await followTarget(i);
     const name = followName(target);
     const picked = i.options.getChannel("channel")?.id ?? null;
     const where = picked ? ` in <#${picked}>` : "";

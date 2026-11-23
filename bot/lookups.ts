@@ -22,7 +22,7 @@ export async function teamLookup(number: number): Promise<APIEmbed> {
 }
 
 /** An event of the current season by its code (any case), or by its exact name. */
-async function eventCode(input: string): Promise<string> {
+export async function eventCode(input: string): Promise<string> {
   const q = input.trim().slice(0, 100);
   const r = await get<{ code: string }>(
     "SELECT code FROM events WHERE season = ? AND (code = ? COLLATE NOCASE OR name = ? COLLATE NOCASE) ORDER BY code = ? COLLATE NOCASE DESC LIMIT 1",

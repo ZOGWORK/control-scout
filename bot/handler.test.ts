@@ -263,6 +263,20 @@ describe("follows", () => {
     expect(both.calls[1].payload.embeds[0].title).toBe("One at a time");
   });
 
+  it("an event typed by its name is followed by its code, the way /event resolves one", async () => {
+    const eventCode = vi.fn(async (input: string) => (input === "Austin Qualifier" ? "USTXAUQ" : input.toUpperCase()));
+    const l = lookups({ eventCode });
+    const h = createHandler(() => {}, l);
+    const e = inGuild("follow", { event: "Austin Qualifier" });
+    await h(e.i);
+    expect(eventCode).toHaveBeenCalledWith("Austin Qualifier");
+    expect(l.follow).toHaveBeenCalledWith("g1", "here", { kind: "event", event: "USTXAUQ" }, "u1");
+    // /unfollow resolves the same way, so a name stops the follow a name started.
+    const u = inGuild("unfollow", { event: "Austin Qualifier" });
+    await h(u.i);
+    expect(l.unfollow).toHaveBeenLastCalledWith("g1", { kind: "event", event: "USTXAUQ" }, null);
+  });
+
   it("never cached: a second /following reads again", async () => {
     const l = lookups();
     const h = createHandler(() => {}, l);
@@ -567,7 +581,8 @@ describe("the answer's buttons", () => {
     const c = command("ask", { question: "hey" });
     c.i.guildId = "g1";
     await h(c.i);
-    expect(noteAsk).toHaveBeenLastCalledWith(expect.objectContaining({ chat: true, answered: false }));
+    // A chat that is the bot's own fallback is neither answered nor Bruno's.
+    expect(noteAsk).toHaveBeenLastCalledWith(expect.objectContaining({ chat: false, answered: false }));
   });
 });
 
