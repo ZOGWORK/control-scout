@@ -55,9 +55,10 @@ export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void })
   const state = useApi<OwnerModeration>(`/api/owner/moderation?days=${days}&triage=${queue}`);
   // A new period or queue keeps the last answer on screen (dimmed) until the next one lands, so the folded abuse
   // section doesn't unmount and close under the owner's cursor (./keepLast.tsx).
-  const { shown, stale, failed } = useKeepLast(state);
+  const { shown, stale, failed, keptPick } = useKeepLast(state, { days, queue });
   return (
-    <KeptLast stale={stale} failed={failed} onRetry={() => void state.reload()}>
+    <KeptLast stale={stale} failed={failed} onRetry={() => void state.reload()}
+      onBack={() => { setDays(keptPick.days); setQueue(keptPick.queue); }}>
       <Async state={shown}>
         {({ abuse: a, triage: t }) => (
           <>
