@@ -77,3 +77,17 @@ export function secondOf(m: CoverageMatch, finding?: CoverageFinding): number | 
 
 /** 10440 → "2:54:00". */
 export const hms = (s: number) => { const t = Math.max(0, Math.round(s)); return `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`; };
+
+/** The kinds no clip can come from, whatever anyone does: no recording covers the match, it was played outside the
+ *  time its video covers (its first or last frames prove it), its video was read and the match isn't in it (the stream
+ *  was off it: a recording made by people misses some), or the video can't be played. Every other kind can still get
+ *  a clip (a frame read, the owner's decision), so the clippable share leaves only these out. */
+export const CANT_CLIP: ReadonlySet<MissKind> = new Set<MissKind>(["novideo", "outside", "notfound", "unavailable"]);
+
+/** Matches with a clip out of those that could have one: every played match less the ones no clip can come from
+ *  (CANT_CLIP, and those whose recording can't be played, counted apart). 100% when every clippable match has one. */
+export function clippable(played: number, withClip: number, why: Record<string, number>, unplayable = 0): { have: number; of: number; cant: number } {
+  const cant = unplayable + kindTotals(why).filter((k) => CANT_CLIP.has(k.kind)).reduce((s, k) => s + k.n, 0);
+  const of = Math.max(withClip, played - cant);
+  return { have: withClip, of, cant: played - of };
+}

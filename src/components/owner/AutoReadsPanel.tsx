@@ -2,9 +2,9 @@
 // broke one of the rules against the row the site serves now. Everything else it reads goes live on its own, with no
 // PR; these wait here. One card per read: the event, its video (opening just before the first change), what it changes
 // (matches added, moved, pulled, as chips that play that second), the rules it broke in plain words, and Approve (live
-// as read) or Reject (dropped; the event can be read again). Below them, the matches the frames saw but kept off the
-// site (a frame row's review entry: one signal only, its opening shows the previous match…): the match, its video at
-// that second in the app's player, why in plain words; Approve makes that second its clip start, Reject stops listing it.
+// as read) or Reject (dropped; the event can be read again). Nothing waiting: only the line on the last read handed
+// over (the autopilot still running), no empty section. The matches the frames saw but kept off the site (a frame
+// row's review entry) are decided under Found in the video (./ClipCoveragePanel.tsx), one list for every such match.
 import { Link } from "react-router-dom";
 import { AlertTriangle, Check, Play, X } from "lucide-react";
 import { useState } from "react";
@@ -17,7 +17,7 @@ import { playInDialog } from "../../lib/streamSeek";
 import { ago } from "../../lib/format";
 import { watchUrl } from "../../shared/recording";
 import { thumbnailUrl } from "../../shared/stream";
-import type { AutoReadChange, OwnerAutoReads, PendingAutoRead, PendingReview } from "../../shared/api";
+import type { AutoReadChange, OwnerAutoReads, PendingAutoRead } from "../../shared/api";
 import { SEARCH_PALETTE } from "../../lib/textTones";
 import { hms } from "./clipReview";
 import { cn } from "../cn";
@@ -28,9 +28,6 @@ const TOUCH = "pointer-coarse:min-h-[44px]";
 const n = (x: number) => x.toLocaleString();
 const plural = (x: number, one: string, many = `${one}s`) => `${n(x)} ${x === 1 ? one : many}`;
 const readKey = (p: PendingAutoRead) => `${p.kind}/${p.videoId}/${p.code}`;
-const reviewKey = (r: PendingReview) => `${r.videoId}/${r.code}/${r.label}`;
-/** Review entries shown before "Show all". */
-const REVIEWS_SHOWN = 24;
 
 /** Each kind of change: its chip colour and a word for it. */
 const CHANGE: Record<AutoReadChange["what"], { name: string; swatch: (typeof P)[keyof typeof P] }> = {
@@ -51,53 +48,36 @@ function watch(videoId: string, t: number | null, label: string) {
 export function AutoReadsPanel() {
   const state = useApi<OwnerAutoReads>(AUTO_READS_PATH);
   const [busy, setBusy] = useState<string | null>(null);
-  const [allReviews, setAllReviews] = useState(false);
-  const send = async (key: string, path: string, json: unknown, done: string) => {
+  const decide = async (p: PendingAutoRead, how: "approve" | "reject") => {
+    const key = readKey(p);
     setBusy(key);
     try {
-      const r = await apiFetch<OwnerAutoReads>(`${AUTO_READS_PATH}/${path}`, { method: "POST", json });
+      const r = await apiFetch<OwnerAutoReads>(`${AUTO_READS_PATH}/${how}`, { method: "POST", json: { kind: p.kind, videoId: p.videoId, code: p.code, pendingAt: p.pendingAt } });
       prime(AUTO_READS_PATH, r);
       // The clips it put live (or didn't) show in the coverage lists and the menu's counts.
       markStale("/api/owner/clip-coverage");
-      toast.success(done);
+      toast.success(how === "approve" ? `${p.code}: live as read` : `${p.code}: read dropped`);
     } catch (err) {
       toast.error((err as ApiError).message);
       markStale(AUTO_READS_PATH);
     }
     setBusy(null);
   };
-  const decide = (p: PendingAutoRead, how: "approve" | "reject") =>
-    send(readKey(p), how, { kind: p.kind, videoId: p.videoId, code: p.code, pendingAt: p.pendingAt }, how === "approve" ? `${p.code}: live as read` : `${p.code}: read dropped`);
-  const decideReview = (r: PendingReview, how: "approve" | "reject") =>
-    send(reviewKey(r), `review/${how}`, { videoId: r.videoId, code: r.code, label: r.label, t: r.t }, how === "approve" ? `${r.code} ${r.label}: clip live from ${hms(r.t)}` : `${r.code} ${r.label}: no longer listed`);
   return (
     <Async state={state}>
-      {(d) => (
+      {(d) => !d.total ? <div data-auto-reads><LastDelivery d={d} /></div> : (
         <Section
-          title={`Waiting for approval (${n(d.total + d.reviewTotal)})`}
-          description="The clip autopilot's reads go live on their own. These broke a rule against what's live now, so they wait for you: Approve puts one live as read, Reject drops it and the event can be read again. Below, matches the frames saw but kept off the site."
+          title={`Waiting for approval (${n(d.total)})`}
+          description="The clip autopilot's reads go live on their own. These broke a rule against what's live now, so they wait for you: Approve puts one live as read, Reject drops it and the event can be read again."
           className="scroll-mt-4"
           id="auto-reads"
         >
           <div className="grid gap-3" data-auto-reads>
             <LastDelivery d={d} />
-            {d.pending.length ? (
-              <ul className="grid gap-3 lg:grid-cols-2">
-                {d.pending.map((p) => <ReadCard key={readKey(p)} p={p} busy={busy === readKey(p)} onDecide={decide} />)}
-              </ul>
-            ) : <p className="text-sm text-text-muted" data-auto-reads-empty>Nothing waiting: every read so far kept the rules and went live.</p>}
+            <ul className="grid gap-3 lg:grid-cols-2">
+              {d.pending.map((p) => <ReadCard key={readKey(p)} p={p} busy={busy === readKey(p)} onDecide={decide} />)}
+            </ul>
             {d.total > d.pending.length && <p className="text-sm text-text-muted">Showing the newest {n(d.pending.length)} of {n(d.total)}.</p>}
-            <h3 className="mt-2 text-sm font-semibold">Seen in the video, kept off the site ({n(d.reviewTotal)})</h3>
-            <p className="-mt-2 text-sm text-text-muted">A frame read saw each of these matches at that second, but one of the rules kept it from being a clip. Play it: Approve makes that second its clip start, Reject stops listing it.</p>
-            {d.reviews.length ? (
-              <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-auto-reviews>
-                {(allReviews ? d.reviews : d.reviews.slice(0, REVIEWS_SHOWN)).map((r) => <ReviewCard key={reviewKey(r)} r={r} busy={busy === reviewKey(r)} onDecide={decideReview} />)}
-              </ul>
-            ) : <p className="text-sm text-text-muted" data-auto-reviews-empty>None: every match a frame read saw is a clip or was rejected.</p>}
-            {!allReviews && d.reviews.length > REVIEWS_SHOWN && (
-              <Button size="sm" variant="outline" className={cn("justify-self-start", TOUCH)} onClick={() => setAllReviews(true)}>Show all {n(d.reviews.length)}</Button>
-            )}
-            {d.reviewTotal > d.reviews.length && <p className="text-sm text-text-muted">Showing {n(d.reviews.length)} of {n(d.reviewTotal)}.</p>}
           </div>
         </Section>
       )}
@@ -170,30 +150,5 @@ function ChangeChip({ c, videoId, title }: { c: AutoReadChange; videoId: string;
       onClick={() => watch(videoId, Math.max(0, t - 5), `${title} ${c.label} · ${K.name}`)} data-change={c.what}>
       <Play className="size-3 fill-current" aria-hidden />{c.label} {K.name}
     </button>
-  );
-}
-
-function ReviewCard({ r, busy, onDecide }: { r: PendingReview; busy: boolean; onDecide: (r: PendingReview, how: "approve" | "reject") => void }) {
-  const title = `${r.season} ${r.code} ${r.label}`;
-  return (
-    <li className="grid content-start gap-2 rounded-xl border border-line bg-card p-3" data-auto-review={reviewKey(r)}>
-      <div className="grid min-w-0 gap-0.5">
-        <Link to={`/events/${r.season}/${encodeURIComponent(r.code)}`} className="truncate text-sm font-medium hover:underline">{r.eventName || r.code}</Link>
-        <span className="text-xs text-text-muted">{r.season} · {r.code} · frame read of {r.checked}</span>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => watch(r.videoId, r.t, `${title} · seen at ${hms(r.t)}`)} data-review-play
-          className={cn("inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold tabular-nums transition-transform hover:brightness-110 active:scale-95 motion-reduce:transform-none", TOUCH, P.winning.fill)}
-          aria-label={`Play ${title} at ${hms(r.t)} in the app's player`}>
-          <Play className="size-3 fill-current" aria-hidden />{r.label} at {hms(r.t)}
-        </button>
-        <span className="font-mono text-xs text-text-muted">{r.videoId}</span>
-      </div>
-      <p className="flex gap-2 rounded-lg bg-warning/10 p-2 text-sm" data-review-why><AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden /><span className="min-w-0 break-words">{r.why || "Kept for review"}</span></p>
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" className={TOUCH} disabled={busy} onClick={() => onDecide(r, "approve")} data-review-approve><Check /> Approve</Button>
-        <Button size="sm" variant="outline" className={TOUCH} disabled={busy} onClick={() => onDecide(r, "reject")} data-review-reject><X /> Reject</Button>
-      </div>
-    </li>
   );
 }

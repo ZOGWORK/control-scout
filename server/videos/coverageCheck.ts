@@ -14,6 +14,9 @@ import { withDataLock, LockBusy } from "../data/lock.js";
 import { recordAudit } from "../portal/audit.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { clipCheckFindings, clipCheckTotals } from "../data/clipChecks.js";
+import { frameRow } from "../data/frameTimings.js";
+import { SAME_S } from "../data/frameRowRules.js";
+import { reviewFindings } from "./autoReads.js";
 import { seasonRecordings, type Recording, isPartial } from "./recordings.js";
 import { clipCoverage, eventMatchRows, UNPLAYABLE } from "./coverage.js";
 import { baseTriage, seasonTriage, type BaseTriage } from "./coverageTriage.js";
@@ -65,6 +68,29 @@ async function pendingMatches(): Promise<number | undefined> {
       `SELECT COUNT(*) AS n FROM (SELECT detail FROM clip_coverage WHERE json_valid(detail)) c, json_each(c.detail, '$.missing') j
        WHERE json_type(j.value, '$.video') = 'object' AND json_extract(j.value, '$.video.checked') IS NULL AND json_extract(j.value, '$.video.earlyStart') IS NULL`);
     return Number(r?.n ?? 0);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Every stored event's missing matches by how they stand with their video (videoState), and those whose recording can't
+ *  be played: the pass's own `why` counts only the events that pass checked (the ones that changed), this counts them
+ *  all, so the console's "why no clip" and its clippable share hold for the whole archive. Undefined: a read failed. */
+export async function missingBreakdown(): Promise<CoveragePass["all"]> {
+  try {
+    const rows = await all<{ detail: string }>("SELECT detail FROM clip_coverage WHERE state != 'none' AND with_clip < played");
+    const why: Record<string, number> = {};
+    let missing = 0, unplayable = 0;
+    for (const r of rows) {
+      await busyTurn();
+      for (const m of readDetail(r.detail).missing ?? []) {
+        if (UNPLAYABLE.has(m.reason ?? "unexplained")) { unplayable++; continue; }
+        missing++;
+        const k = videoState(m);
+        why[k] = (why[k] ?? 0) + 1;
+      }
+    }
+    return { missing, unplayable, why };
   } catch {
     return undefined;
   }
@@ -157,10 +183,10 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
     }
     if (checked) {
       const why = Object.entries(pass.why).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(", ");
-      const [pending, before] = await Promise.all([pendingMatches(), kvGet<CoveragePass>(LAST_PASS).catch(() => null)]);
+      const [pending, before, every] = await Promise.all([pendingMatches(), kvGet<CoveragePass>(LAST_PASS).catch(() => null), missingBreakdown()]);
       const pendingBefore = before?.pending ?? null;
       log(`clip coverage: checked ${checked} event${checked === 1 ? "" : "s"} (${pass.events} recorded) · ${pass.full} fully clipped · ${pass.clipped} matches clipped · ${pass.missing} missing${why ? ` (${why})` : ""}${pass.unplayable ? ` · ${pass.unplayable} whose recording can't be played` : ""}${opened ? ` · ${opened} actionable for owner review` : ""}${pending != null ? ` · ${pending} matches not yet checked against the video${pendingBefore != null ? ` (was ${pendingBefore})` : ""}` : ""}`);
-      const last: CoveragePass = { at: new Date(now).toISOString(), checked, ...pass, opened, pending, pendingBefore };
+      const last: CoveragePass = { at: new Date(now).toISOString(), checked, ...pass, opened, pending, pendingBefore, ...(every ? { all: every } : {}) };
       await kvSet(LAST_PASS, last).catch(() => {});
     }
     return checked;
@@ -212,31 +238,62 @@ const triageSql = (current = currentSeason()) => {
  *  (one or bulk) marks it. */
 const REVIEWED = (T: string) => `(c.reviewed_at IS NOT NULL AND ${T} != 'unchecked')`;
 
-/** The owner console's findings, whatever an event's category or review: every missing match the video's frames saw (a
- *  read put it at a second in the video) that has no clip, and every clock-placed clip pulled because its first frame
- *  showed another match (server/data/clipChecks.ts). */
+/** The owner console's Found in the video, whatever an event's category or review: every match a frame read saw at a
+ *  second with no clip served there, each one the owner can decide (Clip from that second, or Not this match: the
+ *  /auto-reads/review endpoints, server/videos/autoReads.ts). Two sources: a frame row's review entry not decided yet
+ *  ("review"), and a start a row holds that the site doesn't serve (out of the played order, overlapping another, its
+ *  opening frame not naming it: "start"), less those approved or rejected at that second. A clip pulled by its first
+ *  frame (server/data/clipChecks.ts) is "pulled": no owner decision, so not listed there, only a chip's kind. */
 export async function coverageFindings(): Promise<CoverageFinding[]> {
-  const rows = await all<{ season: number; code: string; name: string | null; detail: string }>(
-    `SELECT c.season, c.code, e.name, c.detail FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
-     WHERE ${MISSING} AND c.detail LIKE '%"seenAt"%' ORDER BY c.season DESC, c.code`);
+  const [rows, reviews, rejected] = await Promise.all([
+    all<{ season: number; code: string; name: string | null; detail: string }>(
+      `SELECT c.season, c.code, e.name, c.detail FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
+       WHERE ${MISSING} AND c.detail LIKE '%"seenAt"%' ORDER BY c.season DESC, c.code`),
+    reviewFindings(),
+    all<{ video_id: string; code: string; label: string; t: number }>("SELECT video_id, code, label, t FROM review_decisions WHERE decision = 'rejected'"),
+  ]);
+  const no = new Map(rejected.map((d) => [`${d.video_id}|${d.code}|${d.label}`, Number(d.t)]));
+  const names = new Map(rows.map((r) => [`${r.season}/${r.code}`, String(r.name ?? r.code)]));
   const out: CoverageFinding[] = [];
+  const have = new Set<string>();
   for (const r of rows) {
     for (const m of readDetail(r.detail).missing ?? []) {
       if (m.video?.seenAt == null || !m.videoId) continue;
-      out.push({ kind: "seen", season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), label: m.label, videoId: m.videoId, at: m.video.seenAt, why: m.why ?? "" });
+      const row = frameRow(m.videoId, String(r.code));
+      // A review entry is listed from the entries themselves (below); an approved start is served.
+      if (!row || row.review?.[m.label] || row.approved?.includes(m.label) || row.starts[m.label] == null) continue;
+      const t = Math.round(row.starts[m.label]), x = no.get(`${m.videoId}|${r.code}|${m.label}`);
+      if (x != null && Math.abs(x - t) <= SAME_S) continue;
+      have.add(`${r.season}/${r.code}/${m.label}`);
+      out.push({ kind: "seen", source: "start", season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), label: m.label, videoId: m.videoId, at: t, why: m.why ?? "" });
     }
+  }
+  const unnamed = reviews.filter((e) => !names.has(`${e.season}/${e.code}`));
+  if (unnamed.length) {
+    for (const e of await all<{ season: number; code: string; name: string }>(
+      `SELECT season, code, name FROM events WHERE (season, code) IN (${unnamed.map(() => "(?, ?)").join(", ")})`, unnamed.flatMap((e) => [e.season, e.code]))) {
+      names.set(`${e.season}/${e.code}`, String(e.name));
+    }
+  }
+  for (const e of reviews) {
+    if (have.has(`${e.season}/${e.code}/${e.label}`)) continue;
+    out.push({ kind: "seen", source: "review", season: e.season, code: e.code, name: names.get(`${e.season}/${e.code}`) ?? e.code, label: e.label, videoId: e.videoId, at: e.t, why: e.why });
   }
   const pulled = clipCheckFindings();
   if (pulled.length) {
-    const names = new Map((await all<{ season: number; code: string; name: string }>(
-      `SELECT season, code, name FROM events WHERE (season, code) IN (${pulled.map(() => "(?, ?)").join(", ")})`, pulled.flatMap((p) => [p.season, p.code])))
-      .map((e) => [`${e.season}/${e.code}`, String(e.name)]));
+    const missing = pulled.filter((p) => !names.has(`${p.season}/${p.code}`));
+    if (missing.length) {
+      for (const e of await all<{ season: number; code: string; name: string }>(
+        `SELECT season, code, name FROM events WHERE (season, code) IN (${missing.map(() => "(?, ?)").join(", ")})`, missing.flatMap((p) => [p.season, p.code]))) {
+        names.set(`${e.season}/${e.code}`, String(e.name));
+      }
+    }
     for (const p of pulled) {
       out.push({ kind: "pulled", season: p.season, code: p.code, name: names.get(`${p.season}/${p.code}`) ?? p.code, label: p.label, videoId: p.videoId, at: p.t,
         why: `Clip pulled: its first frame shows ${p.showed}, not ${p.label}` });
     }
   }
-  return out;
+  return out.sort((a, b) => b.season - a.season || a.code.localeCompare(b.code) || a.at - b.at);
 }
 
 /** Events with a played match missing a clip, a page at a time: one category's events not reviewed yet (actionable by
