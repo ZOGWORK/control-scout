@@ -235,30 +235,60 @@ describe("a chat with Bruno", () => {
     ...over,
   });
 
-  it("a greeting: his reply is the post, with no video, no website link and no search sentence", async () => {
-    const d = chatDeps({ text: "Hey! I'm Bruno. Ask me about any FTC team.", search: false });
+  it("a greeting: his reply is the post, with no card, video, website link or search sentence", async () => {
+    // A greeting finds no records: nothing to post beside his words.
+    const d = chatDeps({ text: "Hey! I'm Bruno. Ask me about any FTC team.", search: false }, { search: vi.fn(async (q: string) => base({ q, hits: [] })) });
     const r = await ask("hi bruno", d, SITE);
     expect(r.chat).toEqual({ text: "Hey! I'm Bruno. Ask me about any FTC team." });
     expect(r.meta).toMatchObject({ chat: true, sentence: false });
     expect(d.bruno).not.toHaveBeenCalled();
     expect(d.video).not.toHaveBeenCalled();
-    expect(d.chat).toHaveBeenCalledWith("hi bruno", ["Result: 4215 | Team 4215"], [], []);
+    expect(d.chat).toHaveBeenCalledWith("hi bruno", ["Result: none"], [], []);
   });
 
-  it("a message that asks several things: each part's facts go with the message's own", async () => {
+  it("a message that asks several things: each part's facts go with the message's own, and its answer is the card", async () => {
     const q = "what is like the best team rn, where are they from and what is their auto opr";
-    const lookups = vi.fn(async () => ["#1 23268 Ultraviolet (Oradell, NJ): OPR 101.6, Auto OPR 30.2"]);
-    const d = chatDeps({ text: "23268 Ultraviolet, from Oradell, NJ: 101.6 OPR, 30.2 on Auto.", search: true }, { lookups });
+    const board = base({ q: "what is the best team", hits: [], card: { kind: "high-scores", title: "Top teams by OPR", lines: [{ text: "23268 Ultraviolet", detail: "Hillsborough, NJ · OPR 157.9" }] } });
+    const lookups = vi.fn(async () => ({ facts: ["#1 23268 Ultraviolet (Hillsborough, NJ): OPR 157.9, Auto OPR 40"], answer: board }));
+    const d = chatDeps({ text: "23268 Ultraviolet, from Hillsborough, NJ: 157.9 OPR, 40 on Auto.", search: true }, { lookups });
     const r = await ask(q, d, SITE);
     expect(lookups).toHaveBeenCalledWith(q);
     // The message's facts first, then the parts' (the leaderboard's own line answers "where from" and "auto opr").
-    expect(d.chat).toHaveBeenCalledWith(q, ["Result: 4215 | Team 4215", "#1 23268 Ultraviolet (Oradell, NJ): OPR 101.6, Auto OPR 30.2"], [], []);
+    expect(d.chat).toHaveBeenCalledWith(q, ["Result: 4215 | Team 4215", "#1 23268 Ultraviolet (Hillsborough, NJ): OPR 157.9, Auto OPR 40"], [], []);
     expect(r.chat?.text).toMatch(/23268/);
+    // His words keep their shape, and the board search found for the part rides beside them as the card, linked to that
+    // answer on the site rather than to the whole message search.
+    expect(r.chat?.card).toBe(true);
+    expect(r.chat?.text).not.toMatch(/Top teams by OPR/);
+    expect(r.embed.title).toBe("Top teams by OPR");
+    expect(r.embed.description).toContain(`${SITE}/search?q=what%20is%20the%20best%20team`);
+    // The footer under his text links to the same answer, not to the whole message search nothing can read.
+    expect(r.chat?.page).toBe(`${SITE}/search?q=what%20is%20the%20best%20team`);
+    expect(r.next).toEqual([]);
   });
 
-  it("a records answer: the answer's video and its page go with his reply", async () => {
+  it("a part whose answer has nothing to show never replaces the message's card and links", async () => {
+    const q = "what is the best team and who won decode";
+    const sorry = base({ q: "who won decode", hits: [], step: "recovery", sorry: { understood: [], suggest: [] } });
+    const d = chatDeps({ text: "23268 is top.", search: true }, { lookups: vi.fn(async () => ({ facts: [], answer: sorry })) });
+    const r = await ask(q, d, SITE);
+    expect(r.embed.title).toBe("4215 | Team 4215");
+    expect(r.chat?.card).toBe(true);
+    expect(r.chat?.page).toBe(`${SITE}/search?q=${encodeURIComponent(q)}`);
+  });
+
+  it("a conversational reply posts no records card, even when search found some", async () => {
+    // His words are an explanation, not a records answer: the card search incidentally has doesn't ride along with it.
+    const r = await ask("explain a swerve", chatDeps({ text: "**A coaxial swerve keeps both motors on one axis.**", search: false }), SITE);
+    expect(r.chat).toEqual({ text: "**A coaxial swerve keeps both motors on one axis.**" });
+    expect(r.chat?.card).toBeUndefined();
+    expect(r.chat?.page).toBeUndefined();
+  });
+
+  it("a records answer: its video, its card and its page go with his reply", async () => {
     const r = await ask("who won decode", chatDeps({ text: "30030 Exodus won.", search: true }), SITE);
-    expect(r.chat).toEqual({ text: "30030 Exodus won.", video: "https://www.youtube.com/watch?v=AAA&t=90s", page: `${SITE}/search?q=who%20won%20decode` });
+    expect(r.chat).toEqual({ text: "30030 Exodus won.", card: true, video: "https://www.youtube.com/watch?v=AAA&t=90s", page: `${SITE}/search?q=who%20won%20decode` });
+    expect(r.embed.title).toBe("4215 | Team 4215");
   });
 
   it("no chat reply (off, failed, timed out, a number not in the facts): the card at once, no second call to him", async () => {

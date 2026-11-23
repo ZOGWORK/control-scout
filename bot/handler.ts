@@ -148,7 +148,8 @@ export const NO_PINGS = { parse: [] as never[], repliedUser: false };
 /** The answer's buttons (bot/buttons.ts): a row of questions, a row of links. */
 export type AnswerComponents = APIActionRowComponent<APIButtonComponent>[];
 
-/** What one answer posts: Bruno's chat reply as text, or the card (with its video link as the text), and its buttons. */
+/** What one answer posts: Bruno's chat reply as text (with the records card beside it when the site's search found
+ *  some), or the card (with its video link as the text), and its buttons. */
 export interface AskPost { content?: string; embeds: APIEmbed[]; components?: AnswerComponents }
 
 /** Whether an answer answered: a card, a stat, or Bruno's own words. The bot's "I couldn't" fallback (by: "scout") and
@@ -213,12 +214,13 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     logLine(`${key} step=${r.meta.step} bruno=${bruno}${history.length ? ` thread=${history.length}` : ""}${r.content || r.chat?.video ? " video" : ""} ${fresh ? "" : "cached "}${ms}ms`);
     return r;
   }
-  /** An answer as a post: Bruno's chat reply as text, else the card with its video link as the text, and its buttons
-   *  (bot/buttons.ts). `quote`: show the question (a slash command's reply doesn't; a reply to a message already does). */
+  /** An answer as a post: Bruno's chat reply as text — with the records card beside it when search found the records
+   *  the answer is about (`card`) — else the card with its video link as the text, and its buttons (bot/buttons.ts).
+   *  `quote`: show the question (a slash command's reply doesn't; a reply to a message already does). */
   const askPost = (question: string, r: AskReply, quote: boolean): AskPost => {
     const components = answerComponents(r, buttons);
     const post: AskPost = r.chat
-      ? { content: chatPost(question, r.chat, { quote }), embeds: [] }
+      ? { content: chatPost(question, r.chat, { quote }), embeds: r.chat.card && r.chat.by !== "scout" ? [pride(r.embed)] : [] }
       : { ...(r.content ? { content: r.content } : {}), embeds: [pride(r.embed)] };
     return components.length ? { ...post, components } : post;
   };
