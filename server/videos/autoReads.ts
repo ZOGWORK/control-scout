@@ -427,12 +427,18 @@ async function seasonOf(videoId: string, code: string): Promise<number> {
   return frameRowSeason(videoId, code) ?? Number((await get<{ season: number }>("SELECT MAX(season) AS season FROM events WHERE code = ?", [code]))?.season ?? 0);
 }
 
-/** A start a frame row holds for a match at second `t` (rounded) that the owner hasn't approved: one the site may not
- *  serve (out of the played order, overlapping another, its opening frame not naming it), as a review entry would be. */
-function unservedStart(row: FrameTiming, label: string, t: number): { t: number; why: string } | null {
+/** A start a frame row holds for a match at second `t` (rounded) that the site doesn't serve and the owner hasn't
+ *  approved: one its event's coverage row lists as missing, seen in that video at that second (Found in the video:
+ *  out of the played order, overlapping another, its opening frame not naming it). A served start is never one. */
+async function unservedStart(row: FrameTiming, label: string, t: number): Promise<{ t: number; why: string } | null> {
   const s = row.starts[label];
   if (s == null || Math.round(s) !== t || row.approved?.includes(label)) return null;
-  return { t, why: "Seen in the video at this second, but the site didn't serve it as a clip" };
+  const season = await seasonOf(row.videoId, row.code);
+  const c = await get<{ detail: string }>("SELECT detail FROM clip_coverage WHERE season = ? AND code = ? AND with_clip < played", [season, row.code]);
+  let missing: { label?: string; videoId?: string | null; video?: { seenAt?: number } }[] = [];
+  try { missing = JSON.parse(String(c?.detail ?? "{}")).missing ?? []; } catch { /* unreadable: not listed */ }
+  const listed = missing.some((m) => m.label === label && m.videoId === row.videoId && m.video?.seenAt != null && Math.round(m.video.seenAt) === t);
+  return listed ? { t, why: "Seen in the video at this second, but the site didn't serve it as a clip" } : null;
 }
 
 type ReviewBody = { videoId?: unknown; code?: unknown; label?: unknown; t?: unknown };
@@ -458,7 +464,7 @@ async function approveReviewLocked(body: ReviewBody, actor: string, now = Date.n
   const row = frameRow(k.videoId, k.code), r = row?.review?.[k.label];
   // A review entry not served yet; else a start the read already holds at that second that the site doesn't serve
   // (it breaks the played order, overlaps another, or its opening frame didn't name it: Found in the video).
-  const e = r ? (Math.round(r.t) === k.t && frameStart(k.videoId, k.code, k.label) == null ? r : null) : row && unservedStart(row, k.label, k.t);
+  const e = r ? (Math.round(r.t) === k.t && frameStart(k.videoId, k.code, k.label) == null ? r : null) : row && await unservedStart(row, k.label, k.t);
   if (!row || !e) return reviewGone;
   const next: FrameTiming = { ...row, starts: { ...row.starts, [k.label]: k.t } };
   if (row.opens) next.opens = { ...row.opens, [k.label]: Math.max(0, k.t - CLIP_LEAD_S) };
@@ -489,7 +495,7 @@ async function rejectReviewLocked(body: ReviewBody, actor: string, now = Date.no
   const k = reviewKey(body);
   if (!k) return { ok: false, status: 400, error: "Not a match waiting for approval." };
   const row = frameRow(k.videoId, k.code), r = row?.review?.[k.label];
-  const e = r ? (Math.round(r.t) === k.t ? r : null) : row && unservedStart(row, k.label, k.t);
+  const e = r ? (Math.round(r.t) === k.t ? r : null) : row && await unservedStart(row, k.label, k.t);
   if (!e) return reviewGone;
   const season = await seasonOf(k.videoId, k.code);
   await run(`INSERT INTO review_decisions (video_id, code, label, season, t, decision, decided_by, decided_at) VALUES (?, ?, ?, ?, ?, 'rejected', ?, ?)
