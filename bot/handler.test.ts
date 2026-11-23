@@ -446,6 +446,22 @@ describe("a chat with Bruno in Discord", () => {
     expect(c.calls.at(-1)!.payload).toMatchObject({ content: "> **who won decode**\nre: who won decode (0)\n-# Bruno AI · controlscout.org", embeds: [], allowedMentions: { parse: [], repliedUser: false } });
   });
 
+  it("a reply the records answered posts the site's card beside his words", async () => {
+    // His text keeps its shape; the card the lookups found — the same one controlscout.org/search shows — rides with it.
+    const ask = vi.fn(async (q: string) => ({ embed: ok(`ask ${q}`), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: `re: ${q}`, card: true } }));
+    const h = createHandler(() => {}, lookups({ ask }));
+    const { m, sent } = message(`<@${BOT}> 4215 opr`);
+    await h.mention(m, BOT);
+    expect(sent[0].content).toMatch(/^re: 4215 opr\n-# Bruno AI/);
+    expect(sent[0].embeds.map((e: APIEmbed) => e.title)).toEqual(["ask 4215 opr"]);
+    // Control Scout's own fallback (a greeting no chat answered) never carries one, card or not.
+    const scout = vi.fn(async (q: string) => ({ embed: ok(`ask ${q}`), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: "Hey!", by: "scout" as const, card: true } }));
+    const s = createHandler(() => {}, lookups({ ask: scout }));
+    const hello = message(`<@${BOT}> hi`);
+    await s.mention(hello.m, BOT);
+    expect(hello.sent[0].embeds).toEqual([]);
+  });
+
   it("a reply to his answer carries the thread on, even without a mention; replies to others or with no text are left alone", async () => {
     const ask = chatAsk();
     const h = createHandler(() => {}, lookups({ ask }));
