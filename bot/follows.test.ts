@@ -108,7 +108,9 @@ describe("follows and the tick, on a database", () => {
     const today = iso(NOW).slice(0, 10);
     await run("INSERT INTO teams (number, name) VALUES (18360, 'Gear Grinders'), (4215, 'Alpha'), (16379, 'Beta'), (21058, 'Gamma')");
     await run("INSERT INTO team_seasons (season, team) VALUES (?, 18360), (?, 4215)", [S, S]);
-    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, source) VALUES (?, 'USTXAUQ', 'Austin Qualifier', 'Qualifier', ?, ?, 'UTC', 0, 0, 'test')", [S, today, today]);
+    // Its end is well ahead, so the event isn't finished by the real clock when a test's `now` is in the past (the
+    // event's status comes from today's date, bot/eventAlerts.ts): its schedule post is due.
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, source) VALUES (?, 'USTXAUQ', 'Austin Qualifier', 'Qualifier', ?, '2027-06-30', 'UTC', 0, 0, 'test')", [S, today]);
     const at = iso(NOW + 10 * 60_000).slice(0, 19);
     await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'USTXAUQ', 'qual', 0, 7, 'Q7', ?, 0, 'test')", [S, at]);
     for (const [i, t] of [18360, 4215, 16379, 21058].entries()) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station) VALUES (?, 'USTXAUQ', 'qual', 0, 7, ?, ?, ?)", [S, t, i < 2 ? "red" : "blue", (i % 2) + 1]);
@@ -117,17 +119,44 @@ describe("follows and the tick, on a database", () => {
   beforeEach(async () => { await run("DELETE FROM discord_follows"); await clearPosts(); clearAllCaches(); });
 
   it("follow, list, unfollow; unknown teams and a full server are friendly errors", async () => {
-    expect(await addFollow("g", "c1", 18360, "u", NOW - 864e5)).toBe("added");
-    expect(await addFollow("g", "c1", 18360, "u")).toBe("already");
-    expect(await listFollows("g")).toEqual([{ team: 18360, channel_id: "c1", name: "Gear Grinders" }]);
-    await expect(addFollow("g", "c1", 99999, "u")).rejects.toBeInstanceOf(Friendly);
-    expect(await removeFollow("g", 18360)).toBe(1);
+    expect(await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5)).toBe("added");
+    expect(await addFollow("g", "c1", { kind: "team", team: 18360 }, "u")).toBe("already");
+    expect(await listFollows("g")).toEqual([{ kind: "team", team: 18360, event: null, channel_id: "c1", name: "Gear Grinders" }]);
+    await expect(addFollow("g", "c1", { kind: "team", team: 99999 }, "u")).rejects.toBeInstanceOf(Friendly);
+    expect(await removeFollow("g", { kind: "team", team: 18360 })).toBe(1);
     expect(await listFollows("g")).toEqual([]);
   });
 
+  it("an event can be followed instead of a team: listed as the event, posted once its schedule is up, and unfollowed by code", async () => {
+    expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u", NOW - 864e5)).toBe("added");
+    expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u")).toBe("already");
+    expect(await listFollows("g")).toEqual([{ kind: "event", team: null, event: "USTXAUQ", channel_id: "c1", name: null }]);
+    await expect(addFollow("g", "c1", { kind: "event", event: "NOPE" }, "u")).rejects.toBeInstanceOf(Friendly);
+    const send = vi.fn(async () => "ok" as const);
+    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
+    const [channel, embed] = send.mock.calls[0] as unknown as [string, { title: string; fields?: { name: string }[] }];
+    expect(channel).toBe("c1");
+    expect(embed.title).toBe("Schedule posted: Austin Qualifier");
+    expect(embed.fields!.length).toBe(1);
+    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW + 60_000)).toBe(0);
+    expect(await removeFollow("g", { kind: "event", event: "USTXAUQ" })).toBe(1);
+  });
+
+  it("an event follow belongs to the season it was made in: last season's code never posts this season's event", async () => {
+    expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u", NOW - 864e5)).toBe("added");
+    // The row as a season rollover leaves it: the code exists this season too, and the follow is last season's.
+    await run("UPDATE discord_follows SET season = season - 1 WHERE guild_id = 'g'");
+    const send = vi.fn(async () => "ok" as const);
+    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW)).toBe(0);
+    expect(send).not.toHaveBeenCalled();
+    // Following the event again this season moves that follow to it, and its posts resume.
+    expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u", NOW)).toBe("already");
+    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
+  });
+
   it("posts the reminder once, even across ticks and with two followed teams in the match", async () => {
-    await addFollow("g", "c1", 18360, "u", NOW - 864e5);
-    await addFollow("g", "c1", 4215, "u", NOW - 864e5);
+    await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5);
+    await addFollow("g", "c1", { kind: "team", team: 4215 }, "u", NOW - 864e5);
     const send = vi.fn(async () => "ok" as const);
     expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
     expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW + 60_000)).toBe(0);
@@ -141,19 +170,19 @@ describe("follows and the tick, on a database", () => {
   });
 
   it("turned off by the owner (the discordBot toggle): nothing is posted and every follow is kept; back on, the post goes", async () => {
-    await addFollow("g", "c1", 18360, "u", NOW - 864e5);
+    await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5);
     const send = vi.fn(async () => "ok" as const);
     await setFlag("discordBot", false, "owner@example.com");
     try {
       expect(await notifyTick(send, "s", () => {}, NOW)).toBe(0);
       expect(send).not.toHaveBeenCalled();
-      expect(await listFollows("g")).toEqual([{ team: 18360, channel_id: "c1", name: "Gear Grinders" }]);
+      expect(await listFollows("g")).toEqual([{ kind: "team", team: 18360, event: null, channel_id: "c1", name: "Gear Grinders" }]);
     } finally { await setFlag("discordBot", true, "owner@example.com"); }
     expect(await notifyTick(send, "s", () => {}, NOW)).toBe(1);
   });
 
   it("a passing failure is tried again next tick; a channel that's gone is dropped after repeated failures", async () => {
-    await addFollow("g", "c1", 18360, "u", NOW - 864e5);
+    await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5);
     const flaky = vi.fn().mockResolvedValueOnce("error").mockResolvedValueOnce("ok");
     await notifyTick(flaky, "s", () => {}, NOW);
     expect(await notifyTick(flaky, "s", () => {}, NOW + 60_000)).toBe(1);
@@ -186,7 +215,7 @@ describe("review fixes, on a database", () => {
 
   it("the 10-team limit holds, even when follows land at the same moment", async () => {
     await run("INSERT INTO teams (number, name) SELECT 100 + value, 'T' FROM json_each('[0,1,2,3,4,5,6,7,8,9,10]') WHERE 1 ON CONFLICT DO NOTHING");
-    const tries = Array.from({ length: 11 }, (_, i) => addFollow("g2", `c${i}`, 4215, "u").catch((e) => e));
+    const tries = Array.from({ length: 11 }, (_, i) => addFollow("g2", `c${i}`, { kind: "team", team: 4215 }, "u").catch((e) => e));
     const results = await Promise.all(tries);
     expect(results.filter((r) => r === "added")).toHaveLength(10);
     expect(results.filter((r) => r instanceof Friendly)).toHaveLength(1);
@@ -194,7 +223,7 @@ describe("review fixes, on a database", () => {
   });
 
   it("a claim the bot never sent (it stopped mid-send) is posted once it's stale; a channel that was gone gets it once it's back", async () => {
-    await addFollow("g", "c1", 18360, "u", NOW - 864e5);
+    await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5);
     // A stopped bot left a claim without sent_at.
     await run("INSERT INTO discord_posts (channel_id, season, code, match_key, kind, claimed_at) VALUES ('c1', ?, 'USTXAUQ', 'qual:0:7', 'reminder', ?)", [S, iso(NOW - 5 * 60_000)]);
     const ok = vi.fn(async () => "ok" as const);

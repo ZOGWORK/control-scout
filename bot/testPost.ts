@@ -50,7 +50,8 @@ if (process.argv[2] === "tick") {
   await clean();
   try {
     const created = now - 3 * 3600_000;
-    console.log("follow 4215:", await addFollow(FIXTURE, FIXTURE, 4215, "test", created), "· again:", await addFollow(FIXTURE, FIXTURE, 4215, "test", created));
+    const target = { kind: "team" as const, team: 4215 };
+    console.log("follow 4215:", await addFollow(FIXTURE, FIXTURE, target, "test", created), "· again:", await addFollow(FIXTURE, FIXTURE, target, "test", created));
     const send = async (c: string, embed: APIEmbed) => (c === FIXTURE ? (await post("tick", embed), "ok" as const) : "error" as const);
     const log = (m: string) => console.log(m);
     console.log("tick 1 posted", await notifyTick(send, SITE, log, now));

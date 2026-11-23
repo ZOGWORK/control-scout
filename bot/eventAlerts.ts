@@ -8,6 +8,7 @@
 import type { APIEmbed } from "discord.js";
 import type { EventDetail, MatchView } from "../src/shared/api.js";
 import { localDate } from "../src/shared/eventDay.js";
+import { eventRoster, eventStanding } from "../src/shared/eventStanding.js";
 import { oddsPct, tierWords } from "../src/shared/share.js";
 import { FOOTER, VOLT, dates, favouriteOf, linkedAlliance, teamLink, teamsOf as sideTeams } from "./views.js";
 import type { Follow } from "./follows.js";
@@ -49,12 +50,30 @@ export function eventDue(follows: Follow[], d: EventDetail, now: number): EventD
   const add = (f: Follow, kind: EventKind, key: string) => {
     const id = `${f.channel_id}|${kind}|${key}`;
     const x = out.get(id) ?? { channel: f.channel_id, teams: [], kind, key };
-    if (!x.teams.includes(f.team)) x.teams.push(f.team);
+    if (f.team != null && !x.teams.includes(f.team)) x.teams.push(f.team);
     out.set(id, x);
   };
   for (const f of follows) {
-    if (!here.has(f.team)) continue;
-    const mine = d.matches.filter((m) => teamsOf(m).includes(f.team));
+    // An event follow: the whole event's evening-before, schedule and recaps. Its posts are keyed `event:` so that a
+    // server following both an event and a team gets both posts in one channel.
+    if (f.kind === "event") {
+      if (!f.event || f.event !== e.code) continue;
+      // A code repeats next season: a follow made last season never posts this one's event of the same code, even when
+      // a current follow is what loaded it.
+      if (f.season != null && f.season !== e.season) continue;
+      if (e.start && addDays(e.start, -1) === today && hour >= EVE_HOUR) add(f, "eve", "event:eve");
+      // A qual with no day yet (pairings posted, no times) would post the "no times yet" placeholder and claim the key,
+      // and the real schedule could never follow: wait until one has a day.
+      if (e.status !== "finished" && d.matches.some((m) => m.level === "qual" && !!(dayOf(m, zone) ?? m.time?.slice(0, 10)))) add(f, "schedule", "event:schedule");
+      // The end of an event day: every match that day is scored, and the last was a while ago.
+      const todays = d.matches.filter((m) => dayOf(m, zone) === today);
+      const last = Math.max(...todays.filter((m) => m.played).map(at));
+      if (todays.length && todays.every((m) => m.played) && Number.isFinite(last) && now - last >= RECAP_AFTER_MS) add(f, "recap", `event:recap:${today}`);
+      continue;
+    }
+    const team = f.team;
+    if (team == null || !here.has(team)) continue;
+    const mine = d.matches.filter((m) => teamsOf(m).includes(team));
     // The evening before its first day.
     if (e.start && addDays(e.start, -1) === today && hour >= EVE_HOUR) add(f, "eve", "eve");
     // Its quals are posted (and the event isn't over). One post per team, so a channel following many teams
@@ -139,7 +158,8 @@ export function eveEmbed(due: EventDue, d: EventDetail, seasons: TeamSeason[], s
   return {
     title: `Tomorrow: ${e.name}`,
     url: eventUrl(d, site),
-    description: `${linkedAlliance(due.teams, site)} ${due.teams.length > 1 ? "compete" : "competes"} tomorrow.`,
+          // An event follow has no team to name: the event is the subject.
+      description: due.teams.length ? `${linkedAlliance(due.teams, site)} ${due.teams.length > 1 ? "compete" : "competes"} tomorrow.` : "The event starts tomorrow.",
     color: VOLT,
     fields: [
       { name: "When", value: dates(e.start, e.end), inline: true },
@@ -187,6 +207,71 @@ export function scheduleEmbed(due: EventDue, d: EventDetail, site: string): APIE
     // A schedule post is one team's (eventDue keys it per team), at most a few fields; never past Discord's cap.
     fields: fields.slice(0, FIELDS_MAX),
     footer: { text: `${tier ? `Win odds from today's ratings, ${tierWords(tier)} · ` : ""}A post 15 minutes before each match · ${FOOTER.text}` },
+  };
+}
+
+/**
+ * An event follow's schedule post: the event's competition days and their rounds, once FIRST posts them. One field per
+ * venue day, so a 100-team event is a handful of lines, not every match. Nothing invented: the rounds come from the
+ * posted matches, and a day none is posted for isn't listed.
+ */
+export function eventScheduleEmbed(d: EventDetail, site: string): APIEmbed {
+  const zone = d.event.timezone ?? null;
+  const quals = d.matches.filter((m) => m.level === "qual");
+  const days = new Map<string, MatchView[]>();
+  for (const m of quals) {
+    const day = dayOf(m, zone) ?? m.time?.slice(0, 10) ?? null;
+    if (!day) continue;
+    const l = days.get(day) ?? [];
+    l.push(m);
+    days.set(day, l);
+  }
+  const fields = [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, FIELDS_MAX).map(([day, ms]) => {
+    const sorted = [...ms].sort((a, b) => a.number - b.number);
+    const first = sorted[0], last = sorted[sorted.length - 1];
+    return { name: `${dates(day, day)} · ${ms.length} match${ms.length === 1 ? "" : "es"}`, value: `\`${first.label}\`–\`${last.label}\` · ${clock(first, zone)}–${clock(last, zone)}` };
+  });
+  const playoffs = d.matches.filter((m) => m.level !== "qual").length;
+  return {
+    title: `Schedule posted: ${d.event.name}`,
+    url: eventUrl(d, site),
+    description: [dates(d.event.start, d.event.end), [d.event.venue, d.event.city, d.event.state].filter(Boolean).join(", ") || null, playoffs ? `${playoffs} playoff match${playoffs === 1 ? "" : "es"} listed` : null]
+      .filter(Boolean).join(" · "),
+    color: VOLT,
+    fields: fields.length ? fields : [{ name: "Schedule", value: "No match has a posted time yet." }],
+    footer: { text: `Follow your team too for a post before each of its matches · ${FOOTER.text}` },
+  };
+}
+
+/**
+ * An event follow's day recap: how the day went, and where the event stands. The calls count only ones logged before
+ * their match (never a replayed one), as a team's recap does.
+ */
+export function eventRecapEmbed(d: EventDetail, today: string, site: string): APIEmbed {
+  const zone = d.event.timezone ?? null;
+  const todays = d.matches.filter((m) => dayOf(m, zone) === today);
+  const played = todays.filter((m) => m.played);
+  const calls = played.filter((m) => m.prediction?.kind === "live" && favouriteOf(m.prediction) && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
+  const right = calls.filter((m) => (favouriteOf(m.prediction!)!.side === "red") === (m.red.score!.total > m.blue.score!.total)).length;
+  // The meet's own standing, not FIRST's league-wide running one, and only the teams that played here (the same rule
+  // as a team's recap): a team ranked 2nd at the meet must not be shown, or left out, by its 18th in the league.
+  const top = eventRoster(d.field)
+    .map((f) => ({ f, s: eventStanding(f) }))
+    .filter(({ s }) => s.rank != null)
+    .sort((a, b) => a.s.rank! - b.s.rank! || a.f.team - b.f.team)
+    .slice(0, 5);
+  return {
+    title: `Day recap: ${d.event.name}`,
+    url: eventUrl(d, site),
+    color: VOLT,
+    fields: [
+      { name: "Today", value: `${played.length} of ${todays.length} match${todays.length === 1 ? "" : "es"} scored${calls.length ? ` · calls: ${right} of ${calls.length} right` : ""}`, inline: true },
+      ...(top.length ? [{
+        name: "Top 5 now",
+        value: top.map(({ f, s }) => `**${s.rank}.** [${f.team}](${site}/teams/${f.team})${f.name ? ` ${f.name}` : ""}${s.wins != null ? ` · ${s.wins}–${s.losses ?? 0}–${s.ties ?? 0}` : ""}`).join("\n"),
+      }] : []),
+    ],
+    footer: FOOTER,
   };
 }
 

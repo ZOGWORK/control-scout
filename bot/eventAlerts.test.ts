@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView } from "../src/shared/api";
-import { EVE_HOUR, FIELD_MAX, RECAP_AFTER_MS, SCHEDULE_MAX, eveEmbed, packLines, eventDue, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts";
+import { EVE_HOUR, FIELD_MAX, RECAP_AFTER_MS, SCHEDULE_MAX, eveEmbed, packLines, eventDue, eventRecapEmbed, eventScheduleEmbed, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts";
 import type { Follow } from "./follows";
 
 const SITE = "https://controlscout.org";
@@ -81,6 +81,87 @@ describe("one post per team where it matters", () => {
   it("each team's schedule is its own post (no single message past Discord's size limit)", () => {
     const d = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4])]);
     expect(eventDue([f(1), f(3)], d, local("2026-10-23", "09:00")).map((x) => x.key).sort()).toEqual(["schedule:1", "schedule:3"]);
+  });
+});
+
+describe("an event follow", () => {
+  const fe = (event: string, channel = "c1"): Follow => ({ guild_id: "g", channel_id: channel, kind: "event", team: null, event, created_at: "2026-10-01T00:00:00Z", failures: 0 });
+
+  it("the schedule waits for a day: pairings with no time yet would claim the key with a placeholder", () => {
+    const d = detail([{ ...q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4]), startsAt: null, time: null }], { status: "live" });
+    expect(eventDue([fe("X")], d, local("2026-10-24", "10:00")).map((x) => x.kind)).not.toContain("schedule");
+    // Once a day is known it posts, so the placeholder never becomes the event's only schedule post.
+    const timed = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4])], { status: "live" });
+    expect(eventDue([fe("X")], timed, local("2026-10-24", "10:00")).map((x) => x.kind)).toContain("schedule");
+  });
+
+  it("the evening before, the schedule once posted, and a recap at the end of each day — with no team named", () => {
+    const d = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80])], { status: "live" });
+    // The evening before it starts: the event's own eve, and (its quals are posted) its schedule.
+    expect(eventDue([fe("X")], d, local("2026-10-23", "18:00"))).toEqual([
+      { channel: "c1", teams: [], kind: "eve", key: "event:eve" },
+      { channel: "c1", teams: [], kind: "schedule", key: "event:schedule" },
+    ]);
+    expect(eventDue([fe("X")], d, local("2026-10-23", "09:00")).map((x) => [x.kind, x.key])).toEqual([["schedule", "event:schedule"]]);
+    // Only the event it names.
+    expect(eventDue([fe("OTHER")], d, local("2026-10-23", "09:00"))).toEqual([]);
+    // The day is over and its last match was a while ago: the event's own recap.
+    expect(eventDue([fe("X")], d, local("2026-10-24", "10:00") + RECAP_AFTER_MS).map((x) => x.kind)).toEqual(["schedule", "recap"]);
+  });
+
+  it("a team and the event in one channel get their own posts: the keys don't collide", () => {
+    const d = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4])]);
+    const eve = eventDue([f(1), fe("X")], d, local("2026-10-23", "18:00")).filter((x) => x.kind === "eve");
+    expect(eve.map((x) => x.teams)).toEqual([[1], []]);
+    expect(eve.map((x) => x.key)).toEqual(["eve", "event:eve"]);
+  });
+
+  it("the event's schedule: one line per competition day, from the posted matches", () => {
+    const ms = [
+      q(2, local("2026-10-24", "09:35"), [1, 3], [2, 4]),
+      q(1, local("2026-10-24", "09:00"), [1, 2], [3, 4]),
+      q(5, local("2026-10-25", "10:00"), [1, 4], [2, 3]),
+    ];
+    const e = eventScheduleEmbed(detail(ms, { end: "2026-10-25" }), SITE);
+    expect(e.title).toBe("Schedule posted: Austin Qualifier");
+    expect(e.fields).toEqual([
+      { name: "Oct 24 · 2 matches", value: "`Q1`–`Q2` · 9:00 AM–9:35 AM" },
+      { name: "Oct 25 · 1 match", value: "`Q5`–`Q5` · 10:00 AM–10:00 AM" },
+    ]);
+    expect(e.footer!.text).toMatch(/Follow your team too/);
+    // No posted times: said plainly, never invented.
+    expect(eventScheduleEmbed(detail([]), SITE).fields).toEqual([{ name: "Schedule", value: "No match has a posted time yet." }]);
+  });
+
+  it("an event follow from an earlier season posts nothing, even when a current follow is what loaded the event", () => {
+    const d = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7)], { status: "live" });
+    // The code repeats, so only the season on the follow tells them apart.
+    expect(eventDue([{ ...fe("X"), season: 2025 }], d, local("2026-10-24", "10:00"))).toEqual([]);
+    expect(eventDue([{ ...fe("X"), season: 2026 }], d, local("2026-10-24", "10:00")).map((x) => x.kind)).toContain("schedule");
+  });
+
+  it("the event's top five at a league meet: the meet's own standing and record, not the league's", () => {
+    const meet = (rank: number, wins: number) => ({ rank, rs: 2, tb: [], wins, losses: 0, ties: 0, played: 1 });
+    const d = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7)], { status: "live" },
+      [row(1, { rank: 18, wins: 9, losses: 4, ties: 0, meet: meet(2, 1) }), row(2, { rank: 2, wins: 10, losses: 3, ties: 0, meet: meet(1, 1) }), row(3), row(4)]);
+    const top = eventRecapEmbed(d, "2026-10-24", SITE).fields!.find((x) => x.name === "Top 5 now")!.value.split("\n");
+    expect(top[0]).toMatch(/^\*\*1\.\*\* \[2\].*1–0–0$/);
+    expect(top[1]).toMatch(/^\*\*2\.\*\* \[1\].*1–0–0$/);
+    // The league's 10–3 and 9–4 never appear as the meet's record.
+    expect(top.join("\n")).not.toMatch(/10–3|9–4/);
+  });
+
+  it("the event's recap: the day's matches, the calls, and the top five as it stands", () => {
+    const d = detail([
+      q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7),
+      q(2, local("2026-10-24", "11:00"), [1, 3], [2, 4], [70, 90], 0.6),
+    ], { status: "live" }, [row(1, { rank: 3, wins: 1, losses: 1, ties: 0 }), row(2, { rank: 1, wins: 2, losses: 0, ties: 0 }), row(3), row(4)]);
+    const e = eventRecapEmbed(d, "2026-10-24", SITE);
+    expect(e.title).toBe("Day recap: Austin Qualifier");
+    expect(e.fields![0]).toEqual({ name: "Today", value: "2 of 2 matches scored · calls: 1 of 2 right", inline: true });
+    expect(e.fields![1].name).toBe("Top 5 now");
+    expect(e.fields![1].value).toMatch(/\*\*1\.\*\* \[2\]\(https:\/\/controlscout\.org\/teams\/2\).*2–0–0/);
+    expect(e.fields![1].value).not.toMatch(/\[3\]/); // no rank posted: not ranked by a guess
   });
 });
 

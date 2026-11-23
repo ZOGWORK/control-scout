@@ -33,25 +33,27 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     name: "follow",
-    description: "Post here before each of a team's matches, and its result",
+    description: "Post here for a team's matches and results, or for a whole event",
     ...MANAGE,
     options: [
-      { type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number", required: true, min_value: 1, max_value: 999999 },
+      { type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number (or name an event instead)", min_value: 1, max_value: 999999 },
+      { type: ApplicationCommandOptionType.String, name: "event", description: "Event name or code, instead of a team", autocomplete: true, max_length: 100 },
       { type: ApplicationCommandOptionType.Channel, name: "channel", description: "Where to post (this channel if left out)", channel_types: [ChannelType.GuildText, ChannelType.GuildAnnouncement] },
     ],
   },
   {
     name: "unfollow",
-    description: "Stop the automatic posts for a team",
+    description: "Stop the automatic posts for a team or an event",
     ...MANAGE,
     options: [
-      { type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number", required: true, min_value: 1, max_value: 999999 },
+      { type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number", min_value: 1, max_value: 999999 },
+      { type: ApplicationCommandOptionType.String, name: "event", description: "Event name or code", autocomplete: true, max_length: 100 },
       { type: ApplicationCommandOptionType.Channel, name: "channel", description: "Only in this channel (every channel if left out)", channel_types: [ChannelType.GuildText, ChannelType.GuildAnnouncement] },
     ],
   },
   {
     name: "following",
-    description: "The teams this server follows, and where each one posts",
+    description: "The teams and events this server follows, and where each one posts",
     contexts: [InteractionContextType.Guild],
   },
   {

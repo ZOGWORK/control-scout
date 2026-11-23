@@ -10,6 +10,10 @@
 // Every number in a post is search's own or passed the grounded check. The chat leads; a chat that's off,
 // unconfigured, failing, slow or naming a number not in the facts falls back to the card, and says why in the log
 // (`[bot] chat off: …`, `[bot] chat failed: …`), so a deployment can be diagnosed from the bot's journal.
+//
+// A question the bot couldn't answer that was about the records — a record number in it, or a records word with no build
+// word in it — is also fed to the site's failed-search queue (server/searchFailures.ts, bot/asks.ts's recordsMiss), so
+// the phrasings people use in Discord improve the website's search too: those words never reach the search box.
 import type { APIEmbed } from "discord.js";
 import type { SearchAnswer, SearchCardLine, SearchHit, SearchVideo } from "../src/shared/api.js";
 import { watchUrl } from "../src/shared/recording.js";
@@ -18,7 +22,7 @@ import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search
 import { FOOTER, VOLT, teamLink } from "./views.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 import { answerScope, answerStyle, brunoMethod, brunoPersona, productFacts, zogModeReply } from "./productFacts.js";
-import { RECORD_NUMBER, smallTalk } from "./smallTalk.js";
+import { RECORD_NUMBER, WORKING, smallTalk } from "./smallTalk.js";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
@@ -53,6 +57,9 @@ export interface AskDeps {
   /** Bruno's chat reply (Control Point's discord-chat), or null: off, unavailable, or a number not in the facts.
    *  `memory`: what the server has taught the bot (bot/memory.ts) — its teams, the asker's name — sent with the facts. */
   chat?: (message: string, facts: string[], history: BrunoChatTurn[], memory?: string[]) => Promise<ChatReply | null>;
+  /** A records question search couldn't answer: the site's failed-search queue (server/searchFailures.ts), given the
+   *  answer and the server it was asked in (never who asked). Synchronous, never awaited, never throws. */
+  miss?: (q: string, a: SearchAnswer, guild: string | null) => void;
 }
 
 /** Bruno's chat reply; `search`: the facts answer the message, so the answer's video and page go with it. `unknown`:
@@ -70,9 +77,10 @@ export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentenc
 /**
  * `content`: the main video's YouTube link as the message's text, so Discord shows it as a player under the answer.
  * `chat`: a chat reply, posted as text (chatPost) with no embed; `embed` is then the card it stands in for. `by`: whose
- * words they are — Bruno's, or the bot's own when it answers a greeting without a model (bot/smallTalk.ts).
+ * words they are — Bruno's, or the bot's own when it answers a greeting without a model (bot/smallTalk.ts). `next`: the
+ * questions the answer offers as buttons (bot/buttons.ts); `watch`: the videos, as link buttons.
  */
-export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string; chat?: { text: string; video?: string; page?: string; by?: "bruno" | "scout" } }
+export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string; chat?: { text: string; video?: string; page?: string; by?: "bruno" | "scout" }; next?: string[]; watch?: { label: string; url: string }[] }
 
 /** How long a chat waits for Bruno before the card posts instead. Generous: a model reply takes a while (Control
  *  Point's one-sentence answers take about 11 s on the live deployment, and a structured explanation of a few
@@ -81,9 +89,9 @@ export const CHAT_TIMEOUT_MS = 45_000;
 
 export async function realAskDeps(): Promise<AskDeps> {
   // The search index is the site's (it builds and refreshes it); the bot only reads it, like every other table but its own.
-  const [{ searchAnswer }, { refine }, { brunoAnswer, answerFacts, ungrounded }, { isEnabled }, { brunoAvailable, brunoDiscordChat }] = await Promise.all([
+  const [{ searchAnswer }, { refine }, { brunoAnswer, answerFacts, ungrounded }, { isEnabled }, { brunoAvailable, brunoDiscordChat }, { noteBotSearch, outcomeTrace }] = await Promise.all([
     import("../server/api/searchAnswer.js"), import("../server/api/searchBruno.js"), import("../server/api/searchBrunoAnswer.js"),
-    import("../server/flags.js"), import("../server/auth/controlPoint.js"),
+    import("../server/flags.js"), import("../server/auth/controlPoint.js"), import("../server/searchFailures.js"),
   ]);
   const { answerVideo } = await import("../server/api/answers/video.js");
   return {
@@ -122,6 +130,12 @@ export async function realAskDeps(): Promise<AskDeps> {
       const unknown = ungrounded(r.text, [...context, ...history.map((t) => t.text)], message);
       return { text: r.text.trim(), search: r.search === true, unknown };
     },
+    // The site's own failed-search queue (server/searchFailures.ts): the words people actually use, which the website's
+    // search box never sees. In-memory and synchronous; the bot flushes it once a minute (bot/index.ts). A failure here
+    // never touches the answer: reporting is never on the path.
+    miss: (q, a, guild) => {
+      try { noteBotSearch(q, a, `discord:${guild ?? "dm"}`, outcomeTrace(a)); } catch { /* never breaks an answer */ }
+    },
   };
 }
 
@@ -134,14 +148,18 @@ export const chatContext = (facts: string[], memory: string[] = []): string[] =>
 };
 
 /** The website's answer to `q`, with Bruno's help where the site would use it: his chat reply first (the reply
- *  thread before it in `history`), else the card. `memory`: the server's own lines for the chat (bot/memory.ts). */
-export async function ask(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[] = [], memory: string[] = []): Promise<AskReply> {
+ *  thread before it in `history`), else the card. `memory`: the server's own lines for the chat (bot/memory.ts);
+ *  `guild`: the server it was asked in (never who asked), for the site's failed-search queue. */
+export async function ask(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[] = [], memory: string[] = [], guild: string | null = null): Promise<AskReply> {
   const zog = zogModeReply(q);
   if (zog) return {
     embed: { title: "Zog Mode", description: zog, footer: FOOTER },
     meta: { step: "deterministic", refined: false, sentence: false },
   };
   let answer = await deps.search(q);
+  // A number in the question, or anything found for it: a number in Bruno's reply could then be a record (asksRecords
+  // below), and the question could be one search should learn from.
+  const records = asksRecords(q, answer, history);
   // AI first: with the chat wired, the model answers the message before search's own rewrite is asked for. A chat
   // that's off, failed, timed out or named a number not in the facts is never followed by a second call to him for a
   // sentence; the deterministic answer then posts, bounded by the chat's own timeout.
@@ -152,7 +170,6 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
     // answer with records behind it, or a message (or thread) that names one. A message that asked nothing of the
     // records is a chat: search found nothing for it and it has no number, so "a 1:1 gear" in an explanation is not a
     // stat, and dropping that reply is exactly what turned a good answer into "I can't chat right now".
-    const records = asksRecords(q, answer, history);
     if (reply && records && reply.unknown?.length) {
       // Logged (the numbers only, never who asked) so a dropped reply can be traced to the number that failed.
       console.info(`[bot] chat dropped: numbers not in the facts: ${reply.unknown.slice(0, 8).join(", ")}`);
@@ -163,6 +180,8 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
         embed: askEmbed(q, answer, null, site, video),
         meta: { step: answer.step, refined: false, sentence: false, chat: true },
         chat: { text: reply.text, ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(q, site) } : {}) },
+        next: askNext(answer),
+        ...(watch.length ? { watch } : {}),
       };
     }
   }
@@ -173,23 +192,34 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
     if (r) { answer = r; refined = r.step === "ai"; }
   }
   // Search found nothing and no chat answered either: one honest line rather than "Sorry — I can't answer that yet"
-  // with the closest matches. Only a short message that isn't a records question reaches here (bot/smallTalk.ts).
-  if (!answer.hits.length && !answer.card && !answer.stat) {
-    // Why no chat: a chat that's wired, configured and still on gave nothing about this one message (a reply with a
-    // number the facts haven't, an empty one, a failure), and saying its AI is unreachable would contradict the answer
-    // it just posted in the same channel. Only a chat that's actually off is reported as off.
-    const reachable = chatting && deps.available() && (await deps.enabled().catch(() => false));
-    const talk = smallTalk(q, reachable);
-    if (talk) return {
-      embed: askEmbed(q, answer, null, site),
-      meta: { step: answer.step, refined, sentence: false, chat: true },
-      chat: { text: talk, by: "scout", page: searchHref(q, site) },
-    };
-  }
+  // with the closest matches. Only a greeting or a working question reaches here (bot/smallTalk.ts).
+  const empty = !answer.hits.length && !answer.card && !answer.stat;
+  // Why no chat: a chat that's wired, configured and still on gave nothing about this one message (a reply with a
+  // number the facts haven't, an empty one, a failure), and saying its AI is unreachable would contradict the answer
+  // it just posted in the same channel. Only a chat that's actually off is reported as off.
+  const talk = empty ? smallTalk(q, chatting && deps.available() && (await deps.enabled().catch(() => false))) : null;
+  // What nothing answered, and that is a question about the records, is a real miss: the site's failed-search queue
+  // gets the phrasing. A records question is one even with no number in it ("who won decode", "how did our alliance do
+  // at austin"), and those count even where the bot answers with its one plain line — the line is not an answer. A build
+  // question's "team" or "match" is about the robot, so it isn't one, and neither is a greeting (recordsMiss); the
+  // question's own words decide, not the thread's, and an answer search gave teaches the queue nothing.
+  if (empty && recordsMiss(q)) deps.miss?.(q, answer, guild);
+  if (talk) return {
+    embed: askEmbed(q, answer, null, site),
+    meta: { step: answer.step, refined, sentence: false, chat: true },
+    chat: { text: talk, by: "scout", page: searchHref(q, site) },
+    next: askNext(answer),
+  };
   const sentence = !chatting && deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
   const video = deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
   const watch = videoLinks(video);
-  return { embed: askEmbed(q, answer, sentence, site, video), meta: { step: answer.step, refined, sentence: !!sentence }, ...(watch[0] ? { content: watch[0].url } : {}) };
+  return {
+    embed: askEmbed(q, answer, sentence, site, video),
+    meta: { step: answer.step, refined, sentence: !!sentence },
+    ...(watch[0] ? { content: watch[0].url } : {}),
+    next: askNext(answer),
+    ...(watch.length ? { watch } : {}),
+  };
 }
 
 /** Whether a message could be about the records at all: search found something for it, or it (or the thread before it)
@@ -198,6 +228,14 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
  *  screenshot's "should I use a 42:15 gear reduction" was refused as a record claim only because it had digits in it. */
 const asksRecords = (q: string, a: SearchAnswer, history: BrunoChatTurn[]) =>
   RECORD_NUMBER.test(q) || history.some((t) => RECORD_NUMBER.test(t.text)) || !!(a.hits.length || a.card || a.stat);
+
+/** The words that make an unanswered message a question about the records even with no number in it. Filing only: the
+ *  reply is unchanged, and a greeting or a build question has none of these. */
+const RECORD_WORDS = /\b(?:teams?|alliances?|partners?|events?|matches?|quals?|qualifiers?|playoffs?|oprs?|ranks?|rankings?|scores?|records?|won|wins?|lost|losses?|tied?|seasons?|worlds|championships?|divisions?|awards?|schedules?|standings?)\b/i;
+
+/** Whether an unanswered message is a question about the records, and so belongs in the site's failed-search queue: a
+ *  record number in it, or a records word — and not a build question, whose "team" or "match" is about the robot. */
+const recordsMiss = (q: string) => !WORKING.test(q) && (RECORD_NUMBER.test(q) || RECORD_WORDS.test(q));
 
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
  *  second place?" has the records it's about), then his reply. */
@@ -271,7 +309,8 @@ const statLink = (l: StatLink, site: string) => link(l.label, l.href, site);
 /** A team StatLink ("4215", "4215 Hypnotic Robotics") linked to its page. */
 const teams = (ls: StatLink[] | undefined, site: string) => (ls ?? []).map((l) => statLink(l, site)).join(" & ");
 const more = (n: number) => (n > 0 ? [`…and ${n} more on the website`] : []);
-/** "/ask question:" text a reader copies to ask it (no buttons in v1). */
+/** "/ask question:" text for an answer's own related list. The card's own suggestions are buttons instead
+ *  (bot/buttons.ts): this is the one place search's own suggestions are read as text. */
 const askable = (q: string) => `\`/ask question: ${q.replace(/`/g, "'")}\``;
 export const searchHref = (q: string, site: string) => `${site}/search?q=${encodeURIComponent(q)}`;
 
@@ -358,11 +397,9 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
   const cant = !!a.sorry || (a.step === "recovery" && !a.card && !a.stat);
   if (cant) {
     const understood = a.sorry?.understood ?? a.recovery?.understood ?? [];
-    const tries = [...(a.sorry?.suggest ?? []), ...(a.suggest ?? [])].filter((x, i, all) => all.indexOf(x) === i).slice(0, 3);
     const lines = [
       understood.length ? `I read it as: ${understood.map(md).join(" · ")}` : null,
       a.recovery?.ai?.refined ? `Bruno AI read it as: **${md(a.recovery.ai.refined)}**` : null,
-      ...(tries.length ? ["**Questions that work:**", ...tries.map(askable)] : []),
       ...(a.recovery?.closest?.length ? ["**Closest matches:**", ...a.recovery.closest.slice(0, HITS).map((h) => hitLine(h, site))] : []),
       (a.recovery?.browse ?? []).map((b) => link(b.title, b.href, site)).join(" · ") || null,
     ].filter((x): x is string => !!x);
@@ -395,9 +432,7 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
   // The videos, as the website plays them: watched on YouTube.
   const vids = videoLinks(video);
   if (vids.length) lines.push(`▶ Watch: ${vids.map((v) => `[${md(v.label)}](${v.url})`).join(" · ")}`);
-  // What to ask next, as the website offers it (the answer's related questions, else search's own suggestions).
-  const next = nextQuestions(a);
-  if (next.length) lines.push(`**Ask next:** ${next.map(askable).join(" · ")}`);
+  // What to ask next is not text here: the answer's buttons carry it (bot/buttons.ts, askNext below).
   // The link stays: lines are cut from the bottom of the answer, never the link to the whole of it.
   const body = fitLines(lines, DESCRIPTION_MAX - close.length - 1, READ_MAX);
   return { author: asked(q), title: title.length > 256 ? `${title.slice(0, 255)}…` : title, url: page, description: `${body ? `${body}\n` : ""}${close}`, color: VOLT, footer };
@@ -409,8 +444,13 @@ export const asked = (q: string) => {
   return { name: t.length > 256 ? `${t.slice(0, 255)}…` : t };
 };
 
-/** Up to 2 questions to ask next: the answer's related questions, else search's suggestions. */
-function nextQuestions(a: SearchAnswer): string[] {
+/**
+ * The questions the answer offers as buttons (bot/buttons.ts): up to 3 that work for a question it couldn't answer
+ * (search's own suggestions), else up to 2 of the answer's related questions. Deduplicated, in the site's order.
+ */
+export function askNext(a: SearchAnswer): string[] {
+  const cant = !!a.sorry || (a.step === "recovery" && !a.card && !a.stat);
   const related = a.stat?.blocks.flatMap((b) => (b.kind === "related" ? b.queries : [])) ?? [];
-  return [...related, ...(a.suggest ?? [])].filter((x, i, all) => x && all.indexOf(x) === i).slice(0, 2);
+  const all = cant ? [...(a.sorry?.suggest ?? []), ...(a.suggest ?? []), ...related] : [...related, ...(a.suggest ?? [])];
+  return all.filter((x, i, l): x is string => !!x && l.indexOf(x) === i).slice(0, cant ? 3 : 2);
 }

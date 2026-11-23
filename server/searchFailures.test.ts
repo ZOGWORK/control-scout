@@ -12,7 +12,8 @@ import { resetReportLimits, setGithubFetch } from "./errorReports";
 import { setFlag } from "./flags";
 import { searchAnswer } from "./api/searchAnswer";
 import {
-  counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteSearch, outcomeTrace, recheck, redact, reportKey,
+  counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteBotSearch, noteSearch, outcomeTrace, recheck, redact, reportKey,
+  PER_IP_HOUR,
   NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_KEEP, mergeMissed, patternFor } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
 import { FALLBACK_NOTE } from "./api/searchLayers";
@@ -333,6 +334,21 @@ describe("settling (the dropdown searches while typing)", () => {
     clock += 1500; noteSearch("where is 4215 from", answered("where is 4215 from"), ip, null, clock);
     clock += SETTLE_MS; settle(clock);
     expect(await flushSearchFailures(clock)).toBe(0);
+  });
+  it("a Discord server's questions never settle each other out or spend a visitor's hourly cap (bot/ask.ts)", async () => {
+    // Two unrelated questions in one second from one server: as a visitor's they would be one typing run, the second
+    // superseding the first.
+    for (const q of ["how did our alliance do at austin", "what was our auto opr last event"]) noteBotSearch(q, noMatch(q), "discord:g1", null, clock);
+    // And more than a visitor's hour allows: every one still reaches the queue.
+    for (let i = 0; i < PER_IP_HOUR + 5; i++) {
+      const q = `which match ${900 + i} mattered at austin`;
+      noteBotSearch(q, noMatch(q), "discord:g1", null, clock);
+    }
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    const list = await rows();
+    expect(list).toHaveLength(PER_IP_HOUR + 7);
+    expect(list.reduce((n, r) => n + r.count, 0)).toBe(PER_IP_HOUR + 7);
   });
 });
 

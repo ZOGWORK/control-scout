@@ -7,7 +7,7 @@
 //   DISCORD_BOT_TOKEN      required (bot/README.md: developer portal → Bot → Reset Token)
 //   DISCORD_DEV_GUILD_ID   optional: register the commands in that one server (instant) instead of globally
 import "../server/env.js";
-import { Client, Events, GatewayIntentBits, REST, Routes, type APIApplicationCommand } from "discord.js";
+import { Client, Events, GatewayIntentBits, Partials, REST, Routes, type APIApplicationCommand } from "discord.js";
 import { env } from "../server/env.js";
 import { configure, db, get } from "../server/db.js";
 import { CURRENT_SEASON } from "../server/data/seasons.js";
@@ -17,6 +17,9 @@ import { createHandler, realLookups } from "./handler.js";
 import { notifyTick, type Send } from "./follows.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
+import { rememberGuild } from "./guilds.js";
+import { BAD, GOOD, vote } from "./reactions.js";
+import { flushSearchFailures } from "../server/searchFailures.js";
 import { site } from "./lookups.js";
 import { configEmbed, configLines, type Config } from "./config.js";
 import { chatSetup } from "./chatState.js";
@@ -96,8 +99,14 @@ async function waitForSite(timeoutMs = 180_000): Promise<void> {
 }
 
 // GuildMessages (not privileged) for "@Control Scout …": Discord sends the text only of messages that mention the
-// bot, so without the privileged Message Content intent it never reads anything else.
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+// bot, so without the privileged Message Content intent it never reads anything else. GuildMessageReactions and
+// DirectMessageReactions (not privileged either) are what deliver a 👍/👎 on an answer (bot/reactions.ts): without them
+// the bot would add the emoji and never hear the click. Partials: a vote on an answer from before the bot's last restart
+// still arrives (its message, channel and reaction may not be cached).
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessageReactions],
+  partials: [Partials.Message, Partials.Reaction, Partials.Channel],
+});
 // /config answers with the same summary the startup log prints (bot/config.ts), read live rather than from startup.
 const handle = createHandler(log, { ...realLookups, config: async (guild) => configEmbed(await configHere(guild)) });
 
@@ -123,6 +132,9 @@ client.once(Events.ClientReady, (c) => {
   self.tag = c.user.tag;
   self.servers = c.guilds.cache.size;
   log(`ready as ${c.user.tag} in ${c.guilds.cache.size} server${c.guilds.cache.size === 1 ? "" : "s"}`);
+  // The names Discord shows, for the owner console (bot/guilds.ts): existing servers get theirs on the first connection
+  // after this ships, and a rename or a new server keeps it current.
+  for (const g of c.guilds.cache.values()) void rememberGuild(g.id, g.name).catch(() => {});
   void registerUntilDone(c.application.id);
   // Warm the season's ratings so the first /predict doesn't wait for them.
   liveForecaster(CURRENT_SEASON).then(() => log("ratings ready")).catch((e) => log(`ratings not ready: ${(e as Error).message}`));
@@ -169,10 +181,29 @@ setInterval(() => {
 }, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
 client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m as never, client.user.id); });
+/** A 👍/👎 on one of the bot's answers, counted (bot/reactions.ts): never who clicked, and only messages it posted have
+ *  a row, so a reaction anywhere else changes nothing. */
+const voted = (delta: 1 | -1) => (reaction: { emoji: { name: string | null }; message: { id: string } }, user: { bot?: boolean }) => {
+  if (user.bot) return;
+  const emoji = reaction.emoji.name;
+  if (emoji !== GOOD && emoji !== BAD) return;
+  void vote(reaction.message.id, emoji, delta).catch(() => {});
+};
+client.on(Events.MessageReactionAdd, (r, u) => voted(1)(r as never, u as never));
+client.on(Events.MessageReactionRemove, (r, u) => voted(-1)(r as never, u as never));
+// The site's failed-search queue counts Discord's own misses too (bot/ask.ts): the buffer is in this process, so the bot
+// flushes it as the site does, every minute.
+setInterval(() => {
+  flushSearchFailures()
+    .then((n) => { if (n) log(`search-failures: counted ${n}`); })
+    .catch((e) => log(`search-failures: flush failed: ${(e as Error).message}`));
+}, 60_000).unref();
 client.on(Events.GuildCreate, (g) => {
   self.servers = client.guilds.cache.size;
   log(`added to a server (${self.servers} now): ${g.id}`);
+  void rememberGuild(g.id, g.name).catch(() => {});
 });
+client.on(Events.GuildUpdate, (_old, g) => { void rememberGuild(g.id, g.name).catch(() => {}); });
 client.on(Events.GuildDelete, (g) => {
   self.servers = client.guilds.cache.size;
   log(`removed from a server (${self.servers} now): ${g.id}`);
