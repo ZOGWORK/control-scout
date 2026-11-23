@@ -1,10 +1,11 @@
 // /ask: the website's search answer as one embed, Bruno only where the site would use him, credited only then.
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
-import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, chatPost, fitLines, videoLinks, type AskDeps } from "./ask";
+import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, chatContext, chatPost, fitLines, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 import { SORRY_SENTENCE } from "../src/shared/search";
 import { NO_CHAT, NO_REPLY } from "./smallTalk";
+import { brunoMethod, brunoPersona } from "./productFacts";
 
 const SITE = "https://controlscout.org";
 const hit = (n: number, extra: Partial<SearchHit> = {}): SearchHit => ({ kind: "team", ref: String(n), title: `${n} | Team ${n}`, subtitle: "Oradell, NJ", season: 2025, ...extra });
@@ -20,6 +21,19 @@ function deps(answer: SearchAnswer, over: Partial<AskDeps> = {}): AskDeps {
     ...over,
   };
 }
+
+describe("what goes to the chat", () => {
+  it("sends who he is and how to work a question out with every chat", () => {
+    const sent = chatContext(["4215 OPR was 42.1."], ["This server asks about 4215 most."]);
+    expect(sent).toContain(brunoPersona());
+    expect(sent).toContain(brunoMethod());
+    expect(sent).toContain("4215 OPR was 42.1.");
+    expect(sent).toContain("This server asks about 4215 most.");
+    // Product knowledge and the answer's shape still go, after the persona and method.
+    expect(sent.indexOf(brunoPersona())).toBeLessThan(sent.indexOf(brunoMethod()));
+    expect(sent.join(" ")).toMatch(/remodel is complete/);
+  });
+});
 
 describe("the embed, step by step", () => {
   it("deterministic: the results as linked lines, a link to the same answer on the website, no credit", () => {

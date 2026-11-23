@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.1 — 2026-11-22
+
+Discord chat caps are built but off: no server is capped until the owner gives it one, and Bruno answers with more reasoning — and knows he is a golden retriever.
+
+### Highlights
+- [alerts] No server is capped unless the owner gives it a cap
+- [alerts] The owner console sets or clears one server's cap
+- [alerts] Bruno thinks the question through before he answers
+- [alerts] And he knows he's a golden retriever at heart
+
+### Discord bot
+- `bot/quota.ts`'s default is no cap in either window (`DEFAULT_LIMIT`), so a server with no row of its own is never refused and nothing is counted for it. The feature is unchanged where it is used: the owner console, or `setGuildLimit`, gives one server a cap in chats per UTC hour and day, a zero or null there is no cap for that window, and `clearGuildLimit` deletes the row so the server is uncapped again. Either write still deletes that server's usage, so its counters start with its cap; at a cap, `/ask` and a mention say when it resets while the site and follow posts keep working.
+- The owner console's Discord bot panel shows `No cap` for a server without one (and its description says no server is capped by default), Back to default is now the cap being taken away, and `/config` reads `chat limit none (the default: no cap)` until one is set. (`src/components/owner/DiscordPanel.tsx`, `bot/config.ts`, `server/portal/discordLimits.ts`)
+- `bot/productFacts.ts` gains `brunoPersona()`: Bruno is Control Scout's Discord bot and in spirit a golden retriever — friendly, loyal, eager to help, a little goofy, never pushy — with a light touch rather than a self-introduction, and software rather than a real dog or a person. `brunoMethod()` asks him to work out what is really being asked (a follow-up uses the thread and the channel's teams), pick the fact that answers it, show a calculation's steps briefly, and say what's missing rather than guess. `bot/ask.ts` sends both with every chat, inside Control Point's 400-character fact cap.
+- `bot/quota.test.ts` covers the uncapped default, a set cap and its counting, a row replacing it, clearing back to no cap, counters starting with the cap, both windows and per-server isolation; `server/portal/discordLimits.test.ts` covers the panel's no-cap default and clearing a cap; `bot/config.test.ts` covers the new `/config` wording, and `bot/productFacts.test.ts` and `bot/ask.test.ts` the persona and method lines. (#2182)
+
 ## 7.9.0 — 2026-11-22
 
 Every Discord server now has a chat cap — 30 an hour, 100 a day — which the owner console sets or clears one server at a time; /config shows the limit the server it was asked in has, and a server that removes the bot has its data deleted.

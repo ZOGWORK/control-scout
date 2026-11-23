@@ -93,10 +93,10 @@ describe("the startup summary", () => {
   it("shows the asking server's chat limit after the chat line, saying whether it is the default or that server's own", () => {
     // The startup block has no server to ask about, so it keeps its nine lines.
     expect(all()).toHaveLength(9);
-    const lines = all({ limit: { perHour: 30, perDay: 100, custom: false } });
+    const lines = all({ limit: { perHour: null, perDay: null, custom: false } });
     expect(lines).toHaveLength(10);
     expect(lines[5]).toContain("chat on");
-    expect(lines[6]).toBe("config: chat limit 30 an hour, 100 a day (the default for every server)");
+    expect(lines[6]).toBe("config: chat limit none (the default: no cap)");
     expect(lines[7]).toContain("report filing");
     expect(all({ limit: { perHour: 60, perDay: 200, custom: true } })[6]).toBe(
       "config: chat limit 60 an hour, 200 a day (set for this server)",
@@ -162,7 +162,7 @@ describe("the startup summary", () => {
     const c = {
       release: SHA, bot: { tag: "Control Scout#1234", servers: 2 }, season: 2025, sitePort: 3000,
       commands: { guild: null }, chat: { on: true as const },
-      limit: { perHour: 30, perDay: 100, custom: false as const },
+      limit: { perHour: null, perDay: null, custom: false as const },
       follows: { follows: 3, servers: 2 }, discord: { since: CONNECTED_AT, last: CONNECTED_AT },
     };
     const embed = configEmbed(c);
@@ -173,7 +173,7 @@ describe("the startup summary", () => {
     expect(lines[1]).toBe("• bot Control Scout#1234 in 2 servers");
     expect(lines[2]).toContain("season 2025");
     expect(lines[4]).toContain("slash commands globally");
-    expect(lines[6]).toBe("• chat limit 30 an hour, 100 a day (the default for every server)");
+    expect(lines[6]).toBe("• chat limit none (the default: no cap)");
     expect(lines[8]).toContain("3 follows in 2 servers");
     expect(String(embed.description)).not.toContain("config:");
     expect(String(embed.description)).not.toContain("ghp-report-token");

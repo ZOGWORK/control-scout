@@ -8,7 +8,7 @@ export interface OwnerDiscordServer {
   /** Its cap: a positive count an hour and a day, or null for no cap in that window. */
   perHour: number | null;
   perDay: number | null;
-  /** False: the default every server has. True: the server's own row replaced it. */
+  /** False: the default, which is no cap. True: the server has a row of its own. */
   custom: boolean;
   /** Chats counted in the current UTC hour and day (bot/quota.ts). */
   usedHour: number;
@@ -25,6 +25,6 @@ export interface OwnerDiscordServer {
 /** GET /api/owner/discord/limits: what the Discord bot panel shows. */
 export interface OwnerDiscordLimits {
   servers: OwnerDiscordServer[];
-  /** What a server without a row of its own gets: 30 an hour, 100 a day. */
-  defaultLimit: { perHour: number; perDay: number };
+  /** What a server without a row of its own gets: no cap in either window. */
+  defaultLimit: { perHour: number | null; perDay: number | null };
 }

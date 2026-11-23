@@ -5,10 +5,10 @@
 //   PUT    /api/owner/discord/limits/:guild  {perHour, perDay} → OwnerDiscordLimits
 //   DELETE /api/owner/discord/limits/:guild  → OwnerDiscordLimits (back to the default)
 //
-// A server's row replaces both of the default's windows, so a null there is no cap for that window — how a big event
-// server is exempted — and clearing the row is the way back to the default. Either write starts that server's counters
-// afresh (bot/quota.ts), so a server given 20 an hour after 30 chats under the default isn't refused at once. Every
-// change is in the audit log with the cap it replaced.
+// No server is capped by default: a cap exists only where it was set here (or by setGuildLimit). A server's row replaces
+// both windows, so a null there is no cap for that window, and clearing the row takes its cap away again. Either write
+// starts that server's counters afresh (bot/quota.ts), so a server given 20 an hour after 30 chats under an older cap
+// isn't refused at once. Every change is in the audit log with the cap it replaced.
 import type { Request, Response, Router } from "express";
 import { all } from "../db.js";
 import { DEFAULT_LIMIT, chatWindows, clearGuildLimit, guildLimit, setGuildLimit } from "../../bot/quota.js";
@@ -101,12 +101,12 @@ export function discordLimitOwnerRoutes(r: Router, h: (fn: Handler) => (req: Req
     return ownerDiscordLimits();
   }));
 
-  // Back to the default cap every server has: delete the server's own row.
+  // Take the cap away: delete the server's own row (the default it returns to is no cap).
   r.delete("/discord/limits/:guild", h(async (req, res) => {
     const guild = guildOf(req);
     if (!guild) { res.status(404).json({ error: "Not a Discord server id" }); return; }
     const was = await guildLimit(guild);
-    if (!was.custom) { res.status(409).json({ error: "That server already has the default cap" }); return; }
+    if (!was.custom) { res.status(409).json({ error: "That server has no cap of its own" }); return; }
     await clearGuildLimit(guild);
     await recordAudit(actor(req), "discord.limit", { guild, clear: true }, null,
       { from: { perHour: was.perHour, perDay: was.perDay, custom: true }, to: { ...DEFAULT_LIMIT, custom: false } });
