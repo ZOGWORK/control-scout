@@ -758,6 +758,19 @@ describe("error reports follow their issue", () => {
     expect(await syncErrorIssues()).toBe(1);
   });
 
+  it("an error that comes back after it was cleared stays on the list, though its issue closed while it was cleared", async () => {
+    await addError("aaaaaaaa", 104);
+    delete process.env.GITHUB_REPORT_TOKEN;
+    await resolveErrorReport("aaaaaaaa", true);
+    process.env.GITHUB_REPORT_TOKEN = TOKEN;
+    issues[0].state = "CLOSED"; // closedAt 2026-11-22T15:08:53Z in the fake
+    const sample = { message: "Boom", stack: "", route: "/", appVersion: "1", userAgent: "x" };
+    await run("UPDATE error_reports SET fingerprint = ?", [fingerprintOf(sample)]);
+    await storeReport(sample as never, new Date("2026-11-22T16:00:00Z"));
+    expect(await syncErrorIssues()).toBe(0);
+    expect((await listErrorReports())[0].resolvedAt).toBeNull();
+  });
+
   it("Clear closes the open issue on GitHub; Clear on one never filed just clears it; a new occurrence brings it back", async () => {
     await addError("aaaaaaaa", 104);
     await addError("bbbbbbbb", null);

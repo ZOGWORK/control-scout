@@ -105,7 +105,8 @@ export async function storeReport(r: ErrorReport, now = new Date()): Promise<{ f
   const at = now.toISOString();
   const row = await get<{ count: number }>(
     `INSERT INTO error_reports (fingerprint, message, count, first_seen, last_seen, sample) VALUES (?, ?, 1, ?, ?, ?)
-     ON CONFLICT (fingerprint) DO UPDATE SET count = count + 1, last_seen = excluded.last_seen, sample = excluded.sample, resolved_at = NULL
+     ON CONFLICT (fingerprint) DO UPDATE SET count = count + 1, last_seen = excluded.last_seen, sample = excluded.sample, resolved_at = NULL,
+       reopened_at = CASE WHEN error_reports.resolved_at IS NOT NULL THEN excluded.last_seen ELSE error_reports.reopened_at END
      RETURNING count`,
     [fingerprint, r.message, at, at, JSON.stringify(r)],
   );
@@ -438,24 +439,32 @@ export function closerOf(c: Closer): { label: string; url: string } | null {
 
 /**
  * The state of each issue, one GraphQL request per 50 numbers (state, why it closed, when, and the closing PR or
- * commit). An issue GitHub doesn't find is left out of the answer. Throws on a GitHub error (a GithubError with
- * retryAt when rate limited).
+ * commit). An issue GitHub doesn't find is left out of the answer. A batch that fails stops the rest: what the earlier
+ * batches found is still answered, with the error as `failed` (the caller uses the answers, then reports it). Throws
+ * when the first batch fails (a GithubError with retryAt when rate limited).
  */
-export async function issueStates(token: string, numbers: number[]): Promise<Map<number, IssueState>> {
-  const out = new Map<number, IssueState>();
+export async function issueStates(token: string, numbers: number[]): Promise<Map<number, IssueState> & { failed?: unknown }> {
+  const out: Map<number, IssueState> & { failed?: unknown } = new Map<number, IssueState>();
   const wanted = [...new Set(numbers.filter((n) => Number.isInteger(n) && n > 0))];
   const [owner, name] = GITHUB_REPO.split("/");
   const fields = "number state stateReason closedAt timelineItems(itemTypes: CLOSED_EVENT, last: 1) { nodes { ... on ClosedEvent { closer { __typename ... on PullRequest { number url } ... on Commit { url abbreviatedOid } } } } }";
   for (let i = 0; i < wanted.length; i += ISSUE_BATCH) {
     const batch = wanted.slice(i, i + ISSUE_BATCH);
     const query = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${batch.map((n) => `i${n}: issue(number: ${n}) { ${fields} }`).join(" ")} } }`;
-    const answer = await gh<{ data?: { repository?: Record<string, IssueNode | null> | null }; errors?: { type?: string; path?: unknown[] }[] }>(
-      token, "POST", "/graphql", { query, variables: { owner, name } });
-    const repo = answer.data?.repository;
-    if (!repo) throw new Error("GitHub didn't answer for the repository");
-    // GraphQL answers 200 with an errors list: only "not found" on one issue means it's gone; anything else is a failure.
-    const other = (answer.errors ?? []).find((e) => e.type !== "NOT_FOUND");
-    if (other) throw new Error(`GitHub answered with an error${other.type ? ` (${other.type})` : ""}`);
+    let repo: Record<string, IssueNode | null>;
+    try {
+      const answer = await gh<{ data?: { repository?: Record<string, IssueNode | null> | null }; errors?: { type?: string; path?: unknown[] }[] }>(
+        token, "POST", "/graphql", { query, variables: { owner, name } });
+      if (!answer.data?.repository) throw new Error("GitHub didn't answer for the repository");
+      // GraphQL answers 200 with an errors list: only "not found" on one issue means it's gone; anything else is a failure.
+      const other = (answer.errors ?? []).find((e) => e.type !== "NOT_FOUND");
+      if (other) throw new Error(`GitHub answered with an error${other.type ? ` (${other.type})` : ""}`);
+      repo = answer.data.repository;
+    } catch (e) {
+      if (i === 0) throw e;
+      out.failed = e;
+      return out;
+    }
     for (const n of batch) {
       const issue = repo[`i${n}`];
       if (!issue) continue;
@@ -493,10 +502,12 @@ export async function syncErrorIssues(now = Date.now()): Promise<number> {
     // Put back on the list after GitHub closed it: the owner's call stands until the issue is closed again.
     if (r.reopened_at && closedAt <= r.reopened_at) continue;
     const done = await get(
-      "UPDATE error_reports SET resolved_at = ?, issue_state = ? WHERE fingerprint = ? AND issue_number = ? AND resolved_at IS NULL AND issue_state = 'open' RETURNING fingerprint",
-      [closedAt, s.state === "not_planned" ? "not_planned" : "closed", r.fingerprint, r.issue_number]);
+      `UPDATE error_reports SET resolved_at = ?, issue_state = ? WHERE fingerprint = ? AND issue_number = ? AND resolved_at IS NULL
+         AND issue_state = 'open' AND reopened_at IS ? RETURNING fingerprint`,
+      [closedAt, s.state === "not_planned" ? "not_planned" : "closed", r.fingerprint, r.issue_number, r.reopened_at]);
     if (done) cleared++;
   }
+  if (states.failed) throw states.failed;
   return cleared;
 }
 
