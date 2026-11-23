@@ -199,16 +199,21 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
       // Logged (the numbers only, never who asked) so a dropped reply can be traced to the number that failed.
       console.info(`[bot] chat dropped: numbers not in the facts: ${reply.unknown.slice(0, 8).join(", ")}`);
     } else if (reply && talked) {
-      // The records beside his words: the part of a multi-part message that search answered whose card is the page's
-      // own board, else the message's answer. His text keeps its shape; the embed is what the same question gives on
-      // controlscout.org/search, with its video and its own "ask next" buttons.
-      const shown = talked.card ?? answer;
+      // The records beside his words: the part of a multi-part message whose answer search could read (its card or its
+      // stats), else the message's answer. A part's answer with nothing to show never replaces the message's — its link
+      // and buttons would point at a question search couldn't answer. His text keeps its shape; the embed is what the
+      // same question gives on controlscout.org/search, with its video and its own "ask next" buttons, and the footer
+      // link goes to the same answer rather than the whole message search.
+      const part = talked.card && showsRecords(talked.card) ? talked.card : undefined;
+      const shown = part ?? answer;
+      const pageQ = part ? part.q : q;
+      const keep = reply.search && showsRecords(shown);
       const video = reply.search && deps.video ? await deps.video(shown).catch(() => undefined) : undefined;
       const watch = videoLinks(video);
       return {
-        embed: askEmbed(q, shown, null, site, video, shown === answer ? q : shown.q),
+        embed: askEmbed(q, shown, null, site, video, pageQ),
         meta: { step: answer.step, refined: false, sentence: false, chat: true },
-        chat: { text: reply.text, ...(showsRecords(shown) ? { card: true } : {}), ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(q, site) } : {}) },
+        chat: { text: reply.text, ...(keep ? { card: true } : {}), ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(pageQ, site) } : {}) },
         next: askNext(shown),
         ...(watch.length ? { watch } : {}),
       };

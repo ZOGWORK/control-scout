@@ -148,6 +148,8 @@ export async function lookupFacts(parts: string[], deps: {
   const share = Math.max(1, Math.ceil(LOOKUP_LINES / lines.length));
   for (const ls of lines) take(ls, share);
   for (const ls of lines) take(ls, Number.POSITIVE_INFINITY);
-  const answer = answers.find((a): a is SearchAnswer => !!a && !!(a.card || a.stat || a.hits.length));
-  return { facts: out, ...(answer ? { answer } : {}) };
+  // The part whose answer has something to show: a card or a stat first, then results that aren't search's sorry.
+  const shown = answers.find((a): a is SearchAnswer => !!a && !!(a.card || a.stat))
+    ?? answers.find((a): a is SearchAnswer => !!a && !a.sorry && !(a.step === "recovery" && !a.card && !a.stat) && !!a.hits.length);
+  return { facts: out, ...(shown ? { answer: shown } : {}) };
 }

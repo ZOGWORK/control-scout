@@ -262,7 +262,27 @@ describe("a chat with Bruno", () => {
     expect(r.chat?.text).not.toMatch(/Top teams by OPR/);
     expect(r.embed.title).toBe("Top teams by OPR");
     expect(r.embed.description).toContain(`${SITE}/search?q=what%20is%20the%20best%20team`);
+    // The footer under his text links to the same answer, not to the whole message search nothing can read.
+    expect(r.chat?.page).toBe(`${SITE}/search?q=what%20is%20the%20best%20team`);
     expect(r.next).toEqual([]);
+  });
+
+  it("a part whose answer has nothing to show never replaces the message's card and links", async () => {
+    const q = "what is the best team and who won decode";
+    const sorry = base({ q: "who won decode", hits: [], step: "recovery", sorry: { understood: [], suggest: [] } });
+    const d = chatDeps({ text: "23268 is top.", search: true }, { lookups: vi.fn(async () => ({ facts: [], answer: sorry })) });
+    const r = await ask(q, d, SITE);
+    expect(r.embed.title).toBe("4215 | Team 4215");
+    expect(r.chat?.card).toBe(true);
+    expect(r.chat?.page).toBe(`${SITE}/search?q=${encodeURIComponent(q)}`);
+  });
+
+  it("a conversational reply posts no records card, even when search found some", async () => {
+    // His words are an explanation, not a records answer: the card search incidentally has doesn't ride along with it.
+    const r = await ask("explain a swerve", chatDeps({ text: "**A coaxial swerve keeps both motors on one axis.**", search: false }), SITE);
+    expect(r.chat).toEqual({ text: "**A coaxial swerve keeps both motors on one axis.**" });
+    expect(r.chat?.card).toBeUndefined();
+    expect(r.chat?.page).toBeUndefined();
   });
 
   it("a records answer: its video, its card and its page go with his reply", async () => {

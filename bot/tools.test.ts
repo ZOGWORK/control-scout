@@ -97,6 +97,13 @@ describe("the facts of the parts", () => {
     expect(none).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps the part whose answer has something to show, not the first one with a hit", async () => {
+    const weak = answer("weak", { step: "recovery", hits: [{ kind: "team", ref: "1" } as never], sorry: { understood: [], suggest: [] } });
+    const board = answer("board", { card: { kind: "high-scores", title: "Board", lines: [] } });
+    const facts = await lookupFacts(["weak", "board"], { search: async (q) => (q === "weak" ? weak : board), facts: async () => [] });
+    expect(facts.answer?.q).toBe("board");
+  });
+
   it("keeps the site's own answer to the first part search answered, for the card beside his words", async () => {
     const card = { kind: "leaderboard", title: "Top teams by OPR", lines: [] } as const;
     const facts = await lookupFacts(["what is the best team", "what is the auto opr"], {
