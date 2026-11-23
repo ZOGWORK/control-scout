@@ -140,6 +140,8 @@ export type Candidate = { q: string; short: string; family: Family; chip?: boole
 
 /** The team an answer is about when the query named none ("who won inspire at …": the winner). */
 function answerTeam(a: SearchAnswer): number | undefined {
+  // A filtered list ("teams from texas with opr over 50") answers with many teams: its first row is no team it's about.
+  if (a.intent?.kind.startsWith("stat-compound-list")) return undefined;
   // A leaderboard's team is its first row, the headline's link.
   const led = /^\/teams\/(\d+)(?:[?#]|$)/.exec(a.stat?.headline?.href ?? "");
   // One award asked about ("Innovate award at …"): its winner, never the first of the event's other awards.
@@ -182,7 +184,9 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
   const [award1, ...awards] = event ? AWARDS.filter((x) => x !== s.award).flatMap((award) => fill([AWARD_AT], { ...s, award })) : [];
   const out = [
     ...(s.u != null ? fill(TWO, s) : []),
-    ...(p.intent === "leaderboard" ? fill(LEADERS, s) : []),
+    // A board's neighbours; a filtered list's too ("teams from texas with opr over 50": the place's boards, best auto
+    // opr in Texas …), so its related searches are about the place it asked about, never one team in the list.
+    ...(p.intent === "leaderboard" || a.intent?.kind.startsWith("stat-compound-list") ? fill(LEADERS, s) : []),
     ...(event ? fill(EVENT, s) : []),
     ...(award1 ? [award1] : []),
     ...(s.place ? fill(PLACE, s) : []),
