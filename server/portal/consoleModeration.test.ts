@@ -129,6 +129,31 @@ describe("triage", () => {
     expect((await all("SELECT COUNT(*) n FROM matches"))[0]).toEqual(matchesBefore);
   });
 
+  it("never brings an archived message back: triaging it keeps it archived", async () => {
+    const id = await add("bug");
+    expect((await call("PATCH", `/api/owner/feedback/${id}`, { cookie: ownerCookie, body: { status: "archived" } })).status).toBe(200);
+    const r = await call("PATCH", `/api/owner/feedback/${id}/triage`, { cookie: ownerCookie, body: { triage: "fixed" } });
+    expect(r.json.message).toMatchObject({ triage: "fixed", status: "archived" });
+  });
+
+  it("clears an error report: off the overview's count, back with a new occurrence of it", async () => {
+    await run("DELETE FROM error_reports");
+    await run(`INSERT INTO error_reports (fingerprint, message, count, first_seen, last_seen, sample) VALUES ('abcdef12', 'Boom', 1, ?, ?, '{}')`, [new Date().toISOString(), new Date().toISOString()]);
+    const count = async () => (await call("GET", "/api/owner/overview", { cookie: ownerCookie })).json.inbox.errorReports;
+    expect(await count()).toBe(1);
+    let r = await call("PATCH", "/api/owner/errors/abcdef12", { cookie: ownerCookie, body: { resolved: true } });
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({ issueClosed: false, report: { fingerprint: "abcdef12" } });
+    expect(r.json.report.resolvedAt).toBeTruthy();
+    expect(await count()).toBe(0);
+    expect((await call("PATCH", "/api/owner/errors/abcdef12", { cookie: ownerCookie, body: { resolved: "yes" } })).status).toBe(400);
+    expect((await call("PATCH", "/api/owner/errors/00000000", { cookie: ownerCookie, body: { resolved: true } })).status).toBe(404);
+    expect((await call("PATCH", "/api/owner/errors/abcdef12", { body: { resolved: false } })).status).not.toBe(200);
+    r = await call("PATCH", "/api/owner/errors/abcdef12", { cookie: ownerCookie, body: { resolved: false } });
+    expect(r.json.report.resolvedAt).toBeNull();
+    expect(await count()).toBe(1);
+  });
+
   it("refuses moves it doesn't allow, unknown values and messages, and topics that aren't triaged, writing nothing", async () => {
     const bug = await add("bug");
     const other = await add("other");

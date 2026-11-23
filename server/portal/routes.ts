@@ -7,7 +7,8 @@ import express, { type NextFunction, type Request, type Response, type Router } 
 import { topIntents } from "../api/searchIntents.js";
 import { ownerOf } from "../owner.js";
 import type { User } from "../auth/session.js";
-import { listErrorReports, OWNER_NOTE_MAX, setErrorNote } from "../errorReports.js";
+import { listErrorReports, OWNER_NOTE_MAX, resolveErrorReport, setErrorNote } from "../errorReports.js";
+import { freshIssueStates } from "../bugReports.js";
 import { abuseSummary, flushAbuse } from "../moderation.js";
 import { publishUsageSetting, setPublishUsage } from "../ownerSettings.js";
 import { ownerWash, resetWash, setWash } from "../wash.js";
@@ -153,7 +154,22 @@ export function ownerRouter(): Router {
     return { message: out.message };
   }));
 
-  r.get("/errors", h(async (req) => ({ reports: await listErrorReports(num(req.query.limit, 50, 1, 200)) })));
+  r.get("/errors", h(async (req) => {
+    // Follows GitHub: an issue closed since the last check clears its report now (at most one check a minute).
+    await freshIssueStates();
+    return { reports: await listErrorReports(num(req.query.limit, 50, 1, 200)) };
+  }));
+  // Clear an error report (or open it again). Clearing one with an open issue closes the issue on GitHub too.
+  r.patch("/errors/:fingerprint", h(async (req, res) => {
+    const fp = String(req.params.fingerprint);
+    if (!/^[0-9a-f]{8,64}$/.test(fp)) { res.status(404).json({ error: "No such report" }); return; }
+    const resolved = req.body?.resolved;
+    if (typeof resolved !== "boolean") { res.status(400).json({ error: 'Send {"resolved": true} or {"resolved": false}' }); return; }
+    const out = await resolveErrorReport(fp, resolved);
+    if (!out) { res.status(404).json({ error: "No such report" }); return; }
+    await recordAudit(actor(req), "error.resolve", { fingerprint: fp, resolved, issueClosed: out.issueClosed });
+    return out;
+  }));
   // The owner's note on an error report (an empty note clears it). Console only: never sent to GitHub.
   r.put("/errors/:fingerprint/note", h(async (req, res) => {
     const fp = String(req.params.fingerprint);

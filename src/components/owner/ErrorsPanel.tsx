@@ -1,8 +1,10 @@
 // Owner console › Feedback & errors: crash reports people chose to send (server/errorReports.ts), each with
 // its GitHub issue and that issue's state, and the owner's own note (console only, never sent to GitHub;
-// every save is in the audit log with the note it replaced).
+// every save is in the audit log with the note it replaced). Clear takes one off the list (and closes its open
+// issue on GitHub); one whose issue was closed on GitHub clears itself. Cleared ones fold away under the list,
+// and come back on their own if the error happens again.
 import { useId, useState } from "react";
-import { Bug, ExternalLink, NotebookPen } from "lucide-react";
+import { Bug, CheckCircle2, ChevronDown, ExternalLink, NotebookPen, RotateCcw } from "lucide-react";
 import { Section, EmptyState } from "../page";
 import { Async } from "../states";
 import { Badge, Textarea } from "../ui/basic";
@@ -15,6 +17,7 @@ export interface ErrorReportRow {
   fingerprint: string; message: string; count: number; firstSeen: string; lastSeen: string;
   issueNumber: number | null; issueUrl: string | null; issueState: string | null;
   ownerNote: string | null; ownerNoteAt: string | null;
+  resolvedAt: string | null;
   sample: { route: string; appVersion: string; stack: string; userAgent: string };
 }
 
@@ -41,6 +44,24 @@ function IssueLink({ r }: { r: ErrorReportRow }) {
   );
 }
 
+/** Clear (or bring back) one report. Clearing one with an open issue closes the issue too. */
+function ClearButton({ r }: { r: ErrorReportRow }) {
+  const [busy, setBusy] = useState(false);
+  const clearing = !r.resolvedAt;
+  const act = async () => {
+    setBusy(true);
+    try {
+      const out = await apiFetch<{ issueClosed: boolean }>(`/api/owner/errors/${r.fingerprint}`, { method: "PATCH", json: { resolved: clearing } });
+      markStale("/api/owner/errors");
+      markStale("/api/owner/overview");
+      toast.success(!clearing ? "Back on the list" : out.issueClosed ? `Cleared, and issue #${r.issueNumber} closed` : r.issueState === "open" ? `Cleared here; issue #${r.issueNumber} is still open on GitHub` : "Cleared");
+    } catch (e) { toast.error((e as ApiError).message); } finally { setBusy(false); }
+  };
+  return clearing
+    ? <Button size="sm" variant="secondary" className="max-sm:h-10" disabled={busy} onClick={() => void act()} title={r.issueState === "open" ? `Also closes issue #${r.issueNumber} on GitHub` : undefined}><CheckCircle2 /> {r.issueState === "open" ? "Clear and close issue" : "Clear"}</Button>
+    : <Button size="sm" variant="ghost" className="max-sm:h-10" disabled={busy} onClick={() => void act()}><RotateCcw /> Back to the list</Button>;
+}
+
 function OwnerNote({ r }: { r: ErrorReportRow }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(r.ownerNote ?? "");
@@ -61,6 +82,7 @@ function OwnerNote({ r }: { r: ErrorReportRow }) {
         {r.ownerNote
           ? <p className="min-w-0 flex-1 whitespace-pre-wrap break-words rounded-lg border border-warning/30 bg-warning/[0.06] px-3 py-2 text-sm text-foreground">{r.ownerNote}<span className="mt-1 block text-xs text-muted-foreground">Your note · {ago(r.ownerNoteAt)}</span></p>
           : <span className="flex-1" />}
+        <ClearButton r={r} />
         <Button size="sm" variant="outline" className="max-sm:h-10" onClick={() => { setText(r.ownerNote ?? ""); setEditing(true); }}><NotebookPen /> {r.ownerNote ? "Edit note" : "Add note"}</Button>
       </div>
     );
@@ -77,14 +99,10 @@ function OwnerNote({ r }: { r: ErrorReportRow }) {
   );
 }
 
-export function ErrorsPanel() {
-  const state = useApi<{ reports: ErrorReportRow[] }>(PATH);
+function ReportList({ reports }: { reports: ErrorReportRow[] }) {
   return (
-    <Section title="Error reports" description="Crashes people chose to report, grouped by what broke. Each is filed as a GitHub issue when the server has a token for it; its state here follows the issue.">
-      <Async state={state} empty={(d) => !d.reports.length && <EmptyState icon={Bug} title="No error reports" description="Nobody has reported a crash." />}>
-        {({ reports }) => (
-          <ul className="space-y-3">
-            {reports.map((r) => (
+    <ul className="space-y-3">
+      {reports.map((r) => (
               <li key={r.fingerprint} className="rounded-xl border border-border bg-card p-4">
                 <div className="flex flex-wrap items-start gap-3">
                   <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-danger/15 font-display text-sm font-semibold tabular-nums text-danger" title={`${r.count} reports`}>{r.count > 99 ? "99+" : r.count}</span>
@@ -104,9 +122,32 @@ export function ErrorsPanel() {
                   </details>
                 )}
               </li>
-            ))}
-          </ul>
-        )}
+      ))}
+    </ul>
+  );
+}
+
+export function ErrorsPanel() {
+  const state = useApi<{ reports: ErrorReportRow[] }>(PATH);
+  return (
+    <Section title="Error reports" description="Crashes people chose to report, grouped by what broke. Each is filed as a GitHub issue when the server has a token for it. One whose issue is closed clears itself; Clear takes one off by hand.">
+      <Async state={state} empty={(d) => !d.reports.length && <EmptyState icon={Bug} title="No error reports" description="Nobody has reported a crash." />}>
+        {({ reports }) => {
+          const open = reports.filter((r) => !r.resolvedAt), cleared = reports.filter((r) => r.resolvedAt);
+          return (
+            <>
+              {open.length ? <ReportList reports={open} /> : <EmptyState icon={Bug} title="Nothing to look at" description="Every error report is cleared." />}
+              {cleared.length > 0 && (
+                <details className="group mt-4" data-testid="errors-cleared">
+                  <summary className="inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+                    <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />{cleared.length} cleared
+                  </summary>
+                  <div className="mt-3"><ReportList reports={cleared} /></div>
+                </details>
+              )}
+            </>
+          );
+        }}
       </Async>
     </Section>
   );

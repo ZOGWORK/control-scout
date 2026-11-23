@@ -93,11 +93,11 @@ export const fingerprintOf = (r: Pick<ErrorReport, "message" | "stack">) => crea
 interface Row {
   fingerprint: string; message: string; count: number; first_seen: string; last_seen: string; sample: string;
   issue_number: number | null; issue_state: string | null; reported_count: number; last_comment_at: string | null; filing_at: string | null;
-  owner_note?: string | null; owner_note_at?: string | null;
+  owner_note?: string | null; owner_note_at?: string | null; resolved_at?: string | null;
 }
 
 /** Every error_reports column (a Row). */
-const ROW_COLUMNS = "fingerprint, message, count, first_seen, last_seen, sample, issue_number, issue_state, reported_count, last_comment_at, filing_at, owner_note, owner_note_at";
+const ROW_COLUMNS = "fingerprint, message, count, first_seen, last_seen, sample, issue_number, issue_state, reported_count, last_comment_at, filing_at, owner_note, owner_note_at, resolved_at";
 
 /** Adds one occurrence (a new row for a new fingerprint). The sample is always the latest report. */
 export async function storeReport(r: ErrorReport, now = new Date()): Promise<{ fingerprint: string; count: number }> {
@@ -105,7 +105,7 @@ export async function storeReport(r: ErrorReport, now = new Date()): Promise<{ f
   const at = now.toISOString();
   const row = await get<{ count: number }>(
     `INSERT INTO error_reports (fingerprint, message, count, first_seen, last_seen, sample) VALUES (?, ?, 1, ?, ?, ?)
-     ON CONFLICT (fingerprint) DO UPDATE SET count = count + 1, last_seen = excluded.last_seen, sample = excluded.sample
+     ON CONFLICT (fingerprint) DO UPDATE SET count = count + 1, last_seen = excluded.last_seen, sample = excluded.sample, resolved_at = NULL
      RETURNING count`,
     [fingerprint, r.message, at, at, JSON.stringify(r)],
   );
@@ -400,6 +400,8 @@ export interface ErrorReportSummary {
   issueNumber: number | null; issueUrl: string | null; issueState: string | null; lastCommentAt: string | null;
   /** The owner's own note (migration 56), shown in the console only; never sent to GitHub. */
   ownerNote: string | null; ownerNoteAt: string | null;
+  /** When the owner cleared it or its issue was closed; null while it needs him. A new occurrence opens it again. */
+  resolvedAt: string | null;
   sample: ErrorReport;
 }
 
@@ -409,13 +411,111 @@ const toSummary = (r: Row): ErrorReportSummary => ({
   issueUrl: r.issue_number == null ? null : `https://github.com/${GITHUB_REPO}/issues/${r.issue_number}`,
   issueState: r.issue_state, lastCommentAt: r.last_comment_at,
   ownerNote: r.owner_note ?? null, ownerNoteAt: r.owner_note_at ?? null,
+  resolvedAt: r.resolved_at ?? null,
   sample: JSON.parse(r.sample) as ErrorReport,
 });
 
-/** The most recently seen reports first. For the owner portal (Task 7): GET /api/reports/errors. */
+/** The ones still needing the owner first, then the cleared ones; most recently seen first within each. */
 export async function listErrorReports(limit = 50): Promise<ErrorReportSummary[]> {
-  const rows = await all<Row>(`SELECT ${ROW_COLUMNS} FROM error_reports ORDER BY last_seen DESC LIMIT ?`, [Math.min(200, Math.max(1, Math.floor(limit) || 50))]);
+  const rows = await all<Row>(`SELECT ${ROW_COLUMNS} FROM error_reports ORDER BY resolved_at IS NOT NULL, last_seen DESC LIMIT ?`, [Math.min(200, Math.max(1, Math.floor(limit) || 50))]);
   return rows.map(toSummary);
+}
+
+/** What GitHub says about one issue: its state and, once closed, why, when and what closed it. */
+export interface IssueState { state: "open" | "completed" | "not_planned"; closedAt: string | null; by: { label: string; url: string } | null }
+type Closer = { __typename: string; number?: number; url?: string; abbreviatedOid?: string } | null;
+interface IssueNode { number: number; state: string; stateReason: string | null; closedAt: string | null; timelineItems?: { nodes?: ({ closer?: Closer } | null)[] } }
+/** Issues asked about per GitHub request (GraphQL aliases). */
+const ISSUE_BATCH = 50;
+
+/** The pull request or commit GitHub says closed an issue, as a label and a GitHub link, or null. */
+export function closerOf(c: Closer): { label: string; url: string } | null {
+  if (!c?.url || !c.url.startsWith("https://github.com/")) return null;
+  if (c.__typename === "PullRequest" && Number.isInteger(c.number)) return { label: `PR #${c.number}`, url: c.url };
+  if (c.__typename === "Commit") return { label: `commit ${(c.abbreviatedOid ?? "").slice(0, 7) || "on main"}`.trim(), url: c.url };
+  return null;
+}
+
+/**
+ * The state of each issue, one GraphQL request per 50 numbers (state, why it closed, when, and the closing PR or
+ * commit). An issue GitHub doesn't find is left out of the answer. Throws on a GitHub error (a GithubError with
+ * retryAt when rate limited).
+ */
+export async function issueStates(token: string, numbers: number[]): Promise<Map<number, IssueState>> {
+  const out = new Map<number, IssueState>();
+  const wanted = [...new Set(numbers.filter((n) => Number.isInteger(n) && n > 0))];
+  const [owner, name] = GITHUB_REPO.split("/");
+  const fields = "number state stateReason closedAt timelineItems(itemTypes: CLOSED_EVENT, last: 1) { nodes { ... on ClosedEvent { closer { __typename ... on PullRequest { number url } ... on Commit { url abbreviatedOid } } } } }";
+  for (let i = 0; i < wanted.length; i += ISSUE_BATCH) {
+    const batch = wanted.slice(i, i + ISSUE_BATCH);
+    const query = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${batch.map((n) => `i${n}: issue(number: ${n}) { ${fields} }`).join(" ")} } }`;
+    const answer = await gh<{ data?: { repository?: Record<string, IssueNode | null> | null }; errors?: { type?: string; path?: unknown[] }[] }>(
+      token, "POST", "/graphql", { query, variables: { owner, name } });
+    const repo = answer.data?.repository;
+    if (!repo) throw new Error("GitHub didn't answer for the repository");
+    // GraphQL answers 200 with an errors list: only "not found" on one issue means it's gone; anything else is a failure.
+    const other = (answer.errors ?? []).find((e) => e.type !== "NOT_FOUND");
+    if (other) throw new Error(`GitHub answered with an error${other.type ? ` (${other.type})` : ""}`);
+    for (const n of batch) {
+      const issue = repo[`i${n}`];
+      if (!issue) continue;
+      if (issue.state !== "CLOSED") { out.set(n, { state: "open", closedAt: null, by: null }); continue; }
+      out.set(n, {
+        state: issue.stateReason === "NOT_PLANNED" || issue.stateReason === "DUPLICATE" ? "not_planned" : "completed",
+        closedAt: issue.closedAt, by: closerOf(issue.timelineItems?.nodes?.at(-1)?.closer ?? null),
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Error reports follow their issue too: one still needing the owner whose issue is now closed is cleared (resolved_at:
+ * when GitHub closed it) and takes the issue's state. Returns how many it cleared. No token: nothing.
+ */
+export async function syncErrorIssues(now = Date.now()): Promise<number> {
+  const token = env.githubReportToken;
+  if (!token) return 0;
+  const rows = await all<{ fingerprint: string; issue_number: number }>(
+    `SELECT fingerprint, issue_number FROM error_reports WHERE resolved_at IS NULL AND issue_number IS NOT NULL
+       ORDER BY issue_checked_at IS NOT NULL, issue_checked_at LIMIT 200`);
+  if (!rows.length) return 0;
+  const states = await issueStates(token, rows.map((r) => Number(r.issue_number)));
+  const checked = new Date(now).toISOString();
+  for (const r of rows) await run("UPDATE error_reports SET issue_checked_at = ? WHERE fingerprint = ?", [checked, r.fingerprint]);
+  let cleared = 0;
+  for (const r of rows) {
+    const s = states.get(Number(r.issue_number));
+    if (!s || s.state === "open") continue;
+    const done = await get(
+      "UPDATE error_reports SET resolved_at = ?, issue_state = ? WHERE fingerprint = ? AND issue_number = ? AND resolved_at IS NULL RETURNING fingerprint",
+      [s.closedAt ?? new Date(now).toISOString(), s.state === "not_planned" ? "not_planned" : "closed", r.fingerprint, r.issue_number]);
+    if (done) cleared++;
+  }
+  return cleared;
+}
+
+/**
+ * The owner clears an error report (or opens it again). Clearing one whose issue is open also closes the issue on
+ * GitHub as completed, when there's a token; if GitHub refuses or doesn't answer, the report is still cleared and
+ * `issueClosed` says it wasn't. Null for an unknown report.
+ */
+export async function resolveErrorReport(fingerprint: string, resolved: boolean, now = new Date()): Promise<{ report: ErrorReportSummary; issueClosed: boolean } | null> {
+  const row = await get<Row>(
+    `UPDATE error_reports SET resolved_at = ? WHERE fingerprint = ? RETURNING ${ROW_COLUMNS}`,
+    [resolved ? now.toISOString() : null, fingerprint]);
+  if (!row) return null;
+  let issueClosed = false;
+  const token = env.githubReportToken;
+  if (resolved && token && row.issue_number != null && row.issue_state === "open") {
+    try {
+      await gh(token, "PATCH", `/issues/${row.issue_number}`, { state: "closed", state_reason: "completed" });
+      await run("UPDATE error_reports SET issue_state = 'closed' WHERE fingerprint = ?", [fingerprint]);
+      row.issue_state = "closed";
+      issueClosed = true;
+    } catch { /* cleared here; the issue stays open on GitHub */ }
+  }
+  return { report: toSummary(row), issueClosed };
 }
 
 /** The longest owner note kept. */

@@ -13,10 +13,10 @@ import { createApp } from "./app";
 import { setMailer, type MailOptions } from "./auth/email";
 import { randomUUID } from "node:crypto";
 import {
-  BUG_RATE, bugDir, bugIssueTitle, closerOf, freshIssueStates, ISSUE_SYNC_MS, resetIssueSync, syncBugIssues, clearing, clearRetries, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
+  BUG_RATE, bugDir, bugIssueTitle, freshIssueStates, ISSUE_SYNC_MS, resetIssueSync, syncBugIssues, clearing, clearRetries, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
   STORAGE_CAP_BYTES, sweepBugReports, UPLOAD_ROUTE, UPLOAD_WINDOW_MS, validateBugReport,
 } from "./bugReports";
-import { resetRepositoryId, setGithubFetch } from "./errorReports";
+import { closerOf, fingerprintOf, listErrorReports, resetRepositoryId, resolveErrorReport, setGithubFetch, storeReport, syncErrorIssues } from "./errorReports";
 import { BUG_LIMITS, isSitePath, sniffType } from "../src/shared/bugReport";
 
 let server: Server;
@@ -31,7 +31,7 @@ type Call = { method: string; url: string; body?: unknown };
 let calls: Call[] = [];
 type FakeIssue = { number: number; title: string; body: string; labels: string[]; state?: "OPEN" | "CLOSED"; stateReason?: string; closer?: unknown };
 let issues: FakeIssue[] = [];
-let gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0 };
+let gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0, graphqlError: "" };
 const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) => {
   const url = new URL(String(input));
   const method = init?.method ?? "GET";
@@ -48,6 +48,13 @@ const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) =>
   }
   const path = url.pathname.replace("/repos/ZOGWORK/control-scout", "");
   if (method === "GET" && path === "") return Response.json({ id: 1416291522 });
+  const patchIssue = /^\/issues\/(\d+)$/.exec(path);
+  if (method === "PATCH" && patchIssue) {
+    const i = issues.find((x) => x.number === Number(patchIssue[1]));
+    if (!i) return new Response("{}", { status: 404 });
+    if (body.state === "closed") { i.state = "CLOSED"; i.stateReason = String(body.state_reason ?? "completed").toUpperCase(); }
+    return Response.json({ number: i.number, state: "closed" });
+  }
   if (method === "POST" && path === "/issues") {
     if (gitHub.issue !== 201) return new Response("{}", { status: gitHub.issue });
     const issue = { number: 1520 + issues.length, title: body.title, body: body.body, labels: (body.labels as string[]).filter((l) => l !== gitHub.dropLabel) };
@@ -65,7 +72,8 @@ const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) =>
         closedAt: i.state === "CLOSED" ? "2026-11-22T15:08:53Z" : null, timelineItems: { nodes: i.state === "CLOSED" ? [{ closer: i.closer ?? null }] : [] },
       } : null;
     }
-    return Response.json({ data: { repository } });
+    if (gitHub.graphqlError) for (const k of Object.keys(repository)) repository[k] = null;
+    return Response.json({ data: { repository }, ...(gitHub.graphqlError ? { errors: [{ type: gitHub.graphqlError, path: ["repository"] }] } : {}) });
   }
   if (method === "GET" && url.pathname === "/search/issues") {
     // searchLags: GitHub's search hasn't indexed the new issues yet.
@@ -105,7 +113,7 @@ beforeEach(async () => {
   delete process.env.GITHUB_REPORT_TOKEN;
   calls = [];
   issues = [];
-  gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0 };
+  gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0, graphqlError: "" };
   resetBugFilingPause();
   resetIssueSync();
   resetRepositoryId();
@@ -630,9 +638,40 @@ describe("following the GitHub issue", () => {
     const a = await send(good);
     issues[0].state = "CLOSED";
     await syncBugIssues();
-    await run("UPDATE bug_reports SET status = 'open' WHERE id = ?", [a.id]);
+    await run("UPDATE bug_reports SET status = 'open', reopened_at = ? WHERE id = ?", [new Date().toISOString(), a.id]);
     expect(await syncBugIssues()).toBe(0);
     expect((await listBugReports("open")).reports.map((r) => r.id)).toEqual([a.id]);
+  });
+
+  it("closed here by hand, its issue closed meanwhile, then reopened: stays open", async () => {
+    const a = await send(good);
+    await run("UPDATE bug_reports SET status = 'done' WHERE id = ?", [a.id]);
+    issues[0].state = "CLOSED"; // closedAt 2026-11-22T15:08:53Z in the fake
+    await run("UPDATE bug_reports SET status = 'open', reopened_at = ? WHERE id = ?", ["2026-11-22T16:00:00.000Z", a.id]);
+    expect(await syncBugIssues()).toBe(0);
+    expect((await listBugReports("open")).reports.map((r) => r.id)).toEqual([a.id]);
+    // Reopened before GitHub closed it: the close counts.
+    await run("UPDATE bug_reports SET reopened_at = ? WHERE id = ?", ["2026-11-22T15:00:00.000Z", a.id]);
+    expect(await syncBugIssues()).toBe(1);
+  });
+
+  it("asks about the reports checked longest ago first, so none is left out", async () => {
+    const a = await send(good), b = await send({ ...good, message: "Another bug report that is long enough." });
+    await run("UPDATE bug_reports SET issue_checked_at = ? WHERE id = ?", ["2026-11-22T10:00:00.000Z", b.id]);
+    await run("UPDATE bug_reports SET issue_checked_at = ? WHERE id = ?", ["2026-11-22T09:00:00.000Z", a.id]);
+    const before = calls.length;
+    await syncBugIssues();
+    const asked = [...String((calls.slice(before).find((c) => c.url.endsWith("/graphql"))?.body as { query: string }).query).matchAll(/issue\(number: (\d+)\)/g)].map((m) => Number(m[1]));
+    expect(asked).toEqual([issues[0].number, issues[1].number]);
+  });
+
+  it("a GraphQL error other than not found is a failure, not a missing issue", async () => {
+    await send(good);
+    issues[0].state = "CLOSED";
+    gitHub.graphqlError = "RATE_LIMITED";
+    await expect(syncBugIssues()).rejects.toThrow(/RATE_LIMITED/);
+    gitHub.graphqlError = "NOT_FOUND";
+    expect(await syncBugIssues()).toBe(0);
   });
 
   it("the sweep closes them, and the console's list checks GitHub at most once a minute", async () => {
@@ -669,6 +708,44 @@ describe("following the GitHub issue", () => {
     expect(closerOf({ __typename: "Commit", abbreviatedOid: "abc1234", url: "https://github.com/ZOGWORK/control-scout/commit/abc1234ff" })).toEqual({ label: "commit abc1234", url: "https://github.com/ZOGWORK/control-scout/commit/abc1234ff" });
     expect(closerOf({ __typename: "PullRequest", number: 7, url: "javascript:alert(1)" })).toBeNull();
     expect(closerOf(null)).toBeNull();
+  });
+});
+
+describe("error reports follow their issue", () => {
+  beforeEach(async () => {
+    process.env.GITHUB_REPORT_TOKEN = TOKEN;
+    await run("DELETE FROM error_reports");
+  });
+  const addError = async (fp: string, issue: number | null, state: string | null = issue ? "open" : null) => {
+    await run(`INSERT INTO error_reports (fingerprint, message, count, first_seen, last_seen, sample, issue_number, issue_state, reported_count)
+      VALUES (?, 'Boom', 1, ?, ?, ?, ?, ?, 1)`, [fp, "2026-11-01T00:00:00Z", "2026-11-01T00:00:00Z", JSON.stringify({ message: "Boom", stack: "", route: "/", appVersion: "1", userAgent: "x" }), issue, state]);
+    if (issue) issues.push({ number: issue, title: "[auto] Boom", body: "", labels: [] });
+  };
+
+  it("clears one whose issue was closed on GitHub, and leaves the badge count", async () => {
+    await addError("aaaaaaaa", 104);
+    await addError("bbbbbbbb", null);
+    issues[0].state = "CLOSED";
+    expect(await syncErrorIssues()).toBe(1);
+    const list = await listErrorReports();
+    expect(list.map((r) => [r.fingerprint, !!r.resolvedAt, r.issueState])).toEqual([["bbbbbbbb", false, null], ["aaaaaaaa", true, "closed"]]);
+  });
+
+  it("Clear closes the open issue on GitHub; Clear on one never filed just clears it; a new occurrence brings it back", async () => {
+    await addError("aaaaaaaa", 104);
+    await addError("bbbbbbbb", null);
+    const a = await resolveErrorReport("aaaaaaaa", true);
+    expect(a).toMatchObject({ issueClosed: true, report: { issueState: "closed" } });
+    expect(a!.report.resolvedAt).not.toBeNull();
+    expect(issues[0].state).toBe("CLOSED");
+    const b = await resolveErrorReport("bbbbbbbb", true);
+    expect(b).toMatchObject({ issueClosed: false });
+    expect(await resolveErrorReport("cccccccc", true)).toBeNull();
+    const sample = { message: "Boom", stack: "", route: "/", appVersion: "1", userAgent: "x" };
+    const fp = fingerprintOf(sample);
+    await run("UPDATE error_reports SET fingerprint = ? WHERE fingerprint = 'bbbbbbbb'", [fp]);
+    await storeReport(sample as never);
+    expect((await listErrorReports()).find((r) => r.fingerprint === fp)?.resolvedAt).toBeNull();
   });
 });
 
