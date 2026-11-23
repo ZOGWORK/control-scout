@@ -85,8 +85,14 @@ function snapTitle(el: HTMLElement): TitleSnap {
 }
 const fontPx = (s: TitleSnap) => parseFloat(s.style.fontSize ?? "") || s.box.h || 1;
 
-/** The fixed layer drawn over the page while a run is on. */
-function layer(contentFrom: Box, title: TitleSnap) {
+/** The title copy reads as the page's title does: the whole name, wrapping at `width` (unscaled px). */
+function wrapAt(copy: HTMLElement, width: number) {
+  Object.assign(copy.style, { width: `${width}px`, whiteSpace: "normal", overflow: "visible", textOverflow: "clip" });
+}
+
+/** The fixed layer drawn over the page while a run is on. `wrap`: the copy starts as a page title (the whole name,
+ *  wrapping), not as a card's one cut-off line. */
+function layer(contentFrom: Box, title: TitleSnap, wrap = false) {
   const root = document.createElement("div");
   root.setAttribute("data-card-morph", "");
   root.setAttribute("aria-hidden", "true");
@@ -108,6 +114,7 @@ function layer(contentFrom: Box, title: TitleSnap) {
     position: "absolute", left: `${title.box.x}px`, top: `${title.box.y}px`, width: `${title.box.w}px`,
     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", transformOrigin: "0 0", willChange: "transform", margin: "0",
   });
+  if (wrap) wrapAt(copy, title.box.w);
   root.append(surface, copy);
   document.body.append(root);
   const place = (b: Box) => Object.assign(surface.style, { left: `${b.x}px`, top: `${b.y}px`, width: `${b.w}px`, height: `${b.h}px` });
@@ -216,6 +223,9 @@ function run(card: HTMLElement, key: string, go: () => void): boolean {
       const now = getComputedStyle(l.copy).transform;
       riding.stop?.();
       const toTitle = snapTitle(target);
+      // A long name is cut off on the card but whole on the page: the copy takes the page title's width (before the
+      // scale it lands with), so it arrives as the same text, wrapped the same way, and nothing pops on landing.
+      wrapAt(l.copy, toTitle.box.w / (fontPx(toTitle) / fontPx(fromTitle)));
       const left = Math.max(160, MORPH_MS - (performance.now() - started) / speed);
       await done(animate(l.copy, { transform: [now && now !== "none" ? now : "none", fly(fromTitle, toTitle)] }, opts(left)));
       // Only while this run is still on and its page is still showing: a reader who left mid-flight left nothing to
@@ -232,6 +242,11 @@ function run(card: HTMLElement, key: string, go: () => void): boolean {
     finish();
   })();
   return true;
+}
+
+/** The page side, shown (again): an earlier way back from it is stale, whatever the reader does next. */
+export function noteShown(key: string) {
+  if (leaving?.key === key) leaving = null;
 }
 
 /** The page side, on its way out: remembers where its title sat so Back can shrink it into the card. */
@@ -255,12 +270,16 @@ export function maybeReturn(key: string): boolean {
   leaving = null;
   if (!morphAllowed()) return false;
   running?.();
-  const l = layer(l0.content, l0.title);
+  const l = layer(l0.content, l0.title, true);
   let over = false;
   let hidden: HTMLElement | null = null;
+  // The reader may move on before it ends (a tab, a link): the layer must never sit over the next page.
+  const here = location.pathname + location.search;
+  const moved = setInterval(() => { if (location.pathname + location.search !== here) finish(); }, 50);
   const finish = () => {
     if (over) return;
     over = true;
+    clearInterval(moved);
     l.root.remove();
     if (hidden) hidden.style.visibility = "";
     if (running === finish) running = null;
