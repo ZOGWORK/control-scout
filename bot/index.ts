@@ -197,7 +197,7 @@ const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) =>
 const disliked = (reaction: Counted, user: { bot?: boolean }) => {
   if (user.bot) return;
   void downVote(reaction.message.id)
-    .then((v) => { if (v?.first && v.question) noteBotDownvote(v.question, `discord:${v.guild ?? "dm"}`); })
+    .then((v) => { if (v?.question) noteBotDownvote(v.question, `discord:${v.guild ?? "dm"}`); })
     .catch(() => {});
 };
 client.on(Events.MessageReactionAdd, (r, u) => {

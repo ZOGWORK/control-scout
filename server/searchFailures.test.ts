@@ -441,6 +441,22 @@ describe("GitHub issues (cases 23–30)", () => {
     onlyAllowedActions();
   });
 
+  it("a re-check of a downvoted question never calls it answered: search always answered it", async () => {
+    noteBotDownvote("who won decode at austin", "discord:g1", clock);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    expect(await syncSearchFailures()).toMatchObject({ synced: 1 });
+    calls = [];
+    // Search gave this query an answer when a person voted it down (that is why it was voted down), so answering it
+    // again says nothing about the answer being right: the check must not report a direct answer and invite a close.
+    expect(await recheck(500, async (q) => answered(q))).toMatchObject({ answered: false, voted: true });
+    expect(calls.at(-1)!.body.body).toContain("can't tell whether the answer is right now");
+    expect(calls.at(-1)!.body.body).not.toContain("now returns a direct answer");
+    expect((await rows())[0].count).toBe(1);
+    expect(issues[500].state).toBe("open");
+    onlyAllowedActions();
+  });
+
   it("28: nothing in an issue links back to a person, and personal data is redacted", async () => {
     searched("4215 school jane@example.com 201-555-0123", fallback("x", "school"), "192.0.2.77");
     searched(`4215 opr key ${TOKEN}`, fallback("x", "opr key"), "192.0.2.78");

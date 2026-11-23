@@ -671,25 +671,32 @@ export function startSearchFailureJobs(log: (m: string) => void): void {
 /**
  * The owner asks for a re-check of one issue's query: it's searched again now. Answered: a comment says so, and the
  * issue stays open for the owner to close after checking live. Still failing: a comment says that, and the count
- * and last seen go up. Never closes the issue.
+ * and last seen go up. Never closes the issue. A row a person voted down (`downvoted`) is neither: search answered it
+ * when it was downvoted, so answering again says nothing about the answer being right.
  */
-export async function recheck(issueNumber: number, answer: (q: string) => Promise<SearchAnswer>, now = new Date()): Promise<{ answered: boolean; label: string } | null> {
+export async function recheck(issueNumber: number, answer: (q: string) => Promise<SearchAnswer>, now = new Date()): Promise<{ answered: boolean; label: string; voted?: boolean } | null> {
   const row = await get<Row>(`SELECT ${COLUMNS} FROM search_failures WHERE issue_number = ?`, [issueNumber]);
   if (!row) return null;
   const q = (JSON.parse(row.examples) as string[])[0] ?? row.key;
   const a = await answer(q);
-  const f = failureOf(q, a, outcomeTrace(a));
   const label = redact(a.understood?.label ?? "");
   const at = now.toISOString();
+  // A downvoted row can't be cleared by answering: search gave this query an answer when it was downvoted (that is why
+  // it was), so "it answers" is the same result as before. Saying "now returns a direct answer" would invite closing an
+  // entry whose answer is still wrong.
+  const voted = row.result_type === "downvoted";
+  const f = voted ? null : failureOf(q, a, outcomeTrace(a));
   if (f) await run("UPDATE search_failures SET count = count + 1, last_seen = ?, result_type = ? WHERE key = ?", [at, f.type, row.key]);
   const token = env.githubReportToken;
   if (token) {
-    const body = f
-      ? `Re-check ${at}: still fails (result type ${f.type}). Search said:\n\n${fenced(label || "(nothing)")}\n\nLeft open. Count and last seen updated.`
-      : `Re-check ${at}: this query now returns a direct answer. Search said:\n\n${fenced(label || "(nothing)")}\n\nNot closed by this check: the owner closes it after checking live at ${reproduceUrl(latestTyped(row))}.`;
+    const body = voted
+      ? `Re-check ${at}: search answered this query when a person voted its answer down, so answering it again can't tell whether the answer is right now. Search said:\n\n${fenced(label || "(nothing)")}\n\nLeft open for a person to judge at ${reproduceUrl(latestTyped(row))}. Count and last seen unchanged.`
+      : f
+        ? `Re-check ${at}: still fails (result type ${f.type}). Search said:\n\n${fenced(label || "(nothing)")}\n\nLeft open. Count and last seen updated.`
+        : `Re-check ${at}: this query now returns a direct answer. Search said:\n\n${fenced(label || "(nothing)")}\n\nNot closed by this check: the owner closes it after checking live at ${reproduceUrl(latestTyped(row))}.`;
     try { await gh(token, "POST", `/issues/${issueNumber}/comments`, { body }); } catch (e) { pauseFor(e); throw e; }
   }
-  return { answered: !f, label };
+  return voted ? { answered: false, label, voted } : { answered: !f, label };
 }
 
 const page = (title: string, body: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><meta name="robots" content="noindex">
@@ -720,7 +727,8 @@ export function searchFailuresRouter(answer: (q: string) => Promise<SearchAnswer
       const out = await recheck(n, answer);
       res.setHeader("Content-Security-Policy", LITE_CSP);
       if (!out) { res.status(404).type("html").send(page("Re-check failed search", `<p>No failed search is on record for issue #${n}.</p>`)); return; }
-      res.type("html").send(page("Re-check failed search", `<h1>${out.answered ? "Now answers" : "Still fails"}</h1><p>${esc(out.label)}</p><p>A comment is on <a href="https://github.com/${GITHUB_REPO}/issues/${n}">issue #${n}</a>. ${out.answered ? "Close it yourself after checking live." : "It stays open."}</p>`));
+      const heading = out.voted ? "Needs a person" : out.answered ? "Now answers" : "Still fails";
+      res.type("html").send(page("Re-check failed search", `<h1>${heading}</h1><p>${esc(out.label)}</p><p>A comment is on <a href="https://github.com/${GITHUB_REPO}/issues/${n}">issue #${n}</a>. ${out.voted ? "Search answered this one when it was voted down, so only a person can say the answer is right now: it stays open." : out.answered ? "Close it yourself after checking live." : "It stays open."}</p>`));
     })().catch(() => { if (!res.headersSent) res.status(503).json({ error: "Couldn't re-check right now." }); });
   });
   return r;

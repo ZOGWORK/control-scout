@@ -42,9 +42,17 @@ describe("the thumbs on an answer", () => {
   it("keeps the question each answer was given for, and a 👎 names it on the answer's first vote only", async () => {
     await trackAnswer("m3", "g1", "  who won\n decode  ");
     // One line, as every ask is kept: the queue's key is the words, not the layout.
-    expect(await downVote("m3")).toEqual({ question: "who won decode", guild: "g1", first: true });
+    expect(await downVote("m3")).toEqual({ question: "who won decode", guild: "g1" });
     // A second 👎 on the same answer is the same complaint about the same question: counted, and not filed again.
-    expect(await downVote("m3")).toEqual({ question: "who won decode", guild: "g1", first: false });
+    expect(await downVote("m3")).toBeNull();
+    expect(await reactionUsage()).toEqual({ up: 0, down: 2 });
+  });
+
+  it("two 👎 arriving together file once: one of them claims the first vote and both count", async () => {
+    await trackAnswer("m6", "g1", "4215 opr");
+    // Two gateway events, interleaved at their awaits: the claim is the update, so only one of them can file.
+    const both = await Promise.all([downVote("m6"), downVote("m6")]);
+    expect(both.filter(Boolean)).toEqual([{ question: "4215 opr", guild: "g1" }]);
     expect(await reactionUsage()).toEqual({ up: 0, down: 2 });
   });
 
@@ -54,6 +62,6 @@ describe("the thumbs on an answer", () => {
     expect(await downVote("never-posted")).toBeNull();
     // An answer posted before questions were kept: its 👍/👎 still count, and there is nothing to name.
     await trackAnswer("m5", "g1");
-    expect(await downVote("m5")).toEqual({ question: null, guild: "g1", first: true });
+    expect(await downVote("m5")).toEqual({ question: null, guild: "g1" });
   });
 });
