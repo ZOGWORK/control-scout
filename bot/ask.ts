@@ -90,9 +90,12 @@ export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentenc
  * buttons (bot/buttons.ts); `watch`: the videos, as link buttons.
  */
 export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string;   chat?: { text: string; video?: string; page?: string; card?: boolean; by?: "bruno" | "scout" }; next?: string[]; watch?: { label: string; url: string }[];
-  /** What was actually asked, when a reply answered the question Bruno offered ("yes" — or "no" — after "Also want
-   *  4215's record?"): the post quotes it and the thread keeps it, not the word. */
-  resolved?: string }
+  /** What was actually asked, when a yes answered the question Bruno offered ("yes" after "Also want 4215's record?"):
+   *  the post quotes it and the thread keeps it, not the word "yes". */
+  resolved?: string;
+  /** The question a "no" declined: the bot says so in its own words, quoting what was turned down. Kept apart from
+   *  `resolved` so a decline counts as handled and keeps the offer thread, while a scout fallback does neither. */
+  declined?: string }
 
 /** Whether an answer has records to show — a card, a stat or results, never the sorry a message-level search gives
  *  when it can't read the whole question. A chat beside no records posts its words alone. */
@@ -161,7 +164,7 @@ function declinedReply(offer: string): AskReply {
     embed: { title: "No problem", description: text, color: VOLT, footer: FOOTER },
     meta: { step: "deterministic", refined: false, sentence: false, chat: true },
     chat: { text, by: "scout" },
-    resolved: offer,
+    declined: offer,
   };
 }
 

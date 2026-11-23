@@ -372,7 +372,8 @@ describe("a no to the question he offered", () => {
     const r = await ask("no thanks", d, SITE, thread);
     expect(d.search).not.toHaveBeenCalled();
     expect(d.chat).not.toHaveBeenCalled();
-    expect(r.resolved).toBe("4215's record");
+    expect(r.declined).toBe("4215's record");
+    expect(r.resolved).toBeUndefined();
     expect(r.chat!.by).toBe("scout");
     expect(r.chat!.text).toMatch(/^No problem — I'll leave 4215's record for now\./);
     expect(r.chat!.text).toMatch(/say the word/);

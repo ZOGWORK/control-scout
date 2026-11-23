@@ -2,7 +2,7 @@
 // friendly errors for every failure (never the exception's words).
 import { describe, expect, it, vi } from "vitest";
 import type { APIEmbed } from "discord.js";
-import { createHandler, type Lookups, type Memory, type MentionMessage } from "./handler";
+import { answered, createHandler, type Lookups, type Memory, type MentionMessage } from "./handler";
 import type { Filed, Report } from "./report";
 import { Friendly } from "./views";
 import { AnswerCache } from "./guard";
@@ -486,7 +486,7 @@ describe("a chat with Bruno in Discord", () => {
     const ask = vi.fn().mockResolvedValue(reply("ok"))
       .mockResolvedValueOnce(reply("288 points. Also want 4215's record?"))
       // The bot's own words (every scout reply), quoting the question it declined: nothing was searched for "no".
-      .mockResolvedValueOnce({ ...reply("No problem — I'll leave 4215's record for now.", { resolved: "4215's record" }), chat: { text: "No problem — I'll leave 4215's record for now.", by: "scout" as const } })
+      .mockResolvedValueOnce({ ...reply("No problem — I'll leave 4215's record for now.", { declined: "4215's record" }), chat: { text: "No problem — I'll leave 4215's record for now.", by: "scout" as const } })
       .mockResolvedValueOnce(reply("4215 is 26-6-0.", { resolved: "4215's record" }));
     const h = createHandler(() => {}, lookups({ ask }));
     await h.mention(message(`<@${BOT}> bio buzz world record`, {}, "m1").m, BOT);
@@ -499,6 +499,23 @@ describe("a chat with Bruno in Discord", () => {
     const history = ask.mock.calls[2][1] as { role: string; text: string }[];
     expect(history.at(-1)).toEqual({ role: "bruno", text: "288 points. Also want 4215's record?" });
     expect(take.sent[0].content).toMatch(/^4215 is 26-6-0\./);
+  });
+
+  it("a decline counts as handled, and a scout reply with no decline starts a new thread", async () => {
+    const talk = { embed: ok("board"), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: "No problem.", by: "scout" as const } };
+    // The owner console's answered share: a decline handled what was asked, a fallback did not.
+    expect(answered(talk)).toBe(false);
+    expect(answered({ ...talk, declined: "4215's record" })).toBe(true);
+    // A yes whose offer found nothing falls back to the bot's own words: the reply to that starts a new thread.
+    const reply = (text: string, over: Record<string, unknown> = {}) => ({ embed: ok(text), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text }, ...over });
+    const ask = vi.fn().mockResolvedValue(reply("ok"))
+      .mockResolvedValueOnce(reply("288 points. Also want 4215's record?"))
+      .mockResolvedValueOnce({ ...talk, resolved: "4215's record" });
+    const h = createHandler(() => {}, lookups({ ask }));
+    await h.mention(message(`<@${BOT}> bio buzz world record`, {}, "m1").m, BOT);
+    await h.mention(message("yes", { reference: { messageId: "m1" }, mentions: { repliedUser: { id: BOT } } }, "m2").m, BOT);
+    await h.mention(message("and second?", { reference: { messageId: "m2" }, mentions: { repliedUser: { id: BOT } } }, "m3").m, BOT);
+    expect(ask.mock.calls[2][1]).toEqual([]);
   });
 
   it("a long answer keeps the question it ends with, so a later yes still finds it", async () => {
