@@ -10,7 +10,7 @@ import { load } from "../lib/api";
  *  card in the section it was tapped in when the same card shows in two. */
 const Scope = createContext<string | null>(null);
 
-/** Turns the morph on for the cards inside (the /preview/morph page, for now), naming their section. */
+/** Turns the morph on for the cards inside (Home's cards, the Events list, the search page's cards), naming their section. */
 export function MorphScope({ name, children }: { name: string; children: ReactNode }) {
   return <Scope.Provider value={name}>{children}</Scope.Provider>;
 }
@@ -24,9 +24,21 @@ export function warmEvent(season: number, code: string) {
   void load(`/api/events/${season}/${code}`).catch(() => {});
 }
 
+/** The morph key for a team (the card and the team page agree on it). */
+export const teamMorphKey = (team: number) => `team:${team}`;
+
+/** Warms a team page at the tap: its code and its data, the same request the page makes with no season asked
+ *  (src/pages/TeamPage.tsx). */
+export function warmTeam(team: number) {
+  void import("../pages/TeamPage").catch(() => {});
+  void load(`/api/teams/${team}`).catch(() => {});
+}
+
 const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.defaultPrevented;
 
 /** Props for the card's link to `to`: its key, and the tap that starts the morph and then changes the page itself.
+ *  The link is the card, or (a card whose title link stretches over it) the key goes on the card and the tap on the
+ *  link: the tap grows the nearest element carrying the key.
  *  `warm`: fetch what the page needs at the tap (its code, its data), so it is drawn by the time the card has grown. */
 export function useMorphCard(key: string, to: string, warm?: () => void): { "data-morph-key"?: string; "data-morph-slot"?: string; onClick?: (e: MouseEvent<HTMLElement>) => void } {
   const slot = useContext(Scope);
@@ -44,7 +56,8 @@ export function useMorphCard(key: string, to: string, warm?: () => void): { "dat
     // A new tab, a modified click or a page that took the click over: no morph (the browser does what was asked).
     if (!plainClick(e)) return;
     // launchMorph never throws (a failure is a plain false), so a broken morph still leaves the tap to the link.
-    if (launchMorph(e.currentTarget, key, () => navigate(to))) {
+    const card = e.currentTarget.closest<HTMLElement>("[data-morph-key]") ?? e.currentTarget;
+    if (launchMorph(card, key, () => navigate(to))) {
       e.preventDefault(); // the morph changes the page, a frame later
       try { warm?.(); } catch { /* warming is a bonus */ }
     }
