@@ -98,7 +98,7 @@ export function ownerRouter(): Router {
     return predictionHealth(kind, season);
   }));
 
-  // The engine in production, live vs replay, the shadow model and the simulation settings: read-only (./predictionEngine.ts).
+  // The engine in production, live vs replay and the shadow model: read-only (./predictionEngine.ts).
   r.get("/predictions/engine", h(async () => predictionEngine()));
 
   // Feature toggles and kill switches (server/portal/features.ts).

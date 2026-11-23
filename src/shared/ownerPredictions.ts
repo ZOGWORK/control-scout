@@ -5,9 +5,6 @@ import type { ConfidenceTier } from "./api.js";
 /** One block of scored calls (live or replay, never blended). */
 export interface OwnerLedgerScore { n: number; accuracy: number; brier: number; baselineBrier: number; logLoss: number }
 
-/** One simulation setting, as a value to read (none can be changed from the console). */
-export interface SimulationSetting { id: string; label: string; value: number; unit: string; note: string }
-
 /** GET /api/owner/predictions/engine. */
 export interface OwnerPredictionEngine {
   /** The engine version this server runs (the champion: the only one that serves predictions). */
@@ -29,7 +26,6 @@ export interface OwnerPredictionEngine {
     liveByEngine: { engine: string; n: number; accuracy: number; brier: number; logLoss: number }[];
     shadow: { servedModel: string; shadowModel: string; n: number; served: { accuracy: number; brier: number; logLoss: number }; shadow: { accuracy: number; brier: number; logLoss: number } }[];
   }[];
-  simulation: SimulationSetting[];
   generatedAt: string;
 }
 
