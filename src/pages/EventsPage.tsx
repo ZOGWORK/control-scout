@@ -18,6 +18,7 @@ import { CurrentlyTracking } from "../components/CurrentlyTracking";
 import { seasonLabel } from "../lib/format";
 import { useCompactFilters } from "../components/CompactFilters";
 import { EventFilterBar, EventWeeks } from "../components/EventBrowse";
+import { MorphScope } from "../components/CardMorph";
 import { EventsNow } from "../components/EventsNow";
 import { useIsV8 } from "../lib/v8";
 import { readFilters, statusParam, weekOf } from "./eventsList";
@@ -57,7 +58,7 @@ export default function EventsPage() {
   const filterBar = <EventFilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={events ?? []} {...{ region, type, status, from, to, q, video, listQ, onQ, set, active }} onClear={clear} />;
   const list = (
     <Async state={state} loading={<div className="min-h-[100svh]"><LoadingBlock rows={8} label="Loading events" /></div>} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
-      {(d) => <><OfflineNote data={d} what="Events list" /><EventWeeks events={d.events} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} /></>}
+      {(d) => <><OfflineNote data={d} what="Events list" /><MorphScope name="list"><EventWeeks events={d.events} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} /></MorphScope></>}
     </Async>
   );
   if (v8) {
