@@ -39,17 +39,20 @@ it("asks him to think the question through first, and to say what's missing rath
   expect(how).toMatch(/cut filler/);
 });
 
-it("tells him how to shape a chat answer — a records question short, an explanation in paragraphs or bullets — inside the cap", () => {
+it("tells him how to shape a chat answer — records short, how/why in paragraphs or bullets, a build request in steps — inside the cap", () => {
   const style = answerStyle();
   expect(style.length).toBeLessThanOrEqual(400);
-  expect(style).toContain("records question gets the number first");
-  expect(style).toMatch(/how or why something works/);
-  expect(style).toContain("**bold**");
+  expect(style).toMatch(/records gets the number/);
+  expect(style).toMatch(/How\/why gets a \*\*bold\*\* summary/);
   expect(style).toContain("'- ' bullets");
-  expect(style).toMatch(/600-1,200 characters/);
-  // Still a Discord message, not a document — and it offers the next question to ask.
+  // The shape the swerve-drive guide missed: a how-to is steps, not a records line.
+  expect(style).toMatch(/how-to or build guide/);
+  expect(style).toMatch(/3-6 numbered steps with parts, sizes and numbers/);
+  expect(style).toMatch(/1,000-1,800 chars/);
+  // Still a Discord message, not a document.
   expect(style).toMatch(/No headings, tables or code/);
-  expect(style).toMatch(/End with one short question the facts can answer/);
+  // And the records question is offered only on a records answer: a guide doesn't end with an OPR nudge.
+  expect(style).toMatch(/only on a records answer/);
 });
 
 it("lets him answer the channel's own questions — maths, design, rules — inside the cap, with FTC numbers still from the facts", () => {
