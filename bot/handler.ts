@@ -148,7 +148,8 @@ const turn = (role: BrunoChatTurn["role"], text: string): BrunoChatTurn => ({ ro
 const brunoTurn = (text: string): BrunoChatTurn => {
   const kept = turn("bruno", text);
   const offer = offeredQuestion([{ role: "bruno", text }]);
-  if (!offer || kept.text.toLowerCase().includes(offer.toLowerCase())) return kept;
+  // The clipped head may mention the same record without asking about it: the sentence is what a "yes" needs.
+  if (!offer || offeredQuestion([{ role: "bruno", text: kept.text }]) === offer) return kept;
   const tail = ` Also want ${offer}?`;
   return turn("bruno", `${kept.text.slice(0, Math.max(0, TURN_MAX - tail.length - 1))}…${tail}`);
 };

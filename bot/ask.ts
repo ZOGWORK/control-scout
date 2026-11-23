@@ -101,8 +101,9 @@ export const showsRecords = (a: SearchAnswer) =>
 
 /** The words that say yes on their own. "Thanks" and "good" aren't here: neither answers an offer. */
 const YES = new Set(["yes", "yeah", "yep", "yup", "yea", "ya", "sure", "ok", "okay", "absolutely", "definitely", "please", "pls"]);
-/** The words that may ride along with one ("yes thanks", "ok then", "of course yes"); none of them is a yes alone. */
-const YES_FILLER = new Set(["do", "it", "go", "ahead", "why", "not", "sounds", "good", "thanks", "then", "of", "course"]);
+/** The words that may ride along with one ("yes thanks", "ok then", "of course yes"); none of them is a yes alone, and
+ *  "not" isn't one — "not sure", "definitely not" and "absolutely not" decline the offer. */
+const YES_FILLER = new Set(["do", "it", "go", "ahead", "why", "sounds", "good", "thanks", "then", "of", "course"]);
 /** A whole phrase that is a yes without one of YES. */
 const YES_PHRASES = [/^(?:go ahead|do it|why not|sounds good|of course)$/];
 
@@ -110,6 +111,8 @@ const YES_PHRASES = [/^(?:go ahead|do it|why not|sounds good|of course)$/];
  *  reply with, never a search of its own — searching "yes" answers with whatever team or name is nearest it. A
  *  message that merely thanks him or says "good" is not one. */
 export function affirmative(q: string): boolean {
+  // A number names a team ("yes 6980"): that's a question of its own, not a yes to the one he offered.
+  if (/\d/.test(q)) return false;
   const said = q.toLowerCase().replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
   if (!said) return false;
   if (YES_PHRASES.some((re) => re.test(said))) return true;
@@ -117,12 +120,20 @@ export function affirmative(q: string): boolean {
   return words.some((w) => YES.has(w)) && words.every((w) => YES.has(w) || YES_FILLER.has(w));
 }
 
-/** The question Bruno offered at the end of his last turn in the thread — "…at the Bedford Qualifier. Also want 4215's
- *  record?" is "4215's record" — or null when he offered none. */
+/** What Bruno offers at the end of a turn: "…at the Bedford Qualifier. Also want 4215's record?" is "4215's record". */
+const OFFER = /(?:also\s+)?(?:want|would you like|do you want|should i (?:get|pull|look up))\s+([^?.!\n]{2,80})\?/gi;
+
+/** The question Bruno offered at the end of his last turn in the thread — the last one he asked — or null when he
+ *  offered none. */
 export function offeredQuestion(history: BrunoChatTurn[]): string | null {
   const said = [...history].reverse().find((t) => t.role === "bruno")?.text ?? "";
-  const m = /(?:^|[.!?]\s+)(?:also\s+)?(?:want|would you like|do you want|should i (?:get|pull|look up))\s+([^?.!]{2,80})\?/i.exec(said);
-  return m ? m[1].trim() : null;
+  // Read back from the end: a turn can make an offer and then end with another ("Want 1111's record? Also want 4215's
+  // record?"), and a yes answers the last one.
+  for (const sentence of said.split(/(?<=[.!?])\s+/).reverse()) {
+    const found = [...sentence.matchAll(new RegExp(OFFER.source, "gi"))];
+    if (found.length) return found.at(-1)![1].trim();
+  }
+  return null;
 }
 
 /** How long a chat waits for Bruno before the card posts instead. Generous: a model reply takes a while (Control
