@@ -111,6 +111,8 @@ describe("owner console", () => {
   it("opens on Overview with what's waiting first, urgent first, each with its Open button", () => {
     mount();
     expect(screen.getAllByRole("heading", { level: 2 })[0].textContent).toBe("Waiting for you");
+    // The queue counts aren't in yet: the list says it's partial, and which it's still counting.
+    expect(screen.getByText(/The queues counted so far, urgent first\. Still counting Official videos, Clip coverage, Video contributors/)).toBeTruthy();
     const items = within(screen.getByRole("list", { name: "Waiting for you" })).getAllByRole("listitem");
     expect(items.map((i) => i.textContent?.replace("Open", ""))).toEqual(["2 error reportsFeedback & errors", "3 open feedbackFeedback & errors"]);
     // Orphaned spaces aren't waiting on anyone.

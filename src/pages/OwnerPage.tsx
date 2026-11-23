@@ -114,7 +114,7 @@ export default function OwnerPage() {
   // Which queues' counts aren't in yet, and which couldn't be read: "Waiting for you" only says "nothing waiting"
   // once every count has answered, and names any it couldn't read instead of counting it as empty.
   const sources: [string, { data: unknown; error: unknown }][] = [["Overview", overview], ["Official videos", ovState], ["Clip coverage", ccState], ["Video contributors", vcState]];
-  const counting = { pending: sources.some(([, s]) => s.data === undefined && !s.error), failed: sources.filter(([, s]) => s.data === undefined && s.error).map(([n]) => n) };
+  const counting = { pending: sources.filter(([, s]) => s.data === undefined && !s.error).map(([n]) => n), failed: sources.filter(([, s]) => s.data === undefined && s.error).map(([n]) => n) };
   // Only what waits on the owner's decision: these counts are the nav badges and Overview's "Waiting for you" list.
   // (Orphaned spaces aren't here: nothing about one is the owner's to do, it becomes writable again on its own.)
   const badges: Partial<Record<PanelId, Waiting[]>> = o ? {
@@ -234,7 +234,8 @@ function Facts({ rows, single }: { rows: [ReactNode, ReactNode][]; single?: bool
 
 type Waiting = { n: number; what: string; urgent?: boolean };
 
-type Counting = { pending: boolean; failed: string[] };
+/** The count sources not in yet, and those that couldn't be read, by name. */
+type Counting = { pending: string[]; failed: string[] };
 
 function OverviewPanel({ onOpen, badges, counting }: { onOpen: (id: string) => void; badges: Partial<Record<PanelId, Waiting[]>>; counting: Counting }) {
   const state = useApi<OwnerOverview>("/api/owner/overview");
@@ -285,7 +286,9 @@ function WaitingSection({ badges, counting, onOpen }: { badges: Partial<Record<P
   const items = PANELS.flatMap((p) => (badges[p.id] ?? []).filter((b) => b.n > 0).map((b) => ({ ...b, panel: p })))
     .sort((x, y) => Number(!!y.urgent) - Number(!!x.urgent));
   return (
-    <Section title="Waiting for you" description={items.length ? "Every queue with something to decide, urgent first." : undefined}>
+    <Section title="Waiting for you" description={!items.length ? undefined : counting.pending.length
+      ? `The queues counted so far, urgent first. Still counting ${counting.pending.join(", ")}…`
+      : "Every queue with something to decide, urgent first."}>
       {items.length ? (
         <ul className="divide-y divide-border rounded-xl border border-border bg-card" aria-label="Waiting for you">
           {items.map((it) => (
@@ -300,7 +303,7 @@ function WaitingSection({ badges, counting, onOpen }: { badges: Partial<Record<P
             </li>
           ))}
         </ul>
-      ) : counting.pending ? (
+      ) : counting.pending.length ? (
         <p role="status" className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">Counting the queues…</p>
       ) : !counting.failed.length ? (
         <p className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
@@ -510,7 +513,7 @@ function UsagePanel() {
   const [days, setDays] = useState(14);
   const state = useApi<OwnerUsage>(`/api/owner/usage?days=${days}`);
   // A new period keeps the last answer (dimmed) until it lands, so an opened fold below stays open.
-  const { shown: usage, stale, failed } = useKeepLast(state);
+  const { shown: usage, stale, failed, keptPick } = useKeepLast(state, days);
   return (
     <>
       <div className="mb-4 flex items-center justify-end gap-1" role="group" aria-label="Period">
@@ -518,7 +521,7 @@ function UsagePanel() {
           <Button key={d} size="sm" variant={d === (usage.data?.days ?? days) ? "default" : "outline"} aria-pressed={d === (usage.data?.days ?? days)} onClick={() => setDays(d)}>{d} days</Button>
         ))}
       </div>
-      <KeptLast stale={stale} failed={failed} onRetry={() => void state.reload()}>
+      <KeptLast stale={stale} failed={failed} onRetry={() => void state.reload()} onBack={() => setDays(keptPick)}>
       <Async state={usage}>
         {(u) => {
           const views = u.pageViews.reduce((s, d) => s + d.views, 0);
@@ -666,7 +669,7 @@ function PredictionsPanel() {
   const setKind = (k: LedgerKind) => pick(k, null);
   const state = useApi<PredictionHealth>(`/api/owner/predictions?kind=${kind}${season ? `&season=${season}` : ""}`);
   // Live / backtest or another season keeps the last answer (dimmed) until it lands, so opened folds stay open.
-  const { shown: health, stale, failed } = useKeepLast(state);
+  const { shown: health, stale, failed, keptPick } = useKeepLast(state, { kind, season });
   // The season row belongs to the answer on screen: its kind (after a failed switch, the kept one's), its seasons.
   const shownKind = health.data?.kind ?? kind;
   const setSeason = (s: number) => pick(shownKind, s);
@@ -689,7 +692,7 @@ function PredictionsPanel() {
           </div>
         )}
       </div>
-      <KeptLast stale={stale} failed={failed} onRetry={() => void state.reload()}>
+      <KeptLast stale={stale} failed={failed} onRetry={() => void state.reload()} onBack={() => pick(keptPick.kind, keptPick.season)}>
       <Async state={health}>
         {(p) => !p.summary ? (
           <EmptyState icon={Target} title={p.kind === "live" ? "No live calls scored yet" : "No backtest on this server"}
