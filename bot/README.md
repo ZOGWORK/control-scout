@@ -44,7 +44,7 @@ Scout's line; a deterministic one never does. Bruno off, unconfigured, failing o
 posts anyway.
 
 **The answer's buttons** (`bot/buttons.ts`). Every answer with something to offer carries one row of questions and
-one row of links: up to four questions to ask next (search's own suggestions for a question it couldn't answer, else
+one row of links: up to three questions to ask next (search's own suggestions for a question it couldn't answer, else
 the answer's related ones), a link button to the same answer on controlscout.org, and a link button per video. A
 question lives in the bot's process for an hour, not in the button's custom id (Discord allows 100 characters, which
 is not a question), so a button clicked within the hour asks it as `/ask` would — same cache, same limit, same

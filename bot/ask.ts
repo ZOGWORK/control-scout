@@ -22,7 +22,7 @@ import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search
 import { FOOTER, VOLT, teamLink } from "./views.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 import { answerScope, answerStyle, brunoMethod, brunoPersona, productFacts, zogModeReply } from "./productFacts.js";
-import { RECORD_NUMBER, smallTalk } from "./smallTalk.js";
+import { RECORD_NUMBER, WORKING, smallTalk } from "./smallTalk.js";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
@@ -198,12 +198,12 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
   // number the facts haven't, an empty one, a failure), and saying its AI is unreachable would contradict the answer
   // it just posted in the same channel. Only a chat that's actually off is reported as off.
   const talk = empty ? smallTalk(q, chatting && deps.available() && (await deps.enabled().catch(() => false))) : null;
-  // What nothing answered, and that isn't a greeting or a working question either, is a real miss: the site's
-  // failed-search queue gets the phrasing. A question about the records is one even with no number in it ("who won
-  // decode", "how did our alliance do at austin"), and those count even where the bot answers with its one plain line —
-  // the line is not an answer. The question's own words decide, not the thread's (a "thanks" after "who won 4215" is
-  // still a greeting), and an answer search gave teaches the queue nothing.
-  if (empty && (!talk || RECORD_WORDS.test(q))) deps.miss?.(q, answer, guild);
+  // What nothing answered, and that is a question about the records, is a real miss: the site's failed-search queue
+  // gets the phrasing. A records question is one even with no number in it ("who won decode", "how did our alliance do
+  // at austin"), and those count even where the bot answers with its one plain line — the line is not an answer. A build
+  // question's "team" or "match" is about the robot, so it isn't one, and neither is a greeting (recordsMiss); the
+  // question's own words decide, not the thread's, and an answer search gave teaches the queue nothing.
+  if (empty && recordsMiss(q)) deps.miss?.(q, answer, guild);
   if (talk) return {
     embed: askEmbed(q, answer, null, site),
     meta: { step: answer.step, refined, sentence: false, chat: true },
@@ -232,6 +232,10 @@ const asksRecords = (q: string, a: SearchAnswer, history: BrunoChatTurn[]) =>
 /** The words that make an unanswered message a question about the records even with no number in it. Filing only: the
  *  reply is unchanged, and a greeting or a build question has none of these. */
 const RECORD_WORDS = /\b(?:teams?|alliances?|partners?|events?|matches?|quals?|qualifiers?|playoffs?|oprs?|ranks?|rankings?|scores?|records?|won|wins?|lost|losses?|tied?|seasons?|worlds|championships?|divisions?|awards?|schedules?|standings?)\b/i;
+
+/** Whether an unanswered message is a question about the records, and so belongs in the site's failed-search queue: a
+ *  record number in it, or a records word — and not a build question, whose "team" or "match" is about the robot. */
+const recordsMiss = (q: string) => !WORKING.test(q) && (RECORD_NUMBER.test(q) || RECORD_WORDS.test(q));
 
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
  *  second place?" has the records it's about), then his reply. */

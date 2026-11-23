@@ -8,6 +8,7 @@
 import type { APIEmbed } from "discord.js";
 import type { EventDetail, MatchView } from "../src/shared/api.js";
 import { localDate } from "../src/shared/eventDay.js";
+import { eventRoster, eventStanding } from "../src/shared/eventStanding.js";
 import { oddsPct, tierWords } from "../src/shared/share.js";
 import { FOOTER, VOLT, dates, favouriteOf, linkedAlliance, teamLink, teamsOf as sideTeams } from "./views.js";
 import type { Follow } from "./follows.js";
@@ -57,6 +58,9 @@ export function eventDue(follows: Follow[], d: EventDetail, now: number): EventD
     // server following both an event and a team gets both posts in one channel.
     if (f.kind === "event") {
       if (!f.event || f.event !== e.code) continue;
+      // A code repeats next season: a follow made last season never posts this one's event of the same code, even when
+      // a current follow is what loaded it.
+      if (f.season != null && f.season !== e.season) continue;
       if (e.start && addDays(e.start, -1) === today && hour >= EVE_HOUR) add(f, "eve", "event:eve");
       if (e.status !== "finished" && d.matches.some((m) => m.level === "qual")) add(f, "schedule", "event:schedule");
       // The end of an event day: every match that day is scored, and the last was a while ago.
@@ -247,7 +251,13 @@ export function eventRecapEmbed(d: EventDetail, today: string, site: string): AP
   const played = todays.filter((m) => m.played);
   const calls = played.filter((m) => m.prediction?.kind === "live" && favouriteOf(m.prediction) && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
   const right = calls.filter((m) => (favouriteOf(m.prediction!)!.side === "red") === (m.red.score!.total > m.blue.score!.total)).length;
-  const top = d.field.filter((f) => f.rank != null).sort((a, b) => a.rank! - b.rank! || a.team - b.team).slice(0, 5);
+  // The meet's own standing, not FIRST's league-wide running one, and only the teams that played here (the same rule
+  // as a team's recap): a team ranked 2nd at the meet must not be shown, or left out, by its 18th in the league.
+  const top = eventRoster(d.field)
+    .map((f) => ({ f, s: eventStanding(f) }))
+    .filter(({ s }) => s.rank != null)
+    .sort((a, b) => a.s.rank! - b.s.rank! || a.f.team - b.f.team)
+    .slice(0, 5);
   return {
     title: `Day recap: ${d.event.name}`,
     url: eventUrl(d, site),
@@ -256,7 +266,7 @@ export function eventRecapEmbed(d: EventDetail, today: string, site: string): AP
       { name: "Today", value: `${played.length} of ${todays.length} match${todays.length === 1 ? "" : "es"} scored${calls.length ? ` · calls: ${right} of ${calls.length} right` : ""}`, inline: true },
       ...(top.length ? [{
         name: "Top 5 now",
-        value: top.map((f) => `**${f.rank}.** [${f.team}](${site}/teams/${f.team})${f.name ? ` ${f.name}` : ""}${f.wins != null ? ` · ${f.wins}–${f.losses ?? 0}–${f.ties ?? 0}` : ""}`).join("\n"),
+        value: top.map(({ f, s }) => `**${s.rank}.** [${f.team}](${site}/teams/${f.team})${f.name ? ` ${f.name}` : ""}${s.wins != null ? ` · ${s.wins}–${s.losses ?? 0}–${s.ties ?? 0}` : ""}`).join("\n"),
       }] : []),
     ],
     footer: FOOTER,

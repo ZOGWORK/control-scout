@@ -125,6 +125,24 @@ describe("an event follow", () => {
     expect(eventScheduleEmbed(detail([]), SITE).fields).toEqual([{ name: "Schedule", value: "No match has a posted time yet." }]);
   });
 
+  it("an event follow from an earlier season posts nothing, even when a current follow is what loaded the event", () => {
+    const d = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7)], { status: "live" });
+    // The code repeats, so only the season on the follow tells them apart.
+    expect(eventDue([{ ...fe("X"), season: 2025 }], d, local("2026-10-24", "10:00"))).toEqual([]);
+    expect(eventDue([{ ...fe("X"), season: 2026 }], d, local("2026-10-24", "10:00")).map((x) => x.kind)).toContain("schedule");
+  });
+
+  it("the event's top five at a league meet: the meet's own standing and record, not the league's", () => {
+    const meet = (rank: number, wins: number) => ({ rank, rs: 2, tb: [], wins, losses: 0, ties: 0, played: 1 });
+    const d = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7)], { status: "live" },
+      [row(1, { rank: 18, wins: 9, losses: 4, ties: 0, meet: meet(2, 1) }), row(2, { rank: 2, wins: 10, losses: 3, ties: 0, meet: meet(1, 1) }), row(3), row(4)]);
+    const top = eventRecapEmbed(d, "2026-10-24", SITE).fields!.find((x) => x.name === "Top 5 now")!.value.split("\n");
+    expect(top[0]).toMatch(/^\*\*1\.\*\* \[2\].*1–0–0$/);
+    expect(top[1]).toMatch(/^\*\*2\.\*\* \[1\].*1–0–0$/);
+    // The league's 10–3 and 9–4 never appear as the meet's record.
+    expect(top.join("\n")).not.toMatch(/10–3|9–4/);
+  });
+
   it("the event's recap: the day's matches, the calls, and the top five as it stands", () => {
     const d = detail([
       q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7),
