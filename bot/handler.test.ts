@@ -462,6 +462,37 @@ describe("a chat with Bruno in Discord", () => {
     expect(hello.sent[0].embeds).toEqual([]);
   });
 
+  it("a reply of \"yes\" to his offer is answered as the question he offered, and the thread keeps it", async () => {
+    const reply = (text: string, over: Record<string, unknown> = {}) => ({ embed: ok(text), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text }, ...over });
+    const ask = vi.fn().mockResolvedValue(reply("ok"))
+      .mockResolvedValueOnce(reply("288 points. Also want 4215's record?"))
+      .mockResolvedValueOnce(reply("4215 is 26-6-0.", { resolved: "4215's record" }));
+    const h = createHandler(() => {}, lookups({ ask }));
+    await h.mention(message(`<@${BOT}> bio buzz world record`, {}, "m1").m, BOT);
+    const follow = message("yes", { reference: { messageId: "m1" }, mentions: { repliedUser: { id: BOT } } }, "m2");
+    await h.mention(follow.m, BOT);
+    // The thread he leaned on is the offer, and the post is his record answer — never the word "yes" answered.
+    expect(ask.mock.calls[1][1]).toContainEqual({ role: "bruno", text: "288 points. Also want 4215's record?" });
+    expect(follow.sent[0].content).toMatch(/^4215 is 26-6-0\./);
+    // And the thread keeps the question answered, not "yes": the next follow-up leans on 4215's record.
+    await h.mention(message("and their auto opr?", { reference: { messageId: "m2" }, mentions: { repliedUser: { id: BOT } } }, "m3").m, BOT);
+    const next = ask.mock.calls[2][1] as { role: string; text: string }[];
+    expect(next).toContainEqual({ role: "user", text: "4215's record" });
+    expect(next).not.toContainEqual({ role: "user", text: "yes" });
+  });
+
+  it("a long answer keeps the question it ends with, so a later yes still finds it", async () => {
+    // The thread clips a turn at 600 characters; the offer sits at the end, where the clip cuts first — and the clipped
+    // head mentions 4215's record without asking about it, so the sentence has to be kept, not its words.
+    const ask = vi.fn().mockResolvedValue({ embed: ok("board"), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: `4215's record came up. ${"x".repeat(700)}. Also want 4215's record?` } });
+    const h = createHandler(() => {}, lookups({ ask }));
+    await h.mention(message(`<@${BOT}> bio buzz world record`, {}, "m1").m, BOT);
+    await h.mention(message("yes", { reference: { messageId: "m1" }, mentions: { repliedUser: { id: BOT } } }, "m2").m, BOT);
+    const history = ask.mock.calls[1][1] as { role: string; text: string }[];
+    expect(history.at(-1)?.text).toMatch(/Also want 4215's record\?$/);
+    expect(history.at(-1)!.text.length).toBeLessThanOrEqual(600);
+  });
+
   it("a reply to his answer carries the thread on, even without a mention; replies to others or with no text are left alone", async () => {
     const ask = chatAsk();
     const h = createHandler(() => {}, lookups({ ask }));
