@@ -69,7 +69,11 @@ export function DiscordPanel() {
       prime(PATH, await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "DELETE", json: {} }));
       toast.success("Cap removed. That server's counters start afresh.");
     } catch (err) {
-      toast.error((err as ApiError).message);
+      // Someone else cleared it first: the state this asked for, so say so and refresh rather than repeat the 409.
+      if ((err as ApiError).status === 409) {
+        toast.success("That server already has no cap.");
+        void state.reload();
+      } else toast.error((err as ApiError).message);
     } finally { setBusy(null); }
   };
 

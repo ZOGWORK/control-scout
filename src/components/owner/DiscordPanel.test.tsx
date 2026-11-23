@@ -12,6 +12,10 @@ const NO_CAP: OwnerDiscordLimits = {
   servers: [{ guild: GUILD, perHour: null, perDay: null, custom: false, usedHour: 0, usedDay: 0, follows: 2, lastAsk: null, updatedBy: null, updatedAt: null }],
   defaultLimit: { perHour: null, perDay: null },
 };
+const CAPPED: OwnerDiscordLimits = {
+  servers: [{ guild: GUILD, perHour: 60, perDay: 300, custom: true, usedHour: 1, usedDay: 1, follows: 1, lastAsk: null, updatedBy: "owner@example.test", updatedAt: "2026-11-22T00:00:00Z" }],
+  defaultLimit: { perHour: null, perDay: null },
+};
 const h = vi.hoisted(() => ({
   data: null as unknown as OwnerDiscordLimits,
   reload: vi.fn(),
@@ -80,6 +84,16 @@ describe("the owner console's Discord bot panel", () => {
     expect(h.error).not.toHaveBeenCalled();
     expect(h.reload).toHaveBeenCalled();
     expect((screen.getByLabelText("Server id") as HTMLInputElement).value).toBe("");
+  });
+
+  it("turns a 409 on Back to default into already cleared, and refreshes the table", async () => {
+    h.data = CAPPED;
+    apiFetch.mockRejectedValueOnce(new ApiError(409, "That server has no cap of its own"));
+    render(<DiscordPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Back to default" }));
+    await waitFor(() => expect(h.success).toHaveBeenCalledWith("That server already has no cap."));
+    expect(h.error).not.toHaveBeenCalled();
+    expect(h.reload).toHaveBeenCalled();
   });
 
   it("keeps the cap form when no server is listed: clearing the last cap must not take the way to set one", () => {
