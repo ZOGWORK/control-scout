@@ -25,7 +25,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - [fixes] The same team twice says so
 
 ### Discord bot
-- **A compare command** (`bot/commands.ts`, `bot/handler.ts` `compareQuestion`): `/compare team: other:` asks search the comparison the site's own box reads ("4215 vs 6980") and posts what `/ask` would — the question quoted, the records beside it, its "ask next" buttons and 👍/👎 — so a scouting channel can put two teams side by side without typing the phrase. The same number twice says to pick two teams instead of asking search. `/help` and the site's Control Scout card list it (`src/shared/discord.ts`). `bot/handler.test.ts` covers both.
+- **A compare command** (`bot/commands.ts`, `bot/handler.ts` `compareQuestion`): `/compare team: other:` asks search the comparison the site's own box reads ("4215 vs 6980") and posts what `/ask` would — the question quoted, the records beside it, its "ask next" buttons and 👍/👎 — so a scouting channel can put two teams side by side without typing the phrase. The same number twice says to pick two teams instead of asking search. `/help` and the site's Control Scout card list it (`src/shared/discord.ts`). `bot/handler.test.ts` covers both. (#2207)
 
 ## 7.9.6 — 2026-11-23
 
