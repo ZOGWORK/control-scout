@@ -1,6 +1,6 @@
 // The owner console's Analytics tab: page views and sessions per UTC day, the most viewed pages and the sites
 // visits came from (opt-in usage statistics, analytics_daily). Only page views: the owner reads this tab for traffic, so prediction calls and the
-// prediction ledger's counts are no longer worked out here. Aggregates only: no paths, accounts or addresses.
+// prediction ledger's counts are no longer worked out here. Aggregates only: route patterns (/teams/:number), never a real path, account or address.
 import { statsSummary } from "../analytics.js";
 import { publishUsageSetting } from "../ownerSettings.js";
 import type { OwnerAnalytics } from "../../src/shared/owner.js";
