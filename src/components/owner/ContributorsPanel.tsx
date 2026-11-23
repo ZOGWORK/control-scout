@@ -1,8 +1,9 @@
 // Owner console › Video contributors (docs/contributors.md, server/videos/ownerRoutes.ts). One queue of verification
 // requests, invite claims and applications together, oldest first, each with its label, the sample video and the
-// honest result of the checks. Then: approve someone directly or send an invite (its link shown this once), the
-// contributors with their name history, the reports (grouped by link, most-reported first, 5+ flagged), every link
-// with its actions, the invites, and the team roster. Nothing happens to a link on reports alone: only these buttons.
+// honest result of the checks. Then the other queue, the reports (grouped by link, most-reported first, 5+ flagged), and
+// approving someone directly or sending an invite (its link shown this once). Folded below, to look up: the
+// contributors with their name history, every link with its actions, recently removed links, the invites and the team
+// roster. Nothing happens to a link on reports alone: only these buttons.
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { BadgeCheck, Copy, ExternalLink, Flag, Mail, Play, ShieldOff, Trash2, UserPlus, Users, Video } from "lucide-react";
