@@ -100,10 +100,14 @@ export async function askUsage(now = Date.now()): Promise<AskUsage> {
        FROM discord_asks WHERE asked_at >= ?`,
     [dayStart(now), week],
   );
-  const times = await all<{ ms: number }>(
-    "SELECT ms FROM discord_asks WHERE ms IS NOT NULL AND asked_at >= ? ORDER BY ms LIMIT 5000", [week],
-  );
-  const median = times.length ? Number(times[Math.floor(times.length / 2)].ms) : null;
+  // The middle of every timed ask this week, found by position rather than by reading them all into a capped sample: a
+  // LIMIT would make a busy week's median the middle of its fastest 5,000, low exactly when it matters most.
+  const timed = await get<{ n: number }>("SELECT COUNT(*) AS n FROM discord_asks WHERE ms IS NOT NULL AND asked_at >= ?", [week]);
+  const nTimed = Number(timed?.n ?? 0);
+  const middle = nTimed
+    ? await get<{ ms: number }>("SELECT ms FROM discord_asks WHERE ms IS NOT NULL AND asked_at >= ? ORDER BY ms LIMIT 1 OFFSET ?", [week, Math.floor(nTimed / 2)])
+    : null;
+  const median = middle ? Number(middle.ms) : null;
   const n = Number(totals?.week ?? 0);
   const pct = (x: number) => (n ? Math.round((Number(x) / n) * 100) : null);
   return {

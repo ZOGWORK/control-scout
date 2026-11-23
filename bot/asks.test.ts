@@ -54,6 +54,18 @@ describe("what the bot was asked", () => {
     expect(u).toMatchObject({ asksToday: 3, asksWeek: 3, answeredPct: 67, chatPct: 33, medianMs: 1000 });
   });
 
+  it("the middle answer time is the week's middle, not the middle of its fastest 5,000", async () => {
+    // 5,011 timed asks, 1 ms to 5,011 ms: the middle is 2,506. The middle of the fastest 5,000 would be 2,501 — a
+    // sample's middle, understated exactly when the bot is busiest.
+    await run(
+      `INSERT INTO discord_asks (guild_id, question, step, chat, answered, ms, asked_at)
+       WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 5011)
+       SELECT 'g1', 'q' || i, 'deterministic', 1, 1, i, ? FROM n`,
+      [at(1_000)],
+    );
+    expect((await askUsage(NOW)).medianMs).toBe(2506);
+  });
+
   it("prunes asks older than KEEP_DAYS", async () => {
     await ask("old", {}, (KEEP_DAYS + 1) * 86_400_000);
     await ask("new");

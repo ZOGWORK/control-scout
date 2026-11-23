@@ -99,10 +99,12 @@ async function waitForSite(timeoutMs = 180_000): Promise<void> {
 }
 
 // GuildMessages (not privileged) for "@Control Scout …": Discord sends the text only of messages that mention the
-// bot, so without the privileged Message Content intent it never reads anything else. Partials: a 👍 on an answer from
-// before the bot's last restart still arrives (its message, channel and reaction may not be cached).
+// bot, so without the privileged Message Content intent it never reads anything else. GuildMessageReactions and
+// DirectMessageReactions (not privileged either) are what deliver a 👍/👎 on an answer (bot/reactions.ts): without them
+// the bot would add the emoji and never hear the click. Partials: a vote on an answer from before the bot's last restart
+// still arrives (its message, channel and reaction may not be cached).
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessageReactions],
   partials: [Partials.Message, Partials.Reaction, Partials.Channel],
 });
 // /config answers with the same summary the startup log prints (bot/config.ts), read live rather than from startup.

@@ -89,7 +89,7 @@ export const CHAT_TIMEOUT_MS = 45_000;
 
 export async function realAskDeps(): Promise<AskDeps> {
   // The search index is the site's (it builds and refreshes it); the bot only reads it, like every other table but its own.
-  const [{ searchAnswer }, { refine }, { brunoAnswer, answerFacts, ungrounded }, { isEnabled }, { brunoAvailable, brunoDiscordChat }, { noteSearch, outcomeTrace }] = await Promise.all([
+  const [{ searchAnswer }, { refine }, { brunoAnswer, answerFacts, ungrounded }, { isEnabled }, { brunoAvailable, brunoDiscordChat }, { noteBotSearch, outcomeTrace }] = await Promise.all([
     import("../server/api/searchAnswer.js"), import("../server/api/searchBruno.js"), import("../server/api/searchBrunoAnswer.js"),
     import("../server/flags.js"), import("../server/auth/controlPoint.js"), import("../server/searchFailures.js"),
   ]);
@@ -134,7 +134,7 @@ export async function realAskDeps(): Promise<AskDeps> {
     // search box never sees. In-memory and synchronous; the bot flushes it once a minute (bot/index.ts). A failure here
     // never touches the answer: reporting is never on the path.
     miss: (q, a, guild) => {
-      try { noteSearch(q, a, `discord:${guild ?? "dm"}`, outcomeTrace(a)); } catch { /* never breaks an answer */ }
+      try { noteBotSearch(q, a, `discord:${guild ?? "dm"}`, outcomeTrace(a)); } catch { /* never breaks an answer */ }
     },
   };
 }
