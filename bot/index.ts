@@ -18,7 +18,7 @@ import { notifyTick, type Send } from "./follows.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
 import { rememberGuild } from "./guilds.js";
-import { BAD, GOOD, downVote, vote } from "./reactions.js";
+import { BAD, GOOD, downVote, markFiled, serialVotes, unfiledDownvotes, vote } from "./reactions.js";
 import { flushSearchFailures, noteBotDownvote } from "../server/searchFailures.js";
 import { site } from "./lookups.js";
 import { configEmbed, configLines, type Config } from "./config.js";
@@ -181,6 +181,9 @@ setInterval(() => {
 }, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
 client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m as never, client.user.id); });
+/** One answer's 👍/👎 in the order Discord sent them (bot/reactions.ts): an add and its removal must not land the wrong
+ *  way round. */
+const serial = serialVotes();
 /** A 👍/👎 on one of the bot's answers, counted (bot/reactions.ts): never who clicked, and only messages it posted have
  *  a row, so a reaction anywhere else changes nothing. */
 type Counted = { emoji: { name: string | null }; message: { id: string } };
@@ -188,17 +191,25 @@ const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) =>
   if (user.bot) return;
   const emoji = reaction.emoji.name;
   if (emoji !== GOOD && emoji !== BAD) return;
-  void vote(reaction.message.id, emoji, delta).catch(() => {});
+  void serial(reaction.message.id, () => vote(reaction.message.id, emoji, delta)).catch(() => {});
 };
-/** A 👎 added: counted, and — on an answer's first one — the question it answered goes to the site's failed-search queue
- *  (server/searchFailures.ts). A person saying the answer was wrong is the one failure search can't find for itself,
- *  having called that answer answered. Taking the vote off and adding it again asks again, and the queue counts a
- *  repeat as a repeat rather than as a new entry. */
+/** Answers whose 👎 question is in this process's queue but not yet in search_failures: marked filed once a flush wrote
+ *  it, and picked up from the table again if the process dies first (`unfiledDownvotes`). */
+const unsaved = new Set<string>();
+/** Hand an answer's question to the site's failed-search queue (server/searchFailures.ts). */
+function queueDownvote(messageId: string, question: string, guild: string | null): void {
+  noteBotDownvote(question, `discord:${guild ?? "dm"}`);
+  unsaved.add(messageId);
+}
+/** A 👎 added: counted, and — on an answer's first one — the question it answered goes to the site's failed-search queue.
+ *  A person saying the answer was wrong is the one failure search can't find for itself, having called that answer
+ *  answered. Taking the vote off and adding it again asks again, and the queue counts a repeat as a repeat. */
 const disliked = (reaction: Counted, user: { bot?: boolean }) => {
   if (user.bot) return;
-  void downVote(reaction.message.id)
-    .then((v) => { if (v?.question) noteBotDownvote(v.question, `discord:${v.guild ?? "dm"}`); })
-    .catch(() => {});
+  void serial(reaction.message.id, async () => {
+    const v = await downVote(reaction.message.id);
+    if (v?.question) queueDownvote(reaction.message.id, v.question, v.guild);
+  }).catch(() => {});
 };
 client.on(Events.MessageReactionAdd, (r, u) => {
   if (r.emoji.name === BAD) { disliked(r as Counted, u); return; }
@@ -206,10 +217,19 @@ client.on(Events.MessageReactionAdd, (r, u) => {
 });
 client.on(Events.MessageReactionRemove, (r, u) => voted(-1)(r as Counted, u));
 // The site's failed-search queue counts Discord's own misses too (bot/ask.ts): the buffer is in this process, so the bot
-// flushes it as the site does, every minute.
+// flushes it as the site does, every minute. A 👎's question goes the same way, and the answers whose question is now in
+// the table are marked filed; anything still unfiled (a restart before the flush wrote it) is filed again here, because
+// an answer's first 👎 is its only chance to.
 setInterval(() => {
   flushSearchFailures()
-    .then((n) => { if (n) log(`search-failures: counted ${n}`); })
+    .then(async (n) => {
+      if (n) log(`search-failures: counted ${n}`);
+      // Marked one by one, and kept when its mark failed ("written" means the answer never needs filing again).
+      for (const id of [...unsaved]) { if (await markFiled(id).then(() => true, () => false)) unsaved.delete(id); }
+      for (const v of await unfiledDownvotes().catch(() => [])) {
+        if (!unsaved.has(v.messageId)) queueDownvote(v.messageId, v.question, v.guild);
+      }
+    })
     .catch((e) => log(`search-failures: flush failed: ${(e as Error).message}`));
 }, 60_000).unref();
 client.on(Events.GuildCreate, (g) => {
