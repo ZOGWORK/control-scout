@@ -2,7 +2,8 @@
 // messages as the feedback inbox, not a second inbox) first, as it's what waits on a decision; then, folded, abuse
 // signals as counts per day and coarse network range (server/moderation.ts: IPv4 /16, IPv6 /32, never a full
 // address or anything about a person).
-import { useRef, useState } from "react";
+import { useState } from "react";
+import { KeptLast, useKeepLast } from "./keepLast";
 import { Bot, ClipboardCheck, Network, ShieldAlert, Zap } from "lucide-react";
 import { Section, EmptyState } from "../page";
 import { StatTile } from "../StatTile";
@@ -52,16 +53,11 @@ export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void })
   const [days, setDays] = useState(14);
   const [queue, setQueue] = useState<"untriaged" | "accepted">("untriaged");
   const state = useApi<OwnerModeration>(`/api/owner/moderation?days=${days}&triage=${queue}`);
-  // A new period or queue keeps the last answer on screen until the next one arrives, so the folded
-  // abuse section (and the page) doesn't drop to a loading block and close under the owner's cursor.
-  const last = useRef<OwnerModeration | undefined>(undefined);
-  if (state.data) last.current = state.data;
-  const shown = state.error ? state : { ...state, data: state.data ?? last.current };
-  // The kept answer is for the old period or queue: dimmed and marked busy until the new one lands, so it's never
-  // read (or triaged from) as the new selection.
-  const stale = !state.data && !state.error && !!last.current;
+  // A new period or queue keeps the last answer on screen (dimmed) until the next one lands, so the folded abuse
+  // section doesn't unmount and close under the owner's cursor (./keepLast.tsx).
+  const { shown, stale, failed } = useKeepLast(state);
   return (
-    <div aria-busy={stale || undefined} className={cn("transition-opacity", stale && "pointer-events-none opacity-50")} data-stale={stale || undefined}>
+    <KeptLast stale={stale} failed={failed} onRetry={() => void state.reload()}>
       <Async state={shown}>
         {({ abuse: a, triage: t }) => (
           <>
@@ -129,6 +125,6 @@ export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void })
           </>
         )}
       </Async>
-    </div>
+    </KeptLast>
   );
 }

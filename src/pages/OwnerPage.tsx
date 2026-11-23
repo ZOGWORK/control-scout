@@ -53,6 +53,7 @@ import { ContributorsPanel } from "../components/owner/ContributorsPanel";
 import { OfficialVideosPanel } from "../components/owner/OfficialVideosPanel";
 import { ClipCoveragePanel } from "../components/owner/ClipCoveragePanel";
 import { AnalyticsPanel } from "../components/owner/AnalyticsPanel";
+import { KeptLast, useKeepLast } from "../components/owner/keepLast";
 import { useIsV8 } from "../lib/v8";
 import { SYNC_LATE_HOURS, syncTone } from "../components/owner/syncTone";
 
@@ -508,6 +509,8 @@ function uptime(s: number): string {
 function UsagePanel() {
   const [days, setDays] = useState(14);
   const state = useApi<OwnerUsage>(`/api/owner/usage?days=${days}`);
+  // A new period keeps the last answer (dimmed) until it lands, so an opened fold below stays open.
+  const { shown: usage, stale, failed } = useKeepLast(state);
   return (
     <>
       <div className="mb-4 flex items-center justify-end gap-1" role="group" aria-label="Period">
@@ -515,7 +518,8 @@ function UsagePanel() {
           <Button key={d} size="sm" variant={d === days ? "default" : "outline"} aria-pressed={d === days} onClick={() => setDays(d)}>{d} days</Button>
         ))}
       </div>
-      <Async state={state}>
+      <KeptLast stale={stale} failed={failed} onRetry={() => void state.reload()}>
+      <Async state={usage}>
         {(u) => {
           const views = u.pageViews.reduce((s, d) => s + d.views, 0);
           return (
@@ -548,6 +552,7 @@ function UsagePanel() {
           );
         }}
       </Async>
+      </KeptLast>
     </>
   );
 }
@@ -661,7 +666,9 @@ function PredictionsPanel() {
   const setKind = (k: LedgerKind) => pick(k, null);
   const setSeason = (s: number) => pick(kind, s);
   const state = useApi<PredictionHealth>(`/api/owner/predictions?kind=${kind}${season ? `&season=${season}` : ""}`);
-  const seasons = useMemo(() => [...new Set((state.data?.available ?? []).filter((a) => a.kind === kind).map((a) => a.season))], [state.data, kind]);
+  // Live / backtest or another season keeps the last answer (dimmed) until it lands, so opened folds stay open.
+  const { shown: health, stale, failed } = useKeepLast(state);
+  const seasons = useMemo(() => [...new Set((health.data?.available ?? []).filter((a) => a.kind === kind).map((a) => a.season))], [health.data, kind]);
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -675,12 +682,13 @@ function PredictionsPanel() {
         {seasons.length > 1 && (
           <div className="flex flex-wrap gap-1" role="group" aria-label="Season">
             {seasons.map((s) => (
-              <Button key={s} size="sm" variant={s === state.data?.season ? "secondary" : "ghost"} aria-pressed={s === state.data?.season} onClick={() => setSeason(s)}>{seasonLabel(s)}</Button>
+              <Button key={s} size="sm" variant={s === health.data?.season ? "secondary" : "ghost"} aria-pressed={s === health.data?.season} onClick={() => setSeason(s)}>{seasonLabel(s)}</Button>
             ))}
           </div>
         )}
       </div>
-      <Async state={state}>
+      <KeptLast stale={stale} failed={failed} onRetry={() => void state.reload()}>
+      <Async state={health}>
         {(p) => !p.summary ? (
           <EmptyState icon={Target} title={kind === "live" ? "No live calls scored yet" : "No backtest on this server"}
             description={kind === "live" ? "Live calls are logged before each match and scored once it's played. They show here after the first event of the season." : "The stats job writes the backtest; it shows here after the next run."} />
@@ -731,6 +739,7 @@ function PredictionsPanel() {
           </>
         )}
       </Async>
+      </KeptLast>
     </>
   );
 }
