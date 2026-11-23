@@ -1,6 +1,6 @@
 // The owner console's Predictions & ledger: the engine in production (champion and served model), live against
 // replay per season (never blended), each engine version's live calls, the shadow model on the same live calls
-// (read-only), the simulation settings as values, and calibration by the confidence tier calls show publicly.
+// (read-only), and calibration by the confidence tier calls show publicly.
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -12,7 +12,6 @@ import { PREDICT_SEASONS } from "../data/seasons";
 import { resetTrackRecord } from "../api/accuracy";
 import { ownerRouter } from "./routes";
 import { tierCalibration } from "./predictionHealth";
-import { PROJECTION_RUNS } from "../../src/shared/projections";
 import type { OwnerPredictionEngine } from "../../src/shared/ownerPredictions";
 import type { PredictionHealth } from "../../src/shared/owner";
 
@@ -68,7 +67,7 @@ describe("the engine in production", () => {
     expect(routes).toContain("get /predictions/engine");
   });
 
-  it("names the champion and its served and shadow models, live and replay apart, per engine, and the simulation values", async () => {
+  it("names the champion and its served and shadow models, live and replay apart, per engine", async () => {
     const { status, json: e } = await getJson<OwnerPredictionEngine>("/api/owner/predictions/engine");
     expect(status).toBe(200);
     expect(e).toMatchObject({ engineVersion: ENGINE_VERSION, servedModel: "ctx-2", shadowModel: "ctx-1", lastLiveCall: "2026-11-02T09:00:00Z" });
@@ -78,9 +77,6 @@ describe("the engine in production", () => {
     expect(Object.keys(s.live!).sort()).toEqual(["accuracy", "baselineBrier", "brier", "logLoss", "n"]);
     expect(s.liveByEngine.map((x) => [x.engine, x.n])).toEqual([["0.0.1", 1], [ENGINE_VERSION, 3]].sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
     expect(s.shadow).toEqual([expect.objectContaining({ servedModel: "ctx-2", shadowModel: "ctx-1", n: 3 })]);
-    // Values to read, from the code that uses them.
-    expect(e.simulation.find((x) => x.id === "projectionRuns")).toMatchObject({ value: PROJECTION_RUNS, unit: "simulations" });
-    expect(e.simulation.every((x) => typeof x.value === "number" && x.value > 0 && x.label && x.note)).toBe(true);
   });
 });
 

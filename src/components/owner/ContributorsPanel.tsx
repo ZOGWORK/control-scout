@@ -76,14 +76,14 @@ export function ContributorsPanel() {
             {d.requests.length ? <ul className="space-y-4">{d.requests.map((r) => <RequestCard key={r.user.id} r={r} onDone={reload} />)}</ul>
               : <EmptyState icon={BadgeCheck} title="No requests waiting" description="New invite claims and applications show here." />}
           </Section>
-          <Section title="Add a contributor" description="Approve someone you already know, or send them an invite link (single use, 14 days). Both need an existing account.">
-            <AddContributor onDone={reload} />
-          </Section>
           <Section id="reports" title="Reports" description={`Grouped by link, most-reported first. ${REPORT_FLAG_AT}+ reports are flagged. A link stays up until you act.`}>
             {d.reports.length ? <ul className="space-y-4">{d.reports.map((g) => <ReportCard key={g.link.id} g={g} onDone={reload} />)}</ul>
               : <EmptyState icon={Flag} title="No open reports" description="Reports people send from a video's menu show here." />}
           </Section>
-          <Section title="Contributors" description="Everyone verified, revoked or rejected, newest decision first, with every name they've used.">
+          <Section title="Add a contributor" description="Approve someone you already know, or send them an invite link (single use, 14 days). Both need an existing account.">
+            <AddContributor onDone={reload} />
+          </Section>
+          <Section title="Contributors" collapsible icon={Users} summary={`${d.contributors.length} verified, revoked or rejected`} description="Everyone verified, revoked or rejected, newest decision first, with every name they've used.">
             {d.contributors.length ? <ul className="space-y-3">{d.contributors.map((c) => <ContributorCard key={c.user.id} c={c} onDone={reload} />)}</ul>
               : <EmptyState icon={Users} title="No contributors yet" description="Approved and rejected people show here." />}
           </Section>
@@ -98,11 +98,11 @@ export function ContributorsPanel() {
               ))}</ul>
             </Section>
           )}
-          <Section title="Invites" description="Newest first. The link itself was shown once, when made; only its hash is kept.">
+          <Section title="Invites" collapsible icon={Mail} summary={`${d.invites.length} invite${d.invites.length === 1 ? "" : "s"}, newest first`} description="Newest first. The link itself was shown once, when made; only its hash is kept.">
             {d.invites.length ? <ul className="space-y-2">{d.invites.map((i) => <InviteRow key={i.id} i={i} onDone={reload} />)}</ul>
               : <EmptyState icon={Mail} title="No invites yet" description="Make one under Add a contributor." />}
           </Section>
-          <Section title="Team roster" description="People you put on a team by hand, for team-only videos (Control Point workspaces count without this).">
+          <Section title="Team roster" collapsible icon={Users} summary={`${d.roster.length} ${d.roster.length === 1 ? "person" : "people"} put on a team by hand`} description="People you put on a team by hand, for team-only videos (Control Point workspaces count without this).">
             <RosterSection rows={d.roster} onDone={reload} />
           </Section>
         </div>

@@ -1,7 +1,8 @@
-// Owner console › Moderation: abuse signals as counts per day and coarse network range (server/moderation.ts:
-// IPv4 /16, IPv6 /32, never a full address or anything about a person), and the triage queue of contact-form
-// bug reports, data corrections and ideas (the same messages as the feedback inbox, not a second inbox).
-import { useState } from "react";
+// Owner console › Moderation: the triage queue of contact-form bug reports, data corrections and ideas (the same
+// messages as the feedback inbox, not a second inbox) first, as it's what waits on a decision; then, folded, abuse
+// signals as counts per day and coarse network range (server/moderation.ts: IPv4 /16, IPv6 /32, never a full
+// address or anything about a person).
+import { useRef, useState } from "react";
 import { Bot, ClipboardCheck, Network, ShieldAlert, Zap } from "lucide-react";
 import { Section, EmptyState } from "../page";
 import { StatTile } from "../StatTile";
@@ -51,45 +52,16 @@ export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void })
   const [days, setDays] = useState(14);
   const [queue, setQueue] = useState<"untriaged" | "accepted">("untriaged");
   const state = useApi<OwnerModeration>(`/api/owner/moderation?days=${days}&triage=${queue}`);
+  // A new period or queue keeps the last answer on screen until the next one arrives, so the folded
+  // abuse section (and the page) doesn't drop to a loading block and close under the owner's cursor.
+  const last = useRef<OwnerModeration | undefined>(undefined);
+  if (state.data) last.current = state.data;
+  const shown = state.error ? state : { ...state, data: state.data ?? last.current };
   return (
     <>
-      <div className="mb-4 flex items-center justify-end gap-1" role="group" aria-label="Period">
-        {[7, 14, 30].map((d) => (
-          <Button key={d} size="sm" variant={d === days ? "default" : "outline"} aria-pressed={d === days} onClick={() => setDays(d)}>{d} days</Button>
-        ))}
-      </div>
-      <Async state={state}>
+      <Async state={shown}>
         {({ abuse: a, triage: t }) => (
           <>
-            <Section title="Abuse signals" description={`Counts per day and network range (IPv4 /16, IPv6 /32). No full address, user agent or account is kept, and days older than ${a.retentionDays} are dropped.`}>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatTile tone="amber" icon={ShieldAlert} label="Rate-limited" value={int(a.totals.rate_limited)} hint="Requests answered 429" />
-                <StatTile tone="violet" icon={Bot} label="Scraper agents" value={int(a.totals.bot_ua)} hint="API calls from crawlers and scripts" />
-                <StatTile tone="accent" icon={Zap} label="Bursts" value={int(a.totals.burst)} hint={`Minutes a range went over ${int(a.burstPerMinute)} requests`} />
-                <StatTile tone="sky" icon={Network} label="Ranges flagged" value={int(a.ranges.length)} hint={a.ranges.length >= 25 ? "The top 25 are listed" : "In this period"} />
-              </div>
-              <div className="mt-4"><DailySignals daily={a.daily} /></div>
-            </Section>
-            <Section title="By network range" description="The ranges behind the most signals, bursts first. A range is many people: treat it as a pattern, not a person.">
-              {a.ranges.length ? (
-                <div className="rounded-xl border border-border bg-card">
-                  <Table className="[&_td]:whitespace-nowrap">
-                    <TableHeader><TableRow><TableHead>Range</TableHead><TableHead className="text-right">429s</TableHead><TableHead className="text-right">Scraper agents</TableHead><TableHead className="text-right">Bursts</TableHead><TableHead className="text-right">Days</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {a.ranges.map((r) => (
-                        <TableRow key={r.range}>
-                          <TableCell className="font-mono text-xs">{r.range}</TableCell>
-                          <TableCell className={cn("text-right tabular-nums", r.rate_limited > 0 && "text-danger")}>{int(r.rate_limited)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{int(r.bot_ua)}</TableCell>
-                          <TableCell className={cn("text-right tabular-nums", r.burst > 0 && "text-warning")}>{int(r.burst)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{int(r.days)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : <EmptyState icon={ShieldAlert} title="All quiet" description="No request was rate-limited or looked automated in this period." />}
-            </Section>
             <Section title="Triage queue" description="Bug reports, data corrections and ideas from the contact form, newest first: not triaged yet, or accepted and waiting for a fix. A data correction is fixed by a re-sync from FIRST, never by editing a match.">
               <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
                 <div className="flex flex-wrap gap-1" role="group" aria-label="Show">
@@ -112,6 +84,44 @@ export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void })
                 ? <EmptyState icon={ClipboardCheck} title="Nothing waiting for a fix" description="Every accepted report has been marked fixed." />
                 : <EmptyState icon={ClipboardCheck} title="Nothing to triage" description="Every bug report, data correction and idea has been decided." />}
               {t.more && <p className="mt-3 text-xs text-muted-foreground">The newest {int(t.messages.length)} are shown; the older ones are in the feedback inbox.</p>}
+            </Section>
+            {/* Watched, not acted on: rate limits already answer abuse, and a range is many people. Folded, period inside. */}
+            <Section title="Abuse signals" collapsible icon={ShieldAlert}
+              summary={`${int(a.totals.rate_limited)} rate-limited · ${int(a.totals.burst)} bursts · ${int(a.ranges.length)} ranges flagged, last ${days} days`}>
+              <div className="mb-4 flex items-center justify-end gap-1" role="group" aria-label="Period">
+                {[7, 14, 30].map((d) => (
+                  <Button key={d} size="sm" variant={d === days ? "default" : "outline"} aria-pressed={d === days} onClick={() => setDays(d)}>{d} days</Button>
+                ))}
+              </div>
+              <Section title="Signals" description={`Counts per day and network range (IPv4 /16, IPv6 /32). No full address, user agent or account is kept, and days older than ${a.retentionDays} are dropped.`}>
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <StatTile tone="amber" icon={ShieldAlert} label="Rate-limited" value={int(a.totals.rate_limited)} hint="Requests answered 429" />
+                  <StatTile tone="violet" icon={Bot} label="Scraper agents" value={int(a.totals.bot_ua)} hint="API calls from crawlers and scripts" />
+                  <StatTile tone="accent" icon={Zap} label="Bursts" value={int(a.totals.burst)} hint={`Minutes a range went over ${int(a.burstPerMinute)} requests`} />
+                  <StatTile tone="sky" icon={Network} label="Ranges flagged" value={int(a.ranges.length)} hint={a.ranges.length >= 25 ? "The top 25 are listed" : "In this period"} />
+                </div>
+                <div className="mt-4"><DailySignals daily={a.daily} /></div>
+              </Section>
+              <Section title="By network range" description="The ranges behind the most signals, bursts first. A range is many people: treat it as a pattern, not a person.">
+                {a.ranges.length ? (
+                  <div className="rounded-xl border border-border bg-card">
+                    <Table className="[&_td]:whitespace-nowrap">
+                      <TableHeader><TableRow><TableHead>Range</TableHead><TableHead className="text-right">429s</TableHead><TableHead className="text-right">Scraper agents</TableHead><TableHead className="text-right">Bursts</TableHead><TableHead className="text-right">Days</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {a.ranges.map((r) => (
+                          <TableRow key={r.range}>
+                            <TableCell className="font-mono text-xs">{r.range}</TableCell>
+                            <TableCell className={cn("text-right tabular-nums", r.rate_limited > 0 && "text-danger")}>{int(r.rate_limited)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{int(r.bot_ua)}</TableCell>
+                            <TableCell className={cn("text-right tabular-nums", r.burst > 0 && "text-warning")}>{int(r.burst)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{int(r.days)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : <EmptyState icon={ShieldAlert} title="All quiet" description="No request was rate-limited or looked automated in this period." />}
+              </Section>
             </Section>
           </>
         )}

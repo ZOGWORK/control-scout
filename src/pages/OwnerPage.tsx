@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Clapperboard,
-  Activity, AlertTriangle, Bot, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, Gauge, HardDrive, HardDriveDownload,
+  Activity, AlertTriangle, Bot, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, Gauge, HardDrive,
   Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Palette, Trophy, Unlink, UserRound, Users, Tv, Film,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
@@ -58,6 +58,7 @@ import { SYNC_LATE_HOURS, syncTone } from "../components/owner/syncTone";
 
 const PANELS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, group: "Health" },
+  { id: "server", label: "Server & speed", icon: ServerCog, group: "Health" },
   { id: "data", label: "Data & sync", icon: DatabaseZap, group: "Data" },
   { id: "packs", label: "Packs & offline", icon: PackageOpen, group: "Data" },
   { id: "officialVideos", label: "Official videos", icon: Tv, group: "Data" },
@@ -78,7 +79,7 @@ const PANELS = [
 ] as const;
 /** Links made before the console grouped its panels into sections: each opens the section that holds it. */
 const PANEL_ALIASES: Record<string, string> = {
-  ops: "data", users: "accounts", orphaned: "accounts", usage: "analytics", "in-use": "analytics", flags: "features", errors: "feedback",
+  ops: "data", users: "accounts", orphaned: "accounts", usage: "server", "in-use": "analytics", flags: "features", errors: "feedback",
   powerRankings: "content", streams: "content", whatsNew: "content", wash: "appearance", gradients: "appearance",
 };
 type PanelId = (typeof PANELS)[number]["id"];
@@ -106,9 +107,10 @@ export default function OwnerPage() {
   // Recorded events with played matches missing a clip, not yet reviewed (server/videos/coverageCheck.ts).
   // And the clip autopilot's reads waiting for approval (server/videos/autoReads.ts).
   const cc = useApi<{ open: number; approvals?: number }>("/api/owner/clip-coverage/counts").data;
-  const badges: Partial<Record<PanelId, { n: number; what: string; urgent?: boolean }[]>> = o ? {
+  // Only what waits on the owner's decision: these counts are the nav badges and Overview's "Waiting for you" list.
+  // (Orphaned spaces aren't here: nothing about one is the owner's to do, it becomes writable again on its own.)
+  const badges: Partial<Record<PanelId, Waiting[]>> = o ? {
     feedback: [{ n: o.inbox.openFeedback, what: "open feedback" }, { n: o.inbox.errorReports, what: "error reports", urgent: true }],
-    accounts: [{ n: o.orphanedWorkspaces ?? 0, what: "orphaned spaces" }],
     moderation: [{ n: o.commonsReports ?? 0, what: "reported commons entries", urgent: true }],
     ...(ov ? { officialVideos: [{ n: ov.pending, what: "to review" }] } : {}),
     ...(cc ? { clipCoverage: [{ n: cc.approvals ?? 0, what: "clip reads and matches waiting for approval", urgent: true }, { n: cc.open, what: "actionable events to review" }] } : {}),
@@ -131,7 +133,7 @@ export default function OwnerPage() {
   };
   return (
     <div className={CHART_VARS}>
-      <PageHeader eyebrow="Owner" title="Owner console" description="Health, data, predictions, rankings, features, feedback and every action taken: how Control Scout is doing, and the controls to run it. Only you can see this page."
+      <PageHeader eyebrow="Owner" title="Owner console" description="What's waiting for you, how the site is doing, and the controls to run it. Only you can see this page."
         actions={<Button variant="outline" onClick={refresh} disabled={refreshing} className="max-sm:h-10"><RefreshCw className={cn(refreshing && "animate-spin")} /> Refresh</Button>} />
       {panel !== "storage" && <StorageBanner onOpen={() => go("storage")} />}
       {/* Sections down the side, as Settings lays them out (a scrolling row of chips on phones and tablets). */}
@@ -169,7 +171,8 @@ export default function OwnerPage() {
           </ul>
         </nav>
         <div key={refreshKey} className="min-w-0">
-          {panel === "overview" && <OverviewPanel onOpen={go} />}
+          {panel === "overview" && <OverviewPanel onOpen={go} badges={badges} />}
+          {panel === "server" && <UsagePanel />}
           {panel === "data" && <DataPanel />}
           {panel === "packs" && <PacksPanel />}
           {panel === "predictions" && <><PredictionEnginePanel /><PredictionsPanel /></>}
@@ -191,8 +194,8 @@ export default function OwnerPage() {
           {panel === "contributors" && <ContributorsPanel />}
           {panel === "officialVideos" && <OfficialVideosPanel />}
           {panel === "clipCoverage" && <ClipCoveragePanel />}
-          {panel === "analytics" && <div className="space-y-8"><AnalyticsPanel /><UsagePanel /></div>}
-          {panel === "accounts" && <div className="space-y-8"><UsersPanel /><OrphanedPanel /></div>}
+          {panel === "analytics" && <AnalyticsPanel />}
+          {panel === "accounts" && <div className="space-y-8"><UsersPanel /><WorkspacesSection /><OrphanedPanel /></div>}
           {panel === "storage" && <StoragePanel />}
           {panel === "audit" && <AuditPanel />}
         </div>
@@ -221,50 +224,44 @@ function Facts({ rows, single }: { rows: [ReactNode, ReactNode][]; single?: bool
 
 // --- Overview ---------------------------------------------------------------------------------
 
-function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
+type Waiting = { n: number; what: string; urgent?: boolean };
+
+function OverviewPanel({ onOpen, badges }: { onOpen: (id: string) => void; badges: Partial<Record<PanelId, Waiting[]>> }) {
   const state = useApi<OwnerOverview>("/api/owner/overview");
-  const v8 = useIsV8();
   return (
     <Async state={state}>
       {(o) => (
         <>
+          <WaitingSection badges={badges} onOpen={onOpen} />
           <HealthSection o={o} onOpen={onOpen} />
-          <Section title="People and data">
-            <TileGrid cols={3}>
+          <Section title="People">
+            <TileGrid>
               <StatTile tone="accent" icon={Users} label="Accounts" value={int(o.accounts.total)} hint={`${int(o.accounts.active30d)} active in the last 30 days · ${int(o.accounts.new7d)} new this week`}
                 onClick={() => onOpen("accounts")} action="Show them" />
               <StatTile tone="violet" icon={Link2} label="Linked to Control Point" value={int(o.controlPointLinked)}
                 hint={o.accounts.total ? `${pct(o.controlPointLinked / o.accounts.total)} of accounts` : "No accounts yet"}
                 bar={o.accounts.total ? <Meter parts={[{ pc: (o.controlPointLinked / o.accounts.total) * 100, cls: "bg-violet-500" }]} /> : undefined} />
               <StatTile tone="sky" icon={Building2} label="Workspaces" value={o.workspaces == null ? "—" : int(o.workspaces)}
-                hint={o.workspaces == null ? "Counted once workspace scouting ships" : "Control Point workspaces that have used Scout"} />
+                hint={o.workspaces == null ? "Counted once workspace scouting ships" : "Control Point workspaces that have used Scout"}
+                onClick={() => onOpen("accounts")} action="Show them" />
               <StatTile tone="emerald" icon={ClipboardList} label="Scout entries" value={int(o.scoutEntries.personal + (o.scoutEntries.workspace ?? 0))}
                 hint={`${int(o.scoutEntries.personal)} personal · ${o.scoutEntries.workspace == null ? "shared: —" : `${int(o.scoutEntries.workspace)} shared`}`} />
-              <StatTile tone={v8 ? "sky" : "amber"} icon={Database} label="Database" value={bytes(o.storage.databaseBytes)} hint={o.storage.databaseLocal ? "Local file, write-ahead log included" : "Remote database (pages in use)"} />
-              <StatTile tone="sky" icon={HardDriveDownload} label="Offline packs" value={bytes(o.storage.packsBytes)}
-                hint={o.storage.packsBytes == null ? "None built on this server" : `${o.storage.packFiles} pack file${o.storage.packFiles === 1 ? "" : "s"}${o.health.packsAt ? ` · built ${ago(o.health.packsAt)}` : ""}`} />
             </TileGrid>
           </Section>
-          <Section title="Waiting for you">
-            <TileGrid cols={3}>
-              <StatTile tone="accent" icon={Inbox} label="Open feedback" value={int(o.inbox.openFeedback)} hint="Messages from the contact form" onClick={() => onOpen("feedback")} action="Show the inbox" />
-              <StatTile tone={!v8 ? "amber" : o.inbox.errorReports ? "rose" : "emerald"} icon={Bug} label="Error reports" value={int(o.inbox.errorReports)} hint={o.inbox.unfiledErrors ? `${int(o.inbox.unfiledErrors)} not on GitHub yet` : "All filed on GitHub"} onClick={() => onOpen("feedback")} action="Show them" />
-              {o.orphanedWorkspaces != null && (
-                <StatTile tone="violet" icon={Unlink} label="Orphaned spaces" value={int(o.orphanedWorkspaces)}
-                  hint={o.orphanedWorkspaces ? "Read-only: deleted in Control Point, or no admin left" : "Every scout space has its workspace"}
-                  onClick={() => onOpen("accounts")} action="Show them" />
-              )}
-            </TileGrid>
-          </Section>
-          {o.workspaces != null && <WorkspacesSection />}
-          <Section title="Server">
+          {/* Reference only: nothing here needs a decision, so it stays closed until asked for. */}
+          <Section title="Server details" collapsible icon={Database}
+            summary={`Release ${o.health.release ? o.health.release.slice(0, 7) : "development"} · engine v${o.health.engineVersion} · database ${bytes(o.storage.databaseBytes)}`}>
             <Facts rows={[
               ["Release", <span className="font-mono">{o.health.release ? o.health.release.slice(0, 12) : "development"}</span>],
+              ["Answering for", uptime(o.health.uptimeSeconds)],
               ["Prediction engine", <span className="font-mono">v{o.health.engineVersion}</span>],
               ["Data synced", ago(o.health.dataAsOf)],
               ["Stats rebuilt", ago(o.health.statsAt)],
-              ["Packs built", o.health.packsAt ? ago(o.health.packsAt) : "—"],
               ["Data writer", o.health.writer ? <span className="text-warning">{o.health.writer.what}</span> : "Free"],
+              ["Database", `${bytes(o.storage.databaseBytes)} (${o.storage.databaseLocal ? "local file" : "remote"})`],
+              ["Offline packs", o.health.packManifest
+                ? `${bytes(o.storage.packsBytes)} · built ${day(o.health.packManifest.builtAt)} · engine v${o.health.packManifest.engineVersion}`
+                : "None built on this server"],
             ]} />
           </Section>
         </>
@@ -273,41 +270,62 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
   );
 }
 
+/** The first thing the console shows: every queue with something in it, each with the button that opens it. */
+function WaitingSection({ badges, onOpen }: { badges: Partial<Record<PanelId, Waiting[]>>; onOpen: (id: string) => void }) {
+  const items = PANELS.flatMap((p) => (badges[p.id] ?? []).filter((b) => b.n > 0).map((b) => ({ ...b, panel: p })))
+    .sort((x, y) => Number(!!y.urgent) - Number(!!x.urgent));
+  return (
+    <Section title="Waiting for you" description={items.length ? "Every queue with something to decide, urgent first." : undefined}>
+      {items.length ? (
+        <ul className="divide-y divide-border rounded-xl border border-border bg-card" aria-label="Waiting for you">
+          {items.map((it) => (
+            <li key={`${it.panel.id}:${it.what}`} className="flex items-center gap-3 px-4 py-3">
+              <it.panel.icon aria-hidden className={cn("size-4 shrink-0", it.urgent ? "text-danger" : "text-muted-foreground")} />
+              <p className="min-w-0 flex-1 text-sm">
+                <span className="font-semibold tabular-nums text-foreground">{int(it.n)}</span> <span className="text-foreground">{it.what}</span>
+                <span className="block text-xs text-muted-foreground">{it.panel.label}</span>
+              </p>
+              <Button size="sm" variant={it.urgent ? "default" : "outline"} className="shrink-0 max-sm:h-10" onClick={() => onOpen(it.panel.id)}
+                aria-label={`Open ${it.panel.label}: ${it.n} ${it.what}`}>Open</Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          <CheckCircle2 aria-hidden className="size-4 shrink-0 text-success v8:text-emerald-400" /> Nothing waiting: every queue is empty.
+        </p>
+      )}
+    </Section>
+  );
+}
 
 /** v8's meaning for each health tile (the classic look keeps its own tones): green is fine, orange late, red wrong. */
 function healthTones(h: OwnerOverview["health"], v8: boolean) {
   const late = !h.dataAsOf || Date.now() - new Date(h.dataAsOf).getTime() > SYNC_LATE_HOURS * 3600e3;
   const errors = h.errors.server5xxToday + h.errors.reports24h;
-  if (!v8) return { sync: late ? "amber" : "sky", engine: "violet", ledger: "accent", pack: "amber", errors: h.errors.server5xxToday ? "amber" : "emerald" } as const;
-  return {
-    sync: syncTone(h.dataAsOf),
-    engine: "accent", ledger: "violet", pack: "sky", errors: errors ? "rose" : "emerald",
-  } as const;
+  if (!v8) return { sync: late ? "amber" : "sky", ledger: "accent", errors: h.errors.server5xxToday ? "amber" : "emerald" } as const;
+  return { sync: syncTone(h.dataAsOf), ledger: "violet", errors: errors ? "rose" : "emerald" } as const;
 }
 
-/** The site's health at a glance: the first thing the console shows. Read-only. */
+/** The three signs that can need a hand: stale data (re-sync), errors (the inbox), and the public track record. */
 function HealthSection({ o, onOpen }: { o: OwnerOverview; onOpen: (id: string) => void }) {
   const h = o.health;
   const syncLate = !h.dataAsOf || Date.now() - new Date(h.dataAsOf).getTime() > SYNC_LATE_HOURS * 3600e3;
   const e = h.errors;
   const tone = healthTones(h, useIsV8());
   return (
-    <Section title="Health" description="Is the site up, is the data fresh, and what's in production right now.">
+    <Section title="Health" description="Is the data fresh, is anything breaking, and is the public track record holding.">
       <TileGrid cols={3}>
-        <StatTile tone="emerald" icon={ServerCog} label="Site" value="Up" hint={`Answering for ${uptime(h.uptimeSeconds)} · release ${h.release ? h.release.slice(0, 7) : "development"}`} />
         <StatTile tone={tone.sync} icon={RefreshCw} label="Last data sync" value={h.dataAsOf ? ago(h.dataAsOf) : "Never"}
           hint={h.dataAsOf ? `${when(h.dataAsOf)}${syncLate ? ` · later than ${SYNC_LATE_HOURS} hours` : ""}` : "No sync has finished on this database"}
           onClick={() => onOpen("data")} action="Data & sync" />
-        <StatTile tone={tone.engine} icon={Gauge} label="Engine in production" value={`v${h.engineVersion}`} hint="The champion: what every prediction is served from" onClick={() => onOpen("predictions")} action="Predictions & ledger" />
+        <StatTile tone={tone.errors} icon={AlertTriangle} label="Recent errors" value={`${int(e.server5xxToday)} server · ${int(e.reports24h)} app`}
+          hint={`Server errors today (UTC), distinct app errors in the last 24 h · this week: ${int(e.server5xx7d)} server, ${int(e.reports7d)} distinct app`}
+          onClick={() => onOpen("feedback")} action="Feedback & errors" />
         <StatTile tone={tone.ledger} icon={Target} label={h.ledger?.kind === "backtest" ? "Ledger (replay until enough live calls)" : "Live ledger"}
           value={h.ledger ? pct(h.ledger.accuracy) : "—"}
           hint={h.ledger ? `${int(h.ledger.n)} ${h.ledger.kind === "live" ? "live calls" : "replayed matches"} · ${seasonLabel(h.ledger.season)}` : "The track record isn't built yet"}
           onClick={() => onOpen("predictions")} action="Predictions & ledger" />
-        <StatTile tone={tone.pack} icon={PackageOpen} label="Pack manifest" value={h.packManifest ? day(h.packManifest.builtAt) : "None"}
-          hint={h.packManifest ? `Version ${h.packManifest.version} · engine v${h.packManifest.engineVersion}${h.packManifest.dataAsOf ? ` · data as of ${day(h.packManifest.dataAsOf)}` : ""}` : "No pack built on this server"} />
-        <StatTile tone={tone.errors} icon={AlertTriangle} label="Recent errors" value={`${int(e.server5xxToday)} server · ${int(e.reports24h)} app`}
-          hint={`Server errors today (UTC), distinct app errors in the last 24 h · this week: ${int(e.server5xx7d)} server, ${int(e.reports7d)} distinct app`}
-          onClick={() => onOpen("feedback")} action="Feedback & errors" />
       </TileGrid>
     </Section>
   );
@@ -500,13 +518,13 @@ function UsagePanel() {
               <Section title="Real-user speed" description="Web vitals from visitors who allowed usage statistics, at the 75th percentile, by the page the visit started on. Green is good, amber needs improvement, red is poor.">
                 <VitalsTable all={u.vitals.all} pages={u.vitals.pages} />
               </Section>
-              <Section title="First-visit onboarding" description="How far new visitors get through the four-step welcome on Home, from visitors who allowed usage statistics. Replays from Settings aren't counted.">
+              <Section title="First-visit onboarding" collapsible icon={Users} summary={u.onboarding ? `${int(u.onboarding.shown)} shown the welcome in this period` : "Not counted on this server yet"} description="How far new visitors get through the four-step welcome on Home, from visitors who allowed usage statistics. Replays from Settings aren't counted.">
                 {u.onboarding ? <OnboardingFunnel s={u.onboarding} /> : <p className="text-sm text-muted-foreground">Not counted on this server yet.</p>}
               </Section>
-              <Section title="Slowest routes" description="By 95th percentile, routes with at least 5 requests in the period.">
+              <Section title="Slowest routes" collapsible icon={Timer} summary={u.slowest[0] ? `Slowest: ${u.slowest[0].route} at ${ms(u.slowest[0].p95Ms)} (95th %)` : "Not enough requests yet"} description="By 95th percentile, routes with at least 5 requests in the period.">
                 <RouteTable rows={u.slowest} empty="Not enough requests yet to rank routes by speed." />
               </Section>
-              <Section title="Busiest routes">
+              <Section title="Busiest routes" collapsible icon={Activity} summary={u.busiest[0] ? `Busiest: ${u.busiest[0].route}, ${int(u.busiest[0].count)} requests` : "No API requests recorded"}>
                 <RouteTable rows={u.busiest} empty="No API requests recorded in this period." />
               </Section>
             </>
@@ -661,17 +679,6 @@ function PredictionsPanel() {
                   hint={p.rolling ? `Brier ${p.rolling.brier.toFixed(3)} · ${p.rolling.drifting ? "drifting from the season" : "in line with the season"}` : "Not enough calls yet"} />
               </TileGrid>
             </Section>
-            <div className="grid gap-x-6 lg:grid-cols-2">
-              <Section title="Calibration" description="Calls grouped by red's win chance: how often red then won. On the line means the odds can be taken at face value.">
-                <Reliability bins={p.reliability} />
-              </Section>
-              <Section title="Week by week" description="How sure the favourite was on average, against how often it won.">
-                <Weekly weeks={p.weekly.filter((w) => w.n >= 10)} />
-              </Section>
-            </div>
-            <Section title="Calibration by confidence tier" description="The same calls grouped by the tier each one shows publicly (rough guess, fair, solid): how sure the favourite was on average against how often it won. A solid call should be both surer and as honest as a rough guess.">
-              <TierCalibrationList tiers={p.byTier} />
-            </Section>
             <Section title="Drift alerts" description={`A week is flagged when its Brier score is ${p.thresholds.brier.toFixed(2)} worse, or its accuracy ${Math.round(p.thresholds.accuracy * 100)} points lower, than the season before it (weeks with ${p.thresholds.minWeek}+ calls).`}>
               {p.alerts.length ? (
                 <ul className="space-y-2">
@@ -689,6 +696,20 @@ function PredictionsPanel() {
                   ))}
                 </ul>
               ) : <EmptyState icon={CheckCircle2} title="No drift" description="Every week with enough calls stayed close to the season so far." />}
+            </Section>
+            {/* The charts behind the numbers above: for digging in when a drift alert or a tile looks off. */}
+            <Section title="Calibration and week by week" collapsible icon={Gauge} summary="Are the odds honest, and how each week went">
+              <div className="grid gap-x-6 lg:grid-cols-2">
+                <Section title="Calibration" description="Calls grouped by red's win chance: how often red then won. On the line means the odds can be taken at face value.">
+                  <Reliability bins={p.reliability} />
+                </Section>
+                <Section title="Week by week" description="How sure the favourite was on average, against how often it won.">
+                  <Weekly weeks={p.weekly.filter((w) => w.n >= 10)} />
+                </Section>
+              </div>
+            </Section>
+            <Section title="Calibration by confidence tier" collapsible icon={Target} summary="Rough guess, fair and solid calls: how sure against how often right" description="The same calls grouped by the tier each one shows publicly (rough guess, fair, solid): how sure the favourite was on average against how often it won. A solid call should be both surer and as honest as a rough guess.">
+              <TierCalibrationList tiers={p.byTier} />
             </Section>
           </>
         )}
@@ -799,7 +820,10 @@ const REASON: Record<OrphanReason, string> = { deleted: "Deleted in Control Poin
 function OrphanedPanel() {
   const state = useApi<{ workspaces: OrphanedWorkspace[] }>("/api/owner/orphaned-workspaces");
   return (
-    <Section title="Orphaned spaces" description="Scout spaces whose Control Point workspace was deleted or has no admin left. They're read-only: everyone listed can still read and export the entries. Nothing here is deleted; a workspace that comes back in Control Point is writable again on its own.">
+    // Folded: nothing here is the owner's to do (a space comes back writable on its own), so it's looked up, not reviewed.
+    <Section title="Orphaned spaces" collapsible icon={Unlink}
+      summary={state.data ? (state.data.workspaces.length ? `${state.data.workspaces.length} read-only, nothing to do` : "None: every scout space has its workspace") : "Read-only spaces whose workspace is gone"}
+      description="Scout spaces whose Control Point workspace was deleted or has no admin left. They're read-only: everyone listed can still read and export the entries. Nothing here is deleted; a workspace that comes back in Control Point is writable again on its own.">
       <Async state={state} empty={(d) => !d.workspaces.length && <EmptyState icon={Unlink} title="No orphaned spaces" description="Every scout space still has its Control Point workspace and an admin." />}>
         {({ workspaces }) => (
           <ul className="grid gap-3 lg:grid-cols-2" aria-label="Orphaned spaces">
