@@ -517,10 +517,15 @@ const warnSync = (what: string) => (e: unknown) => {
   return 0;
 };
 
-/** Bug reports and error reports both (the Bugs and Feedback & errors panels' lists, and the sweep). Never throws. */
+/** Bug reports and error reports both (the Bugs and Feedback & errors panels' lists, and the sweep). Never throws.
+ *  Nothing while GitHub's rate limit pauses filing; a rate limit met here pauses both. */
 export async function syncIssueStates(now = Date.now()): Promise<void> {
   lastIssueSync = now;
-  await Promise.all([syncBugIssues(now).catch(warnSync("bug report")), syncErrorIssues(now).catch(warnSync("error report"))]);
+  if (now < githubPausedUntil) return;
+  const pause = (e: unknown) => { if (e instanceof GithubError && e.retryAt) githubPausedUntil = Math.max(githubPausedUntil, e.retryAt); throw e; };
+  await syncBugIssues(now).catch(warnSync("bug report"));
+  if (Date.now() < githubPausedUntil) return;
+  await syncErrorIssues(now).catch(pause).catch(warnSync("error report"));
 }
 
 /** For the owner console's lists: checks GitHub when it wasn't asked in the last minute, waiting up to 3 seconds. */
