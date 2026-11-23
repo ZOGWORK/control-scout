@@ -2737,8 +2737,10 @@ ALTER TABLE bug_reports ADD COLUMN issue_closed_at TEXT;
 ALTER TABLE bug_reports ADD COLUMN closed_by_url TEXT;
 ALTER TABLE bug_reports ADD COLUMN closed_by_label TEXT;
 -- An error report the owner cleared, or whose GitHub issue was closed (server/errorReports.ts): out of his list and
--- his badge. The error coming back (a new occurrence) opens it again.
+-- his badge. The error coming back (a new occurrence) opens it again. reopened_at: when the owner put it back on the
+-- list; only an issue closed after that clears it again.
 ALTER TABLE error_reports ADD COLUMN resolved_at TEXT;
+ALTER TABLE error_reports ADD COLUMN reopened_at TEXT;
 ALTER TABLE error_reports ADD COLUMN issue_checked_at TEXT;
 `,
   },

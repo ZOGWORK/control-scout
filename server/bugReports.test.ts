@@ -744,6 +744,20 @@ describe("error reports follow their issue", () => {
     expect((await listErrorReports())[0].resolvedAt).not.toBeNull();
   });
 
+  it("cleared while its issue was open, the issue closed meanwhile, then put back: stays on the list", async () => {
+    await addError("aaaaaaaa", 104);
+    delete process.env.GITHUB_REPORT_TOKEN;
+    await resolveErrorReport("aaaaaaaa", true); // no token: the issue stays open on GitHub, issue_state stays 'open'
+    process.env.GITHUB_REPORT_TOKEN = TOKEN;
+    issues[0].state = "CLOSED"; // closedAt 2026-11-22T15:08:53Z in the fake
+    await resolveErrorReport("aaaaaaaa", false, new Date("2026-11-22T16:00:00Z"));
+    expect(await syncErrorIssues()).toBe(0);
+    expect((await listErrorReports())[0].resolvedAt).toBeNull();
+    // Put back before GitHub closed it: the close counts.
+    await run("UPDATE error_reports SET reopened_at = ?", ["2026-11-22T15:00:00.000Z"]);
+    expect(await syncErrorIssues()).toBe(1);
+  });
+
   it("Clear closes the open issue on GitHub; Clear on one never filed just clears it; a new occurrence brings it back", async () => {
     await addError("aaaaaaaa", 104);
     await addError("bbbbbbbb", null);

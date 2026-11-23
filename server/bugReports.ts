@@ -842,14 +842,15 @@ export function bugReportOwnerRoutes(r: Router, h: Wrap, actor: (req: Request) =
       `UPDATE bug_reports SET status = ?, reopened_at = CASE WHEN ? = 'open' THEN ? ELSE reopened_at END WHERE id = ? RETURNING id`,
       [status, status, new Date().toISOString(), id]);
     if (!row) { res.status(404).json({ error: "No such report" }); return; }
-    await audit(actor(req), "bugReport.status", { id, status });
+    // Done either way: a failed audit write doesn't report a finished close or reopen as failed.
+    await audit(actor(req), "bugReport.status", { id, status }).catch(() => {});
     return { ok: true };
   }));
 
   r.delete("/bug-reports/:id", h(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || !(await deleteBugReport(id))) { res.status(404).json({ error: "No such report" }); return; }
-    await audit(actor(req), "bugReport.delete", { id });
+    await audit(actor(req), "bugReport.delete", { id }).catch(() => {});
     return { ok: true };
   }));
 }

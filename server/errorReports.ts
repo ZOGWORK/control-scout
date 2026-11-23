@@ -471,15 +471,15 @@ export async function issueStates(token: string, numbers: number[]): Promise<Map
 
 /**
  * Error reports follow their issue too: one still needing the owner whose issue was last seen open and is now closed
- * is cleared (resolved_at: when GitHub closed it) and takes the issue's state. One whose issue was already closed when
- * the owner put it back on the list stays there (its issue_state isn't 'open'); a new occurrence files a new issue,
- * which is followed again. Returns how many it cleared. No token: nothing.
+ * is cleared (resolved_at: when GitHub closed it) and takes the issue's state. One the owner put back on the list is
+ * cleared again only for an issue closed after that (reopened_at); one whose issue was known closed then isn't asked
+ * about at all. Returns how many it cleared. No token: nothing.
  */
 export async function syncErrorIssues(now = Date.now()): Promise<number> {
   const token = env.githubReportToken;
   if (!token) return 0;
-  const rows = await all<{ fingerprint: string; issue_number: number }>(
-    `SELECT fingerprint, issue_number FROM error_reports WHERE resolved_at IS NULL AND issue_number IS NOT NULL AND issue_state = 'open'
+  const rows = await all<{ fingerprint: string; issue_number: number; reopened_at: string | null }>(
+    `SELECT fingerprint, issue_number, reopened_at FROM error_reports WHERE resolved_at IS NULL AND issue_number IS NOT NULL AND issue_state = 'open'
        ORDER BY issue_checked_at IS NOT NULL, issue_checked_at LIMIT 200`);
   if (!rows.length) return 0;
   const states = await issueStates(token, rows.map((r) => Number(r.issue_number)));
@@ -489,9 +489,12 @@ export async function syncErrorIssues(now = Date.now()): Promise<number> {
   for (const r of rows) {
     const s = states.get(Number(r.issue_number));
     if (!s || s.state === "open") continue;
+    const closedAt = s.closedAt ?? new Date(now).toISOString();
+    // Put back on the list after GitHub closed it: the owner's call stands until the issue is closed again.
+    if (r.reopened_at && closedAt <= r.reopened_at) continue;
     const done = await get(
       "UPDATE error_reports SET resolved_at = ?, issue_state = ? WHERE fingerprint = ? AND issue_number = ? AND resolved_at IS NULL AND issue_state = 'open' RETURNING fingerprint",
-      [s.closedAt ?? new Date(now).toISOString(), s.state === "not_planned" ? "not_planned" : "closed", r.fingerprint, r.issue_number]);
+      [closedAt, s.state === "not_planned" ? "not_planned" : "closed", r.fingerprint, r.issue_number]);
     if (done) cleared++;
   }
   return cleared;
@@ -504,8 +507,8 @@ export async function syncErrorIssues(now = Date.now()): Promise<number> {
  */
 export async function resolveErrorReport(fingerprint: string, resolved: boolean, now = new Date()): Promise<{ report: ErrorReportSummary; issueClosed: boolean } | null> {
   const row = await get<Row>(
-    `UPDATE error_reports SET resolved_at = ? WHERE fingerprint = ? RETURNING ${ROW_COLUMNS}`,
-    [resolved ? now.toISOString() : null, fingerprint]);
+    `UPDATE error_reports SET resolved_at = ?, reopened_at = CASE WHEN ? THEN reopened_at ELSE ? END WHERE fingerprint = ? RETURNING ${ROW_COLUMNS}`,
+    [resolved ? now.toISOString() : null, resolved ? 1 : 0, now.toISOString(), fingerprint]);
   if (!row) return null;
   let issueClosed = false;
   const token = env.githubReportToken;
