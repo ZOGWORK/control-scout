@@ -281,7 +281,11 @@ export async function initialsUpper(p: Parsed): Promise<Parsed> {
 export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUps> {
   const read = await initialsUpper(await parseQuery(q, await parseContext(Date.now(), prefer)));
   // A name several teams still share holds an arbitrary first one: no follow-up is about it (../query/shared.ts).
-  const p = { ...read, teams: read.teams.filter((t) => !t.candidates || t.rule) };
+  // A number the answer read as something else is no team: when the answer says how it read the query (its intent's
+  // pattern) and that reading has no [team] in it, the parser's teams aren't what it answered ("teams from texas with
+  // opr over 50" is a board with a threshold, never a search about team 50).
+  const teamless = a.intent?.pattern != null && !a.intent.pattern.includes("[team]");
+  const p = { ...read, teams: teamless ? [] : read.teams.filter((t) => !t.candidates || t.rule) };
   // The searches the page already offers (a sorry note's, a team fallback's, the answer's own related ones): asked
   // again in other words, they'd be offered twice. Their answers, kept the same way, say what they answer.
   const shown = [...new Set([...(a.suggest ?? []), ...(a.sorry?.suggest ?? []), ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "related" ? b.queries : []))])].slice(0, SHOWN_MAX);
