@@ -36,7 +36,9 @@ it("asks him to think the question through first, and to say what's missing rath
   expect(how).toMatch(/Think before you answer/);
   expect(how).toContain("show a calculation's steps");
   expect(how).toMatch(/say what's missing rather than guessing/);
-  expect(how).toMatch(/cut filler/);
+  expect(how).toMatch(/Cut filler/);
+  // A message asking several things is answered part by part, from the facts bot/tools.ts gathers for each.
+  expect(how).toMatch(/answer each part the facts cover and say which part they don't/);
 });
 
 it("tells him how to shape a chat answer — records short, how/why in paragraphs or bullets, a build request in steps — inside the cap", () => {

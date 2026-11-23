@@ -165,7 +165,18 @@ stays the number first and a line or two: the shape is one more instruction sent
 ("write a detailed guide on making a coaxial swerve drive") is a third shape: a one-line answer, then three to six
 numbered steps with the parts, sizes and numbers it takes — it used to fall between the two and come back as two
 sentences plus an OPR question. That closing records question ("Also want 4215's record?") is asked only on a records
-answer now, never on a guide or an explanation. Replying to his answer
+answer now, never on a guide or an explanation.
+
+**A message that asks several things** is looked up part by part before he answers (`bot/tools.ts`): the message is
+split where another question starts — "what is like the best team rn, where are they from and what is their auto opr"
+is three parts, while "4215 and 6980 opr" stays whole because the words after "and" aren't a question — filler words
+like "like" and "rn" are dropped, each part is searched on its own with learning off, and every part's facts are sent
+after the message's own, up to three parts and twelve lines so a broad part can't crowd out the records the message is
+about. A part that finds nothing adds nothing; his method line then says to answer each part the facts cover and name
+the part they don't. The board a "best team" question answers with carries where the team is and its OPR phases
+(`server/api/searchBrunoAnswer.ts`), so "where are they from" and "their auto opr" are answered by the same answer.
+
+Replying to his answer
 carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each, and keeps them in the
 database, so a restart carries on where the conversation was: `bot/memory.ts`). `/ask` answers the same way, with the question quoted. Every number in his reply must be in the facts, the
 message or the thread, or the website's answer card posts instead, as it does when Bruno is off (`discordBruno`),
