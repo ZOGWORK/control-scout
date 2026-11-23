@@ -14,7 +14,7 @@ import { BOT_COMMANDS } from "../src/shared/discord.js";
 import { eventChoices, eventCode, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
 import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
-import { ask as askSearch, chatPost, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
+import { ask as askSearch, chatPost, offeredQuestion, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
 import { takeChat, type Quota } from "./quota.js";
 import { keep as keepThread, learn as learnMemory, recall as recallMemory, teamsAsked, thread as readThread } from "./memory.js";
 import { fileReport, wantsReport, type Filed, type Report } from "./report.js";
@@ -142,6 +142,18 @@ const THREADS_MAX = 2000;
 const TURN_MAX = 600;
 const turn = (role: BrunoChatTurn["role"], text: string): BrunoChatTurn => ({ role, text: text.trim().replace(/\s+/g, " ").slice(0, TURN_MAX) });
 
+/** Bruno's turn as the thread keeps it: clipped to the thread's cap, but never losing the question he ended with
+ *  ("… Also want 4215's record?") — a "yes" reply asks it (bot/ask.ts), and the offer sits at the end, where a plain
+ *  clip cuts first. */
+const brunoTurn = (text: string): BrunoChatTurn => {
+  const kept = turn("bruno", text);
+  const offer = offeredQuestion([{ role: "bruno", text }]);
+  // The clipped head may mention the same record without asking about it: the sentence is what a "yes" needs.
+  if (!offer || offeredQuestion([{ role: "bruno", text: kept.text }]) === offer) return kept;
+  const tail = ` Also want ${offer}?`;
+  return turn("bruno", `${kept.text.slice(0, Math.max(0, TURN_MAX - tail.length - 1))}…${tail}`);
+};
+
 /** An answer pings nobody: not the asker, not @everyone, a role or a person named in Bruno's text. */
 export const NO_PINGS = { parse: [] as never[], repliedUser: false };
 
@@ -250,7 +262,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     // The bot's own words aren't his: a reply to the fallback starts a new thread instead of handing the model turns
     // it never said (bot/smallTalk.ts).
     if (!id || !r.chat || r.chat.by === "scout") return;
-    const turns = [...history, turn("user", question), turn("bruno", r.chat.text)].slice(-THREAD_TURNS);
+    const turns = [...history, turn("user", question), brunoTurn(r.chat.text)].slice(-THREAD_TURNS);
     if (threads.size >= THREADS_MAX) threads.delete(threads.keys().next().value!);
     threads.set(id, turns);
     // Kept past a restart (bot/memory.ts), so a reply to an answer from before a deploy still carries the thread on.
@@ -405,7 +417,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       let r: AskReply | undefined;
       try {
         r = await askReply(question, describe(i), [], lines, i.guildId);
-        post = askPost(question, r, true);
+        // What was asked when a "yes" answered the question Bruno offered (bot/ask.ts): the reply quotes that, not "yes".
+        post = askPost(r.resolved ?? question, r, true);
       } catch (e) {
         logLine(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
@@ -413,7 +426,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
       // Only an answer takes votes: the failure notice above is not one.
       if (r) {
-        remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId);
+        remember((sent as { id?: string } | undefined)?.id, [], r.resolved ?? question, r, i.guildId);
         watchVotes(sent, i.guildId ?? null);
       }
       return;
@@ -499,9 +512,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         return;
       }
       clearInterval(typing);
-      // The reply quotes the message it answers: no need to repeat the question.
-      const sent = await send(askPost(q, r, false));
-      remember((sent as { id?: string } | undefined)?.id, history, q, r, m.guildId ?? null);
+      // The reply quotes the message it answers: no need to repeat the question (a "yes" becomes the question it
+      // answered, so the thread carries on from 4215's record rather than from the word).
+      const sent = await send(askPost(r.resolved ?? q, r, false));
+      remember((sent as { id?: string } | undefined)?.id, history, r.resolved ?? q, r, m.guildId ?? null);
       watchVotes(sent, m.guildId ?? null);
     } catch (e) {
       logLine(`mention failed: ${(e as Error)?.message ?? String(e)}`);
@@ -531,8 +545,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     let post: AskPost;
     let r: AskReply | undefined;
     try {
-      r = await askReply(question, `/ask question=${question.toUpperCase().slice(0, 100)}`, [], lines, i.guildId ?? null);
-      post = askPost(question, r, true);
+              r = await askReply(question, `/ask question=${question.toUpperCase().slice(0, 100)}`, [], lines, i.guildId ?? null);
+        post = askPost(r.resolved ?? question, r, true);
     } catch (e) {
       logLine(`button ask failed: ${(e as Error)?.message ?? String(e)}`);
       post = { embeds: [pride(unavailableEmbed())] };
@@ -540,7 +554,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
     // Only an answer takes votes: the failure notice above is not one.
     if (r) {
-      remember((sent as { id?: string } | undefined)?.id, [], question, r, i.guildId ?? null);
+              remember((sent as { id?: string } | undefined)?.id, [], r.resolved ?? question, r, i.guildId ?? null);
       watchVotes(sent, i.guildId ?? null);
     }
   }

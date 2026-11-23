@@ -89,12 +89,52 @@ export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentenc
  * bot's own when it answers a greeting without a model (bot/smallTalk.ts). `next`: the questions the answer offers as
  * buttons (bot/buttons.ts); `watch`: the videos, as link buttons.
  */
-export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string; chat?: { text: string; video?: string; page?: string; card?: boolean; by?: "bruno" | "scout" }; next?: string[]; watch?: { label: string; url: string }[] }
+export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string;   chat?: { text: string; video?: string; page?: string; card?: boolean; by?: "bruno" | "scout" }; next?: string[]; watch?: { label: string; url: string }[];
+  /** What was actually asked, when a reply said yes to the question Bruno offered ("yes" after "Also want 4215's
+   *  record?"): the post quotes it and the thread keeps it, not the word "yes". */
+  resolved?: string }
 
 /** Whether an answer has records to show — a card, a stat or results, never the sorry a message-level search gives
  *  when it can't read the whole question. A chat beside no records posts its words alone. */
 export const showsRecords = (a: SearchAnswer) =>
   !a.sorry && !(a.step === "recovery" && !a.card && !a.stat) && !!(a.card || a.stat || a.hits.length);
+
+/** The words that say yes on their own. "Thanks" and "good" aren't here: neither answers an offer. */
+const YES = new Set(["yes", "yeah", "yep", "yup", "yea", "ya", "sure", "ok", "okay", "absolutely", "definitely", "please", "pls"]);
+/** The words that may ride along with one ("yes thanks", "ok then", "of course yes"); none of them is a yes alone, and
+ *  "not" isn't one — "not sure", "definitely not" and "absolutely not" decline the offer. */
+const YES_FILLER = new Set(["do", "it", "go", "ahead", "why", "sounds", "good", "thanks", "then", "of", "course"]);
+/** A whole phrase that is a yes without one of YES. */
+const YES_PHRASES = [/^(?:go ahead|do it|why not|sounds good|of course)$/];
+
+/** A message that only says yes ("yes", "yeah please", "go ahead"): the answer to the question Bruno ended his last
+ *  reply with, never a search of its own — searching "yes" answers with whatever team or name is nearest it. A
+ *  message that merely thanks him or says "good" is not one. */
+export function affirmative(q: string): boolean {
+  // A number names a team ("yes 6980"): that's a question of its own, not a yes to the one he offered.
+  if (/\d/.test(q)) return false;
+  const said = q.toLowerCase().replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+  if (!said) return false;
+  if (YES_PHRASES.some((re) => re.test(said))) return true;
+  const words = said.split(" ");
+  return words.some((w) => YES.has(w)) && words.every((w) => YES.has(w) || YES_FILLER.has(w));
+}
+
+/** What Bruno offers at the end of a turn: "…at the Bedford Qualifier. Also want 4215's record?" is "4215's record". */
+const OFFER = /(?:also\s+)?(?:want|would you like|do you want|should i (?:get|pull|look up))\s+([^?.!\n]{2,80})\?/gi;
+
+/** The question Bruno offered at the end of his last turn in the thread — the last one he asked — or null when he
+ *  offered none. */
+export function offeredQuestion(history: BrunoChatTurn[]): string | null {
+  const said = [...history].reverse().find((t) => t.role === "bruno")?.text ?? "";
+  // Read back from the end: a turn can make an offer and then end with another ("Want 1111's record? Also want 4215's
+  // record?"), and a yes answers the last one.
+  for (const sentence of said.split(/(?<=[.!?])\s+/).reverse()) {
+    const found = [...sentence.matchAll(new RegExp(OFFER.source, "gi"))];
+    if (found.length) return found.at(-1)![1].trim();
+  }
+  return null;
+}
 
 /** How long a chat waits for Bruno before the card posts instead. Generous: a model reply takes a while (Control
  *  Point's one-sentence answers take about 11 s on the live deployment, and a structured explanation of a few
@@ -174,7 +214,17 @@ export const chatContext = (facts: string[], memory: string[] = []): string[] =>
 /** The website's answer to `q`, with Bruno's help where the site would use it: his chat reply first (the reply
  *  thread before it in `history`), else the card. `memory`: the server's own lines for the chat (bot/memory.ts);
  *  `guild`: the server it was asked in (never who asked), for the site's failed-search queue. */
+/**
+ * /ask and a mention: the message's answer, with a "yes" to the question Bruno ended his last reply with asked as that
+ * question (`resolved`: what was asked, so the post quotes it and the thread keeps it), never as the word "yes".
+ */
 export async function ask(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[] = [], memory: string[] = [], guild: string | null = null): Promise<AskReply> {
+  const offered = affirmative(q) ? offeredQuestion(history) : null;
+  const r = await answerAsk(offered ?? q, deps, site, history, memory, guild);
+  return offered ? { ...r, resolved: offered } : r;
+}
+
+async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[], memory: string[], guild: string | null): Promise<AskReply> {
   const zog = zogModeReply(q);
   if (zog) return {
     embed: { title: "Zog Mode", description: zog, footer: FOOTER },

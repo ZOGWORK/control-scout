@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.5 — 2026-11-23
+
+Saying "yes" to Bruno's own offer — "Also want 4215's record?" — now asks that question instead of searching the word and answering with a team called "It worked yesterday".
+
+### Highlights
+- [alerts] "Yes" to his offer answers the record he offered
+- [alerts] The post quotes the question, not the word
+- [fixes] "Yes" is no longer read as a team's name
+
+### Discord bot
+- **A yes answers what he offered** (`bot/ask.ts` `affirmative`/`offeredQuestion`): a message that only says yes ("yes", "yeah please", "go ahead") is asked as the question Bruno ended his last reply with, read from the thread — "Also want 4215's record?" is "4215's record" — and the answer carries `resolved` so the post quotes the question rather than the word. A real question ("yes but what about 6980"), a number after the yes ("yes 6980"), a decline ("definitely not", "not sure"), a thank-you or "good", and a yes with no offer are left as typed. A long answer keeps the question it ends with when the thread clips it, so a later "yes" still finds it (`bot/handler.ts`). `bot/ask.test.ts` covers the screenshot's thread, the affirmative phrasings and the non-cases; `bot/handler.test.ts` a clipped answer's offer.
+- **The post and the thread use it** (`bot/handler.ts`): /ask, a mention and a reply to his answer quote the resolved question and remember it, so the next follow-up leans on 4215's record instead of the word "yes". `bot/handler.test.ts` follows a mention, its offer and the "yes" reply. (#2201)
+
 ## 7.9.4 — 2026-11-23
 
 Bruno reads each part of a Discord question with the subject it leans on, and the records search found post as the site's own card beside his words instead of vanishing into text.

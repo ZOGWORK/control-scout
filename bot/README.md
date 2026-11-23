@@ -189,6 +189,11 @@ controlscout.org/search, and the same answer comes back.
 part's own answer rather than the whole message search. A message search couldn't read, and Control Scout's own
 fallback for a greeting, post as text alone — never a "Sorry" card next to a good answer.
 
+**A reply of "yes"** to the question he ends an answer with — "Also want 4215's record?" — asks that question (`bot/ask.ts`
+`affirmative`/`offeredQuestion`): the offer is read from his last turn in the thread, the answer is searched as
+"4215's record", and the post quotes that rather than the word so the thread carries on from it. Without an offer the
+message is asked as typed.
+
 Replying to his answer
 carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each, and keeps them in the
 database, so a restart carries on where the conversation was: `bot/memory.ts`). `/ask` answers the same way, with the question quoted. Every number in his reply must be in the facts, the
