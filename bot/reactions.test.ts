@@ -101,9 +101,12 @@ describe("the thumbs on an answer", () => {
 
   it("two 👎 arriving together file once: the count is the claim", async () => {
     await trackAnswer("m6", "g1", "4215 opr");
-    await Promise.all([downVote("m6"), downVote("m6")]);
+    const outcomes = await Promise.all([downVote("m6"), downVote("m6")]);
     expect(await failed()).toMatchObject([{ key: "4215 opr", count: 1 }]);
     expect(await reactionUsage()).toEqual({ up: 0, down: 2 });
+    // Both counted, and only one says it filed the question: the claim is the insert's own result, not a read.
+    expect(outcomes.map((o) => o.counted)).toEqual([true, true]);
+    expect(outcomes.filter((o) => o.filed)).toHaveLength(1);
   });
 
   it("runs one answer's votes in the order Discord sent them, and different answers side by side", async () => {
@@ -121,14 +124,14 @@ describe("the thumbs on an answer", () => {
   });
 
   it("says what a 👎 did, so a vote that counted nothing can be told from one that did", async () => {
-    expect(await downVote("nothing-here")).toEqual({ counted: false, first: false, filed: false });
+    expect(await downVote("nothing-here")).toEqual({ counted: false, filed: false, fileable: false });
     await trackAnswer("r1", "g1", "who won decode at austin");
-    expect(await downVote("r1")).toEqual({ counted: true, first: true, filed: true });
-    // The second 👎 on the same answer: counted, and the question was filed by the first.
-    expect(await downVote("r1")).toEqual({ counted: true, first: false, filed: false });
-    // An answer whose question the queue may not hold: the vote counts, and the outcome says nothing was filed.
+    expect(await downVote("r1")).toEqual({ counted: true, filed: true, fileable: true });
+    // The second 👎 on the same answer: counted, and the question went in with the first.
+    expect(await downVote("r1")).toEqual({ counted: true, filed: false, fileable: true });
+    // An answer whose question the queue may not hold: the vote counts, and the outcome says there was nothing to file.
     await trackAnswer("r2", "g1", "someone@example.com");
-    expect(await downVote("r2")).toEqual({ counted: true, first: true, filed: false });
+    expect(await downVote("r2")).toEqual({ counted: true, filed: false, fileable: false });
   });
 
   it("takes the gateway's two events: the bot's own reactions and other emoji are not votes, and every outcome is a line", async () => {
@@ -151,24 +154,28 @@ describe("the thumbs on an answer", () => {
     // A person's 👎 on the answer: counted, and its question filed — the one failure search can't see for itself.
     votes.added(on(BAD), {});
     await settled(1);
-    expect(lines).toEqual(["👎 on …v1: counted (the first), its question filed"]);
+    expect(lines).toEqual(["👎 on …v1: counted, its question filed"]);
     expect(await failed()).toMatchObject([{ key: "who won decode at austin", result_type: "downvoted", count: 1 }]);
 
     // The same person's second 👎: counted, and the entry is already in.
     votes.added(on(BAD), {});
     await settled(2);
-    expect(lines[1]).toBe("👎 on …v1: counted, already filed");
+    expect(lines[1]).toBe("👎 on …v1: counted, its question is already in");
 
-    // A message the bot never posted has no row: the line says the vote counted nothing.
+    // A message the bot never posted has no row: the line says the vote counted nothing — 👎 or 👍.
     votes.added(on(BAD, "not-mine"), {});
-    await settled(3);
-    expect(lines[2]).toBe("👎 on …t-mine: not an answer of mine, nothing counted");
+    votes.added(on(GOOD, "not-mine"), {});
+    await settled(4);
+    expect(lines.slice(2)).toEqual([
+      "👎 on …t-mine: not an answer of mine, nothing counted",
+      "👍 on …t-mine: not an answer of mine, nothing counted",
+    ]);
 
     // Taking a vote back, and a 👍: counted the other way.
     votes.removed(on(BAD), {});
     votes.added(on(GOOD), {});
-    await settled(5);
-    expect(lines.slice(3)).toEqual(["👎 off …v1: counted", "👍 on …v1: counted"]);
+    await settled(6);
+    expect(lines.slice(4)).toEqual(["👎 off …v1: counted", "👍 on …v1: counted"]);
     expect(await reactionUsage()).toEqual({ up: 1, down: 1 });
   });
 });

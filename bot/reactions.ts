@@ -33,21 +33,27 @@ export async function trackAnswer(messageId: string, guild: string | null, quest
  *
  *  The vote is written even when there is nothing to file (a message the bot never posted has no row; an answer from
  *  before questions were kept has none; an all-personal question has nothing the queue may hold). */
-export async function downVote(messageId: string, now = Date.now()): Promise<{ counted: boolean; first: boolean; filed: boolean }> {
-  const nothing = { counted: false, first: false, filed: false };
+export async function downVote(messageId: string, now = Date.now()): Promise<{ counted: boolean; filed: boolean; fileable: boolean }> {
+  const nothing = { counted: false, filed: false, fileable: false };
   if (!messageId) return nothing;
   const at = new Date(now).toISOString();
-  // Read first for the words and for what the log will say; `first` is really decided by the filing's own condition
-  // (`down` = 1) inside the batch, so this read can be a moment stale without two votes both filing.
-  const row = await get<{ question: string | null; down: number }>("SELECT question, down FROM discord_answers WHERE message_id = ?", [messageId]);
-  if (!row) return nothing;
-  const failure = row.question ? downvoteFailure(row.question, messageId, now) : null;
-  await writeBatch([
+  // Read for the words to file. They are the answer's own and never change, so this read can't be stale in a way that
+  // matters; what the vote itself did comes back from the writes, not from this row's counts.
+  const row = await get<{ question: string | null }>("SELECT question FROM discord_answers WHERE message_id = ?", [messageId]);
+  const failure = row?.question ? downvoteFailure(row.question, messageId, now) : null;
+  const [counted, filed] = await writeBatch([
     { sql: "UPDATE discord_answers SET down = down + 1, voted_at = ? WHERE message_id = ?", args: [at, messageId] },
     ...(failure ? [failure] : []),
   ]);
-  const first = Number(row.down) === 0;
-  return { counted: true, first, filed: !!failure && first };
+  return {
+    counted: (counted?.rowsAffected ?? 0) > 0,
+    // The filing's own condition (`down` = 1) is inside the batch, so this is whether the question went in *now*: a
+    // second 👎 on the same answer, or two arriving together, reports 0.
+    filed: (filed?.rowsAffected ?? 0) > 0,
+    // Whether there were words the queue could take at all: an answer with no question, or an all-personal one, has
+    // nothing to file rather than something already filed.
+    fileable: !!failure,
+  };
 }
 
 /** A reaction as the gateway hands it over: the emoji, and the message it is on. */
@@ -60,14 +66,15 @@ export function voteHandlers(log: (m: string) => void = () => {}) {
   const serial = serialVotes();
   /** One vote, as a line for the log. */
   async function cast(delta: 1 | -1, messageId: string, emoji: string): Promise<string> {
-    const where = messageId.slice(-6);
+    const said = `${emoji} ${delta > 0 ? "on" : "off"} …${messageId.slice(-6)}`;
     if (emoji === BAD && delta === 1) {
       const o = await downVote(messageId);
-      if (!o.counted) return `👎 on …${where}: not an answer of mine, nothing counted`;
-      return `👎 on …${where}: counted${o.first ? " (the first)" : ""}${o.filed ? ", its question filed" : o.first ? ", nothing to file" : ", already filed"}`;
+      if (!o.counted) return `${said}: not an answer of mine, nothing counted`;
+      if (o.filed) return `${said}: counted, its question filed`;
+      return `${said}: counted, ${o.fileable ? "its question is already in" : "nothing to file"}`;
     }
-    await vote(messageId, emoji, delta);
-    return `${emoji} ${delta > 0 ? "on" : "off"} …${where}: counted`;
+    // `vote` reports the row it changed: 0 is a message the bot never posted.
+    return (await vote(messageId, emoji, delta)) ? `${said}: counted` : `${said}: not an answer of mine, nothing counted`;
   }
   const handler = (delta: 1 | -1) => (reaction: VoteReaction, user: { bot?: boolean }): void => {
     // The bot's own reactions (it adds both to every answer) are not votes, and neither is any other emoji.
