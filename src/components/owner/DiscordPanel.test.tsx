@@ -8,13 +8,18 @@ import type { OwnerDiscordLimits } from "../../shared/discordLimits";
 import { ApiError } from "../../lib/api";
 
 const GUILD = "111111111111111111";
+const USAGE = { servers: 1, asksToday: 3, asksWeek: 9, answeredPct: 89, chatPct: 67, medianMs: 1200, postsToday: 2, votesUp: 4, votesDown: 1 };
 const NO_CAP: OwnerDiscordLimits = {
-  servers: [{ guild: GUILD, perHour: null, perDay: null, custom: false, usedHour: 0, usedDay: 0, follows: 2, lastAsk: null, updatedBy: null, updatedAt: null }],
+  servers: [{ guild: GUILD, name: "Austin Robotics", perHour: null, perDay: null, custom: false, usedHour: 0, usedDay: 0, follows: 2, lastAsk: null, updatedBy: null, updatedAt: null }],
   defaultLimit: { perHour: null, perDay: null },
+  usage: USAGE,
+  unanswered: [],
 };
 const CAPPED: OwnerDiscordLimits = {
-  servers: [{ guild: GUILD, perHour: 60, perDay: 300, custom: true, usedHour: 1, usedDay: 1, follows: 1, lastAsk: null, updatedBy: "owner@example.test", updatedAt: "2026-11-22T00:00:00Z" }],
+  servers: [{ guild: GUILD, name: "Austin Robotics", perHour: 60, perDay: 300, custom: true, usedHour: 1, usedDay: 1, follows: 1, lastAsk: null, updatedBy: "owner@example.test", updatedAt: "2026-11-22T00:00:00Z" }],
   defaultLimit: { perHour: null, perDay: null },
+  usage: USAGE,
+  unanswered: [{ question: "how did our alliance do at worlds", count: 4, step: "no-match", lastAt: "2026-11-22T00:00:00Z", servers: 2 }],
 };
 const h = vi.hoisted(() => ({
   data: null as unknown as OwnerDiscordLimits,
@@ -157,8 +162,19 @@ describe("the owner console's Discord bot panel", () => {
     expect(h.reload).toHaveBeenCalled();
   });
 
+  it("shows the server's name, the bot's numbers and the questions it couldn't answer", () => {
+    h.data = CAPPED;
+    render(<DiscordPanel />);
+    expect(screen.getByText("Austin Robotics")).toBeTruthy();
+    expect(screen.getByText("Chats today")).toBeTruthy();
+    // Bruno answered 67% of 89% answered: 22% fell back to the card, said plainly.
+    expect(screen.getByText("22% fell back to the card")).toBeTruthy();
+    expect(screen.getByText("how did our alliance do at worlds")).toBeTruthy();
+    expect(screen.getByText("×4")).toBeTruthy();
+  });
+
   it("keeps the cap form when no server is listed: clearing the last cap must not take the way to set one", () => {
-    h.data = { servers: [], defaultLimit: { perHour: null, perDay: null } };
+    h.data = { servers: [], defaultLimit: { perHour: null, perDay: null }, usage: { ...USAGE, servers: 0 }, unanswered: [] };
     render(<DiscordPanel />);
     expect(screen.getByText("No servers yet")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Give a server its own cap" })).toBeTruthy();

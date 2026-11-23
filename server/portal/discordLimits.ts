@@ -1,7 +1,8 @@
 // /api/owner/discord/limits: the owner console's Discord chat caps (bot/quota.ts, src/components/owner/DiscordPanel.tsx).
 //
-//   GET    /api/owner/discord/limits         → OwnerDiscordLimits: every server the bot kept something for, the cap it
-//                                              has (the default, or its own row) and what it has used this UTC hour and day
+//   GET    /api/owner/discord/limits         → OwnerDiscordLimits: every server the bot kept something for, its name,
+//                                              the cap it has (the default, or its own row), what it has used this UTC hour
+//                                              and day, the bot's own numbers, and the questions it couldn't answer
 //   PUT    /api/owner/discord/limits/:guild  {perHour, perDay} → OwnerDiscordLimits
 //   DELETE /api/owner/discord/limits/:guild  → OwnerDiscordLimits (back to the default)
 //
@@ -12,6 +13,10 @@
 import type { Request, Response, Router } from "express";
 import { all } from "../db.js";
 import { DEFAULT_LIMIT, chatWindows, clearGuildLimit, guildLimit, setGuildLimit } from "../../bot/quota.js";
+import { askUsage, topUnanswered } from "../../bot/asks.js";
+import { guildNames } from "../../bot/guilds.js";
+import { postUsage } from "../../bot/follows.js";
+import { reactionUsage } from "../../bot/reactions.js";
 import type { OwnerDiscordLimits, OwnerDiscordServer } from "../../src/shared/discordLimits.js";
 import { recordAudit } from "./audit.js";
 
@@ -21,19 +26,22 @@ type Handler = (req: Request, res: Response) => Promise<unknown>;
 const MAX_CAP = 100_000;
 /** A Discord server id (a snowflake). */
 const GUILD = /^\d{15,22}$/;
-/** The servers the bot has kept something for: a follow, a cap, a count, a team, a person, a thread. */
+/** The servers the bot has kept something for: a follow, a cap, a count, a team, a person, a thread, a question, a name. */
 const GUILDS = `
   SELECT guild_id FROM discord_follows
   UNION SELECT guild_id FROM discord_limits
   UNION SELECT guild_id FROM discord_chat_usage
   UNION SELECT guild_id FROM discord_guild_teams
   UNION SELECT guild_id FROM discord_people
-  UNION SELECT guild_id FROM discord_threads WHERE guild_id IS NOT NULL`;
+  UNION SELECT guild_id FROM discord_threads WHERE guild_id IS NOT NULL
+  UNION SELECT guild_id FROM discord_asks WHERE guild_id IS NOT NULL
+  UNION SELECT guild_id FROM discord_guilds`;
 
-/** Every server the bot knows, and the cap each one has. */
+/** Every server the bot knows, the cap each one has, and the bot's own numbers. A read of the numbers that fails (an
+ *  old database, a locked table) still lists the servers: the panel never goes blank over a statistic. */
 export async function ownerDiscordLimits(now = Date.now()): Promise<OwnerDiscordLimits> {
   const w = chatWindows(now);
-  const [ids, follows, usage, last, rows] = await Promise.all([
+  const [ids, follows, usage, last, rows, names, asks, posts, votes, unanswered] = await Promise.all([
     all<{ guild_id: string }>(GUILDS),
     all<{ guild_id: string; n: number }>("SELECT guild_id, COUNT(*) n FROM discord_follows GROUP BY guild_id"),
     all<{ guild_id: string; window: string; used: number }>("SELECT guild_id, window, used FROM discord_chat_usage WHERE window IN (?, ?)", [w.hour, w.day]),
@@ -46,6 +54,11 @@ export async function ownerDiscordLimits(now = Date.now()): Promise<OwnerDiscord
        ) GROUP BY guild_id`),
     all<{ guild_id: string; per_hour: number | null; per_day: number | null; updated_by: string | null; updated_at: string | null }>(
       "SELECT guild_id, per_hour, per_day, updated_by, updated_at FROM discord_limits"),
+    guildNames().catch(() => new Map<string, string>()),
+    askUsage(now).catch(() => null),
+    postUsage(now).catch(() => 0),
+    reactionUsage().catch(() => ({ up: 0, down: 0 })),
+    topUnanswered(10, now).catch(() => []),
   ]);
   const followed = new Map(follows.map((r) => [String(r.guild_id), Number(r.n)]));
   const counted = new Map(usage.map((r) => [`${r.guild_id} ${r.window}`, Number(r.used)]));
@@ -57,7 +70,7 @@ export async function ownerDiscordLimits(now = Date.now()): Promise<OwnerDiscord
     const l = await guildLimit(guild);
     const row = own.get(guild);
     servers.push({
-      guild, ...l,
+      guild, name: names.get(guild) ?? null, ...l,
       usedHour: counted.get(`${guild} ${w.hour}`) ?? 0,
       usedDay: counted.get(`${guild} ${w.day}`) ?? 0,
       follows: followed.get(guild) ?? 0,
@@ -66,7 +79,22 @@ export async function ownerDiscordLimits(now = Date.now()): Promise<OwnerDiscord
       updatedAt: row?.updated_at ?? null,
     });
   }
-  return { servers, defaultLimit: DEFAULT_LIMIT };
+  return {
+    servers,
+    defaultLimit: DEFAULT_LIMIT,
+    usage: {
+      servers: servers.length,
+      asksToday: asks?.asksToday ?? 0,
+      asksWeek: asks?.asksWeek ?? 0,
+      answeredPct: asks?.answeredPct ?? null,
+      chatPct: asks?.chatPct ?? null,
+      medianMs: asks?.medianMs ?? null,
+      postsToday: posts,
+      votesUp: votes.up,
+      votesDown: votes.down,
+    },
+    unanswered,
+  };
 }
 
 /** A cap from the console: null (blank or 0) is no cap for that window, a whole count is that cap, anything else is

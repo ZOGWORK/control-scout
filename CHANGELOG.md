@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.2 — 2026-11-23
+
+Discord answers now come with buttons and a 👍/👎, a whole event can be followed, the owner console shows servers by name with the bot's own numbers, and the questions the bot misses feed the site's failed-search list.
+
+### Highlights
+- [alerts] Ask next is a button on every answer, not text to copy
+- [alerts] 👍 or 👎 on an answer says how it went
+- [alerts] /follow event: follows a whole event, not just a team
+- [alerts] The owner console names servers and shows bot usage
+- [alerts] Discord's missed questions feed the failed-search list
+
+### Discord bot
+- **Buttons instead of copy-paste text** (`bot/buttons.ts`, `bot/handler.ts`): an answer's suggestions are buttons — four at most, then a link button to the same answer on controlscout.org and one per video — with the question kept in the bot's process for an hour rather than in Discord's 100-character custom id. A click asks it as `/ask` would (same cache, same limit, same memory), and an expired button (an hour old, or from before a restart) says so and names `/ask` instead of guessing. Follows are deliberately not buttons: a button would let anyone follow without Manage Server. `bot/buttons.test.ts` covers the store, its expiry and the components, and `bot/handler.test.ts` the click, the expiry and a capped server.
+- **A quality signal** (`bot/reactions.ts`, migration 103): every posted answer gets 👍 and 👎, and a click is counted on that answer alone — one row per message the bot posted, no user id, so it is a count and not a record of who clicked. `bot/reactions.test.ts` covers both, the clamp at zero, and a message it never posted.
+- **Follow an event, not only a team** (`bot/follows.ts`, `bot/eventAlerts.ts`, migration 103): `/follow event:` names an event (autocompleted, this season) and posts its evening-before, its schedule once FIRST publishes it — one line per competition day — and a recap at the end of each day with the day's matches, the calls and the top five. It is keyed `event:` in the posts log, so a server following both an event and a team gets both posts. `discord_follows` is rewritten with a `target` key (`team:4215`, `event:USTXAUQ`); existing follows are carried over as team follows, and the 10-follow limit is shared.
+- **Server names and the bot's own numbers** (`bot/guilds.ts`, `server/portal/discordLimits.ts`, `src/components/owner/DiscordPanel.tsx`): the panel lists each server by the name Discord shows beside its id (kept on join, on a rename and once at startup), with chats today and this week, the share answered, the share Bruno answered (the rest fell back to the card), the middle answer time, the follow posts sent today and the thumbs. It also lists the questions the bot couldn't answer, most asked first — the phrasings the website's search box never sees.
+- **Discord's misses feed the failed-search list** (`bot/asks.ts`, `bot/ask.ts`): every ask is recorded (the words with personal data redacted, the step, who answered, how long), and a records question search couldn't answer and no chat did goes through the site's own `noteSearch` — so the words people use in Discord land in `search_failures` and its GitHub list too. The bot flushes that queue itself, once a minute. `bot/asks.test.ts` covers the log, the unanswered list, the numbers and the prune; `bot/ask.test.ts` covers what is and isn't fed to the queue.
+- A server that removes the bot now has its name, its questions and the votes on its answers deleted with the rest (`bot/forget.ts`), and all three tables are private: never shipped in the snapshot (`server/data/snapshot.ts`). `/help` and the site's command list name `/follow event:` and `/unfollow team: event:`, and the bot's README documents all of it. (#2190)
+
 ## 7.9.1 — 2026-11-22
 
 Discord chat caps are built but off: no server is capped until the owner gives it one, and Bruno answers with more reasoning — and knows he is a golden retriever.

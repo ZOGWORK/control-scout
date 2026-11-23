@@ -1,7 +1,9 @@
-// The owner console's Discord bot panel (Product): the per-server chat caps (bot/quota.ts) and the control to give one
-// server a cap — or take it away again (server/portal/discordLimits.ts). No server is capped until it is given one here.
-// The bot stores no server names, so each row is a server id (in Discord: right-click the server → Copy Server ID). A
-// blank box, or 0, is no cap for that window; either write starts that server's counters afresh.
+// The owner console's Discord bot panel (Product): the bot's own numbers at a glance (how much it is asked, how often
+// Bruno answered, how long it takes, what it posts, how its answers land), the questions it couldn't answer — the
+// phrasings the website's search box never sees — and the per-server chat caps (bot/quota.ts) with the control to give
+// one server a cap, or take it away again (server/portal/discordLimits.ts). No server is capped until it is given one
+// here. Servers are listed by the name Discord shows beside their id. A blank box, or 0, is no cap for that window;
+// either write starts that server's counters afresh.
 import { useState, type FormEvent } from "react";
 import { Bot } from "lucide-react";
 import { EmptyState, Section } from "../page";
@@ -11,7 +13,7 @@ import { Button } from "../ui/button";
 import { toast } from "../ui/sonner";
 import { apiFetch, ApiError, prime, useApi } from "../../lib/api";
 import { ago } from "../../lib/format";
-import type { OwnerDiscordLimits } from "../../shared/discordLimits";
+import type { OwnerDiscordLimits, OwnerDiscordUsage } from "../../shared/discordLimits";
 
 const PATH = "/api/owner/discord/limits";
 const GUILD = /^\d{15,22}$/;
@@ -27,6 +29,33 @@ const fromBox = (v: string): number | null | undefined => {
   const n = Number(v);
   return Number.isInteger(n) && n >= 0 && n <= MAX_CAP ? (n === 0 ? null : n) : undefined;
 };
+
+const pct = (n: number | null) => (n == null ? "—" : `${n}%`);
+const ms = (n: number | null) => (n == null ? "—" : n >= 1000 ? `${(n / 1000).toFixed(1)} s` : `${n} ms`);
+
+/** One number and its label: the panel's top strip. */
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card px-4 py-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-0.5 text-lg font-medium tabular-nums">{value}</div>
+      {hint ? <div className="text-xs text-muted-foreground">{hint}</div> : null}
+    </div>
+  );
+}
+
+function Usage({ u }: { u: OwnerDiscordUsage }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <Stat label="Servers" value={String(u.servers)} />
+      <Stat label="Chats today" value={String(u.asksToday)} hint={u.asksWeek ? `${u.asksWeek} this week` : undefined} />
+      <Stat label="Answered" value={pct(u.answeredPct)} hint={u.asksWeek ? `of ${u.asksWeek} this week` : undefined} />
+      <Stat label="Bruno answered" value={pct(u.chatPct)} hint={u.answeredPct != null && u.chatPct != null ? `${u.answeredPct - u.chatPct}% fell back to the card` : undefined} />
+      <Stat label="Answer time" value={ms(u.medianMs)} hint="middle, this week" />
+      <Stat label="Posts today" value={String(u.postsToday)} hint={`${u.votesUp} 👍 · ${u.votesDown} 👎`} />
+    </div>
+  );
+}
 
 export function DiscordPanel() {
   const state = useApi<OwnerDiscordLimits>(PATH);
@@ -88,6 +117,8 @@ export function DiscordPanel() {
       <Async state={state}>
         {(d) => (
           <div className="space-y-4">
+            <Usage u={d.usage} />
+
             {d.servers.length ? (
             <div className="overflow-x-auto rounded-xl border border-border">
               <Table>
@@ -105,7 +136,10 @@ export function DiscordPanel() {
                 <TableBody>
                   {d.servers.map((s) => (
                     <TableRow key={s.guild}>
-                      <TableCell className="max-w-[14rem] truncate font-mono text-xs" title={s.guild}>{s.guild}</TableCell>
+                      <TableCell className="max-w-[16rem]">
+                        <div className="truncate text-sm" title={s.name ?? undefined}>{s.name ?? "Name not known yet"}</div>
+                        <div className="truncate font-mono text-xs text-muted-foreground" title={s.guild}>{s.guild}</div>
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">{s.follows}</TableCell>
                       <TableCell className="text-right tabular-nums">{s.usedHour}</TableCell>
                       <TableCell className="text-right tabular-nums">{s.usedDay}</TableCell>
@@ -132,6 +166,34 @@ export function DiscordPanel() {
             ) : (
               <EmptyState icon={Bot} title="No servers yet" description="A server appears here once its people ask the bot something or follow a team. You can still give one a cap by its id below." />
             )}
+
+            <div className="rounded-xl border border-border">
+              <div className="border-b border-border px-4 py-3">
+                <h3 className="font-medium">Questions it couldn't answer</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  What people actually typed when search had nothing for them, most asked first. The same words are in the
+                  site's failed-search list (<code className="text-xs">label:failed-search</code>), since a records question the
+                  bot misses is a failed search too.
+                </p>
+              </div>
+              {d.unanswered.length ? (
+                <ul className="divide-y divide-border">
+                  {d.unanswered.map((q) => (
+                    <li key={q.question} className="flex items-start justify-between gap-4 px-4 py-2.5">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm" title={q.question}>{q.question}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {q.step ? `${q.step} · ` : ""}{q.servers} server{q.servers === 1 ? "" : "s"} · last {ago(q.lastAt)}
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="shrink-0 tabular-nums">×{q.count}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="px-4 py-3 text-sm text-muted-foreground">Nothing yet: every question it was asked got an answer.</p>
+              )}
+            </div>
 
             <form onSubmit={save} className="rounded-xl border border-border bg-card p-4">
               <h3 className="font-medium">Give a server its own cap</h3>
