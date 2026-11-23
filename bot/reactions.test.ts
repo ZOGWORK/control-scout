@@ -3,7 +3,7 @@
 // given for, and the answer's first 👎 files it in the site's failed-search list in the same write as the vote.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../server/db";
-import { BAD, GOOD, downVote, reactionUsage, serialVotes, trackAnswer, vote } from "./reactions";
+import { BAD, GOOD, downVote, reactionUsage, serialVotes, trackAnswer, vote, voteHandlers } from "./reactions";
 
 /** What the answers' 👎s have filed (server/searchFailures.ts downvoteFailure). */
 const failed = () => all<{ key: string; result_type: string; intent: string | null; count: number; examples: string }>(
@@ -118,5 +118,57 @@ describe("the thumbs on an answer", () => {
     ]);
     // The slow add first, its removal second; another answer's vote didn't wait behind either.
     expect(order).toEqual(["another answer", "add", "remove"]);
+  });
+
+  it("says what a 👎 did, so a vote that counted nothing can be told from one that did", async () => {
+    expect(await downVote("nothing-here")).toEqual({ counted: false, first: false, filed: false });
+    await trackAnswer("r1", "g1", "who won decode at austin");
+    expect(await downVote("r1")).toEqual({ counted: true, first: true, filed: true });
+    // The second 👎 on the same answer: counted, and the question was filed by the first.
+    expect(await downVote("r1")).toEqual({ counted: true, first: false, filed: false });
+    // An answer whose question the queue may not hold: the vote counts, and the outcome says nothing was filed.
+    await trackAnswer("r2", "g1", "someone@example.com");
+    expect(await downVote("r2")).toEqual({ counted: true, first: true, filed: false });
+  });
+
+  it("takes the gateway's two events: the bot's own reactions and other emoji are not votes, and every outcome is a line", async () => {
+    await trackAnswer("v1", "g1", "who won decode at austin");
+    const lines: string[] = [];
+    const votes = voteHandlers((m) => lines.push(m));
+    const on = (name: string, id = "v1") => ({ emoji: { name }, message: { id } });
+    // The handlers return void (the gateway doesn't wait for them), so the log is what they settle on.
+    const settled = async (n: number) => {
+      for (let i = 0; i < 200 && lines.length < n; i++) await new Promise((r) => setTimeout(r, 5));
+    };
+
+    // The bot adds 👎 to its own answer, and Discord sends that back to it: not a vote. Neither is another emoji.
+    votes.added(on(BAD), { bot: true });
+    votes.added(on("🔥"), {});
+    await settled(1);
+    expect(lines).toEqual([]);
+    expect(await reactionUsage()).toEqual({ up: 0, down: 0 });
+
+    // A person's 👎 on the answer: counted, and its question filed — the one failure search can't see for itself.
+    votes.added(on(BAD), {});
+    await settled(1);
+    expect(lines).toEqual(["👎 on …v1: counted (the first), its question filed"]);
+    expect(await failed()).toMatchObject([{ key: "who won decode at austin", result_type: "downvoted", count: 1 }]);
+
+    // The same person's second 👎: counted, and the entry is already in.
+    votes.added(on(BAD), {});
+    await settled(2);
+    expect(lines[1]).toBe("👎 on …v1: counted, already filed");
+
+    // A message the bot never posted has no row: the line says the vote counted nothing.
+    votes.added(on(BAD, "not-mine"), {});
+    await settled(3);
+    expect(lines[2]).toBe("👎 on …t-mine: not an answer of mine, nothing counted");
+
+    // Taking a vote back, and a 👍: counted the other way.
+    votes.removed(on(BAD), {});
+    votes.added(on(GOOD), {});
+    await settled(5);
+    expect(lines.slice(3)).toEqual(["👎 off …v1: counted", "👍 on …v1: counted"]);
+    expect(await reactionUsage()).toEqual({ up: 1, down: 1 });
   });
 });

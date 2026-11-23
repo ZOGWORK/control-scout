@@ -33,17 +33,51 @@ export async function trackAnswer(messageId: string, guild: string | null, quest
  *
  *  The vote is written even when there is nothing to file (a message the bot never posted has no row; an answer from
  *  before questions were kept has none; an all-personal question has nothing the queue may hold). */
-export async function downVote(messageId: string, now = Date.now()): Promise<void> {
-  if (!messageId) return;
+export async function downVote(messageId: string, now = Date.now()): Promise<{ counted: boolean; first: boolean; filed: boolean }> {
+  const nothing = { counted: false, first: false, filed: false };
+  if (!messageId) return nothing;
   const at = new Date(now).toISOString();
-  // Read first for the words; the filing's own condition (`down` = 1) is what says "first", inside the same batch as
-  // the increment, so this read can be a moment stale without two votes both filing.
-  const row = await get<{ question: string | null }>("SELECT question FROM discord_answers WHERE message_id = ?", [messageId]);
-  const failure = row?.question ? downvoteFailure(row.question, messageId, now) : null;
+  // Read first for the words and for what the log will say; `first` is really decided by the filing's own condition
+  // (`down` = 1) inside the batch, so this read can be a moment stale without two votes both filing.
+  const row = await get<{ question: string | null; down: number }>("SELECT question, down FROM discord_answers WHERE message_id = ?", [messageId]);
+  if (!row) return nothing;
+  const failure = row.question ? downvoteFailure(row.question, messageId, now) : null;
   await writeBatch([
     { sql: "UPDATE discord_answers SET down = down + 1, voted_at = ? WHERE message_id = ?", args: [at, messageId] },
     ...(failure ? [failure] : []),
   ]);
+  const first = Number(row.down) === 0;
+  return { counted: true, first, filed: !!failure && first };
+}
+
+/** A reaction as the gateway hands it over: the emoji, and the message it is on. */
+export interface VoteReaction { emoji: { name: string | null }; message: { id: string } }
+
+/** The bot's answer votes, as the gateway's two events use them (bot/index.ts): one answer's votes in the order Discord
+ *  sent them (an add and its removal must not land the wrong way round), and every outcome as one line — a vote that
+ *  counts nothing is then answerable from the journal instead of disappearing in a caught error. */
+export function voteHandlers(log: (m: string) => void = () => {}) {
+  const serial = serialVotes();
+  /** One vote, as a line for the log. */
+  async function cast(delta: 1 | -1, messageId: string, emoji: string): Promise<string> {
+    const where = messageId.slice(-6);
+    if (emoji === BAD && delta === 1) {
+      const o = await downVote(messageId);
+      if (!o.counted) return `👎 on …${where}: not an answer of mine, nothing counted`;
+      return `👎 on …${where}: counted${o.first ? " (the first)" : ""}${o.filed ? ", its question filed" : o.first ? ", nothing to file" : ", already filed"}`;
+    }
+    await vote(messageId, emoji, delta);
+    return `${emoji} ${delta > 0 ? "on" : "off"} …${where}: counted`;
+  }
+  const handler = (delta: 1 | -1) => (reaction: VoteReaction, user: { bot?: boolean }): void => {
+    // The bot's own reactions (it adds both to every answer) are not votes, and neither is any other emoji.
+    if (user.bot) return;
+    const emoji = reaction.emoji.name;
+    if (emoji !== GOOD && emoji !== BAD) return;
+    void serial(reaction.message.id, () => cast(delta, reaction.message.id, emoji))
+      .then(log, (e) => log(`vote failed: ${(e as Error)?.message ?? String(e)}`));
+  };
+  return { added: handler(1), removed: handler(-1) };
 }
 
 /** One vote on an answer: `delta` 1 for a reaction added, -1 for one taken back. Never below zero. */

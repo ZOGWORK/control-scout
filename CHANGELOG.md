@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.9 — 2026-11-23
+
+A 👎 that files nothing now says why in the bot's own log, so "my vote counted nothing" is answerable from the journal instead of vanishing into a caught error.
+
+### Highlights
+- [fixes] A 👎 that does nothing says why in the bot's log
+- [fixes] The vote handling is driven by a test, event by event
+
+### Discord bot
+- **Every vote is one line, and a failure is logged** (`bot/reactions.ts` `voteHandlers`, `bot/index.ts`, `bot/handler.ts`): the gateway's reaction handling moves out of the bot's entry file into `reactions.ts`, where a test can drive it. The bot's own reactions (it adds 👍/👎 to every answer itself) and any other emoji are ignored, one answer's votes still run in the order Discord sent them, and the outcome is one log line: `👎 on …a1b2c3: counted (the first), its question filed`, `…: counted, already filed`, `…: counted, nothing to file`, `…: not an answer of mine, nothing counted`, `👎 off …: counted`, `👍 on …: counted`, or `vote failed: …`. A 👎 that files nothing is then no longer a caught error with no trace, which is what a vote that counted nothing looked like from outside. `downVote` reports what it did (`counted`, `first`, `filed`), and an answer's row that can't be written (a locked database, a migration that hasn't run) is logged as `answer row failed: …` instead of leaving its thumbs on a vote that can't count. `bot/reactions.test.ts` drives the handlers event by event (a person's 👎 filing its question, the bot's own skipped, another emoji skipped, a message it never posted, a second 👎, a removal, a 👍) and `downVote`'s three outcomes; `bot/handler.test.ts` the row's failure line.
+
 ## 7.9.8 — 2026-11-23
 
 A 👎 on one of Control Scout's answers files the question that got the wrong answer in the site's own failed-search list, so the words people use in Discord improve controlscout.org/search too.

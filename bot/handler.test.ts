@@ -685,6 +685,22 @@ describe("the answer's buttons", () => {
     expect(react.mock.calls.map((x) => x[0])).toEqual(["👍", "👎"]);
   });
 
+  it("says in its log when an answer's row can't be written, so a vote that counts nothing has a reason", async () => {
+    const logs: string[] = [];
+    const react = vi.fn(async (_emoji: string) => ({}));
+    const h = createHandler((m) => logs.push(m), lookups({
+      trackAnswer: vi.fn(async () => { throw new Error("no such column: question"); }),
+    }));
+    const c = command("ask", { question: "who won decode" });
+    c.i.guildId = "g1";
+    c.i.editReply = async (p: any) => { c.calls.push({ kind: "edit", payload: p }); return { id: "m9", react }; };
+    await h(c.i);
+    await new Promise((r) => setTimeout(r, 0));
+    // The answer still goes out with its thumbs (a vote on it will count nothing), and the log names the write that failed.
+    expect(react.mock.calls.map((x) => x[0])).toEqual(["👍", "👎"]);
+    expect(logs).toContainEqual(expect.stringContaining("answer row failed: no such column: question"));
+  });
+
   it("the bot's own fallback is neither answered nor Bruno's; his own reply is both", async () => {
     const noteAsk = vi.fn(async () => {});
     const h = createHandler(() => {}, lookups({

@@ -254,9 +254,13 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     // The row goes in before the emoji does: a click that arrives the moment the emoji renders must find the answer it
     // counts on, or the vote updates no row and is lost.
     const tracked = lookups.trackAnswer?.(m.id, guild, question) ?? Promise.resolve();
-    void Promise.resolve(tracked).catch(() => {}).then(() => {
-      for (const emoji of [GOOD, BAD]) void m.react?.(emoji)?.catch(() => {});
-    });
+    // A row that can't be written (a database that's locked, a migration that hasn't run) would otherwise leave the
+    // emoji on an answer whose votes count nothing, with no trace of why: the log says it.
+    void Promise.resolve(tracked)
+      .catch((e) => logLine(`answer row failed: ${(e as Error)?.message ?? String(e)}`))
+      .then(() => {
+        for (const emoji of [GOOD, BAD]) void m.react?.(emoji)?.catch(() => {});
+      });
   }
   /** The thread a post of the bot's carries on, by its message id: every turn up to and including that answer. */
   const threads = new Map<string, BrunoChatTurn[]>();
