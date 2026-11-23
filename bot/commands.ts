@@ -15,6 +15,14 @@ export const COMMANDS: CommandDef[] = [
     options: [{ type: ApplicationCommandOptionType.Integer, name: "number", description: "FTC team number", required: true, min_value: 1, max_value: 999999 }],
   },
   {
+    name: "compare",
+    description: "Two teams side by side: records, OPR and who wins the head-to-head",
+    options: [
+      { type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number", required: true, min_value: 1, max_value: 999999 },
+      { type: ApplicationCommandOptionType.Integer, name: "other", description: "The team to compare it with", required: true, min_value: 1, max_value: 999999 },
+    ],
+  },
+  {
     name: "predict",
     description: "Win odds and predicted score for a qualification match (or how the call went)",
     options: [
