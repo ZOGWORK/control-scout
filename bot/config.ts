@@ -44,8 +44,8 @@ export interface Config {
   /** Where the slash commands are registered: a test server's id (DISCORD_DEV_GUILD_ID), or null for globally. */
   commands: { guild: string | null };
   chat: ChatSetup;
-  /** The chat limit where /config was asked (bot/quota.ts): every server has one, or its own row replaced it. Absent
-   *  in the startup block, which has no server to ask about; null when it couldn't be read. */
+  /** The chat limit where /config was asked (bot/quota.ts): no cap by default, or the server's own row. Absent in the
+   *  startup block, which has no server to ask about; null when it couldn't be read. */
   limit?: LimitSetting | null;
   /** The follows the tick will post for; null when they couldn't be read (the database wasn't ready). */
   follows: { follows: number; servers: number } | null;
@@ -54,12 +54,13 @@ export interface Config {
   discord: { since: number | null; last: number | null };
 }
 
-/** A chat limit in words: "30 an hour, 100 a day" (whichever it has), or "none", and where it came from. */
+/** A chat limit in words: "30 an hour, 100 a day" (whichever it has), or "none", and where it came from — the server's
+ *  own row, or the default, which caps nothing. */
 export function limitLine(l: LimitSetting | null): string {
   if (!l) return "chat limit couldn't be read just now";
   const caps = [l.perHour == null ? null : `${l.perHour} an hour`, l.perDay == null ? null : `${l.perDay} a day`]
     .filter(Boolean).join(", ");
-  return `chat limit ${caps || "none"} (${l.custom ? "set for this server" : "the default for every server"})`;
+  return `chat limit ${caps || "none"} (${l.custom ? "set for this server" : "the default: no cap"})`;
 }
 
 /** The summary: one line each, all starting `config:` so one grep finds them all. */

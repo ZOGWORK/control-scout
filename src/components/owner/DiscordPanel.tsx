@@ -1,7 +1,7 @@
-// The owner console's Discord bot panel (Product): the chat cap every server has (bot/quota.ts) and the control to give
-// one server its own — or put it back on the default (server/portal/discordLimits.ts). The bot stores no server names,
-// so each row is a server id (in Discord: right-click the server → Copy Server ID). A blank box, or 0, is no cap for
-// that window, which is how a big event server is exempted; either write starts that server's counters afresh.
+// The owner console's Discord bot panel (Product): the per-server chat caps (bot/quota.ts) and the control to give one
+// server a cap — or take it away again (server/portal/discordLimits.ts). No server is capped until it is given one here.
+// The bot stores no server names, so each row is a server id (in Discord: right-click the server → Copy Server ID). A
+// blank box, or 0, is no cap for that window; either write starts that server's counters afresh.
 import { useState, type FormEvent } from "react";
 import { Bot } from "lucide-react";
 import { EmptyState, Section } from "../page";
@@ -37,36 +37,58 @@ export function DiscordPanel() {
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    // One cap write at a time: two overlapping writes could each cache their own snapshot, and the older one could
+    // land last. Every button below is disabled while one is in flight, and this is the guard behind them.
+    if (busy) return;
     const g = guild.trim();
     if (!GUILD.test(g)) { toast.error("That isn't a Discord server id (a long number). In Discord: right-click the server → Copy Server ID."); return; }
     const perHour = fromBox(hour), perDay = fromBox(day);
     if (perHour === undefined || perDay === undefined) { toast.error(`A cap is a whole number up to ${MAX_CAP.toLocaleString()}; blank or 0 is no cap.`); return; }
+    // Both blank (or 0) is no cap, so it clears the server's row rather than writing one that says nothing: the panel
+    // then reads "No cap", as the hint says, instead of "Own cap · none".
+    const none = perHour == null && perDay == null;
     setBusy("save");
     try {
-      prime(PATH, await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "PUT", json: { perHour, perDay } }));
-      toast.success(`Saved that server's cap: ${capWords({ perHour, perDay })}. Its counters start afresh.`);
+      const next = none
+        ? await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "DELETE", json: {} })
+        : await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "PUT", json: { perHour, perDay } });
+      prime(PATH, next);
+      toast.success(none ? "That server has no cap. Its counters start afresh." : `Saved that server's cap: ${capWords({ perHour, perDay })}. Its counters start afresh.`);
       setGuild(""); setHour(""); setDay("");
     } catch (err) {
-      toast.error((err as ApiError).message);
+      // Already uncapped (another owner got there first): that is the state the blank save asked for, so show it and
+      // refresh, so the table can't keep showing a cap someone else has taken away.
+      if (none && (err as ApiError).status === 409) {
+        toast.success("That server already has no cap.");
+        setGuild(""); setHour(""); setDay("");
+        void state.reload();
+      } else toast.error((err as ApiError).message);
     } finally { setBusy(null); }
   };
 
   const backToDefault = async (g: string) => {
+    if (busy) return;
     setBusy(g);
     try {
       prime(PATH, await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "DELETE", json: {} }));
-      toast.success("Back on the default cap. That server's counters start afresh.");
+      toast.success("Cap removed. That server's counters start afresh.");
     } catch (err) {
-      toast.error((err as ApiError).message);
+      // Someone else cleared it first: the state this asked for, so say so and refresh rather than repeat the 409.
+      if ((err as ApiError).status === 409) {
+        toast.success("That server already has no cap.");
+        void state.reload();
+      } else toast.error((err as ApiError).message);
     } finally { setBusy(null); }
   };
 
   return (
     <Section title="Discord bot"
-      description="Every server has a chat cap — 30 an hour, 100 a day, counted in UTC windows — so no server can spend Control Point's chats without a ceiling. A server's own cap replaces both windows; clearing it puts the server back on the default. Either one starts that server's counters afresh. At a cap, /ask and a mention say when it resets; the site and the server's follow posts keep working.">
-      <Async state={state} empty={(d) => !d.servers.length && <EmptyState icon={Bot} title="No servers yet" description="A server appears here once its people ask the bot something or follow a team." />}>
+      description="No server is capped by default. Give one a cap in chats an hour and a day (counted in UTC windows) and it replaces both windows for that server; take it away again whenever you like. Either write starts that server's counters afresh. At a cap, /ask and a mention say when it resets; the site and the server's follow posts keep working.">
+      {/* The form stays outside the empty state: clearing the last known server's cap must not take the way to set it. */}
+      <Async state={state}>
         {(d) => (
           <div className="space-y-4">
+            {d.servers.length ? (
             <div className="overflow-x-auto rounded-xl border border-border">
               <Table>
                 <TableHeader>
@@ -91,13 +113,13 @@ export function DiscordPanel() {
                         {s.custom ? (
                           <span className="flex items-center gap-2"><Badge variant="secondary">Own cap</Badge>{capWords(s)}</span>
                         ) : (
-                          <span className="text-muted-foreground">Default · {capWords(d.defaultLimit)}</span>
+                          <span className="text-muted-foreground">No cap</span>
                         )}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{s.lastAsk ? ago(s.lastAsk) : "never"}</TableCell>
                       <TableCell className="text-right">
                         {s.custom && (
-                          <Button size="sm" variant="ghost" disabled={busy === s.guild} onClick={() => void backToDefault(s.guild)}>
+                          <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => void backToDefault(s.guild)}>
                             {busy === s.guild ? "Clearing…" : "Back to default"}
                           </Button>
                         )}
@@ -107,10 +129,13 @@ export function DiscordPanel() {
                 </TableBody>
               </Table>
             </div>
+            ) : (
+              <EmptyState icon={Bot} title="No servers yet" description="A server appears here once its people ask the bot something or follow a team. You can still give one a cap by its id below." />
+            )}
 
             <form onSubmit={save} className="rounded-xl border border-border bg-card p-4">
               <h3 className="font-medium">Give a server its own cap</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Replaces both windows. Leave a box blank (or 0) for no cap in that window.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Replaces both windows. Leave a box blank (or 0) for no cap in that window; leave both blank to keep the server uncapped.</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
                 <label className="block min-w-0 text-sm">
                   <span className="mb-1 block text-muted-foreground">Server id</span>
@@ -118,13 +143,13 @@ export function DiscordPanel() {
                 </label>
                 <label className="block min-w-0 text-sm">
                   <span className="mb-1 block text-muted-foreground">Chats an hour</span>
-                  <Input value={hour} onChange={(e) => setHour(e.target.value)} placeholder="30" inputMode="numeric" className="tabular-nums max-sm:h-10" />
+                  <Input value={hour} onChange={(e) => setHour(e.target.value)} placeholder="No cap" inputMode="numeric" className="tabular-nums max-sm:h-10" />
                 </label>
                 <label className="block min-w-0 text-sm">
                   <span className="mb-1 block text-muted-foreground">Chats a day</span>
-                  <Input value={day} onChange={(e) => setDay(e.target.value)} placeholder="100" inputMode="numeric" className="tabular-nums max-sm:h-10" />
+                  <Input value={day} onChange={(e) => setDay(e.target.value)} placeholder="No cap" inputMode="numeric" className="tabular-nums max-sm:h-10" />
                 </label>
-                <Button type="submit" disabled={busy === "save"}>{busy === "save" ? "Saving…" : "Save cap"}</Button>
+                <Button type="submit" disabled={!!busy}>{busy === "save" ? "Saving…" : "Save cap"}</Button>
               </div>
             </form>
           </div>

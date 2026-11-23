@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { answerScope, answerStyle, productFacts, zogModeReply } from "./productFacts";
+import { answerScope, answerStyle, brunoMethod, brunoPersona, productFacts, zogModeReply } from "./productFacts";
 import { ungrounded } from "../server/api/searchBrunoAnswer";
 
 it("grounds the completed remodel and available Zog Mode without claiming its background is on", () => {
@@ -17,6 +17,26 @@ it("keeps every product fact inside Control Point's 400-character cap, so none i
   const facts = productFacts();
   for (const f of facts) expect(f.length).toBeLessThanOrEqual(400);
   expect(facts.find((f) => f.startsWith("Zog Mode is an existing"))).toMatch(/Only the owner can turn it on or off/);
+});
+
+it("knows he is Bruno, a golden retriever in spirit — and that he is software, not a dog or a person", () => {
+  const who = brunoPersona();
+  expect(who.length).toBeLessThanOrEqual(400);
+  expect(who).toMatch(/You are Bruno/);
+  expect(who).toMatch(/golden retriever/);
+  expect(who).toMatch(/friendly, loyal, eager to help/);
+  // A light touch only when asked: no self-introduction in every answer, and no pretending to be the dog.
+  expect(who).toMatch(/unless someone asks who you are/);
+  expect(who).toMatch(/software, not a real dog or a person/);
+});
+
+it("asks him to think the question through first, and to say what's missing rather than guess — inside the cap", () => {
+  const how = brunoMethod();
+  expect(how.length).toBeLessThanOrEqual(400);
+  expect(how).toMatch(/Think before you answer/);
+  expect(how).toContain("show a calculation's steps");
+  expect(how).toMatch(/say what's missing rather than guessing/);
+  expect(how).toMatch(/cut filler/);
 });
 
 it("tells him how to shape a chat answer — a records question short, an explanation in paragraphs or bullets — inside the cap", () => {
