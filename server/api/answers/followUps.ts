@@ -184,7 +184,9 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
   const [award1, ...awards] = event ? AWARDS.filter((x) => x !== s.award).flatMap((award) => fill([AWARD_AT], { ...s, award })) : [];
   const out = [
     ...(s.u != null ? fill(TWO, s) : []),
-    ...(p.intent === "leaderboard" ? fill(LEADERS, s) : []),
+    // A board's neighbours; a filtered list's too ("teams from texas with opr over 50": the place's boards, best auto
+    // opr in Texas …), so its related searches are about the place it asked about, never one team in the list.
+    ...(p.intent === "leaderboard" || a.intent?.kind.startsWith("stat-compound-list") ? fill(LEADERS, s) : []),
     ...(event ? fill(EVENT, s) : []),
     ...(award1 ? [award1] : []),
     ...(s.place ? fill(PLACE, s) : []),
