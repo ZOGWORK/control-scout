@@ -664,17 +664,19 @@ function PredictionsPanel() {
     return n;
   }, { replace: true });
   const setKind = (k: LedgerKind) => pick(k, null);
-  const setSeason = (s: number) => pick(kind, s);
   const state = useApi<PredictionHealth>(`/api/owner/predictions?kind=${kind}${season ? `&season=${season}` : ""}`);
   // Live / backtest or another season keeps the last answer (dimmed) until it lands, so opened folds stay open.
   const { shown: health, stale, failed } = useKeepLast(state);
-  const seasons = useMemo(() => [...new Set((health.data?.available ?? []).filter((a) => a.kind === kind).map((a) => a.season))], [health.data, kind]);
+  // The season row belongs to the answer on screen: its kind (after a failed switch, the kept one's), its seasons.
+  const shownKind = health.data?.kind ?? kind;
+  const setSeason = (s: number) => pick(shownKind, s);
+  const seasons = useMemo(() => [...new Set((health.data?.available ?? []).filter((a) => a.kind === shownKind).map((a) => a.season))], [health.data, shownKind]);
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-1" role="group" aria-label="Which calls">
           {(["live", "backtest"] as const).map((k) => (
-            <Button key={k} size="sm" variant={k === (health.data?.kind ?? kind) ? "default" : "outline"} aria-pressed={k === (health.data?.kind ?? kind)} onClick={() => setKind(k)}>
+            <Button key={k} size="sm" variant={k === shownKind ? "default" : "outline"} aria-pressed={k === shownKind} onClick={() => setKind(k)}>
               {k === "live" ? "Live calls" : "Backtest"}
             </Button>
           ))}
