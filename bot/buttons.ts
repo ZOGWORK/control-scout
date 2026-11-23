@@ -62,8 +62,9 @@ export function buttonQuestion(buttons: QuestionButtons, customId: string, now =
 }
 
 /**
- * The components for an answer: one row of ask buttons (at most four, then the website link), and a row of link buttons
- * for the videos. Empty when there is nothing to offer, so a message never carries an empty row.
+ * The components for an answer: one row of ask buttons (askNext offers at most three; four is this row's reserve), and a
+ * row of link buttons for the website and the videos. Empty when there is nothing to offer, so a message never carries
+ * an empty row.
  */
 export function answerComponents(r: AskReply, buttons: QuestionButtons, now = Date.now()): APIActionRowComponent<APIButtonComponent>[] {
   const rows: APIActionRowComponent<APIButtonComponent>[] = [];

@@ -466,10 +466,12 @@ describe("the site's failed-search queue", () => {
       await ask(q, deps(nothing(q), { refine: vi.fn(async () => null), miss }), SITE, [], [], "g1");
       expect(miss).toHaveBeenLastCalledWith(q, expect.objectContaining({ step: "recovery" }), "g1");
     }
-    // A greeting, and a build question, are not.
-    for (const q of ["hi", "should i use a 42:15 gear reduction on my turret"]) {
+    // A greeting, a build question (even one whose "team" and "matches" are about the robot), and a long message with
+    // nothing of the records in it are not.
+    for (const q of ["hi", "should i use a 42:15 gear reduction on my turret", "what gear ratio should our team use in matches", "how do we keep our robot cool in a hot venue"]) {
+      miss.mockClear();
       await ask(q, deps(nothing(q), { refine: vi.fn(async () => null), miss }), SITE, [], [], "g1");
-      expect(miss).not.toHaveBeenCalledWith(q, expect.anything(), expect.anything());
+      expect(miss).not.toHaveBeenCalled();
     }
   });
 });
