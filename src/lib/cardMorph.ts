@@ -201,14 +201,22 @@ function run(card: HTMLElement, key: string, go: () => void): boolean {
   let went = false;
   // Once the page has changed, the reader may move on again (a tab, Back) before the run ends: the layer and the hidden
   // page must never outlast the page they're for.
-  let dest: string | null = null;
-  const moved = setInterval(() => { if (dest !== null && address() !== dest) finish(); }, 50);
-  const leave = () => { if (went) return; went = true; if (page) page.style.opacity = "0"; go(); dest = address(); };
+  // The watch starts with the page change (never before: a run that fails to start leaves no timer behind).
+  let moved: ReturnType<typeof setInterval> | undefined;
+  const leave = () => {
+    if (went) return;
+    went = true;
+    if (page) page.style.opacity = "0";
+    go();
+    if (over) return; // finishing: nothing left to watch
+    const dest = address();
+    moved = setInterval(() => { if (address() !== dest) finish(); }, 50);
+  };
   const finish = () => {
     if (over) return;
     over = true;
-    clearInterval(moved);
     leave(); // whatever happened, the tap still opens its page
+    clearInterval(moved);
     l.root.remove();
     if (page) { page.style.opacity = ""; pageAnim.stop?.(); }
     if (running === finish) running = null;

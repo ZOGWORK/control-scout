@@ -113,13 +113,15 @@ describe("card morph", () => {
     expect(document.getElementById("main")!.style.opacity).toBe("");
   });
 
-  it("a morph that throws while starting leaves the tap to the link: not prevented, no layer, page shown", () => {
+  it("a morph that throws while starting leaves the tap to the link: not prevented, no layer, page shown, no timer", () => {
+    const timers = vi.spyOn(globalThis, "setInterval");
     (Element.prototype as unknown as { animate: unknown }).animate = () => { throw new Error("bad keyframes"); };
     render(<MemoryRouter><MorphScope name="list"><Card /></MorphScope></MemoryRouter>);
     const ok = fireEvent.click(screen.getByTestId("card"));
     expect(ok).toBe(true); // dispatchEvent: true = default not prevented, so the link navigates
     expect(document.querySelector("[data-card-morph]")).toBeNull();
     expect(document.getElementById("main")!.style.opacity).toBe("");
+    expect(timers).not.toHaveBeenCalled();
   });
 
   it("the same event shown twice: Back shrinks into the copy in the section it was tapped in, not the first one", async () => {
