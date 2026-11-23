@@ -6,8 +6,9 @@
 //                                         facts go with the message's — the tools an agent would call, run for him.
 //   2. Bruno's chat                       whenever the chat is wired (discordBruno on and Control Point configured):
 //                                         the message and the reply thread before it go to /internal/bruno/discord-chat
-//                                         with search's facts, and his reply is the post: plain text like a chat, the
-//                                         answer's video and a link to the website only when the facts answer it.
+//                                         with search's facts, and his reply is the post: plain text like a chat, with the
+//                                         records search found as the site's own card beside it (video and "ask next"
+//                                         buttons included) when the facts answer it, and a link to the website.
 //   3. refine(q) / brunoAnswer(q)         only when that chat gives nothing: search's own answer, with his rewrite of
 //                                         a weak query and (older callers) his one sentence, as the website posts it.
 // Every number in a post is search's own or passed the grounded check. The chat leads; a chat that's off,
@@ -27,7 +28,7 @@ import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 import { answerScope, answerStyle, brunoMethod, brunoPersona, productFacts, zogModeReply } from "./productFacts.js";
 import { RECORD_NUMBER, WORKING, smallTalk } from "./smallTalk.js";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
-import { lookupFacts, splitAsk } from "./tools.js";
+import { lookupFacts, splitAsk, type Lookup } from "./tools.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -62,8 +63,8 @@ export interface AskDeps {
    *  `memory`: what the server has taught the bot (bot/memory.ts) — its teams, the asker's name — sent with the facts. */
   chat?: (message: string, facts: string[], history: BrunoChatTurn[], memory?: string[]) => Promise<ChatReply | null>;
   /** The facts of a message's parts, when it asks several things (bot/tools.ts): each part searched on its own, its
-   *  facts returned (never throws, never more than the lookups' cap). */
-  lookups?: (q: string) => Promise<string[]>;
+   *  facts returned with the site's own answer to the first part it could answer (never throws, never past the cap). */
+  lookups?: (q: string) => Promise<Lookup>;
   /** A records question search couldn't answer: the site's failed-search queue (server/searchFailures.ts), given the
    *  answer and the server it was asked in (never who asked). Synchronous, never awaited, never throws. */
   miss?: (q: string, a: SearchAnswer, guild: string | null) => void;
@@ -83,11 +84,17 @@ const CHAT_FACT_CHARS = 400;
 export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentence: boolean; chat?: boolean }
 /**
  * `content`: the main video's YouTube link as the message's text, so Discord shows it as a player under the answer.
- * `chat`: a chat reply, posted as text (chatPost) with no embed; `embed` is then the card it stands in for. `by`: whose
- * words they are — Bruno's, or the bot's own when it answers a greeting without a model (bot/smallTalk.ts). `next`: the
- * questions the answer offers as buttons (bot/buttons.ts); `watch`: the videos, as link buttons.
+ * `chat`: a chat reply, posted as text (chatPost); `card`: post `embed` with it too, when the records search found for
+ * the message (or the part of it that answered) stand beside his words. `by`: whose words they are — Bruno's, or the
+ * bot's own when it answers a greeting without a model (bot/smallTalk.ts). `next`: the questions the answer offers as
+ * buttons (bot/buttons.ts); `watch`: the videos, as link buttons.
  */
-export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string; chat?: { text: string; video?: string; page?: string; by?: "bruno" | "scout" }; next?: string[]; watch?: { label: string; url: string }[] }
+export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string; chat?: { text: string; video?: string; page?: string; card?: boolean; by?: "bruno" | "scout" }; next?: string[]; watch?: { label: string; url: string }[] }
+
+/** Whether an answer has records to show — a card, a stat or results, never the sorry a message-level search gives
+ *  when it can't read the whole question. A chat beside no records posts its words alone. */
+export const showsRecords = (a: SearchAnswer) =>
+  !a.sorry && !(a.step === "recovery" && !a.card && !a.stat) && !!(a.card || a.stat || a.hits.length);
 
 /** How long a chat waits for Bruno before the card posts instead. Generous: a model reply takes a while (Control
  *  Point's one-sentence answers take about 11 s on the live deployment, and a structured explanation of a few
@@ -141,7 +148,7 @@ export async function realAskDeps(): Promise<AskDeps> {
     // part's facts go to him with the message's own. One part: nothing extra, since the message's facts are its own.
     lookups: async (q) => {
       const parts = splitAsk(q);
-      if (parts.length < 2) return [];
+      if (parts.length < 2) return { facts: [] };
       return lookupFacts(parts, {
         search: (p) => searchAnswer(p, { learn: false, limit: SEARCH_PAGE_LIMIT }).catch(() => null),
         facts: (a) => answerFacts(a),
@@ -182,7 +189,8 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
   // sentence; the deterministic answer then posts, bounded by the chat's own timeout.
   const chatting = !!(deps.chat && deps.facts);
   if (chatting) {
-    const reply = await chatWith(q, answer, history, deps, memory).catch(() => null);
+    const talked = await chatWith(q, answer, history, deps, memory).catch(() => null);
+    const reply = talked?.reply ?? null;
     // His numbers are checked against the facts, the message and the thread — where a number could be a record: an
     // answer with records behind it, or a message (or thread) that names one. A message that asked nothing of the
     // records is a chat: search found nothing for it and it has no number, so "a 1:1 gear" in an explanation is not a
@@ -190,14 +198,18 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
     if (reply && records && reply.unknown?.length) {
       // Logged (the numbers only, never who asked) so a dropped reply can be traced to the number that failed.
       console.info(`[bot] chat dropped: numbers not in the facts: ${reply.unknown.slice(0, 8).join(", ")}`);
-    } else if (reply) {
-      const video = reply.search && deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
+    } else if (reply && talked) {
+      // The records beside his words: the part of a multi-part message that search answered whose card is the page's
+      // own board, else the message's answer. His text keeps its shape; the embed is what the same question gives on
+      // controlscout.org/search, with its video and its own "ask next" buttons.
+      const shown = talked.card ?? answer;
+      const video = reply.search && deps.video ? await deps.video(shown).catch(() => undefined) : undefined;
       const watch = videoLinks(video);
       return {
-        embed: askEmbed(q, answer, null, site, video),
+        embed: askEmbed(q, shown, null, site, video, shown === answer ? q : shown.q),
         meta: { step: answer.step, refined: false, sentence: false, chat: true },
-        chat: { text: reply.text, ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(q, site) } : {}) },
-        next: askNext(answer),
+        chat: { text: reply.text, ...(showsRecords(shown) ? { card: true } : {}), ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(q, site) } : {}) },
+        next: askNext(shown),
         ...(watch.length ? { watch } : {}),
       };
     }
@@ -256,13 +268,15 @@ const recordsMiss = (q: string) => !WORKING.test(q) && (RECORD_NUMBER.test(q) ||
 
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
  *  second place?" has the records it's about), then his reply. */
-async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[], deps: AskDeps, memory: string[] = []): Promise<ChatReply | null> {
+async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[], deps: AskDeps, memory: string[] = []): Promise<{ reply: ChatReply | null; card?: SearchAnswer } | null> {
   // The message's own facts, then its parts' (bot/tools.ts): a question with several parts has each one's records.
   const own = await deps.facts!(answer);
-  const looked = deps.lookups ? await deps.lookups(q).catch(() => [] as string[]) : [];
-  const facts = [...own, ...looked.filter((f) => !own.includes(f))];
+  const looked = deps.lookups ? await deps.lookups(q).catch(() => ({ facts: [] } as Lookup)) : { facts: [] };
+  const facts = [...own, ...looked.facts.filter((f) => !own.includes(f))];
+  // The part's own answer, when one answered: it is the card the post shows beside his words.
+  const card = looked.answer;
   const before = [...history].reverse().find((t) => t.role === "user")?.text;
-  if (!before || before.trim().toUpperCase() === q.trim().toUpperCase()) return deps.chat!(q, fit(facts, CHAT_FACTS, CHAT_FACTS_CHARS), history, memory);
+  if (!before || before.trim().toUpperCase() === q.trim().toUpperCase()) return { reply: await deps.chat!(q, fit(facts, CHAT_FACTS, CHAT_FACTS_CHARS), history, memory), card };
   const earlier = (await deps.search(before).then((a) => deps.facts!(a)).catch(() => [] as string[])).filter((f) => !facts.includes(f));
   // Both questions' records get a share: the new one's first half, then the earlier one's, then whatever room is left
   // for the rest of either (a broad new answer must not crowd out the records the follow-up is about).
@@ -271,7 +285,7 @@ async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[
   const then = fit(earlier, CHAT_FACTS - now.length, CHAT_FACTS_CHARS - chars(now));
   const kept = [...now, ...then];
   const rest = fit([...facts.slice(now.length), ...earlier.slice(then.length)], CHAT_FACTS - kept.length, CHAT_FACTS_CHARS - chars(kept));
-  return deps.chat!(q, [...now, ...rest.filter((f) => facts.includes(f)), ...then, ...rest.filter((f) => !facts.includes(f))], history, memory);
+  return { reply: await deps.chat!(q, [...now, ...rest.filter((f) => facts.includes(f)), ...then, ...rest.filter((f) => !facts.includes(f))], history, memory), card };
 }
 
 /** Characters `lines` take as sent (one line each). */
@@ -407,8 +421,8 @@ export function fitLines(lines: string[], max: number, read = Infinity): string 
 }
 
 /** The website's answer as one embed. */
-export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video?: SearchVideo): APIEmbed {
-  const page = searchHref(q, site);
+export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video?: SearchVideo, pageQuery = q): APIEmbed {
+  const page = searchHref(pageQuery, site);
   const bruno = a.step === "ai" || !!sentence;
   const footer = { text: bruno ? `${BRUNO_CREDIT}\n${FOOTER.text}` : FOOTER.text };
   const close = `[Open this answer on controlscout.org](${page})`;
