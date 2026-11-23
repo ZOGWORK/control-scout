@@ -1,6 +1,6 @@
 // The owner console's Moderation, Feedback & errors and Analytics routes against the real app on an
 // in-memory database: owner only, triage moves and their audit rows, owner notes on error reports, the
-// "in use" publish choice and /api/public-usage following it, and the analytics numbers.
+// "in use" publish choice and /api/public-usage following it, and the analytics numbers (page views and sessions).
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -214,22 +214,21 @@ describe("error report notes", () => {
 });
 
 describe("analytics and the \"in use\" choice", () => {
-  it("counts page views, sessions, prediction calls and the ledger, with no email anywhere", async () => {
+  it("counts page views and sessions per day, and nothing about predictions, with no email anywhere", async () => {
     const today = new Date().toISOString().slice(0, 10);
     await recordPageView({ path: "/", ref: "", screen: "phone", lang: "en", session: true });
     await recordPageView({ path: "/teams", ref: "", screen: "phone", lang: "en", session: false });
-    await run("INSERT INTO request_metrics_daily (day, route, count) VALUES (?, 'GET /api/predict/match', 7), (?, 'GET /api/predict/event', 3), (?, 'GET /api/teams/:n', 50)", [today, today, today]);
-    const p = (kind: string, n: number, outcome: number | null) => run(
-      `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at, outcome, scored_at)
-       VALUES (?, 2026, 'X', 'qual', 0, ?, '1', '2', 0.6, 50, 40, 'medium', 't', ?, ?, ?)`, [kind, n, new Date().toISOString(), outcome, outcome == null ? null : new Date().toISOString()]);
-    await p("live", 1, 1); await p("live", 2, null); await p("backtest", 3, 0);
+    // Prediction traffic is not part of this tab (the owner reads it for page views only).
+    await run("INSERT INTO request_metrics_daily (day, route, count) VALUES (?, 'GET /api/predict/match', 7)", [today]);
     const r = await call("GET", "/api/owner/analytics?days=7", { cookie: ownerCookie });
     expect(r.status).toBe(200);
-    expect(r.json.totals).toEqual({ pageViews: 2, sessions: 1, predictionCalls: 10 });
+    expect(r.json.totals).toEqual({ pageViews: 2, sessions: 1 });
     expect(r.json.daily).toHaveLength(7);
-    expect(r.json.daily.at(-1)).toEqual({ day: today, pageViews: 2, sessions: 1, predictionCalls: 10 });
-    expect(r.json.predictionRoutes).toEqual([{ route: "GET /api/predict/match", count: 7 }, { route: "GET /api/predict/event", count: 3 }]);
-    expect(r.json.ledger).toEqual({ liveLogged: 2, liveScored: 1, liveLoggedInPeriod: 2, liveScoredInPeriod: 1, backtestScored: 1 });
+    expect(r.json.daily.at(-1)).toEqual({ day: today, pageViews: 2, sessions: 1 });
+    expect(r.json.topPages).toEqual([{ path: "/", views: 1 }, { path: "/teams", views: 1 }]);
+    expect(r.json.referrers).toEqual([]);
+    expect(r.json).not.toHaveProperty("ledger");
+    expect(r.json).not.toHaveProperty("predictionRoutes");
     expect(r.text).not.toMatch(/@example\.com/);
   });
 
