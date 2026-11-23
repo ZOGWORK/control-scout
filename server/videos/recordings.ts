@@ -410,11 +410,15 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     ...whole.starts.map((s) => ({ label: s.label, at: s.startsAt ? Date.parse(s.startsAt) : NaN })),
     ...untimed.map((s) => { const at = s.startsAt ? Date.parse(s.startsAt) : NaN; return { label: s.label, at: Number.isFinite(at) ? at : Infinity }; }),
   ];
-  // A start the owner approved is served as it is, out of that order or not (it never pushes another out either).
+  // A start the owner approved is served as it is, out of that order or not: added after the order's own run, so it
+  // never pushes another out either.
   const framedStarts = new Map(framed.map((v) => {
-    const approved = order.filter((s) => frameApproved(v.videoId, r.code!, s.label));
-    const kept = inOrder(order.filter((s) => !approved.includes(s)).map((s) => ({ ...s, t: frameStart(v.videoId, r.code!, s.label) })));
-    for (const s of approved) { const t = frameStart(v.videoId, r.code!, s.label); if (t != null) kept.set(s.label, t); }
+    const kept = inOrder(order.map((s) => ({ ...s, t: frameStart(v.videoId, r.code!, s.label) })));
+    for (const s of order) {
+      if (!frameApproved(v.videoId, r.code!, s.label)) continue;
+      const t = frameStart(v.videoId, r.code!, s.label);
+      if (t != null) kept.set(s.label, t);
+    }
     return [v.videoId, kept];
   }));
   const fromFrames = (label: string) => {

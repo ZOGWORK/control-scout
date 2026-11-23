@@ -380,6 +380,9 @@ describe("the frames' review entries: matches seen in the video, kept off the si
     expect((await post("/auto-reads/review/reject", { videoId: V1, code: "XXAUTO", label: "Q4", t: 1005 })).status).toBe(200);
     expect(await get("SELECT decision, t FROM review_decisions WHERE label = 'Q4'")).toEqual({ decision: "rejected", t: 1005 });
     expect(frameStart(V1, "XXAUTO", "Q4")).toBeNull();
+    // A stale Clip from (another tab) after that answer is refused: the rejection stands.
+    expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q4", t: 1005 })).status).toBe(409);
+    expect(await get("SELECT decision FROM review_decisions WHERE label = 'Q4'")).toEqual({ decision: "rejected" });
     // A match the row holds no start for is nothing to decide.
     expect((await post("/auto-reads/review/reject", { videoId: V1, code: "XXAUTO", label: "Q9", t: 1005 })).status).toBe(409);
   });
