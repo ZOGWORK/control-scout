@@ -1,7 +1,7 @@
-// The owner console's Discord bot panel (Product): the chat cap every server has (bot/quota.ts) and the control to give
-// one server its own — or put it back on the default (server/portal/discordLimits.ts). The bot stores no server names,
-// so each row is a server id (in Discord: right-click the server → Copy Server ID). A blank box, or 0, is no cap for
-// that window, which is how a big event server is exempted; either write starts that server's counters afresh.
+// The owner console's Discord bot panel (Product): the per-server chat caps (bot/quota.ts) and the control to give one
+// server a cap — or take it away again (server/portal/discordLimits.ts). No server is capped until it is given one here.
+// The bot stores no server names, so each row is a server id (in Discord: right-click the server → Copy Server ID). A
+// blank box, or 0, is no cap for that window; either write starts that server's counters afresh.
 import { useState, type FormEvent } from "react";
 import { Bot } from "lucide-react";
 import { EmptyState, Section } from "../page";
@@ -55,7 +55,7 @@ export function DiscordPanel() {
     setBusy(g);
     try {
       prime(PATH, await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "DELETE", json: {} }));
-      toast.success("Back on the default cap. That server's counters start afresh.");
+      toast.success("Cap removed. That server's counters start afresh.");
     } catch (err) {
       toast.error((err as ApiError).message);
     } finally { setBusy(null); }
@@ -63,7 +63,7 @@ export function DiscordPanel() {
 
   return (
     <Section title="Discord bot"
-      description="Every server has a chat cap — 30 an hour, 100 a day, counted in UTC windows — so no server can spend Control Point's chats without a ceiling. A server's own cap replaces both windows; clearing it puts the server back on the default. Either one starts that server's counters afresh. At a cap, /ask and a mention say when it resets; the site and the server's follow posts keep working.">
+      description="No server is capped by default. Give one a cap in chats an hour and a day (counted in UTC windows) and it replaces both windows for that server; take it away again whenever you like. Either write starts that server's counters afresh. At a cap, /ask and a mention say when it resets; the site and the server's follow posts keep working.">
       <Async state={state} empty={(d) => !d.servers.length && <EmptyState icon={Bot} title="No servers yet" description="A server appears here once its people ask the bot something or follow a team." />}>
         {(d) => (
           <div className="space-y-4">
@@ -91,7 +91,7 @@ export function DiscordPanel() {
                         {s.custom ? (
                           <span className="flex items-center gap-2"><Badge variant="secondary">Own cap</Badge>{capWords(s)}</span>
                         ) : (
-                          <span className="text-muted-foreground">Default · {capWords(d.defaultLimit)}</span>
+                          <span className="text-muted-foreground">No cap</span>
                         )}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{s.lastAsk ? ago(s.lastAsk) : "never"}</TableCell>
@@ -110,7 +110,7 @@ export function DiscordPanel() {
 
             <form onSubmit={save} className="rounded-xl border border-border bg-card p-4">
               <h3 className="font-medium">Give a server its own cap</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Replaces both windows. Leave a box blank (or 0) for no cap in that window.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Replaces both windows. Leave a box blank (or 0) for no cap in that window; leave both blank to keep the server uncapped.</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
                 <label className="block min-w-0 text-sm">
                   <span className="mb-1 block text-muted-foreground">Server id</span>

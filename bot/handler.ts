@@ -40,7 +40,7 @@ export interface Lookups {
   config?: (guild: string | null) => Promise<APIEmbed>;
   /** The owner's feature toggles the bot follows (server/flags.ts); absent: always on. */
   enabled?: (flag: "discordBot" | "livePredictions") => Promise<boolean>;
-  /** The server's chat limit (bot/quota.ts): every server has the default, unless its own row replaced it; absent: none
+  /** The server's chat limit (bot/quota.ts): no cap by default, unless its own row gives it one; absent: none
    *  enforced. */
   quota?: (guild: string) => Promise<Quota>;
 }
@@ -157,7 +157,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   // Nobody is paced per person: every message is answered (a person asking twice in a row gets both answers). Only the
   // same question within a minute is the answer already given, whoever asks.
   const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
-  // The server's chat limit (bot/quota.ts): every server has the default cap, and a read that fails allows the chat —
+  // The server's chat limit (bot/quota.ts): only a server given a cap has one, and a read that fails allows the chat —
   // a database blip must never silence the bot.
   const quota = lookups.quota;
   const mayChat = async (guild: string | null | undefined): Promise<Quota> =>
