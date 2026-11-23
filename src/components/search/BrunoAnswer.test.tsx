@@ -170,3 +170,39 @@ describe("read as a stream, shown only once he's done", () => {
     expect(screen.queryByText("Old answer.")).toBeNull();
   });
 });
+
+describe("Bruno's answer leading the page", () => {
+  it("holds his slot while he writes, then fills it; a yes-or-no answer leads with the word", async () => {
+    render(<BrunoAnswer q="is absolute zero a real team" ready lead />);
+    expect(screen.getByRole("status", { name: "Bruno AI is writing an answer" })).toBeTruthy();
+    await settle();
+    await answer("Yes, Absolute Zero consists of multiple teams, including 12096, 13048, and 19656.");
+    expect(screen.queryByRole("status")).toBeNull();
+    const note = screen.getByRole("note", { name: "Bruno AI's answer" });
+    const v = note.querySelector("[data-bruno-verdict]")!;
+    expect(v.getAttribute("data-bruno-verdict")).toBe("Yes");
+    expect(v.textContent).toBe("YesAbsolute Zero consists of multiple teams, including 12096, 13048, and 19656.");
+  });
+  it("lets the slot go when he has nothing to add", async () => {
+    render(<BrunoAnswer q="is absolute zero a real team" ready lead />);
+    await settle();
+    await answer(null);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+  it("holds no slot with his switch off", () => {
+    flags.brunoAnswers = false;
+    render(<BrunoAnswer q="is absolute zero a real team" ready lead />);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("brunoVerdict", () => {
+  it("reads a leading yes or no, and nothing else", async () => {
+    const { brunoVerdict } = await import("./BrunoAnswer");
+    expect(brunoVerdict("No - 4215 has not been to worlds.")).toEqual({ answer: "No", rest: "4215 has not been to worlds." });
+    expect(brunoVerdict("Yes.")).toBeNull();
+    expect(brunoVerdict("Nobody has scored more.")).toBeNull();
+    expect(brunoVerdict("Hypnotic Robotics went to states 3 times.")).toBeNull();
+  });
+});
