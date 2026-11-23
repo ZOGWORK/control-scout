@@ -15,7 +15,7 @@
 // Reduced motion, no Web Animations, or anything missing (the page never draws its title, the card is off screen): the
 // plain cut. The layer can never stay up: every run ends on a timer at the latest, and the page is always shown again.
 import { animate } from "motion/mini";
-import { HEADER_ID } from "./pageScroll";
+import { HEADER_ID, RESTORE_WINDOW_MS } from "./pageScroll";
 
 /** One run, end to end: the brief's 250–350 ms, no bounce. */
 export const MORPH_MS = 300;
@@ -31,8 +31,10 @@ const FADE_MS = 140;
 
 type Box = { x: number; y: number; w: number; h: number };
 type TitleSnap = { box: Box; text: string; style: Partial<CSSStyleDeclaration> };
-type Landed = { key: string; at: number; scroll: number };
-type Leaving = { key: string; title: TitleSnap; content: Box; at: number; scroll: number };
+/** `nth`: which of the cards with this key was tapped (an event can show twice on one page: Home's live card and the
+ *  list), so Back shrinks into that one. */
+type Landed = { key: string; at: number; scroll: number; nth: number };
+type Leaving = { key: string; title: TitleSnap; content: Box; at: number; scroll: number; nth: number };
 
 let landed: Landed | null = null;
 /** Slow motion for review (/preview/morph's switch): every duration and wait is multiplied by this. */
@@ -149,6 +151,21 @@ const afterPaint = (fn: () => void) => requestAnimationFrame(() => setTimeout(fn
  */
 export function launchMorph(card: HTMLElement, key: string, go: () => void): boolean {
   if (!morphAllowed()) return false;
+  try { return run(card, key, go); } catch {
+    // Anything thrown while starting (the layer, the first animation): nothing of the run stays, and the caller cuts.
+    // Its finish is dropped, never called: that would open the page too, and the link is about to.
+    running = null;
+    document.querySelectorAll("[data-card-morph]").forEach((el) => el.remove());
+    const page = main();
+    if (page) page.style.opacity = "";
+    return false;
+  }
+}
+
+/** Every card on the page with `key`, in page order. */
+export const cardsFor = (key: string) => [...document.querySelectorAll<HTMLElement>(`[data-morph-key="${CSS.escape(key)}"]`)];
+
+function run(card: HTMLElement, key: string, go: () => void): boolean {
   const titleEl = card.querySelector<HTMLElement>("[data-morph-title]");
   if (!titleEl) return false;
   const from = boxOf(card);
@@ -156,6 +173,8 @@ export function launchMorph(card: HTMLElement, key: string, go: () => void): boo
   running?.();
   const fromTitle = snapTitle(titleEl);
   const listScroll = scrollY();
+  const nth = Math.max(0, cardsFor(key).indexOf(card));
+  landed = null; // a new run: whatever an earlier one landed on is no longer the way back
   const to = contentBox();
   const l = layer(to, fromTitle);
   const page = main();
@@ -171,16 +190,18 @@ export function launchMorph(card: HTMLElement, key: string, go: () => void): boo
     if (page) { page.style.opacity = ""; pageAnim.stop?.(); }
     if (running === finish) running = null;
   };
+  // Only the run that is still on may say where it landed (a stale one never does: see the landing below).
   running = finish;
   // The card lifts: the surface is drawn over it, and grows to the content area.
   const grow = animate(l.surface, { transform: [flip(from, to), "none"] }, opts());
   animate(l.cardCoat, { opacity: [1, 0] }, opts());
   const started = performance.now();
-  const hardStop = setTimeout(finish, (MORPH_MS + MORPH_WAIT_MS) * speed + 600);
   // The title rides the growing card toward where a page's title sits (its own offset in the card, kept within the
   // page's margins), so it is already on its way while the page draws; the last hop lands it on the real title.
   const ride = `translate(${to.x + Math.min(fromTitle.box.x - from.x, 32) - fromTitle.box.x}px, ${to.y + Math.min(fromTitle.box.y - from.y, 64) - fromTitle.box.y}px)`;
   const riding = animate(l.copy, { transform: ["none", ride] }, opts());
+  // Timers only once everything has started: a throw above leaves nothing behind that could open the page later.
+  const hardStop = setTimeout(finish, (MORPH_MS + MORPH_WAIT_MS) * speed + 600);
   afterPaint(leave);
   void (async () => {
     const target = await waitFor(() => (went ? targetTitle(key) : null), (MORPH_MS + MORPH_WAIT_MS) * speed);
@@ -192,7 +213,10 @@ export function launchMorph(card: HTMLElement, key: string, go: () => void): boo
       const toTitle = snapTitle(target);
       const left = Math.max(160, MORPH_MS - (performance.now() - started) / speed);
       await done(animate(l.copy, { transform: [now && now !== "none" ? now : "none", fly(fromTitle, toTitle)] }, opts(left)));
-      landed = { key, at: Date.now(), scroll: listScroll };
+      // Only while this run is still on and its page is still showing: a reader who left mid-flight left nothing to
+      // return from (noteLeaving has already run), so nothing is recorded for a page that's gone.
+      // (The page may have drawn its title again meanwhile, a fresh element: what counts is that it still shows this key.)
+      if (!over && running === finish && targetTitle(key)) landed = { key, at: Date.now(), scroll: listScroll, nth };
     }
     await done(grow);
     if (over) return;
@@ -210,14 +234,17 @@ export function noteLeaving(key: string, title: HTMLElement | null) {
   const l0 = landed;
   if (!title || !l0 || l0.key !== key) return;
   landed = null;
+  // Still this key's page: an event page that switched in place to another event (its title now names that one) has
+  // nothing of this key's page left to shrink.
+  if (title.getAttribute("data-morph-target") !== key) return;
   if (!morphAllowed()) return;
   const snap = snapTitle(title);
   if (!onScreen(snap.box)) return; // scrolled down the page: the cut on the way back, nothing to glide from
-  leaving = { key, title: snap, content: contentBox(), at: Date.now(), scroll: l0.scroll };
+  leaving = { key, title: snap, content: contentBox(), at: Date.now(), scroll: l0.scroll, nth: l0.nth };
 }
 
 /** The list side, once its card for `key` is drawn after Back: runs the shrink if this card is the one left. */
-export function maybeReturn(key: string, card: () => HTMLElement | null): boolean {
+export function maybeReturn(key: string): boolean {
   const l0 = leaving;
   if (!l0 || l0.key !== key || Date.now() - l0.at > RETURN_WINDOW_MS) return false;
   leaving = null;
@@ -235,11 +262,13 @@ export function maybeReturn(key: string, card: () => HTMLElement | null): boolea
   };
   running = finish;
   l.cardCoat.style.opacity = "0";
-  const hardStop = setTimeout(finish, MORPH_MS * speed + 1400);
+  // The list may take its scroll-restore window to get back to where it was left (src/lib/pageScroll.ts).
+  const restoreWait = RESTORE_WINDOW_MS + 300;
+  const hardStop = setTimeout(finish, restoreWait + MORPH_MS * speed + 800);
   void (async () => {
     // The list puts its scroll back first (src/lib/pageScroll.ts, once its data has drawn): wait for the place it was
     // left at, so the card is measured where it will stay.
-    const el = await waitFor(() => (Math.abs(scrollY() - l0.scroll) < 2 ? card() : null), 1000);
+    const el = await waitFor(() => (Math.abs(scrollY() - l0.scroll) < 2 ? cardsFor(key)[l0.nth] ?? null : null), restoreWait);
     if (over) return;
     const titleEl = el?.querySelector<HTMLElement>("[data-morph-title]");
     const to = el ? boxOf(el) : null;

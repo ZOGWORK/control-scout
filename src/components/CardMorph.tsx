@@ -23,7 +23,6 @@ export function warmEvent(season: number, code: string) {
 }
 
 const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.defaultPrevented;
-const cardFor = (key: string) => document.querySelector<HTMLElement>(`[data-morph-key="${CSS.escape(key)}"]`);
 
 /** Props for the card's link to `to`: its key, and the tap that starts the morph and then changes the page itself.
  *  `warm`: fetch what the page needs at the tap (its code, its data), so it is drawn by the time the card has grown. */
@@ -36,11 +35,12 @@ export function useMorphCard(key: string, to: string, warm?: () => void): { "dat
   useLayoutEffect(() => {
     if (!on || arrived.current) return;
     arrived.current = true;
-    if (action === "POP") maybeReturn(key, () => cardFor(key));
+    if (action === "POP") maybeReturn(key);
   }, [on, action, key]);
   const onClick = useCallback((e: MouseEvent<HTMLElement>) => {
     // A new tab, a modified click or a page that took the click over: no morph (the browser does what was asked).
     if (!plainClick(e)) return;
+    // launchMorph never throws (a failure is a plain false), so a broken morph still leaves the tap to the link.
     if (launchMorph(e.currentTarget, key, () => navigate(to))) {
       e.preventDefault(); // the morph changes the page, a frame later
       try { warm?.(); } catch { /* warming is a bonus */ }

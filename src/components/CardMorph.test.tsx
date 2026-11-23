@@ -5,17 +5,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MorphScope, eventMorphKey, useMorphCard, useMorphTarget } from "./CardMorph";
-import { MORPH_MS, MORPH_WAIT_MS, launchMorph, morphAllowed, resetMorphForTests } from "../lib/cardMorph";
+import { MORPH_MS, MORPH_WAIT_MS, launchMorph, maybeReturn, morphAllowed, resetMorphForTests } from "../lib/cardMorph";
 
 const KEY = eventMorphKey(2025, "USCAFFFAQ");
 
-function Card() {
+function Card({ id = "card" }: { id?: string }) {
   const morph = useMorphCard(KEY, "/events/2025/USCAFFFAQ");
-  return <a href="#e" {...morph} data-testid="card"><span data-morph-title>Qualifier</span></a>;
+  return <a href="#e" {...morph} data-testid={id}><span data-morph-title>Qualifier</span></a>;
 }
-function Title() {
-  const t = useMorphTarget(KEY);
+function Title({ k = KEY }: { k?: string }) {
+  const t = useMorphTarget(k);
   return <h1 {...t}>Qualifier</h1>;
+}
+/** Runs a forward morph from `card` until its layer is gone (the title found, landed, faded). */
+async function land(card: HTMLElement) {
+  expect(launchMorph(card, KEY, () => {})).toBe(true);
+  await vi.waitFor(() => expect(document.querySelector("[data-card-morph]")).toBeNull());
+}
+/** The cards a return run hides while it shrinks into them. */
+function watchHidden() {
+  const hidden: Element[] = [];
+  const mo = new MutationObserver((ms) => ms.forEach((m) => { const el = m.target as HTMLElement; if (el.style?.visibility === "hidden") hidden.push(el); }));
+  mo.observe(document.body, { attributes: true, attributeFilter: ["style"], subtree: true });
+  return { hidden, stop: () => mo.disconnect() };
 }
 
 let reduce = false;
@@ -99,5 +111,44 @@ describe("card morph", () => {
     expect(go).toHaveBeenCalledTimes(1);
     expect(document.querySelector("[data-card-morph]")).toBeNull();
     expect(document.getElementById("main")!.style.opacity).toBe("");
+  });
+
+  it("a morph that throws while starting leaves the tap to the link: not prevented, no layer, page shown", () => {
+    (Element.prototype as unknown as { animate: unknown }).animate = () => { throw new Error("bad keyframes"); };
+    render(<MemoryRouter><MorphScope><Card /></MorphScope></MemoryRouter>);
+    const ok = fireEvent.click(screen.getByTestId("card"));
+    expect(ok).toBe(true); // dispatchEvent: true = default not prevented, so the link navigates
+    expect(document.querySelector("[data-card-morph]")).toBeNull();
+    expect(document.getElementById("main")!.style.opacity).toBe("");
+  });
+
+  it("the same event shown twice: Back shrinks into the copy that was tapped, not the first one", async () => {
+    const view = render(<MemoryRouter><MorphScope><Card id="a" /><Card id="b" /></MorphScope><Title /></MemoryRouter>);
+    await land(screen.getByTestId("b"));
+    view.rerender(<MemoryRouter><MorphScope><Card id="a" /><Card id="b" /></MorphScope></MemoryRouter>); // leave the page
+    const w = watchHidden();
+    expect(maybeReturn(KEY)).toBe(true);
+    await vi.waitFor(() => expect(w.hidden.length).toBeGreaterThan(0));
+    w.stop();
+    expect(w.hidden[0]).toBe(screen.getByTestId("b"));
+  });
+
+  it("an event page that switches in place to another event records nothing for the first one", async () => {
+    const view = render(<MemoryRouter><MorphScope><Card /></MorphScope><Title /></MemoryRouter>);
+    await land(screen.getByTestId("card"));
+    view.rerender(<MemoryRouter><MorphScope><Card /></MorphScope><Title k={eventMorphKey(2025, "OTHER")} /></MemoryRouter>);
+    expect(maybeReturn(KEY)).toBe(false);
+  });
+
+  it("a reader who leaves mid-flight leaves no landing behind for a later visit's Back", async () => {
+    const view = render(<MemoryRouter><MorphScope><Card /></MorphScope><Title /></MemoryRouter>);
+    expect(launchMorph(screen.getByTestId("card"), KEY, () => {})).toBe(true);
+    view.rerender(<MemoryRouter><MorphScope><Card /></MorphScope></MemoryRouter>); // gone before the title landed
+    // No title to land on: the run waits its whole window, then fades.
+    await vi.waitFor(() => expect(document.querySelector("[data-card-morph]")).toBeNull(), { timeout: MORPH_MS + MORPH_WAIT_MS + 1500 });
+    // A later, plain visit to the same event, then Back: no morph.
+    view.rerender(<MemoryRouter><MorphScope><Card /></MorphScope><Title /></MemoryRouter>);
+    view.rerender(<MemoryRouter><MorphScope><Card /></MorphScope></MemoryRouter>);
+    expect(maybeReturn(KEY)).toBe(false);
   });
 });
