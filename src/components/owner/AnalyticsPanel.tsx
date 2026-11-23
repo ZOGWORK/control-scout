@@ -3,7 +3,6 @@
 // to publish the home page's "in use" section (server/ownerSettings.ts; confirmed, and audited with the old
 // and new value). Aggregates only: no accounts, emails or addresses.
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { CalendarDays, Eye, Globe, MousePointerClick } from "lucide-react";
 import { Section } from "../page";
 import { StatTile } from "../StatTile";
@@ -21,11 +20,12 @@ import { PublicUsagePanel } from "../home/HomeSections";
 /** Page views per day: one bar a day, zero-based, the day's number on hover and in the label read aloud. Sessions are in
  *  each bar's tooltip, not drawn: the chart answers one question, how many pages were viewed. */
 function DailyViews({ daily }: { daily: OwnerAnalytics["daily"] }) {
-  const max = Math.max(1, ...daily.map((d) => d.pageViews));
+  const busiest = Math.max(0, ...daily.map((d) => d.pageViews));
+  const max = Math.max(1, busiest);
   const every = Math.max(1, Math.ceil(daily.length / 5));
   return (
     <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-      <p className="mb-2 text-xs text-muted-foreground tabular-nums">Busiest day {int(max)} views</p>
+      <p className="mb-2 text-xs text-muted-foreground tabular-nums">{busiest ? `Busiest day ${int(busiest)} views` : "No page views in this period"}</p>
       <div className="flex h-40 items-end gap-1" role="img"
         aria-label={`Page views per day: ${daily.map((d) => `${d.day} ${d.pageViews}`).join("; ")}`}>
         {daily.map((d) => (
@@ -42,19 +42,19 @@ function DailyViews({ daily }: { daily: OwnerAnalytics["daily"] }) {
 }
 
 /** A short ranked list with each row's share drawn as a zero-based bar behind it (largest = full width). */
-function Ranked({ title, rows, unit, empty }: { title: string; rows: { key: string; label: string; value: number; href?: string }[]; unit: string; empty: string }) {
+function Ranked({ title, note, rows, unit, empty }: { title: string; note?: string; rows: { key: string; label: string; value: number; mono?: boolean }[]; unit: string; empty: string }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   return (
     <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-      <h3 className="mb-2 text-sm font-medium text-foreground">{title}</h3>
+      <h3 className="text-sm font-medium text-foreground">{title}</h3>
+      {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
+      <div className="mb-2" />
       {rows.length ? (
         <ol className="space-y-1">
           {rows.map((r) => (
             <li key={r.key} className="relative flex items-center justify-between gap-3 overflow-hidden rounded-md px-2 py-1 text-sm">
               <span className="absolute inset-y-0 left-0 rounded-md bg-accent/15" style={{ width: `${(r.value / max) * 100}%` }} aria-hidden />
-              {r.href
-                ? <Link to={r.href} className="relative min-w-0 truncate font-mono text-xs text-foreground hover:underline" title={r.label}>{r.label}</Link>
-                : <span className="relative min-w-0 truncate text-foreground" title={r.label}>{r.label}</span>}
+              <span className={cn("relative min-w-0 truncate text-foreground", r.mono && "font-mono text-xs")} title={r.label}>{r.label}</span>
               <span className="relative shrink-0 tabular-nums text-muted-foreground">{int(r.value)} <span className="sr-only">{unit}</span></span>
             </li>
           ))}
@@ -134,7 +134,7 @@ export function AnalyticsPanel() {
               </div>
               <div className="mt-4"><DailyViews daily={a.daily} /></div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <Ranked title="Most viewed pages" rows={a.topPages.map((r) => ({ key: r.path, label: r.path, value: r.views, href: r.path }))} unit="views" empty="No page views in this period." />
+                <Ranked title="Most viewed kinds of page" note="By route: /teams/:number is every team page together. Which team is never recorded." rows={a.topPages.map((r) => ({ key: r.path, label: r.path, value: r.views, mono: true }))} unit="views" empty="No page views in this period." />
                 <Ranked title="Where visits came from" rows={a.referrers.map((r) => ({ key: r.host, label: r.host, value: r.sessions }))} unit="visits" empty="No visits came from another site in this period." />
               </div>
             </Section>
