@@ -86,6 +86,39 @@ describe("the owner console's Discord bot panel", () => {
     expect((screen.getByLabelText("Server id") as HTMLInputElement).value).toBe("");
   });
 
+  it("reports any other failure as an error and keeps what was typed", async () => {
+    apiFetch.mockRejectedValueOnce(new ApiError(500, "Something broke"));
+    fillAndSave("60", "300");
+    await waitFor(() => expect(h.error).toHaveBeenCalledWith("Something broke"));
+    expect(h.success).not.toHaveBeenCalled();
+    expect(h.reload).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("Chats an hour") as HTMLInputElement).value).toBe("60");
+    expect((screen.getByLabelText("Server id") as HTMLInputElement).value).toBe(GUILD);
+  });
+
+  it("reports a failed clear as an error, without claiming the cap is gone", async () => {
+    h.data = CAPPED;
+    apiFetch.mockRejectedValueOnce(new ApiError(500, "Something broke"));
+    render(<DiscordPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Back to default" }));
+    await waitFor(() => expect(h.error).toHaveBeenCalledWith("Something broke"));
+    expect(h.success).not.toHaveBeenCalled();
+    expect(h.reload).not.toHaveBeenCalled();
+  });
+
+  it("allows one cap write at a time: the other controls wait for it", async () => {
+    h.data = CAPPED;
+    let settle!: (v: OwnerDiscordLimits) => void;
+    apiFetch.mockImplementationOnce(() => new Promise<OwnerDiscordLimits>((r) => { settle = r; }));
+    render(<DiscordPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Back to default" }));
+    expect((screen.getByRole("button", { name: "Save cap" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Clearing…" }) as HTMLButtonElement).disabled).toBe(true);
+    settle(CAPPED);
+    await waitFor(() => expect((screen.getByRole("button", { name: "Save cap" }) as HTMLButtonElement).disabled).toBe(false));
+    expect((screen.getByRole("button", { name: "Back to default" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("turns a 409 on Back to default into already cleared, and refreshes the table", async () => {
     h.data = CAPPED;
     apiFetch.mockRejectedValueOnce(new ApiError(409, "That server has no cap of its own"));
