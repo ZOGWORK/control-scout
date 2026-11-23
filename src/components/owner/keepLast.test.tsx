@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-// useKeepLast + KeptLast: a filter's new answer loading or failing keeps the last one on screen, dimmed and not
-// clickable, so a fold the owner opened stays open; a failure says so above it, with Try again.
+// useKeepLast + KeptLast: a filter's new answer loading keeps the last one on screen, dimmed and inert, so a fold the
+// owner opened stays open; a failure says so above the last one (left usable), with Try again.
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -38,15 +38,17 @@ describe("useKeepLast", () => {
     const box = container.querySelector("[data-stale]")!;
     expect(box.getAttribute("aria-busy")).toBe("true");
     expect(box.className).toContain("pointer-events-none");
+    expect(box.hasAttribute("inert")).toBe(true);
     rerender(<View state={st("30 days")} />);
     expect(screen.getByText("30 days")).toBeTruthy();
     expect(container.querySelector("[data-stale]")).toBeNull();
     expect(screen.getByRole("button", { name: /^Details/ }).getAttribute("aria-expanded")).toBe("true");
   });
 
-  it("on a failed new answer keeps the last one under the error, with Try again", () => {
-    const { rerender } = render(<View state={st("14 days")} />);
+  it("on a failed new answer keeps the last one, usable, under the error, with Try again", () => {
+    const { rerender, container } = render(<View state={st("14 days")} />);
     rerender(<View state={st(undefined, new ApiError(500, "Server error"))} />);
+    expect(container.querySelector("[inert]")).toBeNull();
     expect(screen.getByRole("alert").textContent).toMatch(/Couldn't load that view \(Server error\)/);
     fireEvent.click(screen.getByRole("button", { name: /^Details/ }));
     expect(screen.getByText("14 days")).toBeTruthy();

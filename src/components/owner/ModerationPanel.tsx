@@ -65,7 +65,7 @@ export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void })
               <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
                 <div className="flex flex-wrap gap-1" role="group" aria-label="Show">
                   {(["untriaged", "accepted"] as const).map((k) => (
-                    <Button key={k} size="sm" variant={k === queue ? "default" : "outline"} aria-pressed={k === queue} onClick={() => setQueue(k)}>
+                    <Button key={k} size="sm" variant={k === t.state ? "default" : "outline"} aria-pressed={k === t.state} onClick={() => setQueue(k)}>
                       {k === "untriaged" ? "Not triaged" : "Accepted"}<span className="tabular-nums opacity-70">{int(t.counts[k])}</span>
                     </Button>
                   ))}
@@ -86,10 +86,10 @@ export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void })
             </Section>
             {/* Watched, not acted on: rate limits already answer abuse, and a range is many people. Folded, period inside. */}
             <Section title="Abuse signals" collapsible icon={ShieldAlert}
-              summary={`${int(a.totals.rate_limited)} rate-limited · ${int(a.totals.burst)} bursts · ${int(a.ranges.length)} ranges flagged, last ${days} days`}>
+              summary={`${int(a.totals.rate_limited)} rate-limited · ${int(a.totals.burst)} bursts · ${int(a.ranges.length)} ranges flagged, last ${a.days} days`}>
               <div className="mb-4 flex items-center justify-end gap-1" role="group" aria-label="Period">
                 {[7, 14, 30].map((d) => (
-                  <Button key={d} size="sm" variant={d === days ? "default" : "outline"} aria-pressed={d === days} onClick={() => setDays(d)}>{d} days</Button>
+                  <Button key={d} size="sm" variant={d === a.days ? "default" : "outline"} aria-pressed={d === a.days} onClick={() => setDays(d)}>{d} days</Button>
                 ))}
               </div>
               <Section title="Signals" description={`Counts per day and network range (IPv4 /16, IPv6 /32). No full address, user agent or account is kept, and days older than ${a.retentionDays} are dropped.`}>
