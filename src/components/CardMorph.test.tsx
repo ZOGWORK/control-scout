@@ -173,4 +173,45 @@ describe("card morph", () => {
     expect(launchMorph(screen.getByTestId("card"), eventMorphKey(2025, "OTHER"), () => {})).toBe(true);
     expect(maybeReturn(KEY)).toBe(false);
   });
+
+  it("a long name lands whole: the copy takes the page title's width and wraps like it", async () => {
+    const wrapped: string[] = [];
+    const mo = new MutationObserver(() => { const c = document.querySelector<HTMLElement>("[data-card-morph] [data-morph-title]"); if (c?.style.whiteSpace === "normal") wrapped.push(c.style.width); });
+    mo.observe(document.body, { attributes: true, subtree: true, attributeFilter: ["style"] });
+    render(<MemoryRouter><MorphScope name="list"><Card /></MorphScope><Title /></MemoryRouter>);
+    await land(screen.getByTestId("card"));
+    mo.disconnect();
+    expect(wrapped.length).toBeGreaterThan(0);
+  });
+
+  it("Back starts from the page title as it reads: the whole name, wrapping", async () => {
+    const view = render(<MemoryRouter><MorphScope name="list"><Card /></MorphScope><Title /></MemoryRouter>);
+    await land(screen.getByTestId("card"));
+    view.rerender(<MemoryRouter><MorphScope name="list"><Card /></MorphScope></MemoryRouter>);
+    expect(maybeReturn(KEY)).toBe(true); // (the card stayed mounted, so Back is started here)
+    expect(document.querySelector<HTMLElement>("[data-card-morph] [data-morph-title]")?.style.whiteSpace).toBe("normal");
+  });
+
+  it("the page shown again drops its older way back: leaving it a second time without a landing records none", async () => {
+    const view = render(<MemoryRouter><MorphScope name="list"><Card /></MorphScope><Title /></MemoryRouter>);
+    await land(screen.getByTestId("card"));
+    view.rerender(<MemoryRouter><Title /></MemoryRouter>); // left the event page for a page with no card, so no Back yet
+    view.rerender(<MemoryRouter><p>elsewhere</p></MemoryRouter>);
+    view.rerender(<MemoryRouter><Title /></MemoryRouter>); // the event page again (Back from a later page)
+    view.rerender(<MemoryRouter><p>elsewhere</p></MemoryRouter>); // and left again
+    expect(maybeReturn(KEY)).toBe(false);
+  });
+
+  it("a return run stops the moment the reader moves on, so its layer never covers the next page", async () => {
+    const view = render(<MemoryRouter><MorphScope name="list"><Card /></MorphScope><Title /></MemoryRouter>);
+    await land(screen.getByTestId("card"));
+    // The list hasn't put its scroll back yet, so the run waits for it.
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(500);
+    view.rerender(<MemoryRouter><MorphScope name="list"><Card /></MorphScope></MemoryRouter>);
+    expect(maybeReturn(KEY)).toBe(true);
+    expect(document.querySelector("[data-card-morph]")).not.toBeNull();
+    window.history.pushState({}, "", "/teams");
+    await vi.waitFor(() => expect(document.querySelector("[data-card-morph]")).toBeNull(), { timeout: 500 });
+    window.history.pushState({}, "", "/");
+  });
 });

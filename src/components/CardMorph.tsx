@@ -3,7 +3,7 @@
 // morph: everywhere else the hooks hand back nothing and the link cuts, as every other link does.
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, type MouseEvent, type ReactNode } from "react";
 import { useNavigate, useNavigationType } from "react-router-dom";
-import { launchMorph, maybeReturn, noteLeaving } from "../lib/cardMorph";
+import { launchMorph, maybeReturn, noteLeaving, noteShown } from "../lib/cardMorph";
 import { load } from "../lib/api";
 
 /** null: no morph here. A string: the section's name (one name per section on a page), so Back finds the copy of a
@@ -56,7 +56,8 @@ export function useMorphCard(key: string, to: string, warm?: () => void): { "dat
 export function useMorphTarget(key: string) {
   const ref = useRef<HTMLElement | null>(null);
   // A layout effect's cleanup runs before React takes the page out of the document, so the title can still be measured.
-  useLayoutEffect(() => () => noteLeaving(key, ref.current), [key]);
+  // Shown (again, say by Back from a later page): an older way back from it is stale. Leaving records a fresh one.
+  useLayoutEffect(() => { noteShown(key); return () => noteLeaving(key, ref.current); }, [key]);
   const set = useCallback((el: HTMLElement | null) => { ref.current = el; }, []);
   return { ref: set, "data-morph-target": key };
 }
