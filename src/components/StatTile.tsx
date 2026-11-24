@@ -62,7 +62,8 @@ export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, s
    *  visible text, so the button's name keeps everything it shows (WCAG 2.5.3, label in name). */
   action?: string;
   className?: string;
-  /** The icon chip's own colours, over the tone's (search's palette: a filled chip in the tile's meaning). */
+  /** The icon chip's own colours, over the tone's (search's palette: a filled chip in the tile's meaning). Kept
+   *  filled in v8 too (search answers: the owner's "exaggerate the colour"), so it carries its own `v8:` colours. */
   chip?: string;
 }) {
   const t = TONES[tone];
@@ -71,7 +72,7 @@ export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, s
   const body = (
     <>
       <span className="flex items-center gap-2 text-sm leading-tight text-muted-foreground v8:gap-1.5">
-        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", chip ?? t.chip, V8_CHIP, !chip && tone !== "neutral" && v8t.text)}><Icon className="size-4" aria-hidden /></span>{label}
+        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", chip ?? t.chip, !chip && V8_CHIP, !chip && tone !== "neutral" && v8t.text)}><Icon className="size-4" aria-hidden /></span>{label}
       </span>
       <span className={cn("mt-2 block font-display text-3xl font-semibold tabular-nums text-foreground", v8t.text)}>{value}</span>
       {hint && <span className="mt-1 block break-words text-xs text-muted-foreground">{hint}</span>}
