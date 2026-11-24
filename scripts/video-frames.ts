@@ -1618,8 +1618,9 @@ async function doCode(code: string): Promise<void> {
         const pg = page, half = splitHalf;
         // Back to the split check's zoom (its half, else the whole frame) where this check doesn't read the video.
         const restore = () => zoom(pg, half);
+        let hung = false;
         await splitChecked(async () => {
-          const css = await findShrunk(pg, m.length!);
+          const css = await findShrunk(pg, m.length!).catch((e) => { if (e instanceof ShrunkHung) hung = true; throw e; });
           if (!css) { await restore(); return; }
           log("    a score bar drawn small in the frame: read zoomed to it");
           await zoomTo(pg, css);
@@ -1634,6 +1635,17 @@ async function doCode(code: string): Promise<void> {
           stops: (e) => e instanceof EventOverTime,
           failed: (e) => log(`    couldn't check for a score bar drawn small: ${e.message.split("\n")[0]} (kept as nothing read)`),
         });
+        // A hung sample's seek or frame capture may still land on this page, under the edges' reads: they're read in a
+        // fresh player instead (on the split half, where the split check found one).
+        if (hung) {
+          await closePage(page);
+          page = await player();
+          if (division) divisions.set(page, division);
+          { const e = eventNames.get(code); if (e) pageEvent.set(page, e); }
+          pageDeadline.set(page, deadline);
+          await open(page, v.videoId);
+          if (half) await zoom(page, half);
+        }
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
       for (const l of out.keys()) held.add(l);
