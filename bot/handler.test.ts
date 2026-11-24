@@ -662,7 +662,7 @@ describe("the answer's buttons", () => {
     expect(ask).toHaveBeenCalledTimes(1);
   });
 
-  it("records what it was asked, and adds 👍 and 👎 to the answer", async () => {
+  it("records what it was asked, and adds 👍 to the answer", async () => {
     const noteAsk = vi.fn(async () => {});
     // A row write the test decides when to finish, so "before" and "after" are both observable.
     let written: () => void = () => {};
@@ -674,7 +674,7 @@ describe("the answer's buttons", () => {
     c.i.editReply = async (p: any) => { c.calls.push({ kind: "edit", payload: p }); return { id: "m9", react }; };
     await h(c.i);
     expect(noteAsk).toHaveBeenCalledWith({ question: "who won decode", step: "deterministic", chat: false, answered: true, ms: expect.any(Number), guild: "g1" });
-    // The question goes with the row: a 👎 on it files the words that got this answer (bot/reactions.ts).
+    // The question goes with the row: it is the record of what the answer was for (bot/reactions.ts).
     expect(trackAnswer).toHaveBeenCalledWith("m9", "g1", "who won decode");
     // The row goes in first, then the emoji: a click the moment they render must find it, so nothing is added while the
     // write is still in flight.
@@ -682,7 +682,7 @@ describe("the answer's buttons", () => {
     expect(react).not.toHaveBeenCalled();
     written();
     await new Promise((r) => setTimeout(r, 0));
-    expect(react.mock.calls.map((x) => x[0])).toEqual(["👍", "👎"]);
+    expect(react.mock.calls.map((x) => x[0])).toEqual(["👍"]);
   });
 
   it("the bot's own fallback is neither answered nor Bruno's; his own reply is both", async () => {

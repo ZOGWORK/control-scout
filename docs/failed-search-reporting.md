@@ -46,12 +46,12 @@ Code: `server/searchFailures.ts`. It files through the in-app error reporter's G
 | `name-only` | Only names matched, for a query with a team number and an intent word |
 | `weak` | Search flagged its result as a guess, for a query with a team and an intent word |
 | `ambiguous` | Two intents matched equally (reported by the layered reader) |
-| `downvoted` | The Discord bot answered it and a person voted 👎 on that answer (`bot/reactions.ts`) |
+| `downvoted` | Legacy: the Discord bot answered it and a person voted 👎 on that answer. The 👎 was removed in 8.0.1, so nothing files this type any more; rows from before still read and re-check like this |
 
 Any answer counts as a success: a card, a stat answer, a leaderboard, a team page asked for by name, or a page named
 outright ("privacy", "records"). Only the outcome counts, never the phrasing — except for a 👎 on a Discord answer,
-which files the question it was given for even though search called that answer answered: a person saying the answer
-was wrong is the one failure no reading of the answer can find.
+which used to file the question it was given for even though search called that answer answered. That vote is gone
+(8.0.1); the rows it left are still read as above.
 
 **Who decides.** The layered reader (`server/api/searchLayers.ts`) reports how it reached each answer
 (`SearchOutcome`), and its `result` decides: `answered` is never filed, `name-search-only` is filed as `name-only`,
