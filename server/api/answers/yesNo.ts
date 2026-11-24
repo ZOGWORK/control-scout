@@ -153,15 +153,35 @@ async function wonAward(t: Team, award: string | null, s: EventScope | null, eve
   const what = eventWin ? `won ${!s || s.bare ? "an event" : s.kind ? `a ${s.label}` : s.label}` : award === "Winner" ? "won the Winning Alliance award"
     : award ? `won the ${award.replace(/([a-z])([A-Z])/g, "$1 $2")} Award` : "won an award";
   const where = s && (!eventWin || s.bare) ? ` ${at(s)}` : "";
-  const ok = rows.length > 0;
+  // An event won is the event itself: a championship's division won is a finish there, never the championship won.
+  const won = eventWin ? rows.filter((r) => r.division_code == null) : rows;
+  const ok = won.length > 0;
+  // "No", and how far it got: the team's best alliance finish there (a division won, a finalist place), said with it.
+  const best = eventWin && !ok && s ? await bestFinish(t.number, s, home) : null;
   return {
     family: "awards", intent: "yes-no-award", title: `${who(t)} ${what}${where}`, team: t, scope: [s?.season != null ? seasonLabel(s.season) : "All seasons"],
-    headline: { value: yes(ok), label: ok ? `${who(t)} ${what}${where}: ${rows.length} ${rows.length === 1 ? "time" : "times"}` : `${who(t)} has never ${what}${where}` },
-    blocks: ok ? [{ kind: "table", title: "Where", columns: [{ key: "award", label: "Award" }, { key: "event", label: "Event" }, { key: "season", label: "Season" }],
-      rows: rows.map((r) => ({ cells: { award: r.aname ?? r.atype, event: shortEvent(r.name, r.type), season: seasonLabel(r.season) }, href: eventHref(r.season, r.code, t.number), type: r.type })) }] : [],
+    headline: { value: yes(ok), label: ok ? `${who(t)} ${what}${where}: ${won.length} ${won.length === 1 ? "time" : "times"}` : best ? `Best finish: ${best.label}` : `${who(t)} has never ${what}${where}`, ...(best ? { sub: `${who(t)} has never ${what}${where}` } : {}) },
+    blocks: ok || best ? [{ kind: "table", title: ok ? "Where" : "Best finish", columns: [{ key: "award", label: "Award" }, { key: "event", label: "Event" }, { key: "season", label: "Season" }],
+      rows: (ok ? won : best!.rows).map((r) => ({ cells: { award: r.aname ?? r.atype, event: shortEvent(r.name, r.type), season: seasonLabel(r.season) }, href: eventHref(r.season, r.code, t.number), type: r.type })) }] : [],
     definition: "Won: 1st place of a judged award, or a place on the winning (or finalist) alliance. An event won is its Winning Alliance or its 1st-place Inspire Award, as event wins count it; FIRST's Leadership Award never is.",
     source: "From FIRST's awards on record",
   };
+}
+
+/** A team's best alliance finish at the events `s` covers, when it won none: a division won before a finalist place,
+ *  the finals' place before a division's, the latest first; its award's name without the alliance slot ("Finalist
+ *  Alliance - Captain": "Finalist Alliance"), with where. Null when it has neither. */
+async function bestFinish(team: number, s: EventScope, home: string | null): Promise<{ label: string; rows: (EventRow & { atype: string; aname: string | null })[] } | null> {
+  const rows = (await all<EventRow & { atype: string; aname: string | null }>(
+    `SELECT e.season, e.code, e.name, e.type, e.division_code, e.start, e.end, e.region, NULL wins, NULL losses, NULL ties, a.type atype, a.name aname
+     FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? AND ${OFFICIAL} AND a.type IN ('Winner', 'Finalist')
+       AND NOT (a.type = 'Winner' AND COALESCE(a.name, '') LIKE '%Leadership%') ORDER BY e.start DESC, e.code`, [team])).filter(inScope(s, home));
+  // The finals' finalist place first, then a division won, then a division's finalist place.
+  const rank = (r: { atype: string; division_code: string | null }) => (r.division_code == null ? 0 : r.atype === "Winner" ? 1 : 2);
+  const top = [...rows].sort((a, b) => rank(a) - rank(b))[0];
+  if (!top) return null;
+  const award = (top.aname ?? top.atype).replace(/\s*-\s*(?:captain|\d+(?:st|nd|rd|th) team selected|.*pick)\s*$/i, "").trim();
+  return { label: `${award} (${shortEvent(top.name, top.type)}, ${seasonLabel(top.season)})`, rows: [top] };
 }
 
 /** "Has <team> ever lost to (or beaten) <team>", "did <team> ever play <team>" (`outcome` null): the matches they met
@@ -235,7 +255,7 @@ export async function yesNoAnswer(q: string, opts: { full: boolean; pages: Searc
     stat = await beaten(t[0], t[1], null, scope);
   } else if (t.length === 1 && (p.award || sym.has("metric:award")) && [...sym].every((x) => /^metric:(?:award|win)$/.test(x))) {
     stat = await wonAward(t[0], p.award, scope);
-  } else if (t.length === 1 && sym.has("metric:win") && (scope && !scope.bare ? !!p.eventKind || !!p.event : sym.has("thing:event")) && [...sym].every((x) => x === "metric:win" || x === "thing:event")) {
+  } else if (t.length === 1 && sym.has("metric:win") && (scope && !scope.bare ? !!p.eventKind || !!p.event || p.worlds || p.states : sym.has("thing:event")) && [...sym].every((x) => x === "metric:win" || x === "thing:event")) {
     // An event won: "won a championship", "won an event", "won <event>".
     stat = await wonAward(t[0], "Winner", scope, true);
   } else if (t.length === 1 && scope && !scope.bare && !sym.size) {

@@ -380,3 +380,17 @@ describe("more events than a page lists (Greptile on #521)", () => {
     expect(refs(a.hits)).toHaveLength(24);
   });
 });
+
+// Search audit 2026-11-24, Q7: "the next event in <place>" is one event, the soonest, with the rest counted and one tap
+// away on Events, never every upcoming event listed.
+describe("the next event: one card and how many more", () => {
+  it("one card, the soonest, and the rest counted", async () => {
+    const a = await ask("next meet in New Jersey");
+    expect(refs(a.hits)).toEqual(["USNJNEM2"]);
+    expect(a.understood?.label).toMatch(/^Next meet in New Jersey: P1-5 AM Northeast League Meet · 2 more upcoming$/);
+    expect(a.pages?.[0]).toMatchObject({ title: "2 more upcoming: Events in New Jersey", href: "/events?region=USA%3ANJ" });
+  });
+  it("a plural asks for the list, as before", async () => {
+    expect(refs((await ask("next meets in New Jersey")).hits)).toEqual(["USNJNEM2", "USNJNEM4", "USNJNEM6"]);
+  });
+});

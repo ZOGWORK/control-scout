@@ -86,6 +86,8 @@ export interface EventQuery {
   allSeasons?: boolean;
   /** Said as finished ("that ended yesterday"): the event's last day is in the window, not just any of its days. */
   ended?: boolean;
+  /** "The next event" (one, its word singular): the soonest upcoming event is the answer, the rest counted after it. */
+  next?: boolean;
 }
 
 /** The region `ws` (whole words) names exactly, if any. A two-letter code that's also a word counts only in capitals. */
@@ -213,7 +215,14 @@ export function readEventQuery(raw: string): EventQuery | null {
   }
   // "state" beside a region says nothing more: "NJ state championship" is New Jersey's championship.
   // "next" before an event word means upcoming ("when is the next meet in NJ"); a question's own words name nothing.
-  if (!time && kinds.length && words.some((w) => /^next$/i.test(w))) time = "upcoming";
+  // Said of one ("next event in texas", never "next events"): the soonest is the answer.
+  let next = false;
+  if (!time && kinds.length && words.some((w) => /^next$/i.test(w))) {
+    time = "upcoming";
+    // Read on the words as typed: the query here is already singular.
+    const said = /\bnext\s+(?:(?:ftc|first|official)\s+)*([a-z]+)/i.exec(raw);
+    next = !!said && !/s$/i.test(said[1]) && kinds.some((k) => k.toLowerCase() === said[1].toLowerCase());
+  }
   if (statesOnly && !region) kinds.pop();
   let named = words.filter((w) => { const l = w.toLowerCase(); return !STOPWORDS.has(l) && !QUESTION_WORDS.has(l) && !FRAME_WORDS.has(l) && !(region && /^(?:states?|champ?s?)$/i.test(w)); });
   // A bounded time said with nothing else asked ("next weekend", "what's on this weekend", "tomorrow"): that window's
@@ -229,7 +238,7 @@ export function readEventQuery(raw: string): EventQuery | null {
   // Championships (one a season) by the types the words mean: "championship events in NJ" is still championships.
   const types = eventTypesOf(ks);
   const allSeasons = !!types && types.every((t) => t === "Championship" || t === "FIRSTChampionship") && !time && year == null && season == null;
-  return { kinds: ks, time, year, season, region, where: where.join(" ") || null, words: named, ...(regionTyped ? { regionTyped } : {}), ...(allSeasons ? { allSeasons } : {}), ...(ended ? { ended } : {}) };
+  return { kinds: ks, time, year, season, region, where: where.join(" ") || null, words: named, ...(regionTyped ? { regionTyped } : {}), ...(allSeasons ? { allSeasons } : {}), ...(ended ? { ended } : {}), ...(next ? { next } : {}) };
 }
 
 const titleCase = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, a: string, c: string) => a + c.toUpperCase());
