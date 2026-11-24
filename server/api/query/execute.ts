@@ -648,7 +648,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       // and its video plays, as the match's own link does.
       const at = g.label && g.events && /^From 1 played match\b/.test(stat.source ?? "") ? /^\/events\/(\d+)\/([^?&]+)\?match=(\w+):(\d+):(\d+)(?:&|$)/.exec(stat.headline?.href ?? "") : null;
       const hits: SearchHit[] = at ? [{ kind: "match", ref: `${at[1]}:${decodeURIComponent(at[2])}:${at[3]}:${at[4]}:${at[5]}`, title: stat.headline!.label ?? stat.title, subtitle: `${decodeURIComponent(at[2])} · ${at[1]}`, season: Number(at[1]) }] : [];
-      return { q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: g.season }, ...(opts.full ? { stat } : {}),
+      // Said as the match it is ("Qualification match 12 at <event> (2025–26)"), as the event's own match link says it.
+      const one = at ? `${stat.headline!.label!.replace(/^Q(\d+) /, "Qualification match $1 ").replace(/^M(\d+) /, "Playoff match $1 ").replace(/^F(\d+) /, "Final $1 ")} (${seasonLabel(Number(at[1]))})` : null;
+      return { q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: one ?? stat.title, season: g.season }, ...(opts.full ? { stat } : {}),
         intent: { kind: `stat-${stat.intent}`, pattern: `${stat.intent}${g.region ? " [place]" : ""}${g.window ? " [window]" : ""}`, met: true, understood: [] } };
     };
     // The search box keeps a link to the answer page.

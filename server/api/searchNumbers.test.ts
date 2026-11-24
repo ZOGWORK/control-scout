@@ -79,8 +79,9 @@ describe("singular, plural and a typo are one question", () => {
     }
     expect((await ask("4215 upcoming evntd")).didYouMean).toBe("4215 upcoming events");
     expect((await ask("4215 upcoming events")).didYouMean).toBeUndefined();
-    expect((await ask("4215 recrod")).didYouMean).toBe("4215 record");
-    expect((await ask("4215 awrads")).didYouMean).toBe("4215 awards");
+    // A search word of five letters or more one letter off is read as meant in the parse, silently (audit Q8); one
+    // the parse can't answer whole is still the spelling layer's.
+    for (const q of ["4215 recrod", "4215 awrads"]) expect((await ask(q)).didYouMean, q).toBeUndefined();
     expect((await ask("7149 predction")).didYouMean).toBe("7149 prediction");
   });
   it("a name is never a keyword, and a word naming an event keeps its number", () => {
