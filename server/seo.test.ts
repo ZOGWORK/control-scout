@@ -225,7 +225,7 @@ describe("page head in the first HTML", () => {
     const ld = (html: string) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
     const home = ld(await renderIndex(file, "/"));
     expect(home.map((x) => x["@type"]).sort()).toEqual(["Organization", "WebSite"]);
-    expect(home.find((x) => x["@type"] === "Organization").logo).toBe("https://controlscout.org/logo-512.png");
+    expect(home.find((x) => x["@type"] === "Organization").logo).toBe("https://controlscout.org/logo-512.png?v=8");
     const [profile, crumbs] = ld(await renderIndex(file, "/teams/4215"));
     expect(profile).toMatchObject({ "@type": "ProfilePage", url: "https://controlscout.org/teams/4215", isPartOf: { "@id": "https://controlscout.org/#website" } });
     expect(profile.mainEntity).toMatchObject({ "@type": "SportsTeam", name: "Hypnotic Robotics", identifier: "4215", url: "https://controlscout.org/teams/4215", location: { address: { addressLocality: "Oradell", addressRegion: "NJ" } } });
@@ -419,7 +419,7 @@ describe("the site's name for search engines", () => {
       "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: "https://controlscout.org/?q={search_term_string}" }, "query-input": "required name=search_term_string",
     });
     const org = home.find((x) => x["@type"] === "Organization");
-    expect(org).toMatchObject({ name: "Control Scout", url: "https://controlscout.org/", logo: "https://controlscout.org/logo-512.png" });
+    expect(org).toMatchObject({ name: "Control Scout", url: "https://controlscout.org/", logo: "https://controlscout.org/logo-512.png?v=8" });
     expect(org.sameAs).toContain("https://tryctrlpoint.org");
     expect(site.publisher).toEqual({ "@id": org["@id"] });
   });

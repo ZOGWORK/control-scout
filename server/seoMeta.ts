@@ -137,7 +137,7 @@ export const SAME_AS = ["https://tryctrlpoint.org", "https://github.com/Control-
 /** Home page: the site (its name, and a search engines can send a query to) and who runs it. */
 function homeJsonLd(): Record<string, unknown>[] {
   const o = canonicalOrigin();
-  const org = { "@type": "Organization", "@id": `${o}/#organization`, name: SITE, alternateName: SITE_ALT, url: `${o}/`, logo: `${o}/logo-512.png`, sameAs: SAME_AS };
+  const org = { "@type": "Organization", "@id": `${o}/#organization`, name: SITE, alternateName: SITE_ALT, url: `${o}/`, logo: `${o}/logo-512.png?v=8`, sameAs: SAME_AS };
   return [
     { "@context": "https://schema.org", ...org },
     {
@@ -377,7 +377,7 @@ function rankingsJsonLd(r: PowerRankingsResponse, path: string): Record<string, 
   const article = {
     "@context": "https://schema.org", "@type": "Article", headline: w.title, description: w.introText.slice(0, 300), datePublished: w.published, dateModified: w.updated ?? w.published,
     url, mainEntityOfPage: url, image: [`${o}${OG_IMAGE_PATH}`],
-    author: { "@type": "Organization", name: SITE, url: `${o}/` }, publisher: { "@type": "Organization", name: SITE, logo: { "@type": "ImageObject", url: `${o}/logo-512.png` } },
+    author: { "@type": "Organization", name: SITE, url: `${o}/` }, publisher: { "@type": "Organization", name: SITE, logo: { "@type": "ImageObject", url: `${o}/logo-512.png?v=8` } },
   };
   return [article, list];
 }

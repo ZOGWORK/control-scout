@@ -36,11 +36,11 @@ describe("favicons", () => {
   it("index.html links the ICO first, then the PNG, plus the touch icon; no SVG favicon (it would win over the brand icon)", () => {
     const html = readFileSync(join(process.cwd(), "index.html"), "utf8");
     const at = (s: string) => html.indexOf(s);
-    expect(at('<link rel="icon" href="/favicon.ico" sizes="any" />')).toBeGreaterThan(-1);
+    expect(at('<link rel="icon" href="/favicon.ico?v=8" sizes="any" />')).toBeGreaterThan(-1);
     expect(at("/favicon.ico")).toBeLessThan(at("/favicon-48.png"));
     expect(at("/favicon-48.png")).toBeGreaterThan(at("/favicon.ico"));
     expect(html).not.toMatch(/rel="icon"[^>]*svg/);
-    expect(at('<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />')).toBeGreaterThan(-1);
+    expect(at('<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=8" />')).toBeGreaterThan(-1);
   });
 
   it("robots.txt doesn't block them", () => {
