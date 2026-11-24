@@ -98,4 +98,28 @@ describe("inTurn", () => {
     release();
     expect(waited).toBeLessThan(450);
   });
+  it("runs a held check by its wait's end even while an answer's own checks queue back to back", async () => {
+    const release = holdChecks();
+    const t = performance.now();
+    let on = true;
+    // An answer's own checks, always one waiting: each busy 20 ms.
+    const own = (async () => { while (on) await Promise.all([1, 2].map(() => inTurns(async () => { busy(20); }))); })();
+    await inTurns(async () => {}, "f");
+    const waited = performance.now() - t;
+    on = false;
+    await own;
+    release();
+    expect(waited).toBeLessThan(450);
+  });
+
+  it("runs a later check once it has waited long enough, though searches keep coming", async () => {
+    let on = true, n = 0;
+    const later = inTurns(async () => "related", "x", true);
+    const searches = (async () => { while (on) await inTurns(async () => { busy(10); }, `s${n++ % 3}`); })();
+    const t = performance.now();
+    expect(await later).toBe("related");
+    on = false;
+    await searches;
+    expect(performance.now() - t).toBeLessThan(3_000);
+  });
 });

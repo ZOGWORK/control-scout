@@ -252,11 +252,12 @@ export function warmVideoQuestions(o: WarmReads = {}): Promise<void> {
         if (qs.length >= OFFER_MAX || gen !== knownGen) break;
         // In the process's one queue, as a search's own checks are: other requests run between them. Bounded inside
         // its turn, so one that never settles frees the queue too. A check that timed out or failed is unknown, never
-        // "doesn't play": the set is then kept unsure, and built again after the wait. A lane of its own: background
-        // work, so it waits while an answer is made (followUps.ts holdChecks), as a search's follow-ups do.
+        // "doesn't play": the set is then kept unsure, and built again after the wait. A lane of its own, `later`:
+        // background work, so it waits while an answer is made (followUps.ts holdChecks) and behind live searches'
+        // questions, as a search's related searches do.
         const ok = await inTurns(() => within((async (): Promise<boolean | null> => {
           try { const b = await ask(c); if (!b?.stat || b.stat.none) return false; return hasVideo(await video(b)); } catch { return null; }
-        })(), o.checkMs ?? CHECK_MS, null), "video-questions").catch(() => null);
+        })(), o.checkMs ?? CHECK_MS, null), "video-questions", true).catch(() => null);
         if (ok === null) sure = false; else if (ok) qs.push(c);
       }
       if (gen !== knownGen) return;
