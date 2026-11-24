@@ -92,7 +92,7 @@ function Champions({ champions }: { champions: NonNullable<SearchCard["champions
   return (
     <section aria-label="Champions" className="mb-5 grid gap-3 sm:grid-cols-2" data-champions>
       {champions.map((c) => (
-        <div key={c.href} className={cn("rounded-xl border border-accent/60 bg-accent/[0.06] p-3 v8:border-line v8:border-l-4", V8_SOFT[MEANING_SOFT.winning].edge, V8_SOFT[MEANING_SOFT.winning].tint)} data-champion>
+        <div key={c.href} className={cn("rounded-xl border border-accent/60 bg-accent/[0.06] p-3 v8:border-line v8:bg-card v8:border-l-2", V8_SOFT[MEANING_SOFT.winning].edge)} data-champion>
           <Link to={c.href} className={cn("flex items-center gap-1.5 font-display text-base font-semibold text-accent-text hover:underline", V8_SOFT[MEANING_SOFT.winning].text, TAP)}>
             <Crown className="size-4 shrink-0" aria-hidden /> {c.label}{c.number != null ? ` · Alliance ${c.number}` : ""}
           </Link>

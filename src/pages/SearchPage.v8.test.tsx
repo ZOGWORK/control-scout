@@ -114,7 +114,7 @@ describe("search page, v8 on", () => {
     expect(new Set(delays.slice(1).map((d, i) => d - delays[i])).size).toBeGreaterThan(1);
   });
 
-  it("groups events as the classic look did (live, then upcoming, each its own section), each card a thick bar in its status's hue", () => {
+  it("groups events as the classic look did (live, then upcoming, each its own section), each card a thin bar in its status's hue", () => {
     state.answer = answer([ev("USNJQ2", "NJ Qualifier Two", iso(new Date(today.getTime() + 20 * 864e5))), { ...ev("USNJQ1", "NJ Qualifier", iso(today)), event: { start: iso(today), end: iso(new Date(today.getTime() + 864e5)) } } as SearchHit]);
     const { container } = show("/search?q=nj%20qualifier");
     expect([...container.querySelectorAll("[data-status-section]")].map((s) => s.getAttribute("data-status-section"))).toEqual(["live", "upcoming"]);
@@ -124,7 +124,7 @@ describe("search page, v8 on", () => {
     expect(container.querySelector('[data-status-section="live"] [data-live-dot]')!.className).toContain("v8:bg-live");
     const cards = [...container.querySelectorAll('[data-result="event"]')];
     expect(cards.map((c) => c.querySelector("a")!.textContent)).toEqual(["NJ Qualifier", "NJ Qualifier Two"]);
-    // Each card's thick bar in its status's own hue (search audit U2: exaggerate the colour): live red, upcoming accent.
+    // Each card's thin bar in its status's own hue (search audit U2; 2px, the owner 11-24): live red, upcoming accent.
     expect(cards[0].querySelector("[data-status-bar]")!.className).toContain("v8:bg-live");
     expect(cards[1].querySelector("[data-status-bar]")!.className).toContain("v8:bg-accent");
     // No event code on a card.
@@ -147,28 +147,30 @@ describe("search page, v8 on", () => {
     expect(fams).toHaveLength(1);
     expect(container.querySelectorAll('[data-row="event"]')).toHaveLength(0);
     expect([...fams[0].querySelectorAll('[data-division] a:not([href*="?tab"])')].map((a) => a.textContent)).toEqual(["Parkway Division", "Turnpike Division", "Finals"]);
-    // Its status's thick bar and a solid status chip, in the status's own hue (finished lime).
-    expect(fams[0].querySelector(":scope > [data-status-bar]")!.className).toContain("v8:bg-lime-400");
-    expect(fams[0].querySelector('[data-event-chip="status"]')!.className).toContain("v8:bg-lime-400");
+    // Its status's thin bar (2px, the owner 11-24) and a soft status chip, in the status's own hue (finished green).
+    expect(fams[0].querySelector(":scope > [data-status-bar]")!.className).toContain("v8:w-0.5");
+    expect(fams[0].querySelector(":scope > [data-status-bar]")!.className).toContain("v8:bg-[#8fd3a6]");
+    expect(fams[0].querySelector('[data-event-chip="status"]')!.className).toContain("v8:ring-inset");
   });
 
-  it("gives every palette meaning a bold v8 colour (the owner: exaggerate the colour): a solid chip, a wash, the v8-off classes first", () => {
+  it("gives every palette meaning a soft v8 colour: text and thin accents, never a solid block, the v8-off classes first", () => {
     for (const m of Object.keys(SEARCH_PALETTE) as (keyof typeof SEARCH_PALETTE)[]) {
       expect(TONE[m].fill.startsWith(SEARCH_PALETTE[m].fill)).toBe(true);
-      // A solid fill in the meaning's hue with its words in the page colour, and a wash of it behind a tile.
-      expect(TONE[m].fill).toMatch(/v8:bg-(?:[a-z]+-400|accent|live) /);
-      expect(TONE[m].tint).toMatch(/v8:bg-(?:[a-z]+-400|accent|live)\/\[0\.1\]/);
+      expect(TONE[m].tint).toContain("v8:bg-transparent");
+      // A chip is a light tint (at most 10%) or the neutral white/8% (the owner, 11-24: accents, not bold blocks).
+      expect(TONE[m].fill).toMatch(/v8:bg-(?:[a-z]+-\d00|accent|live)\/10|v8:bg-ink\/\[0\.08\]/);
     }
     // The category colours, as the team page: Auto blue, TeleOp orange, Endgame green, Penalties red, RP yellow.
     expect(TONE.auto.text).toContain("v8:text-sky-300");
     expect(TONE.teleop.text).toContain("v8:text-orange-300");
     expect(TONE.endgame.text).toContain("v8:text-emerald-300");
     expect(TONE.pen.text).toContain("v8:text-red-300");
-    // RP's chip of words stays a chip, filled in v8's yellow.
-    expect(TONE.rp.text).toContain("v8:bg-yellow-400");
+    // RP's yellow chip of words: plain words in v8's yellow, no chip.
+    expect(TONE.rp.text).toContain("v8:bg-transparent");
+    expect(TONE.rp.text).toContain("v8:text-yellow-300");
     // The team hue is the accent; an award has its own colour.
     expect(TEAM_BAR).toContain("v8:bg-accent");
-    expect(swatchOf("Inspire Award").fill).toContain("v8:bg-fuchsia-400");
+    expect(swatchOf("Inspire Award").fill).toContain("v8:bg-fuchsia-400/10");
   });
 
   it("colours a stat tile by what its number is: without penalties blue, a result won green or lost red, a highest purple", () => {
@@ -178,7 +180,7 @@ describe("search page, v8 on", () => {
     expect(v8TileColour("Result", "Tied 90-90")).toBe("neutral");
     expect(v8TileColour("Highest official score", 313)).toBe("purple");
     expect(v8TileColour("Events played", 6)).toBeNull();
-    expect(v8Tile("blue").tile).toMatch(/v8:border-l-4 .*v8:border-l-sky-400 .*v8:bg-sky-400\/\[0\.1\] .*v8:\[&_svg\]:text-sky-300/);
+    expect(v8Tile("blue").tile).toMatch(/v8:border-l-2 .*v8:border-l-sky-400\/70 .*v8:\[&_svg\]:text-sky-300/);
   });
 
   it("marks the #1 rank as a solid accent chip", () => {

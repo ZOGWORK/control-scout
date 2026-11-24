@@ -1,5 +1,5 @@
-// v8's bold search colours (./v8tone.ts V8_SOFT) reach WCAG AA in every v8 theme: a solid chip's words on its fill,
-// the colour as text on the card, and on its own tint over the card. v8 Dark, Dim and Light are read from
+// v8's soft search colours (./v8tone.ts V8_SOFT) reach WCAG AA in every v8 theme: a chip's words on its light tint
+// of the colour, and the colour as text on the card. v8 Dark, Dim and Light are read from
 // src/index.css (html[data-v8], .dim, .light) over Tailwind's palette, so a token change there is measured here.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -35,10 +35,10 @@ function value(t: Theme, name: string, depth = 0): RGBA {
 function paint(t: Theme, classes: string, prop: "bg" | "text"): RGBA | null {
   let found: RGBA | null = null;
   for (const cls of classes.split(/\s+/)) {
-    const m = new RegExp(`^(v8|v8light):${prop}-([a-z]+(?:-[a-z]+)*?(?:-\\d{2,3})?)(?:/\\[([\\d.]+)\\])?$`).exec(cls);
+    const m = new RegExp(`^(v8|v8light):${prop}-([a-z]+(?:-[a-z]+)*?(?:-\\d{2,3})?)(?:/(?:\\[([\\d.]+)\\]|(\\d+)))?$`).exec(cls);
     if (!m || (m[1] === "v8light" && t !== "light")) continue;
     const c = value(t, `--color-${m[2]}`);
-    found = [c[0], c[1], c[2], m[3] ? +m[3] : c[3]];
+    found = [c[0], c[1], c[2], m[3] ? +m[3] : m[4] ? +m[4] / 100 : c[3]];
   }
   return found;
 }
@@ -46,45 +46,38 @@ function paint(t: Theme, classes: string, prop: "bg" | "text"): RGBA | null {
 const COLOURS = (Object.keys(V8_SOFT) as SoftColour[]).filter((k) => k !== "neutral");
 const AA = 4.5;
 
-describe("v8's bold search colours reach AA", () => {
+describe("v8's soft search colours reach AA", () => {
   for (const t of ["dark", "dim", "light"] as Theme[]) {
     const card = value(t, "--color-card");
-    it(`a solid chip's words on its fill (${t})`, () => {
-      for (const k of COLOURS) {
-        const bg = paint(t, V8_SOFT[k].fill, "bg")!, fg = paint(t, V8_SOFT[k].fill, "text")!;
-        const r = contrast(fg, over(bg, card));
-        expect(r, `${k}: ${toHex(fg)} on ${toHex(over(bg, card))} = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(AA);
-      }
-    });
-    it(`the colour as text, on the card and on its own tint (${t})`, () => {
+    it(`a chip's words on its tint, and the colour as text on the card (${t})`, () => {
       const low: string[] = [];
       for (const k of COLOURS) {
-        const fg = paint(t, V8_SOFT[k].text, "text")!, tint = over(paint(t, V8_SOFT[k].tint, "bg")!, card);
-        for (const [where, bg] of [["card", card], ["tint", tint]] as const) {
-          const r = contrast(fg, bg);
-          if (r < AA) low.push(`${k} on its ${where}: ${toHex(fg)} on ${toHex(bg)} = ${r.toFixed(2)}`);
+        const chip = over(paint(t, V8_SOFT[k].fill, "bg")!, card), words = paint(t, V8_SOFT[k].fill, "text")!, fg = paint(t, V8_SOFT[k].text, "text")!;
+        for (const [where, f, bg] of [["chip", words, chip], ["card", fg, card]] as const) {
+          const r = contrast(f, bg);
+          if (r < AA) low.push(`${k} on its ${where}: ${toHex(f)} on ${toHex(bg)} = ${r.toFixed(2)}`);
         }
       }
       expect(low).toEqual([]);
+    });
+    it(`never a solid block: every chip is a light tint (${t})`, () => {
+      for (const k of COLOURS) expect(paint(t, V8_SOFT[k].fill, "bg")![3], k).toBeLessThanOrEqual(0.12);
     });
   }
 });
 
 describe("v8's meanings", () => {
-  it("none is grey: every meaning has a hue of its own", () => {
-    for (const [m, c] of Object.entries(MEANING_SOFT)) expect(c, m).not.toBe("neutral");
-  });
   it("the phases follow the team page: Auto blue, TeleOp orange, Endgame green, penalties red, RP yellow", () => {
     expect([MEANING_SOFT.auto, MEANING_SOFT.teleop, MEANING_SOFT.endgame, MEANING_SOFT.pen, MEANING_SOFT.rp]).toEqual(["blue", "orange", "green", "red", "yellow"]);
   });
-  it("Live, Upcoming and Finished, and the award kinds, each have their own hue", () => {
-    const status = [MEANING_SOFT.live, MEANING_SOFT.upcoming, MEANING_SOFT.finished];
+  it("a count, a record and a reference are the slate-blue accent (never a warning-like orange); a No stays quiet", () => {
+    expect([MEANING_SOFT.count, MEANING_SOFT.record, MEANING_SOFT.reference, MEANING_SOFT.no]).toEqual(["accent", "accent", "accent", "neutral"]);
+  });
+  it("each award kind has its own hue, never a phase's", () => {
     const awards = [MEANING_SOFT.inspire, MEANING_SOFT.winning, MEANING_SOFT.finalist, MEANING_SOFT.judged, MEANING_SOFT.performance];
-    expect(new Set(status).size).toBe(3);
     expect(new Set(awards).size).toBe(5);
-    // A phase's hue is never an award's or a status's (they share cards: a team's season).
     const phases = [MEANING_SOFT.auto, MEANING_SOFT.teleop, MEANING_SOFT.endgame, MEANING_SOFT.pen, MEANING_SOFT.rp];
-    for (const c of [...status, ...awards]) expect(phases).not.toContain(c);
+    for (const c of awards) expect(phases).not.toContain(c);
   });
 });
 
@@ -101,7 +94,7 @@ describe("v8Stat: the colour a one-team number's label names", () => {
 
 describe("softOfFill: the colour a swatch is filled in", () => {
   it("reads every meaning's swatch as its colour, two-class words included (TeleOp, penalties, RP, yes, no, live)", () => {
-    for (const [m, c] of Object.entries(MEANING_SOFT)) expect(softOfFill(TONE[m as keyof typeof TONE].fill), m).toBe(c);
+    for (const [m, c] of Object.entries(MEANING_SOFT)) expect(softOfFill(TONE[m as keyof typeof TONE].fill), m).toBe(c === "neutral" ? null : c);
   });
   it("tells live from rose (the same words, different fills), and takes the colour written last on a recoloured swatch", () => {
     expect(softOfFill(V8_SOFT.live.fill)).toBe("live");

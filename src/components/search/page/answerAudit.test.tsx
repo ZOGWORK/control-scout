@@ -283,7 +283,11 @@ describe("every card kind and block kind has its colour", () => {
 
 // v8 is the default look and draws its own classes over the classic ones, so a card can pass the checks above and
 // still be grey on the page (search audit 11-24, U2: the rules, off-topic and shared-name cards 1–6% saturated).
-describe("v8: every answer card shows colour (the owner's rule: exaggerate the colour)", () => {
+// Quiet on purpose (the owner, 11-24, on the U2 bold pass: the grey sorry box "is so much better"): a sorry, a
+// nothing-matched and a No say there is no answer, so they carry no colour of their own.
+const QUIET = new Set(["no", "sorry (off-topic)", "nothing matched"]);
+
+describe("v8: every answer card shows colour (soft accents, never a grey data card)", () => {
   const all: [string, () => HTMLElement][] = [
     ...Object.entries(CARDS),
     ...Object.entries(KIND_CARDS).map(([k, c]): [string, () => HTMLElement] => [`card ${k}`, () => drawKind(c)]),
@@ -294,7 +298,7 @@ describe("v8: every answer card shows colour (the owner's rule: exaggerate the c
     ["nothing matched", () => draw(<NoResults query="zzqx" understood={[]} closest={[]} onOpen={() => {}} />)],
     ["team answer (v8 page)", () => draw(<V8TeamAnswer team={4215} name="Hypnotic Robotics" place="Oradell, NJ" summary={{ season: 2025, s: { team: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ", opr: 142.5, oprRank: 12, of: 8308, rating: 140, ratingSd: 6, record: "32-6-1", lastEvent: null, nextEvent: null } }} />)],
   ];
-  for (const [name, make] of all) it(name, () => expect(auditV8Colour(make()).join("\n")).toBe(""));
+  for (const [name, make] of all.filter(([n]) => !QUIET.has(n))) it(name, () => expect(auditV8Colour(make()).join("\n")).toBe(""));
   it("fails a card that v8 paints grey", () => {
     const d = document.createElement("article");
     d.innerHTML = `<p class="text-sky-700 v8:text-foreground" data-kpi>578</p><span class="bg-sky-700 v8:bg-ink/[0.08]"></span>`;

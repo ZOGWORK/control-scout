@@ -67,8 +67,8 @@ export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: (h: SearchHit) 
   const [s, c] = h.ref.split(":");
   return (
     <div data-result="event" className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3 v8:border-line v8:p-5">
-      {/* v8: a thick bar in the event's status hue (Live, Upcoming, Finished each its own; a started event with no end date is live, as its section says). */}
-      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1 v8:w-1.5", tone?.bar ?? "bg-text-base/25", V8_STATUS[e.status === "upcoming" ? "upcoming" : e.status === "live" || e.status === "started" ? "live" : "finished"].dot)} data-status-bar />
+      {/* v8: a thin bar in the event's status hue (Live, Upcoming, Finished each its own; a started event with no end date is live, as its section says). */}
+      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1 v8:w-0.5", tone?.bar ?? "bg-text-base/25", V8_STATUS[e.status === "upcoming" ? "upcoming" : e.status === "live" || e.status === "started" ? "live" : "finished"].dot)} data-status-bar />
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {e.status === "started"
           ? <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground/80" data-event-chip="status">Started</span>
