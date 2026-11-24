@@ -5,7 +5,8 @@
 // official manual to go to. The /search page asks Bruno AI for a written answer to questions on its own, as before.
 import type { SearchAnswer, SearchCardLine } from "../../src/shared/api.js";
 import { pagesFor } from "../../src/shared/search.js";
-import { pastSeasonOf, rulesFor, type RuleQuery } from "../../src/shared/searchRuleQuery.js";
+import { pastSeasonOf, readRuleQuery, rulesFor, termKeywords, type Definition, type RuleQuery } from "../../src/shared/searchRuleQuery.js";
+import { names } from "./query/names.js";
 import { ruleReference } from "../../src/shared/rules/index.js";
 import { hasRuleReference } from "../../src/shared/rules/seasons.js";
 import { pastManual } from "../../src/shared/rules/pastManuals.js";
@@ -63,4 +64,26 @@ function pastGameAnswer(q: string, rq: RuleQuery, past: { season: number; words:
       ],
     },
   };
+}
+
+/** A word's meaning asked ("what does park mean", "define major foul", "how many points is a hive tip"): Control Scout's
+ *  own explainer for it (`explain`, ./searchCoverage.ts: OPR, ranking points, tiebreakers, the Inspire Award …), else
+ *  the season's rules named by the word (their number, title or own keywords, never one only mentioning it), else, when
+ *  a meaning was asked outright, a plain "not on record" with no team or event in it, so Bruno's written answer leads.
+ *  A bare "what is …" with nothing found is left to search's other readers (a stat question can read so). Never a
+ *  team's whole name: "what is <team>" is the team. */
+export async function definitionAnswer(q: string, def: Definition, explain: (q: string) => SearchAnswer | null, none: (said: string) => SearchAnswer): Promise<SearchAnswer | null> {
+  const idx = await names();
+  if (idx.teamsNamed(def.term).length) return null;
+  const said = explain(`what is ${def.term}`) ?? explain(`what are ${def.term}`);
+  if (said) return { ...said, q };
+  const keywords = termKeywords(def.term);
+  if (keywords.length) {
+    const rq: RuleQuery = { keywords, id: null, ...(def.points ? {} : { titled: true }) };
+    const ref = ruleReference(CURRENT_SEASON);
+    if (rulesFor(ref, rq).length) return ruleAnswer(q, rq);
+  }
+  // A rules question of its own (a past game's piece, "how many points is a cone worth"): the rules reader's.
+  if (!def.strict || readRuleQuery(q, true)) return null;
+  return none(`What "${def.term}" means isn't in Control Scout's explainers or the ${ruleReference(CURRENT_SEASON).game} rules quick reference`);
 }

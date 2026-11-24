@@ -4,6 +4,7 @@
 // that answer's card colours them (search's palette). Plain rows and chips in the page's card style, nothing when
 // there's nothing to offer. At every
 // width, People also ask goes under the answer and Related searches at the end of the page.
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, Clapperboard, Search } from "lucide-react";
 import { useApi } from "../../../lib/api";
@@ -45,6 +46,9 @@ type Follow = SearchFollowUps & { q: string; season?: number };
  *  preferred teams, no picked season: server/seoMeta.ts searchMeta) show from the first frame, while the answer is
  *  read again and until the visitor's own ones arrive: the served blocks never go away and come back. */
 /** The follow-ups, and `pending` while they're still on their way (the page holds their place meanwhile). */
+/** A partial set is asked for again this long after the last ask (longer every third), at most PARTIAL_ASKS times
+ *  (about 45 s in all). */
+const PARTIAL_AGAIN_MS = 1_000, PARTIAL_ASKS = 15;
 export function useFollowUps(q: string, prefer: string | undefined, ready: boolean, season: number | null = null): SearchFollowUps & { pending: boolean } {
   const served = q && season == null ? followApiPath(q) : null;
   const ownCall = useApi<Follow>(ready && q ? followApiPath(q, prefer, season) : null);
@@ -52,6 +56,19 @@ export function useFollowUps(q: string, prefer: string | undefined, ready: boole
   const mine = (d: Follow | undefined) => (d?.q === q && (d.season ?? null) === season ? d : null);
   // The visitor's own answer, once back, is the one; a failed call is done, with none.
   const own = mine(ownCall.data);
+  // Partial (the server's time ran out: server/api/answers/followUps.ts followUpsWithin): the questions checked so far
+  // now, the whole set asked for again (made and kept on the server meanwhile) after each ask settles, whatever it
+  // gave (a failed ask keeps the partial set), each a little later, PARTIAL_ASKS times at most.
+  const [asks, setAsks] = useState(0);
+  const { reload } = ownCall;
+  const partial = !!own?.partial;
+  useEffect(() => { setAsks(0); }, [q, prefer, season]);
+  useEffect(() => {
+    if (!partial || asks >= PARTIAL_ASKS) return;
+    let on = true;
+    const t = setTimeout(() => { void reload().finally(() => { if (on) setAsks((n) => n + 1); }); }, PARTIAL_AGAIN_MS * (1 + Math.floor(asks / 3)));
+    return () => { on = false; clearTimeout(t); };
+  }, [partial, asks, reload]);
   if (own) return { ...own, pending: false };
   const failed = !!ownCall.error;
   // The questions the page was served with stand in while the visitor's own are on their way; served with none, the

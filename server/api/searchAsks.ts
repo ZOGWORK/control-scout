@@ -33,7 +33,7 @@ import { search } from "./search.js";
 import { fuzzyScore } from "./fuzzy.js";
 import { PHASE_COLS, tableOf } from "./teamTableRows.js";
 import { eventHit, localTodays, searchToday } from "./searchEvents.js";
-import { seasonOfDate } from "./query/time.js";
+import { currentSeason } from "./answers/season.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
 import { eventChampions } from "./answers/families/winners.js";
 import { NO_MATCH_TYPES } from "./events.js";
@@ -108,14 +108,12 @@ function leaderWords(t: string): { t: string; opened: boolean } {
 /** The stat a word names: "auto"/"autonomous", "teleop"/"tele op"/"driver"/"driver controlled", "endgame", "opr", "wins". */
 const statOf = (w: string): Stat => (w = w.replace(/\s+/g, ""), w.startsWith("auto") ? "auto" : w.startsWith("tele") || w.startsWith("driver") ? "teleop" : w.startsWith("end") ? "endgame" : w === "wins" ? "wins" : "opr");
 
-/** The season an asked board reads with none said, as the query pipeline reads one (./query/execute.ts): the current
- *  season, so "best in NJ right now" and "best teams in NJ" agree whichever reader answers. */
-export const askSeason = (now = Date.now()): number => seasonOfDate(searchToday(now));
-
 /** `read` for the current season, then the season before when the current one has nothing yet (the pipeline's own
  *  step, ./query/relax.ts defaultSteps). */
 async function currentFirst<T>(read: (season: number) => Promise<T>, empty: (t: T) => boolean): Promise<{ season: number; got: T; skipped: number | null }> {
-  const season = askSeason();
+  // The season an asked board reads with none said, as the query pipeline reads one (./answers/season.ts): the
+  // current season, so "best in NJ right now" and "best teams in NJ" agree whichever reader answers.
+  const season = currentSeason();
   const got = await read(season);
   if (!empty(got)) return { season, got, skipped: null };
   const before = await read(season - 1);

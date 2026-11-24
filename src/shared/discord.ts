@@ -8,8 +8,9 @@
 export const DISCORD_CLIENT_ID: string | null = "1562258217873047562";
 
 /** The bot's only permissions: Send Messages (2048) + Embed Links (16384) + Use Application Commands (2^31) + Add
- *  Reactions (64), for the 👍 it puts on its answers. */
-export const DISCORD_PERMISSIONS = 2048 + 16384 + 64 + 2 ** 31;
+ *  Reactions (64), for the 👍 it puts on its answers, and Read Message History (65536), which reading back its own
+ *  answers needs: the one-time sweep that takes its stale 👎s off them (bot/cleanup.ts). */
+export const DISCORD_PERMISSIONS = 2048 + 16384 + 64 + 65536 + 2 ** 31;
 
 /** The OAuth2 invite: scopes bot + applications.commands, the minimal permissions; null without a client ID. */
 export function discordInviteUrl(clientId: string | null = DISCORD_CLIENT_ID): string | null {
@@ -20,6 +21,7 @@ export function discordInviteUrl(clientId: string | null = DISCORD_CLIENT_ID): s
 /** Every bot command in words: the bot's /help and the site's "Control Scout in Discord" card read this list. */
 export const BOT_COMMANDS: { usage: string; what: string; admin?: true }[] = [
   { usage: "/team number:", what: "A team's season: record, OPR, world ranking and its next event." },
+  { usage: "/next team:", what: "A team's next match: the time, its alliance and the win odds, from its next event." },
   { usage: "/compare team: other:", what: "Two teams side by side: their records and OPR, and who wins the head-to-head." },
   { usage: "/predict event: match:", what: "Win odds and predicted score for a qual match; once played, how the call went." },
   { usage: "/event code:", what: "An event's status, matches played, top 5 by OPR and the winning alliance." },
