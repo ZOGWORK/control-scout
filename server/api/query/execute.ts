@@ -56,16 +56,19 @@ export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resol
 
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  const a = await pipelineRead(q, opts);
   // "When …" or "where …" ("when did <team> win inspire", "where did <team> play last"): the question as asked, its
-  // rows' dates or events the headline (src/shared/query/whenWhere.ts).
-  const ask = a && askOf(q);
-  if (!a || !ask) return a;
-  // The reading as said, the ask before it: what it added (which of the teams with a name, a part of a region) stays.
-  const said = a.understood ? { understood: { ...a.understood, label: `${ask === "when" ? "When" : "Where"}: ${a.understood.label}` } } : {};
-  if (!a.stat) return { ...a, ...said };
-  const stat = whenWhere(a.stat, ask);
-  return stat === a.stat ? a : { ...a, stat, ...said };
+  // rows' dates or events the headline (src/shared/query/whenWhere.ts). Read in full either way: the dropdown's
+  // answer (no card) says the ask only when the page's card does.
+  const ask = askOf(q);
+  if (!ask) return pipelineRead(q, opts);
+  const a = await pipelineRead(q, { ...opts, full: true });
+  if (!a) return a;
+  const drop = (x: SearchAnswer): SearchAnswer => { if (opts.full) return x; const { stat: _s, ...rest } = x; return rest; };
+  // Only an answer re-headlined says the ask: its reading as said, the ask before it (what the reading added, which of
+  // the teams with a name or a part of a region, stays). Any other is as asked without it.
+  const stat = a.stat && whenWhere(a.stat, ask);
+  if (!stat || stat === a.stat) return drop(a);
+  return drop({ ...a, stat, ...(a.understood ? { understood: { ...a.understood, label: `${ask === "when" ? "When" : "Where"}: ${a.understood.label}` } } : {}) });
 }
 
 async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {

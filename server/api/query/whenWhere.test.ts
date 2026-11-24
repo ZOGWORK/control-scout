@@ -94,6 +94,15 @@ describe("when and where asks", () => {
     } as unknown as StatAnswer;
     expect([whenWhere(stat, "where").headline?.value, whenWhere(stat, "when").headline?.value]).toEqual(["Harbor Qualifier", "Jan 10, 2026"]);
   });
+  it("the dropdown (no card) says the ask only when the page's card does", async () => {
+    const short = (q: string) => searchAnswer(q, { limit: 8, now: NOW });
+    // Re-headlined: the same reading either way.
+    const [w, wFull] = await Promise.all([short("when did 30701 win inspire"), ask("when did 30701 win inspire")]);
+    expect([w.stat, w.understood?.label]).toEqual([undefined, wFull.understood?.label]);
+    // Nothing to re-headline (no awards): as asked without the word, in both.
+    const [n, nFull, plain] = await Promise.all([short("when did 30702 win inspire"), ask("when did 30702 win inspire"), ask("30702 inspire awards")]);
+    expect([n.understood?.label, nFull.understood?.label]).toEqual([plain.understood?.label, plain.understood?.label]);
+  });
   it("asked without the word, the answer is as before", async () => {
     const s = await card("30701 inspire awards");
     expect([s.title, s.headline?.value]).toEqual(["Inspire Awards", "1 Inspire Award"]);
