@@ -15,6 +15,7 @@ import { eventKindOf } from "../query/matchFind.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "./clauses.js";
 import { eventHref, matchRow, shortEvent, teamLinks, teamMatches } from "./matchSet.js";
 import { relativeSeason, teamSeason } from "./season.js";
+import { teamNumberHits } from "../search.js";
 
 /** How a yes-or-no question opens, or "ever" anywhere in it ("4215 ever at worlds"). Never a question word first. */
 const FRAME = /^(?:has|have|had|did|does|do|was|were|is|are)\s|\bever\b/;
@@ -246,7 +247,9 @@ export async function yesNoAnswer(q: string, opts: { full: boolean; pages: Searc
   const h = stat.headline!;
   const verdict = { answer: h.value as "Yes" | "No", label: h.sub ? `${h.label} · ${h.sub}` : h.label };
   stat = { ...stat, headline: undefined };
-  const hits = (await Promise.all(t.map(async (x) => (await opts.resolve(String(x.number))).hits.find((h) => h.kind === "team" && h.ref === String(x.number))))).filter((h): h is NonNullable<typeof h> => !!h);
+  // Each team's hit as a search for its number gives it, all in one read (../search.ts teamNumberHits).
+  const by = await teamNumberHits(t.map((x) => x.number));
+  const hits = t.flatMap((x) => by.get(x.number) ?? []);
   return {
     q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label: stat.title }, verdict,
