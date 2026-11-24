@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.10.0 — 2026-11-23
+## 8.0.0 — 2026-11-23
 
 A 👎 on an answer now answers back, once: the bot says in the channel that a 👎 files the question so the answer can be fixed — people were using it as a dislike button.
 
