@@ -57,6 +57,7 @@ import { clausesAnswer, isCard, readClauses } from "./query/clauses.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
 import { chatAnswer } from "./answers/chat.js";
+import { whenEventAnswer } from "./answers/whenEvent.js";
 import { fold, names } from "./query/names.js";
 import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
@@ -275,13 +276,18 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     const meant = await respell(String(raw ?? ""), await parseContext(opts.now, opts.prefer));
     if (meant) return { ...(await searchAnswer(meant, { ...opts, respelled: true })), q: cleanQuery(raw) };
   }
-  const a = await answerOf(raw, opts);
-  if (opts.inner || opts.intents === false || opts.rewrites) return a;
+  const read = await answerOf(raw, opts);
+  if (opts.inner || opts.intents === false || opts.rewrites) return read;
+  // "When is <event>": an event's editions with the date of the one meant leading (./answers/whenEvent.ts).
+  const a = carryOutcome(read, whenEventAnswer(String(raw ?? ""), read, opts.now ?? Date.now()));
   // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
   // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
   // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.
   const chat = opts.spell === false ? null : chatAnswer(String(raw ?? ""), a);
   if (chat) return chat;
+  // A town several regions share, said with none: a tap for each, or, with no direct answer, which one.
+  const town = await sharedTown(String(raw ?? ""), a);
+  if (town) return town;
   // A place asked for, alone or with its rankings, leagues or conferences ("nj", "nj rankings"): its own pages first
   // (src/shared/placePages.ts), whatever answered it. Kept once by address, so an answer that recursed adds none twice.
   const pages = withPlacePages(String(raw ?? ""), a.pages);
@@ -772,6 +778,49 @@ export const WHICH = "Which \"";
 /** Every word search's own lexicon reads: a run made only of them is the question's, never a team's name. */
 const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 
+/** A town several regions share, none holding most of its teams, said as the question's place with no region beside it
+ *  ("teams in springfield"; search audit 2026-11-24, Q9): each town is a tap that asks the same question with its region
+ *  typed after it ("teams in springfield MO"), which the place reader reads as that town. An answer found for every town
+ *  at once (the teams of each Springfield) is kept, the taps added; with no direct answer, the question is which town.
+ *  Null when the town is read already (one region holds most of its teams, or its region is typed beside it), when it
+ *  goes on into a longer name ("columbia high school"), or when no word after a place word is a shared town. */
+async function sharedTown(raw: string, a: SearchAnswer): Promise<SearchAnswer | null> {
+  const typed = cleanQuery(raw);
+  const idx = await names();
+  if (!idx.townsShared || VERSUS.test(` ${typed} `) || a.suggest?.length) return null;
+  const ws = normalise(typed).split(" ").filter(Boolean);
+  for (let i = 1; i < ws.length; i++) {
+    if (!/^(?:in|from|at|near|around)$/.test(ws[i - 1])) continue;
+    for (let len = Math.min(3, ws.length - i); len >= 1; len--) {
+      const said = ws.slice(i, i + len).join(" ");
+      if (idx.place(said, said)) break;
+      // The town ends the place said: a word after it that goes on a name ("columbia high school", a venue) is no town.
+      const next = ws[i + len];
+      if (next != null && !/^(?:\d+|in|at|from|for|this|last|next|during|since|with|by|and|or|ranked|sorted)$/.test(next)) continue;
+      // Its region typed after it ("springfield il", "springfield illinois") is read by the place reader already.
+      if ([1, 2, 3].some((k) => i + len + k <= ws.length && !!idx.place(ws.slice(i, i + len + k).join(" "), ws.slice(i, i + len + k).join(" ")))) break;
+      const towns = idx.townsShared(said);
+      if (towns.length < 2) continue;
+      // Each town's question, its region beside it as the region is written ("MO": a code in capitals is read as the
+      // region, "mo" may be a word), kept only when the place reader reads that question's place back as that town.
+      const choices = towns.flatMap((t) => {
+        const tag = t.state ?? t.country;
+        const asked = [...ws.slice(0, i + len), tag, ...ws.slice(i + len)].join(" ");
+        const back = idx.place(`${said} ${tag.toLowerCase()}`, `${said} ${tag}`);
+        return back && back.country === t.country && (back.state ?? null) === (t.state ?? null) ? [{ asked, label: `${t.city} ${tag}` }] : [];
+      }).slice(0, 4);
+      if (choices.length < 2) return null;
+      if (a.step === "deterministic" && (a.stat || a.card || a.hits.length)) return carryOutcome(a, { ...a, suggest: choices.map((c) => c.asked) });
+      return answer(a.q, {
+        hits: [], step: "did-you-mean",
+        understood: { kind: "names", label: `Which ${towns[0].city}? ${choices.slice(0, -1).map((c) => c.label).join(", ")} or ${choices[choices.length - 1].label}` },
+        suggest: choices.map((c) => c.asked),
+      });
+    }
+  }
+  return null;
+}
+
 /** A name several teams share in `q` (its whole name, nothing else beside it but the question's words), told apart by
  *  the shared rules: `q` asked again with that team's number, the card saying which name was read as which team; or,
  *  still tied, the teams it can be, each with its place, and the same question asked about each, one tap each. Null:
@@ -1122,6 +1171,8 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // "2024 Houston Championship Edison Division"), or a region alone ("New Jersey", "NJ"): the events themselves,
   // filtered on their stored fields and listed by date (./searchEvents.ts). Never a did-you-mean.
   const evq = opts.intents === false ? null : readEventQuery(q);
+  // "The next event" is one, said singular as typed: "next meets in NJ" (read here as "next meet") asks for the list.
+  if (evq?.next && opts.typed && !readEventQuery(opts.typed)?.next) delete evq.next;
   // A team at one of its events ("hypnotic at New Jersey Championship") is the team's answer, not a set of events.
   const teamAt = evq?.words.length && /\sat\s/i.test(q) ? await teamAtEventAnswer(q, limit, prefer) : null;
   if (evq && !teamAt) return eventSetAnswer(q, evq, { now: opts.now });

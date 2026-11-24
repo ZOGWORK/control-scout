@@ -72,11 +72,12 @@ export function TeamTable({ table, label, limit }: { table: Table; label: string
 
   const th = cn("px-2 py-1.5 font-medium whitespace-nowrap @max-[44rem]/tt:px-1.5", CELL, "v8:h-9 v8:py-0");
   // A plain call, not a component: a component made here would be new each render, and its button would lose focus.
-  const sortTh = (k: TeamSortKey, children: ReactNode, className?: string, title?: string) => {
+  // `label`: the button's own colour (the header text is the button, whose active sort sets ink), so a coloured header keeps it when sorted.
+  const sortTh = (k: TeamSortKey, children: ReactNode, className?: string, title?: string, label?: string) => {
     const on = sort.key === k;
     return (
       <th key={k} scope="col" aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className={cn(th, "text-right", className)}>
-        <button type="button" onClick={() => onSort(k)} title={title ?? def(k)} data-sort={k} className={cn("inline-flex flex-row-reverse items-center justify-center gap-0.5 rounded hover:text-foreground", TAP, on && "text-foreground")}>
+        <button type="button" onClick={() => onSort(k)} title={title ?? def(k)} data-sort={k} className={cn("inline-flex flex-row-reverse items-center justify-center gap-0.5 rounded hover:text-foreground", TAP, on && "text-foreground", label)}>
           {children}{on ? (sort.dir === "asc" ? <ArrowUp className="size-3" aria-hidden /> : <ArrowDown className="size-3" aria-hidden />) : <span className="size-3" aria-hidden />}
         </button>
       </th>
@@ -103,7 +104,7 @@ export function TeamTable({ table, label, limit }: { table: Table; label: string
               </th>
               <th scope="col" className={th}>Team</th>
               {table.asked && sortTh("asked", table.asked.label, "whitespace-normal leading-tight", table.asked.label)}
-              {sortTh("opr", "OPR", cn("@min-[44rem]/tt:w-28 v8:@min-[44rem]/tt:w-auto", byPhase && "@max-[44rem]/tt:hidden"))}
+              {sortTh("opr", "OPR", cn("@min-[44rem]/tt:w-28 v8:@min-[44rem]/tt:w-auto", byPhase && "@max-[44rem]/tt:hidden"), undefined, "v8:text-violet-300")}
               {phases && <>
                 {sortTh("auto", "Auto", cn(onPhone("auto"), "font-semibold", P.auto.text, V8_HEAD))}
                 {sortTh("dc", withEndgame ? "TeleOp" : "DC", cn(onPhone("dc"), "font-semibold", P.teleop.text, V8_HEAD))}
@@ -136,7 +137,7 @@ export function TeamTable({ table, label, limit }: { table: Table; label: string
                     <td className={cn("relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground v8:text-violet-300", CELL, byPhase && "@max-[44rem]/tt:hidden")} data-opr>
                       {/* The bar inset in its own track, so its length is exactly OPR / max of the track. */}
                       {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute inset-x-1 bottom-1 h-1 v8:hidden"><span className={cn("block h-full rounded-full", INK_BAR)} style={{ width: `${(r.opr / oprMax) * 100}%` }} data-opr-bar data-bar data-value={r.opr} data-scale={oprMax} /></span>}
-                      <span className={cn("relative", V8_NUM)}>{oneDp(r.opr)}</span>
+                      <span className="relative">{oneDp(r.opr)}</span>
                     </td>
                     {phases && <>
                       <td className={cn("px-2 py-1.5 text-right font-medium tabular-nums", CELL, P.auto.text, onPhone("auto"))} data-phase="auto">{oneDp(r.auto)}</td>

@@ -11,7 +11,7 @@ import { all, get } from "../../db.js";
 import { latestStoredSeason, noEventsStat, withoutYear } from "../answers/noEventsYet.js";
 import { intentDefaults, readLeaderboard, scopeFits, type IntentId, type LeaderboardQuestion, type ReadScope, type StatQuestion, type TwoTeamId } from "../answers/read.js";
 import { allianceForecast, predictionSeasonOf } from "../answers/families/predict.js";
-import { CURRENT_SEASON, isLegacy } from "../../data/seasons.js";
+import { isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, teamSetSearch, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { currentSeason, defaultSeason, lastSeason, seasonWhy, teamSeason } from "../answers/season.js";
@@ -369,13 +369,18 @@ const TWO_TEAM_STATS = new Set(["opr", "rating", "penalties", "record", "wins"])
 function comparedStat(p: Parsed): string | null {
   const n = p.teams.length;
   if (n < 2 || n > 4 || new Set(p.teams.map((t) => t.number)).size !== n || p.teams.some((t) => t.candidates)) return null;
-  if (!p.symbols.includes("vs") && !p.symbols.includes("compare")) return null;
+  // Three or four teams listed and asked which leads ("who has the highest opr, <team>, <team> or <team>", "which of
+  // <team>, <team> and <team> has the best record"): the same compare, its card ranking them. Two teams asked so are
+  // their own side-by-side card's; teams set "vs" each other and asked which leads ("… which has highest
+  // reliability") are the compound reader's, its card beside other stats.
+  const leads = n > 2 && p.symbols.includes("agg:max") && !p.symbols.includes("vs");
+  if (!leads && !p.symbols.includes("vs") && !p.symbols.includes("compare")) return null;
   // Four teams with "vs" between every two are four sides, never two alliances ("12345 23456 vs 34567 45678").
   const sides = (p.q.match(/\b(?:vs|versus)\b/gi) ?? []).length >= n - 1;
   if ((p.intent && p.intent !== "compare" && !(p.intent === "alliance-predict" && sides)) || p.leftover.length || (p.time && p.time.kind !== "season")) return null;
   if (p.event || p.place || p.worlds || p.states || p.level || p.alliance || p.finals || p.matchNumber != null || p.eventKind || p.award || p.n != null || p.over
     || p.undefeated || p.rookie || p.named || p.nameHas || p.withVideo || p.noPenalties || p.notStats?.length || p.notMetrics?.length) return null;
-  if (!p.symbols.every((s) => COMPARE_BY_WORDS.has(s) || s.startsWith("prep:") || s.startsWith("metric:"))) return null;
+  if (!p.symbols.every((s) => COMPARE_BY_WORDS.has(s) || (leads && s === "agg:max") || s.startsWith("prep:") || s.startsWith("metric:"))) return null;
   const mean = p.symbols.includes("agg:mean");
   let stats = [...new Set(p.symbols.filter((s) => s.startsWith("metric:")).map((s) => (s === "metric:score" && mean ? "avg-score" : BOARD_STAT[s] ?? "")))];
   if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
@@ -387,7 +392,7 @@ function comparedStat(p: Parsed): string | null {
 /** The season an advancement card is for: its scope's season chip, else the current one. */
 const scope0 = (stat: StatAnswer) => {
   const m = stat.scope.map((x) => /^(\d{4})–\d{2}$/.exec(x)).find(Boolean);
-  return m ? Number(m[1]) : CURRENT_SEASON;
+  return m ? Number(m[1]) : currentSeason();
 };
 
 /** An advancement-odds card as search's answer: the team's row beside it, Predict linked from the card's own button. */

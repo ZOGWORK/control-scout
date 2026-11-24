@@ -4,7 +4,7 @@
 // Spread) that the preview follows, Save sending the cleaned wash (only when it changed and is valid), and Reset asking first.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { DEFAULT_WASH, WASH_PRESETS, WASH_STYLE_ID, type OwnerWash } from "../../shared/wash";
+import { DEFAULT_WASH, WASH_MIX, WASH_PRESETS, WASH_STYLE_ID, type OwnerWash } from "../../shared/wash";
 
 const DATA: OwnerWash = { wash: { ...DEFAULT_WASH }, custom: false, defaults: { ...DEFAULT_WASH }, updatedAt: null, updatedBy: null };
 const SAVED: OwnerWash = { ...DATA, wash: { ...DEFAULT_WASH, a: "#ff0000" }, custom: true, updatedAt: "2026-11-18T00:00:00Z", updatedBy: "owner@example.com" };
@@ -20,7 +20,7 @@ vi.mock("../../lib/api", async (orig) => ({
 vi.mock("../ui/sonner", () => ({ toast: { success: (m: string) => toasts.push(m), error: (m: string) => toasts.push(m) } }));
 // jsdom has no ResizeObserver; Radix's Slider measures its thumbs with one.
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
-const { WashPanel } = await import("./WashPanel");
+const { WashPanel, presetSwatchImage } = await import("./WashPanel");
 
 beforeEach(() => { sent.length = 0; toasts.length = 0; document.getElementById(WASH_STYLE_ID)?.remove(); });
 afterEach(cleanup);
@@ -105,11 +105,18 @@ describe("WashPanel", () => {
     await waitFor(() => expect(sent).toEqual([{ path: "/api/owner/wash", json: { wash: ocean.wash } }]));
   });
 
-  it("previews in Light: the pale mix on a near-white page", () => {
+  it("previews in Light: the Light mix on a near-white page", () => {
     render(<WashPanel />);
     expect(preview().dataset.mode).toBe("dark");
     fireEvent.click(screen.getByRole("radio", { name: "Light" }));
     expect(preview().dataset.mode).toBe("light");
-    expect(preview().style.getPropertyValue("--wash-mix")).toBe("42%");
+    expect(preview().style.getPropertyValue("--wash-mix")).toBe(WASH_MIX.light);
+  });
+
+  it("draws the preset cards at the mix the site uses in each theme", () => {
+    for (const p of WASH_PRESETS) {
+      expect(presetSwatchImage(p.wash, "light")).toContain(`${p.wash.a} ${WASH_MIX.light}`);
+      expect(presetSwatchImage(p.wash, "dark")).toContain(`${p.wash.a} 100%`);
+    }
   });
 });

@@ -15,7 +15,7 @@ import { cn } from "../../cn";
 import { AnswerVideo, useClips, videoCaption } from "./AnswerVideo";
 import { thumbnailUrl } from "../../../shared/stream";
 import { meaningOf, type Meaning } from "../../../lib/textTones";
-import { TONE } from "./v8tone";
+import { TONE, calm, v8Stat } from "./v8tone";
 import { ResultPill, RichText, TEAM_BAR, TEAM_SWATCH, TEAM_TEXT, type Swatch } from "./answerCells";
 import { AnswerFrame, PART, RelatedQuestions, SeasonEvents, SeasonTiles, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 
@@ -50,11 +50,15 @@ const COUNT = /^(\d[\d,.]*)(\s.*)?$/;
 
 /** A line's colour: an award's own on an awards card, Count's when a general answer's line is a number ("578 teams
  *  registered in Canada"), else the card kind's. */
-export function lineSwatch(kind: SearchCard["kind"], line: Pick<SearchCardLine, "text">, team?: boolean): Swatch {
+export function lineSwatch(kind: SearchCard["kind"], line: Pick<SearchCardLine, "text">, team?: boolean, title?: string): Swatch {
   const award = kind === "awards" || kind === "event-awards" || kind === "wins" ? meaningOf(line.text) : null;
   // One team's best scores are that team's records: its hue (a blue too), never Record's info blue beside it.
   const m = award ?? (kind === "info" && COUNT.test(line.text) ? "count" : kind === "high-scores" && team ? "team" : CARD_MEANING[kind]);
-  return m === "team" ? TEAM_SWATCH[0] : TONE[m];
+  if (m !== "team") return TONE[m];
+  // v8: a team-hued list in the colour of what it ranks or counts ("Teams in California by OPR" purple), the team's
+  // slate blue alone being too quiet for a whole card.
+  const c = title ? v8Stat(title) : "accent";
+  return c === "accent" ? TEAM_SWATCH[0] : calm(TEAM_SWATCH[0], undefined, c);
 }
 
 const ICON: Partial<Record<SearchCard["kind"], LucideIcon>> = { rule: BookOpen, "next-event": CalendarDays, "next-match": CalendarDays, awards: Medal, "event-awards": Medal, info: Info };
@@ -102,7 +106,7 @@ export function FactCard({ card, heading, season: asked }: { card: CardExtra; he
         </p>
       )}
       {card.table?.rows.length ? <TeamTable table={card.table} label={card.title} />
-        : !!lines.length && <Lines lines={lines} kind={card.kind} icon={ICON[card.kind] ?? Info} team={!!team} />}
+        : !!lines.length && <Lines lines={lines} kind={card.kind} icon={ICON[card.kind] ?? Info} team={!!team} title={card.title} />}
       <AnswerVideo />
       {!!card.none && !!card.closest?.length && (
         <div className="mt-4"><h3 className={PART}>Closest records</h3><Lines lines={card.closest} kind={card.kind} team={!!team} /></div>
@@ -247,12 +251,12 @@ export function ExplainerLines({ card, heading }: { card: Pick<SearchCard, "titl
   );
 }
 
-function Lines({ lines, kind, icon: Icon, team }: { lines: SearchCardLine[]; kind: SearchCard["kind"]; icon?: LucideIcon; team?: boolean }) {
+function Lines({ lines, kind, icon: Icon, team, title }: { lines: SearchCardLine[]; kind: SearchCard["kind"]; icon?: LucideIcon; team?: boolean; title?: string }) {
   const { clip, play } = useClips();
   return (
     <ul className="space-y-2" data-lines>
       {lines.map((l, i) => {
-        const sw = lineSwatch(kind, l, team);
+        const sw = lineSwatch(kind, l, team, title);
         // A count's or a record's line leads with its number, drawn big.
         const n = sw === TONE.count || kind === "high-scores" ? COUNT.exec(l.text) : null;
         const body = (

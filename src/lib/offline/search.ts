@@ -46,8 +46,8 @@ export async function packSearchAnswer(path: string, now = Date.now()): Promise<
   return marked(await searchFromPacks(path, bundles, now, contextFor(bundles, now)), packs);
 }
 
-/** /api/teams-summary from the saved packs (null: none holds any of the teams). */
-export async function packTeamSummaries(path: string): Promise<{ season: number; teams: TeamSummary[] } | null> {
+/** /api/teams-summary from the saved packs (null: none holds any of the teams); with ?before=1, the season before's too. */
+export async function packTeamSummaries(path: string): Promise<{ season: number; teams: TeamSummary[]; before?: { season: number; teams: TeamSummary[] } } | null> {
   const packs = await searchPacks();
   return marked(teamSummariesFromPacks(path, packs.map((p) => p.bundle)), packs);
 }
