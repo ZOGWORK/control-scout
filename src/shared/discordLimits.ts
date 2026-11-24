@@ -40,7 +40,7 @@ export interface OwnerDiscordUsage {
   medianMs: number | null;
   /** Follow posts sent today (UTC). */
   postsToday: number;
-  /** 👍 and 👎 on the bot's answers (bot/reactions.ts): counts, never who clicked. */
+  /** 👍 on the bot's answers (bot/reactions.ts), and the 👎 counted before it was removed: counts, never who clicked. */
   votesUp: number;
   votesDown: number;
 }
