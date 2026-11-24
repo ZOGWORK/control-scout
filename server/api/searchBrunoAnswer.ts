@@ -237,8 +237,18 @@ export function answerTeams(a: SearchAnswer): Map<number, string | null> {
     const s = x.stat;
     if (s?.team) add(s.team.number, s.team.name);
     for (const t of s?.teams ?? []) add(t.number, t.name);
-    // A board's rows link each team's page ("/teams/4215").
-    for (const b of s?.blocks ?? []) if (b.kind === "leaderboard") for (const r of b.rows) { const n = /^\/teams\/(\d+)/.exec(r.team.href)?.[1]; if (n) add(Number(n), r.team.label); }
+    // Every team a block lists: by the link to its page ("/teams/4215": a board's rows, a match's alliances) or by its
+    // number beside its name (a league's rows: team 4215, name "Hypnotic Robotics").
+    const walk = (v: unknown): void => {
+      if (Array.isArray(v)) { for (const x of v) walk(x); return; }
+      if (!v || typeof v !== "object") return;
+      const o = v as Record<string, unknown>;
+      const n = typeof o.href === "string" ? /^\/teams\/(\d+)(?:[/?#]|$)/.exec(o.href)?.[1] : undefined;
+      if (n) add(Number(n), typeof o.label === "string" ? o.label : null);
+      else if (typeof o.team === "number" && Number.isInteger(o.team) && o.team > 0) add(o.team, typeof o.name === "string" ? o.name : null);
+      for (const x of Object.values(o)) walk(x);
+    };
+    walk(s?.blocks);
   }
   return out;
 }

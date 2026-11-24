@@ -136,6 +136,18 @@ describe("grounding", () => {
     const a = { q: "x", hits: [], step: "deterministic", clauses: [{ q: "y", hits: [], step: "deterministic", card: { kind: "info", title: "t", lines: [], team: { number: 6980, name: "Bad Wolf" } } }] } as unknown as SearchAnswer;
     expect([...answerTeams(a)]).toEqual([[6980, "Bad Wolf"]]);
   });
+  it("every team a block lists is the answer's: a league's rows too (Loopy on #2263)", () => {
+    const stat = { title: "League standing", team: { number: 4215, name: "Hypnotic Robotics" }, blocks: [
+      { kind: "league", title: "Standings", season: 2025, rows: [{ rank: 1, team: 111, name: "Leaders", wins: 10, losses: 0, ties: 0 }, { rank: 4, team: 4215, name: "Hypnotic Robotics", wins: 6, losses: 4, ties: 0 }], more: { label: "League", href: "/leagues/x" } },
+      { kind: "leaderboard", title: "Board", stat: { id: "opr", label: "OPR" }, rows: [{ rank: 1, team: { label: "222 Board Top", href: "/teams/222?season=2025" }, display: "150.0" }] },
+    ] };
+    const a = { q: "x", hits: [], step: "deterministic", stat } as unknown as SearchAnswer;
+    const teams = answerTeams(a);
+    expect([...teams.keys()].sort((x, y) => x - y)).toEqual([111, 222, 4215]);
+    const facts = statFacts(stat as unknown as Parameters<typeof statFacts>[0]);
+    expect(grounded("4215's record is 10-0-0.", facts, "4215 league", teams)).toBe(false);
+    expect(grounded("4215's record is 6-4-0.", facts, "4215 league", teams)).toBe(true);
+  });
   it("a streamed preview checks each piece on its own, as the answer is (Loopy on #2263)", () => {
     const facts = ["Team 4215 in 2025–26: OPR 142.3.", "Team 6980 in 2025–26: OPR 46.9."];
     // Joined, "6980's OPR is 142.3 4215 ..." would read as one sentence naming 4215 too.
