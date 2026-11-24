@@ -71,6 +71,11 @@ async function state(now = Date.now()): Promise<FlagState> {
   return loading;
 }
 
+/** Whether the flags were read (or last read) from the database, not guessed as the defaults after a failed read. */
+export async function flagsKnown(now = Date.now()): Promise<boolean> {
+  return !(await state(now)).guessed;
+}
+
 /** Every flag's global value (cached up to FLAG_TTL_MS). */
 export async function allFlags(now = Date.now()): Promise<FlagSet> {
   return (await state(now)).flags;
