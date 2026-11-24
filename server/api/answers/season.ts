@@ -49,6 +49,9 @@ export async function refreshSearchSeason(now = Date.now()): Promise<number> {
 /** The current competition season (2026–27 in autumn 2026): what a question about no team reads when it names none. */
 export const currentSeason = (): number => cached?.current ?? CURRENT_SEASON;
 
+/** The day the seasons above were read for: today, or the day a question is asked as of (refreshSearchSeason's `now`). */
+export const seasonDay = (): string => cached?.day ?? new Date().toISOString().slice(0, 10);
+
 /** A question about no team, read by an answer with no step back of its own: the current season once any team has
  *  matches in it, else the newest season with matches (the card says so, seasonWhy "any"). */
 export const defaultSeason = (): number => cached?.played ?? CURRENT_SEASON;
