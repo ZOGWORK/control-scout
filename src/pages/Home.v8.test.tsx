@@ -8,8 +8,10 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import type { EventListItem } from "../shared/api";
 
 let data: Record<string, unknown> = {};
+const fetched: string[] = [];
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
+  apiFetch: async (path: string) => { fetched.push(path); return { hits: [] }; },
   useApi: (path: string | null) => {
     const key = path ? Object.keys(data).find((k) => path.startsWith(k)) : undefined;
     return { data: key ? data[key] : undefined, error: undefined, loading: !key, reload: () => {} };
@@ -27,6 +29,7 @@ const event = (i: number, played: number, total: number): EventListItem => ({
 } as EventListItem);
 
 const { default: Home } = await import("./Home");
+const { SEARCH_DEBOUNCE_MS } = await import("../components/search/SearchBox");
 let at = "";
 function Where() { at = useLocation().pathname + useLocation().search; return null; }
 const mount = () => render(<MemoryRouter initialEntries={["/"]}><Home /><Where /></MemoryRouter>);
@@ -66,6 +69,11 @@ describe("Home under v8", () => {
       const q = new URLSearchParams(chip.getAttribute("href")!.split("?")[1]).get("q");
       expect(box.value).toBe(q);
       expect(at).toBe("/");
+      // Shown, not searched: past the typing pause the box has asked the API nothing and shows no spinner.
+      fetched.length = 0;
+      await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 150));
+      expect(fetched.filter((f) => f.startsWith("/api/search"))).toEqual([]);
+      expect(box.closest("[data-search-field]")!.querySelector(".animate-spin")).toBeNull();
       await update!();
       expect(at).toBe(chip.getAttribute("href"));
     } finally { delete doc.startViewTransition; document.documentElement.removeAttribute("data-search-glide"); }
@@ -74,7 +82,8 @@ describe("Home under v8", () => {
   it("a Try chip without View Transitions navigates at once; a modified click is left to the browser", () => {
     const { container } = mount();
     const chip = container.querySelector<HTMLAnchorElement>("[data-example-chip]")!;
-    fireEvent.click(chip, { ctrlKey: true });
+    // Not cancelled: the browser opens it in a new tab.
+    expect(fireEvent.click(chip, { ctrlKey: true })).toBe(true);
     expect(at).toBe("/");
     fireEvent.click(chip);
     expect(at).toBe(chip.getAttribute("href"));
