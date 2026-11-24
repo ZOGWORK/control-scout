@@ -55,6 +55,7 @@ import { BOOT_HITS } from "../lib/searchBoot";
 import { handedAnswer, forgetHandoff } from "../components/search/handoff";
 import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta";
 import { useApi, qs } from "../lib/api";
+import { useSearchScore } from "../lib/searchScore";
 import { cn } from "../components/cn";
 import { Verdict } from "../components/search/page/Verdict";
 import { ConsentDock } from "../components/layout/ConsentBanner";
@@ -122,7 +123,7 @@ export default function SearchPage() {
   const askedTime = askedWhen(ax);
   const filters = readFilters(params, askedTime);
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
-  const leaving = useSubmittedSearch(query, { answer, live, error, searchNow, seeded });
+  const { waiting: leaving, going } = useSubmittedSearch(query, { answer, live, error, searchNow, seeded });
   // Home's glide on its way in (search/glide.ts): the loading shapes until the box lands, then the answer.
   const gliding = useGliding();
   const phone = useMediaQuery("(max-width: 767px)");
@@ -351,7 +352,10 @@ export default function SearchPage() {
   // first in both, so it's the same field when one replaces the other: what's being typed in it (and the keyboard)
   // stays put when a search's results arrive.
   const bar = phone ? <PhoneSearchBar query={query} /> : null;
-  if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving || gliding)) return <>{bar}<SearchSkeleton query={query} /></>;
+  const loading = !!query && !error && ((busy && ((stale && !reseason) || !found)) || leaving || gliding);
+  // Time to answer and how the search ended, anonymous and sampled (../lib/searchScore.ts).
+  useSearchScore(query, { drawn: !!query && !loading, settled: !busy && !stale, leaving: going, outcome: error ? "error" : !found || ax?.sorry ? "sorry" : answered ? "direct" : "results" });
+  if (loading) return <>{bar}<SearchSkeleton query={query} /></>;
   return (
     <>{bar}
     {/* One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
