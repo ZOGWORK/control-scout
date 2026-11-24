@@ -1,4 +1,6 @@
 // Our own traffic (server/testTraffic.ts): the X-CS-Test header, and the one query a Reproduce link opened.
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { isTestTraffic } from "./testTraffic";
 import { reproduceUrl } from "./searchFailures";
@@ -26,5 +28,18 @@ describe("isTestTraffic", () => {
     expect(isTestTraffic(req({ referer: ref }), "4215 record")).toBe(false);
     expect(isTestTraffic(req({ referer: "https://controlscout.org/search?q=4215%20opr" }), "4215 opr")).toBe(false);
     expect(isTestTraffic(req({ referer: "not a url" }), "4215 opr")).toBe(false);
+  });
+
+  it("is sent by every eval script the header comment names, whatever it fetches", () => {
+    // scripts/search-*.ts and scripts/search-signoff/*: one that asks a server without it would log its misses as a
+    // visitor's (a script added later included).
+    const root = join(import.meta.dirname, "..", "scripts");
+    const files = [
+      ...readdirSync(root).filter((f) => /^search-.*\.(?:ts|mts|js)$/.test(f)).map((f) => join(root, f)),
+      ...readdirSync(join(root, "search-signoff")).filter((f) => /\.(?:ts|mts|js)$/.test(f)).map((f) => join(root, "search-signoff", f)),
+    ].filter((p) => !/\.test\./.test(p));
+    expect(files.length).toBeGreaterThan(3);
+    const without = files.filter((p) => { const s = readFileSync(p, "utf8"); return /\bfetch\(/.test(s) && !/TEST_HEADER|x-cs-test/i.test(s); });
+    expect(without.map((p) => p.slice(root.length + 1).replace(/\\/g, "/"))).toEqual([]);
   });
 });
