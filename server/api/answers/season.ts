@@ -101,6 +101,14 @@ export function seasonWhy(kind: SeasonWhyKind, season: number, who?: string): st
   return seasonWhyAt(kind, season, currentSeason(), who);
 }
 
+/** "This season" asked of a team that has played none of the current season yet, read as its latest (`season`): the
+ *  chip the card says it with ("2026–27 has no data yet for 4215; showing 2025–26"); undefined when it is the current
+ *  season. */
+export function thisSeasonNote(season: number, who: string): string | undefined {
+  const now = currentSeason();
+  return season < now ? `${seasonLabel(now)} has no data yet for ${who}; showing ${seasonLabel(season)}` : undefined;
+}
+
 /** The answer's note on the season it chose, when the query named none and no team is asked about. */
 export const searchSeasonWhy = (s = defaultSeason()) => seasonWhy("any", s);
 

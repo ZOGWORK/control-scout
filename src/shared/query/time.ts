@@ -22,6 +22,17 @@ export interface TimeSlot {
   /** A calendar year typed: a bare one ("2025", read as its season), or a date's or a month's ("march 2026"). A window
    *  with its year typed is never relaxed to another season. */
   year?: number;
+  /** A month said without its year ("in june"): its index (0 for January). Read here as that month of the season
+   *  today is in; the question's own season moves it (monthIn: a team's question is about the team's latest season). */
+  month?: number;
+}
+
+/** A month said without its year (`t.month`) moved to the same month of `season` (September to August): "7149 events
+ *  in june", 7149's latest season 2025–26, is June 2026. Any other time is returned as it is. */
+export function monthIn(t: TimeSlot, season: number): TimeSlot {
+  if (t.kind !== "window" || t.month == null || t.year != null || t.season === season) return t;
+  const year = t.month >= 8 ? season : season + 1;
+  return { ...t, season, from: iso(year, t.month, 1), to: iso(year, t.month + 1, 0), label: `in ${MONTHS[t.month][0].toUpperCase()}${MONTHS[t.month].slice(1)} ${year}` };
 }
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
@@ -154,10 +165,14 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
   const last = !!m && !rest.slice(m.index + m[0].length).trim() && !/^ma[ry]$/.test(m[1]);
   if (m && monthIndex(m[1]) >= 0 && (m[2] || /\b(?:in|during)\s/.test(m[0]) || (m[1].length > 3 && m[1] !== "may") || last)) {
     const mi = monthIndex(m[1]);
-    const season = m[2] ? (mi >= 8 ? Number(m[2]) : Number(m[2]) - 1) : seasonOfDate(today);
+    // With no year, the latest such month that has begun ("june" asked in November 2026 is June 2026), unless the
+    // question looks ahead ("upcoming events in march", "next meet in june"): then the one to come.
+    const ahead = /\b(?:upcoming|next|coming|future|will|schedul\w*|planned)\b/.test(rest);
+    const begun = (s: number) => iso(mi >= 8 ? s : s + 1, mi, 1) <= today;
+    const season = m[2] ? (mi >= 8 ? Number(m[2]) : Number(m[2]) - 1) : ahead || begun(seasonOfDate(today)) ? seasonOfDate(today) : seasonOfDate(today) - 1;
     const year = mi >= 8 ? season : season + 1;
     const from = iso(year, mi, 1), to = iso(year, mi + 1, 0);
-    cut(m); return out({ kind: "window", from, to, season, label: `in ${MONTHS[mi][0].toUpperCase()}${MONTHS[mi].slice(1)} ${year}`, typed: m[0].trim(), ...(m[2] ? { year } : {}) });
+    cut(m); return out({ kind: "window", from, to, season, label: `in ${MONTHS[mi][0].toUpperCase()}${MONTHS[mi].slice(1)} ${year}`, typed: m[0].trim(), ...(m[2] ? { year } : { month: mi }) });
   }
   // This season, last season (relative: the executor reads them against the default season).
   m = /\b(?:this|current|the\s+current)\s+(?:season|year)'?s?\b|\bthis\s+year'?s?\b/.exec(rest);

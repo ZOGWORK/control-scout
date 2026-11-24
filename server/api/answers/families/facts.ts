@@ -53,6 +53,13 @@ const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "ju
 const MONTH = /\s(?:in|during)\s+(?:the\s+month\s+of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+(20\d\d))?(?=\s)/;
 /** A month's calendar year in a season (Sep–Dec its first year, Jan–Aug its second). */
 const monthYear = (season: number, month: number) => (month >= 8 ? season : season + 1);
+/** The season of the latest `month` (0-based) that has begun: the current season's, or, when that one is still to
+ *  come ("june" asked in November 2026), the season before's (June 2026). A month said without its year is never one
+ *  that hasn't happened. */
+export const lastMonthSeason = (month: number, today = new Date().toISOString().slice(0, 10)) => {
+  const s = currentSeason();
+  return `${monthYear(s, month)}-${String(month + 1).padStart(2, "0")}-01` > today ? s - 1 : s;
+};
 
 /** "In (date / chronological) order", "oldest first": how a list of events is asked to run. */
 const OLDEST_FIRST = /\s(?:in\s+(?:date\s+|chronological\s+)?order|oldest\s+first|chronologically)(?=\s)/;
@@ -126,7 +133,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // "This season" is the default season, as the team's other answers read it ("12345 events played this season").
     // A month is a filter on a season's events only: any other answer would drop it.
     if (mo && r.id !== "events-season") return null;
-    if (mo) scope.season ??= monthSeason ?? currentSeason();
+    if (mo) scope.season ??= monthSeason ?? lastMonthSeason(month);
     // "12345 events this season": the team's latest season with matches, resolved by the answer (seasonOf); said here as
     // "latest" so the answer knows it was asked for.
     if (r.id === "events-season" && scope.season == null && !scope.latest) return null;

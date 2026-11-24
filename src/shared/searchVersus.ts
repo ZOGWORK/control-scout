@@ -30,6 +30,9 @@ export interface Scope {
   ever?: boolean;
   /** How the season was chosen, said in the answer ("latest season with matches for 12345"). */
   seasonWhy?: string;
+  /** "This season" asked of a team that hasn't played the current season yet: said on the card, where the season is
+   *  ("2026–27 has no data yet for 4215; showing 2025–26"), never only in the note under it. */
+  seasonNote?: string;
   /** Only FIRST Championship (Worlds) events. */
   championship?: boolean;
   /** Only region (state) championships. */
