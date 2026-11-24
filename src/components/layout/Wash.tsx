@@ -8,7 +8,7 @@ import { loadWashOnce } from "../../lib/wash";
 import { WASH_FADE as FADE, softStops } from "../../shared/wash";
 
 // The colours, strength and reach are CSS variables (index.css, html[data-v8]); the owner console can change them.
-// Each colour is mixed into the page by --wash-mix (all of it on Dark; Light takes a pale dawn tint of the same ones).
+// Each colour is mixed into the page by --wash-mix (all of it on Dark and Light, most of it on Dim: WASH_MIX).
 const tint = (v: string) => `color-mix(in srgb,var(${v}) var(--wash-mix,100%),var(--color-background))`;
 /** The three glows, left, middle and right. Each is its own layer so each can drift on its own (index.css,
  *  `.wash-glow`): a slow wave of a few percent and a soft swell, at different lengths so they never line up. Each
