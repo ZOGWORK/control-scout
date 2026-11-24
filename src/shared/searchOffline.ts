@@ -16,6 +16,7 @@ import { cleanQuery, preferOf } from "./search";
 import { describe, parseQuery, type ParseContext, type Parsed } from "./query/parse";
 import { packParseContext } from "./query/packContext";
 import { seasonLabel } from "./format";
+import { SEASONS } from "./seasonList";
 
 export type SearchPack = Pick<EventBundle, "api" | "search" | "event" | "compare" | "manifest">;
 
@@ -143,6 +144,7 @@ export function teamSummariesFromPacks(path: string, packs: SearchPack[]): FromP
     return out;
   };
   const now = read(season);
-  const before = url.searchParams.get("before") === "1" ? { season: season - 1, teams: read(season - 1) } : undefined;
+  // As the server: no season before the first covered one.
+  const before = url.searchParams.get("before") === "1" && SEASONS.some((x) => x.season === season - 1) ? { season: season - 1, teams: read(season - 1) } : undefined;
   return from >= 0 ? { body: { season, teams: now, ...(before ? { before } : {}) }, from } : null;
 }

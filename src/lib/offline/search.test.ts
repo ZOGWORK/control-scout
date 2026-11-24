@@ -21,6 +21,8 @@ import { offlineSource } from "./saved";
 import { packPath, searchPackPath, type BundleManifest, type EventBundle, type PackApi } from "../../shared/eventBundle";
 import type { SearchAnswer, SearchHit, TeamSummary } from "../../shared/api";
 import type { PackSearch, SeasonRow } from "../../shared/searchVersus";
+import { SEASONS } from "../../shared/seasonList";
+import { teamSummariesFromPacks } from "../../shared/searchOffline";
 
 const S = 2025;
 const hit = (n: number, name: string): SearchHit => ({ kind: "team", ref: String(n), title: `${n} | ${name}`, subtitle: "Midland, MI, USA", season: S, team: { season: S, opr: 40, record: { w: 3, l: 1, t: 0 }, rank: { n: n - 10, of: 40 } } } as SearchHit);
@@ -90,6 +92,10 @@ describe("search with no signal, from a saved event pack", () => {
     expect(await offlineAnswer(`/api/teams-summary?season=${S}&teams=12,4215,11`)).toEqual({ season: S, teams: [summary(12), summary(11)] });
     // ?before=1: the season before's from the packs too, in the server's shape.
     expect(await offlineAnswer(`/api/teams-summary?season=${S}&teams=12,13&before=1`)).toEqual({ season: S, teams: [summary(12)], before: { season: S - 1, teams: [summary(13)] } });
+    // The first season covered has none before it: no `before`, as the server sends it.
+    const first = Math.min(...SEASONS.map((x) => x.season));
+    expect(await offlineAnswer(`/api/teams-summary?season=${first}&teams=12&before=1`)).toBeNull();
+    expect(teamSummariesFromPacks(`/api/teams-summary?season=${first}&teams=12&before=1`, [{ api: { answers: { [packPath(`/api/teams-summary?season=${first}&teams=12`)!]: { season: first, teams: [summary(12)] } }, same: {}, errors: {} } } as never])?.body).toEqual({ season: first, teams: [summary(12)] });
   });
 
   it("lib/api.ts: with no network, the pack answers at once (no 10-second slow-search wait)", async () => {
