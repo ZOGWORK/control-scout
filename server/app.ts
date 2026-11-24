@@ -444,7 +444,9 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   const prepaid = new Map<string, number>();
   const brunoAsk = (req: Request) => `${visitorIp(req)}|${String(req.query.q ?? "").trim().toLowerCase()}|${String(req.query.prefer ?? "")}`;
   const brunoSpend = (req: Request, res: Response, next: NextFunction) => {
-    const k = brunoAsk(req), at = prepaid.get(k);
+    // Only the very ask the early start made: no earlier search it follows (`after…`), which it never has.
+    const plain = req.query.after == null && req.query.afterSeason == null && req.query.afterMy == null;
+    const k = brunoAsk(req), at = plain ? prepaid.get(k) : undefined;
     if (at != null && Date.now() - at < 120_000) { prepaid.delete(k); next(); return; }
     brunoBudget(req, res, next);
   };
@@ -479,8 +481,10 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
         // Nor words that point back at an earlier search ("were those…"): the page may ask him those with it.
         if (isBrunoQuestion(raw.trim().slice(0, 200)) && !pointsBack(chatWords(raw)) && brunoBudget.take(req)) {
           if (prepaid.size > 5000) prepaid.clear();
-          prepaid.set(brunoAsk(req), Date.now());
-          void brunoAnswer(raw, { prefer, limit: SEARCH_PAGE_LIMIT }).catch(() => {});
+          // Paid while his answer is coming or came; one that failed (not kept) leaves the page's ask to pay again.
+          const k = brunoAsk(req);
+          prepaid.set(k, Date.now());
+          void brunoAnswer(raw, { prefer, limit: SEARCH_PAGE_LIMIT }).then((r) => { if (!r) prepaid.delete(k); }, () => { prepaid.delete(k); });
         }
       }
       // An answer any visitor shares: counted, so the next process makes it before it answers (./api/searchWarm.ts).
