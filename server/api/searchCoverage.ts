@@ -25,7 +25,7 @@ import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
 import { RANKED_MIN_MATCHES } from "../../src/shared/rankings.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
-import { defaultSeason, relativeSeason } from "./answers/season.js";
+import { completedSeason, defaultSeason, relativeSeason } from "./answers/season.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
 import { allowedEdits, editDistance, normalize } from "./fuzzy.js";
 import { search } from "./search.js";
@@ -1093,10 +1093,11 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
       return card(title, lines, `No ranked teams in ${p.name} for ${seasonLabel(season)} yet.`, [placePage(p, shown)], label, tableOf(rows, shown));
     }
   }
-  // A place's best match scores: "top scores in NJ", "highest score in texas". As the season records are kept
+  // A place's best match scores: "top scores in NJ", "highest score in texas", "highest scoring matches in texas" (read
+  // with its plural folded, "match"). As the season records are kept
   // (./searchHighScores.ts): an alliance's score without penalties, official events only, one season (the latest with
   // played matches there), never different games' scores side by side.
-  if ((m = /^(?:the\s+)?(?:top|highest|best|biggest|max(?:imum)?)\s+(?:match\s+)?(?:scores?|scoring matches|scoring games)\s+(?:in|from|at)\s+(.+?)$/.exec(t))) {
+  if ((m = /^(?:the\s+)?(?:top|highest|best|biggest|max(?:imum)?)\s+(?:match\s+)?(?:scores?|scoring match(?:es)?|scoring games?)\s+(?:in|from|at)\s+(.+?)$/.exec(t))) {
     const p = await placeOf(cased(q, m[1]));
     if (!p) return null;
     const where = placeSql(p).replace(/\bt\./g, "e.").replace(/^ AND /, "");
@@ -1224,13 +1225,6 @@ const FACT_PHRASES = [
   "team name|name|home region|first region|region|state",
 ].join("|");
 
-/** The season a team card's numbers are from when the query names none: the latest completed one (its FIRST
- *  Championship played), so a season that has only just started never stands in for the team's last full one. */
-async function completedSeason(): Promise<number> {
-  const r = await get<{ s: number | null }>("SELECT MAX(e.season) s FROM events e WHERE e.type = 'FIRSTChampionship' AND e.season <= ? AND EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1)", [CURRENT_SEASON]);
-  return r?.s != null ? Number(r.s) : CURRENT_SEASON - 1;
-}
-
 /** A team's FIRST home region, named: "USNJ" for a New Jersey team is "New Jersey"; a region of its own ("USTXHO")
  *  keeps its code beside the state's name. None stored: unknown (a state can hold several regions). */
 function regionText(code: string | null, state: string | null, country: string | null): string | null {
@@ -1306,7 +1300,9 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   const team = { number, name: teamNameOf(hit.title) };
   // The team page's numbers for one season (seasonStats, ./teams.ts: the same stored row the page reads, nothing
   // worked out here): the season asked, else the latest completed season, else the team's latest with matches.
-  const done = await completedSeason();
+  // The season a team card's numbers are from when the query names none: the latest completed one (./answers/season.ts),
+  // so a season that has only just started never stands in for the team's last full one.
+  const done = completedSeason();
   const asked = !sm ? null : /^(?:this)/.test(sm[1]) ? done : /^(?:last|previous)/.test(sm[1]) ? done - 1 : Number(sm[1].slice(0, 4));
   let season = asked ?? done;
   let st = await seasonStats(season, number);

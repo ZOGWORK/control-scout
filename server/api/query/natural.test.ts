@@ -155,13 +155,27 @@ describe("when: the last, the first and the next time (3b)", () => {
       "when was the last time hypnotic robotics played a match", "4215 last played when", "the last time 4215 played?"];
     const first = card(await ask(SAID[0]));
     expect(first).toMatchObject({ kind: "recent-match", title: "Most recent match" });
-    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
+    // Asked "when": the same match, its day the headline (src/shared/query/whenWhere.ts).
+    const day = (await ask(SAID[0])).stat?.headline?.sub?.match(/[A-Z][a-z]{2} \d{1,2}, \d{4}/)?.[0];
+    expect(day).toBeTruthy();
+    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(/^when\b/i.test(q) ? { ...first, title: `When: ${first.title}`, headline: day } : first);
+    // Its event under the day, the match line as asked before it.
+    const was = (await ask(SAID[0])).stat?.headline;
+    const w = (await ask(SAID[1])).stat?.headline;
+    expect([w?.sub, w?.label.startsWith(was?.value ?? "?")]).toEqual([/ at (.+?)(?: \(|$)/.exec(was?.label ?? "")?.[1], true]);
   });
   it("the first time: its first match", async () => {
     const SAID = ["when was 4215's first match", "when did 4215 first play", "4215 first ever match", "the first time 4215 played a match", "when did hypnotic robotics first play"];
-    const first = card(await ask(SAID[0]));
+    const first = card(await ask(SAID[2]));
     expect(first).toMatchObject({ kind: "first-match", title: "First match" });
-    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
+    // Asked "when": the same match, its day the headline.
+    const day = (await ask(SAID[2])).stat?.headline?.sub?.match(/[A-Z][a-z]{2} \d{1,2}, \d{4}/)?.[0];
+    expect(day).toBeTruthy();
+    for (const q of SAID) expect(card(await ask(q)), q).toEqual(/^when\b/i.test(q) ? { ...first, title: `When: ${first.title}`, headline: day } : first);
+    // Its event under the day, the match line as asked before it.
+    const was = (await ask(SAID[2])).stat?.headline;
+    const w = (await ask(SAID[0])).stat?.headline;
+    expect([w?.sub, w?.label.startsWith(was?.value ?? "?")]).toEqual([/ at (.+?)(?: \(|$)/.exec(was?.label ?? "")?.[1], true]);
   });
   it("when a team started: its rookie year", async () => {
     for (const q of ["4215 rookie year", "what year did 4215 start", "when did 4215 begin competing", "when did 4215 join ftc", "when was 4215 founded", "which year did hypnotic robotics start", "which season was 4215 founded", "what season did 4215 start"]) {
@@ -423,5 +437,27 @@ describe("what answered before answers the same (§5)", () => {
     expect(a.stat).toBeUndefined();
     expect(a.hits.filter((h) => h.kind === "team").map((h) => h.ref)).toEqual(expect.arrayContaining(["20245", "23268"]));
     expect((await ask("bad wolf")).hits[0]).toMatchObject({ kind: "team", ref: "6980" });
+  });
+});
+
+// Search audit 2026-11-24, Q3: a yes-or-no question about winning an event leads with Yes or No, and a No says how far
+// the team got. A championship's division won is a finish there, never the championship won.
+describe("did a team win Worlds: yes or no first, and its best finish", () => {
+  beforeAll(async () => {
+    await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'FTCCMP1EDIS', 30001, 'Winner', 'Winning Alliance - Captain', 1), (2025, 'FTCCMP1', 30002, 'Finalist', 'Finalist Alliance - 1st Team Selected', 1)");
+    clearAllCaches();
+  });
+  it("a division won is no Worlds won: No, best finish the division", async () => {
+    const a = await ask("did 30001 win worlds");
+    expect(a.verdict?.answer).toBe("No");
+    expect(a.verdict?.label).toMatch(/^Best finish: Winning Alliance \(.*Edison Division, 2025–26\) · .* has never won Worlds$/);
+  });
+  it("a finals finalist place, without the alliance slot", async () => {
+    const a = await ask("did 30002 win worlds");
+    expect(a.verdict?.answer).toBe("No");
+    expect(a.verdict?.label).toMatch(/^Best finish: Finalist Alliance \(/);
+  });
+  it("no win and no finish: No, never won", async () => {
+    expect((await ask("has 7149 ever won worlds")).verdict).toMatchObject({ answer: "No", label: expect.stringMatching(/has never won Worlds$/) });
   });
 });
