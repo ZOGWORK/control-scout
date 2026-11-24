@@ -252,7 +252,7 @@ export default function SearchPage() {
   const brunoLeads = v8 && brunoAsks && !apps.length && !quality && !mayStand;
   // He had nothing to add to this question (with these preferred teams): its heading is full size again, as his slot
   // is let go. A new question or preference is pending again until he answers it.
-  const askKey = brunoKey(q, prefer);
+  const askKey = brunoKey(q, prefer); // trimmed, as his card keys it
   const [brunoSilent, setBrunoSilent] = useState<string | null>(null);
   const [silentFor, setSilentFor] = useState(askKey);
   if (silentFor !== askKey) { setSilentFor(askKey); setBrunoSilent(null); }
