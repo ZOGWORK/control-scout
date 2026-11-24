@@ -16,7 +16,8 @@ const EXT = /\.(?:ts|tsx|js|mjs|json|txt)$/;
 /** Bigger files are data (seasons' frame timings, packs), not tests or code that reads a question. */
 const MAX_BYTES = 3_000_000;
 
-/** Every scanned file's text, lower case, by its path from the repo root (forward slashes). */
+/** Every scanned file's text, lower case, every run of whitespace one space (a question split across lines in a test
+ *  is still that question), by its path from the repo root (forward slashes). */
 export function scannedTexts(root = ROOT): Map<string, string> {
   const out = new Map<string, string>();
   const walk = (dir: string) => {
@@ -26,7 +27,7 @@ export function scannedTexts(root = ROOT): Map<string, string> {
       if (st.isDirectory()) { walk(p); continue; }
       const rel = relative(root, p).replace(/\\/g, "/");
       if (!EXT.test(name) || st.size > MAX_BYTES || EVAL_LISTS.some((r) => r.test(rel))) continue;
-      out.set(rel, readFileSync(p, "utf8").toLowerCase());
+      out.set(rel, readFileSync(p, "utf8").toLowerCase().replace(/\s+/g, " "));
     }
   };
   for (const d of SCANNED) { try { walk(join(root, d)); } catch { /* a folder this checkout lacks */ } }
@@ -41,7 +42,7 @@ const phrase = (q: string) => new RegExp(`(?<![\\p{L}\\p{N}])${esc(q.trim().toLo
 export function leaks(questions: string[], texts = scannedTexts()): Map<string, string[]> {
   const out = new Map<string, string[]>();
   for (const q of new Set(questions)) {
-    // The plain text first (fast), the whole-phrase test only where it is: spacing as written in code is one space.
+    // The plain text first (fast; scannedTexts folds whitespace to one space), the whole-phrase test only where it is.
     const re = phrase(q), lower = q.trim().toLowerCase().replace(/\s+/g, " ");
     const files = [...texts].filter(([, t]) => t.includes(lower) && re.test(t)).map(([p]) => p);
     if (files.length) out.set(q, files);

@@ -22,7 +22,7 @@
 //   npm run search:heldout -- --min 80        exit 1 below an 80% pass rate (CI, .github/workflows/ci.yml)
 //   npm run search:heldout -- --split         move held-out questions found in tests or code to the training set
 //   DATABASE_URL=file:.data/scout.db npm run search:heldout
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { bootSearch, localServer } from "./search-local.js";
 import { gradeWant, wantSeason } from "./search-heldout-grade.js";
@@ -36,14 +36,17 @@ const TRAIN = process.argv.includes("--train");
 type Q = { set: string; n: number; q: string; want?: string };
 const HELD = join(import.meta.dirname, "search-heldout.json"), TRAINING = join(import.meta.dirname, "search-train.json");
 const read = (f: string): Q[] => JSON.parse(readFileSync(f, "utf8"));
-const write = (f: string, xs: Q[]) => writeFileSync(f, `[\n${xs.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`);
+const text = (xs: Q[]) => `[\n${xs.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`;
+/** Both files written in full first, then each moved into place: a failed write never loses a question. */
+const writeBoth = (sets: [string, Q[]][]) => { for (const [f, xs] of sets) writeFileSync(`${f}.tmp`, text(xs)); for (const [f] of sets) renameSync(`${f}.tmp`, f); };
+/** A --min that isn't a number would turn the floor off: refused instead. */
+if (MIN != null && !Number.isFinite(Number(MIN))) { console.log(`FAIL: --min ${MIN} is not a number`); process.exit(1); }
 
 if (process.argv.includes("--split")) {
   const held = read(HELD), train = read(TRAINING);
   const found = leaks(held.map((x) => x.q));
   const moved = held.filter((x) => found.has(x.q));
-  write(HELD, held.filter((x) => !found.has(x.q)));
-  write(TRAINING, [...train, ...moved]);
+  writeBoth([[TRAINING, [...train, ...moved]], [HELD, held.filter((x) => !found.has(x.q))]]);
   console.log(`moved ${moved.length} of ${held.length} to the training set (now ${train.length + moved.length}); held out: ${held.length - moved.length}`);
   process.exit(0);
 }
@@ -116,11 +119,14 @@ for (const x of sets) {
   let want = isAnswer ? graded(live) : null;
   // About another season than the one the want was written for (the default moved on): asked again in that season,
   // as the page's season picker asks it (server/api/searchPageAnswer.ts pickedQuery), and that answer graded.
+  // Its number is checked against the team page too, as the first answer's is.
+  let check = isAnswer ? await crosscheck(local.base, live) : { compared: false, ok: true, note: "" };
   if (want && x.want && /answer is about/.test(want.note ?? "")) {
-    const again = await searchAnswer(await pickedQuery(x.q, wantSeason(x.want)), { learn: false, limit: 12, full: true });
-    want = graded(again as unknown as Live);
+    const again = (await searchAnswer(await pickedQuery(x.q, wantSeason(x.want)), { learn: false, limit: 12, full: true })) as unknown as Live;
+    want = graded(again);
+    const second = await crosscheck(local.base, again);
+    if (!second.ok || (second.compared && check.ok && !check.compared)) check = second;
   }
-  const check = isAnswer ? await crosscheck(local.base, live) : { compared: false, ok: true, note: "" };
   const verdict = want?.verdict === "wrong" ? "wrong answer" : !check.ok ? "numbers differ from the team page" : pattern;
   if (ONLY) console.log(JSON.stringify({ q: x.q, time: p.time, text, placeStated, timeStated, want }));
   rows.push({ ...x, ms: Math.round(ms), intent: p.intent ?? s?.intent ?? null, filters: [...(s?.scope ?? [])], place, time, card, stated: placeStated && timeStated, pattern: verdict, unread,
