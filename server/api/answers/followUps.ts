@@ -64,7 +64,9 @@ const START_ASK_CHECK = ASK_MAX, START_RELATED_CHECK = RELATED_MAX;
 /** At most this many of the searches the page already offers are read, to leave out questions that repeat them. */
 const SHOWN_MAX = 8;
 
-type Slots = { t?: number; u?: number; event?: string; place?: string; when?: string; award?: string };
+// `many`: three or four teams as a question names them ("<team>, <team> or <team>"); `vs`: as search compares them
+// ("<team> vs <team> vs <team>").
+type Slots = { t?: number; u?: number; many?: string; vs?: string; event?: string; place?: string; when?: string; award?: string };
 type Template = { family: Family; needs: (keyof Slots)[]; ask: (s: Required<Slots>) => string; short: (s: Required<Slots>) => string; when?: boolean; chip?: boolean; list?: boolean };
 /** A follow-up two ways: a question (People also ask) and the search's short form (Related searches). */
 const T = (family: Family, needs: (keyof Slots)[], ask: Template["ask"], short: Template["short"], when = false): Template => ({ family, needs, ask, short, when });
@@ -106,6 +108,15 @@ const TWO: Template[] = [
   T("predict", ["t", "u"], (s) => `Who would win, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} prediction`),
   T("compare", ["t", "u"], (s) => `Who has the better record${IN(s)}, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} record${AT(s)}`, true),
   T("compare", ["t", "u"], (s) => `How has ${s.t} done against ${s.u}?`, (s) => `${s.t} vs ${s.u} head to head`),
+];
+// Three or four teams: the questions that compare them all, one card ranking every team (never two of them).
+const MANY: Template[] = [
+  T("compare", ["t", "many", "vs"], (s) => `Who has the highest OPR${IN(s)}, ${s.many}?`, (s) => `${s.vs} opr${AT(s)}`, true),
+  T("compare", ["t", "many", "vs"], (s) => `Who has the best record${IN(s)}, ${s.many}?`, (s) => `${s.vs} record${AT(s)}`, true),
+  T("compare", ["t", "many", "vs"], (s) => `Who has the best rating${IN(s)}, ${s.many}?`, (s) => `${s.vs} rating${AT(s)}`, true),
+  T("compare", ["t", "many", "vs"], (s) => `Who has the highest average score${IN(s)}, ${s.many}?`, (s) => `${s.vs} average score${AT(s)}`, true),
+  T("compare", ["t", "many", "vs"], (s) => `Who has the most wins${IN(s)}, ${s.many}?`, (s) => `${s.vs} wins${AT(s)}`, true),
+  T("compare", ["t", "many", "vs"], (s) => `Who has the best Auto OPR${IN(s)}, ${s.many}?`, (s) => `${s.vs} auto opr${AT(s)}`, true),
 ];
 const EVENT: Template[] = [
   T("events", ["event"], (s) => `Who won ${s.event}${IN(s)}?`, (s) => `who won ${s.event}${AT(s)}`),
@@ -203,8 +214,12 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
   const shown = a.stat?.family === "leaderboard" ? `${a.stat.title} ${a.stat.scope.join(" ")}`.toLowerCase() : null;
   // A town is asked about only when its name was meant as one.
   const place = p.place && (p.place.kind !== "city" || meant(p.place.typed)) && (shown == null || shown.includes(p.place.name.toLowerCase())) ? p.place.name : undefined;
+  // Three or four different teams named: asked of all of them, never of the first two.
+  const all = [...new Set(teams)];
+  const many = all.length >= 3 && all.length <= 4 ? all : null;
   const s: Slots = {
     t: teams[0] ?? team, u: teams[1], event, place,
+    ...(many ? { many: `${many.slice(0, -1).join(", ")} or ${many[many.length - 1]}`, vs: many.join(" vs ") } : {}),
     // A season said (a year, a season's two years): a window ("this week") or every season is no season's question.
     when: p.time?.kind === "season" ? p.time.typed : undefined,
     award: p.award ?? undefined,
@@ -220,7 +235,7 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
   // Every award an event gives, its winner's question first: those the questions don't take are Related searches.
   const [award1, ...awards] = event ? AWARDS.filter((x) => x !== s.award).flatMap((award) => fill([AWARD_AT], { ...s, award })) : [];
   const out = [
-    ...(s.u != null ? fill(TWO, s) : []),
+    ...(many ? fill(MANY, s) : s.u != null ? fill(TWO, s) : []),
     // A board's neighbours; a filtered list's too ("teams from texas with opr over 50": the place's boards, best auto
     // opr in Texas …), so its related searches are about the place it asked about, never one team in the list.
     ...(p.intent === "leaderboard" || a.intent?.kind.startsWith("stat-compound-list") ? fill(LEADERS, s) : []),
@@ -228,8 +243,8 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
     ...(award1 ? [award1] : []),
     ...(s.place ? fill(PLACE, s) : []),
     ...(s.t != null ? fill(TEAM, s) : []),
-    // The second team's own, after the first's; an event's other awards after its winner's questions.
-    ...(s.u != null ? fill(TEAM, { ...s, t: s.u }) : []),
+    // Each other team's own, after the first's, in the order named; an event's other awards after its winner's questions.
+    ...(many ?? (s.u != null ? [s.t, s.u] : [])).slice(1).flatMap((t) => fill(TEAM, { ...s, t })),
     ...awards,
     ...(s.t == null && !event && !s.place && p.intent !== "leaderboard" ? fill(START, s) : []),
   ];

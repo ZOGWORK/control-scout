@@ -234,6 +234,22 @@ describe("people also ask", () => {
     expect(qs).toContain("Who has the better record in 2024-25, 4215 or 6980?");
     expect(qs).toContain("How has 4215 done against 6980?");
   });
+  it("three or four teams compared: every question names them all, each team's own after", async () => {
+    for (const [q, named] of [["4215 vs 6980 vs 7149 opr", "4215, 6980 or 7149"], ["compare 4215, 6980, 7149 and 207", "4215, 6980, 7149 or 207"]] as const) {
+      const ask = await asked(q);
+      const many = ask.filter((x) => / or \d+\?$/.test(x.q));
+      expect(many.length).toBeGreaterThan(0);
+      // Never two of them ("4215 or 6980?"): the question names every team, and its answer ranks them all.
+      for (const x of many) expect(x.q.endsWith(`, ${named}?`)).toBe(true);
+      const qs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set())).map((x) => x.q);
+      for (const t of named.split(/, | or /)) expect(qs).toContain(`What is ${t}'s OPR?`);
+    }
+    // Asked as offered, the question compares every team it names.
+    const a = await searchAnswer("Who has the best record, 4215, 6980 or 7149?", { limit: 25, full: true });
+    expect([a.intent?.kind, a.stat?.teams?.map((t) => t.number)]).toEqual(["stat-compare-by", [4215, 6980, 7149]]);
+    const which = await searchAnswer("which of 6980, 7149 and 207 has the best record", { limit: 25, full: true });
+    expect([which.intent?.kind, which.stat?.teams?.map((t) => t.number)]).toEqual(["stat-compare-by", [6980, 7149, 207]]);
+  });
 
   it("asks the same questions of any team", async () => {
     const shape = async (t: number) => {
