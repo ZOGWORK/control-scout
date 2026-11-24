@@ -930,7 +930,7 @@ function nearSearchWord(w: string): string | null {
  *  so search parses a query for its spelling (respell) only when it might need it. */
 export const mayRespell = (q: string): boolean => normalise(q).split(" ").some((w) => nearSearchWord(w) != null);
 
-/** `typed` with the search words the parse read one letter off written as meant ("4215 recrod" → "4215 record"), as
+/** `typed` with the search words the parse read one letter off written as meant ("<team> recrod" → "<team> record"), as
  *  the parse fixes them (fixSpelling: never a name's word, a place, nor a team's name typed nearly right), or null. */
 export async function respell(typed: string, ctx: ParseContext): Promise<string | null> {
   if (!mayRespell(typed)) return null;
