@@ -41,7 +41,7 @@ import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, resolveChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, boardFilterWords, boardWhere, conferenceGroup, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
-import { readTime, teamMonth } from "../query/time.js";
+import { readTime, teamMonthWindow } from "../query/time.js";
 import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
 import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
 import { placeAverageAnswer, readPlaceAverage } from "./families/placeAverages.js";
@@ -247,10 +247,8 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   // A month said without its year ("<team> events in june"): that month of the team's latest season, never one still
   // to come unless the question looks ahead (teamMonth).
   if (s.window?.month != null && s.season != null && !s.window.ahead) {
-    const own = (await teamSeason(team)) ?? s.season;
-    const slot = { kind: "window" as const, season: s.season, from: s.window.from, to: s.window.to, label: s.window.label, typed: "", month: s.window.month };
-    const moved = teamMonth(slot, own, new Date().toISOString().slice(0, 10));
-    if (moved.season !== s.season) { scope.season = moved.season; scope.window = { from: moved.from!, to: moved.to!, label: moved.label }; }
+    const moved = teamMonthWindow(s.window, s.season, (await teamSeason(team)) ?? s.season, new Date().toISOString().slice(0, 10));
+    if (moved) { scope.season = moved.season; scope.window = moved.window; }
   }
   if (s.outOfState) {
     // "Out-of-state events": outside the team's own state, as its team page lists it.

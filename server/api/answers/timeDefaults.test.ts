@@ -6,7 +6,8 @@ import { CURRENT_SEASON } from "../../data/seasons";
 import { lastMonthSeason } from "./families/facts";
 import { listSeason } from "./families/compound";
 import { completedSeason, defaultSeason, thisSeasonNote } from "./season";
-import { monthIn, readTime, teamMonth } from "../query/time";
+import { monthIn, readTime, teamMonth, teamMonthWindow } from "../query/time";
+import { windowSteps } from "../query/relax";
 import { seasonLabel } from "../../../src/shared/format";
 
 const S = CURRENT_SEASON;
@@ -18,6 +19,9 @@ describe("a month said without its year", () => {
     // October has begun: this season's.
     expect(lastMonthSeason(9, `${S}-11-24`)).toBe(S);
     expect(lastMonthSeason(5, `${S + 1}-06-02`)).toBe(S);
+    // As of an earlier day: that day's own season, never today's (Loopy on #2254).
+    expect(lastMonthSeason(5, `${S - 2}-11-24`)).toBe(S - 3);
+    expect(lastMonthSeason(9, `${S - 2}-11-24`)).toBe(S - 2);
   });
   it("is read by the parser as the latest such month begun, unless the question looks ahead", () => {
     expect(readTime("7149 events in june", `${S}-11-24`).time).toMatchObject({ from: `${S}-06-01`, season: S - 1, label: `in June ${S}` });
@@ -47,6 +51,14 @@ describe("a month said without its year", () => {
     const ahead = readTime("upcoming events in june", today).time!;
     expect(ahead.ahead).toBe(true);
     expect(teamMonth(ahead, S, today)).toBe(ahead);
+  });
+  it("an empty month of a team's is widened from the team's own season, never the parser's (Loopy on #2254)", () => {
+    const today = `${S}-11-24`, t = readTime("events in june", today).time!;
+    const moved = teamMonthWindow({ from: t.from!, to: t.to!, label: t.label, month: t.month }, t.season, S - 2, today)!;
+    expect(moved).toMatchObject({ season: S - 2, window: { from: `${S - 1}-06-01` } });
+    expect(windowSteps(moved.window, moved.season).map((s) => s.season)).toEqual([S - 2, S - 3]);
+    // Nothing moves for the team's latest season being the parser's, or a look ahead.
+    expect(teamMonthWindow({ from: t.from!, to: t.to!, label: t.label, month: t.month }, t.season, S, today)).toBeNull();
   });
 });
 

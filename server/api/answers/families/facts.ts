@@ -15,6 +15,7 @@ import { isEnabled } from "../../../flags.js";
 import { ATTENDED, LEAGUE_RANKED, seasonStats, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
 import { readScope } from "../read.js";
 import { currentSeason, seasonWhy, teamSeason } from "../season.js";
+import { seasonOfDate } from "../../query/time.js";
 import { ratingKpis } from "./oprRating.js";
 import { eventHref, matchHref, shortEvent, teamHref } from "../matchSet.js";
 import { leagueStandings, teamLeagueStanding } from "../../leagues.js";
@@ -56,9 +57,10 @@ const monthYear = (season: number, month: number) => (month >= 8 ? season : seas
 /** The season of the latest `month` (0-based) that has begun: the current season's, or, when that one is still to
  *  come ("june" asked in November 2026), the season before's (June 2026). A month said without its year is never one
  *  that hasn't happened. */
-export const lastMonthSeason = (month: number, today = new Date().toISOString().slice(0, 10)) => {
-  const s = currentSeason();
-  return `${monthYear(s, month)}-${String(month + 1).padStart(2, "0")}-01` > today ? s - 1 : s;
+export const lastMonthSeason = (month: number, today?: string) => {
+  // As of the date given, its own season (a replay of an earlier day); with none, today's.
+  const s = today ? seasonOfDate(today) : currentSeason(), day = today ?? new Date().toISOString().slice(0, 10);
+  return `${monthYear(s, month)}-${String(month + 1).padStart(2, "0")}-01` > day ? s - 1 : s;
 };
 
 /** "In (date / chronological) order", "oldest first": how a list of events is asked to run. */

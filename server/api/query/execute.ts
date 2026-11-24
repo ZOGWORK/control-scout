@@ -28,7 +28,7 @@ import { shortEvent } from "../answers/matchSet.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
 import { eventScoresAnswer, eventScoresTitle, type EventScoresQuestion } from "../answers/families/eventScores.js";
 import { FROM as FIND_FROM, eventKindOf, labelText, matchFindAnswer, videoKeys as findVideoKeys, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
-import { seasonOfDate } from "./time.js";
+import { seasonOfDate, teamMonthWindow } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { advancementAt, advancementEvent, advancementNotListed, seasonAdvancement } from "../answers/families/advancement.js";
@@ -542,7 +542,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // Nothing in the window asked ("this week"): its season, then the season before, said on the card.
     // A window with its year typed ("march 2026", a date) keeps that year: only a window said against today is relaxed.
     if (!opts.full || opts.exact || !scope.window || scope.season == null || p.time?.year != null) return a;
-    return relaxed(a, windowSteps(scope.window, scope.season), (season) => statAnswerOf(p.q, { ...it, scope: { ...scope, window: undefined, season } }, opts.resolve, opts));
+    // A yearless month moved to the team's latest season (scopeFor): widened from that season, the one answered from.
+    const moved = scope.window.month != null ? teamMonthWindow(scope.window, scope.season, (await teamSeason(team.number)) ?? scope.season, new Date().toISOString().slice(0, 10)) : null;
+    return relaxed(a, windowSteps(moved?.window ?? scope.window, moved?.season ?? scope.season), (season) => statAnswerOf(p.q, { ...it, scope: { ...scope, window: undefined, season } }, opts.resolve, opts));
   }
   // A forecast at an event named: before and after, side by side (./forecast.ts). With no event, two teams' head-on
   // call (the engine's, with Predict open on it); one team's next match or event is left to the readers that know
