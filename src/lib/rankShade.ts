@@ -2,7 +2,7 @@
 // event) to red (the worst) by value; wins read green, losses red, ties neutral. Nothing else in that table takes a
 // colour, so green and red mean only where a team stands. Both ends are the site's readable status text tokens
 // (index.css: --color-success-text / --color-danger-text, a deeper shade on Light), mixed in OKLab, so every step
-// between them stays as readable as the ends in Light, Dim, Dark and the classic look (rankShade.contrast.test.ts).
+// between them stays as readable as the ends in Light, Dim, Dark and the classic look (rankShade.test.ts).
 
 /** The ranking columns that shade, and whether a lower value is better. Event tables (RecordsTable keys) and the
  *  standings fallback (RankingTable keys) both. */
@@ -31,8 +31,10 @@ export function shadeT(values: readonly unknown[], v: unknown, lowerIsBetter = f
   return lowerIsBetter ? 1 - t : t;
 }
 
-/** The text colour for a position on the scale: green at 1, red at 0, an OKLab mix of the two in between. */
-export function shadeColour(t: number): string {
+/** The text colour for a position on the scale: green at 1, red at 0, an OKLab mix of the two in between.
+ *  Undefined for a position that isn't a number (NaN, ±Infinity), so a caller never sets an invalid colour. */
+export function shadeColour(t: number): string | undefined {
+  if (!Number.isFinite(t)) return undefined;
   const pct = Math.round(Math.min(1, Math.max(0, t)) * 100);
   return `color-mix(in oklab, var(--color-success-text) ${pct}%, var(--color-danger-text))`;
 }

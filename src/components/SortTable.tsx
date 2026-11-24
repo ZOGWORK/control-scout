@@ -73,7 +73,7 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
   const shades = useMemo(() => new Map(cols.filter((c) => c.shade).map((c) => [c.key, columnShade(rows.map((r) => c.value(r)), !!c.asc)] as const)), [rows, cols]);
   // A big event's standings (60+ teams) render only the rows on screen (src/components/ui/windowing.tsx).
   // v8 (docs/design/v8-revamp-brief.md §5 Tables): numbers keep the text colour (no heat bands), a quiet
-  // sentence-case head, 44px rows with hairlines, and the highlighted row ("your team") marked in mint at its edge.
+  // sentence-case head, 44px rows with hairlines, and the highlighted row ("your team") marked with a white edge (never the slate accent).
   const v8 = isV8();
   const vr = useVirtualRows<HTMLTableSectionElement>(sorted.length, v8 ? ROW_H_V8 : ROW_H, { key: (i) => rowKey(sorted[i]) });
   const table = useRef<HTMLTableElement>(null);
