@@ -103,6 +103,16 @@ export function v8TileColour(label: string, value: unknown): SoftColour | null {
   if (/\bopr\b|high|best|max|\btop\b|most/i.test(label)) return "purple";
   return null;
 }
+/** v8: the colour a swatch's chip is filled in (to colour its tile's bar, wash and icon the same), if any. Read from
+ *  the fill, whose classes are unique per colour (two colours can share a text step: live's and rose's words); when a
+ *  swatch was recoloured (its classes appended), the colour written last wins. */
+export function softOfFill(fill: string): SoftColour | null {
+  const at = (k: SoftColour) => (V8_SOFT[k].fill.split(" ").every((c) => ` ${fill} `.includes(` ${c} `)) ? fill.lastIndexOf(V8_SOFT[k].fill.split(" ")[0]) : -1);
+  let best: SoftColour | null = null;
+  for (const k of Object.keys(V8_SOFT) as SoftColour[]) if (k !== "neutral" && at(k) >= 0 && (best == null || at(k) > at(best))) best = k;
+  return best;
+}
+
 /** v8: the category colour a stat's label names (the team page's, owner 11-19), for a one-team card's numbers, which
  *  would otherwise all be the team's slate blue: a phase its own, OPR and a rating purple, a record or a win rate
  *  green, a rank or anything else the accent. */

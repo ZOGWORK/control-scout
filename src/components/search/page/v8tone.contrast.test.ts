@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { contrast, over, parseColor, toHex, type RGBA } from "../../../lib/contrast";
-import { MEANING_SOFT, V8_SOFT, v8Stat, type SoftColour } from "./v8tone";
+import { MEANING_SOFT, TONE, V8_SOFT, calm, softOfFill, v8Stat, type SoftColour } from "./v8tone";
 
 const css = readFileSync("src/index.css", "utf8");
 const tw = readFileSync(createRequire(resolve("package.json")).resolve("tailwindcss/theme.css"), "utf8");
@@ -96,5 +96,17 @@ describe("v8Stat: the colour a one-team number's label names", () => {
   it("phases, OPR and a record in their own colours", () => {
     expect(["Auto OPR", "TeleOp points", "Endgame", "Penalties given", "OPR by event", "2025–26 record", "Win rate", "Events"].map(v8Stat))
       .toEqual(["blue", "orange", "green", "red", "purple", "win", "win", "accent"]);
+  });
+});
+
+describe("softOfFill: the colour a swatch is filled in", () => {
+  it("reads every meaning's swatch as its colour, two-class words included (TeleOp, penalties, RP, yes, no, live)", () => {
+    for (const [m, c] of Object.entries(MEANING_SOFT)) expect(softOfFill(TONE[m as keyof typeof TONE].fill), m).toBe(c);
+  });
+  it("tells live from rose (the same words, different fills), and takes the colour written last on a recoloured swatch", () => {
+    expect(softOfFill(V8_SOFT.live.fill)).toBe("live");
+    expect(softOfFill(V8_SOFT.rose.fill)).toBe("rose");
+    expect(softOfFill(calm(TONE.auto, undefined, "purple").fill)).toBe("purple");
+    expect(softOfFill("bg-muted text-foreground")).toBeNull();
   });
 });

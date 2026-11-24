@@ -249,7 +249,7 @@ export function EventRow({ h, onOpen }: { h: SearchHit; onOpen: () => void }) {
   const e = eventFacts(h);
   return (
     <Link to={hitHref(h)} onClick={onOpen} className={ROW} data-row="event">
-      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", e.status === "live" ? V8_SOFT.live.fill : e.status === "finished" ? V8_SOFT.lime.fill : V8_SOFT.accent.fill)} data-status={e.status}><CalendarDays className="size-4" aria-hidden /></span>
+      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", e.status === "live" || e.status === "started" ? V8_SOFT.live.fill : e.status === "finished" ? V8_SOFT.lime.fill : V8_SOFT.accent.fill)} data-status={e.status}><CalendarDays className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-foreground">{h.title}</span>
         <span className="flex min-w-0 items-center gap-1.5 text-xs text-text-muted">
