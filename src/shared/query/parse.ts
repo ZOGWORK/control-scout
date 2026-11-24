@@ -713,10 +713,15 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     // for an event or a place. The longest stretch of the words that does is taken. A name several teams share ("Girls
     // in Robotics", two teams) is no reason to stop: the longer name is one team's.
     const before = p.teams.find((t) => t.via === "name" && t.at + t.typed.split(" ").length === from);
+    // Words of everyday English ("pizza" is no typo of team PITZZA) are never a name typed nearly right, unless "team"
+    // right before them says they name one there ("team pizza"); a "team" that introduced an earlier name ("team
+    // hypnotic robotics minor") says nothing of the words after that name.
+    const plainWords = (a: number, b: number) => toks.slice(a, b + 1).every((t) => everydayWord(t.w)) && !/^teams?$/.test(toks[a - 1]?.w ?? "");
     if (before && ctx.nearTeam) {
       const own = toks.slice(before.at, from);
       let longer: { team: TeamName; upTo: number } | null = null;
       for (let end = to; end >= from && !longer; end--) {
+        if (plainWords(from, end)) continue;
         const near = await ctx.nearTeam([...own, ...toks.slice(from, end + 1)].map((t) => t.w).join(" "));
         if (near && near.number !== before.number && !before.candidates?.includes(near.number) && fold(near.name ?? "").length > fold(before.name ?? "").length) longer = { team: near, upTo: end };
       }
@@ -816,6 +821,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       // What a question asks about is never a name typed nearly right ("inspire" is no typo of team Inspires), nor is an
       // ordinary word ("month" is no typo of team Monte).
       if (onlyTopicWords(span.map((t) => t.typed).join(" ")) || onlyOrdinary(span.map((t) => t.w).join(" "))) continue;
+      // Nor is a word of everyday English ("pizza" is no typo of team PITZZA), unless "team" says it names one there.
+      // Only the run's own words count: filler or a colour taken in front ("the pizza") is not what was typed as a name.
+      if (plainWords(from, to)) continue;
       const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
       // A name several teams share typed nearly right ("copper roboics", two teams called Copper Robotics) is that
       // name: its teams, picked or asked about as the name typed right is. A number after it that is no team's
