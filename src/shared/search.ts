@@ -23,14 +23,21 @@ export const preferOf = (raw: unknown): Set<string> => new Set(String(raw ?? "")
 /** The query as search reads it (server/api/searchAnswer.ts, and the event pack with no signal): punctuation that
  *  never means anything dropped, spaces folded, at most SEARCH_MAX_QUERY (cut at the last whole word: a word cut in
  *  two, "2025-2", would be read as another). */
-export function cleanQuery(raw: string): string {
+export function cleanQuery(raw: string, max = SEARCH_MAX_QUERY): string {
   // "1,000" is one number before its comma could be dropped as punctuation; a stored name written that way is indexed
   // as one number too (SEARCH_INDEX_SCHEMA 6). "40+ teams" is "40 or more teams" (a size, as the events-over-a-size
   // answer reads it), kept before "+" is cleaned.
   const q = joinThousands(String(raw ?? "")).replace(/(\d)\s*\+\s*(?=teams?\b)/gi, "$1 or more ").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
-  if (q.length <= SEARCH_MAX_QUERY) return q;
-  const cut = q.slice(0, SEARCH_MAX_QUERY);
-  return (q[SEARCH_MAX_QUERY] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
+  if (q.length <= max) return q;
+  const cut = q.slice(0, max);
+  return (q[max] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
+}
+
+/** The words of a long query past what search reads (SEARCH_MAX_QUERY), as cleaned, or "" when it read all of it: the
+ *  answer says them (never cut silently). */
+export function queryCut(raw: string): string {
+  const read = cleanQuery(raw), all = cleanQuery(raw, Infinity);
+  return all.length > read.length ? all.slice(read.length).trim() : "";
 }
 
 /** The longest query search reads (SEARCH_MAX_QUERY): the related searches page's too. */
@@ -43,11 +50,6 @@ export const relatedSearch = (q: string) => (relatedQuery(q) ? `?q=${encodeURICo
  *  the query, the visitor's preferred teams and the answer's picked season, each only when there is one. */
 /** People also ask's most questions (server/api/answers/followUps.ts): the page holds a place this tall for them. */
 export const ASK_MAX = 6;
-/** How long /api/search/follow waits for a search's follow-ups (the search audit's S1, 2026-11-24). A new search's set
- *  was up to 41 searches run one at a time in one first-come line for the whole site: four visitors at once each
- *  waited 6.7–7.3 s. Past this, the questions checked so far are sent (`partial`); the rest are still made and kept,
- *  for the page's next ask (server/api/answers/followUps.ts followUpsWithin). */
-export const FOLLOW_BUDGET_MS = 800;
 
 export const followApiPath = (q: string, prefer = "", season: number | null = null) => {
   const p = new URLSearchParams();
