@@ -395,9 +395,11 @@ describe("time", () => {
     expect(t("this weekend")).toMatchObject({ from: "2026-11-07", to: "2026-11-08" });
     expect(t("last month")).toMatchObject({ from: "2026-10-01", to: "2026-10-31" });
     expect(t("on mar 15, 2026")).toMatchObject({ from: "2026-03-15", to: "2026-03-15", season: 2025 });
-    expect(t("in march")).toMatchObject({ from: "2027-03-01", to: "2027-03-31", season: 2026 });
+    // A month with no year: the latest one begun (search audit Q2), unless the question looks ahead.
+    expect(t("in march")).toMatchObject({ from: "2026-03-01", to: "2026-03-31", season: 2025 });
+    expect(t("upcoming events in march")).toMatchObject({ from: "2027-03-01", to: "2027-03-31", season: 2026 });
     expect(t("march 2026")).toMatchObject({ from: "2026-03-01", season: 2025 });
-    expect(t("in may")).toMatchObject({ from: "2027-05-01", to: "2027-05-31", season: 2026 });
+    expect(t("in may")).toMatchObject({ from: "2026-05-01", to: "2026-05-31", season: 2025 });
     expect(t("may 2026")).toMatchObject({ from: "2026-05-01", to: "2026-05-31", season: 2025 });
     expect(t("may")).toBeNull();
     expect(t("2024-25")).toMatchObject({ kind: "season", season: 2024 });

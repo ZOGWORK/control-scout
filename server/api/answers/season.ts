@@ -49,6 +49,9 @@ export async function refreshSearchSeason(now = Date.now()): Promise<number> {
 /** The current competition season (2026–27 in autumn 2026): what a question about no team reads when it names none. */
 export const currentSeason = (): number => cached?.current ?? CURRENT_SEASON;
 
+/** The day the seasons above were read for: today, or the day a question is asked as of (refreshSearchSeason's `now`). */
+export const seasonDay = (): string => cached?.day ?? new Date().toISOString().slice(0, 10);
+
 /** A question about no team, read by an answer with no step back of its own: the current season once any team has
  *  matches in it, else the newest season with matches (the card says so, seasonWhy "any"). */
 export const defaultSeason = (): number => cached?.played ?? CURRENT_SEASON;
@@ -99,6 +102,14 @@ export function resetSearchSeason(): void { cached = null; }
  *  "last": "last season" / "last year"; "teams": two or more teams, no season said (the latest they all played). */
 export function seasonWhy(kind: SeasonWhyKind, season: number, who?: string): string {
   return seasonWhyAt(kind, season, currentSeason(), who);
+}
+
+/** "This season" asked of a team that has played none of the current season yet, read as its latest (`season`): the
+ *  chip the card says it with ("2026–27 has no data yet for 4215; showing 2025–26"); undefined when it is the current
+ *  season. */
+export function thisSeasonNote(season: number, who: string): string | undefined {
+  const now = currentSeason();
+  return season < now ? `${seasonLabel(now)} has no data yet for ${who}; showing ${seasonLabel(season)}` : undefined;
 }
 
 /** The answer's note on the season it chose, when the query named none and no team is asked about. */

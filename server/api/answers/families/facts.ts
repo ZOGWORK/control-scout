@@ -14,7 +14,8 @@ import { all, get } from "../../../db.js";
 import { isEnabled } from "../../../flags.js";
 import { ATTENDED, LEAGUE_RANKED, seasonStats, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
 import { readScope } from "../read.js";
-import { currentSeason, seasonWhy, teamSeason } from "../season.js";
+import { currentSeason, seasonDay, seasonWhy, teamSeason } from "../season.js";
+import { seasonOfDate } from "../../query/time.js";
 import { ratingKpis } from "./oprRating.js";
 import { eventHref, matchHref, shortEvent, teamHref } from "../matchSet.js";
 import { leagueStandings, teamLeagueStanding } from "../../leagues.js";
@@ -53,6 +54,15 @@ const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "ju
 const MONTH = /\s(?:in|during)\s+(?:the\s+month\s+of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+(20\d\d))?(?=\s)/;
 /** A month's calendar year in a season (Sep–Dec its first year, Jan–Aug its second). */
 const monthYear = (season: number, month: number) => (month >= 8 ? season : season + 1);
+/** The season of the latest `month` (0-based) that has begun: the current season's, or, when that one is still to
+ *  come ("june" asked in November 2026), the season before's (June 2026). A month said without its year is never one
+ *  that hasn't happened. */
+export const lastMonthSeason = (month: number, today?: string) => {
+  // As of the date given, its own season (a replay of an earlier day); with none, the search's own day and season (an
+  // as-of question reads both as of its date).
+  const s = today ? seasonOfDate(today) : currentSeason(), day = today ?? seasonDay();
+  return `${monthYear(s, month)}-${String(month + 1).padStart(2, "0")}-01` > day ? s - 1 : s;
+};
 
 /** "In (date / chronological) order", "oldest first": how a list of events is asked to run. */
 const OLDEST_FIRST = /\s(?:in\s+(?:date\s+|chronological\s+)?order|oldest\s+first|chronologically)(?=\s)/;
@@ -126,7 +136,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // "This season" is the default season, as the team's other answers read it ("12345 events played this season").
     // A month is a filter on a season's events only: any other answer would drop it.
     if (mo && r.id !== "events-season") return null;
-    if (mo) scope.season ??= monthSeason ?? currentSeason();
+    if (mo) scope.season ??= monthSeason ?? lastMonthSeason(month);
     // "12345 events this season": the team's latest season with matches, resolved by the answer (seasonOf); said here as
     // "latest" so the answer knows it was asked for.
     if (r.id === "events-season" && scope.season == null && !scope.latest) return null;
@@ -138,7 +148,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // A bare year with nothing else naming a team is the team's number ("2024 reliability").
     const more = { ...(country ? { country } : {}), ...(r.id === "events-season" || r.id === "events-place" ? listed : {}), ...(mo ? { month } : {}) };
     // The month's own year stays its season ("2024 events in march 2024"): the bare year was the team's.
-    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: mo ? (monthSeason ?? currentSeason()) : null, region, world, event, ...more };
+    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: mo ? (monthSeason ?? lastMonthSeason(month)) : null, region, world, event, ...more };
     if (!core) return null;
     return { id: r.id, core, season: scope.season, region, world, event, ...more, ...(scope.latest && scope.season == null ? { latest: true } : {}), ...(scope.future ? { future: scope.future } : {}) };
   }

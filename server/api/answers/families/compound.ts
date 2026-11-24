@@ -153,7 +153,9 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   const chips = [c.region?.name ?? c.country?.name ?? city ?? "Worldwide", S, ...(c.rookie ? ["Rookie teams"] : c.notRookie ? ["Not rookies"] : []), ...(c.award ? [c.award.type === "Winner" ? "Winning alliance" : `Won the ${c.award.label}`] : []),
     ...(c.worlds ? [`Went to Worlds (FIRST Championship ${season + 1})`] : c.noWorlds ? [`Didn't go to Worlds (FIRST Championship ${season + 1})`] : []),
     ...c.thresholds.map((t) => thText(t).replace(/^./, (x) => x.toUpperCase())), `Sorted by ${st.label}`, ...(c.n ? [`Top ${c.n}`] : [])];
-  const why = c.season == null ? ((c.worlds || c.noWorlds) ? ` No season said: the latest Worlds held, Worlds ${season + 1}, and its ${S} season.` : ` ${searchSeasonWhy(season)}`) : (c.worlds || c.noWorlds) && /\d/.test(String(c.season)) ? ` Worlds ${season + 1} is the ${S} season's FIRST Championship, so every number is from ${S}.` : "";
+  // With no season named, a Worlds list is the latest Worlds held: when the default season's is still to come, said so.
+  const unheld = c.season == null && season !== defaultSeason() ? ` Worlds ${defaultSeason() + 1} hasn't been held yet, so this is the latest held, Worlds ${season + 1}: every number is from ${S}.` : "";
+  const why = unheld || (c.season == null ? ` ${searchSeasonWhy(season)}` : (c.worlds || c.noWorlds) && /\d/.test(String(c.season)) ? ` Worlds ${season + 1} is the ${S} season's FIRST Championship, so every number is from ${S}.` : "");
   const definition = [
     `Teams ${placeWords === "worldwide" ? "anywhere" : `whose home is ${c.region?.name ?? c.country?.name ?? city}, as FIRST lists it,`} with ${RANKED_MIN_MATCHES}+ matches in ${S}, from the season numbers each team page shows (OPR without penalties).`,
     c.award ? (c.award.type === "Winner" ? " On a winning alliance: a Winning Alliance award at any event that season." : ` Won the ${c.award.label}: its winner (1st place) at any event that season, from the events' published awards.`) : "",
