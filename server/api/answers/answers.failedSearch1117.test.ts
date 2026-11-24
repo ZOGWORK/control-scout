@@ -83,8 +83,8 @@ describe("a place's winning alliance captains (#1642, #1643)", () => {
       expect(cells(a), q).toEqual([["23268 Ultraviolet", "Winning Alliance Captain"], ["4215 Hypnotic Robotics", "Winning Alliance Captain"]]);
       expect(resultOf(a, { team: false, intent: true }), q).toBe("answered");
     }
-    // The misspelled word is search's own: its answer is the spelled query's, offered as a correction.
-    expect((await full("nj winning allaince captain")).didYouMean).toBe("nj winning alliance captain");
+    // The misspelled word is search's own: read in the parse (search audit Q8), answered silently as the spelled query.
+    expect((await full("nj winning allaince captain")).didYouMean).toBeUndefined();
   });
   it("reads WAC, the usual short form, as a winning alliance captain", async () => {
     for (const q of ["nj wac", "teams in nj that won wac", "NJ WACs"]) {
