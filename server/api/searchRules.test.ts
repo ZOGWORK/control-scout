@@ -6,7 +6,7 @@ import { invalidateFlags, setFlag } from "../flags";
 import { rebuildSearch } from "../stats/job";
 import { CURRENT_SEASON } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
-import { readRuleQuery } from "../../src/shared/searchRuleQuery";
+import { readDefinition, readRuleQuery } from "../../src/shared/searchRuleQuery";
 
 const S = CURRENT_SEASON;
 const CAN_TEAMS: [number, string][] = [[28917, "We Can Robotic Team"], [29548, "Can Control"], [30665, "She Can Code Society"], [21771, "Paint Can"], [24147, "Fools That Can"], [11545, "Dread Pirate Robots"]];
@@ -167,5 +167,45 @@ describe("a penalty question about teams is their numbers, never the rules", () 
   });
   it("a team named is that team's penalty points, never the rules", async () => {
     expect((await searchAnswer("how many penalty points did 29548 give away in total", { limit: 25, full: true })).card?.kind).not.toBe("rule");
+  });
+});
+
+describe("a word's meaning asked (search audit Q11)", () => {
+  beforeAll(async () => {
+    // Teams named like the words a meaning question holds: never the answer.
+    for (const [n, name] of [[30701, "Mean"], [30702, "Ice Breakers"], [30703, "Park Rangers"]] as const) {
+      await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Austin', 'TX', 'USA')", [n, name]);
+      await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [S, n]);
+    }
+    await rebuildSearch();
+  });
+  it("reads the term, and whether a meaning is asked outright", () => {
+    expect(readDefinition("What does PARK mean?")).toEqual({ term: "park", strict: true });
+    expect(readDefinition("define major foul")).toEqual({ term: "major foul", strict: true });
+    expect(readDefinition("what is a yellow card in ftc")).toEqual({ term: "yellow card", strict: false });
+    expect(readDefinition("how many ranking points for a win")).toEqual({ term: "ranking win", strict: true, points: true });
+    for (const q of ["what is 4215 opr", "what is the best team in the whole state of new jersey", "4215 record"]) expect(readDefinition(q), q).toBeNull();
+  });
+  it("a rule named by the word: its card, never a team whose name holds it", async () => {
+    for (const [q, rule] of [["what does park mean", "LEAVE and PARK"], ["define major foul", "Major foul"], ["how many ranking points for a win", "Ranking points"]] as const) {
+      const a = await searchAnswer(q, { limit: 25, full: true });
+      expect(a.card?.kind, q).toBe("rule");
+      expect(a.card?.lines.map((l) => l.text).join(" | "), q).toContain(rule);
+      expect(a.hits.filter((h) => h.kind === "team"), q).toEqual([]);
+    }
+  });
+  it("Control Scout's own explainer for the word, never a team named by one of its words", async () => {
+    expect((await searchAnswer("what does inspire award mean", { limit: 25, full: true })).card?.title).toBe("The Inspire Award and FTC's awards");
+    expect((await searchAnswer("what is the tiebreaker this season", { limit: 25, full: true })).card?.title).toMatch(/^Tiebreakers/);
+  });
+  it("found nowhere: said so with no team or event, so Bruno's answer leads", async () => {
+    const a = await searchAnswer("what does dpr mean", { limit: 25, full: true });
+    expect([a.step, a.hits, a.card, a.stat]).toEqual(["recovery", [], undefined, undefined]);
+  });
+  it("switched off: the official manual, still never a team", async () => {
+    await setFlag("rulesReference", false, "test"); invalidateFlags();
+    const a = await searchAnswer("what does park mean", { limit: 25, full: true });
+    expect(a.card?.lines[0]?.href).toMatch(/^https:\/\/ftc-resources\.firstinspires\.org\//);
+    expect(a.hits).toEqual([]);
   });
 });
