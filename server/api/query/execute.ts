@@ -400,8 +400,9 @@ async function eventMatchesAnswer(p: Parsed, opts: PipelineOptions): Promise<Sea
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
   // The best matches with no penalties ("best matches in <place> with no penalties"): highlights pick standout matches
   // by more than a score, so the filter is the match finder's: the highest-scoring board, a team's highest scores.
-  // Two teams' highlights or more take no filter of a board: left to search, never answered without it.
-  if (p.intent === "highlights" && p.clean && p.teams.length > 1) return null;
+  // Two teams' highlights or more take no filter of a board, nor do the latest week's ("recent highlights": the board
+  // has no week of its own) or none asked for ("top 0"): left to search, never answered without it.
+  if (p.intent === "highlights" && p.clean && (p.teams.length > 1 || p.symbols.includes("agg:last") || (p.n != null && p.n < 1))) return null;
   if (p.intent === "highlights" && p.clean && p.teams.length <= 1) p = { ...p, intent: p.teams.length ? "highest-score" : "top-matches", symbols: [...p.symbols, "agg:max"] };
   const intent = p.intent!;
   // Rookie teams are listed only at an event (its board keeps its rookies); anywhere else the word is never dropped.

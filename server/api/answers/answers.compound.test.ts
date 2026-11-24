@@ -500,26 +500,38 @@ describe("not, without, except (search audit: general \"not\")", () => {
       // "Without penalties" on a best is its points without them, every match ranked: never a filter.
       expect((await ask("highest score without penalties at states")).stat?.title).not.toContain("either side");
       // A place, a state or a town, as team boards take one (the events held there), with the filter or without; "best
-      // matches" with it is the highest-scoring board, as highlights can't filter.
-      for (const [q, place] of [["highest scoring matches in new jersey with no penalties", "New Jersey"], ["best matches in new jersey with no penalties", "New Jersey"], ["closest matches in hillsborough with no penalties", "Hillsborough"]]) {
+      // matches" with it is the highest-scoring board, as highlights can't filter. Another town's match, in New Jersey
+      // too, the highest and the closest: the state's boards list it, the town's never.
+      await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJNWK', 'Newark Qualifier', 'Qualifier', 'Newark', 'NJ', 'USA', ?, ?, 't')", [S, `${S + 1}-02-01`, `${S + 1}-02-01`]);
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, red_pen, blue_pen, source) VALUES (?, 'USNJNWK', 'qual', 0, 1, 'Q1', NULL, 1, 400, 400, 399, 399, 0, 0, 't')", [S]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'USNJNWK', 'qual', 0, 1, 4215, 'red', 1), (?, 'USNJNWK', 'qual', 0, 1, 6980, 'blue', 1)", [S, S]);
+      clearAllCaches();
+      for (const [q, place, listed] of [["highest scoring matches in new jersey with no penalties", "New Jersey", ["Q1", "Q5"]], ["best matches in new jersey with no penalties", "New Jersey", ["Q1", "Q5"]], ["closest matches in hillsborough with no penalties", "Hillsborough", ["Q5"]]] as const) {
         const b = await ask(q);
-        expect([matchesOf(b), b.stat?.title], q).toEqual([["Q5"], expect.stringContaining(`in ${place} with no penalties either side`)]);
+        expect([matchesOf(b), b.stat?.title], q).toEqual([listed, expect.stringContaining(`in ${place} with no penalties either side`)]);
       }
+      const events = (x: Awaited<ReturnType<typeof ask>>) => JSON.stringify(x.stat?.blocks ?? []);
       for (const q of ["closest matches in hillsborough", "highest scoring matches in hillsborough"]) {
         const town = await ask(q);
-        expect([town.step, town.stat?.title, town.stat?.scope], q).toEqual(["deterministic", expect.stringContaining("in Hillsborough"), expect.arrayContaining(["Hillsborough"])]);
+        expect([town.step, town.stat?.title, town.stat?.scope, events(town).includes("Newark")], q).toEqual(["deterministic", expect.stringContaining("in Hillsborough"), expect.arrayContaining(["Hillsborough"]), false]);
       }
+      expect(events(await ask("closest matches in new jersey")).includes("Newark")).toBe(true);
       // The search box (no card): the board's reading and a link to its page, never a recovery.
       for (const q of ["closest matches in new jersey", "best matches in new jersey with no penalties", "closest matches in hillsborough"]) {
         const box = await searchAnswer(q, { limit: 12 });
         expect([box.step, box.stat, box.pages[0]?.href], q).toEqual(["deterministic", undefined, `/search?q=${encodeURIComponent(q)}`]);
       }
+      // The latest week's highlights, or none asked for, with the filter: never the season's board in their place.
+      for (const q of ["recent highlights with no penalties", "top 0 highlights with no penalties"]) expect((await ask(q)).stat?.intent, q).not.toBe("find-high");
       // Two teams' highlights with the filter: never answered without it.
       expect((await ask("4215 and 6980 highlights with no penalties")).stat?.intent).not.toBe("team-highlights");
       // A state's highest-scoring matches in the box: its high-score card, as "highest score in <state>" has.
       expect((await searchAnswer("highest scoring matches in new jersey", { limit: 12 })).card?.kind).toBe("high-scores");
     } finally {
-      try { await run("UPDATE matches SET red_pen = NULL, blue_pen = NULL WHERE season = ? AND code = 'USNJCMPP'", [S]); } finally { clearAllCaches(); }
+      try {
+        await run("UPDATE matches SET red_pen = NULL, blue_pen = NULL WHERE season = ? AND code = 'USNJCMPP'", [S]);
+        for (const table of ["match_teams", "matches", "events"]) await run(`DELETE FROM ${table} WHERE season = ? AND code = 'USNJNWK'`, [S]);
+      } finally { clearAllCaches(); }
     }
   });
 });
