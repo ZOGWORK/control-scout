@@ -43,6 +43,8 @@ describe("held-out sets", () => {
     const bare = mkdtempSync(join(tmpdir(), "heldout-"));
     writeFileSync(join(bare, "search-heldout.json"), "[]");
     expect(() => heldoutSets(bare)).toThrow("scripts/heldout/ is missing");
+    writeFileSync(join(bare, "heldout"), "");
+    expect(() => heldoutSets(bare)).toThrow("scripts/heldout/ can't be read");
     // A file that can't be read says so, never "not valid JSON".
     const gone = mkdtempSync(join(tmpdir(), "heldout-"));
     mkdirSync(join(gone, "heldout"));
