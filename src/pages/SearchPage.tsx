@@ -256,7 +256,8 @@ export default function SearchPage() {
   const [silentFor, setSilentFor] = useState(askKey);
   if (silentFor !== askKey) { setSilentFor(askKey); setBrunoSilent(null); }
   const onBruno = useCallback((k: string, said: boolean) => setBrunoSilent((s) => (said ? (s === k ? null : s) : k)), []);
-  const smallHeading = !!((brunoLeads && brunoSilent !== askKey) || namesLine) && found;
+  // Not on a failed search: no answer or names list shows there, so its heading keeps its size.
+  const smallHeading = !!((brunoLeads && brunoSilent !== askKey) || namesLine) && found && !error;
   const summary = (
     <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}

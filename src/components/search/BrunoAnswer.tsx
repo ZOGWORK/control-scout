@@ -1,8 +1,10 @@
 // Bruno's written answer on /search (server/api/searchBrunoAnswer.ts): a question ("how many times did 4215 go to
 // states") gets a sentence from Bruno AI above the results, then a bullet per record behind it, written only from the records search found
-// for it. Asked once the question has settled (not per letter) and search's results are in. His card shows only once
-// he has answered: never while he's writing (no placeholder), off, unreachable or with nothing to add, so it can't
-// appear and then vanish, and the page never waits on him. The answer is still read as a stream (lib/brunoStream.ts),
+// for it. Asked once the question has settled (not per letter) and search's results are in. Below the results his card
+// shows only once he has answered: never while he's writing (no placeholder), off, unreachable or with nothing to add,
+// so it can't appear and then vanish, and the page never waits on him. Leading the page (`lead`, v8: a question search
+// has no direct answer to) his slot is held instead, a skeleton in his card's frame from the first frame, so his answer
+// fills it in place; with nothing to add it is let go (SearchPage.bruno.test.tsx "Bruno leading the v8 page"). The answer is still read as a stream (lib/brunoStream.ts),
 // but its parts aren't shown: a checked part can still be withdrawn, or the whole answer dropped at the end.
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, Sparkles } from "lucide-react";
