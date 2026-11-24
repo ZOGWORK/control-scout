@@ -187,7 +187,9 @@ describe("a word's meaning asked (search audit Q11)", () => {
     for (const q of ["what is 4215 opr", "what is the best team in the whole state of new jersey", "4215 record"]) expect(readDefinition(q), q).toBeNull();
   });
   it("a rule named by the word: its card, never a team whose name holds it", async () => {
-    for (const [q, rule] of [["what does park mean", "LEAVE and PARK"], ["define major foul", "Major foul"], ["how many ranking points for a win", "Ranking points"]] as const) {
+    for (const [q, rule] of [["what does park mean", "LEAVE and PARK"], ["define major foul", "Major foul"], ["how many ranking points for a win", "Ranking points"],
+      // Failed search #2235.
+      ["how many points for parking", "LEAVE and PARK"]] as const) {
       const a = await searchAnswer(q, { limit: 25, full: true });
       expect(a.card?.kind, q).toBe("rule");
       expect(a.card?.lines.map((l) => l.text).join(" | "), q).toContain(rule);
