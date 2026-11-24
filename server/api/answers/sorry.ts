@@ -46,6 +46,19 @@ export async function sorryFor(q: string, a: SearchAnswer, opts: { now?: number;
     : p.named ? [p.named.typed]
     : [];
   if (!read.length && !Number.isNaN(team)) read.push(`Team ${team}`);
-  const checked = opts.answers ? await Promise.all(suggest.slice(0, 6).map(async (x) => ((await opts.answers!(x)) ? x : null))) : suggest;
-  return { understood: read, suggest: checked.filter((x): x is string => !!x).slice(0, 4) };
+  return { understood: read, suggest: opts.answers ? await firstAnswering(suggest, opts.answers) : suggest.slice(0, SHOWN) };
+}
+
+/** At most this many suggestions are shown, of the first TRIED. */
+const SHOWN = 4, TRIED = 6;
+
+/** The first SHOWN of `suggest`'s first TRIED that answer, in order: checked one at a time, stopping once SHOWN do (all
+ *  six were run at once before, each a whole search, though at most four are ever shown: the search audit's S5). */
+export async function firstAnswering(suggest: string[], answers: (q: string) => Promise<boolean>): Promise<string[]> {
+  const out: string[] = [];
+  for (const x of suggest.slice(0, TRIED)) {
+    if (out.length >= SHOWN) break;
+    if (await answers(x)) out.push(x);
+  }
+  return out;
 }
