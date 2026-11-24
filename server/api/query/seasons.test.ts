@@ -33,8 +33,9 @@ beforeAll(async () => {
   for (const [season, list] of Object.entries(order)) {
     for (const [i, n] of list.entries()) {
       await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [season, n]);
-      await run(`INSERT INTO team_season_stats (season, team, matches, wins, losses, ties, opr_np, rank_np, ranked_teams)
-        VALUES (?, ?, 6, 3, 3, 0, ?, ?, 10)`, [season, n, (Number(season) - 2000) * 4 - i, i + 1]);
+      // Auto ranks run the other way round.
+      await run(`INSERT INTO team_season_stats (season, team, matches, wins, losses, ties, opr_np, rank_np, opr_auto, rank_auto, ranked_teams)
+        VALUES (?, ?, 6, 3, 3, 0, ?, ?, ?, ?, 10)`, [season, n, (Number(season) - 2000) * 4 - i, i + 1, i + 1, 10 - i]);
     }
   }
   await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USMDQ1', 'Maryland Qualifier', 'Qualifier', 'Town', 'MD', 'USA', '2026-02-01', '2026-02-01', 't')");
@@ -61,6 +62,9 @@ describe("a run of seasons", () => {
     expect(s?.headline).toMatchObject({ value: "Top 10%", label: "Best season by OPR rank: 2024–25, #1 of 10" });
     expect(table(s).map((c) => [c.season, c.rank, c.share])).toEqual([["2023–24", "#2 of 10", "Top 20%"], ["2024–25", "#1 of 10", "Top 10%"], ["2025–26", "#3 of 10", "Top 30%"]]);
     expect(table(await stat("30402 last 2 seasons")).map((c) => c.season)).toEqual(["2024–25", "2025–26"]);
+    // "Auto OPR" is the auto phase's own rank; "between … and …" is one run, never two searches joined by "and".
+    const auto = await stat("30402 auto opr between 2023 and 2025");
+    expect([auto?.title, table(auto).map((c) => c.rank)]).toEqual(["Bots 30402 (30402): Auto OPR rank each season, 2023–24 to 2025–26", ["#9 of 10", "#10 of 10", "#8 of 10"]]);
   });
   it("the best teams over a run: by their average share of each season's ranked teams, in a place too", async () => {
     const s = await stat("best teams 2023-24 to 2025-26");

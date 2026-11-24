@@ -34,17 +34,23 @@ async function seasonsOf(range: NonNullable<NonNullable<Parsed["time"]>["range"]
 /** "Top 3%": a rank as a share of the season's ranked teams, never 0. */
 const topShare = (rank: number, of: number) => { const p = (100 * rank) / of; return `Top ${p < 1 ? Math.max(0.1, Math.ceil(p * 10) / 10) : Math.ceil(p)}%`; };
 
+/** What a run of seasons asks: one team's run ("team"), the best teams over it ("board"), or null when it asks
+ *  something else of the run. `stat`: the board stat said (null: none). */
+export function seasonsAsk(p: Parsed, stat: string | null): "team" | "board" | null {
+  if (p.time?.kind !== "seasons" || !p.time.range || p.event || p.eventKind || p.worlds || p.states || p.award || p.alliance || p.matchNumber != null || p.level || p.leftover.length) return null;
+  if (!RANKED[stat ?? "opr"]) return null;
+  if (!p.teams.length && (p.intent === "leaderboard" || p.symbols.includes("thing:team"))) return "board";
+  if (p.teams.length !== 1) return null;
+  // A team's own run asks its stat or nothing else ("4215 last 3 seasons"), never a match or a record question.
+  return p.symbols.every((s) => s.startsWith("metric:") || s.startsWith("prep:") || s === "thing:season") ? "team" : null;
+}
+
 /** What a run of seasons asks, answered; null when the question asks something else of the run (left to search's
  *  other readers). `stat`: the board stat said (null: none). */
 export async function seasonsAnswer(p: Parsed, stat: string | null, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const range = p.time?.kind === "seasons" ? p.time.range : undefined;
-  if (!range || p.event || p.eventKind || p.worlds || p.states || p.award || p.alliance || p.matchNumber != null || p.level || p.leftover.length) return null;
-  const st = RANKED[stat ?? "opr"];
-  if (!st) return null;
-  const board = !p.teams.length && (p.intent === "leaderboard" || p.symbols.includes("thing:team"));
-  if (p.teams.length !== 1 && !board) return null;
-  // A team's own run asks its stat or nothing else ("4215 last 3 seasons"), never a match or a record question.
-  if (p.teams.length === 1 && p.intent && !["team-opr", "team-stat", "leaderboard"].includes(p.intent) && p.symbols.some((s) => !s.startsWith("metric:") && !s.startsWith("prep:"))) return null;
+  const ask = seasonsAsk(p, stat);
+  if (!ask) return null;
+  const st = RANKED[stat ?? "opr"], board = ask === "board";
   const run = p.time!.label;
   const label = board ? `Best teams by ${st.label}${p.place && p.place.kind !== "city" ? ` in ${p.place.name}` : ""}, ${run}` : `${p.teams[0].name ?? `Team ${p.teams[0].number}`} (${p.teams[0].number}): ${st.label} rank each season, ${run}`;
   const read: SearchAnswer = {
@@ -53,7 +59,7 @@ export async function seasonsAnswer(p: Parsed, stat: string | null, opts: { full
     intent: { kind: board ? "stat-seasons-board" : "stat-team-seasons", pattern: board ? "best teams [seasons]" : "[team] [stat] [seasons]", met: true, understood: [label] },
   };
   if (!opts.full) return { ...read, pages: [{ title: label, href: `/search?q=${encodeURIComponent(p.q)}` }, ...opts.pages] };
-  const seasons = await seasonsOf(range);
+  const seasons = await seasonsOf(p.time!.range!);
   const stat0: Omit<StatAnswer, "blocks"> = {
     family: "leaderboard", intent: board ? "seasons-board" : "team-seasons", title: label,
     scope: [...(seasons.length ? [`${seasonLabel(seasons[0])} to ${seasonLabel(seasons[seasons.length - 1])}`] : [run])],
