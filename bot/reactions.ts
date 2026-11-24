@@ -65,9 +65,9 @@ export async function firstDown(messageId: string): Promise<boolean> {
  *  `worth` claims the answer while the note is being sent, so two 👎 arriving together say it once; `said` keeps it, and
  *  `unsent` owes it — a channel that couldn't be posted in, or a send Discord refused, leaves the note owed rather than
  *  spent, and the next 👎 on that answer tries again whatever its count is by then (the second person's 👎 takes the
- *  count past 1, so the count alone can't be what decides a retry). At most `max` answers are remembered: past that the
- *  oldest is forgotten, so a vote taken off and added again on one of them can say it once more — a repeat, never a
- *  missing one. */
+ *  count past 1, so the count alone can't be what decides a retry). Owed notes are kept until they are said: they are
+ *  the ones that must not be lost. The answers already told are capped at `max`, past which the oldest is forgotten and
+ *  a vote taken off and added again on it can say the note once more — a repeat, never a missing one. */
 export function downNotes(isFirst: (messageId: string) => Promise<boolean> = firstDown, max = 500) {
   const told = new Set<string>();
   const claimed = new Set<string>();
@@ -77,7 +77,13 @@ export function downNotes(isFirst: (messageId: string) => Promise<boolean> = fir
      *  vote is the one that made the count 1. */
     async worth(messageId: string): Promise<boolean> {
       if (told.has(messageId) || claimed.has(messageId)) return false;
-      if (!owed.has(messageId) && !(await isFirst(messageId))) return false;
+      if (!owed.has(messageId)) {
+        // A read that fails says nothing rather than owing a note: the next 👎 tries the read again, and no message is
+        // claimed for a note it may not be due.
+        try {
+          if (!(await isFirst(messageId))) return false;
+        } catch { return false; }
+      }
       // Two votes at once can both get here: only the first claims it.
       if (told.has(messageId) || claimed.has(messageId)) return false;
       claimed.add(messageId);
@@ -90,11 +96,11 @@ export function downNotes(isFirst: (messageId: string) => Promise<boolean> = fir
       told.add(messageId);
       if (told.size > max) told.delete(told.values().next().value!);
     },
-    /** It couldn't be said: the next 👎 on this answer tries again, whatever its count is by then. */
+    /** It couldn't be said: the next 👎 on this answer tries again, whatever its count is by then. Kept until it is
+     *  said — only a note that reaches a channel leaves `owed`. */
     unsent(messageId: string): void {
       claimed.delete(messageId);
       owed.add(messageId);
-      if (owed.size > max) owed.delete(owed.values().next().value!);
     },
   };
 }
