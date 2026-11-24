@@ -2,10 +2,13 @@
 // about anything, robots or not ("minor", "pizza", "cheap", "weather"). Search never corrects one of these into a
 // word that only a team's name has ("minor" is no typo of team Milnor, "pizza" none of team PITZZA): a word typed
 // right is a word, unless the query also says it means a team there ("team pizza"). A fix to one of search's own
-// words is still made ("scare" may be "score"). Data only: no team, event or place is named here, and nothing is read
+// words is still made ("scared" may be "scored"). Month and day names are here too ("june" is no typo of
+// the city Pune). Data only: no team, event or place is named here, and nothing is read
 // from this list but whether a word is in it.
 
 const WORDS = `
+january february march april june july august september october november december
+monday tuesday wednesday thursday friday saturday sunday
 able about above absent abroad absolute absolutely accept accepted access accident account accurate across act acting
 action active activity actor actual adapt added adding address adult advance advice affect afford afraid afternoon
 again against agent agree agreed ahead airport alarm album alive allow allowed almost alone along aloud already
