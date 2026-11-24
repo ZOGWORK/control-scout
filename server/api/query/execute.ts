@@ -84,6 +84,12 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   const by = comparedStat(p);
   if (by) {
     const season = p.time?.kind === "season" ? (p.time.relative === "last" ? lastSeason() : p.time.season ?? null) : null;
+    // Two teams by a phase or by reliability: those side-by-side cards, as "12345 auto vs 67890" has them.
+    if (p.teams.length === 2 && (by === "auto" || by === "teleop" || by === "endgame" || by === "reliability")) {
+      const scope = { season, latest: false, ever: false, championship: false, states: false, level: null, alliance: null, at: null };
+      const [a, b] = p.teams.map((t) => String(t.number));
+      return twoTeamSearch(p.q, by === "reliability" ? { id: "reliability-vs", scope, a, b } : { id: "phase-vs", phase: by, scope, a, b }, opts.resolve, opts);
+    }
     return teamSetSearch(p.q, { teams: p.teams.map((t) => t.number), season, stat: by }, opts.resolve, opts);
   }
   // An event's matches and nothing else asked ("<event> matches", "matches at <event>"): its matches in the order played,
