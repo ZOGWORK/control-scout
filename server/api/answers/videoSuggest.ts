@@ -8,7 +8,7 @@ import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import { all } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { OFFICIAL_TYPES } from "./clauses.js";
-import { CURRENT_SEASON } from "../../data/seasons.js";
+import { currentSeason } from "./season.js";
 import { seasonClipKeys, seasonVideoKinds } from "../../videos/recordings.js";
 import { hasWatchWord } from "../searchAnswer.js";
 import { teamMatches } from "./matchSet.js";
@@ -66,7 +66,7 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now(), typosOf
     // Each read on its own: one that fails drops its own questions, never the others'.
     const ms = await teamMatches(team).catch(() => []);
     let mine = 0;
-    for (let s = CURRENT_SEASON; s > CURRENT_SEASON - SEASONS_BACK && mine < 2; s--) {
+    for (let s = currentSeason(); s > currentSeason() - SEASONS_BACK && mine < 2; s--) {
       const theirs = ms.filter((m) => m.season === s);
       if (!theirs.length) continue;
       const keys = await seasonClipKeys(s, now).catch(() => new Set<string>());
@@ -83,7 +83,7 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now(), typosOf
   const at = refs[0] ?? null;
   type Ref = NonNullable<typeof at>;
   const near: [number, Ref][] = at ? [[at.season, at], [at.season - 1, at]] : [];
-  const tries: [number, Ref | null][] = [...near, [CURRENT_SEASON, null], [CURRENT_SEASON - 1, null]];
+  const tries: [number, Ref | null][] = [...near, [currentSeason(), null], [currentSeason() - 1, null]];
   for (const [s, from] of tries) {
     // The latest seasons' only to make three when fewer were found near the answer's own.
     if (out.length >= TRY_MAX || (!from && at && out.length >= own + OFFER_MAX)) break;
