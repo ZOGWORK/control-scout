@@ -36,8 +36,13 @@ describe("V8TeamAnswer fact tiles (issue #2014)", () => {
       expect(t.querySelector("dd")!.className).toContain(c.text);
       expect(t.className).not.toMatch(/\bbg-/); // a bracket and words, never a filled block
     }
-    // The record's wins in green, its losses and ties stay muted.
+    // The record's wins green, its losses red, its ties grey (the owner, 11-24).
     expect(tiles[0].querySelector("[data-record-text] b")!.className).toContain(V8_SOFT.green.text);
+    const losses = tiles[0].querySelector("[data-record-losses]")!;
+    expect(losses.textContent).toBe("5");
+    expect(losses.className).toContain(V8_SOFT.red.text);
+    expect(losses.parentElement!.className).toContain("text-muted-foreground"); // the ties' grey
+    expect(losses.parentElement!.textContent).toBe("-5-0");
   });
 
   it("tints the last match's own score by its result", () => {
