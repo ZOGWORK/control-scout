@@ -101,7 +101,19 @@ describe("a question about something search holds nothing on (#2234, #2227, #222
     expect(chatKind("who has the best auto in texas")).toBeNull();
     expect(chatKind("4215 events this weekend")).toBeNull();
     expect(chatKind("teams in seattle")).toBeNull();
+    expect(chatKind("best drivers in texas")).toBeNull();
     expect((await full("hypnotic robotics")).chat).toBeUndefined();
+  });
+  it("is off-topic joined with and/or too, and never with an unread word before its place", () => {
+    expect(chatKind("best pizza and coffee in boston")).toBe("off-topic");
+    expect(chatKind("rain or snow in denver tomorrow")).toBe("off-topic");
+    expect(chatKind("qzv stuff in denver")).toBeNull();
+    expect(chatKind("qzv nothing at all")).toBeNull();
+  });
+  it("leaves a reaction or a question to the site what it was", () => {
+    expect(chatKind("lol funny")).toBe("reaction");
+    expect(chatKind("thanks that was helpful")).toBe("reaction");
+    expect(chatKind("who made you so smart")).toBe("meta");
   });
 });
 
