@@ -625,9 +625,10 @@ describe("failure patterns", () => {
   it("one pattern for every team that fails the same way, the unread word kept beside it", async () => {
     const { failurePattern } = await import("./pattern");
     const a = await failurePattern("4215 opr scorecard", NOW), b = await failurePattern("hypnotic robotics opr scorecard", NOW), c = await failurePattern("24033 opr scoresheet", NOW);
-    expect(a).toEqual({ key: "intent: team opr · slots: team · not read: 1 word", missed: ["scorecard"] });
+    expect(a).toEqual({ key: "intent: team opr · slots: team · not read: scorecard", missed: ["scorecard"], read: { intent: "team-opr", complete: false }, legacy: "intent: team opr · slots: team · not read: 1 word" });
     expect(b.key).toBe(a.key);
-    expect(c).toEqual({ key: a.key, missed: ["scoresheet"] });
+    // Another unread word is another gap (audit M8): its own pattern, never lumped with this one.
+    expect(c).toMatchObject({ key: "intent: team opr · slots: team · not read: scoresheet", missed: ["scoresheet"] });
     // No name or number ever in the pattern.
     expect((await failurePattern("6980 vs 17713 zzz", NOW)).key).not.toMatch(/6980|17713/);
     // With no intent read, what it did read keeps different questions apart.

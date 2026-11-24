@@ -288,7 +288,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // "When is <event>": an event's editions with the date of the one meant leading (./answers/whenEvent.ts).
   const told = carryOutcome(read, whenEventAnswer(String(raw ?? ""), read, opts.now ?? Date.now()));
   // The cut said on whichever answer is given: this one, or one said in its place (chat, which town).
-  const withCut = (x: SearchAnswer): SearchAnswer => (cut && x.understood ? carryOutcome(x, { ...x, understood: { ...x.understood, unread: [...(x.understood.unread ?? []), cut] } }) : x);
+  const withCut = (x: SearchAnswer): SearchAnswer => (cut && x.understood && !x.understood.unread?.includes(cut) ? carryOutcome(x, { ...x, understood: { ...x.understood, unread: [...(x.understood.unread ?? []), cut] } }) : x);
   const a = withCut(told);
   // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
   // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
@@ -1052,7 +1052,14 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const clauses = opts.intents === false || opts.clause ? null : await readClauses(opts.typed ?? q, opts.now, prefer);
   const split = async () => {
     if (!clauses) return null;
-    const answers = await Promise.all(clauses.parts.map((part) => searchAnswer(part, { ...opts, typed: undefined, full: true, learn: false, clause: true })));
+    const ask = (part: string) => searchAnswer(part, { ...opts, typed: undefined, full: true, learn: false, clause: true });
+    // A part given the first part's team that has nothing there ("<team> awards and highest score in <place>", the team
+    // never played there): the part as typed, the place's own answer, its card saying so.
+    const answers = await Promise.all(clauses.parts.map(async (part, i) => {
+      const a = await ask(part);
+      const alone = clauses.alone[i];
+      return isCard(a) || !alone ? a : ask(alone);
+    }));
     return answers.every(isCard) ? clausesAnswer(q, clauses.parts, answers, { full: !!opts.full, pages: pagesFor(q) }) : null;
   };
   const first = clauses?.apart ? await split() : null;

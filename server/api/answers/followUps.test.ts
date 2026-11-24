@@ -442,6 +442,10 @@ describe("one reading for every list, and a long question's cut said", () => {
       const drop = await pageAnswer(q, 15, new Set());
       expect({ ...drop, hits: [] }, q).toEqual({ ...page, hits: [] });
       expect(drop.hits, q).toEqual(firstCards(page.hits, 15));
+      // The same cut each time, with the search's outcome on it (Loopy on #2263).
+      expect(await pageAnswer(q, 15, new Set()), q).toBe(drop);
+      expect(outcomeTrace(drop), q).toEqual(outcomeTrace(page));
+      expect(outcomeTrace(drop), q).not.toBeNull();
     }
   });
   it("words past the length search reads are said, never dropped", async () => {

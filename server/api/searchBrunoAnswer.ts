@@ -10,7 +10,7 @@
 import type { SearchAnswer, SearchCardLine, SearchHit } from "../../src/shared/api.js";
 import type { LeaderboardRow, StatAnswer, StatBlock, StatLink } from "../../src/shared/searchStat.js";
 import { seasonLabel } from "../../src/shared/format.js";
-import { isBrunoQuestion } from "../../src/shared/search.js";
+import { SEARCH_PAGE_LIMIT, isBrunoQuestion } from "../../src/shared/search.js";
 import { brunoAvailable, brunoSearchAnswer, brunoSearchAnswerStream } from "../auth/controlPoint.js";
 import { all, get } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
@@ -18,6 +18,7 @@ import { isEnabled } from "../flags.js";
 import { answerVideo } from "./answers/video.js";
 import { normalize } from "./fuzzy.js";
 import { cleanQuery, searchAnswer, type AnswerOptions } from "./searchAnswer.js";
+import { pageAnswer } from "./answers/followUps.js";
 import { chatWords, pointsBack } from "./query/chat.js";
 import { mineAnswer } from "./searchMine.js";
 import { pickedQuery, pickedSeasonOf } from "./searchPageAnswer.js";
@@ -257,7 +258,7 @@ export async function brunoAnswer(raw: string, opts: BrunoOptions = {}, now = Da
     // Streamed only while a page watches it; the model call is the same either way.
     const show: BrunoPreview = (p) => { f.preview = p; for (const w of f.watchers) w(p); };
     // Only its own entry: a reset while it ran may have let a newer ask take the key.
-    f.answer = ask(q, { ...opts, after: after ?? undefined, afterSeason: after ? pickedSeasonOf(opts.afterSeason) : null }, k, now, onPreview ? show : undefined).finally(() => { if (pending.get(k) === f) pending.delete(k); f.watchers.clear(); });
+    f.answer = ask(q, raw.trim(), { ...opts, after: after ?? undefined, afterSeason: after ? pickedSeasonOf(opts.afterSeason) : null }, k, now, onPreview ? show : undefined).finally(() => { if (pending.get(k) === f) pending.delete(k); f.watchers.clear(); });
     pending.set(k, f);
     flight = f;
   } else if (onPreview && flight.preview) onPreview(flight.preview);
@@ -327,7 +328,8 @@ export function previewOf(raw: string, facts: string[], question: string, teams?
   return grounded([shown.text, ...shown.points].join(" "), facts, question, teams) ? shown : undefined;
 }
 
-async function ask(q: string, opts: BrunoOptions, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
+/** `asked`: the words as the page asked /api/search for them (its kept answer is keyed by them, untouched). */
+async function ask(q: string, asked: string, opts: BrunoOptions, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
   const { after, afterSeason, afterMy, ...search } = opts;
   // A follow-up is answered from the search it points back at: that search's facts, said as its. A failed read of
   // them (a database error) is no answer, as a failed model call is, never an error to the page; not cached.
@@ -343,7 +345,11 @@ async function ask(q: string, opts: BrunoOptions, k: string, now: number, show?:
       facts = [`This question follows up the earlier search "${earlier}": the facts below are that search's answer.`, ...(await answerFacts(mine ?? base))];
       teams = answerTeams(mine ?? base);
     } else {
-      const found = await read(q);
+      // The page's own kept answer (pageAnswer: the one /api/search?answer=1 just gave for these words and preferred
+      // teams), not a new search of his own. The Discord bot's unlearned search (`learn: false`) still runs its own.
+      const found = search.learn === false
+        ? await read(q)
+        : await pageAnswer(asked, search.limit ?? SEARCH_PAGE_LIMIT, search.prefer ?? new Set());
       facts = await answerFacts(found);
       teams = answerTeams(found);
     }
