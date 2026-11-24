@@ -16,6 +16,7 @@ import { myTeamOf } from "../src/shared/searchMine.js";
 import { pickedQuery, pickedSeasonOf } from "./api/searchPageAnswer.js";
 import { followUpsWithin, holdChecks, pageAnswer } from "./api/answers/followUps.js";
 import { finishPageAnswer, typedPageAnswer } from "./api/searchPage.js";
+import { noteAsked } from "./api/searchWarm.js";
 import { withVideoAlternatives } from "./api/answers/videoSuggest.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { refine } from "./api/searchBruno.js";
@@ -454,7 +455,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // The same query asked again within a minute (a retry, another visitor) is the answer already worked out
       // (server/api/searchReads.ts); "my" and "our" with no team named: the visitor's My team, sent as ?my=
       // (server/api/searchMine.ts). The event pack ships these same answers (server/api/searchPage.ts).
-      const ans = await typedPageAnswer(q, limit, prefer, myTeamOf(req.query.my));
+      const my = myTeamOf(req.query.my);
+      const ans = await typedPageAnswer(q, limit, prefer, my);
       const answered = performance.now();
       // The results page (?bruno=1) asks Bruno AI next whenever this answer isn't a direct one (a card or stat answer,
       // not a guess: src/pages/SearchPage.tsx `answered`): his answer starts now, so the page's own ask
@@ -466,6 +468,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
         const raw = String(req.query.q ?? "");
         if (isBrunoQuestion(raw.trim().slice(0, 200)) && brunoBudget.take(req)) void brunoAnswer(raw, { prefer, limit: SEARCH_PAGE_LIMIT }).catch(() => {});
       }
+      // An answer any visitor shares: counted, so the next process makes it before it answers (./api/searchWarm.ts).
+      if (!prefer.size && my == null) noteAsked(q, limit);
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
       const at = Date.now();
