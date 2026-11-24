@@ -11,7 +11,7 @@ import { all, get } from "../../db.js";
 import { latestStoredSeason, noEventsStat, withoutYear } from "../answers/noEventsYet.js";
 import { intentDefaults, readLeaderboard, scopeFits, type IntentId, type LeaderboardQuestion, type ReadScope, type StatQuestion, type TwoTeamId } from "../answers/read.js";
 import { allianceForecast, predictionSeasonOf } from "../answers/families/predict.js";
-import { CURRENT_SEASON, isLegacy } from "../../data/seasons.js";
+import { isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, teamSetSearch, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { currentSeason, defaultSeason, lastSeason, seasonWhy, teamSeason } from "../answers/season.js";
@@ -394,7 +394,7 @@ function comparedStat(p: Parsed): string | null {
 /** The season an advancement card is for: its scope's season chip, else the current one. */
 const scope0 = (stat: StatAnswer) => {
   const m = stat.scope.map((x) => /^(\d{4})–\d{2}$/.exec(x)).find(Boolean);
-  return m ? Number(m[1]) : CURRENT_SEASON;
+  return m ? Number(m[1]) : currentSeason();
 };
 
 /** An advancement-odds card as search's answer: the team's row beside it, Predict linked from the card's own button. */
