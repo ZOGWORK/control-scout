@@ -1,5 +1,6 @@
 // HTTP API. Browsing, search and predictions need no account, ever; only
 // /api/me/* (personal data) does.
+import type { ServerResponse } from "node:http";
 import express, { type NextFunction, type Request, type Response } from "express";
 import compression from "compression";
 import { existsSync } from "node:fs";
@@ -22,7 +23,7 @@ import { relatedPage } from "./api/answers/relatedPage.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { SEARCH_PAGE_LIMIT, preferOf } from "../src/shared/search.js";
-import { searchTiming } from "./api/searchTiming.js";
+import { searchTiming, slowSearchLine } from "./api/searchTiming.js";
 
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
 // ?prefer= (src/shared/search.ts preferOf): read the same way by the event pack with no signal.
@@ -146,6 +147,18 @@ import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, Sear
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const bad = (msg: string) => new HttpError(400, msg);
+/** An error answer is never kept, by the browser or the edge: its Cache-Control becomes no-store as it's sent, and a
+ *  Cloudflare-CDN-Cache-Control a route set before failing is dropped. */
+export function errorsNeverKept(res: ServerResponse): void {
+  const writeHead = res.writeHead;
+  res.writeHead = function (this: ServerResponse, ...a: Parameters<typeof writeHead>) {
+    if (this.statusCode >= 400 || (typeof a[0] === "number" && a[0] >= 400)) { this.setHeader("Cache-Control", "no-store"); this.removeHeader("Cloudflare-CDN-Cache-Control"); }
+    return writeHead.apply(this, a);
+  } as typeof writeHead;
+}
+/** Follow-ups and related searches: the same for everyone asking the same address, kept a minute (as the server keeps
+ *  them), then served stale for up to 5 minutes while a fresh copy is asked for. */
+const FOLLOW_CACHE = "public, max-age=60, stale-while-revalidate=300";
 
 /** Wrap an async handler: errors become JSON responses. */
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
@@ -337,11 +350,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   api.use((req, res, next) => {
     const personal = /^\/(me|auth|health|stats|reports|scout|owner|inbox|digest|videos)(\/|$)/i.test(req.path);
     res.setHeader("Cache-Control", req.method === "GET" && !personal ? "public, max-age=60, stale-while-revalidate=300" : "no-store");
-    const writeHead = res.writeHead;
-    res.writeHead = function (this: typeof res, ...a: Parameters<typeof writeHead>) {
-      if (this.statusCode >= 400 || (typeof a[0] === "number" && a[0] >= 400)) this.setHeader("Cache-Control", "no-store");
-      return writeHead.apply(this, a);
-    } as typeof writeHead;
+    errorsNeverKept(res);
     next();
   });
 
@@ -478,7 +487,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // Checked for this viewer (a video they added may be what plays): questions offered to one viewer are never cached.
       if (viewer?.userId != null && offered !== body) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
-      res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
+      const parts = { answer: answered - started, extras: performance.now() - answered };
+      res.setHeader("Server-Timing", searchTiming(parts));
+      // Over a second in all: one journal line with its parts (searchTiming.ts slowSearchLine).
+      const slow = slowSearchLine("answer", parts, q);
+      if (slow) console.log(slow);
       // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
       // none (src/shared/api.ts): the page then says nothing about video.
       return { ...offered, hits: body.hits, ...(body.video !== undefined ? { video: body.video } : {}) };
@@ -498,9 +511,16 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     // waited for past FOLLOW_BUDGET_MS: what's checked by then, marked partial, and the page asks again.
     const started = performance.now();
     const follow = await followUpsWithin(asked, prefer);
-    res.setHeader("Server-Timing", searchTiming({ follow: performance.now() - started }));
-    // A partial set is never cached: the next ask gets the whole one.
-    res.setHeader("Cache-Control", follow.partial ? "no-store" : "public, max-age=60");
+    const took = { follow: performance.now() - started };
+    res.setHeader("Server-Timing", searchTiming(took));
+    const slow = slowSearchLine("follow", took, asked);
+    if (slow) console.log(slow);
+    // The same for everyone who asks these words (no account, no cookie: the preferred teams are in the address), so
+    // Cloudflare may keep it as the browser does, and serve a stale copy for a few minutes while it asks again. Its
+    // edge only stores /api/ answers a Cache Rule makes eligible (docs/cloudflare-cache.md). A partial set is never
+    // kept, by either: the next ask gets the whole one.
+    if (follow.partial) res.setHeader("Cache-Control", "no-store");
+    else { res.setHeader("Cache-Control", FOLLOW_CACHE); res.setHeader("Cloudflare-CDN-Cache-Control", FOLLOW_CACHE); }
     // Every valid pick is echoed (the app matches it), with the query as asked for the related searches page.
     const season = q.trim() ? pickedSeasonOf(req.query.season) : null;
     return { q, ...(season != null ? { season, asked } : {}), ...follow };
@@ -509,8 +529,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   // The related searches page (/related-searches, server/api/answers/relatedPage.ts): the same follow-ups, grouped.
   api.get("/search/related", limiter(30), h(async (req, res) => {
     await ensureSearchIndex(rebuildSearch);
-    res.setHeader("Cache-Control", "public, max-age=60");
-    return relatedPage(String(req.query.q ?? ""), preferOf(req.query.prefer));
+    const page = await relatedPage(String(req.query.q ?? ""), preferOf(req.query.prefer));
+    // Only once it's made: a failure never carries the edge's cache headers.
+    res.setHeader("Cache-Control", FOLLOW_CACHE);
+    res.setHeader("Cloudflare-CDN-Cache-Control", FOLLOW_CACHE);
+    return page;
   }));
 
   // Step 3 of search's chain (server/api/searchBruno.ts): asked by the app after the first answer is on screen,
