@@ -1,6 +1,6 @@
 [
-  {"q":"closest matches in ohio with no penalties","train":true},
-  {"q":"lowest scoring matches in california","train":true},
-  {"q":"best matches in michigan with no penalties","train":true},
-  {"q":"highest scoring matches in grand rapids","train":true}
+  "closest matches in ohio with no penalties",
+  "lowest scoring matches in california",
+  "best matches in michigan with no penalties",
+  "highest scoring matches in grand rapids"
 ]

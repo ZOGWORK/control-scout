@@ -22,9 +22,9 @@
 //   npm run search:heldout -- --min 80        exit 1 below an 80% pass rate (CI, .github/workflows/ci.yml)
 //   npm run search:heldout -- --split         move held-out questions found in tests or code to the training set
 //   DATABASE_URL=file:.data/scout.db npm run search:heldout
-import { readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { heldoutSets, type HeldOut, type OwnQuestion } from "./heldoutSets.js";
+import { heldoutSets, type HeldOut } from "./heldoutSets.js";
 import { bootSearch, localServer } from "./search-local.js";
 import { gradeWant, wantSeason } from "./search-heldout-grade.js";
 import { leaks } from "./search-heldout-leaks.js";
@@ -42,24 +42,21 @@ const FILE = join(import.meta.dirname, "search-heldout.json");
 const all = heldoutSets();
 
 if (process.argv.includes("--split")) {
-  // Marked where each question lives: "train": true on a shared entry, { "q", "train": true } in a set's own file.
+  // "train" lives in the shared file only: a set's own file (scripts/heldout/) is its questions alone, so one of those
+  // found in tests or code is named, to reword the test, never left held out with no word said.
   const found = leaks(all.filter((x) => !x.train).map((x) => x.q));
-  const writes: [string, string][] = [];
   const shared = JSON.parse(readFileSync(FILE, "utf8")) as Q[];
   const out = shared.map((x) => (!x.train && found.has(x.q) ? { ...x, train: true } : x));
-  if (out.some((x, i) => x !== shared[i])) writes.push([FILE, `[\n${out.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`]);
-  const dir = join(import.meta.dirname, "heldout");
-  for (const f of readdirSync(dir).sort()) {
-    const qs = JSON.parse(readFileSync(join(dir, f), "utf8")) as OwnQuestion[];
-    const marked = qs.map((q) => (typeof q === "string" && found.has(q) ? { q, train: true as const } : q));
-    if (marked.some((q, i) => q !== qs[i])) writes.push([join(dir, f), `[\n${marked.map((q) => `  ${JSON.stringify(q)}`).join(",\n")}\n]\n`]);
+  // Written whole beside it, then renamed over it: the file is the old one or the new one, never half of either.
+  writeFileSync(`${FILE}.tmp`, `[\n${out.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`);
+  renameSync(`${FILE}.tmp`, FILE);
+  const trained = out.filter((x) => x.train).length;
+  console.log(`moved ${out.filter((x, i) => x.train && !shared[i].train).length} to the training set (now ${trained}); held out: ${all.length - trained}`);
+  const own = all.filter((x) => found.has(x.q) && !shared.some((y) => y.set === x.set && y.n === x.n));
+  if (own.length) {
+    console.log(`in a set's own file, so reword the test or code that has it:\n${own.map((x) => `  scripts/heldout/${x.set}.json #${x.n}: ${x.q}`).join("\n")}`);
+    process.exit(1);
   }
-  // Each written whole beside it, then renamed over it, every one written before any is renamed: a file is the old one
-  // or the new one, never half of either, and a split stopped part way is finished by running it again.
-  for (const [path, text] of writes) writeFileSync(`${path}.tmp`, text);
-  for (const [path] of writes) renameSync(`${path}.tmp`, path);
-  const now = heldoutSets(), moved = now.filter((x) => x.train).length - all.filter((x) => x.train).length;
-  console.log(`moved ${moved} to the training set (now ${now.filter((x) => x.train).length}); held out: ${now.filter((x) => !x.train).length}`);
   process.exit(0);
 }
 const sets = all.filter((x) => !!x.train === TRAIN).filter((x) => (!SET || x.set === SET) && (!ONLY || x.q.toLowerCase().includes(ONLY)));

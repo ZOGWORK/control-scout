@@ -12,7 +12,7 @@ import { join, relative } from "node:path";
 export const ROOT = join(import.meta.dirname, "..");
 export const SCANNED = ["server", "src", "scripts", "packages", "bot"];
 /** Eval lists: questions to ask, never read by search. */
-export const EVAL_LISTS = [/^scripts\/search-heldout\.json$/, /^scripts\/search-signoff\/sets\//, /^scripts\/search-bench\//];
+export const EVAL_LISTS = [/^scripts\/search-heldout\.json$/, /^scripts\/heldout\//,/^scripts\/search-signoff\/sets\//, /^scripts\/search-bench\//];
 const EXT = /\.(?:ts|tsx|mts|cts|js|mjs|cjs|json|txt)$/;
 
 /** Every scanned file's text, lower case, every run of whitespace one space (a question split across lines in a test

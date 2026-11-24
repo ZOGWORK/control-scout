@@ -317,7 +317,8 @@ questions in order: a new set is a new file, never an edit of a shared list, so 
 
 **Held out means held out** (audit M2, 24 Nov). A question that appears word for word in the repo's tests or code
 was seen while building search, so it is in the training set (marked `"train": true` in
-`scripts/search-heldout.json`, `{ "q", "train": true }` in a set's own file; 355 questions), not the held-out set (281). `scripts/search-heldout.test.ts` fails when a held-out question
+`scripts/search-heldout.json`, 339 questions), not the held-out set (297, the sets in `scripts/heldout/` among them:
+one of those found in a test is reworded there, `--split` names it). `scripts/search-heldout.test.ts` fails when a held-out question
 gets into a test or code (`scripts/search-heldout-leaks.ts` says where it looks); `--split` marks such questions.
 `--train` runs the training set.
 
