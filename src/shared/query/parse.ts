@@ -40,6 +40,9 @@ export interface Parsed {
   /** Two regions or countries joined ("nj vs texas", "nj or ny"), in the order typed; `place` is the one read first.
    *  `join`: "vs" for a comparison ("vs", "versus", "against", "compared to"), "or" for both together ("or", "and"). */
   places?: { list: (Place & { typed: string })[]; join: "vs" | "or"; said: string };
+  /** A second region or country said as where the teams played ("texas teams at michigan events", "teams from ohio
+   *  who played in michigan"): `place` is the teams' home, this the place of their events. */
+  eventPlace?: Place & { typed: string };
   time: TimeSlot | null;
   level: "qual" | "playoff" | null;
   /** The finals only ("closest finals match"), a playoff level too. */
@@ -562,6 +565,44 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     }
   }
 
+  // 2d. A second region or country said as where the teams played, beside the first as their home: "<place> teams at
+  // <place> events", "teams from <place> at events in <place>", "… who played in <place>". The words saying so are
+  // read here ("played" is never a "vs"); a place said any other way is left as it is.
+  if (p.place && p.place.kind !== "city" && !p.places) {
+    const EVENTS = /^(?:events?|competitions?|tournaments?)$/, PLAYED = /^(?:play|plays|played|playing|compete|competes|competed|competing)$/;
+    const free = (k: number) => !!toks[k] && !toks[k].used;
+    const frame = (i: number, len: number): number[] | null => {
+      const prep = toks[i - 1]?.w, after = i + len;
+      if (!free(i - 1)) return null;
+      // "at <place> events", "played at <place> events"
+      if (prep === "at" && free(after) && EVENTS.test(toks[after].w)) return [...(free(i - 2) && PLAYED.test(toks[i - 2].w) ? [i - 2] : []), i - 1, after];
+      if (prep !== "in") return null;
+      // "at events in <place>", "played at events in <place>"
+      if (free(i - 2) && EVENTS.test(toks[i - 2].w) && free(i - 3) && toks[i - 3].w === "at") return [...(free(i - 4) && PLAYED.test(toks[i - 4].w) ? [i - 4] : []), i - 3, i - 2, i - 1];
+      // "played in <place>", "competed in <place>"
+      if (free(i - 2) && PLAYED.test(toks[i - 2].w)) return [i - 2, i - 1];
+      return null;
+    };
+    // The place read first may be the events' ("best <place> teams that competed in <place>": the longer name is
+    // read first): the other place is then the teams' home.
+    const first = frame(placeFrom, placeLen);
+    for (let len = 4; len >= 1 && !p.eventPlace; len--) {
+      for (let i = first ? 0 : 1; i + len <= toks.length && !p.eventPlace; i++) {
+        const span = toks.slice(i, i + len);
+        if (span.some((t) => t.used)) continue;
+        const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
+        // A place inside the other is still another place here ("usa teams at texas events"): the words around each say
+        // which is the teams' home and which the events'.
+        if (!pl || pl.kind === "city" || pl.name === p.place.name) continue;
+        const words = first ? (frame(i, len) ? null : first) : frame(i, len);
+        if (!words) continue;
+        const other = { ...pl, typed: span.map((t) => t.typed).join(" ") };
+        if (first) { p.eventPlace = p.place; p.place = other; placeFrom = i; placeLen = len; } else p.eventPlace = other;
+        [...span, ...words.map((k) => toks[k])].forEach((t) => (t.used = true));
+      }
+    }
+  }
+
   // A swapped team said with "in" or "out" before "for" or "with" ("sub <team> in for <team>", "swap <team> out for
   // <team>"): which way the swap goes, read before the lexicon so "in" is never a preposition there.
   const swapSaid = new RegExp(`^(?:${SWAP_WORDS})$`);
@@ -713,10 +754,15 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     // for an event or a place. The longest stretch of the words that does is taken. A name several teams share ("Girls
     // in Robotics", two teams) is no reason to stop: the longer name is one team's.
     const before = p.teams.find((t) => t.via === "name" && t.at + t.typed.split(" ").length === from);
+    // Words of everyday English ("pizza" is no typo of team PITZZA) are never a name typed nearly right, unless "team"
+    // right before them says they name one there ("team pizza"); a "team" that introduced an earlier name ("team
+    // hypnotic robotics minor") says nothing of the words after that name.
+    const plainWords = (a: number, b: number) => toks.slice(a, b + 1).every((t) => everydayWord(t.w)) && !/^teams?$/.test(toks[a - 1]?.w ?? "");
     if (before && ctx.nearTeam) {
       const own = toks.slice(before.at, from);
       let longer: { team: TeamName; upTo: number } | null = null;
       for (let end = to; end >= from && !longer; end--) {
+        if (plainWords(from, end)) continue;
         const near = await ctx.nearTeam([...own, ...toks.slice(from, end + 1)].map((t) => t.w).join(" "));
         if (near && near.number !== before.number && !before.candidates?.includes(near.number) && fold(near.name ?? "").length > fold(before.name ?? "").length) longer = { team: near, upTo: end };
       }
@@ -816,6 +862,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       // What a question asks about is never a name typed nearly right ("inspire" is no typo of team Inspires), nor is an
       // ordinary word ("month" is no typo of team Monte).
       if (onlyTopicWords(span.map((t) => t.typed).join(" ")) || onlyOrdinary(span.map((t) => t.w).join(" "))) continue;
+      // Nor is a word of everyday English ("pizza" is no typo of team PITZZA), unless "team" says it names one there.
+      // Only the run's own words count: filler or a colour taken in front ("the pizza") is not what was typed as a name.
+      if (plainWords(from, to)) continue;
       const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
       // A name several teams share typed nearly right ("copper roboics", two teams called Copper Robotics) is that
       // name: its teams, picked or asked about as the name typed right is. A number after it that is no team's
