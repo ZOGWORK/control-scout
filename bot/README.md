@@ -6,6 +6,7 @@ an embed that links back to controlscout.org:
 | Command | What it shows |
 | --- | --- |
 | `/team number:` | Location, season record, OPR (total and auto / TeleOp / endgame), world ranking, next event (or the last one) |
+| `/next team:` | The team's next match: when it starts, its alliance and partner, and the call (win odds, predicted score, confidence). Says plainly when nothing is scheduled yet |
 | `/compare team: other:` | Two teams side by side: records and OPR, and who wins the head-to-head |
 | `/predict event: match:` | The lineup, the favourite's win chance (or "Even call"), the predicted score and its confidence for a qualification match. Once it's played: the score, and the call against it (called, upset, or an even call) |
 | `/event code:` | Dates, place, status, matches played, top 5 by OPR, and the winning alliance once it's over |
@@ -18,6 +19,15 @@ an embed that links back to controlscout.org:
 | `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👍 an answer |
 | `/config` | What the bot is and can do here, read live: the release it runs, the account it is and how many servers it is in, the season, the site it talks to, chat on (or why it isn't) and the chat limit this server has, report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
+
+## /next
+
+`/next` (`bot/next.ts`, `bot/lookups.ts`) answers the question people actually ask at an event: when does this team
+play next? It reads the team's events that aren't over, earliest first (three at most), and takes the first unplayed
+match the team is in, in schedule order: qualifications before playoffs, then series and number, so a match whose time
+FIRST hasn't posted yet still counts. The answer is the same pre-match card the follow reminders post: the lineup, the
+favourite's win chance, the predicted score and its confidence. No schedule with the team on it isn't a guess — it says
+so and links the event to watch, and a team with nothing scheduled this season gets a link to its page.
 
 ## /ask
 

@@ -11,7 +11,7 @@ import { GOOD, trackAnswer } from "./reactions.js";
 import { noteAsk, type AskRecord } from "./asks.js";
 import { SORRY_SENTENCE } from "../src/shared/search.js";
 import { BOT_COMMANDS } from "../src/shared/discord.js";
-import { eventChoices, eventCode, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
+import { eventChoices, eventCode, eventLookup, nextLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
 import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
 import { ask as askSearch, chatPost, offeredQuestion, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
@@ -24,6 +24,8 @@ export type Log = (m: string) => void;
 
 export interface Lookups {
   team: (n: number) => Promise<APIEmbed>;
+  /** /next: a team's next unplayed match, with its call (bot/lookups.ts). */
+  next: (n: number) => Promise<APIEmbed>;
   predict: (event: string, match: number) => Promise<APIEmbed>;
   event: (code: string) => Promise<APIEmbed>;
   /** An event's code from what someone typed: its code (any case) or its exact name, for `/follow event:` typed by
@@ -72,6 +74,7 @@ export interface Memory {
 
 export const realLookups: Lookups = {
   team: teamLookup,
+  next: nextLookup,
   predict: predictLookup,
   event: eventLookup,
   eventCode,
@@ -359,6 +362,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const key = describe(i);
     switch (i.commandName) {
       case "team": return cache.get(key, () => lookups.team(i.options.getInteger("number", true)));
+      case "next": return cache.get(key, () => lookups.next(i.options.getInteger("team", true)));
       case "predict": return predict(i, key);
       case "event": return cache.get(key, () => lookups.event(i.options.getString("code", true)));
       case "rankings": return cache.get(key, () => lookups.rankings());

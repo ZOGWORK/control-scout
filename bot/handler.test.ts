@@ -199,7 +199,7 @@ describe("AnswerCache", () => {
 
 describe("registration", () => {
   it("the commands, each one on the site's list; follow, unfollow and config need Manage Server, in servers only", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "compare", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "config", "help"]);
+    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "next", "compare", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "config", "help"]);
     for (const c of COMMANDS) expect(BOT_COMMANDS.some((b) => b.usage.startsWith(`/${c.name}`)), c.name).toBe(true);
     for (const name of ["follow", "unfollow", "config"]) {
       const c = COMMANDS.find((x) => x.name === name)!;

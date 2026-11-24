@@ -9,7 +9,8 @@ import { teamProfile } from "../server/api/teams.js";
 import { cachedEventDetail, NO_MATCH_TYPES } from "../server/api/events.js";
 import { rankings } from "../server/api/rankings.js";
 import { RANKED_MIN_MATCHES } from "../src/shared/rankings.js";
-import { Friendly, dates, eventEmbed, predictEmbed, rankingsEmbed, teamEmbed } from "./views.js";
+import { Friendly, dates, eventEmbed, predictEmbed, preMatchEmbed, rankingsEmbed, teamEmbed, teamLink } from "./views.js";
+import { nextPlaying } from "./next.js";
 
 /** The site's public address, for every link in an embed (controlscout.org in production). */
 export const site = () => env.canonicalUrl.replace(/\/+$/, "");
@@ -48,6 +49,31 @@ export async function predictLookup(event: string, match: number): Promise<APIEm
     throw new Friendly("No such match", `${d.event.name} has ${quals.length} qualification match${quals.length === 1 ? "" : "es"}${top !== quals.length ? ` (numbered up to ${top})` : ""}. Try a number from 1 to ${top}.`);
   }
   return predictEmbed(d, m, site());
+}
+
+/** /next: the team's next unplayed match, from the earliest of its events that isn't over (the schedule of each is
+ *  read until one has it). No match scheduled yet is said plainly, naming the event it is entered in, rather than
+ *  showing a match that has already been played. */
+export async function nextLookup(number: number, now = Date.now()): Promise<APIEmbed> {
+  const profile = await teamProfile(number);
+  if (!profile) throw new Friendly("Team not found", `There's no FTC team ${number} in Control Scout's data.`);
+  // The events it is entered in that aren't over, earliest first. Three is plenty for "the next match": a team is not in
+  // two events on one weekend, and reading every season's events for a team that played years ago would be calls for
+  // nothing.
+  const ahead = profile.events
+    .filter((e) => e.season === CURRENT_SEASON && e.start && (e.end ?? e.start) >= today(now))
+    .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""))
+    .slice(0, 3);
+  const found = nextPlaying(await Promise.all(ahead.map((e) => cachedEventDetail(e.season, e.code).catch(() => null))), number);
+  if (!found) {
+    const next = ahead[0];
+    throw new Friendly("No match scheduled", next
+      ? `Nothing on [${next.name}](${site()}/events/${next.season}/${encodeURIComponent(next.code)})'s schedule yet for ${number}. The bot posts there as soon as FIRST publishes it.`
+      : `Nothing is scheduled for ${teamLink(number, site())} yet this season. [See the team](${site()}/teams/${number}).`);
+  }
+  const m = found.match, at = m.startsAt ? Date.parse(m.startsAt) : NaN;
+  const when = Number.isFinite(at) ? `Starts <t:${Math.floor(at / 1000)}:R> (<t:${Math.floor(at / 1000)}:t>)` : m.time ? `Scheduled ${m.time.slice(11, 16)}` : "No time posted yet";
+  return preMatchEmbed(found.event.event.name, m, site(), `${when} · next for ${teamLink(number, site())}.`);
 }
 
 export async function eventLookup(code: string): Promise<APIEmbed> {

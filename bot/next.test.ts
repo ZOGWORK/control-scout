@@ -1,0 +1,44 @@
+// /next's choice of match (bot/next.ts): the earliest event with an unplayed match the team is in, in schedule order.
+import { describe, expect, it } from "vitest";
+import type { EventDetail, MatchView } from "../src/shared/api.js";
+import { nextPlaying } from "./next.js";
+
+/** A match: qualification Q<number> unless told otherwise, with `red`/`blue` teams. */
+const match = (number: number, teams: number[], opts: { played?: boolean; level?: "qual" | "playoff"; series?: number } = {}): MatchView =>
+  ({
+    key: `${opts.level ?? "qual"}-${number}`, number, series: opts.series ?? 1, level: opts.level ?? "qual", played: !!opts.played,
+    red: { teams: teams.map((n) => ({ number: n, name: null, onField: true })) },
+    blue: { teams: [{ number: 9999, name: null, onField: true }] },
+  } as unknown as MatchView);
+
+/** An event with a schedule: only what the choice reads. */
+const event = (code: string, matches: MatchView[]) => ({ event: { code, name: `Event ${code}` }, matches } as unknown as EventDetail);
+
+describe("/next's match", () => {
+  it("takes the first unplayed match the team is in, in schedule order", () => {
+    const e = event("A", [match(2, [4215]), match(1, [4215]), match(3, [4215])]);
+    expect(nextPlaying([e], 4215)?.match.number).toBe(1);
+  });
+
+  it("never answers with a match already played, or one the team isn't in", () => {
+    const e = event("A", [match(1, [4215], { played: true }), match(2, [6980]), match(3, [4215])]);
+    expect(nextPlaying([e], 4215)?.match.number).toBe(3);
+  });
+
+  it("counts the team in a playoff alliance too", () => {
+    const e = event("A", [match(1, [4215], { level: "playoff" })]);
+    expect(nextPlaying([e], 4215)?.match.key).toBe("playoff-1");
+  });
+
+  it("reads the events in the order it is given them, so the earliest one answers", () => {
+    const first = event("A", [match(1, [6980])]);
+    const second = event("B", [match(1, [4215])]);
+    expect(nextPlaying([first, second], 4215)?.event.event.code).toBe("B");
+    expect(nextPlaying([null, second], 4215)?.event.event.code).toBe("B");
+  });
+
+  it("says nothing rather than guessing when no schedule has the team", () => {
+    expect(nextPlaying([event("A", []), event("B", [match(1, [6980], { played: true })])], 4215)).toBeNull();
+    expect(nextPlaying([], 4215)).toBeNull();
+  });
+});
