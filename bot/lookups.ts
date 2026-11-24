@@ -77,14 +77,17 @@ export async function nextLookup(number: number, now = Date.now()): Promise<APIE
   }
   // Nothing unplayed. Say which of the two it is: its matches at the current event are all played, or no schedule has
   // it yet — never that a published schedule is missing.
-  const first = ahead[0], detail = read[0];
+  const first = ahead[0];
   if (!first) throw new Friendly("No match scheduled", `Nothing is scheduled for ${teamLink(number, site())} yet this season. [See the team](${site()}/teams/${number}).`);
-  const link = `[${first.name}](${site()}/events/${first.season}/${encodeURIComponent(first.code)})`;
-  const later = ahead.find((e) => e !== first);
-  if (detail && inEvent(detail, number)) {
-    throw new Friendly("No more matches", `${number} has no unplayed match left at ${link}${later ? `; its next event is [${later.name}](${site()}/events/${later.season}/${encodeURIComponent(later.code)})` : ""}.`);
+  const eventLink = (e: (typeof ahead)[number]) => `[${e.name}](${site()}/events/${e.season}/${encodeURIComponent(e.code)})`;
+  // The latest event that does have the team on its schedule, in the order read: its matches there are all played.
+  const finished = read.map((d, i) => (inEvent(d, number) ? i : -1)).filter((i) => i >= 0).pop();
+  if (finished != null) {
+    const later = ahead[finished + 1];
+    throw new Friendly("No more matches", `${number} has no unplayed match left at ${eventLink(ahead[finished])}${later ? `; its next event is ${eventLink(later)}` : ""}.`);
   }
-  throw new Friendly("No match scheduled", `No schedule with ${number} at ${link} yet. The bot answers with the match as soon as FIRST publishes it${later ? `, and ${number} is entered in [${later.name}](${site()}/events/${later.season}/${encodeURIComponent(later.code)})` : ""}.`);
+  const later = ahead.find((e) => e !== first);
+  throw new Friendly("No match scheduled", `No schedule with ${number} at ${eventLink(first)} yet. The bot answers with the match as soon as FIRST publishes it${later ? `, and ${number} is entered in ${eventLink(later)}` : ""}.`);
 }
 
 export async function eventLookup(code: string): Promise<APIEmbed> {
