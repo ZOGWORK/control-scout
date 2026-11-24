@@ -268,7 +268,7 @@ export function togetherOf(matches: TogetherMatch[], others: number[]): { rows: 
  *  picked (pickSeasonRows) and that season's scales (`scale`: COMPARE_SCALE_COLS, read only when a season was
  *  picked). `legacy`: the season predates Predict (an older season is Compare only). `together`: the matches every
  *  one of them played in that season (togetherOf), read only when every team has a row for it. */
-/** The one stat a comparison was asked by ("4215 vs 6980 vs 23268 teleop"): its headline row. `key`: one of the five
+/** The one stat a comparison was asked by ("<team> vs <team> vs <team> teleop"): its headline row. `key`: one of the five
  *  season rows (OPR, a phase's OPR, the rating), made the Total; else `row`, its own row set first. */
 export interface CompareFocus { label: string; key?: "np" | "auto" | "teleop" | "endgame" | "rating"; row?: CompareInput }
 
