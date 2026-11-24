@@ -2,7 +2,7 @@
 // the side, the award, the aggregation and its limit, and the intent. Read in any word order, filler ignored, every
 // word accounted for. Names come from the data (./names.ts), words from the lexicon (./lexicon.ts), times from
 // ./time.ts, the intent from ./intents.ts. Nothing here names a team, an event or a place.
-import { AWARD_ONE_WORD, EVENT_NAME_WORDS, LEXICON, type Agg, type Sym } from "./lexicon.js";
+import { AWARD_ONE_WORD, EVENT_NAME_WORDS, LEXICON, cuesOf, type Agg, type Cue, type Sym } from "./lexicon.js";
 import { CLEAN_MATCHES, WITH_VIDEO, pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
 import { readTime, type TimeRead, type TimeSlot } from "./time.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
@@ -109,6 +109,10 @@ export interface Parsed {
   /** Search words typed one letter off and read as the word they nearly spell ("higest": "highest"), silently. `nth`:
    *  which of the words typed the same way it is (0 the first), so only that one is rewritten. */
   fixed?: { typed: string; read: string; nth: number }[];
+  /** The word right before the place read ("in", "from"), when it is a preposition: how the place was said. */
+  placePrep?: string;
+  /** How it was said, beside what it asks (./lexicon.ts CUES): how many times each cue is, in any word order. */
+  cues: Partial<Record<Cue, number>>;
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -135,6 +139,8 @@ export interface ParseContext {
 
 /** `at`: the word as typed it came from (its place among the words typed, before any time was read out). */
 type Tok = { w: string; typed: string; at: number; used: boolean; alliance?: boolean; side?: "red" | "blue" };
+/** The words a place is said after ("in new jersey", "from romania"). */
+const PLACE_PREPS = new Set(["in", "from", "at", "of", "near", "around", "across", "within", "outside"]);
 /** The words that name a team ("team", "robots"). */
 const TEAM_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "thing" && e.syms[0].v === "team").map((e) => e.words[0]));
 /** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
@@ -333,12 +339,14 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   const maxFrom: number[] = [];
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
-    n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
+    n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], cues: {}, complete: false,
     ...(cond ? { scoreCond: cond.cond } : {}),
     ...(fl ? { over: { n: Number(fl[2]), atLeast: fl[1] === "at least" } } : {}),
   };
   // Where the place read starts, in the parser's words: a place typed right after a shared name picks the team.
   let placeFrom = -1, placeLen = 0;
+  /** Where `p.place` itself starts (placeFrom moves to the first of two places joined): its preposition is the word before. */
+  let placeAt = -1;
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
 
@@ -527,7 +535,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (!code && lexOnly && !theCountry) continue;
       const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
       if (pl && theCountry && pl.kind !== "country") continue;
-      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = i; placeLen = len; span.forEach((t) => (t.used = true)); }
+      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = placeAt = i; placeLen = len; span.forEach((t) => (t.used = true)); }
     }
   }
   // 2c. A second region or country joined to the first by a word between them ("nj vs texas", "teams from nj or ny",
@@ -597,7 +605,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
         const words = first ? (frame(i, len) ? null : first) : frame(i, len);
         if (!words) continue;
         const other = { ...pl, typed: span.map((t) => t.typed).join(" ") };
-        if (first) { p.eventPlace = p.place; p.place = other; placeFrom = i; placeLen = len; } else p.eventPlace = other;
+        if (first) { p.eventPlace = p.place; p.place = other; placeFrom = placeAt = i; placeLen = len; } else p.eventPlace = other;
         [...span, ...words.map((k) => toks[k])].forEach((t) => (t.used = true));
       }
     }
@@ -656,6 +664,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // Never in a query with a quoted phrase, which asks for exactly the words typed.
   const fixed = ctx.asTyped || raw.includes('"') ? [] : fixSpelling(toks, ctx.names, typedWords);
   if (fixed.length) { p.fixed = fixed; readLexicon(); }
+  p.cues = cuesOf(saidWords(raw, fixed));
   // "Top 10 closest matches": "top" before a count only says how many when another measure follows it, never the
   // highest as well. Its "max" is dropped, so the measure said is the one read.
   // Only the phrases actually read count: "most" in "most accurate" is that phrase's, never a highest of its own.
@@ -804,7 +813,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
         continue;
       }
     }
-    if (place && !p.place) { p.place = { ...place, typed: typed() }; placeFrom = from; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
+    if (place && !p.place) { p.place = { ...place, typed: typed() }; placeFrom = placeAt = from; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // The region or country a town named is in, said after it ("Cluj-Napoca, Romania", "Oradell, NJ"): the same place.
     if (place && p.place && within(p.place, place)) { toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // One event: a second one named ("at nj championship at northern division") is left unexplained, never dropped.
@@ -830,7 +839,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       // A state with only a championship word after it is its state championship ("nj champs", "texas championship").
       const champ = toks.slice(from, to + 1).every((t) => !EVENT_NAME_WORDS.has(t.w) || /^(?:championships?|champs)$/.test(t.w));
       if (pl) {
-        p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; placeFrom = from; toks.slice(from, to + 1).forEach((t) => (t.used = true));
+        p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; placeFrom = placeAt = from; toks.slice(from, to + 1).forEach((t) => (t.used = true));
         if (champ && pl.kind !== "city") { p.states = true; symbols.add("states"); } else symbols.add("thing:event");
         continue;
       }
@@ -910,6 +919,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     return placeFrom >= 0 && !!last && last.at + 1 === toks[placeFrom].at;
   };
   if (p.place && p.teams.some((t) => t.rule === `the one in ${p.place!.name}` && rightAfter(t))) p.place = null;
+  const prep = p.place && placeAt > 0 ? toks[placeAt - 1].w : null;
+  if (prep && PLACE_PREPS.has(prep)) p.placePrep = prep;
   // The one-word event, checked again among the teams as settled: none of theirs, and the word is left unread.
   const own = ownWord as Tok | null;
   if (own && p.event?.latest && ctx.teamEvent && !p.teams.some((t) => t.candidates && !t.rule)) {
@@ -966,6 +977,24 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);
   p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
   return p;
+}
+
+/** The query's words as the parse reads them for its cues: normalised and split at anything not a letter or a digit
+ *  ("'fl'", "<team>"), each search word it fixed (`fixed`, the nth typed that way) as meant, and the time's words kept
+ *  ("current", "now": how a question was said, not only when). */
+const cueWords = (s: string) => normalise(s).split(/[^\p{L}\p{N}_]+/u).filter(Boolean);
+
+function saidWords(raw: string, fixed: NonNullable<Parsed["fixed"]>): string[] {
+  const words = cueWords(raw);
+  // Each fix's place found among the words as typed, before any is written: a word typed twice and fixed twice
+  // ("versu … versu") keeps its count.
+  const at = fixed.map((f) => {
+    const typed = cueWords(f.typed).join(" ");
+    for (let i = 0, n = 0; i < words.length; i++) if (words[i] === typed && n++ === f.nth) return i;
+    return -1;
+  });
+  fixed.forEach((f, j) => { if (at[j] >= 0) words[at[j]] = f.read; });
+  return words;
 }
 
 /** The search words a misspelling is fixed to (./lexicon.ts, the words of every phrase that says something, and the

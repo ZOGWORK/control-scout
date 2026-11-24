@@ -15,9 +15,6 @@ const TEAMS_PER_READ = 250;
 
 interface Row { team: number; season: number; code: string; level: string; series: number; number: number; label: string; name: string; type: string | null; alliance: string; red_total: number; blue_total: number }
 
-/** Whether the query asks for the streak going now ("right now", "current", "still"), not the longest of the seasons. */
-export const asksNow = (q: string) => /\b(?:now|rn|currently|current|ongoing|active|still|at the moment)\b/i.test(q);
-
 export async function streakBoardAnswer(o: { region: Region; season: number; now: boolean; losing: boolean; n: number }): Promise<StatAnswer> {
   const want = o.losing ? "L" : "W";
   const rows = await boardRows(o);
