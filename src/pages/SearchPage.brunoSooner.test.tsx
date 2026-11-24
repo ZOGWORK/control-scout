@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer } from "../shared/api";
 
-const Q = "what makes 16091 a strong alliance partner";
+const Q = "what makes 16091 worth picking as a partner";
 const seed: SearchAnswer = { q: Q, hits: [{ kind: "team", ref: "16091", title: "16091 | Rogue Robotics", subtitle: "", season: 2025 }], pages: [], step: "deterministic", weak: false };
 const boot = vi.hoisted(() => ({ hits: null as unknown }));
 vi.mock("../lib/searchBoot", () => ({ get BOOT_HITS() { return boot.hits; }, readBootHits: () => null }));
