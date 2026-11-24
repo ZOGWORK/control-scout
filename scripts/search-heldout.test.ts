@@ -2,7 +2,8 @@
 // or code (./search-heldout-leaks.ts says where it looks). One that does was seen while building search, so its pass
 // says nothing about questions nobody has seen: move it with `npm run search:heldout -- --split`, or reword the test.
 // And the grading of an answer against the one a person wrote (./search-heldout-grade.ts).
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { leaks, scannedTexts } from "./search-heldout-leaks";
@@ -27,9 +28,15 @@ describe("held out means held out", () => {
   it("finds a question as a whole phrase, never inside a longer word, and across lines", () => {
     const texts = new Map([["server/x.test.ts", 'expect(await ask("4215 opr rank")).tobe(1); // 14215 oprs']]);
     expect([...leaks(["4215 opr", "4215 opr rank", "215 opr", "4215 oprs"], texts).keys()]).toEqual(["4215 opr", "4215 opr rank"]);
-    // Split across lines in a test: scannedTexts folds it to one space, so it is still that question.
-    const split = new Map([["server/y.test.ts", 'ask("best auto in\n      nj")'.replace(/\s+/g, " ")]]);
-    expect([...leaks(["best auto in nj"], split).keys()]).toEqual(["best auto in nj"]);
+    // Split across lines in a real file: read through scannedTexts, it is still that question.
+    const root = mkdtempSync(join(tmpdir(), "heldout-leaks-"));
+    try {
+      mkdirSync(join(root, "server"));
+      writeFileSync(join(root, "server", "y.test.ts"), 'ask("best auto in\n      nj")');
+      expect([...leaks(["best auto in nj"], scannedTexts(root)).keys()]).toEqual(["best auto in nj"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
   it("looks through tests and code, never the eval lists themselves", () => {
     const paths = [...scannedTexts().keys()];

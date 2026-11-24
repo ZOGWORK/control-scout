@@ -22,7 +22,7 @@
 //   npm run search:heldout -- --min 80        exit 1 below an 80% pass rate (CI, .github/workflows/ci.yml)
 //   npm run search:heldout -- --split         move held-out questions found in tests or code to the training set
 //   DATABASE_URL=file:.data/scout.db npm run search:heldout
-import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { bootSearch, localServer } from "./search-local.js";
 import { gradeWant, wantSeason } from "./search-heldout-grade.js";
@@ -40,12 +40,16 @@ const text = (xs: Q[]) => `[\n${xs.map((x) => `  ${JSON.stringify(x)}`).join(",\
 /** Both files written in full first, then each moved into place; if any step fails, both are put back as they were,
  *  so a question is never lost and never left in both sets. */
 const writeBoth = (sets: [string, Q[]][]) => {
+  // Each file replaced whole by a rename, never truncated in place: the new contents, or on failure the old ones.
+  const swap = (files: (readonly [string, string])[]) => {
+    for (const [f, t] of files) writeFileSync(`${f}.tmp`, t);
+    for (const [f] of files) renameSync(`${f}.tmp`, f);
+  };
   const before = sets.map(([f]) => [f, readFileSync(f, "utf8")] as const);
   try {
-    for (const [f, xs] of sets) writeFileSync(`${f}.tmp`, text(xs));
-    for (const [f] of sets) renameSync(`${f}.tmp`, f);
+    swap(sets.map(([f, xs]) => [f, text(xs)] as const));
   } catch (e) {
-    for (const [f, was] of before) writeFileSync(f, was);
+    try { swap(before); } finally { for (const [f] of sets) rmSync(`${f}.tmp`, { force: true }); }
     throw e;
   }
 };
