@@ -349,8 +349,9 @@ export const SLOT_SYMBOLS = /^(?:level|finals|alliance|worlds|states|award|prep|
 export const WATCH_TAKERS = new Set<string>(INTENTS.filter((r) => r.opt?.includes("highlights") || r.all.includes("highlights")).map((r) => r.id));
 
 /** The questions of matches that take "with no penalties" as a filter (./parse.ts clean): the match finder's, a
- *  team's matches and results. Matches with the most penalties are never ones with none. */
-export const CLEAN_MATCHES = new Set<PipelineIntent>(["top-matches", "match-label", "low-matches", "close-matches", "lopsided-matches", "loss-matches", "upset-matches", "comeback-matches", "miss-matches", "accurate-matches", "season-matches", "highest-score", "results"]);
+ *  team's matches and results, and the best matches ("best matches in <place> with no penalties", read as the
+ *  highest-scoring board: ../../server/api/query/execute.ts). Matches with the most penalties are never ones with none. */
+export const CLEAN_MATCHES = new Set<PipelineIntent>(["highlights", "top-matches", "match-label", "low-matches", "close-matches", "lopsided-matches", "loss-matches", "upset-matches", "comeback-matches", "miss-matches", "accurate-matches", "season-matches", "highest-score", "results"]);
 /** The intents "with video" filters (./execute.ts, the match finder): a scope's matches by a measure, a match's number,
  *  one team's matches or its best; and highlights, which are the matches' videos already ("<team> highlights with
  *  video"). Any other leaves the parse incomplete, never answered without the filter. */
