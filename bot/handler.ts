@@ -7,7 +7,7 @@ import { AnswerCache } from "./guard.js";
 import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
 import { addFollow, followName, followingEmbed, listFollows, removeFollow, type FollowTarget } from "./follows.js";
 import { answerComponents, buttonQuestion, QuestionButtons } from "./buttons.js";
-import { BAD, GOOD, trackAnswer } from "./reactions.js";
+import { GOOD, trackAnswer } from "./reactions.js";
 import { noteAsk, type AskRecord } from "./asks.js";
 import { SORRY_SENTENCE } from "../src/shared/search.js";
 import { BOT_COMMANDS } from "../src/shared/discord.js";
@@ -40,8 +40,8 @@ export interface Lookups {
   ask: (question: string, history?: BrunoChatTurn[], memory?: string[], guild?: string | null) => Promise<AskReply>;
   /** Every ask, for the owner console (bot/asks.ts): the words, the step, who answered, how long. */
   noteAsk?: (r: AskRecord) => Promise<void>;
-  /** An answer the bot posted, so its 👍/👎 reactions count (bot/reactions.ts), with the question it answered, so a 👎
-   *  can name it in the site's failed-search queue. */
+  /** An answer the bot posted, so its 👍 reactions count (bot/reactions.ts), with the question it answered, which is
+   *  the record of what the answer was for. */
   trackAnswer?: (messageId: string, guild: string | null, question?: string) => Promise<void>;
   /** What a server teaches the bot (bot/memory.ts); absent: nothing is remembered. */
   memory?: Memory;
@@ -115,16 +115,12 @@ export function limitEmbed(q: { limited: "hour" | "day"; retryAfter: number }): 
   };
 }
 
-/** /help: every command, from the same list the site shows (src/shared/discord.ts), and what the thumbs on an answer
- *  do — 👎 is a report, so nobody should use it as a dislike button. */
+/** /help: every command, from the same list the site shows (src/shared/discord.ts). */
 export function helpEmbed(): APIEmbed {
   return {
     title: "Control Scout commands",
     url: "https://controlscout.org",
-    description: [
-      BOT_COMMANDS.map((c) => "`" + c.usage + "` " + c.what + (c.admin ? " *(Manage Server)*" : "")).join("\n"),
-      "👍 on an answer says it helped. 👎 **files the question so we can fix the answer** — it's a report, not a dislike button.",
-    ].join("\n\n"),
+    description: BOT_COMMANDS.map((c) => "`" + c.usage + "` " + c.what + (c.admin ? " *(Manage Server)*" : "")).join("\n"),
     color: VOLT,
     footer: FOOTER,
   };
@@ -271,9 +267,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       : { ...(r.content ? { content: r.content } : {}), embeds: [pride(r.embed)] };
     return components.length ? { ...post, components } : post;
   };
-  /** 👍/👎 on an answer, and its row, so the console can read how answers land (bot/reactions.ts) and a 👎 can file the
-   *  question it answered (its words, never who asked). A message that can't take reactions (or a stand-in without
-   *  them) changes nothing. */
+  /** A 👍 on an answer, and its row, so the console can read how answers land (bot/reactions.ts): its words go with the
+   *  row, never who asked. A message that can't take reactions (or a stand-in without them) changes nothing. */
   function watchVotes(sent: unknown, guild: string | null, question: string): void {
     const m = sent as { id?: string; react?: (emoji: string) => Promise<unknown> } | undefined;
     if (!m?.id) return;
@@ -281,7 +276,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     // counts on, or the vote updates no row and is lost.
     const tracked = lookups.trackAnswer?.(m.id, guild, question) ?? Promise.resolve();
     void Promise.resolve(tracked).catch(() => {}).then(() => {
-      for (const emoji of [GOOD, BAD]) void m.react?.(emoji)?.catch(() => {});
+      void m.react?.(GOOD)?.catch(() => {});
     });
   }
   /** The thread a post of the bot's carries on, by its message id: every turn up to and including that answer. */
