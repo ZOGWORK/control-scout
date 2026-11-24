@@ -899,13 +899,14 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // for ("best team sorted by auto"), the top 10.
     const one = cue(p, "team") && !cue(p, "teams") && !cue(p, "sorted") && p.n == null && (!!p.place || stats.length === 1);
     const town = p.place?.kind === "city" ? p.place : null;
-    // A town's or a country's best teams with nothing else said, the place after "in" ("best teams in romania", "in
-    // romania best teams", "top 3 teams in canada", "best team in Oradell"): the place readers' own cards, asked in
-    // their order from the parse, so the words' order never changes the answer. Said any other way ("best Romanian
-    // teams", "worst teams in romania", "best teams in romania this season"): its teams by
-    // OPR here.
+    // A town's or a country's best teams with nothing else said (no filter, such as a name's words or never an award),
+    // the place after "in" ("best teams in romania", "in romania best teams", "top 3 teams in canada", "best team in
+    // Oradell"): the place readers' own cards, asked in their order from the parse, so the words' order never changes
+    // the answer. Said any other way ("best Romanian teams", "worst teams in romania", "best teams in romania this
+    // season", "best teams in romania that never won an award"): its teams by OPR here.
     if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && !cue(p, "leaderboard") && !p.eventPlace && !p.places
-      && p.placePrep === "in" && p.agg === "max" && !p.time && !p.rookie) {
+      && p.placePrep === "in" && p.agg === "max" && !p.time && !p.rookie && !p.nameHas && !p.conference && !p.notStats?.length && !p.notMetrics?.length
+      && p.symbols.every((s) => s === "agg:max" || s === "thing:team" || s.startsWith("prep:"))) {
       const asked = `${p.n != null ? `top ${p.n}` : "best"} ${one ? "team" : "teams"} in ${p.place!.typed}`;
       const a = town ? await statAnswer(asked, opts.resolve, { full: opts.full, pages: opts.pages }) : await teamListAnswer(asked);
       if (a) return { ...a, q: p.q };

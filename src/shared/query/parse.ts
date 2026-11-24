@@ -345,6 +345,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   };
   // Where the place read starts, in the parser's words: a place typed right after a shared name picks the team.
   let placeFrom = -1, placeLen = 0;
+  /** Where `p.place` itself starts (placeFrom moves to the first of two places joined): its preposition is the word before. */
+  let placeAt = -1;
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
 
@@ -533,7 +535,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (!code && lexOnly && !theCountry) continue;
       const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
       if (pl && theCountry && pl.kind !== "country") continue;
-      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = i; placeLen = len; span.forEach((t) => (t.used = true)); }
+      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = placeAt = i; placeLen = len; span.forEach((t) => (t.used = true)); }
     }
   }
   // 2c. A second region or country joined to the first by a word between them ("nj vs texas", "teams from nj or ny",
@@ -603,7 +605,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
         const words = first ? (frame(i, len) ? null : first) : frame(i, len);
         if (!words) continue;
         const other = { ...pl, typed: span.map((t) => t.typed).join(" ") };
-        if (first) { p.eventPlace = p.place; p.place = other; placeFrom = i; placeLen = len; } else p.eventPlace = other;
+        if (first) { p.eventPlace = p.place; p.place = other; placeFrom = placeAt = i; placeLen = len; } else p.eventPlace = other;
         [...span, ...words.map((k) => toks[k])].forEach((t) => (t.used = true));
       }
     }
@@ -811,7 +813,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
         continue;
       }
     }
-    if (place && !p.place) { p.place = { ...place, typed: typed() }; placeFrom = from; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
+    if (place && !p.place) { p.place = { ...place, typed: typed() }; placeFrom = placeAt = from; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // The region or country a town named is in, said after it ("Cluj-Napoca, Romania", "Oradell, NJ"): the same place.
     if (place && p.place && within(p.place, place)) { toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // One event: a second one named ("at nj championship at northern division") is left unexplained, never dropped.
@@ -837,7 +839,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       // A state with only a championship word after it is its state championship ("nj champs", "texas championship").
       const champ = toks.slice(from, to + 1).every((t) => !EVENT_NAME_WORDS.has(t.w) || /^(?:championships?|champs)$/.test(t.w));
       if (pl) {
-        p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; placeFrom = from; toks.slice(from, to + 1).forEach((t) => (t.used = true));
+        p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; placeFrom = placeAt = from; toks.slice(from, to + 1).forEach((t) => (t.used = true));
         if (champ && pl.kind !== "city") { p.states = true; symbols.add("states"); } else symbols.add("thing:event");
         continue;
       }
@@ -917,7 +919,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     return placeFrom >= 0 && !!last && last.at + 1 === toks[placeFrom].at;
   };
   if (p.place && p.teams.some((t) => t.rule === `the one in ${p.place!.name}` && rightAfter(t))) p.place = null;
-  const prep = p.place && placeFrom > 0 ? toks[placeFrom - 1].w : null;
+  const prep = p.place && placeAt > 0 ? toks[placeAt - 1].w : null;
   if (prep && PLACE_PREPS.has(prep)) p.placePrep = prep;
   // The one-word event, checked again among the teams as settled: none of theirs, and the word is left unread.
   const own = ownWord as Tok | null;

@@ -40,6 +40,17 @@ beforeAll(async () => {
 });
 
 describe("word order", () => {
+  it("reads the place's own preposition, and a filter keeps the board", async () => {
+    const ctx = await parseContext();
+    // Two places joined: the preposition is the place's own, never the first place's.
+    const two = await parseQuery("from romania vs new jersey best teams", ctx);
+    expect(two.places?.list.length).toBe(2);
+    expect(two.placePrep).toBeUndefined();
+    // A filter said beside the place ("never won an award") is the board's, never the place card's unfiltered list.
+    const filtered = await ask("best teams in romania that never won an award");
+    expect(filtered?.card?.title ?? "").not.toMatch(/^Top teams in Romania/);
+  });
+
   it("reads the same cues in any order", async () => {
     const ctx = await parseContext();
     const a = await parseQuery("the best team in oradell sorted by opr", ctx), b = await parseQuery("sorted by opr in oradell the best team", ctx);
