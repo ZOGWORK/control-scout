@@ -31,13 +31,14 @@ describe("isTestTraffic", () => {
   });
 
   it("is sent by every eval script the header comment names, at each request it makes", () => {
-    // scripts/search-*.ts and scripts/search-signoff/*: one that asks a server without it would log its misses as a
+    // scripts/search-*.ts, scripts/search-signoff/* and scripts/check-suggestions.ts: one that asks a server without it would log its misses as a
     // visitor's (a script added later included). Each fetch or k6 request carries it in its own call, and a script
     // that drives a browser adds it to the site's requests (ctx.route), with no service worker to answer around it.
     const root = join(import.meta.dirname, "..", "scripts");
     const files = [
       ...readdirSync(root).filter((f) => /^search-.*\.(?:ts|mts|js)$/.test(f)).map((f) => join(root, f)),
       ...readdirSync(join(root, "search-signoff")).filter((f) => /\.(?:ts|mts|js)$/.test(f)).map((f) => join(root, "search-signoff", f)),
+      join(root, "check-suggestions.ts"),
     ].filter((p) => !/\.test\./.test(p));
     expect(files.length).toBeGreaterThan(3);
     const header = /TEST_HEADER|x-cs-test/i;
