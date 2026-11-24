@@ -18,7 +18,7 @@ import { seasonLabel } from "../lib/format";
 import { BrunoAnswer, afterKey, brunoKey, useBrunoAsks, type BrunoMemo } from "../components/search/BrunoAnswer";
 import { forgetSearch, lastSearch, rememberSearch } from "../lib/lastSearch";
 import { MINE } from "../shared/searchMine";
-import { usePersonal } from "../lib/personal";
+import { useMyTeamNumber } from "../lib/personal";
 import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
@@ -230,7 +230,8 @@ export default function SearchPage() {
   // follow-up reads the records that were on screen; found nothing, the last search is cleared, never an older one
   // read in its place. A chat answer (a reaction, a question to the site, a follow-up) is no search and leaves it.
   const settled = !!query && !busy && !stale && !error && !!answer && !answer.chat;
-  const myTeam = usePersonal().state.myTeam;
+  // Null outside a PersonalProvider (a page drawn on its own), as the search's own hook reads it inside one.
+  const myTeam = useMyTeamNumber();
   const askedMy = myTeam && MINE.test(query) ? myTeam : null;
   useEffect(() => {
     if (!settled) return;

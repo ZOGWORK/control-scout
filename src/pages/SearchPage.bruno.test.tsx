@@ -24,7 +24,7 @@ vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/ap
 vi.mock("../lib/flags", async (orig) => ({ ...(await orig<typeof import("../lib/flags")>()), useServerFlag: (n: string) => n === "brunoAnswers" }));
 vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../lib/personal")>()), useTeamFlags: () => ({ bookmarked: false, toggleBookmark: () => {} }),
   // The phone's search bar is a real SearchBox, which ranks the visitor's own teams first: none here.
-  usePersonal: () => ({ state: { myTeam: mine.team, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
+  usePersonal: () => ({ state: { myTeam: mine.team, tracked: { teams: [], events: [] }, bookmarks: [] } }), useMyTeamNumber: () => mine.team }));
 const asked = vi.hoisted(() => [] as string[]);
 // The visitor's My team, for "my"/"our" searches.
 const mine = vi.hoisted(() => ({ team: null as number | null }));
