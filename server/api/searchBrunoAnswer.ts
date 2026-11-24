@@ -132,7 +132,7 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
   };
   if (a.card) cardFacts(a.card);
   // A compound question's other parts, each answered as asked (server/api/query/clauses.ts): every part's facts.
-  for (const c of a.clauses ?? []) { if (c.stat) facts.push(...statFacts(c.stat)); else if (c.card) cardFacts(c.card); }
+  for (const c of a.clauses ?? []) { if (c.stat) facts.push(...statFacts(c.stat)); if (c.card) cardFacts(c.card); }
   for (const h of a.hits.slice(0, 5)) {
     const extra = (h.facts ?? []).map((f) => `${f.label} ${f.value}`).join("; ");
     facts.push(`Result: ${h.title}${h.subtitle ? ` (${h.subtitle})` : ""}${extra ? `: ${extra}` : ""}`);
