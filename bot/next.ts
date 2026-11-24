@@ -2,6 +2,20 @@
 // the first unplayed match it is in is the answer — the same order the follow posts read a schedule in (bot/follows.ts),
 // so a match with no posted time still counts. Pure and tested: the lookup around it (bot/lookups.ts) fetches the events.
 import type { EventDetail, MatchView } from "../src/shared/api.js";
+import { eventOver, type EventCalendar } from "../src/shared/eventDay.js";
+
+/** The events to look in, at most this many: a team is not in two on one weekend, and reading every one it has ever
+ *  been in for "the next match" would be calls for nothing. */
+export const AHEAD = 3;
+
+/**
+ * The events that aren't over yet, earliest first, capped at AHEAD. "Over" is read on the venue's own calendar
+ * (src/shared/eventDay.ts), never on UTC: at 19:30 in New York on the 24th it is already the 25th in UTC, and a match
+ * still to be played that evening must not drop out of "next".
+ */
+export function aheadEvents<T extends EventCalendar & { start: string | null }>(events: readonly T[], now = Date.now()): T[] {
+  return events.filter((e) => e.start && !eventOver(e, now)).sort((a, b) => (a.start ?? "").localeCompare(b.start ?? "")).slice(0, AHEAD);
+}
 
 /** Schedule order at one event: qualifications before playoffs, then series and number. */
 const order = (a: MatchView, b: MatchView) =>

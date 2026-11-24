@@ -1,7 +1,7 @@
 // /next's choice of match (bot/next.ts): the earliest event with an unplayed match the team is in, in schedule order.
 import { describe, expect, it } from "vitest";
 import type { EventDetail, MatchView } from "../src/shared/api.js";
-import { inEvent, nextPlaying } from "./next.js";
+import { aheadEvents, inEvent, nextPlaying } from "./next.js";
 
 /** A match: qualification Q<number> unless told otherwise, with `red`/`blue` teams. */
 const match = (number: number, teams: number[], opts: { played?: boolean; level?: "qual" | "playoff"; series?: number } = {}): MatchView =>
@@ -15,6 +15,15 @@ const match = (number: number, teams: number[], opts: { played?: boolean; level?
 const event = (code: string, matches: MatchView[]) => ({ event: { code, name: `Event ${code}` }, matches } as unknown as EventDetail);
 
 describe("/next's match", () => {
+  it("keeps an event whose last evening is still being played at the venue", () => {
+    // 00:30 UTC on the 25th is 19:30 on the 24th in New York: the event ending on the 24th is not over there yet.
+    const now = Date.parse("2026-11-25T00:30:00Z");
+    const tonight = { start: "2026-11-24", end: "2026-11-24", timezone: "America/New_York" };
+    const lastWeek = { start: "2026-11-14", end: "2026-11-15", timezone: "America/New_York" };
+    expect(aheadEvents([lastWeek, tonight], now)).toEqual([tonight]);
+    expect(aheadEvents([tonight], Date.parse("2026-11-25T06:00:00Z"))).toEqual([]);
+  });
+
   it("takes the first unplayed match the team is in, in schedule order", () => {
     const e = event("A", [match(2, [4215]), match(1, [4215]), match(3, [4215])]);
     expect(nextPlaying([e], 4215)?.match.number).toBe(1);

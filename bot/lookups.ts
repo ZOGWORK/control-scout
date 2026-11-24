@@ -11,7 +11,7 @@ import { rankings } from "../server/api/rankings.js";
 import { RANKED_MIN_MATCHES } from "../src/shared/rankings.js";
 import type { EventDetail } from "../src/shared/api.js";
 import { Friendly, dates, eventEmbed, predictEmbed, preMatchEmbed, rankingsEmbed, teamEmbed, teamLink } from "./views.js";
-import { inEvent, nextPlaying } from "./next.js";
+import { aheadEvents, inEvent, nextPlaying } from "./next.js";
 
 /** The site's public address, for every link in an embed (controlscout.org in production). */
 export const site = () => env.canonicalUrl.replace(/\/+$/, "");
@@ -58,13 +58,8 @@ export async function predictLookup(event: string, match: number): Promise<APIEm
 export async function nextLookup(number: number, now = Date.now()): Promise<APIEmbed> {
   const profile = await teamProfile(number);
   if (!profile) throw new Friendly("Team not found", `There's no FTC team ${number} in Control Scout's data.`);
-  // The events it is entered in that aren't over, earliest first. Three is plenty for "the next match": a team is not in
-  // two events on one weekend, and reading every season's events for a team that played years ago would be calls for
-  // nothing.
-  const ahead = profile.events
-    .filter((e) => e.season === CURRENT_SEASON && e.start && (e.end ?? e.start) >= today(now))
-    .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""))
-    .slice(0, 3);
+  // The events it is entered in that aren't over yet, earliest first, read on each venue's own calendar (bot/next.ts).
+  const ahead = aheadEvents(profile.events.filter((e) => e.season === CURRENT_SEASON), now);
   // One event at a time, earliest first: the first that has an unplayed match answers. A read that fails is not a
   // "nothing scheduled" — it fails the lookup, since the later events can't stand in for the one that couldn't be read.
   const read: (EventDetail | null)[] = [];
