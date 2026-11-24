@@ -49,10 +49,15 @@ describe("word order", () => {
     // A filter said beside the place ("never won an award") is the board's, never the place card's unfiltered list.
     const filtered = await ask("best teams in romania that never won an award");
     expect(filtered?.card?.title ?? "").not.toMatch(/^Top teams in Romania/);
+    expect(filtered?.stat?.blocks.some((b) => b.kind === "leaderboard"), "the board").toBe(true);
   });
 
   it("reads the same cues in any order", async () => {
     const ctx = await parseContext();
+    // A word typed one letter off twice ("compre"), fixed twice by the parse: each counted.
+    const twice = await parseQuery("4215 compre 23268 compre", ctx);
+    expect(twice.fixed?.length).toBe(2);
+    expect(twice.cues.compare).toBe(2);
     const a = await parseQuery("the best team in oradell sorted by opr", ctx), b = await parseQuery("sorted by opr in oradell the best team", ctx);
     expect(a.cues).toEqual(b.cues);
     expect(a.cues).toMatchObject({ team: 1, goodBad: 1, sorted: 1 });
