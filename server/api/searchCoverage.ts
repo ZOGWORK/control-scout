@@ -1091,10 +1091,11 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
       return card(title, lines, `No ranked teams in ${p.name} for ${seasonLabel(season)} yet.`, [placePage(p, shown)], label, tableOf(rows, shown));
     }
   }
-  // A place's best match scores: "top scores in NJ", "highest score in texas". As the season records are kept
+  // A place's best match scores: "top scores in NJ", "highest score in texas", "highest scoring matches in texas" (read
+  // with its plural folded, "match"). As the season records are kept
   // (./searchHighScores.ts): an alliance's score without penalties, official events only, one season (the latest with
   // played matches there), never different games' scores side by side.
-  if ((m = /^(?:the\s+)?(?:top|highest|best|biggest|max(?:imum)?)\s+(?:match\s+)?(?:scores?|scoring matches|scoring games)\s+(?:in|from|at)\s+(.+?)$/.exec(t))) {
+  if ((m = /^(?:the\s+)?(?:top|highest|best|biggest|max(?:imum)?)\s+(?:match\s+)?(?:scores?|scoring match(?:es)?|scoring games?)\s+(?:in|from|at)\s+(.+?)$/.exec(t))) {
     const p = await placeOf(cased(q, m[1]));
     if (!p) return null;
     const where = placeSql(p).replace(/\bt\./g, "e.").replace(/^ AND /, "");
