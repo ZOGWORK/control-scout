@@ -9,7 +9,6 @@ import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../searchEventQuery.js";
 import { onlyTopicWords } from "../searchQuery.js";
 import { asksWhich, onlyOrdinary } from "./ordinary.js";
-import { everydayWord } from "./everyday.js";
 import { pickShared as pickAmong } from "./shared.js";
 
 /** A name as typed or stored, compared whole: lower case, any run of punctuation and spaces one space. */
