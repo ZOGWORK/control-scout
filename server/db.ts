@@ -1,7 +1,7 @@
 // Database: SQLite through @libsql/client (a local file by default, Turso when
 // DATABASE_URL is a libsql:// URL). Schema changes are numbered migrations,
 // applied once each, in order, inside a transaction.
-import { createClient, type Client, type InArgs, type InStatement, type Row } from "@libsql/client";
+import { createClient, type Client, type InArgs, type InStatement, type ResultSet, type Row } from "@libsql/client";
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
@@ -3141,18 +3141,22 @@ export async function run(sql: string, args: InArgs = []): Promise<number> {
   try { return (await db().execute({ sql, args })).rowsAffected; } finally { noteWrite(sql); }
 }
 
-/** Run statements atomically, in chunks (libsql batches are one transaction each). */
-export async function writeBatch(stmts: InStatement[], chunk = 2000): Promise<void> {
-  if (!stmts.length) return;
-  try { await batchWrite(stmts, chunk); } finally { for (const st of stmts) noteWrite(typeof st === "string" ? st : st.sql); }
+/** Run statements atomically, in chunks (libsql batches are one transaction each). Returns each statement's own result,
+ *  so a caller can say what its writes did — a guarded INSERT that changed nothing reports 0 rows — where most callers
+ *  ignore it. */
+export async function writeBatch(stmts: InStatement[], chunk = 2000): Promise<ResultSet[]> {
+  if (!stmts.length) return [];
+  try { return await batchWrite(stmts, chunk); } finally { for (const st of stmts) noteWrite(typeof st === "string" ? st : st.sql); }
 }
 
-async function batchWrite(stmts: InStatement[], chunk: number): Promise<void> {
-  if (stmts.length <= chunk) { await db().batch(stmts, "write"); return; }
+async function batchWrite(stmts: InStatement[], chunk: number): Promise<ResultSet[]> {
+  if (stmts.length <= chunk) return db().batch(stmts, "write");
   const tx = await db().transaction("write");
+  const results: ResultSet[] = [];
   try {
-    for (let i = 0; i < stmts.length; i += chunk) await tx.batch(stmts.slice(i, i + chunk));
+    for (let i = 0; i < stmts.length; i += chunk) results.push(...await tx.batch(stmts.slice(i, i + chunk)));
     await tx.commit();
+    return results;
   } catch (e) {
     await tx.rollback().catch(() => {});
     throw e;
