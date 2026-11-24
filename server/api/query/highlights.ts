@@ -105,9 +105,14 @@ export async function eventsNamed(words: string, types: readonly string[] | null
     const pick = (await initialismEvent(words, (e) => among.has(`${e.season}|${e.code}`)))?.code;
     fits.splice(0, fits.length, ...shared.filter(({ e }) => e.code === pick));
   }
+  // The words in the order typed, as a run of the name, count for more than the same words in another order: "Meet 2
+  // Harper 1" is "Meet 2 - Harper 1", never "Meet 1 - Harper 2", though both hold every word.
+  const flat = (x: string) => ` ${x.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim()} `;
+  const said = flat(words);
+  const rank = (e: { name: string }, fit: number) => fit + (flat(e.name).includes(said) ? 1e-6 : 0);
   const best = new Map<number, number>();
-  for (const { e, fit } of fits) best.set(Number(e.season), Math.max(best.get(Number(e.season)) ?? 0, fit));
-  return fits.filter(({ e, fit }) => fit === best.get(Number(e.season)))
+  for (const { e, fit } of fits) best.set(Number(e.season), Math.max(best.get(Number(e.season)) ?? 0, rank(e, fit)));
+  return fits.filter(({ e, fit }) => rank(e, fit) === best.get(Number(e.season)))
     .map(({ e }) => ({ season: Number(e.season), code: e.code, name: e.name, type: e.type ?? null, division: e.division_code ?? null, start: e.start ?? null, end: e.end ?? null, city: e.city ?? null, state: e.state ?? null }));
 }
 

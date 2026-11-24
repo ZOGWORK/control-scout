@@ -36,6 +36,9 @@ export interface Names {
   nearShared?(words: string): TeamName[];
   /** The place these words name, or null. */
   place(words: string, typed?: string): Place | null;
+  /** A town several regions share, none holding most of its teams ("springfield"): each of them, most teams first, to
+   *  ask which; empty for a town only one region has, or one that is no town. */
+  townsShared?(words: string): Place[];
   /** The longest team name, in words (the parser looks no further). */
   longest: number;
   /** Whether a word starts the way some word of an event's name or code does (its first three letters): words that
@@ -52,6 +55,9 @@ export interface Names {
    *  more, the same first letter, within the edits allowed for its length (a swap of two letters is one), and no other
    *  such word as close. Null when none is, or two are. */
   nearEventWord?(word: string): string | null;
+  /** Whether a word (folded, five letters or more) is a word of some stored team's, event's or town's name: the
+   *  parser's spelling fix (./parse.ts) never turns one into a search word. */
+  nameWord?(word: string): boolean;
 }
 
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
@@ -143,6 +149,19 @@ export function* namesSteps(teams: NameRow[], places: PlaceRow[]): Generator<voi
     const [first, second] = [...at.values()].sort((a, b) => b.n - a.n);
     return !second || first.n >= TOWN_LEAD * second.n ? first : null;
   };
+  // A town said with its region after it ("springfield il", "springfield illinois"): the town in that region, however
+  // many regions share its name.
+  const townWithRegion = (f: string, typed: string): { country: string; state: string | null; city: string } | null => {
+    const fs = f.split(" "), ts = typed.split(/\s+/);
+    if (fs.length !== ts.length) return null;
+    for (let n = Math.min(3, fs.length - 1); n >= 1; n--) {
+      const r = regionOf(ts.slice(-n));
+      const at = r ? towns.get(fs.slice(0, -n).join(" ")) : undefined;
+      const hit = at && [...at.values()].find((x) => x.country === r!.country && (x.state ?? "") === r!.state);
+      if (hit) return hit;
+    }
+    return null;
+  };
   const stems = new Set<string>();
   // An event's initialisms too ("mti"), which the search index holds with its name (./initialisms.ts).
   const initials = new Map<string, Set<string>>();
@@ -159,6 +178,13 @@ export function* namesSteps(teams: NameRow[], places: PlaceRow[]): Generator<voi
     for (const w of [...fold(`${p.name ?? ""} ${p.code ?? ""}`).split(" "), ...eventInitialisms(p.name ?? "")]) if (w.length >= 3) stems.add(w.slice(0, 3));
     if (p.code) for (const i of eventInitialisms(p.name ?? "")) (initials.get(i) ?? initials.set(i, new Set()).get(i)!).add(p.code);
   }
+  // Every word of five letters or more in a stored name (a team's, an event's, a town's).
+  const nameWords = new Set<string>();
+  for (const k of [...byName.keys(), ...towns.keys()]) {
+    if (++step % STEP_ITEMS === 0) yield;
+    for (const w of k.split(" ")) if (w.length >= 5) nameWords.add(w);
+  }
+  for (const ws of eventWords.values()) for (const w of ws) nameWords.add(w);
   const countries = new Map<string, string>();
   for (const p of [...teams, ...places]) {
     if (++step % STEP_ITEMS === 0) yield;
@@ -197,6 +223,11 @@ export function* namesSteps(teams: NameRow[], places: PlaceRow[]): Generator<voi
       const plain = f.replace(/(?<=\p{L}{4})s$/u, "");
       return byCore.get(f) ?? (plain !== f ? byName.get(plain) ?? byCore.get(plain) : undefined) ?? (f.includes(" ") ? byJoined.get(f.replace(/ /g, "")) : undefined) ?? [];
     },
+    townsShared(w) {
+      const at = towns.get(fold(w));
+      if (!at || at.size < 2 || townOf(fold(w))) return [];
+      return [...at.values()].sort((a, b) => b.n - a.n).map((t) => ({ kind: "city" as const, country: t.country, state: t.state, city: t.city, name: t.city }));
+    },
     nearTeam(w) {
       const teams = nearest(w);
       return teams.length === 1 ? teams[0] : null;
@@ -208,6 +239,7 @@ export function* namesSteps(teams: NameRow[], places: PlaceRow[]): Generator<voi
     longest,    eventStem: (w) => stems.has(fold(w).slice(0, 3)),
     initialism: (w) => [...(initials.get(fold(w)) ?? [])],
     eventNamed: (w) => eventNames.has(fold(w)),
+    nameWord: (w) => nameWords.has(fold(w)),
     eventLongest,
     nearEventWord(w) {
       const f = fold(w);
@@ -241,7 +273,7 @@ export function* namesSteps(teams: NameRow[], places: PlaceRow[]): Generator<voi
       const said = countryOf(w) ?? the;
       const stored = countries.get(f) ?? storedCountries.find(({ c }) => c === said || (!!people && c === people))?.label;
       if (stored && f.length >= 3) return { kind: "country", country: stored, state: null, city: null, name: countryOf(stored)?.name ?? stored };
-      const t = townOf(f);
+      const t = townOf(f) ?? (f.includes(" ") ? townWithRegion(f, fold(typed ?? w) === f ? (typed ?? w) : f) : null);
       if (t && f.length >= 3) {
         return { kind: "city", country: t.country, state: t.state, city: t.city, name: t.city };
       }

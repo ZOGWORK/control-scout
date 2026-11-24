@@ -1,7 +1,7 @@
 // The follow-ups' checks run one at a time, giving the event loop a turn between them (followUps.ts inTurn): the
 // database never gives it back on its own, so 40 searches asked at once held every other request for seconds.
 import { describe, expect, it } from "vitest";
-import { inTurn, inTurns } from "./followUps";
+import { holdChecks, inTurn, inTurns } from "./followUps";
 
 /** A search that holds the thread for its whole run, as one answered from the database does. */
 const busy = (ms: number) => { const end = performance.now() + ms; while (performance.now() < end) { /* the database at work */ } };
@@ -33,17 +33,93 @@ describe("inTurn", () => {
     expect(c).toEqual({ status: "fulfilled", value: 3 });
   });
 
-  it("is one queue for the whole process: two requests' checks made at once never run in the same turn of the loop", async () => {
+  it("is one line for the whole process: two requests' checks made at once never run in the same turn of the loop", async () => {
     // A turn counter: a timer re-armed each turn of the loop. Each check notes the turn it ran in.
     let turn = 0, on = true;
     const tick = () => { turn++; if (on) setTimeout(tick, 0); };
     setTimeout(tick, 0);
     const ran: { who: string; turn: number }[] = [];
-    const check = (who: string) => inTurns(async () => { busy(5); ran.push({ who, turn }); });
-    // Two follow-up requests, each asking for its checks all at once (followUps.ts run).
+    const check = (who: string) => inTurns(async () => { busy(5); ran.push({ who, turn }); }, who[0]);
+    // Two follow-up requests, each asking for its checks all at once (followUps.ts run), each in its own lane.
     await Promise.all([...["a1", "a2", "a3"].map(check), ...["b1", "b2", "b3"].map(check)]);
     on = false;
-    expect(ran.map((r) => r.who)).toEqual(["a1", "a2", "a3", "b1", "b2", "b3"]);
     expect(new Set(ran.map((r) => r.turn)).size).toBe(ran.length);
+  });
+
+  it("takes turns between lanes: a second search's first check runs next, not after the first's every check", async () => {
+    const ran: string[] = [];
+    const check = (who: string, later = false) => inTurns(async () => { ran.push(who); }, who[0], later);
+    await Promise.all([...["a1", "a2", "a3", "a4"].map((x) => check(x)), ...["b1", "b2"].map((x) => check(x))]);
+    expect(ran).toEqual(["a1", "b1", "a2", "b2", "a3", "a4"]);
+  });
+
+  it("runs `later` checks only once no lane has one that isn't", async () => {
+    const ran: string[] = [];
+    const check = (who: string, later = false) => inTurns(async () => { ran.push(who); }, who[0], later);
+    await Promise.all([check("a-later", true), check("a1"), check("b1"), check("b-later", true), check("b2")]);
+    expect(ran).toEqual(["a1", "b1", "b2", "a-later", "b-later"]);
+  });
+
+  it("a failed check is its caller's alone: the next goes on", async () => {
+    const [x, y] = await Promise.allSettled([inTurns(async () => { throw new Error("no"); }, "x"), inTurns(async () => 2, "x")]);
+    expect(x.status).toBe("rejected");
+    expect(y).toEqual({ status: "fulfilled", value: 2 });
+  });
+  it("holds a search's checks while an answer is made, but never the answer's own (default lane)", async () => {
+    const ran: string[] = [];
+    const release = holdChecks();
+    const follow = inTurns(async () => { ran.push("follow"); }, "f");
+    const own = inTurns(async () => { ran.push("own"); });
+    await own;
+    expect(ran).toEqual(["own"]);
+    release();
+    release(); // twice is once
+    await follow;
+    expect(ran).toEqual(["own", "follow"]);
+  });
+
+  it("runs a held check anyway once its wait is up, so answers never starve the follow-ups", async () => {
+    const release = holdChecks();
+    const t = performance.now();
+    await inTurns(async () => {}, "f");
+    expect(performance.now() - t).toBeGreaterThanOrEqual(150);
+    release();
+  });
+  it("runs a held check by its wait's end even while an answer's own checks keep coming", async () => {
+    const release = holdChecks();
+    const t = performance.now();
+    let on = true;
+    // An answer's own checks every 50 ms, each consuming a turn of the held wait.
+    const own = (async () => { while (on) { await inTurns(async () => {}); await new Promise((ok) => setTimeout(ok, 50)); } })();
+    await inTurns(async () => {}, "f");
+    const waited = performance.now() - t;
+    on = false;
+    await own;
+    release();
+    expect(waited).toBeLessThan(450);
+  });
+  it("runs a held check by its wait's end even while an answer's own checks queue back to back", async () => {
+    const release = holdChecks();
+    const t = performance.now();
+    let on = true;
+    // An answer's own checks, always one waiting: each busy 20 ms.
+    const own = (async () => { while (on) await Promise.all([1, 2].map(() => inTurns(async () => { busy(20); }))); })();
+    await inTurns(async () => {}, "f");
+    const waited = performance.now() - t;
+    on = false;
+    await own;
+    release();
+    expect(waited).toBeLessThan(450);
+  });
+
+  it("runs a later check once it has waited long enough, though searches keep coming", async () => {
+    let on = true, n = 0;
+    const later = inTurns(async () => "related", "x", true);
+    const searches = (async () => { while (on) await inTurns(async () => { busy(10); }, `s${n++ % 3}`); })();
+    const t = performance.now();
+    expect(await later).toBe("related");
+    on = false;
+    await searches;
+    expect(performance.now() - t).toBeLessThan(3_000);
   });
 });
