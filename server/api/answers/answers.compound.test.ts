@@ -489,6 +489,16 @@ describe("not, without, except (search audit: general \"not\")", () => {
       expect(matchesOf(await ask(`4215 matches without penalties at states in ${S + 1}`))).toEqual(["Q5"]);
       expect(a.stat?.scope).toEqual(expect.arrayContaining(["State championships", "No penalties given away"]));
       expect(a.understood?.unread ?? []).toEqual([]);
+      // No team said: matches where neither alliance gave away a point, said so ("with no penalties" is a filter).
+      await run("UPDATE matches SET blue_pen = 0 WHERE season = ? AND code = 'USNJCMPP' AND label = 'Q5'", [S]);
+      clearAllCaches();
+      for (const q of ["highest scoring matches with no penalties at states", "penalty free matches at states", "closest matches with no penalties at states"]) {
+        const b = await ask(q);
+        expect([matchesOf(b), b.stat?.title], q).toEqual([["Q5"], expect.stringContaining("with no penalties either side")]);
+        expect(b.stat?.scope, q).toContain("No penalties either side");
+      }
+      // "Without penalties" on a best is its points without them, every match ranked: never a filter.
+      expect((await ask("highest score without penalties at states")).stat?.title).not.toContain("either side");
     } finally {
       try { await run("UPDATE matches SET red_pen = NULL, blue_pen = NULL WHERE season = ? AND code = 'USNJCMPP'", [S]); } finally { clearAllCaches(); }
     }

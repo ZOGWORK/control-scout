@@ -512,7 +512,7 @@ const MEETING_IDS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matc
  *  names are Compare's. */
 /** The most teams Compare shows side by side. */
 const COMPARE_MAX = 4;
-export interface TeamSetQuestion { teams: number[]; season: number | null }
+export interface TeamSetQuestion { teams: number[]; season: number | null; /** The board stat they're compared by (BOARD_STATS), its card's headline row. */ stat?: string }
 export function readTeamSet(raw: string): TeamSetQuestion | null {
   // A bare year in a list of numbers is a team ("12345 67890 2024 compare"); a season is written as one ("2024-25") or
   // named as one ("in 2024", "during 2024").
