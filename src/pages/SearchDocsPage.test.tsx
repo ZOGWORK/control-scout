@@ -36,6 +36,20 @@ describe("FTC One Search page", () => {
     expect(text).toMatch(/No AI decides what you meant/);
   });
 
+  it("eases every hover move: Tailwind 4's translate and scale utilities are their own properties, not transform", async () => {
+    const { default: Docs } = await import("./SearchDocsPage");
+    const { container } = render(<MemoryRouter initialEntries={["/how-it-works/search"]}><Docs /></MemoryRouter>);
+    const bad = [...container.querySelectorAll<HTMLElement | SVGElement>("[class]")]
+      .map((el) => el.getAttribute("class") ?? "")
+      .filter((c) => /(?:^|\s)(?:group-)?hover:-?(?:translate|scale)-/.test(c))
+      .filter((c) => {
+        const t = c.match(/transition-\[([^\]]+)\]/)?.[1].split(",") ?? [];
+        const moves = /hover:-?translate-/.test(c) ? "translate" : "scale";
+        return !/(?:^|\s)transition-(?:transform|all)(?:\s|$)/.test(c) && !t.includes(moves);
+      });
+    expect(bad).toEqual([]);
+  });
+
   it("shows every plain-words example in its group, each a link that runs that exact search", async () => {
     const { default: Docs } = await import("./SearchDocsPage");
     const { container } = render(<MemoryRouter initialEntries={["/how-it-works/search"]}><Docs /></MemoryRouter>);
