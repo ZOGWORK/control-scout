@@ -13,9 +13,10 @@ import { intentDefaults, readLeaderboard, scopeFits, type IntentId, type Leaderb
 import { allianceForecast, predictionSeasonOf } from "../answers/families/predict.js";
 import { CURRENT_SEASON, isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
-import { boardSearch, statAnswer, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
+import { boardSearch, statAnswer, statAnswerOf, teamSetSearch, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { currentSeason, defaultSeason, lastSeason, seasonWhy, teamSeason } from "../answers/season.js";
 import { BOARD_STATS, boardPlace } from "../answers/families/leaderboard.js";
+import { askOf, whenWhere } from "../../../src/shared/query/whenWhere.js";
 import { conferencesNamed } from "../answers/families/conference.js";
 import { allConferences } from "../conferences.js";
 import { CONFERENCE_REGION } from "../../../src/shared/conferences.js";
@@ -35,6 +36,7 @@ import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { eventFieldAnswer, saysOtherThanOpr } from "../answers/families/eventVersus.js";
 import { BOARD_STAT, placeRegion, placesAnswer, placesAsk } from "./places.js";
 import { seasonsAnswer, seasonsAsk } from "./seasons.js";
+import { perSeasonAnswer } from "./perSeason.js";
 import { asksNow, streakBoardAnswer } from "./streakBoard.js";
 import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
@@ -43,7 +45,7 @@ import { topTeamsNote, topTeamsSaid } from "./topTeams.js";
 import { asksSelfMatch, selfMatchAnswer } from "./selfMatch.js";
 import { PAIR_SPLIT, windowPairAnswer } from "./windowPair.js";
 import { rankReviewAnswer } from "./rankReview.js";
-import type { PipelineIntent } from "./intents.js";
+import { CLEAN_MATCHES, type PipelineIntent } from "./intents.js";
 import { place } from "../../../src/shared/format.js";
 import { readAsk } from "../searchAsks.js";
 
@@ -55,6 +57,25 @@ export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resol
 
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  // "When …" or "where …" ("when did <team> win inspire", "where did <team> play last"): the question as asked, its
+  // rows' dates or events the headline (src/shared/query/whenWhere.ts). Only an answer re-headlined says the ask: its
+  // reading as said, the ask before it (what the reading added, which of the teams with a name or a part of a region,
+  // stays). Any other is as asked without it.
+  const ask = askOf(q);
+  const a = await pipelineRead(q, opts);
+  if (!a || !ask) return a;
+  const said = (x: SearchAnswer): SearchAnswer => (x.understood ? { ...x, understood: { ...x.understood, label: `${ask === "when" ? "When" : "Where"}: ${x.understood.label}` } } : x);
+  // The dropdown's answer (no card) is its own, as without the ask; it says the ask only when the page's card would
+  // be re-headlined, read in full to know.
+  if (!opts.full) {
+    const full = await pipelineRead(q, { ...opts, full: true });
+    return full?.stat && whenWhere(full.stat, ask) !== full.stat ? said(a) : a;
+  }
+  const stat = a.stat && whenWhere(a.stat, ask);
+  return !stat || stat === a.stat ? a : said({ ...a, stat });
+}
+
+async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const ctx0 = await parseContext(opts.now, opts.prefer);
   const ctx = opts.asTyped ? { ...ctx0, asTyped: true } : ctx0;
   let p = await parseQuery(q, ctx);
@@ -86,10 +107,26 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     if (!p.intent) p = { ...p, intent: "leaderboard", complete: true };
   }
   // A run of seasons ("<team> opr since <year>", "best teams 2023-24 to 2025-26"): each season's rank, never one season's
-  // stat set against another's (./seasons.ts); any other question of a run is left to search's other readers.
+  // stat set against another's (./seasons.ts). Any other question of a run ("highest score from <year> to <year>") is
+  // asked one season at a time, the answers side by side (./perSeason.ts).
   if (p.time?.kind === "seasons") {
     const stat = seasonsStat(p);
-    return stat === undefined ? null : seasonsAnswer(p, stat, opts);
+    const ranked = stat === undefined ? null : await seasonsAnswer(p, stat, opts);
+    if (ranked || !p.complete || !p.intent || !ANSWERED.has(p.intent)) return ranked;
+    return perSeasonAnswer(p, opts, (x, full) => execute(x, { ...opts, full }));
+  }
+  // Two to four teams set side by side by one stat ("<team> vs <team> vs <team> teleop", "compare <team> and <team> average
+  // score"): their season numbers in one card, that stat its headline row.
+  const by = comparedStat(p);
+  if (by) {
+    const season = p.time?.kind === "season" ? (p.time.relative === "last" ? lastSeason() : p.time.season ?? null) : null;
+    // Two teams by a phase or by reliability: those side-by-side cards, as "12345 auto vs 67890" has them.
+    if (p.teams.length === 2 && (by === "auto" || by === "teleop" || by === "endgame" || by === "reliability")) {
+      const scope = { season, latest: false, ever: false, championship: false, states: false, level: null, alliance: null, at: null };
+      const [a, b] = p.teams.map((t) => String(t.number));
+      return twoTeamSearch(p.q, by === "reliability" ? { id: "reliability-vs", scope, a, b } : { id: "phase-vs", phase: by, scope, a, b }, opts.resolve, opts);
+    }
+    return teamSetSearch(p.q, { teams: p.teams.map((t) => t.number), season, stat: by }, opts.resolve, opts);
   }
   // An event's matches and nothing else asked ("<event> matches", "matches at <event>"): its matches in the order played,
   // each row playing its clip, as a team's matches do.
@@ -243,7 +280,7 @@ export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySe
   // Two places joined ("teams from nj or ny"): the pipeline's (./places.ts), never two searches joined by "or".
   if (p.places) { const stat = placesStat(p); return stat !== undefined && !!placesAsk(p, stat); }
   // A run of seasons said with "and" ("between 2023 and 2025"): the pipeline's (./seasons.ts), never two searches.
-  if (p.time?.kind === "seasons") { const stat = seasonsStat(p); return stat !== undefined && !!seasonsAsk(p, stat); }
+  if (p.time?.kind === "seasons") { const stat = seasonsStat(p); if (stat !== undefined && seasonsAsk(p, stat)) return true; }
   // A comparison is the pipeline's only at an event (or Worlds, or states): "12345 or 67890" stays the boolean reader's.
   return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event || p.worlds || p.states || seasonOdds(p)) && (p.intent !== "count-teams" || townCount(p))
     && (p.intent !== "compare" || !!p.event || p.worlds || p.states);
@@ -321,6 +358,31 @@ function placeSeason(p: Parsed, said: number | null | undefined, _opts: Pipeline
 /** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
 const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
 const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "event-scores", "team-predict", "predict-rank-events", "highlights", "teams-named", "count-teams", "alliance-predict", "swap-predict", "pick-partners", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
+
+/** The words a comparison by one stat may hold beside its teams, the stat and a season. */
+const COMPARE_BY_WORDS = new Set(["vs", "compare", "and", "thing:team", "agg:mean"]);
+/** The board stats two teams' own side-by-side cards answer ("12345 vs 67890 penalties", "… record" is head to head). */
+const TWO_TEAM_STATS = new Set(["opr", "rating", "penalties", "record", "wins"]);
+/** The one board stat (BOARD_STATS) two to four teams are compared by ("<team> vs <team> vs <team> teleop"), or null: the
+ *  teams said once each, "vs" or "compare", one stat (a phase is that phase's OPR; "average score" the average score)
+ *  and a season at most. Anything else said (an event, a place, a count, a filter) is another question's. */
+function comparedStat(p: Parsed): string | null {
+  const n = p.teams.length;
+  if (n < 2 || n > 4 || new Set(p.teams.map((t) => t.number)).size !== n || p.teams.some((t) => t.candidates)) return null;
+  if (!p.symbols.includes("vs") && !p.symbols.includes("compare")) return null;
+  // Four teams with "vs" between every two are four sides, never two alliances ("12345 23456 vs 34567 45678").
+  const sides = (p.q.match(/\b(?:vs|versus)\b/gi) ?? []).length >= n - 1;
+  if ((p.intent && p.intent !== "compare" && !(p.intent === "alliance-predict" && sides)) || p.leftover.length || (p.time && p.time.kind !== "season")) return null;
+  if (p.event || p.place || p.worlds || p.states || p.level || p.alliance || p.finals || p.matchNumber != null || p.eventKind || p.award || p.n != null || p.over
+    || p.undefeated || p.rookie || p.named || p.nameHas || p.withVideo || p.noPenalties || p.notStats?.length || p.notMetrics?.length) return null;
+  if (!p.symbols.every((s) => COMPARE_BY_WORDS.has(s) || s.startsWith("prep:") || s.startsWith("metric:"))) return null;
+  const mean = p.symbols.includes("agg:mean");
+  let stats = [...new Set(p.symbols.filter((s) => s.startsWith("metric:")).map((s) => (s === "metric:score" && mean ? "avg-score" : BOARD_STAT[s] ?? "")))];
+  if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
+  const stat = stats.length === 1 ? stats[0] : "";
+  if (!stat || !BOARD_STATS[stat] || BOARD_STATS[stat].count || (mean && stat !== "avg-score")) return null;
+  return n === 2 && TWO_TEAM_STATS.has(stat) ? null : stat;
+}
 
 /** The season an advancement card is for: its scope's season chip, else the current one. */
 const scope0 = (stat: StatAnswer) => {
@@ -413,7 +475,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // OPR there), which search's event readers give: the plain list is for a season, a window or a place.
   // A team's matches "without penalties" ("<team> matches without penalties at states"): the ones its alliance gave
   // away no penalty points in, listed by the match finder (below), wherever they were played.
-  const cleanAsk = p.teams.length === 1 && !!p.noPenalties && (intent === "season-matches" || intent === "results");
+  // Matches with no penalty points: a team's ("<team> matches without penalties"), or any finder's said as a filter
+  // ("highest scoring matches with no penalties"), never "without penalties" on a best (its points without them).
+  const cleanAsk = (p.teams.length === 1 && !!p.noPenalties && (intent === "season-matches" || intent === "results"))
+    || (!!p.clean && p.teams.length <= 1 && CLEAN_MATCHES.has(intent));
   if (intent === "season-matches" && (p.worlds || p.states) && !cleanAsk) return null;
   // A team's match by its score ("<team> 226 point match") is the match finder's, below.
   // With video, a team's matches or its best are the match finder's, below (it holds the filter).
@@ -640,7 +705,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // Matches with no measure said are a window's only ("matches from yesterday"), or those with a score to reach
   // ("matches at <event> where both alliances scored over 250"), listed best first; "matches" alone, a place's or a
   // match type's ("playoff matches in NJ") are left to search.
-  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond && !p.withVideo) return null;
+  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond && !p.withVideo && !cleanAsk) return null;
   const labelled = intent === "match-label" && p.matchNumber != null;
   // A match's number at Worlds ("q6 at worlds"): Worlds' matches with it, its divisions' and finals'.
   const kind = (labelled || cleanAsk) && p.worlds ? WORLDS_KIND : (labelled || cleanAsk) && p.states ? STATES_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;

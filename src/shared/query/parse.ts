@@ -3,7 +3,7 @@
 // word accounted for. Names come from the data (./names.ts), words from the lexicon (./lexicon.ts), times from
 // ./time.ts, the intent from ./intents.ts. Nothing here names a team, an event or a place.
 import { AWARD_ONE_WORD, EVENT_NAME_WORDS, LEXICON, type Agg, type Sym } from "./lexicon.js";
-import { WITH_VIDEO, pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
+import { CLEAN_MATCHES, WITH_VIDEO, pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
 import { readTime, type TimeRead, type TimeSlot } from "./time.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../searchEventQuery.js";
@@ -64,6 +64,9 @@ export interface Parsed {
   /** Only matches with video ("with video"): a filter only the match finder applies; anywhere else the parse is left
    *  incomplete (./intents.ts WITH_VIDEO). */
   withVideo?: boolean;
+  /** No penalty points at all asked as a filter ("matches with no penalties", "penalty-free matches"), not the points
+   *  without penalties: the match finder's matches with none (./intents.ts CLEAN_MATCHES). */
+  clean?: true;
   /** A floor in points ("more than 50 points", "at least 30 pts", that number counting): only a rule that takes "over"
    *  applies it. */
   over?: { n: number; atLeast: boolean };
@@ -185,7 +188,7 @@ const LEX_ONE_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1).flatMa
 const symKey = (s: Sym): string | null => {
   switch (s.k) {
     case "agg": case "metric": case "thing": case "level": case "alliance": case "outcome": case "prep": case "award": case "per": return `${s.k}:${s.v}`;
-    case "filler": return null;
+    case "filler": case "clean": return null;
     default: return s.k;
   }
 };
@@ -594,6 +597,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "states") p.states = true;
       else if (s.k === "award") { p.award = s.v; symbols.add("metric:award"); }
       else if (s.k === "nopen") p.noPenalties = true;
+      else if (s.k === "clean") p.clean = true;
       else if (s.k === "withvideo") p.withVideo = true;
       else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
@@ -903,7 +907,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   if (pick) { p.intent = pick.rule.id; p.rule = pick.rule; p.unexplained = pick.unexplained; }
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.
-  if (pick && p.noPenalties && !(pick.rule.opt ?? []).includes("nopen")) pick.unexplained.push("nopen");
+  // "With no penalties" (a filter, ./intents.ts CLEAN_MATCHES) is every match question's, whatever its rule lists.
+  if (pick && p.clean && CLEAN_MATCHES.has(pick.rule.id)) p.unexplained = pick.unexplained = pick.unexplained.filter((s) => s !== "nopen");
+  if (pick && p.noPenalties && !(p.clean ? CLEAN_MATCHES.has(pick.rule.id) : (pick.rule.opt ?? []).includes("nopen"))) pick.unexplained.push("nopen");
   if (pick && p.over != null && !(pick.rule.opt ?? []).includes("over")) pick.unexplained.push("over");
   if (pick && p.withVideo && !WITH_VIDEO.has(pick.rule.id)) pick.unexplained.push("withvideo");
   // The awards side-by-side counts every award: one award named ("12345 vs 67890 inspire awards") is left to the
