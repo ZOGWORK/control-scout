@@ -12,7 +12,7 @@ import { V8_SOFT } from "./v8tone";
 
 const state = vi.hoisted(() => ({ matches: [] as unknown[] }));
 vi.mock("../../../lib/api", async (orig) => ({ ...(await orig<typeof import("../../../lib/api")>()), useApi: () => ({ data: { matches: state.matches }, error: null, loading: false }) }));
-const { V8TeamAnswer, TEAM_FACT_COLOUR } = await import("./V8Results");
+const { V8TeamAnswer, TEAM_FACT_COLOUR, noteColour } = await import("./V8Results");
 
 const summary = { season: 2026, s: { team: 26000, record: "16-5-0", opr: 98, oprRank: 39, of: 3271 } } as unknown as SeasonSummary;
 const stat = { intent: "team-highlights", headline: { value: "188 points", label: "Best score" }, blocks: [] } as unknown as StatAnswer;
@@ -53,5 +53,12 @@ describe("V8TeamAnswer fact tiles (issue #2014)", () => {
     score = container.querySelector<HTMLElement>("[data-last-result]")!;
     expect(score.dataset.lastResult).toBe("lost");
     expect(score.querySelector("span")!.className).toContain(V8_SOFT.red.text);
+  });
+});
+
+describe("standout matches: each in the colour of what it stands out for", () => {
+  it("best Auto blue, a win green, a loss red, a best score purple", () => {
+    expect(["Best Auto", "Closest win", "Biggest loss", "Best score", "Latest playoff win", "Best TeleOp", undefined].map(noteColour))
+      .toEqual(["blue", "win", "red", "purple", "win", "orange", "purple"]);
   });
 });
