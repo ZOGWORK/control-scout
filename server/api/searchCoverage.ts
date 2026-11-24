@@ -29,6 +29,7 @@ import { defaultSeason, relativeSeason } from "./answers/season.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
 import { allowedEdits, editDistance, normalize } from "./fuzzy.js";
 import { search } from "./search.js";
+import { championshipNames } from "./query/lexicon.js";
 import { names } from "./query/names.js";
 import { parseContext } from "./query/context.js";
 import { seasonStats } from "./teams.js";
@@ -206,8 +207,9 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   const swt = sw ?? (EVENT_WORDS.test(t) && !/^\d{1,6}\b/.test(t) ? seasonWord(t, true) : null);
   if (swt && swt.game && !/^\d{1,6}\b/.test(t) && EVENT_WORDS.test(swt.rest)) return { q: `${swt.rest} ${swt.season}`, pre: true };
   if (sw?.game && named.has(`division:${sw.rest}`)) return { q: `${sw.rest} division ${sw.season}`, pre: true };
-  // "events", "events this season", "events ths": the season's events, never teams named "Event Horizon".
-  if ((m = /^(?:all\s+)?(?:the\s+)?(?:ftc\s+)?(events?|meets?|competitions?|tournaments?)(?:\s+(?:this|ths|tis|thsi|current)(?:\s+(?:season|year))?)?$/.exec(t))) {
+  // "events", "events this season", "events ths" (said in full first: ./query/lexicon.ts INFORMAL): the season's events,
+  // never teams named "Event Horizon".
+  if ((m = /^(?:all\s+)?(?:the\s+)?(?:ftc\s+)?(events?|meets?|competitions?|tournaments?)(?:\s+(?:this|current)(?:\s+(?:season|year))?)?$/.exec(t))) {
     return { q: `${m[1].replace(/s?$/, "s")} in ${seasonLabel(CURRENT_SEASON).replace("–", "-")}`, pre: true };
   }
   // A team's quality or a showing at an event asked in plain words: its season's numbers, or its results there.
@@ -939,7 +941,7 @@ export async function teamSuggestions(team: number, asked: string, said: number 
   const awards = !!(await get("SELECT 1 FROM awards WHERE team = ? LIMIT 1", [team]));
   const S = seasonLabel(season);
   const options = [
-    { q: `${team} worlds appearances`, near: /\b(?:worlds?|championships?|cmp|houston)\b/, has: worlds },
+    { q: `${team} worlds appearances`, near: new RegExp(String.raw`\b(?:${championshipNames()}|championships?|cmp)\b`), has: worlds },
     { q: `${team} awards`, near: /\b(?:awards?|inspire|won|win)\b/, has: awards },
     { q: `${team} highest score ever`, near: /\b(?:scores?|points?|best|highest|match(?:es)?)\b/, has: true },
     { q: `${team} best alliance partner`, near: /\b(?:partners?|alliances?|with|teammates?|opponents?|against)\b/, has: true },
