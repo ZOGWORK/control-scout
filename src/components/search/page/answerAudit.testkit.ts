@@ -165,3 +165,70 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
   }
   return problems;
 }
+
+// v8 (the default look) draws its own classes over the classic ones (./v8tone.ts), so the checks above, which read the
+// classic classes, can pass while v8 paints the card grey: the rules, off-topic and shared-name pages were 1–6%
+// saturated (search audit 11-24, U2). The owner's rule (11-06, "exaggerate the colour") holds in v8 too: every card
+// has a saturated hue, and its headline number and stat numbers are in a colour, never plain ink.
+/** Hues that read as colour on a v8 card, the slate-blue accent among them (the owner, 11-24: "accent colours"). */
+const V8_SATURATED = /^(accent|accent-text|red|orange|amber|yellow|lime|green|emerald|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|live|info|success|danger|video|team-[abc](-text)?|(red|blue)-alliance(-text|-ink)?)$/;
+const V8_PROPS = /^!?(text|bg|border-l|border|stroke|fill|ring)-/;
+
+/** The colour family each property of `el` paints in v8 dark: a `v8:` class wins over a `dark:` one, which wins over a
+ *  plain one (index.css registers `v8` after `dark`). Hover, focus, sizes and the like are left out. */
+function v8Paint(el: Element): Map<string, string> {
+  const best = new Map<string, [number, string]>();
+  for (const cls of (el.getAttribute("class") ?? "").split(/\s+/).filter(Boolean)) {
+    const variant = cls.includes(":") ? cls.slice(0, cls.lastIndexOf(":")) : "";
+    const util = cls.slice(cls.lastIndexOf(":") + 1);
+    const rank = variant === "" ? 0 : variant === "dark" ? 1 : variant === "v8" ? 2 : -1;
+    if (rank < 0) continue;
+    const prop = V8_PROPS.exec(util)?.[1];
+    const fam = prop && (/^!?(?:text|bg|border-l|border|stroke|fill|ring)-\[(#[0-9a-f]{3,8})\]/i.exec(util)?.[1] ?? colourOf(util));
+    if (!prop || !fam) continue;
+    if ((best.get(prop)?.[0] ?? -1) <= rank) best.set(prop, [rank, fam]);
+  }
+  return new Map([...best].map(([p, [, f]]) => [p, f]));
+}
+
+/** An arbitrary hex reads as colour when it's clearly saturated (HSL saturation and a mid lightness). */
+function saturatedHex(hex: string): boolean {
+  const h = hex.slice(1);
+  const [r, g, b] = (h.length <= 4 ? [...h.slice(0, 3)].map((x) => x + x) : [h.slice(0, 2), h.slice(2, 4), h.slice(4, 6)]).map((x) => parseInt(x, 16) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  const s = max === min ? 0 : (max - min) / (1 - Math.abs(2 * l - 1));
+  return s > 0.35 && l > 0.15 && l < 0.9;
+}
+const isSaturated = (f: string) => (f.startsWith("#") ? saturatedHex(f) : V8_SATURATED.test(f));
+
+/** The text colour a number shows in v8: the colour of the first glyph of its big text (a tile's value, not its
+ *  label), inherited from the nearest element that sets one, up to `root`. */
+function v8Text(el: Element, root: Element): string | null {
+  const big = [el, ...el.querySelectorAll("*")].find((e) => /(^|\s)(font-display|text-(lg|xl|2xl|3xl|4xl))(\s|$)/.test(e.getAttribute("class") ?? "")) ?? el;
+  const walk = document.createTreeWalker(big, NodeFilter.SHOW_TEXT);
+  let first: Node | null = walk.nextNode();
+  while (first && !first.textContent!.trim()) first = walk.nextNode();
+  const start = first?.parentElement ?? big;
+  for (let e: Element | null = start; e; e = e === root ? null : e.parentElement) {
+    const t = v8Paint(e).get("text");
+    if (t) return t;
+  }
+  return null;
+}
+
+/** The v8 colour checks for a rendered card, as a list of problems (empty is a pass): a saturated hue somewhere on
+ *  the card, and every headline number and stat number (`[data-headline-value]`, `[data-kpi]`) in a colour. */
+export function auditV8Colour(card: HTMLElement): string[] {
+  const problems: string[] = [];
+  const hues = new Set<string>();
+  for (const el of [card, ...card.querySelectorAll("*")]) {
+    if (el.closest(".sr-only")) continue;
+    for (const f of v8Paint(el).values()) if (isSaturated(f)) hues.add(f);
+  }
+  if (!hues.size) problems.push("v8 grey card: no saturated colour anywhere");
+  for (const el of card.querySelectorAll("[data-headline-value], [data-kpi]")) {
+    const t = v8Text(el, card);
+    if (!t || !(isSaturated(t) || t === "accent")) problems.push(`v8 grey number: ${el.textContent?.trim().slice(0, 40)} (${t ?? "inherited ink"})`);
+  }
+  return problems;
+}
