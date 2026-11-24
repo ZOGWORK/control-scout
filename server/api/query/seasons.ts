@@ -11,12 +11,12 @@ import { defaultSeason } from "../answers/season.js";
 import type { Parsed } from "./parse.js";
 
 /** The stats a season ranks teams by: the value and its rank in that season. */
-const RANKED: Record<string, { label: string; value: string; rank: string }> = {
-  opr: { label: "OPR", value: "s.opr_np", rank: "s.rank_np" },
-  auto: { label: "Auto OPR", value: "s.opr_auto", rank: "s.rank_auto" },
-  teleop: { label: "TeleOp OPR", value: "s.opr_teleop", rank: "s.rank_teleop" },
-  endgame: { label: "Endgame OPR", value: "s.opr_endgame", rank: "s.rank_endgame" },
-  rating: { label: "Prediction rating", value: "s.rating_np", rank: "s.rating_rank" },
+const RANKED: Record<string, { label: string; rank: string }> = {
+  opr: { label: "OPR", rank: "s.rank_np" },
+  auto: { label: "Auto OPR", rank: "s.rank_auto" },
+  teleop: { label: "TeleOp OPR", rank: "s.rank_teleop" },
+  endgame: { label: "Endgame OPR", rank: "s.rank_endgame" },
+  rating: { label: "Prediction rating", rank: "s.rating_rank" },
 };
 /** A board over a run: a team ranked in at least this many of its seasons (every one, in a run of one or two). */
 const MIN_SEASONS = 2;
@@ -77,8 +77,9 @@ export async function seasonsAnswer(p: Parsed, stat: string | null, opts: { full
 
 /** One team's run: each season's stat, rank and share, and its best season. */
 async function teamRun(team: number, seasons: number[], st: (typeof RANKED)[string], counts: Map<number, number>): Promise<Pick<StatAnswer, "blocks" | "headline" | "none">> {
-  const rows = await all<{ season: number; v: number | null; r: number | null; w: number; l: number; t: number }>(
-    `SELECT s.season, ${st.value} v, ${st.rank} r, s.wins w, s.losses l, s.ties t FROM team_season_stats s WHERE s.team = ? AND s.season IN (${seasons.map(() => "?").join(", ")})`, [team, ...seasons]);
+  // Its rank and share only: the stat's own number is never set beside another season's (each game scores differently).
+  const rows = await all<{ season: number; r: number | null; w: number; l: number; t: number }>(
+    `SELECT s.season, ${st.rank} r, s.wins w, s.losses l, s.ties t FROM team_season_stats s WHERE s.team = ? AND s.season IN (${seasons.map(() => "?").join(", ")})`, [team, ...seasons]);
   const by = new Map(rows.map((r) => [Number(r.season), r]));
   const ranked = seasons.filter((s) => by.get(s)?.r != null && counts.get(s));
   if (!ranked.length) return { blocks: [], none: `Team ${team} wasn't ranked by ${st.label} in any of these seasons.` };
@@ -88,12 +89,12 @@ async function teamRun(team: number, seasons: number[], st: (typeof RANKED)[stri
     headline: { value: topShare(Number(by.get(best)!.r), counts.get(best)!), label: `Best season by ${st.label} rank: ${seasonLabel(best)}, #${by.get(best)!.r} of ${counts.get(best)!.toLocaleString("en-US")}`, sub: `${ranked.length} of ${seasons.length} seasons ranked` },
     blocks: [{
       kind: "table", title: `${st.label} rank each season`,
-      columns: [{ key: "season", label: "Season" }, { key: "rank", label: "Rank", num: true }, { key: "share", label: "Share", num: true }, { key: "value", label: st.label, num: true }, { key: "record", label: "W-L-T" }],
+      columns: [{ key: "season", label: "Season" }, { key: "rank", label: "Rank", num: true }, { key: "share", label: "Share", num: true }, { key: "record", label: "W-L-T" }],
       rows: seasons.map((s) => {
         const r = by.get(s), n = counts.get(s);
         return {
           cells: { season: seasonLabel(s), rank: r?.r != null && n ? `#${r.r} of ${n.toLocaleString("en-US")}` : r ? "Not ranked" : "Didn't play",
-            share: r?.r != null && n ? topShare(Number(r.r), n) : null, value: r?.v != null ? Number(r.v).toFixed(1) : null, record: r ? `${r.w}-${r.l}-${r.t}` : null },
+            share: r?.r != null && n ? topShare(Number(r.r), n) : null, record: r ? `${r.w}-${r.l}-${r.t}` : null },
           href: `/teams/${team}?season=${s}`, strong: s === best,
         };
       }),
