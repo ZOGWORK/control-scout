@@ -271,9 +271,13 @@ export function togetherOf(matches: TogetherMatch[], others: number[]): { rows: 
  *  picked (pickSeasonRows) and that season's scales (`scale`: COMPARE_SCALE_COLS, read only when a season was
  *  picked). `legacy`: the season predates Predict (an older season is Compare only). `together`: the matches every
  *  one of them played in that season (togetherOf), read only when every team has a row for it. */
-export function compareStat(teams: AnswerTeam[], scope: Scope, s: PickedSeason, scale: Record<string, number | null>, legacy: (season: number) => boolean, together: { rows: StatMatchRow[]; total: number } = { rows: [], total: 0 }): StatAnswer {
+/** The one stat a comparison was asked by ("<team> vs <team> vs <team> teleop"): its headline row. `key`: one of the five
+ *  season rows (OPR, a phase's OPR, the rating), made the Total; else `row`, its own row set first. */
+export interface CompareFocus { label: string; key?: "np" | "auto" | "teleop" | "endgame" | "rating"; row?: CompareInput }
+
+export function compareStat(teams: AnswerTeam[], scope: Scope, s: PickedSeason, scale: Record<string, number | null>, legacy: (season: number) => boolean, together: { rows: StatMatchRow[]; total: number } = { rows: [], total: 0 }, focus?: CompareFocus): StatAnswer {
   const phrase = s.season != null ? `, ${seasonLabel(s.season)}` : "";
-  const base = { family: "two-team" as const, intent: "compare", title: `${teams.map((t) => t.number).join(" vs ")}${phrase}`, team: teams[0], teams, scope: scopeChips({ ...scope, season: s.season }), definition: `${COMPARE_RULE}${s.why ? ` ${s.why}` : ""}`, source: s.season != null ? `From the teams' ${seasonLabel(s.season)} season numbers` : "No season every team played" };
+  const base = { family: "two-team" as const, intent: "compare", title: `${focus ? `${focus.label}: ` : ""}${teams.map((t) => t.number).join(" vs ")}${phrase}`, team: teams[0], teams, scope: scopeChips({ ...scope, season: s.season }), definition: `${COMPARE_RULE}${s.why ? ` ${s.why}` : ""}`, source: s.season != null ? `From the teams' ${seasonLabel(s.season)} season numbers` : "No season every team played" };
   if (s.season == null) return { ...base, blocks: [], none: `${teams.map(whoOf).join(", ")} have no season they all played.` };
   const missing = teams.filter((_, i) => !s.rows[i]);
   if (missing.length) return { ...base, blocks: [], none: `No ${seasonLabel(s.season)} matches on record for ${missing.map(whoOf).join(" and ")}.` };
@@ -288,14 +292,27 @@ export function compareStat(teams: AnswerTeam[], scope: Scope, s: PickedSeason, 
   const phases = ["np", "auto", "teleop", "endgame"] as const;
   // OPR and its phases, then the rating, each on the season's own scale (five rows); the ranks and records are the
   // context line, said once.
+  // The stat asked by is the Total (one of the five) or its own row set first; with none, OPR is.
+  const totalKey = focus ? focus.key : "np";
   const block = compareBlock("Season numbers", teams, [
-    ...phases.map((k) => ({ label: k === "np" ? "OPR" : PHASE_NAME[k], total: k === "np", values: rows.map((r) => r[`opr_${k}`]), max: scale[`opr_${k}`], better: "higher" as const })),
-    { label: "Rating", values: rows.map((r) => r.rating_np), max: scale.rating_np, better: "higher" },
+    ...(focus?.row ? [{ ...focus.row, total: true }] : []),
+    ...phases.map((k) => ({ label: k === "np" ? "OPR" : PHASE_NAME[k], total: k === totalKey, values: rows.map((r) => r[`opr_${k}`]), max: scale[`opr_${k}`], better: "higher" as const })),
+    { label: "Rating", total: totalKey === "rating", values: rows.map((r) => r.rating_np), max: scale.rating_np, better: "higher" },
   ], season, `the ${seasonLabel(season)} high, rounded up`);
   const crow = block.kind === "compare" ? block.rows : [];
   const two = teams.length === 2;
   const who = (i: number) => (two ? "" : `${teams[i].number} `);
-  const context = [...rows.map((r, i) => `${who(i)}${r.rank_np ? `#${r.rank_np.toLocaleString("en-US")} of ${(r.ranked_teams ?? 0).toLocaleString("en-US")}` : "unranked"} (${recText(rec(r))})`), decidedText(crow)];
+  // Each team's world rank in the stat asked by when the season ranks it (OPR and its phases), else its record alone;
+  // what decided it only for OPR, whose phases add up to it.
+  const rankKey = totalKey === "rating" ? null : totalKey;
+  const placeOf = (r: SeasonRow) => {
+    const n = rankKey ? r[`rank_${rankKey}`] : null;
+    return n ? `#${n.toLocaleString("en-US")} of ${(r.ranked_teams ?? 0).toLocaleString("en-US")} (${recText(rec(r))})` : rankKey ? `unranked (${recText(rec(r))})` : recText(rec(r));
+  };
+  const context = [...rows.map((r, i) => `${who(i)}${placeOf(r)}`), totalKey === "np" ? decidedText(crow) : null];
+  // The headline's leader: the Total's, else the best OPR (no Total leads: a tie or a value missing).
+  const leader = crow[0]?.best != null ? teams[crow[0].best] : lead;
+  const noTotal = focus ? crow[0]?.values.every((v) => v === "–") : noOpr;
   // The matches every one of them played in that season at official events (on one alliance or against each other;
   // never a scrimmage or an off-season event, as head to head counts them), latest first: each a match box the
   // answer's video gives its own clip, one alone the match the card plays. Past the cap the card says how many it
@@ -303,7 +320,7 @@ export function compareStat(teams: AnswerTeam[], scope: Scope, s: PickedSeason, 
   const togetherMore = together.total > TOGETHER_MAX ? `Showing the latest ${TOGETHER_MAX} of ${together.total}` : undefined;
   return {
     ...base,
-    headline: noOpr ? { value: "No OPR", label: `No ${seasonLabel(season)} OPR on record for these teams`, href: compareHref } : leadHeadline(teams, crow[0], context, teamHref(lead.number, season)),
+    headline: noTotal ? { value: `No ${focus?.label ?? "OPR"}`, label: `No ${seasonLabel(season)} ${focus?.label ?? "OPR"} on record for these teams`, href: compareHref } : leadHeadline(teams, crow[0], context, teamHref(leader.number, season)),
     blocks: [
       block,
       ...(together.rows.length ? [{ kind: "matches" as const, title: `Their matches together in ${seasonLabel(season)}`, rows: together.rows, ...(togetherMore ? { more: togetherMore } : {}) }] : []),

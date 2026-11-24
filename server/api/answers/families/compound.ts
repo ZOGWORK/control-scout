@@ -61,23 +61,23 @@ function listWords(c: ListQuestion, season: number) {
   return {
     awardWords: c.award ? (c.award.type === "Winner" ? "on a winning alliance" : `that won the ${c.award.label}`) : "",
     worldsWords: c.worlds ? `at Worlds ${season + 1}` : c.noWorlds ? `that didn't go to Worlds ${season + 1}` : "",
+    rookieWords: c.notRookie ? "that are not rookies" : "",
     thWords: c.thresholds.length ? `with ${c.thresholds.map(thText).join(" and ")}` : "",
   };
 }
 /** The stat a list is sorted by: the one said, else a threshold's (a stat before a count), else what's shown, else OPR. */
 const sortOf = (c: ListQuestion) => c.stat ?? c.thresholds.find((t) => !COUNTS[t.stat])?.stat ?? c.thresholds[0]?.stat ?? c.outputs[0] ?? "opr";
 /** "Top 5 teams in New Jersey that won the Inspire Award, by Auto OPR · 2025–26": every filter, in words. */
+/** A list's season: the one said; with Worlds and none said, the latest Worlds held (a season's championship ends it);
+ *  else the default season. */
+export const listSeason = (c: ListQuestion) => c.season ?? (c.worlds || c.noWorlds ? completedSeason() : defaultSeason());
 export function listTitle(c: ListQuestion, city: string | null, season = listSeason(c)): string {
   const st = listStat(sortOf(c));
   const w = listWords(c, season);
   const teams = c.rookie ? "rookie teams" : "teams";
-  return [`${c.n ? `Top ${c.n} ${teams}` : teams.replace(/^./, (x) => x.toUpperCase())} ${listPlace(c, city)}`, w.worldsWords, w.awardWords, w.thWords].filter(Boolean).join(" ") + `, by ${statWords(st)} · ${seasonLabel(season)}`;
+  return [`${c.n ? `Top ${c.n} ${teams}` : teams.replace(/^./, (x) => x.toUpperCase())} ${listPlace(c, city)}`, w.rookieWords, w.worldsWords, w.awardWords, w.thWords].filter(Boolean).join(" ") + `, by ${statWords(st)} · ${seasonLabel(season)}`;
 }
 type ListQuestion = Extract<CompoundQuestion, { kind: "list" }>;
-
-/** The season a list is about: the one named; with none named, a list by Worlds ("teams that did not make worlds")
- *  is about the latest Worlds held (completedSeason), never one still to come; any other list the default season. */
-export const listSeason = (c: ListQuestion): number => c.season ?? (c.worlds || c.noWorlds ? completedSeason() : defaultSeason());
 
 export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   const season = listSeason(c);
@@ -125,6 +125,8 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   }
   // A rookie team's rookie year is the season's, as the rookie leaderboard counts it.
   if (c.rookie) filters.push("t.rookie_year = s.season");
+  // Rookies left out: a team whose rookie year is before the season (a team with none on record is kept).
+  if (c.notRookie) filters.push("(t.rookie_year IS NULL OR t.rookie_year < s.season)");
   // Every threshold applied; the first one's stat is the one the closest team is named by when none passes.
   const tst = tsts[0]?.x ?? null;
   const thSql = tsts.length ? tsts.map(({ t, x }) => `${x.sql} ${SQL_OP[t.op]} ?`).join(" AND ") : null;
@@ -146,9 +148,9 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   ]);
   const total = Number(count?.n ?? 0), checked = Number(pool?.n ?? 0);
   // The card's words: each filter as a chip, and in the title.
-  const { awardWords, worldsWords, thWords } = listWords(c, season);
+  const { awardWords, worldsWords, thWords, rookieWords } = listWords(c, season);
   const title = listTitle(c, city, season);
-  const chips = [c.region?.name ?? c.country?.name ?? city ?? "Worldwide", S, ...(c.rookie ? ["Rookie teams"] : []), ...(c.award ? [c.award.type === "Winner" ? "Winning alliance" : `Won the ${c.award.label}`] : []),
+  const chips = [c.region?.name ?? c.country?.name ?? city ?? "Worldwide", S, ...(c.rookie ? ["Rookie teams"] : c.notRookie ? ["Not rookies"] : []), ...(c.award ? [c.award.type === "Winner" ? "Winning alliance" : `Won the ${c.award.label}`] : []),
     ...(c.worlds ? [`Went to Worlds (FIRST Championship ${season + 1})`] : c.noWorlds ? [`Didn't go to Worlds (FIRST Championship ${season + 1})`] : []),
     ...c.thresholds.map((t) => thText(t).replace(/^./, (x) => x.toUpperCase())), `Sorted by ${st.label}`, ...(c.n ? [`Top ${c.n}`] : [])];
   // With no season named, a Worlds list is the latest Worlds held: when the default season's is still to come, said so.
@@ -158,11 +160,11 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
     `Teams ${placeWords === "worldwide" ? "anywhere" : `whose home is ${c.region?.name ?? c.country?.name ?? city}, as FIRST lists it,`} with ${RANKED_MIN_MATCHES}+ matches in ${S}, from the season numbers each team page shows (OPR without penalties).`,
     c.award ? (c.award.type === "Winner" ? " On a winning alliance: a Winning Alliance award at any event that season." : ` Won the ${c.award.label}: its winner (1st place) at any event that season, from the events' published awards.`) : "",
     c.worlds ? ` Went to Worlds: played at a FIRST Championship division in ${S}.` : c.noWorlds ? ` Didn't go to Worlds: played at no FIRST Championship division in ${S}.` : "",
-    c.rookie ? ` A rookie team's rookie year is ${S}.` : "",
+    c.rookie ? ` A rookie team's rookie year is ${S}.` : c.notRookie ? ` Not rookies: a team whose rookie year is before ${S}.` : "",
     ...c.thresholds.map((t) => ` ${thText(t).replace(/^./, (x) => x.toUpperCase())}: the team's stored ${S} ${COUNTS[t.stat] ? `${listStat(t.stat).label.toLowerCase()} (every match it played that season)` : listStat(t.stat).label}.`),
     why,
   ].join("");
-  const answer = { family: "leaderboard" as const, intent: "filtered-list", title, scope: chips, definition, source: `${plural(total, "team")} of ${checked.toLocaleString("en-US")} ranked ${placeWords} that ${c.award || c.worlds || c.noWorlds || c.rookie ? "pass the filters above" : "were checked"}` };
+  const answer = { family: "leaderboard" as const, intent: "filtered-list", title, scope: chips, definition, source: `${plural(total, "team")} of ${checked.toLocaleString("en-US")} ranked ${placeWords} that ${c.award || c.worlds || c.noWorlds || c.rookie || c.notRookie ? "pass the filters above" : "were checked"}` };
   if (!rows.length) {
     // None over the threshold: the closest team checked, named, so the answer says what was there.
     const unit = (x: BoardStat) => (x.unit === "%" ? "%" : "");
@@ -219,7 +221,7 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   const top = rows[0];
   return {
     ...answer,
-    headline: { value: plural(total, c.rookie ? "rookie team" : "team"), label: `${placeWords}${worldsWords ? ` ${worldsWords}` : ""}${awardWords ? ` ${awardWords}` : ""}${thWords ? ` ${thWords}` : ""}`, sub: `Highest ${st.label}: ${top.team} ${top.name ?? ""} (${fmt(n(top.v))})`.replace(" (", " (").replace(/\s+\(/, " ("), href: teamHref(Number(top.team), season) },
+    headline: { value: plural(total, c.rookie ? "rookie team" : "team"), label: `${placeWords}${rookieWords ? ` ${rookieWords}` : ""}${worldsWords ? ` ${worldsWords}` : ""}${awardWords ? ` ${awardWords}` : ""}${thWords ? ` ${thWords}` : ""}`, sub: `Highest ${st.label}: ${top.team} ${top.name ?? ""} (${fmt(n(top.v))})`.replace(" (", " (").replace(/\s+\(/, " ("), href: teamHref(Number(top.team), season) },
     blocks,
   };
 }

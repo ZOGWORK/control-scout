@@ -80,7 +80,7 @@ describe("event page in v8", () => {
     ] } as unknown as EventDetail;
     mount("/events/2025/AUBRQ2");
     expect(selected()).toEqual([expect.stringContaining("Rankings")]);
-    expect(tabNames().slice(0, 3)).toEqual(["Rankings", "Playoffs", "Awards"]);
+    expect(tabNames().slice(0, 4)).toEqual(["Matches", "Playoffs", "Rankings", "Awards"]);
     expect(document.querySelector("[data-event-focus=finished]")).not.toBeNull();
     const awards = [...document.querySelectorAll("[data-focus-awards] li")].map((li) => li.textContent);
     expect(awards[0]).toMatch(/^Inspire Award/); // Inspire first
@@ -206,7 +206,7 @@ describe("SortTable in v8", () => {
   ];
   const table = () => render(<SortTable rows={rows} cols={cols} rowKey={(r) => r.team} highlight={(r) => r.team === 3} initial={{ key: "opr", dir: "desc" }} />);
 
-  it("has a quiet sentence-case head, 44px rows, no heat colours, and the highlighted row marked in mint at its edge", () => {
+  it("has a quiet sentence-case head, 44px rows, no heat colours, and the highlighted row marked white at its edge (no slate row)", () => {
     table();
     const th = screen.getAllByRole("columnheader")[0];
     expect(th.className).toMatch(/v8:normal-case/);
@@ -215,12 +215,23 @@ describe("SortTable in v8", () => {
     expect(bodyRows).toHaveLength(5);
     for (const r of bodyRows) expect(r.className).toMatch(/v8:h-11/);
     expect(document.querySelector("tbody td.font-semibold")).toBeNull();
-    expect(document.querySelector("[data-highlight]")!.className).toMatch(/v8:shadow-\[inset_2px_0_0_var\(--color-accent\)\]/);
+    expect(document.querySelector("[data-highlight]")!.className).toMatch(/v8:shadow-\[inset_2px_0_0_var\(--color-text-base\)\]/);
   });
 
   it("keeps the heat colours with v8 off", () => {
     v8(false);
     table();
     expect(document.querySelector("tbody td.font-semibold")).not.toBeNull();
+  });
+
+  it.each([true, false])("shades a shade column green (best) to red (worst) by value, v8 %s", (on) => {
+    v8(on);
+    const shaded: Col<R>[] = [{ key: "team", label: "Team", value: (r) => r.team }, { key: "rank", label: "Rank", value: (r) => r.team, asc: true, align: "right", shade: true, heat: true }];
+    render(<SortTable rows={rows} cols={shaded} rowKey={(r) => r.team} initial={{ key: "rank", dir: "asc" }} />);
+    const cells = [...document.querySelectorAll("tbody td[data-shade]")];
+    expect(cells).toHaveLength(5);
+    const pct = (el: Element) => /(\d+)%/.exec(el.getAttribute("style") ?? "")?.[1];
+    expect(cells.map(pct)).toEqual(["100", "75", "50", "25", "0"]); // rank 1 green … rank 5 red
+    expect(document.querySelector("tbody td[data-shade].font-semibold")).toBeNull(); // no heat band on top
   });
 });

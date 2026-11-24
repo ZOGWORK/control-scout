@@ -40,7 +40,7 @@ import { readOverview } from "./families/overview.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, resolveChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
-import { BOARD_STATS, LEADERBOARD_MAX, boardFilterWords, conferenceGroup, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
+import { BOARD_STATS, LEADERBOARD_MAX, boardFilterWords, boardPlace, conferenceGroup, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
 import { monthIn, readTime } from "../query/time.js";
 import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
 import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
@@ -1279,7 +1279,7 @@ async function twoTeamStat(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, s
 
 /** "12345 67890 33950 compare": three to six teams' season numbers in one card (compareAnswer). Every team found by its
  *  number, else left to search. */
-async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const hits = await Promise.all(set.teams.map(async (n) => (await resolve(String(n))).hits.find((h) => h.kind === "team" && h.ref === String(n) && !h.href)));
   if (hits.some((h) => !h)) return null;
   const found = hits as SearchHit[];
@@ -1289,7 +1289,14 @@ async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, 
   // It opens on the card's season: the one named, else the one the card picks (every team played it).
   const season = set.season ?? (await compareSeason(set.teams));
   // Put together by src/shared/searchVersus.ts, as the event pack does with no signal.
-  return teamSetAnswer(q, found, found0, season, set.season, opts.pages, opts.full ? await compareAnswer(teams, { season: set.season }) : undefined);
+  const a = teamSetAnswer(q, found, found0, season, set.season, opts.pages, opts.full ? await compareAnswer(teams, { season: set.season }, set.stat) : undefined);
+  // Compared by one stat: said so, the stat named.
+  const by = set.stat ? BOARD_STATS[set.stat]?.label : undefined;
+  if (!by || !a.understood || !a.intent) return a;
+  return {
+    ...a, understood: { ...a.understood, label: `${by}: ${teams.map(whoOf).join(" vs ")}` },
+    intent: { ...a.intent, kind: "stat-compare-by", pattern: `${teams.map(() => "[team]").join(" ")} compare [${set.stat}]${set.season != null ? " [season]" : ""}`, understood: [...a.intent.understood, by] },
+  };
 }
 
 /** A list's length said in the question: "top 10", "best 5", "the 3 best", "bottom 10". */
@@ -1332,14 +1339,14 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
   if (!st) return null;
   // Conferences as the place ("nj bergen"): named as the card names them, in the board's season.
   const group = b.conference ? await conferenceGroup(b.conference, b.season ?? defaultSeason()) : null;
-  const where = group ? ` in ${group.label}` : b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
+  const where = group ? ` in ${group.label}` : b.town ? ` in ${b.town}` : b.region ? ` in ${boardPlace(b)}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
   let label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "oldest" || b.kind === "career" || b.kind === "number" ? careerBoardTitle({ kind: b.kind, stat: st, asc: b.asc }, where || " worldwide"): b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.kind === "gain" ? `Most ${st.id === "rating" ? "prediction rating" : "OPR"} gained${where} between first and last event`: b.undefeated && b.atKind ? `Teams${where} unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.teams ? `${b.teams.length} teams by ${statWords(st)}` : b.undefeated ? `Undefeated teams${where}` : (st.count || b.window) && b.best ? `Team${where} with the most ${statWords(st)}${b.window ? ` ${b.window.label}` : ""}` : b.window ? `Top ${b.n} teams${where} by ${statWords(st)} ${b.window.label}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? (b.climb ? `Teams${where} that climbed from OPR rank ${b.climb.from}+ to the top ${b.climb.to}` : `Most improved teams${where}`) : b.kind === "steady" ? `Most stable OPR${where}: the fewest ups and downs` : b.kind === "phases" ? `Strongest in every phase${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   // A filter on the teams ("name includes “Robot”", "no award ever won") is said in the heading, as on the card.
   const filters = boardFilterWords(b);
   if (filters) label = `${label}: ${filters}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
-    understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region ? { place: { key: b.region.key, name: b.region.name } } : {}) },
+    understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region && !b.also?.length ? { place: { key: b.region.key, name: b.region.name } } : {}) },
     intent: { kind: `stat-leaderboard-${b.kind}`, pattern: b.kind === "city" ? "teams in [city]" : b.kind === "city-best" ? "best team in [city]" : `${b.kind} [stat]${b.region ? " [place]" : ""}`, met: true, understood: [label] },
   };
   // The search box gets a link to the answer page, never an empty answer.
