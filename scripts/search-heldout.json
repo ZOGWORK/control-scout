@@ -3037,6 +3037,24 @@
 {
 "set": "not1124",
 "n": 4,
-"q": "23268 matches without penalties at worlds"
+"q": "23268 matches without penalties at worlds",
+"set": "runs1124",
+"n": 1,
+"q": "highest score from 2022 to 2024"
+},
+{
+"set": "runs1124",
+"n": 2,
+"q": "6980 highest score since 2023"
+},
+{
+"set": "runs1124",
+"n": 3,
+"q": "best record 2023-24 to 2025-26"
+},
+{
+"set": "runs1124",
+"n": 4,
+"q": "23268 awards since 2022"
 }
 ]
