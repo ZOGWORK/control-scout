@@ -37,6 +37,9 @@ export function placesAsk(p: Parsed, stat: string | null): "side" | "board" | nu
     if (p.agg === "max" || p.agg === "min") return null;
     // Only an average is set side by side: a median, a total or any other measure is another reader's.
     if (p.agg != null && p.agg !== "mean") return null;
+    // Every team of each place is averaged: a count ("top 5") or a filter of its teams ("never won an award") is the
+    // board's, never dropped here.
+    if (p.n != null || p.symbols.includes("no-award")) return null;
     const st = BOARD_STATS[stat ?? "opr"];
     return st && !st.count ? "side" : null;
   }

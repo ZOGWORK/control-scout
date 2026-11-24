@@ -100,7 +100,7 @@ describe("two places in one question", () => {
     // The board over both is the one-place board's: "best team" is the one team first, as for one place.
     const best = (await full("best team from maryland or delaware by opr")).stat as StatAnswer;
     expect([best.headline?.value, best.title]).toEqual(["30311 First State Bots", "Best team in Maryland or Delaware by OPR · 2025–26"]);
-    for (const q of ["how many teams from maryland or delaware", "teams from maryland or delaware not opr", "teams named crab from maryland or delaware", "the top maryland team vs the top delaware team"]) {
+    for (const q of ["top 3 maryland vs delaware average opr", "maryland vs delaware average opr teams that never won an award", "how many teams from maryland or delaware", "teams from maryland or delaware not opr", "teams named crab from maryland or delaware", "the top maryland team vs the top delaware team"]) {
       expect(placesAsk(await parseQuery(q, ctx), null), q).toBeNull();
     }
   });
