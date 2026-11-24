@@ -86,7 +86,7 @@ function close(w: Worker): Promise<void> {
   return new Promise<void>((done) => {
     let over = false;
     let timer: NodeJS.Timeout;
-    const finish = () => {
+    function finish() {
       if (over) return;
       over = true;
       clearTimeout(timer);
@@ -94,15 +94,20 @@ function close(w: Worker): Promise<void> {
       w.off("error", finish);
       w.off("exit", finish);
       void w.terminate().then(() => done(), () => done());
-    };
+    }
     // On `on`, not `once`: slices of the rebuild that was running are still arriving, and the first of those would
     // otherwise take the only listener and the acknowledgement would never be seen.
-    const onMessage = (m: FromRebuildWorker) => {
+    function onMessage(m: FromRebuildWorker) {
       if (m.t !== "stopped") return;
       if (m.closed) closes++;
+      // Ended with the connection open: the risk this exists to remove is still there, so it says so.
+      else console.warn("forecaster rebuild worker couldn't close its database; its thread ends with the connection open");
       finish();
-    };
-    timer = setTimeout(finish, CLOSE_MS);
+    }
+    timer = setTimeout(() => {
+      console.warn(`forecaster rebuild worker didn't close its database within ${CLOSE_MS} ms; its thread ends with the connection open`);
+      finish();
+    }, CLOSE_MS);
     timer.unref();
     w.on("message", onMessage);
     w.on("error", finish);
@@ -111,12 +116,16 @@ function close(w: Worker): Promise<void> {
   });
 }
 
+/** The close in flight (or the last one): a second stop while a worker is still closing waits for the same thread. */
+let closing: Promise<void> = Promise.resolve();
+
 function stop(reason: Error): Promise<void> {
   const w = worker;
   worker = null;
   workerFile = null;
   for (const [id, p] of pending) { clearTimeout(p.timer); pending.delete(id); p.reject(reason); }
-  return w ? close(w) : Promise.resolve();
+  if (w) closing = close(w);
+  return closing;
 }
 
 function start(file: string): Worker {
