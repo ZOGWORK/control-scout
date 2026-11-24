@@ -21,7 +21,14 @@
 //   npm run search:heldout -- --train         the training set instead
 //   npm run search:heldout -- --min 80        exit 1 below an 80% pass rate (CI, .github/workflows/ci.yml)
 //   npm run search:heldout -- --split         move held-out questions found in tests or code to the training set
+//   npm run search:heldout -- --claims      rewrite the recorded overlap (./search-heldout.claims.json) to this run's
 //   DATABASE_URL=file:.data/scout.db npm run search:heldout
+//
+// Two readers claiming one question (the search audit's C2): the pipeline reads it whole (query/execute.ts
+// pipelineReads) and the keyword layer finds a catalog intent with a phrasing to hand on (searchLayers.ts extract's
+// canonical). The questions both claim are recorded by set and number in ./search-heldout.claims.json; a whole run
+// fails when one more is claimed twice, and when one recorded no longer is (take it off the list: it only goes down,
+// as keyword intents the pipeline covers are retired).
 import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { heldoutSets, type HeldOut } from "./heldoutSets.js";
@@ -34,7 +41,8 @@ import { answerText, type Live } from "./search-signoff/grade.js";
 
 const flag = (name: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const SET = flag("set"), OUT = flag("out"), ONLY = flag("only")?.toLowerCase(), MIN = flag("min"), JSON_OUT = flag("json");
-const TRAIN = process.argv.includes("--train");
+const TRAIN = process.argv.includes("--train"), CLAIMS = process.argv.includes("--claims");
+const CLAIMS_FILE = join(import.meta.dirname, "search-heldout.claims.json");
 // A --min with no number after it would turn the floor off: refused instead.
 if (process.argv.includes("--min") && !Number.isFinite(Number(MIN ?? NaN))) { console.log(`FAIL: --min needs a number (got ${MIN ?? "nothing"})`); process.exit(1); }
 type Q = HeldOut;
@@ -82,13 +90,17 @@ const { searchAnswer } = await import("../server/api/searchAnswer.js");
 const { pickedQuery } = await import("../server/api/searchPageAnswer.js");
 const { seasonLabel } = await import("../src/shared/format.js");
 const { LEXICON } = await import("../server/api/query/lexicon.js");
+const { pipelineReads } = await import("../server/api/query/execute.js");
+const { extract } = await import("../server/api/searchLayers.js");
 
 const FILLER = new Set(LEXICON.filter((e) => e.syms.every((x) => x.k === "filler")).flatMap((e) => e.words));
 
 type Row = Q & { ms: number; intent: string | null; filters: string[]; place: string | null; time: string | null; card: string; stated: boolean; pattern: string; unread: string[];
   graded: "correct" | "wrong" | "unchecked"; wrong: string; numbers: "same" | "differ" | "not compared";
   /** A team page the local server couldn't give, for this answer or its re-asked one: recorded whatever the verdict. */
-  pageMissing: boolean };
+  pageMissing: boolean;
+  /** The pipeline and the keyword layer both claim it (see the header). */
+  both: boolean };
 const rows: Row[] = [];
 /** crosscheck's note when the team page couldn't be fetched. */
 const UNAVAILABLE = "team page unavailable";
@@ -97,6 +109,7 @@ for (const x of sets) {
   const a = await searchAnswer(x.q, { learn: false, limit: 12, full: true });
   const ms = performance.now() - t;
   const p = await parseQuery(x.q, await parseContext());
+  const both = (await pipelineReads(x.q)) && !!(await extract(x.q)).canonical;
   const s = a.stat;
   const text = fold([s?.title, s?.heading, ...(s?.scope ?? []), s?.none, s?.headline?.label, s?.headline?.sub, a.card?.title, a.card?.none, a.card?.headline, a.understood?.label, a.understood?.fallback].filter(Boolean).join(" · "));
   const place = p.place?.name ?? null;
@@ -156,7 +169,7 @@ for (const x of sets) {
   if (ONLY) console.log(JSON.stringify({ q: x.q, time: p.time, text, placeStated, timeStated, want }));
   rows.push({ ...x, ms: Math.round(ms), intent: p.intent ?? s?.intent ?? null, filters: [...(s?.scope ?? [])], place, time, card, stated: placeStated && timeStated, pattern: verdict, unread,
     graded: want?.verdict ?? "unchecked", wrong: want?.verdict === "wrong" ? `missing ${want.missing.join(", ")}` : check.note,
-    numbers: check.compared ? (check.ok ? "same" : "differ") : "not compared", pageMissing });
+    numbers: check.compared ? (check.ok ? "same" : "differ") : "not compared", pageMissing, both });
 }
 
 if (OUT) writeFileSync(OUT, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
@@ -179,6 +192,22 @@ for (const [k, rs] of [...by].sort((a, b) => b[1].length - a[1].length)) {
 }
 const slowest = Math.max(0, ...rows.map((r) => r.ms));
 console.log(`\nslowest answer ${slowest} ms`);
+// Claimed twice (see the header): read against the record on a whole held-out run only, a part of one claiming less.
+const id = (r: Row) => `${r.set}#${r.n}`;
+const twice = rows.filter((r) => r.both).map(id).sort();
+console.log(`claimed by the pipeline and the keyword layer: ${twice.length}`);
+let claimsFailed = false;
+if (CLAIMS) {
+  writeFileSync(CLAIMS_FILE, `${JSON.stringify({ both: twice }, null, 2)}\n`);
+  console.log(`recorded ${twice.length} in scripts/search-heldout.claims.json`);
+} else if (!TRAIN && !SET && !ONLY) {
+  const recorded = new Set((JSON.parse(readFileSync(CLAIMS_FILE, "utf8")) as { both: string[] }).both);
+  const more = twice.filter((k) => !recorded.has(k)), fewer = [...recorded].filter((k) => !twice.includes(k));
+  const of = (k: string) => { const r = rows.find((x) => id(x) === k); return r ? `${k} "${r.q}"` : k; };
+  if (more.length) console.log(`\nFAIL: claimed by both readers, not before (one reader per question):\n${more.map((k) => `  ${of(k)}`).join("\n")}`);
+  if (fewer.length) console.log(`\nFAIL: recorded as claimed twice, now by one reader: take them off the list (--claims):\n${fewer.map((k) => `  ${of(k)}`).join("\n")}`);
+  claimsFailed = more.length > 0 || fewer.length > 0;
+}
 if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify({ pass: passed, total: rows.length, rate: +rate.toFixed(1), correct, wrong, wanted: wanted.length, compared: compared.length, differ, slowest }));
 local.close();
 // A team page the local server couldn't give is a broken run, never a silent "not compared".
@@ -186,4 +215,5 @@ const unavailable = rows.filter((r) => r.pageMissing);
 if (unavailable.length) { console.log(`\nFAIL: the team page was unavailable for ${unavailable.length} answers (${unavailable.slice(0, 3).map((r) => `"${r.q}"`).join(", ")})`); process.exit(1); }
 // The CI floor (--min): a pass rate under it fails the run.
 if (MIN != null && rate < Number(MIN)) { console.log(`\nFAIL: ${rate.toFixed(1)}% is under the ${MIN}% minimum`); process.exit(1); }
+if (claimsFailed) process.exit(1);
 process.exit(0);
