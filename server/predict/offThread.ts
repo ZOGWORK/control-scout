@@ -84,6 +84,9 @@ const CLOSE_MS = 2000;
  *  teardown crash, `PendingException` in neon). */
 function close(w: Worker): Promise<void> {
   return new Promise<void>((done) => {
+    // Already gone (it exited or errored on its own, and `start`'s once-handlers consumed that event): there is
+    // nothing to close and nothing to wait for.
+    if (w.threadId === -1) { done(); return; }
     let over = false;
     let timer: NodeJS.Timeout;
     function finish() {
