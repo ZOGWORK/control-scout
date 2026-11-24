@@ -495,7 +495,7 @@ export function RecordsTable(p: RecordsTableProps) {
             </div>
           )}
           {summary ? <MatchSummaryList rows={data.rows as MatchRecordRow[]} cols={cols} /> : (
-            <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam} schedulePlaces={p.schedulePlaces} rankingColours={p.rankingColours}
+            <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam} schedulePlaces={p.schedulePlaces} rankingColours={p.rankingColours} stale={!api.data}
               selectable={selectable} selected={selected} onSelect={toggleTeam} pageSelection={pageSelection} onSelectAll={toggleAll} />
           )}
           {p.emptyColumnNotes && !filtered && data.total === data.rows.length && (
@@ -697,8 +697,10 @@ export function heatBands(rows: { stats: Record<string, unknown> }[], cols: stri
 /** A table row's height, for rows not measured yet. */
 const ROW_H = 37;
 
-function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedulePlaces, rankingColours, selectable, selected, onSelect, pageSelection, onSelectAll }: {
+function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedulePlaces, rankingColours, stale, selectable, selected, onSelect, pageSelection, onSelectAll }: {
   data: Resp; scope: RecordScope; cols: string[]; state: TableState; sortBy: (k: string) => void; code?: string; schedulePlaces?: SchedulePlaces; rankingColours?: boolean;
+  /** The rows shown are the previous answer, kept while the current one loads (they may be a filter's subset). */
+  stale?: boolean;
   highlightTeam?: number | null; selectable: boolean; selected: number[]; onSelect: (t: number) => void;
   pageSelection: PageSelection; onSelectAll: () => void;
 }) {
@@ -707,10 +709,12 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
   // red mean only where a team stands, so the other columns drop their category colour (the header keeps it).
   const whole = scope === "teamEvent" && !!code && !state.filter && data.total === data.rows.length;
   const heat = useMemo(() => (whole ? heatBands(data.rows as { stats: Record<string, unknown> }[], cols) : new Map<string, (v: unknown) => string>()), [whole, data.rows, cols]);
-  // The Rankings tab: rank, RS and TBP shaded against the whole event (lib/rankShade.ts); a filtered subset isn't the
-  // event, so it keeps plain numbers there. W, L and T take their status tone either way.
-  const shade = useMemo(() => new Map(rankingColours && whole ? cols.filter((k) => SHADE_COLS[k]).map((k) =>
-    [k, columnShade(data.rows.map((r) => r.stats[k]), SHADE_COLS[k].lowerIsBetter)] as const) : []), [rankingColours, whole, data.rows, cols]);
+  // The Rankings tab: rank, RS and TBP shaded against the whole event (lib/rankShade.ts). Anything that narrows the rows
+  // (a stat filter, a country or state, a region…) isn't the event, and neither are the previous rows still shown while
+  // a cleared filter reloads, so those keep plain numbers. W, L and T take their status tone either way.
+  const wholeEvent = whole && !hasFilters(state) && !stale;
+  const shade = useMemo(() => new Map(rankingColours && wholeEvent ? cols.filter((k) => SHADE_COLS[k]).map((k) =>
+    [k, columnShade(data.rows.map((r) => r.stats[k]), SHADE_COLS[k].lowerIsBetter)] as const) : []), [rankingColours, wholeEvent, data.rows, cols]);
   const wlt = (k: string) => (rankingColours && Object.hasOwn(WLT_TONE, k) ? WLT_TONE[k as keyof typeof WLT_TONE] : undefined);
   // Owned by the ranking colours: no heat band, category colour or #1 accent on these columns.
   const owned = (k: string) => !!rankingColours && (!!SHADE_COLS[k] || !!wlt(k));

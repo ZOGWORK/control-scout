@@ -22,8 +22,8 @@ vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../..
 const { RecordsTable } = await import("./RecordsTable");
 const { TooltipProvider } = await import("../ui/overlay");
 const { shadeColour } = await import("../../lib/rankShade");
-const mount = (rankingColours: boolean) => render(
-  <MemoryRouter initialEntries={["/events/2025/X"]}><TooltipProvider>
+const mount = (rankingColours: boolean, url = "/events/2025/X") => render(
+  <MemoryRouter initialEntries={[url]}><TooltipProvider>
     <RecordsTable scope="teamEvent" season={2025} code="X" predictable defaultCols={COLS} defaultSort="rank" storageKey={`rc${rankingColours}`} noun="teams" rankingColours={rankingColours} />
   </TooltipProvider></MemoryRouter>,
 );
@@ -67,6 +67,11 @@ describe("event rankings colours", () => {
     const btn = document.querySelector("tbody button[aria-label^='1 ']") as HTMLElement | null;
     expect(btn, "phone layout renders the team number as a button").not.toBeNull();
     expect(btn!.className).not.toContain("v8:text-accent");
+  });
+  it("keeps plain numbers when a country narrows the rows (not the whole event), W/L/T still toned", () => {
+    mount(true, "/events/2025/X?country=AU");
+    expect(document.querySelector("tbody td[data-shade]")).toBeNull();
+    expect(cell(0, "wins").className).toContain("text-success");
   });
   it("leaves other event tables (Insights) as they were", () => {
     mount(false);

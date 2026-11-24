@@ -39,6 +39,10 @@ describe("shadeColour", () => {
     expect(shadeColour(0)).toBe("color-mix(in oklab, var(--color-success-text) 0%, var(--color-danger-text))");
     expect(shadeColour(0.5)).toContain(" 50%,");
   });
+  it("gives no colour for a position that isn't a number", () => {
+    expect(shadeColour(Number.NaN)).toBeUndefined();
+    expect(shadeColour(Infinity)).toBeUndefined();
+  });
   it("clamps outside 0–1", () => {
     expect(shadeColour(2)).toBe(shadeColour(1));
     expect(shadeColour(-1)).toBe(shadeColour(0));
