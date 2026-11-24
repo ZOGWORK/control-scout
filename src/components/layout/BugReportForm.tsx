@@ -1,0 +1,478 @@
+// The "Report a bug" dialog (a bottom sheet on phones), loaded when its button (./BugReport.tsx) is first pressed. No account needed. The person picks what kind of problem, describes it, and can attach screenshots
+// (pasted with Ctrl+V / ⌘V anywhere in the dialog, picked from disk, dropped on it, or taken of the page behind the
+// dialog with "Capture this screen" where the browser can share a tab: captureScreen.ts) and one short video under 5 MB.
+// The page, version, screen, device and theme go with it and are listed in the dialog, so nothing is hidden.
+// Sending: POST /api/bug-reports, one PUT per attachment, then POST …/done (server/bugReports.ts), which emails it and
+// files it as a public GitHub issue in the background. The dialog then asks GET …/status for a few seconds and shows
+// the issue's real number and link once it exists, or says it's saved and will be filed: never a made-up link.
+// The message is sanitized here and again on the server (src/shared/errorReport.ts sanitizeText).
+import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
+import { useLocation } from "react-router-dom";
+import { AlertCircle, ArrowLeft, Bug, Camera, CheckCircle2, Clapperboard, ExternalLink, Globe, Gauge, ImagePlus, LayoutTemplate, Loader2, MessageCircle, Send, DatabaseZap, Wrench, X } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../ui/overlay";
+import { Button } from "../ui/button";
+import { Input, Label, RequiredMark, Textarea } from "../ui/basic";
+import { cn } from "../cn";
+import { apiFetch, ApiError } from "../../lib/api";
+import { offlineNow } from "../../lib/connection";
+import { useTheme } from "../../hooks/useTheme";
+import { APP_VERSION } from "../../lib/errorReporting";
+import { sanitizeText } from "../../shared/errorReport";
+import { PRIVATE_EMAIL, PUBLIC_NOTE } from "./BugReport";
+import { canCaptureScreen, captureScreen } from "./captureScreen";
+import {
+  attachmentProblem, attachmentsProblem, BUG_CATEGORIES, BUG_LIMITS, formatBytes, IMAGE_TYPES, isImageType, isVideoType, VIDEO_TYPES,
+  type BugCategory, type BugContext, type BugFiling, type BugReportCreated,
+} from "../../shared/bugReport";
+
+const ICONS: Record<BugCategory, typeof Bug> = { data: DatabaseZap, broken: Wrench, layout: LayoutTemplate, slow: Gauge, other: MessageCircle };
+const HINTS: Record<BugCategory, string> = {
+  data: "Which team, event or match, and what's wrong. Results come from FIRST, so we'll check there too.",
+  broken: "What you did, what you expected, and what happened instead.",
+  layout: "What looks off. A screenshot helps most here.",
+  slow: "Which page, and roughly how long it took.",
+  other: "Anything else that isn't working the way it should.",
+};
+
+/** The public notice, large enough to be read, with the private way out. */
+function PublicNotice() {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-3 text-left" data-testid="bug-public-note">
+      <Globe className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+      <div className="space-y-1 text-sm">
+        <p className="font-medium text-foreground">{PUBLIC_NOTE}</p>
+        <p className="text-text-muted" data-testid="bug-private-note">
+          Want it private? Email <a href={`mailto:${PRIVATE_EMAIL}?subject=${encodeURIComponent("Control Scout bug report")}`}
+            className="font-medium text-accent-text underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60">{PRIVATE_EMAIL}</a> instead.
+        </p>
+      </div>
+    </div>
+  );
+}
+const PALETTE_NAME = { light: "Light", dim: "Dim", dark: "Dark" } as const;
+const ACCEPT = [...IMAGE_TYPES, ...VIDEO_TYPES].join(",");
+/** ⌘V on Apple keyboards, Ctrl+V elsewhere. */
+const pasteKeys = () => (/Mac|iPhone|iPad/.test(typeof navigator !== "undefined" ? navigator.platform || navigator.userAgent : "") ? "⌘V" : "Ctrl+V");
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/** The only issue address the dialog will link to: this repository's issue with exactly that number. */
+export const issueLinkOk = (f: BugFiling): f is Extract<BugFiling, { state: "filed" }> =>
+  f.state === "filed" && Number.isInteger(f.number) && f.number > 0 && f.url === `https://github.com/ZOGWORK/control-scout/issues/${f.number}`;
+/** How long the dialog waits for the issue after sending, and how often it asks. */
+const FILING_WAIT_MS = 20_000;
+const FILING_EVERY_MS = 1_500;
+
+export interface Attachment { id: number; file: File; url: string }
+
+let nextId = 1;
+
+/** Image files on a paste or drop: files first, then file items (some browsers fill only one of the two). */
+export function filesFrom(data: Pick<DataTransfer, "files" | "items"> | null): File[] {
+  if (!data) return [];
+  const files = Array.from(data.files ?? []);
+  if (files.length) return files;
+  const out: File[] = [];
+  for (const item of Array.from(data.items ?? [])) {
+    if (item.kind !== "file") continue;
+    const f = item.getAsFile();
+    if (f) out.push(f);
+  }
+  return out;
+}
+
+/** A clipboard image arrives as "image.png" every time: give it a name that says what it is. */
+function named(f: File, i: number): File {
+  if (f.name && f.name !== "image.png") return f;
+  const ext = f.type.split("/")[1] ?? "png";
+  return new File([f], `pasted-screenshot-${i}.${ext}`, { type: f.type, lastModified: f.lastModified });
+}
+
+/**
+ * Adds `incoming` to what's attached: each file that fits is kept, the first one refused says why. Never more than
+ * the limits allow (screenshots, one video), and each file checked for type and size.
+ */
+export function addFiles(current: File[], incoming: File[]): { add: File[]; problem: string | null } {
+  const add: File[] = [];
+  let problem: string | null = null;
+  for (const f of incoming) {
+    const p = attachmentProblem(f.type, f.size) ?? attachmentsProblem([...current, ...add, f].map((x) => ({ type: x.type, bytes: x.size })));
+    if (p) { problem ??= p; continue; }
+    add.push(f);
+  }
+  return { add, problem };
+}
+
+/** "Chrome on Windows": enough to know where it happened, without the whole user-agent string. */
+export function deviceOf(ua: string): string {
+  const browser = /Edg\//.test(ua) ? "Edge" : /OPR\/|Opera/.test(ua) ? "Opera" : /Firefox\//.test(ua) ? "Firefox" : /CriOS|Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "Browser";
+  const os = /iPhone|iPad|iPod/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac OS X|Macintosh/.test(ua) ? "macOS" : /CrOS/.test(ua) ? "ChromeOS" : /Linux/.test(ua) ? "Linux" : "unknown system";
+  return `${browser} on ${os}`;
+}
+
+function useContextDetails(): BugContext {
+  const loc = useLocation();
+  const { palette } = useTheme();
+  const w = typeof window !== "undefined" ? window : null;
+  return {
+    page: `${loc.pathname}${loc.search}`,
+    release: APP_VERSION,
+    viewport: w ? `${w.innerWidth}×${w.innerHeight}${w.devicePixelRatio && w.devicePixelRatio !== 1 ? ` @${Math.round(w.devicePixelRatio * 100) / 100}x` : ""}` : "",
+    device: typeof navigator !== "undefined" ? deviceOf(navigator.userAgent) : "",
+    theme: PALETTE_NAME[palette],
+  };
+}
+
+
+type Status = "idle" | "sending" | "sent";
+/** After sending: still asking, filed (a real issue), saved (not filed yet) or failed (a try failed, it'll retry). */
+type Filed = { state: "asking" } | Extract<BugFiling, { state: "filed" }> | { state: "saved" } | { state: "failed" };
+
+/** Asks the server whether the report is an issue yet, until it is, a try failed, or the wait is over. */
+export async function waitForIssue(id: number, token: string, stop: () => boolean, waitMs = FILING_WAIT_MS, everyMs = FILING_EVERY_MS): Promise<Filed> {
+  const until = Date.now() + waitMs;
+  let last: BugFiling = { state: "pending" };
+  while (!stop()) {
+    try {
+      last = await apiFetch<BugFiling>(`/api/bug-reports/${id}/status`, { headers: { "X-Bug-Token": token }, _online: true });
+      if (issueLinkOk(last)) return last;
+      if (last.state === "failed") return { state: "failed" };
+    } catch { /* not answered: keep asking until the wait is over */ }
+    if (Date.now() + everyMs > until) break;
+    await new Promise((r) => setTimeout(r, everyMs));
+  }
+  return { state: "saved" };
+}
+
+export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () => void }) {
+  const context = useContextDetails();
+  const [category, setCategory] = useState<BugCategory | null>(null);
+  const [message, setMessage] = useState("");
+  // Never filled in for them: whatever is typed here shows on the public issue.
+  const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot: hidden from people
+  const [files, setFiles] = useState<Attachment[]>([]);
+  const [fileProblem, setFileProblem] = useState<string | null>(null);
+  const [tried, setTried] = useState(false);
+  const [status, setStatus] = useState<Status>("idle");
+  // While sending, the attachments are fixed: what's shown is what goes (paste, drop, pick and remove wait).
+  const sending = useRef(false);
+  sending.current = status === "sending";
+  const [progress, setProgress] = useState("");
+  const [failure, setFailure] = useState<string | null>(null);
+  // The second confirmation: the first Send asks "public, sure?", only the second one sends.
+  const [confirming, setConfirming] = useState(false);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const confirmBox = useRef<HTMLDivElement>(null);
+  const sendRef = useRef<HTMLButtonElement>(null);
+  // Go back hands focus back to Send report (the button it was on is gone).
+  const refocusSend = useRef(false);
+  useEffect(() => {
+    if (!confirming) {
+      if (refocusSend.current) { refocusSend.current = false; sendRef.current?.focus(); }
+      return;
+    }
+    confirmRef.current?.focus({ preventScroll: true });
+    // The whole question and both answers in view, on a phone too: the sheet (or dialog) scrolls to its end, and
+    // stays there while the box settles (it grows a little after its first frame).
+    const box = confirmBox.current;
+    const scroller = box?.closest<HTMLElement>("[data-slot=sheet-content], [data-slot=dialog-content]");
+    if (!box || !scroller) { box?.scrollIntoView?.({ block: "end" }); return; }
+    const toEnd = () => { scroller.scrollTop = scroller.scrollHeight; };
+    toEnd();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(toEnd);
+    watch.observe(box);
+    // Never against the person: the first scroll of their own ends it.
+    const done = () => { clearTimeout(stop); watch.disconnect(); scroller.removeEventListener("wheel", done); scroller.removeEventListener("touchstart", done); };
+    const stop = setTimeout(done, 800);
+    scroller.addEventListener("wheel", done, { passive: true });
+    scroller.addEventListener("touchstart", done, { passive: true });
+    return done;
+  }, [confirming]);
+  // Anything changed after the question was asked is asked about again.
+  useEffect(() => { setConfirming(false); }, [category, message, email, files]);
+  const [filed, setFiled] = useState<Filed>({ state: "asking" });
+  const gone = useRef(false);
+  // Set on every mount (StrictMode mounts, unmounts and mounts again), cleared when the dialog closes.
+  useEffect(() => { gone.current = false; return () => { gone.current = true; }; }, []);
+  const [dragging, setDragging] = useState(false);
+  const pick = useRef<HTMLInputElement>(null);
+  const ids = { cat: useId(), msg: useId(), email: useId(), files: useId() };
+  const pasted = useRef(0);
+  // "Capture this screen": only where the browser can share a tab (not phones), checked once per dialog.
+  const [canCapture] = useState(() => !phone && canCaptureScreen());
+  const [capturing, setCapturing] = useState(false);
+  const [captureNote, setCaptureNote] = useState<string | null>(null);
+  const captured = useRef(0);
+  const captureRef = useRef<HTMLButtonElement>(null);
+  // Thumbnails are object URLs: let them go when the dialog closes.
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  useEffect(() => () => { for (const a of filesRef.current) URL.revokeObjectURL(a.url); }, []);
+
+  // Worked out from the current list, outside any state updater (an updater may run twice: no URL or id made twice).
+  const attach = useCallback((incoming: File[], fromPaste = false) => {
+    if (!incoming.length || sending.current) return;
+    const cur = filesRef.current;
+    const { add, problem } = addFiles(cur.map((a) => a.file), fromPaste ? incoming.map((f) => named(f, ++pasted.current)) : incoming);
+    setFileProblem(problem);
+    if (!add.length) return;
+    const next = [...cur, ...add.map((file) => ({ id: nextId++, file, url: URL.createObjectURL(file) }))];
+    filesRef.current = next;
+    setFiles(next);
+  }, []);
+  /** One picture of the page behind the dialog, added like any other screenshot. A refused prompt only leaves a note. */
+  const capture = async () => {
+    if (capturing || sending.current) return;
+    setCaptureNote(null);
+    // Already full: say so without asking the browser for anything.
+    const full = attachmentsProblem([...filesRef.current.map((a) => ({ type: a.file.type, bytes: a.file.size })), { type: "image/png", bytes: 1 }]);
+    if (full) { setFileProblem(full); return; }
+    setCapturing(true);
+    try {
+      const got = await captureScreen(captured.current + 1, BUG_LIMITS.imageBytes);
+      if (gone.current) return;
+      if (got.ok) { captured.current += 1; attach([got.file]); }
+      else setCaptureNote(got.reason === "declined" ? "No screen captured. You can paste or choose a screenshot instead." : "Couldn't capture the screen. Paste or choose a screenshot instead.");
+    } finally {
+      if (!gone.current) { setCapturing(false); requestAnimationFrame(() => captureRef.current?.focus({ preventScroll: true })); }
+    }
+  };
+  const remove = (id: number) => {
+    if (sending.current) return;
+    const cur = filesRef.current;
+    const gone = cur.find((a) => a.id === id);
+    if (gone) URL.revokeObjectURL(gone.url);
+    const next = cur.filter((a) => a.id !== id);
+    filesRef.current = next;
+    setFileProblem(null);
+    setFiles(next);
+  };
+
+  // Ctrl+V / ⌘V anywhere in the dialog: images on the clipboard become attachments; text pastes as usual.
+  const onPaste = (e: ClipboardEvent) => {
+    const got = filesFrom(e.clipboardData).filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"));
+    if (!got.length) return;
+    e.preventDefault();
+    attach(got, true);
+  };
+  const onDrop = (e: DragEvent) => { e.preventDefault(); setDragging(false); attach(filesFrom(e.dataTransfer)); };
+
+  const msgLen = message.trim().length;
+  const errors = {
+    category: category ? null : "Choose what kind of problem it is.",
+    message: msgLen < BUG_LIMITS.messageMin ? `Tell us a little more (at least ${BUG_LIMITS.messageMin} characters).` : msgLen > BUG_LIMITS.messageMax ? `Keep it under ${BUG_LIMITS.messageMax.toLocaleString("en-US")} characters.` : null,
+    email: email.trim() && !EMAIL.test(email.trim()) ? "That doesn't look like an email address." : null,
+  };
+
+  /** The form's own submit (Send report, or Enter in a field) only ever asks; "Yes, post it publicly" sends. */
+  const submit = async (e?: FormEvent, confirmed = false) => {
+    e?.preventDefault();
+    setTried(true);
+    setFailure(null);
+    const first = (["category", "message", "email"] as const).find((k) => errors[k]);
+    if (first) {
+      if (first === "category") document.querySelector<HTMLInputElement>(`input[name="${ids.cat}"]`)?.focus();
+      else document.getElementById(first === "message" ? ids.msg : ids.email)?.focus();
+      return;
+    }
+    if (!confirmed) {
+      if (confirming) confirmRef.current?.focus();
+      else setConfirming(true);
+      return;
+    }
+    setConfirming(false);
+    setStatus("sending");
+    try {
+      setProgress("Sending your report…");
+      const created = await apiFetch<BugReportCreated>("/api/bug-reports", {
+        method: "POST", _online: true,
+        json: { category, message: sanitizeText(message.trim(), BUG_LIMITS.messageMax), email: email.trim() || undefined, context, website, files: files.map((a) => ({ type: a.file.type, bytes: a.file.size })) },
+      });
+      const headers = { "X-Bug-Token": created.token };
+      const skipped: string[] = [];
+      for (const [n, a] of files.entries()) {
+        setProgress(`Uploading ${files.length === 1 ? "the attachment" : `attachment ${n + 1} of ${files.length}`}…`);
+        try {
+          // In pieces, in order: each under the site's 4 MB request cap.
+          for (let at = 0; at < a.file.size; at += BUG_LIMITS.chunkBytes) {
+            await apiFetch(`/api/bug-reports/${created.id}/files/${n}?offset=${at}`, {
+              method: "PUT", body: a.file.slice(at, at + BUG_LIMITS.chunkBytes), headers: { ...headers, "Content-Type": a.file.type }, _online: true,
+            });
+          }
+        } catch (err) { skipped.push(`${a.file.name}: ${(err as ApiError).message}`); }
+      }
+      await apiFetch(`/api/bug-reports/${created.id}/done`, { method: "POST", json: {}, headers, _online: true });
+      setStatus("sent");
+      void waitForIssue(created.id, created.token, () => gone.current).then((f) => { if (!gone.current) setFiled(f); });
+      if (skipped.length) setFailure(`Your report was sent, but ${skipped.length === 1 ? "one attachment" : `${skipped.length} attachments`} didn't upload. ${skipped.join(" ")}`);
+    } catch (err) {
+      setStatus("idle");
+      setFailure((err as ApiError)?.offline ? (offlineNow() ? "You're offline. Your report is still here: send it again once you're back online." : "Couldn't reach the server. Your report is still here: send it again in a moment.") : (err as ApiError)?.message || "Couldn't send your report. Try again in a moment.");
+    } finally { setProgress(""); }
+  };
+
+  const Title = phone ? SheetTitle : DialogTitle;
+  const Desc = phone ? SheetDescription : DialogDescription;
+  const Header = phone ? SheetHeader : DialogHeader;
+
+  if (status === "sent") {
+    const heading = filed.state === "filed" ? `Thanks — filed as #${filed.number}`
+      : filed.state === "failed" ? "Something went wrong — your report is saved, we'll try again"
+      : filed.state === "saved" ? "Thanks — saved, we'll file it on GitHub"
+      : "Thanks! Filing it on GitHub…";
+    return (
+      <div role="status" className="flex flex-col items-center py-6 text-center" data-testid="bug-report-sent" data-filed={filed.state}>
+        <Header className="sr-only"><Title>Bug report sent</Title><Desc>Thanks for the report.</Desc></Header>
+        <span className={cn("mb-3 flex size-12 items-center justify-center rounded-full", filed.state === "failed" ? "bg-warning/12 text-warning" : "bg-success/12 text-success v8:bg-emerald-400/12 v8:text-emerald-400")}>
+          {filed.state === "asking" ? <Loader2 className="size-6 animate-spin" aria-hidden /> : filed.state === "failed" ? <AlertCircle className="size-6" aria-hidden /> : <CheckCircle2 className="size-6" aria-hidden />}
+        </span>
+        <p className="font-display text-lg font-semibold text-foreground">{heading}</p>
+        {filed.state === "filed" && (
+          <a href={filed.url} target="_blank" rel="noopener noreferrer" data-testid="bug-issue-link"
+            className="mt-2 inline-flex min-h-11 max-w-full items-center gap-1.5 break-all px-2 text-sm font-medium text-accent-text underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+            #{filed.number} — {filed.url}<ExternalLink className="size-3.5 shrink-0" aria-hidden />
+          </a>
+        )}
+        <p className="mt-1 max-w-sm text-sm text-text-muted">{email.trim() ? <>If we need more, we'll write to <strong className="text-foreground">{email.trim()}</strong>.</> : "We'll look into it."}</p>
+        {/* The "this is public" warning belongs before sending; once it's sent it only adds noise. */}
+        {failure && <p className="mt-3 max-w-sm text-xs text-warning">{failure}</p>}
+        <Button className="mt-5" onClick={onDone}>Done</Button>
+      </div>
+    );
+  }
+
+  const shots = files.filter((a) => isImageType(a.file.type)).length;
+  const videos = files.filter((a) => isVideoType(a.file.type)).length;
+  return (
+    <form noValidate onSubmit={submit} onPaste={onPaste} className="space-y-4" data-testid="bug-report-form"
+      onDragOver={(e) => { if (Array.from(e.dataTransfer.types).includes("Files")) { e.preventDefault(); setDragging(true); } }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }}
+      onDrop={onDrop}>
+      <Header>
+        <Title className="flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-lg bg-danger/15 text-danger"><Bug className="size-4" aria-hidden /></span>Report a bug</Title>
+        <Desc>{phone ? "Tell us what went wrong. A screenshot or a short screen recording helps." : <>Tell us what went wrong. Paste a screenshot with {pasteKeys()} to show us.</>}</Desc>
+      </Header>
+
+      <fieldset>
+        <legend className="mb-2 flex items-center gap-1 text-sm font-medium text-foreground">What kind of problem? <RequiredMark /></legend>
+        <div role="radiogroup" aria-invalid={tried && !!errors.category} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {BUG_CATEGORIES.map((c) => {
+            const Icon = ICONS[c.id];
+            const on = category === c.id;
+            return (
+              <label key={c.id} className={cn(
+                "flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/60",
+                on ? "border-accent bg-accent-soft text-foreground" : "border-line text-text-muted hover:border-text-muted/40 hover:text-foreground",
+              )}>
+                <input type="radio" name={ids.cat} value={c.id} checked={on} onChange={() => setCategory(c.id)} className="sr-only" />
+                <Icon className={cn("size-4 shrink-0", on ? "text-accent-text" : "")} aria-hidden />{c.label}
+              </label>
+            );
+          })}
+        </div>
+        {category && <p className="mt-2 text-xs text-text-muted">{HINTS[category]}</p>}
+        {tried && errors.category && <p className="mt-1.5 text-xs text-danger">{errors.category}</p>}
+      </fieldset>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={ids.msg} className="flex items-center gap-1">What happened? <RequiredMark /></Label>
+        <Textarea id={ids.msg} rows={phone ? 3 : 4} value={message} maxLength={BUG_LIMITS.messageMax + 100} onChange={(e) => setMessage(e.target.value)}
+          placeholder="What you did, what you expected, what happened instead…" aria-invalid={tried && !!errors.message}
+          aria-describedby={`${ids.msg}-hint`} className="resize-y" />
+        <p id={`${ids.msg}-hint`} className={cn("text-xs", tried && errors.message ? "text-danger" : "text-text-muted")}>{tried && errors.message ? errors.message : `At least ${BUG_LIMITS.messageMin} characters.`}</p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-medium text-foreground" id={ids.files}>Screenshots or a video <span className="font-normal text-text-muted">(optional)</span></span>
+          <span className="text-xs tabular-nums text-text-muted">{shots}/{BUG_LIMITS.images} images · {videos}/{BUG_LIMITS.videos} video</span>
+        </div>
+        <div className="flex gap-2">
+        <button type="button" onClick={() => pick.current?.click()} aria-describedby={ids.files} disabled={status === "sending"}
+          className={cn("flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-4 disabled:opacity-50 text-center text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+            dragging ? "border-accent bg-accent-soft text-foreground" : "border-line text-text-muted hover:border-text-muted/50 hover:text-foreground")}
+          data-testid="bug-attach">
+          <span className="flex items-center gap-2 font-medium"><ImagePlus className="size-4" aria-hidden /> {phone ? "Add screenshots or a video" : "Paste, drop or choose files"}</span>
+          <span className="text-xs text-text-muted">Images up to {formatBytes(BUG_LIMITS.imageBytes)} each · one video under {formatBytes(BUG_LIMITS.videoBytes)}</span>
+        </button>
+        {canCapture && (
+          <Button ref={captureRef} type="button" variant="outline" onClick={() => void capture()} disabled={status === "sending" || capturing}
+            className="h-auto w-32 shrink-0 flex-col gap-1 whitespace-normal px-3 py-3 text-center leading-tight" data-testid="bug-capture"
+            title="Takes a picture of the page behind this dialog. Your browser asks first.">
+            {capturing ? <Loader2 className="animate-spin" aria-hidden /> : <Camera aria-hidden />}
+            <span>{capturing ? "Capturing…" : "Capture this screen"}</span>
+          </Button>
+        )}
+        </div>
+        {captureNote && <p className="text-xs text-text-muted" data-testid="bug-capture-note">{captureNote}</p>}
+        <input ref={pick} type="file" accept={ACCEPT} multiple className="hidden" tabIndex={-1} aria-hidden
+          onChange={(e) => { attach(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+        {fileProblem && <p role="alert" className="flex items-start gap-1.5 text-xs text-danger"><AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden />{fileProblem}</p>}
+        {files.length > 0 && (
+          <ul className="flex flex-wrap gap-2" aria-label="Attachments">
+            {files.map((a) => (
+              <li key={a.id} className="group relative overflow-hidden rounded-lg border border-line bg-text-base/[0.04]" data-testid="bug-attachment">
+                {isVideoType(a.file.type)
+                  ? <div className="flex h-16 w-24 flex-col items-center justify-center gap-0.5 text-text-muted"><Clapperboard className="size-5" aria-hidden /><span className="text-[10px] tabular-nums">{formatBytes(a.file.size)}</span></div>
+                  : <img src={a.url} alt={a.file.name} className="h-16 w-24 object-cover" />}
+                <button type="button" onClick={() => remove(a.id)} aria-label={`Remove ${a.file.name}`} disabled={status === "sending"}
+                  className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/70 text-white outline-none hover:bg-black/90 focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:size-8">
+                  <X className="size-3.5" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={ids.email}>Email <span className="font-normal text-text-muted">(optional, shown on the public issue so we can reply)</span></Label>
+        <Input id={ids.email} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}
+          aria-invalid={tried && !!errors.email} />
+        {tried && errors.email && <p className="text-xs text-danger">{errors.email}</p>}
+      </div>
+
+      <details className="rounded-xl border border-line px-3 py-2 text-xs text-text-muted" data-testid="bug-context">
+        <summary className="cursor-pointer select-none font-medium text-foreground">Also sent: this page, version {context.release}, your screen and browser</summary>
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+          <dt>Page</dt><dd className="min-w-0 break-all font-mono">{context.page}</dd>
+          <dt>Version</dt><dd>{context.release}</dd>
+          <dt>Screen</dt><dd>{context.viewport}</dd>
+          <dt>Browser</dt><dd>{context.device}</dd>
+          <dt>Theme</dt><dd>{context.theme}</dd>
+        </dl>
+      </details>
+
+      <div aria-hidden className="absolute -left-[9999px] h-px w-px overflow-hidden">
+        <label>Website <input tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} /></label>
+      </div>
+
+      {failure && (
+        <div role="alert" className="flex items-start gap-2.5 rounded-xl border border-danger/40 bg-danger/10 px-3.5 py-3 text-sm text-foreground">
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden />{failure}
+        </div>
+      )}
+
+      <PublicNotice />
+
+      {confirming ? (
+        <div ref={confirmBox} role="alertdialog" aria-labelledby={`${ids.msg}-confirm`} className="space-y-3 rounded-xl border border-warning/60 bg-warning/10 px-3.5 py-3" data-testid="bug-confirm">
+          <p id={`${ids.msg}-confirm`} className="text-sm font-semibold text-foreground">
+            Send this as a public issue? Anyone can read it{email.trim() ? ", including your email" : ""}{files.length ? ", and see what you attached" : ""}.
+          </p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => { refocusSend.current = true; setConfirming(false); }}><ArrowLeft /> Go back</Button>
+            <Button ref={confirmRef} type="button" onClick={() => void submit(undefined, true)} className="w-full sm:w-auto" data-testid="bug-confirm-send"><Send /> Yes, post it publicly</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-text-muted" aria-live="polite">{progress || "No account needed."}</p>
+          <Button ref={sendRef} type="submit" disabled={status === "sending"} className="w-full sm:w-auto">
+            {status === "sending" ? <><Loader2 className="animate-spin" /> Sending…</> : <><Send /> Send report</>}
+          </Button>
+        </div>
+      )}
+    </form>
+  );
+}

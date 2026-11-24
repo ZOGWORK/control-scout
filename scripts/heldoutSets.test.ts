@@ -32,6 +32,11 @@ describe("held-out sets", () => {
     const d = dirWith([{ set: "a", n: 1, q: "x" }], { "b.json": ["first", "second"] });
     expect(heldoutSets(d)).toEqual([{ set: "a", n: 1, q: "x" }, { set: "b", n: 1, q: "first" }, { set: "b", n: 2, q: "second" }]);
   });
+  it("a shared entry's want is words and its train true or false, or it fails loudly", () => {
+    expect(heldoutSets(dirWith([{ set: "a", n: 1, q: "x", want: "y", train: true }], { "b.json": ["z"] }))[0]).toMatchObject({ want: "y", train: true });
+    expect(() => heldoutSets(dirWith([{ set: "a", n: 1, q: "x", want: 123 }], { "b.json": ["z"] }))).toThrow("entry 1");
+    expect(() => heldoutSets(dirWith([{ set: "a", n: 1, q: "x", train: "false" }], { "b.json": ["z"] }))).toThrow("entry 1");
+  });
   it("a set given twice, or a file that isn't a list of questions, fails loudly", () => {
     expect(() => heldoutSets(dirWith([{ set: "a", n: 1, q: "x" }], { "a.json": ["y"] }))).toThrow("held-out a #1 is given twice");
     expect(() => heldoutSets(dirWith([], { "c.json": { q: "x" } }))).toThrow("scripts/heldout/c.json");
