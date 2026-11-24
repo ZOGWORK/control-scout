@@ -21,6 +21,7 @@ import { ATTENDED } from "./teams.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { regionOf } from "../../src/shared/searchEventQuery.js";
 import { countryOf } from "../../src/shared/countries.js";
+import { championshipNames } from "../../src/shared/query/lexicon.js";
 
 export type QuestionKind = Exclude<SearchCard["kind"], "high-scores" | "rule" | "leaderboard" | "event-awards" | "info">;
 
@@ -39,7 +40,7 @@ export interface ParsedQuestion {
 // The longer names first: "state championship" is one phrase, never "state" and a leftover word.
 // League championships are their own events (LeagueTournament): not read as states.
 const STATES = /\b(?:state\s+champ(?:ionships?|s)?|state\s+finals?|(?:regional|region)\s+champ(?:ionships?|s)?|states?)\b/i;
-const WORLDS = /\b(?:worlds?|world champ(?:ionships?|s)?|first champ(?:ionships?|s)?|houston champ(?:ionships?|s)?)\b/i;
+const WORLDS = new RegExp(String.raw`\b(?:${championshipNames()})\b`, "i");
 // The question's own words, never part of a team's name here: what's left names the team.
 const FRAME = /\b(?:how|many|times|often|when|whens|did|does|do|has|have|had|what|which|is|was|were|where|will|ever|go|goes|going|went|gone|been|get|got|make|made|qualify|qualified|attend|attended|compete|competed|play|played|to|the|at|in|for|a|an|any|their|its|team)\b/gi;
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();

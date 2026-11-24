@@ -11,7 +11,7 @@ import { eventToday } from "../../../../src/shared/eventDay.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { predictHref } from "../../../../src/shared/predictUrl.js";
 import { advanceStatus } from "../../../../src/shared/projections.js";
-import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../../../data/seasons.js";
+import { FIRST_PREDICT_SEASON, isLegacy } from "../../../data/seasons.js";
 import { all } from "../../../db.js";
 import { ROSTER } from "../../../data/registrations.js";
 import { isEnabled } from "../../../flags.js";
@@ -182,7 +182,7 @@ export async function nextEventPrediction(id: IntentId, team: AnswerTeam, now = 
       [team.number, yesterday, ...(season != null ? [season] : [])]))
       .find((x) => (x.end ?? x.start ?? "") >= eventToday(now.getTime(), x.timezone).from);
   // A season named is the only one looked in: no upcoming event in it is said so, never another season's shown.
-  const S = seasonLabel(e ? Number(e.season) : season ?? CURRENT_SEASON);
+  const S = seasonLabel(e ? Number(e.season) : season ?? currentSeason());
   const base = { family: "stat" as const, intent: id, title, team, scope: [S, event ? e?.name ?? "Event" : "Next event"], definition: NEXT_RULE, source: e ? `${e.name}, ${S}` : `${team.number}'s published events` };
   if (!e) return { ...base, blocks: [], none: `No upcoming event is published for ${whoOf(team)} in ${S} yet, so there's no projection to show.` };
   const when = [dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · ");

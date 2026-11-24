@@ -551,6 +551,16 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
   } else {
     title = a.hits[0] ? a.hits[0].title : q;
   }
+  // A compound question's other parts (server/api/query/clauses.ts): each under its own bold title, in the order asked.
+  for (const c of a.clauses ?? []) {
+    if (c.stat) lines.push("", `**${md(c.stat.heading ?? c.stat.title)}**`, ...statLines(c.stat, site));
+    else if (c.card) {
+      lines.push("", `**${md(`${c.card.title}${c.card.team ? ` · ${c.card.team.number}${c.card.team.name ? ` ${c.card.team.name}` : ""}` : ""}`)}**`);
+      if (c.card.headline) lines.push(`**${md(c.card.headline)}**`);
+      lines.push(...c.card.lines.slice(0, ROWS).map((l) => `• ${lineOf(l, site)}`), ...more(c.card.lines.length - ROWS));
+      if (c.card.none) lines.push(md(c.card.none));
+    }
+  }
   // The top results, when the answer didn't already cover them.
   if (!a.stat && !a.card) lines.push(...a.hits.slice(0, HITS).map((h) => `• ${hitLine(h, site)}`), ...more(a.hits.length - HITS));
   // The videos, as the website plays them: watched on YouTube.

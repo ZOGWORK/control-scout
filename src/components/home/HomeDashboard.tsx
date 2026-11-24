@@ -5,7 +5,7 @@
 // No headline of any kind (no H1), no slogan, no globe. Every number comes from the same APIs the live Home uses.
 //   - One accent, mint: the live progress, the search focus, the #1 rank, links on hover. Live is red, with the slow
 //     ring (index.css live-ring). Numbers and names are white, labels grey; red and blue stay alliances.
-import { useState } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Radio, Search, Star, Trophy } from "lucide-react";
 import { useApi, qs } from "../../lib/api";
@@ -24,7 +24,6 @@ import { addRecentSearch } from "../search/discover";
 import { nextMatch } from "./HomeSections";
 import { myTeamsOf } from "../../lib/myTeams";
 import { cn } from "../cn";
-import { eventMorphKey, MorphScope, teamMorphKey, useMorphCard, warmEvent, warmTeam } from "../CardMorph";
 import { V8_NUM } from "../../lib/v8";
 import { v8Rank } from "../../lib/v8colour";
 import { V8_PHASE } from "../../lib/records/describe";
@@ -100,6 +99,16 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
   const [sp] = useSearchParams();
   const query = sp.get("q")?.trim().slice(0, 100) || undefined;
   const [examples] = useState(() => rotatedExamples(visitHour()));
+  // The example chips run like Enter does: the box takes the chip's words, then glides up to /search with them (the
+  // plain, instant navigation where the browser can't glide). A modified click (new tab, new window) stays a link's.
+  const fill = useRef<((text: string) => void) | null>(null);
+  const runExample = (e: MouseEvent<HTMLAnchorElement>, text: string, to: string) => {
+    addRecentSearch(text);
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    fill.current?.(text);
+    glideTo(to, () => nav(to));
+  };
   const teams = yourTeams(myTeamsOf(user).teams.map((t) => t.teamNumber), state.myTeam ?? null, state.tracked?.teams ?? []);
   return (
     <div data-home-dashboard className={cn("relative z-10 mx-auto flex w-full max-w-[72rem] flex-col", framed && "px-5 pb-24 sm:px-8")}>
@@ -111,30 +120,27 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
           label="Search teams, events and matches"
           placeholder="Search teams, events, matches…"
           onPick={(h: SearchHit) => { const to = hitHref(h); return glideTo(to, () => nav(to)); }}
-          glide
+          glide fillRef={fill}
           className="w-full"
           fieldClassName="h-14 rounded-2xl border-ink/15 bg-[#121214]/85 v8light:bg-card/85 [html.dim_&]:bg-card/85 px-5 text-lg shadow-none backdrop-blur max-sm:text-base focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgb(127_209_174/0.18)] [&_[data-search-submit]_svg]:text-text-muted [&_[data-search-submit]:hover]:bg-ink/[0.08]"
         />
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           <span className="text-sm text-text-muted">Try:</span>
-          {examples.map((s) => (
+          {examples.map((s) => { const to = hitHref(searchPagePick(s.q)); return (
             <Link
-              key={s.q} data-example-chip to={hitHref(searchPagePick(s.q))} onClick={() => addRecentSearch(s.q)}
+              key={s.q} data-example-chip to={to} onClick={(e) => runExample(e, s.q, to)} onPointerEnter={preloadSearchPage} onPointerDown={preloadSearchPage}
               data-press className="tap-44 inline-flex h-8 items-center rounded-full border border-ink/15 bg-ink/[0.03] px-3 text-sm text-text-base transition-[color,background-color,border-color,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-ink/30 hover:bg-ink/[0.07] active:scale-[0.97] motion-reduce:active:scale-100"
             >{suggestionLabel(s)}</Link>
-          ))}
+          ); })}
         </div>
       </section>
 
       {/* Three cards of the same weight. On a phone, your teams come first when you have any. */}
-      {/* A tapped event or team card grows into its page (src/components/CardMorph.tsx); Top teams stays a ranking list. */}
-      <MorphScope name="home">
         <div className={cn("grid gap-4 lg:grid-cols-3", framed ? "mt-20 max-sm:mt-12" : "mt-16 max-sm:mt-10")}>
           <LiveCard season={season} />
           <TopTeamsCard season={season} />
           {teams.length ? <TeamsCard teams={teams} season={season} /> : <PickTeamCard onPick={search.open} />}
         </div>
-      </MorphScope>
 
       <p className="mt-10 text-center text-xs text-text-muted">{HOME_ABOUT}</p>
     </div>
@@ -195,13 +201,12 @@ function LiveRow({ e }: { e: EventListItem }) {
   const share = e.matchesTotal > 0 ? Math.min(1, e.matchesPlayed / e.matchesTotal) : 0;
   const where = place(e.city, e.state, e.country);
   const href = `/events/${e.season}/${encodeURIComponent(e.code)}`;
-  const morph = useMorphCard(eventMorphKey(e.season, e.code), href, () => warmEvent(e.season, e.code));
   return (
     <li data-live-event>
-      <Link to={href} {...morph} className={cn(rowLink, "py-2")}>
+      <Link to={href} className={cn(rowLink, "py-2")}>
         <Radio className="size-4 shrink-0 text-live" aria-hidden />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium group-hover:underline" title={e.name} data-morph-title>{e.name}</span>
+          <span className="block truncate text-sm font-medium group-hover:underline" title={e.name}>{e.name}</span>
           {e.matchesTotal > 0 && e.matchesPlayed > 0 ? (
             <span className="mt-1.5 flex items-center gap-2">
               <span className="h-1 flex-1 overflow-hidden rounded-full bg-ink/10" aria-hidden>
@@ -321,12 +326,11 @@ function OneTeam({ team, season, t, loaded }: { team: number; season: number; t:
   const next = sched.data ? nextMatch(sched.data.matches) : undefined;
   const pWin = next ? callFor(next, team) : null;
   const eventName = next && t?.nextEvent?.code === next.code ? t.nextEvent.name : next?.code;
-  const morph = useMorphCard(teamMorphKey(team), `/teams/${team}`, () => warmTeam(team));
   return (
     <>
-      <Link to={`/teams/${team}`} {...morph} className="group -mt-1 flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
+      <Link to={`/teams/${team}`} className="group -mt-1 flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
         {/* The name and place sit centred on the big number, not hung from its baseline. */}
-        <span data-morph-title className={cn("font-display text-4xl leading-none font-semibold tabular-nums", V8_NUM)}>{team}</span>
+        <span className={cn("font-display text-4xl leading-none font-semibold tabular-nums", V8_NUM)}>{team}</span>
         <span className="min-w-0">
           <span className="block truncate font-medium group-hover:underline">{t?.name ?? (loaded ? `Team ${team}` : " ")}</span>
           {t?.place && <span className="block truncate text-xs text-text-muted">{t.place}</span>}
@@ -403,11 +407,10 @@ function TeamRow({ team, season, t, loaded }: { team: number; season: number; t:
   const sched = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
   const next = sched.data ? nextMatch(sched.data.matches) : undefined;
   const pWin = next ? callFor(next, team) : null;
-  const morph = useMorphCard(teamMorphKey(team), `/teams/${team}`, () => warmTeam(team));
   return (
     <li data-your-team>
-      <Link to={`/teams/${team}`} {...morph} className={cn(rowLink, "py-1.5")}>
-        <span data-morph-title className={cn("w-14 shrink-0 font-display text-base font-semibold tabular-nums", V8_NUM)}>{team}</span>
+      <Link to={`/teams/${team}`} className={cn(rowLink, "py-1.5")}>
+        <span className={cn("w-14 shrink-0 font-display text-base font-semibold tabular-nums", V8_NUM)}>{team}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium group-hover:underline">{t?.name ?? (loaded ? `Team ${team}` : " ")}</span>
           <span data-team-next className="block truncate text-xs text-text-muted">

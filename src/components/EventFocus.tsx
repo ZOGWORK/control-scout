@@ -26,7 +26,8 @@ export const eventState = (status: EventDetail["event"]["status"]): EventState =
 /** v8's tab order by state: what the visitor wants first, first. */
 export const V8_TAB_ORDER: Record<EventState, EventTab[]> = {
   live: ["matches", "rankings", "teams", "playoffs", "awards", "insights", "odds"],
-  finished: ["rankings", "playoffs", "awards", "matches", "insights", "teams", "odds"],
+  // The owner's order (11-23): the matches first, then how it ended; Rankings still opens by default (V8_DEFAULT_TAB).
+  finished: ["matches", "playoffs", "rankings", "awards", "insights", "teams", "odds"],
   upcoming: ["teams", "odds", "matches", "rankings", "insights", "playoffs", "awards"],
 };
 /** v8's tab when the address names none: live = Matches, finished = Rankings, upcoming = Teams. */

@@ -4,7 +4,8 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { askAnswer, askSeason, eventWon, readAsk, type Stat } from "./searchAsks";
+import { askAnswer, eventWon, readAsk, type Stat } from "./searchAsks";
+import { currentSeason, refreshSearchSeason } from "./answers/season";
 import { seasonLabel } from "../../src/shared/format";
 import { readStatQuestion } from "./answers/read";
 import { pageMeta } from "../seoMeta";
@@ -613,7 +614,8 @@ describe("the season with none said: one question, one season, whichever reader 
     // The season after the fixture's, whatever today is (Greptile on #1166): only the clock's date is faked.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(`${S + 1}-11-08T12:00:00Z`));
-    const now = askSeason();
+    await refreshSearchSeason();
+    const now = currentSeason();
     expect(now).toBe(S + 1);
     const qs = ["best in New Jersey at the moment", "the strongest in New Jersey rn", "best teams in New Jersey", "top teams in New Jersey"];
     const seasonOf = (a: Awaited<ReturnType<typeof ask>>) => /· (\d{4}–\d{2})/.exec(a.stat?.title ?? a.card?.title ?? "")?.[1];
