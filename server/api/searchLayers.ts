@@ -552,9 +552,10 @@ export async function layeredAnswer(typed: string, reader: Run, prefer: Readonly
     const own = `${(a.understood?.label ?? "").split(" · read as ")[0]} ${a.stat?.title ?? ""} ${(a.stat?.scope ?? []).join(" ")} ${a.card?.headline ?? ""} ${a.card?.none ?? ""}`.toLowerCase();
     // An answer can name the word its own way: "when did hypnotic last play" is its "Most recent match". A long
     // question's rule reads its words itself ("when was the last time 12345 went worlds": the appearances, newest first).
-    // A compound answer (./answers/compound.ts) reads every clause it joins ("… and their opr"), or isn't given.
+    // A compound answer (./answers/compound.ts) reads every clause it joins ("… and their opr"), or isn't given; so does
+    // a compound question's (./query/clauses.ts), each part asked on its own.
     const consumed = won === "longform" ? x0.forbidden.filter((w) => !tokens(a.understood?.showing ?? "").includes(w)) : [];
-    const unread = won && !a.intent?.kind.startsWith("stat-compound-") ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own) && !consumed.includes(w)) : [];
+    const unread = won && !a.intent?.kind.startsWith("stat-compound-") && a.intent?.kind !== "stat-clauses" ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own) && !consumed.includes(w)) : [];
     // Said apart from the label (it titles the page): a note of its own under the answer (src/shared/searchPage.ts unreadNote).
     if (unread.length && a.understood) a = { ...a, understood: { ...a.understood, unread } };
     const out = { ...a, q: typed };
