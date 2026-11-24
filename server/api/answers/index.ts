@@ -1267,7 +1267,7 @@ async function twoTeamStat(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, s
 
 /** "12345 67890 33950 compare": three to six teams' season numbers in one card (compareAnswer). Every team found by its
  *  number, else left to search. */
-async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const hits = await Promise.all(set.teams.map(async (n) => (await resolve(String(n))).hits.find((h) => h.kind === "team" && h.ref === String(n) && !h.href)));
   if (hits.some((h) => !h)) return null;
   const found = hits as SearchHit[];
@@ -1277,7 +1277,14 @@ async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, 
   // It opens on the card's season: the one named, else the one the card picks (every team played it).
   const season = set.season ?? (await compareSeason(set.teams));
   // Put together by src/shared/searchVersus.ts, as the event pack does with no signal.
-  return teamSetAnswer(q, found, found0, season, set.season, opts.pages, opts.full ? await compareAnswer(teams, { season: set.season }) : undefined);
+  const a = teamSetAnswer(q, found, found0, season, set.season, opts.pages, opts.full ? await compareAnswer(teams, { season: set.season }, set.stat) : undefined);
+  // Compared by one stat: said so, the stat named.
+  const by = set.stat ? BOARD_STATS[set.stat]?.label : undefined;
+  if (!by || !a.understood || !a.intent) return a;
+  return {
+    ...a, understood: { ...a.understood, label: `${by}: ${teams.map(whoOf).join(" vs ")}` },
+    intent: { ...a.intent, kind: "stat-compare-by", pattern: `${teams.map(() => "[team]").join(" ")} compare [${set.stat}]${set.season != null ? " [season]" : ""}`, understood: [...a.intent.understood, by] },
+  };
 }
 
 /** A list's length said in the question: "top 10", "best 5", "the 3 best", "bottom 10". */
