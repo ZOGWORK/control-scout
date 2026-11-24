@@ -72,11 +72,12 @@ export function TeamTable({ table, label, limit }: { table: Table; label: string
 
   const th = cn("px-2 py-1.5 font-medium whitespace-nowrap @max-[44rem]/tt:px-1.5", CELL, "v8:h-9 v8:py-0");
   // A plain call, not a component: a component made here would be new each render, and its button would lose focus.
-  const sortTh = (k: TeamSortKey, children: ReactNode, className?: string, title?: string) => {
+  // `label`: the button's own colour (the header text is the button, whose active sort sets ink), so a coloured header keeps it when sorted.
+  const sortTh = (k: TeamSortKey, children: ReactNode, className?: string, title?: string, label?: string) => {
     const on = sort.key === k;
     return (
       <th key={k} scope="col" aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className={cn(th, "text-right", className)}>
-        <button type="button" onClick={() => onSort(k)} title={title ?? def(k)} data-sort={k} className={cn("inline-flex flex-row-reverse items-center justify-center gap-0.5 rounded hover:text-foreground", TAP, on && "text-foreground")}>
+        <button type="button" onClick={() => onSort(k)} title={title ?? def(k)} data-sort={k} className={cn("inline-flex flex-row-reverse items-center justify-center gap-0.5 rounded hover:text-foreground", TAP, on && "text-foreground", label)}>
           {children}{on ? (sort.dir === "asc" ? <ArrowUp className="size-3" aria-hidden /> : <ArrowDown className="size-3" aria-hidden />) : <span className="size-3" aria-hidden />}
         </button>
       </th>
@@ -103,7 +104,7 @@ export function TeamTable({ table, label, limit }: { table: Table; label: string
               </th>
               <th scope="col" className={th}>Team</th>
               {table.asked && sortTh("asked", table.asked.label, "whitespace-normal leading-tight", table.asked.label)}
-              {sortTh("opr", "OPR", cn("@min-[44rem]/tt:w-28 v8:@min-[44rem]/tt:w-auto v8:text-violet-300", byPhase && "@max-[44rem]/tt:hidden"))}
+              {sortTh("opr", "OPR", cn("@min-[44rem]/tt:w-28 v8:@min-[44rem]/tt:w-auto", byPhase && "@max-[44rem]/tt:hidden"), undefined, "v8:text-violet-300")}
               {phases && <>
                 {sortTh("auto", "Auto", cn(onPhone("auto"), "font-semibold", P.auto.text, V8_HEAD))}
                 {sortTh("dc", withEndgame ? "TeleOp" : "DC", cn(onPhone("dc"), "font-semibold", P.teleop.text, V8_HEAD))}
