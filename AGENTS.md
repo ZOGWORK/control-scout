@@ -47,6 +47,10 @@ Before calling a milestone done, run [docs/self-audit.md](docs/self-audit.md) us
 17. **Secrets** only in `.env` (gitignored) and read only in `server/env.ts`. Never log them.
 18. **Line endings:** LF (see `.gitattributes`). No spaces in file names.
 
+**Test traffic.** Any request an agent or script sends to a Control Scout server (curl, fetch, k6, a headless
+browser) carries the header `X-CS-Test: 1`, so the failed-search log never counts it as a visitor
+(`server/testTraffic.ts`). Run eval sets against a local server restored from the snapshot, never production.
+
 ## Useful commands
 
 ```bash
