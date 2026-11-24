@@ -207,7 +207,7 @@ const downNote = downNotes(500, (state) => {
 });
 void kvGet<DownNoteState>(DOWN_NOTE_KEY)
   .then((state) => { if (state) downNote.hydrate(state); })
-  .catch(() => {});
+  .catch((e) => log(`down note state not loaded: ${(e as Error)?.message ?? String(e)}`));
 /** Say in the channel what a 👎 did, as a reply to the answer (bot/reactions.ts `DOWN_NOTE`): a 👎 files the question,
  *  so it is a report rather than a dislike button, and the people using it should hear that where they used it. Awaited
  *  inside that answer's vote chain (below). A note that can't be delivered is logged, stays owed for a later 👎, and

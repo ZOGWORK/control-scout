@@ -83,6 +83,9 @@ export function downNotes(max = 500, save: (state: DownNoteState) => void = () =
       for (const id of told) owed.delete(id);
       while (told.size > max) told.delete(told.values().next().value!);
       while (owed.size > max) owed.delete(owed.values().next().value!);
+      // Saved again as merged: a note answered before the load queued a snapshot of its own, and this one must land
+      // after it rather than the merged state living only in memory until the next vote.
+      keep();
     },
     /** Whether this vote owes the note: it filed the question, or an earlier vote's note never arrived. */
     due(messageId: string, filed: boolean): boolean {
