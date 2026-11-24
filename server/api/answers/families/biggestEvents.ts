@@ -5,7 +5,7 @@ import type { StatAnswer } from "../../../../src/shared/searchStat.js";
 import { eventTypesOf, readEventQuery, type EventQuery } from "../../../../src/shared/searchEventQuery.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { all } from "../../../db.js";
-import { CURRENT_SEASON } from "../../../data/seasons.js";
+import { currentSeason } from "../season.js";
 import { eventHref } from "../matchSet.js";
 
 /** `min`: only events listing at least that many teams ("with more than 40 teams" is 41), as `said` words it. */
@@ -56,7 +56,7 @@ export function readBiggestEvents(raw: string): BiggestEventsQuestion | null {
   // Every word has to be read as the place, season or kind: a name left over is a search for that event.
   if (!e || e.words.length || e.where || e.time) return null;
   if (ever && (e.season != null || e.year != null || thisSeason)) return null;
-  return { e: { ...e, ...(thisSeason && e.season == null && e.year == null ? { season: CURRENT_SEASON } : {}), ...(ever ? { allSeasons: true } : {}) }, n, ...(min ? { min } : {}) };
+  return { e: { ...e, ...(thisSeason && e.season == null && e.year == null ? { season: currentSeason() } : {}), ...(ever ? { allSeasons: true } : {}) }, n, ...(min ? { min } : {}) };
 }
 
 /** The answer, worked out from each event's team list. */
