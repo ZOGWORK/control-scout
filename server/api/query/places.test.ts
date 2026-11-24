@@ -26,6 +26,8 @@ beforeAll(async () => {
     [30313, "Diamond Bots", "DE", [[2024, 30]]],
     // Virginia: three teams in 2024–25, none in 2025–26.
     [30321, "Old Dominion Bots", "VA", [[2024, 20]]], [30322, "Cardinal Bots", "VA", [[2024, 20]]], [30323, "Dogwood Bots", "VA", [[2024, 20]]],
+    // Pennsylvania: three teams in 2024–25, level with Virginia.
+    [30331, "Keystone Bots", "PA", [[2024, 10]]], [30332, "Liberty Bots", "PA", [[2024, 20]]], [30333, "Steel Bots", "PA", [[2024, 30]]],
   ];
   for (const [n, name, state, seasons] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', ?, 'USA')", [n, name, state]);
@@ -77,6 +79,10 @@ describe("two places in one question", () => {
   it("a place with no teams in the season said is never level; fewer is better reads as lower; rookies are never dropped", async () => {
     const s = (await full("maryland vs virginia average opr 2025-26")).stat as StatAnswer;
     expect([s.headline, s.none]).toEqual([undefined, "Virginia had no teams with OPR in 2025–26."]);
+    // Level places: neither is the leader, on the tiles or in the table.
+    const level = (await full("virginia vs pennsylvania average opr 2024-25")).stat as StatAnswer;
+    const tiles = level.blocks.find((b) => b.kind === "kpis"), rows = level.blocks.find((b) => b.kind === "table");
+    expect([level.headline?.value, tiles?.kind === "kpis" && tiles.items.map((i) => i.tone ?? null), rows?.kind === "table" && rows.rows.map((r) => r.strong)]).toEqual(["Level", [null, null], [false, false]]);
     const pen = (await full("maryland vs delaware average penalties")).stat as StatAnswer;
     expect(pen.headline).toMatchObject({ value: "Maryland", label: "Lower average Penalties a match: 2.5 to 4.0" });
     // "Rookie teams" asks of the places something this answer can't keep: left to search's other readers.

@@ -99,10 +99,11 @@ async function sideBySide(q: string, places: Region[], st: BoardStat, said: numb
   const vals = of.map((r) => (r ? Number(r.avg) : null));
   const known = vals.filter((v): v is number => v != null);
   const top = known.length ? (st.fewerBetter ? Math.min(...known) : Math.max(...known)) : null;
-  const lead = vals.findIndex((v) => v === top);
+  // A leader only when the two differ: level places accent neither.
+  const lead = known.length === 2 && vals[0] !== vals[1] ? vals.findIndex((v) => v === top) : -1;
   const stat: StatAnswer = {
     ...base,
-    headline: lead >= 0 && known.length === 2 && vals[0] !== vals[1]
+    headline: lead >= 0
       ? { value: names[lead], label: `${st.fewerBetter ? "Lower" : "Higher"} average ${st.label}: ${fmt(st, vals[lead]!)} to ${fmt(st, vals[1 - lead]!)}`, sub: seasonLabel(season) }
       : { value: "Level", label: `Average ${st.label} ${known.length ? fmt(st, known[0]) : "—"} in both`, sub: seasonLabel(season) },
     blocks: [
