@@ -38,7 +38,7 @@ export async function finishPageAnswer(ans: SearchAnswer, limit: number, viewer:
   const anyone = !who || (who.userId == null && !who.teams.length);
   const readVideo = () => answerVideo(full, Date.now(), who).then((v) => v ?? null, () => undefined);
   const [hits, video] = await Promise.all([kept.hits, anyone ? keptVideo(kept, readVideo) : readVideo()]);
-  const contributor = !!video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"));
+  const contributor = carriesContributor(video);
   // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
   // none (src/shared/api.ts): the page then says nothing about video.
   return { body: { ...full, hits, ...(video !== undefined ? { video } : {}) }, contributor };
@@ -67,10 +67,16 @@ function extrasOf(ans: SearchAnswer, limit: number, now = Date.now()): Extras {
   return e;
 }
 
-/** The video for anyone, kept with the rest; a read that failed (undefined) isn't kept, so the next ask reads again. */
+/** The answer's video carries a match video someone added (docs/contributors.md). */
+const carriesContributor = (v: SearchVideo | null | undefined): boolean =>
+  !!v && (v.main?.kind === "contributor" || Object.values(v.rows ?? {}).some((x) => x.kind === "contributor"));
+
+/** The video for anyone, kept with the rest. Not kept: a read that failed (undefined), so the next ask reads again,
+ *  and one carrying a match video someone added, which is read for each ask, so hiding or removing it takes effect
+ *  for everyone at once (./answers/video.ts checks who may see it each time; nothing here would be told). */
 function keptVideo(e: Extras, read: () => Promise<SearchVideo | null | undefined>): Promise<SearchVideo | null | undefined> {
   if (e.video) return e.video;
   const v = (e.video = read());
-  void v.then((x) => { if (x === undefined && e.video === v) e.video = undefined; });
+  void v.then((x) => { if ((x === undefined || carriesContributor(x)) && e.video === v) e.video = undefined; });
   return v;
 }
