@@ -7,7 +7,7 @@ import { all, kvGet, kvSet, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON } from "../data/seasons";
 import { ScoutForecaster, buildForecaster, forecasterFor, resetForecasters } from "./engine";
 import { partnershipPrefix } from "./partnerships";
-import { offThreadRebuilds, rebuildWorkerAlive, rebuildWorkerEntry, replayOffThread, replayOnThisThread, stopRebuildWorker } from "./offThread";
+import { offThreadRebuilds, rebuildWorkerAlive, rebuildWorkerCloses, rebuildWorkerEntry, replayOffThread, replayOnThisThread, stopRebuildWorker } from "./offThread";
 import { bigWindowDb, WINDOW } from "./__fixtures__/bigWindow";
 import type { Client } from "@libsql/client";
 
@@ -31,7 +31,7 @@ beforeAll(async () => {
   await partnershipPrefix(WINDOW[0], { wait: true }); // the finished seasons' pair history, ready (kv) for both builds
 }, 300_000);
 beforeEach(() => { setDb(window.client); resetForecasters(); });
-afterAll(() => { resetForecasters(); stopRebuildWorker(); window.close(); });
+afterAll(async () => { resetForecasters(); await stopRebuildWorker(); window.close(); });
 
 describe("the forecaster rebuilt on the worker", () => {
   it("is exactly the one the server's own thread builds", async () => {
@@ -123,13 +123,19 @@ describe("a child script (replayOnThisThread)", () => {
 describe("when the worker can't be used", () => {
   it("replays on this thread for a database in memory (no worker)", async () => {
     const c = openDb(":memory:");
-    setDb(c);
-    await migrate(c);
-    const runs = offThreadRebuilds();
-    expect(await replayOffThread(S, WINDOW)).toBeNull();
-    const f = await buildForecaster(S);
-    expect(offThreadRebuilds()).toBe(runs);
-    expect(f.builtAt).not.toBeNull();
+    // Closed before the test ends: a native connection left for the collector is closed on a thread that may be gone
+    // by then (the teardown crash offThread.ts `close` describes), and this file opens several.
+    try {
+      setDb(c);
+      await migrate(c);
+      const runs = offThreadRebuilds();
+      expect(await replayOffThread(S, WINDOW)).toBeNull();
+      const f = await buildForecaster(S);
+      expect(offThreadRebuilds()).toBe(runs);
+      expect(f.builtAt).not.toBeNull();
+    } finally {
+      c.close();
+    }
   });
 
   it("stops a worker that runs past its time, and the next build starts a new one", async () => {
@@ -140,6 +146,22 @@ describe("when the worker can't be used", () => {
     const here = new ScoutForecaster(S);
     await here.rebuild();
     expectSame(there, here);
+  }, 120_000);
+});
+
+describe("stopping the worker", () => {
+  it("closes the worker's database on its own thread before ending it", async () => {
+    await buildForecaster(S);
+    expect(rebuildWorkerAlive()).toBe(true);
+    const closes = rebuildWorkerCloses();
+    await stopRebuildWorker();
+    // Acknowledged: the connection was closed where it was opened, not left to a finalizer on a thread being ended.
+    expect(rebuildWorkerCloses()).toBe(closes + 1);
+    expect(rebuildWorkerAlive()).toBe(false);
+    // And a build after it starts a new worker.
+    const runs = offThreadRebuilds();
+    await buildForecaster(S);
+    expect(offThreadRebuilds()).toBe(runs + 1);
   }, 120_000);
 });
 
