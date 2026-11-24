@@ -146,6 +146,10 @@ jobs:
       # answers when tapped, at least the floors in its GATE. The same database the eval restored.
       - name: Search follow-ups
         run: DATA_DIR="$RUNNER_TEMP/evaldata" DATABASE_URL="file:$RUNNER_TEMP/evaldata/scout.db" CS_NO_SCHEDULER=1 npm run search:followups
+      # The closed failed-search issues' queries asked again (scripts/search-replay.ts, docs/failed-search-reporting.md
+      # "Replay"), on the snapshot the eval step restored: fails below the floor, every failing query printed.
+      - name: Search replay (closed failed-search issues)
+        run: DATA_DIR="$RUNNER_TEMP/evaldata" DATABASE_URL="file:$RUNNER_TEMP/evaldata/scout.db" CS_NO_SCHEDULER=1 npm run search:replay
 
   # The one status to gate a merge on. `if: always()` makes it run (and fail) when a leg failed or was cancelled,
   # instead of being skipped, which would read as neither pass nor fail.
