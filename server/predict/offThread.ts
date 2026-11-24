@@ -40,8 +40,9 @@ export type FromRebuildWorker =
   | { t: "error"; id: number; error: string }
   /** The finished seasons' pair history finished building on the worker (engine.ts rebuilds the forecasters that went without it). */
   | { t: "prefixReady"; before: number }
-  /** The database is closed and the worker is done (the reply to "stop"). */
-  | { t: "stopped" };
+  /** The database is closed and the worker is done (the reply to "stop"); `closed` is false when closing threw, so the
+   *  thread is ended with the connection still open rather than the close being claimed. */
+  | { t: "stopped"; closed: boolean };
 
 /** The worker's entry: build/server/forecasterWorker.mjs next to the server bundle, or the source through tsx. */
 export const rebuildWorkerEntry = (moduleUrl = import.meta.url, execArgv: readonly string[] = process.execArgv) =>
@@ -84,17 +85,28 @@ const CLOSE_MS = 2000;
 function close(w: Worker): Promise<void> {
   return new Promise<void>((done) => {
     let over = false;
+    let timer: NodeJS.Timeout;
     const finish = () => {
       if (over) return;
       over = true;
       clearTimeout(timer);
+      w.off("message", onMessage);
+      w.off("error", finish);
+      w.off("exit", finish);
       void w.terminate().then(() => done(), () => done());
     };
-    const timer = setTimeout(finish, CLOSE_MS);
+    // On `on`, not `once`: slices of the rebuild that was running are still arriving, and the first of those would
+    // otherwise take the only listener and the acknowledgement would never be seen.
+    const onMessage = (m: FromRebuildWorker) => {
+      if (m.t !== "stopped") return;
+      if (m.closed) closes++;
+      finish();
+    };
+    timer = setTimeout(finish, CLOSE_MS);
     timer.unref();
-    w.once("message", (m: FromRebuildWorker) => { if (m.t === "stopped") { closes++; finish(); } });
-    w.once("error", finish);
-    w.once("exit", finish);
+    w.on("message", onMessage);
+    w.on("error", finish);
+    w.on("exit", finish);
     try { w.postMessage({ t: "stop" } satisfies ToRebuildWorker); } catch { finish(); }
   });
 }
