@@ -107,6 +107,10 @@ describe("a question about something search holds nothing on (#2234, #2227, #222
   it("is off-topic joined with and/or too, and never with an unread word before its place", () => {
     expect(chatKind("best pizza and coffee in boston")).toBe("off-topic");
     expect(chatKind("rain or snow in denver tomorrow")).toBe("off-topic");
+    expect(chatKind("weather forecast in denver tomorrow")).toBe("off-topic");
+    expect(chatKind("best coffee place in boston")).toBe("off-topic");
+    expect(chatKind("whats the weather like in denver in summer")).toBe("off-topic");
+    expect(chatKind("best teleop in boston")).toBeNull();
     expect(chatKind("qzv stuff in denver")).toBeNull();
     expect(chatKind("qzv nothing at all")).toBeNull();
   });

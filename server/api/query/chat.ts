@@ -81,11 +81,17 @@ function asksWhereToGet(ws: string[]): boolean {
  *  a word before the place is unread ("zqx stuff in <town>"): what that word is isn't known, so neither is the question. */
 export function otherSubject(q: string): string[] {
   const ws = chatWords(readTime(q.toLowerCase(), new Date().toISOString().slice(0, 10)).rest);
-  if (ws.some((w) => /\d/.test(w)) || has(ws, SUBJECT_PHRASES)) return [];
-  const place = ws.reduce((last, w, i) => (PLACE_PREPS.has(w) ? i : last), -1);
+  if (ws.some((w) => /\d/.test(w))) return [];
+  // The place starts at its first word ("in boston in summer"): all from there on is where and when.
+  const place = ws.findIndex((w) => PLACE_PREPS.has(w));
   const head = place > 0 ? ws.slice(0, place) : ws;
   if (head.some((w) => !everydayWord(w) && !searchWord(w))) return [];
-  return head.filter((w) => !searchWord(w));
+  const subject = head.filter((w) => !searchWord(w));
+  // A word only search uses ("opr", "teleop") makes it an FTC question; one English shares ("forecast", "place")
+  // doesn't, said beside an everyday subject ("weather forecast", "pizza place").
+  const data = SUBJECT_PHRASES.filter((p) => has(head, [p]));
+  if (data.some((p) => p.some((w) => !everydayWord(w)))) return [];
+  return subject;
 }
 
 /** Whether `q` asks where to get something ("where do i get a <part>"). */
