@@ -24,7 +24,7 @@ describe("parse memo", () => {
     expect((await parseQuery("4215 opr in new jersey", ctx)).teams.length).toBe(b.teams.length);
   });
 
-  it("reads again for other preferred teams, another day, or after its few seconds", async () => {
+  it("reads again for other preferred teams or another day", async () => {
     const isEvent = vi.fn(async () => false);
     const counted = async (prefer: ReadonlySet<string>, now = Date.now()) => ({ ...(await parseContext(now, prefer)), isEvent });
     // A copy of a parseContext context keeps its key: remembered by it.
@@ -39,6 +39,26 @@ describe("parse memo", () => {
     const twice = isEvent.mock.calls.length;
     await parseQuery("garden state meet", await counted(new Set(), Date.now() + 86_400_000));
     expect(isEvent.mock.calls.length).toBeGreaterThan(twice);
+  });
+
+  it("reads again once its five seconds are up, not before", async () => {
+    const isEvent = vi.fn(async () => false);
+    const ctx = { ...(await parseContext()), isEvent };
+    const start = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(start);
+    try {
+      await parseQuery("garden state meet again", ctx);
+      const once = isEvent.mock.calls.length;
+      expect(once).toBeGreaterThan(0);
+      clock.mockReturnValue(start + 4_999);
+      await parseQuery("garden state meet again", ctx);
+      expect(isEvent.mock.calls.length).toBe(once);
+      clock.mockReturnValue(start + 5_000);
+      await parseQuery("garden state meet again", ctx);
+      expect(isEvent.mock.calls.length).toBe(once * 2);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it("reads fresh for a context parseContext didn't make", async () => {
