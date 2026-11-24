@@ -30,7 +30,30 @@ import type { SearchAnswer } from "../src/shared/api.js";
 
 // --- What counts as a failed search (brief §12.1) ---------------------------------------------------------------
 
-export type FailureType = "no-match" | "team-fallback" | "weak" | "name-only" | "empty" | "ambiguous" | "downvoted";
+export type FailureType = "no-match" | "team-fallback" | "weak" | "name-only" | "empty" | "ambiguous" | "downvoted" | SoftType;
+
+/** Soft failures (audit M5, 24 Nov): search answered, but not the whole question. Logged and counted in
+ *  search_failures under a key of their own ("soft: …"), never filed as a GitHub issue:
+ *  - "unread-words": the answer read past words the visitor typed (its understood.unread);
+ *  - "declined": the pipeline read the question's intent and declined it, so another reader answered instead.
+ *  Classified on structured fields only (the answer's unread list, the pipeline's own reading, the parse), never on
+ *  label text. */
+export type SoftType = "unread-words" | "declined";
+export const SOFT_TYPES: readonly SoftType[] = ["unread-words", "declined"];
+export const isSoft = (t: string): t is SoftType => (SOFT_TYPES as readonly string[]).includes(t);
+export interface Soft { type: SoftType; reason: string; intent: string | null }
+
+/** The soft failure of an answer that answered (failureOf gave null), or null. `read`: the parser's reading of the
+ *  query (patternFor's), which says whether the pipeline had the question's intent. */
+export function softFailureOf(a: SearchAnswer, read: { intent: string | null; complete: boolean } | null): Soft | null {
+  if (!a.stat && !a.card) return null;
+  // The pipeline answered when its reading is on the answer ("Intent: …", ./api/query/execute.ts describe).
+  const piped = !!a.intent?.understood?.some((u) => u.startsWith("Intent: "));
+  const unread = a.understood?.unread ?? [];
+  if (unread.length) return { type: "unread-words", reason: `${unread.length === 1 ? "1 word" : `${Math.min(unread.length, 3)}${unread.length > 3 ? "+" : ""} words`} read past`, intent: read?.intent ?? null };
+  if (!piped && read?.intent) return { type: "declined", reason: read.complete ? "read whole, not answered by it" : "words it couldn't read", intent: read.intent };
+  return null;
+}
 
 /** How search reached its answer: from the layered reader (Track A) when it reports one, else read from the
  *  answer itself (readTrace). Server-only, never sent to the browser. */
@@ -182,13 +205,13 @@ export async function keyFor(q: string): Promise<string> {
 
 /** The failure pattern for a query as /api/search files it (server/api/query/pattern.ts), with the words it couldn't
  *  read, redacted. Null when it can't be read: the query's own key (keyFor) is used instead. */
-export async function patternFor(q: string, now = Date.now()): Promise<{ key: string; missed: string[] } | null> {
+export async function patternFor(q: string, now = Date.now()): Promise<{ key: string; missed: string[]; read: { intent: string | null; complete: boolean }; legacy: string } | null> {
   try {
     // Nothing left once personal data is out: no pattern, so the query's own key is skipped as before.
     if (onlyRedacted(safeQuery(q))) return null;
     // Read without the placeholders, so a question with personal data in it is the same pattern as one without.
     const p = await failurePattern(safeQuery(q).replace(/\[(?:token|email|phone)\]/g, " ").replace(/\s+/g, " ").trim(), now);
-    return { key: `pattern: ${p.key}`, missed: p.missed.map(redact).filter((w) => !onlyRedacted(w)) };
+    return { key: `pattern: ${p.key}`, missed: p.missed.map(redact).filter((w) => !onlyRedacted(w)), read: p.read, legacy: `pattern: ${p.legacy}` };
   } catch {
     return null;
   }
@@ -250,10 +273,15 @@ const related = (a: string, b: string) => a.startsWith(b) || b.startsWith(a);
 
 /** Called by /api/search after it answered (every answer=1 search, failed or not). Synchronous, never throws.
  *  `key`: the aggregation key (patternFor, else keyFor), worked out by the caller; reportKey of the query when not
- *  given. `missed`: a pattern's words search couldn't read. A pattern never lands on a query's old row. */
-export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: SearchTrace | null, now = Date.now(), key?: string, missed: string[] = []): void {
-  try { noteOnce(client, true, q, a, trace, now, key, missed); } catch { /* Reporting never breaks search. */ }
+ *  given. `missed`: a pattern's words search couldn't read. A pattern never lands on a query's old row. `soft`: the
+ *  answer's soft failure (softFailureOf), used only when the answer didn't fail outright; its key is the pattern's
+ *  with "soft: <type> (<reason>)" before it. */
+export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: SearchTrace | null, now = Date.now(), key?: string, missed: string[] = [], soft?: Soft | null, legacy?: string): void {
+  try { noteOnce(client, true, q, a, trace, now, key, missed, soft, legacy); } catch { /* Reporting never breaks search. */ }
 }
+
+/** The key a soft failure is logged under: never a hard failure's, so its row never files an issue. */
+export const softKey = (s: Soft, pattern: string) => `soft: ${s.type} (${s.reason}) · ${pattern.replace(/^pattern: /, "")}`;
 
 /** A question the Discord bot couldn't answer (bot/ask.ts). A server is not a website visitor: its questions arrive
  *  whole (there is no typing to wait out) and from many people at once, so each one gets a slot of its own — a DISCORD
@@ -265,7 +293,7 @@ export function noteBotSearch(q: string, a: SearchAnswer, source: string, trace?
 let botQuestions = 0;
 
 /** Queue one query under `slot`. `capped`: it spends that slot's hourly report allowance (a visitor's, not a bot's). */
-function noteOnce(slot: string, capped: boolean, q: string, a: SearchAnswer, trace?: SearchTrace | null, now = Date.now(), key?: string, missed: string[] = []): void {
+function noteOnce(slot: string, capped: boolean, q: string, a: SearchAnswer, trace?: SearchTrace | null, now = Date.now(), key?: string, missed: string[] = [], soft?: Soft | null, oldPattern?: string): void {
   settle(now);
   const safe = safeQuery(q);
   const n = normalizeQuery(safe);
@@ -276,8 +304,11 @@ function noteOnce(slot: string, capped: boolean, q: string, a: SearchAnswer, tra
   if (pending.size >= SETTLE_MAX && !pending.has(slot)) { counters.dropped++; return; }
   // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
   pending.delete(slot);
-  const failure = failureOf(q, a, trace);
-  const legacy = key?.startsWith("pattern: ") ? key : reportKey(safe);
+  const hard = failureOf(q, a, trace);
+  // A soft failure only for an answer that didn't fail outright, and only under its own soft key.
+  const failure: Failure | null = hard ?? (soft && key?.startsWith("soft: ") ? { type: soft.type, intent: soft.intent, trace: trace ?? readTrace(q, a) } : null);
+  // A pattern's legacy is its key before unread words were part of it (patternFor's `legacy`), else itself.
+  const legacy = key?.startsWith("pattern: ") ? (oldPattern?.startsWith("pattern: ") ? oldPattern : key) : key?.startsWith("soft: ") ? key : reportKey(safe);
   pending.set(slot, { q: safe, key: key || legacy, legacy, failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now, missed, capped });
 }
 
@@ -294,7 +325,8 @@ function commit(client: string, p: Pending) {
   if (!p.failure) return;
   const { q, key } = p;
   if (onlyRedacted(key)) { counters.skipped++; return; }
-  if (p.capped && !takeReportSlot(`fs:${client}`, PER_IP_HOUR, p.at).ok) { counters.limited++; return; }
+  // Soft failures have an hourly allowance of their own: they never use up a visitor's hard failures'.
+  if (p.capped && !takeReportSlot(`${isSoft(p.failure.type) ? "fss" : "fs"}:${client}`, PER_IP_HOUR, p.at).ok) { counters.limited++; return; }
   const b = buffer.get(key);
   if (b) {
     b.count++; b.last = Math.max(b.last, p.at); b.failure = p.failure; b.label = p.label;
@@ -391,10 +423,10 @@ async function flushOnce(now: number, everything: boolean): Promise<number> {
 /** The batch with each query on the row it belongs to: its own key, or the key it was filed under before 2.8.1
  *  (reportKey) when only that row exists, so its issue, count and dismissal carry over and no second issue is
  *  opened. Items that land on one row are merged, newest examples first. */
-export function onRows(batch: Buffered[], onRecord: Set<string>): Buffered[] {
+export function onRows(batch: Buffered[], onRecord: Set<string>, adoptable: Set<string> = onRecord): Buffered[] {
   const out = new Map<string, Buffered>();
   for (const it of batch) {
-    const key = !onRecord.has(it.key) && it.legacy !== it.key && onRecord.has(it.legacy) ? it.legacy : it.key;
+    const key = !onRecord.has(it.key) && it.legacy !== it.key && adoptable.has(it.legacy) ? it.legacy : it.key;
     const b = out.get(key);
     if (!b) { out.set(key, { ...it, key }); continue; }
     const newer = it.last >= b.last ? it : b, older = newer === it ? b : it;
@@ -413,10 +445,14 @@ async function writeBatch(batch: Buffered[]) {
   const asked = [...new Set(batch.flatMap((b) => [b.key, b.legacy]))];
   const tx = await db().transaction("write");
   try {
-    const rows = (await tx.execute({ sql: `SELECT key, examples, missed FROM search_failures WHERE key IN (${asked.map(() => "?").join(",")})`, args: asked })).rows as unknown as { key: string; examples: string; missed: string }[];
+    const rows = (await tx.execute({ sql: `SELECT key, examples, missed, issue_state FROM search_failures WHERE key IN (${asked.map(() => "?").join(",")})`, args: asked })).rows as unknown as { key: string; examples: string; missed: string; issue_state: string | null }[];
     const had = new Map(rows.map((r) => [String(r.key), JSON.parse(String(r.examples)) as string[]]));
     const hadMissed = new Map(rows.map((r) => [String(r.key), JSON.parse(String(r.missed || "{}")) as Record<string, number>]));
-    const items = onRows(batch, new Set(had.keys()));
+    // A query's pre-2.8.1 row is always taken over. A pattern's pre-split row (audit M8: unread words now in the key)
+    // only while its issue is open (the work stays in one place) or dismissed (the owner's no stands): a split pattern
+    // whose old issue was closed as fixed is a gap of its own.
+    const adoptable = new Set(rows.filter((r) => !String(r.key).startsWith("pattern: ") || r.issue_state === "open" || r.issue_state === "dismissed").map((r) => String(r.key)));
+    const items = onRows(batch, new Set(had.keys()), adoptable);
     await tx.batch(items.map((b) => {
       const examples = [...b.examples, ...(had.get(b.key) ?? []).filter((e) => !b.examples.includes(e))].slice(0, EXAMPLES_MAX);
       const reading = JSON.stringify(b.failure.trace);
@@ -618,8 +654,8 @@ export async function syncSearchFailures(now = new Date()): Promise<{ synced: nu
   if (!env.githubReportToken || Date.now() < pausedUntil || !(await reportingOn())) return { synced: 0, writes: 0 };
   const due = await all<{ key: string }>(
     `SELECT key FROM search_failures WHERE (issue_number IS NULL OR count > reported_count OR regression_seen IS NOT NULL)
-      AND COALESCE(issue_state, '') <> 'dismissed' ORDER BY issue_number IS NULL, count DESC, last_seen LIMIT ?`,
-    [SYNC_WRITES],
+      AND COALESCE(issue_state, '') <> 'dismissed' AND result_type NOT IN (${SOFT_TYPES.map(() => "?").join(", ")}) ORDER BY issue_number IS NULL, count DESC, last_seen LIMIT ?`,
+    [...SOFT_TYPES, SYNC_WRITES],
   );
   const budget: Budget = { left: SYNC_WRITES };
   let synced = 0;
@@ -689,6 +725,14 @@ export function searchFailuresRouter(answer: (q: string) => Promise<SearchAnswer
   const r = express.Router();
   const LITE_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
   const number = (req: Request) => (/^\d{1,7}$/.test(String(req.params.n)) ? Number(req.params.n) : null);
+  // The soft failures (audit M5), the most counted first: owner only, JSON, read from the table (never GitHub).
+  r.get("/soft", (req: Request, res: Response) => {
+    (async () => {
+      if (!(await ownerOf(req))) { res.status(404).json({ error: "Not found" }); return; }
+      res.setHeader("Cache-Control", "private, no-store");
+      res.json(await softSummary());
+    })().catch(() => { if (!res.headersSent) res.status(503).json({ error: "Couldn't load right now." }); });
+  });
   r.get("/:n/recheck", (req: Request, res: Response) => {
     (async () => {
       const n = number(req);
@@ -713,6 +757,17 @@ export function searchFailuresRouter(answer: (q: string) => Promise<SearchAnswer
     })().catch(() => { if (!res.headersSent) res.status(503).json({ error: "Couldn't re-check right now." }); });
   });
   return r;
+}
+
+/** The soft failures on record: totals by type, and the most counted patterns with their latest examples. */
+export async function softSummary(limit = 50): Promise<{ totals: Record<SoftType, number>; rows: { key: string; type: SoftType; count: number; lastSeen: string; examples: string[] }[] }> {
+  const marks = SOFT_TYPES.map(() => "?").join(", ");
+  const sums = await all<{ result_type: SoftType; n: number }>(`SELECT result_type, SUM(count) AS n FROM search_failures WHERE result_type IN (${marks}) GROUP BY result_type`, [...SOFT_TYPES]);
+  const rows = await all<{ key: string; result_type: SoftType; count: number; last_seen: string; examples: string }>(
+    `SELECT key, result_type, count, last_seen, examples FROM search_failures WHERE result_type IN (${marks}) ORDER BY count DESC, last_seen DESC LIMIT ?`, [...SOFT_TYPES, limit]);
+  const totals = Object.fromEntries(SOFT_TYPES.map((t) => [t, 0])) as Record<SoftType, number>;
+  for (const r of sums) totals[r.result_type] = Number(r.n);
+  return { totals, rows: rows.map((r) => ({ key: r.key, type: r.result_type, count: Number(r.count), lastSeen: r.last_seen, examples: JSON.parse(r.examples) as string[] })) };
 }
 
 /** Whether reporting is on (the owner's failedSearchReports kill switch). Read with the flags cache. */
