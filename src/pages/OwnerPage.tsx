@@ -40,6 +40,7 @@ import { HeroLinesPanel } from "../components/owner/HeroLinesPanel";
 import { WashPanel } from "../components/owner/WashPanel";
 import { WhatsNewPanel } from "../components/owner/WhatsNewPanel";
 import { VitalsTable } from "../components/owner/VitalsTable";
+import { SearchScorePanel } from "../components/owner/SearchScorePanel";
 import { OnboardingFunnel } from "../components/owner/OnboardingFunnel";
 import { DigestPanel } from "../components/owner/DigestPanel";
 import { DataPanel } from "../components/owner/DataPanel";
@@ -542,6 +543,7 @@ function UsagePanel() {
               <Section title="Real-user speed" description="Web vitals from visitors who allowed usage statistics, at the 75th percentile, by the page the visit started on. Green is good, amber needs improvement, red is poor.">
                 <VitalsTable all={u.vitals.all} pages={u.vitals.pages} />
               </Section>
+              <SearchScorePanel days={u.days} />
               <Section title="First-visit onboarding" collapsible icon={Users} summary={u.onboarding ? `${int(u.onboarding.shown)} shown the welcome in this period` : "Not counted on this server yet"} description="How far new visitors get through the four-step welcome on Home, from visitors who allowed usage statistics. Replays from Settings aren't counted.">
                 {u.onboarding ? <OnboardingFunnel s={u.onboarding} /> : <p className="text-sm text-muted-foreground">Not counted on this server yet.</p>}
               </Section>

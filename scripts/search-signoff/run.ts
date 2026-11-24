@@ -6,6 +6,8 @@
 //   npx tsx scripts/search-signoff/run.ts --sets C --out C:/tmp/signoff
 //   npx tsx scripts/search-signoff/run.ts --base http://localhost:8787 --par 4
 //   npx tsx scripts/search-signoff/run.ts --regrade <out>/results.jsonl   grade a saved run again, asking nothing new
+//   npx tsx scripts/search-signoff/run.ts --local --sets C --min 90   the shipped snapshot, served in this process
+//                                                                   (../search-local.ts); exit 1 under 90% (CI)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -13,7 +15,11 @@ import { crosscheck, type Check } from "./crosscheck.js";
 import { fold, grade, sameAnswer, type Grade, type Live } from "./grade.js";
 
 const arg = (f: string) => { const i = process.argv.indexOf(`--${f}`); return i > 0 ? process.argv[i + 1] : undefined; };
-const BASE = (arg("base") ?? "https://controlscout.org").replace(/\/$/, "");
+const LOCAL = process.argv.includes("--local"), MIN = arg("min");
+// A --min with no number after it would turn the floor off: refused instead.
+if (process.argv.includes("--min") && !Number.isFinite(Number(MIN ?? NaN))) { console.log(`FAIL: --min needs a number (got ${MIN ?? "nothing"})`); process.exit(1); }
+const local = LOCAL ? await (async () => { const l = await import("../search-local.js"); await l.bootSearch(); return l.localServer(); })() : null;
+const BASE = (local?.base ?? arg("base") ?? "https://controlscout.org").replace(/\/$/, "");
 const SETS = (arg("sets") ?? "A,B,C,D,P,T").split(",");
 const PAR = +(arg("par") ?? 6);
 const STAMP = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
@@ -76,7 +82,7 @@ async function ask(q: string): Promise<Saved> {
 type Health = { release?: string; engine?: string; at?: string };
 const health: Health = REGRADE
   ? (() => { try { return JSON.parse(readFileSync(join(dirname(REGRADE), "meta.json"), "utf8")) as Health; } catch { return {}; } })()
-  : { ...((await fetch(`${BASE}/api/health`).then((r) => r.json()).catch(() => ({}))) as Health), at: new Date().toISOString() };
+  : { ...((await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(30_000) }).then((r) => r.json()).catch(() => ({}))) as Health), at: new Date().toISOString() };
 console.log(`${BASE} release ${health.release?.slice(0, 8)} · ${qs.length} queries → ${OUT}${REGRADE ? " (regrade, offline)" : ""}`);
 const done: Done[] = [];
 let next = 0;
@@ -194,3 +200,10 @@ md.push("", `Answer time (this runner, ${PAR} at once): median ${ms[Math.floor(m
 writeFileSync(join(OUT, "report.md"), md.join("\n") + "\n");
 console.log(md.slice(0, 12).join("\n"));
 console.log(`\nreport: ${join(OUT, "report.md")}`);
+local?.close();
+// The CI floor (--min): the asked sets' pass rate (a clear no-match card counts for an invalid question).
+const asked = done.filter((d) => SETS.includes(d.set)), ok = asked.filter((d) => d.g.verdict === "pass").length;
+const rate = (100 * ok) / Math.max(1, asked.length);
+console.log(`pass rate ${ok}/${asked.length} (${rate.toFixed(1)}%)${MIN != null ? `, minimum ${MIN}%` : ""}`);
+if (MIN != null && rate < Number(MIN)) { console.log("FAIL: under the minimum"); process.exit(1); }
+process.exit(0);

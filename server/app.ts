@@ -108,6 +108,7 @@ import { bundleRouter } from "./packs/bundle.js";
 import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, rateLimiter, statsRouter } from "./analytics.js";
 import { visitorIp } from "./visitorIp.js";
 import { vitalsRouter } from "./vitals.js";
+import { searchScoreRouter } from "./searchScore.js";
 import { onboardingStatsRouter } from "./onboardingStats.js";
 import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
@@ -330,7 +331,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   // 2 MB JSON parser skips all three.
   const json = express.json({ limit: "2mb" });
   // Same matching as Express routing (case-insensitive, optional trailing slash).
-  app.use((req, res, next) => (/^\/api\/(collect(\/vitals|\/onboarding)?|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
+  app.use((req, res, next) => (/^\/api\/(collect(\/vitals|\/onboarding|\/search)?|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
   // The shutdown message (server/shutdownGate.ts): while publicAccess is off, only signed-in accounts get past here.
   app.use(shutdownGate);
 
@@ -1124,6 +1125,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   api.use("/digest", limiter(30), digestRouter());
   api.use("/collect/vitals", vitalsRouter());
   api.use("/collect/onboarding", onboardingStatsRouter());
+  api.use("/collect/search", searchScoreRouter());
   api.use("/collect", collectRouter());
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());
