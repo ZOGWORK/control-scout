@@ -115,12 +115,16 @@ export function limitEmbed(q: { limited: "hour" | "day"; retryAfter: number }): 
   };
 }
 
-/** /help: every command, from the same list the site shows (src/shared/discord.ts). */
+/** /help: every command, from the same list the site shows (src/shared/discord.ts), and what the thumbs on an answer
+ *  do — 👎 is a report, so nobody should use it as a dislike button. */
 export function helpEmbed(): APIEmbed {
   return {
     title: "Control Scout commands",
     url: "https://controlscout.org",
-    description: BOT_COMMANDS.map((c) => "`" + c.usage + "` " + c.what + (c.admin ? " *(Manage Server)*" : "")).join("\n"),
+    description: [
+      BOT_COMMANDS.map((c) => "`" + c.usage + "` " + c.what + (c.admin ? " *(Manage Server)*" : "")).join("\n"),
+      "👍 on an answer says it helped. 👎 **files the question so we can fix the answer** — it's a report, not a dislike button.",
+    ].join("\n\n"),
     color: VOLT,
     footer: FOOTER,
   };

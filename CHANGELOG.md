@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.9.10 — 2026-11-23
+
+A 👎 on an answer now answers back, once: the bot says in the channel that a 👎 files the question so the answer can be fixed — people were using it as a dislike button.
+
+### Highlights
+- [scout] A 👎 says what it did: the question is filed, not disliked
+- [scout] `/help` explains the thumbs too
+- [fixes] One note per answer, no pings, never twice
+
+### Discord bot
+- **The thumbs explain themselves** (`bot/reactions.ts` `DOWN_NOTE`, `downNotes`, `firstDown`; `bot/index.ts`; `bot/handler.ts` `helpEmbed`): the first 👎 an answer gets now draws one short reply in the channel — "📝 Noted — a 👎 files this question so we can fix the answer. It's not a dislike button." — sent as a reply to that answer and pinging nobody. It says it at most once per answer per process (a second 👎, or the first taken off and added again, says nothing; two arriving together say it once), only for an answer the bot posted, and only in a channel it can post in. A note that can't be sent is logged as `down note failed` and never touches the vote. `/help` carries the same line under the commands, so it is read before the button is used rather than after.
+
 ## 7.9.9 — 2026-11-23
 
 Asked "what is my name?", Control Scout answers with the name Discord shows in that server — the nickname everyone sees — instead of the @handle.
