@@ -17,13 +17,13 @@ vi.mock("../../lib/brunoStream", () => ({
     ? Promise.reject(new Error("no stream"))
     : new Promise((resolve, reject) => streams.push({ url, part, resolve, reject })),
 }));
-const flags = { brunoAnswers: true };
-vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useServerFlag: (n: keyof typeof flags) => flags[n], useFlag: (n: keyof typeof flags) => flags[n] }));
+const flags = { brunoAnswers: true, confirmed: true };
+vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useServerFlag: (n: keyof typeof flags) => flags.confirmed && flags[n], useFlag: (n: keyof typeof flags) => flags[n] }));
 
-const { BrunoAnswer, BRUNO_SETTLE_MS, brunoKey } = await import("./BrunoAnswer");
+const { BrunoAnswer, BRUNO_SETTLE_MS, BRUNO_FLAG_WAIT_MS, brunoKey } = await import("./BrunoAnswer");
 
 const Q = "how many times did 4215 go to states";
-beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); flags.brunoAnswers = true; });
+beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); flags.brunoAnswers = true; flags.confirmed = true; });
 afterEach(() => { cleanup(); pending.length = 0; streams.length = 0; streamMode = "fail"; vi.useRealTimers(); });
 const settle = () => act(async () => { vi.advanceTimersByTime(BRUNO_SETTLE_MS + 5); });
 const answer = (text: string | null, points?: string[]) => act(async () => { pending.shift()!.resolve(text ? { text, points } : null); });
@@ -219,6 +219,16 @@ describe("Bruno's answer leading the page", () => {
     render(<BrunoAnswer q="is absolute zero a real team" ready memo={memo} />);
     await settle();
     expect(pending).toHaveLength(1);
+  });
+  it("lets the slot go when the server never confirms his switch", async () => {
+    flags.confirmed = false;
+    const heard: boolean[] = [];
+    render(<BrunoAnswer q="is absolute zero a real team" ready lead onOutcome={(_, said) => heard.push(said)} />);
+    expect(screen.getByRole("status")).toBeTruthy();
+    await act(async () => { vi.advanceTimersByTime(BRUNO_FLAG_WAIT_MS + 5); });
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(heard).toEqual([false]);
+    expect(pending).toHaveLength(0);
   });
   it("holds no slot with his switch off", () => {
     flags.brunoAnswers = false;
