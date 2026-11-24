@@ -85,7 +85,13 @@ async function ask(q: string): Promise<Saved> {
 type Health = { release?: string; engine?: string; at?: string };
 const health: Health = REGRADE
   ? (() => { try { return JSON.parse(readFileSync(join(dirname(REGRADE), "meta.json"), "utf8")) as Health; } catch { return {}; } })()
-  : { ...((await fetch(`${BASE}/api/health`, { headers: { [TEST_HEADER]: "1" }, signal: AbortSignal.timeout(30_000) }).then((r) => r.json()).catch(() => ({}))) as Health), at: new Date().toISOString() };
+  : await (async () => {
+    // A server that doesn't answer (none running at the local default, say) fails here, before any query: never a
+    // report of every query failed, exiting 0.
+    const r = await fetch(`${BASE}/api/health`, { headers: { [TEST_HEADER]: "1" }, signal: AbortSignal.timeout(30_000) }).catch(() => null);
+    if (!r?.ok) { console.log(`FAIL: ${BASE} doesn't answer (${r ? `HTTP ${r.status}` : "no connection"}); start one (npm run dev:api) or pass --base or --local`); process.exit(1); }
+    return { ...((await r.json().catch(() => ({}))) as Health), at: new Date().toISOString() };
+  })();
 console.log(`${BASE} release ${health.release?.slice(0, 8)} · ${qs.length} queries → ${OUT}${REGRADE ? " (regrade, offline)" : ""}`);
 const done: Done[] = [];
 let next = 0;
