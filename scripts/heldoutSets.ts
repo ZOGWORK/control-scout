@@ -1,12 +1,11 @@
 // The held-out sets (scripts/search-heldout.ts): the first ones in scripts/search-heldout.json ({ set, n, q }), and one
 // file a set in scripts/heldout/ (<set>.json: its questions, in order; each one's number is its place). A change that
-// adds a set adds its own file, so two changes adding sets never edit the same lines. A question there is a string,
-// or { "q": ..., "train": true } once it was found in tests or code (the training set, ./search-heldout.test.ts).
+// adds a set adds its own file, so two changes adding sets never edit the same lines.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 
-/** An entry may also carry `train` (seen in tests or code: the training set, ./search-heldout.test.ts), and a shared
- *  one the answer a person wrote (`want`). */
+/** A shared entry may also carry the answer a person wrote (`want`) and `train` (found in tests or code: the training
+ *  set, ./search-heldout.test.ts). */
 export interface HeldOut { set: string; n: number; q: string; want?: string; train?: boolean }
 
 /** A file's JSON. Each failure names the file and says what it is: one that can't be read (missing, a folder), or
@@ -16,14 +15,6 @@ function parsed(path: string, name: string): unknown {
   try { text = readFileSync(path, "utf8"); } catch (e) { throw new Error(`${name}: can't be read (${(e as Error).message})`); }
   try { return JSON.parse(text); } catch (e) { throw new Error(`${name}: not valid JSON (${(e as Error).message})`); }
 }
-
-/** A question in a set's own file: its words, or its words marked as the training set's. */
-export type OwnQuestion = string | { q: string; train: true };
-const isQuestion = (x: unknown): x is OwnQuestion => {
-  if (typeof x === "string") return !!x.trim();
-  const e = x as { q?: unknown; train?: unknown } | null;
-  return !!e && typeof e === "object" && typeof e.q === "string" && !!e.q.trim() && e.train === true && Object.keys(e).length === 2;
-};
 
 /** A shared entry as the runner reads one: a set, a number, a question. */
 const isEntry = (x: unknown): x is HeldOut => {
@@ -52,9 +43,9 @@ export function heldoutSets(dir: string = import.meta.dirname): HeldOut[] {
   const files = names.sort();
   const own = files.flatMap((f) => {
     const qs: unknown = parsed(join(folder, f), `scripts/heldout/${f}`);
-    if (!Array.isArray(qs) || !qs.length || !qs.every(isQuestion)) throw new Error(`scripts/heldout/${f}: a list of questions, each a non-empty string (or { "q", "train": true })`);
+    if (!Array.isArray(qs) || !qs.length || !qs.every((q) => typeof q === "string" && q.trim())) throw new Error(`scripts/heldout/${f}: a list of questions, each a non-empty string`);
     const set = basename(f, ".json");
-    return (qs as OwnQuestion[]).map((q, i): HeldOut => (typeof q === "string" ? { set, n: i + 1, q } : { set, n: i + 1, q: q.q, train: true }));
+    return (qs as string[]).map((q, i) => ({ set, n: i + 1, q }));
   });
   const all = [...(shared as HeldOut[]), ...own];
   if (!all.length) throw new Error("no held-out questions: scripts/search-heldout.json and scripts/heldout/ hold none");

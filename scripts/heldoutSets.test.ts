@@ -32,13 +32,6 @@ describe("held-out sets", () => {
     const d = dirWith([{ set: "a", n: 1, q: "x" }], { "b.json": ["first", "second"] });
     expect(heldoutSets(d)).toEqual([{ set: "a", n: 1, q: "x" }, { set: "b", n: 1, q: "first" }, { set: "b", n: 2, q: "second" }]);
   });
-  it("a question in a set's own file marked as the training set's keeps its place and its mark", () => {
-    const d = dirWith([], { "b.json": ["first", { q: "second", train: true }] });
-    expect(heldoutSets(d)).toEqual([{ set: "b", n: 1, q: "first" }, { set: "b", n: 2, q: "second", train: true }]);
-    // Only that mark: any other object, or train not true, is not a question.
-    expect(() => heldoutSets(dirWith([], { "c.json": [{ q: "x", train: false }] }))).toThrow("scripts/heldout/c.json");
-    expect(() => heldoutSets(dirWith([], { "c.json": [{ q: "x", train: true, want: "y" }] }))).toThrow("scripts/heldout/c.json");
-  });
   it("a set given twice, or a file that isn't a list of questions, fails loudly", () => {
     expect(() => heldoutSets(dirWith([{ set: "a", n: 1, q: "x" }], { "a.json": ["y"] }))).toThrow("held-out a #1 is given twice");
     expect(() => heldoutSets(dirWith([], { "c.json": { q: "x" } }))).toThrow("scripts/heldout/c.json");

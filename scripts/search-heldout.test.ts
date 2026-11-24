@@ -18,7 +18,7 @@ describe("held out means held out", () => {
   it("no held-out question appears word for word in tests or code", () => {
     const found = leaks(held.map((x) => x.q));
     const lines = [...found].map(([q, files]) => `"${q}" in ${files.slice(0, 3).join(", ")}`);
-    expect(lines, `held-out questions in tests or code (move them: npm run search:heldout -- --split, or reword one in scripts/heldout/):\n${lines.join("\n")}`).toEqual([]);
+    expect(lines, `held-out questions in tests or code (move them: npm run search:heldout -- --split, or reword the test that has one from scripts/heldout/):\n${lines.join("\n")}`).toEqual([]);
   });
   it("each question once: no set and number twice in the file", () => {
     const ids = rows.map((x) => `${x.set}#${x.n}`);
@@ -46,7 +46,8 @@ describe("held out means held out", () => {
   it("looks through tests and code, never the eval lists themselves", () => {
     const paths = [...scannedTexts().keys()];
     expect(paths.some((p) => p.endsWith(".test.ts"))).toBe(true);
-    expect(paths.some((p) => /search-heldout\.json|search-signoff\/sets\//.test(p))).toBe(false);
+    // A set's own file (scripts/heldout/) is an eval list too: read, every question in it would match itself.
+    expect(paths.some((p) => /search-heldout\.json|^scripts\/heldout\/|search-signoff\/sets\//.test(p))).toBe(false);
   });
 });
 
