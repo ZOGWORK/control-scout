@@ -179,8 +179,9 @@ export function grounded(text: string, facts: string[], question: string, teams?
   return ungrounded(text, facts, question, teams).length === 0;
 }
 
-/** A sentence of an answer: split where one ends (". ", "; "), never inside a number ("101.6"). */
-const sentences = (s: string) => s.split(/(?<=[.!?;])\s+/).filter(Boolean);
+/** A sentence of an answer: split where one ends (". ", "; "), never inside a number ("101.6") or after an abbreviation
+ *  ("4215 vs. 6980", "No. 1", "approx. 40"), which is the same sentence going on. */
+const sentences = (s: string) => s.split(/(?<=[.!?;])(?<!\b(?:vs|v|no|nos|approx|avg|ca|cf|e\.g|i\.e|etc|st|mt|jr|sr|dr|mr|mrs|ms)\.)\s+/i).filter(Boolean);
 
 /** The teams an answer is about: their numbers, each with its name when known (a sentence may name a team by name alone,
  *  "Bad Wolf's OPR"). */
