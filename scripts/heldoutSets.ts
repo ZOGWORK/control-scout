@@ -32,7 +32,9 @@ export function heldoutSets(dir: string = import.meta.dirname): HeldOut[] {
   // The folder is where every set since the shared file's is: missing, those sets would be missing with no word said.
   const folder = join(dir, "heldout");
   if (!existsSync(folder)) throw new Error("scripts/heldout/ is missing: the held-out sets added since search-heldout.json live there");
-  const names = readdirSync(folder);
+  // A folder that can't be listed (a file of that name, no permission) says so, naming it.
+  let names: string[];
+  try { names = readdirSync(folder); } catch (e) { throw new Error(`scripts/heldout/ can't be read (${(e as Error).message})`); }
   // Only <set>.json is read: a file named any other way would be left out with no word said.
   const odd = names.filter((f) => !f.endsWith(".json") || !basename(f, ".json").trim());
   if (odd.length) throw new Error(`scripts/heldout/ holds ${odd.join(", ")}: each set is a <set>.json file (a name, then lower-case .json)`);
