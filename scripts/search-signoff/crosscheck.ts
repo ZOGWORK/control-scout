@@ -6,10 +6,12 @@ import type { Live } from "./grade.js";
 type TeamEvent = { season: number; code: string; wins: number | null; losses: number | null; ties: number | null; opr: { np: number | null } };
 type TeamPage = { stats: { opr?: { np?: { value: number } }; rating?: { np: number }; record?: { wins: number; losses: number; ties: number } } | null; events: TeamEvent[] };
 
+/** A team page that hasn't answered in this long is unavailable (null), never a run left waiting. */
+export const PAGE_MS = 30_000;
 const pages = new Map<string, Promise<TeamPage | null>>();
 export function teamPage(base: string, team: number, season: number): Promise<TeamPage | null> {
   const k = `${team}:${season}`;
-  if (!pages.has(k)) pages.set(k, fetch(`${base}/api/teams/${team}?season=${season}`, { headers: { "user-agent": "cs-signoff" } })
+  if (!pages.has(k)) pages.set(k, fetch(`${base}/api/teams/${team}?season=${season}`, { headers: { "user-agent": "cs-signoff" }, signal: AbortSignal.timeout(PAGE_MS) })
     .then((r) => (r.ok ? (r.json() as Promise<TeamPage>) : null)).catch(() => null));
   return pages.get(k)!;
 }

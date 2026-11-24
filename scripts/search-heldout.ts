@@ -67,7 +67,7 @@ const { season, data } = await bootSearch();
 console.log(`data: ${data}`);
 const local = await localServer();
 // The team-page check needs this server: one that doesn't answer would make every comparison "not compared", a pass.
-if (!(await fetch(`${local.base}/api/health`).then((x) => x.ok).catch(() => false))) { console.log("FAIL: the local server doesn't answer"); process.exit(1); }
+if (!(await fetch(`${local.base}/api/health`, { signal: AbortSignal.timeout(30_000) }).then((x) => x.ok).catch(() => false))) { console.log("FAIL: the local server doesn't answer"); process.exit(1); }
 const { fold } = await import("../server/api/query/names.js");
 const { parseQuery } = await import("../server/api/query/parse.js");
 const { parseContext } = await import("../server/api/query/context.js");
