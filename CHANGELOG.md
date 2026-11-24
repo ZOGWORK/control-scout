@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.0.3 — 2026-11-24
+
+Ask the bot when a team plays next and it answers with the match, its alliance and the call.
+
+### Highlights
+- [scout] New /next: a team's next match, with win odds and score
+- [predict] The card is the same one the follow reminders post
+- [fixes] Nothing scheduled yet is said plainly, with the event to watch
+
+### Discord bot
+- **/next** (`bot/next.ts`, `bot/lookups.ts`): the team's next match, on demand, instead of an event code and a match number. It reads the team's events that aren't over — earliest first, three at most — and takes the first unplayed match the team is in, in schedule order (qualifications before playoffs, then series and number), so a match whose time FIRST hasn't posted yet still counts. The answer is the pre-match card the follow reminders post: when it starts, both alliances with the team linked, the favourite's win chance (or "Even call"), the predicted score and the confidence in plain words. No unplayed match is not a guess, and it tells the two cases apart: a schedule with the team on it but no match left is "no more matches at [event]" (naming the next event when it has one), and a schedule without it is "nothing posted yet" with the event to watch; a team with no event this season gets a link to its page. It shows a match's call, so the owner's `livePredictions` switch turns it off with `/predict`. `bot/next.test.ts` covers schedule order, a played match never being the answer, a match without the team, a playoff alliance's third robot, the events being read in order, and no schedule at all. (#2299)
+
 ## 8.0.2 — 2026-11-24
 
 Control Scout takes the old 👎 off the answers that still carry it: a button that does nothing isn't left under an answer.
