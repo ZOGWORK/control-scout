@@ -532,14 +532,16 @@ async function twoAsks(said: string, opts: AnswerOptions): Promise<SearchAnswer 
   const m = /^(.+?)\s+(?:and|&)\s+((?:where|what|who|which|when|how)\b.*)$/i.exec(said.trim());
   if (!m) return null;
   // The page's answer decides (as explainTeamAnswer does), so the dropdown and the page read the halves the same way.
-  const whole = { ...opts, learn: false, full: true };
+  const whole = { ...opts, learn: false, full: true, limit: Math.max(opts.limit ?? 0, SEARCH_PAGE_LIMIT) };
+  // The page asks by its limit as often as by `full` (/api/search?answer=1&limit=25), as every reader here decides.
+  const page = !!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT);
   const first = await searchAnswer(m[1], whole);
   const ask = first.stat ?? null;
   if (!ask || first.weak || first.card) return null;
   const label = first.understood?.label ?? ask.title;
   const shown = async (extra: Partial<SearchAnswer>, hits: SearchHit[] = []): Promise<SearchAnswer> => {
-    const own = opts.full ? first : await searchAnswer(m[1], { ...opts, learn: false });
-    return { ...own, ...(opts.full ? extra : {}), hits: [...own.hits, ...hits.filter((h) => !own.hits.some((x) => x.kind === h.kind && x.ref === h.ref))],
+    const own = page ? first : await searchAnswer(m[1], { ...opts, learn: false });
+    return { ...own, ...(page ? extra : {}), hits: [...own.hits, ...hits.filter((h) => !own.hits.some((x) => x.kind === h.kind && x.ref === h.ref))],
       understood: { ...(own.understood ?? first.understood!), label: extra.understood!.label } };
   };
   if (/^where\s+(?:is|are)(?:\s+(?:they|them|those|these|the\s+teams?))?\s*[?.!]*$/i.test(m[2])) {
