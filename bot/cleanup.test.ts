@@ -1,11 +1,11 @@
-// The stale 👎 sweep (bot/cleanup.ts): its own reaction off its own answers, a member's and a 👍 left alone, the walk
-// back to the thumbs era, pages read as Discord sends them (a Map, not an array), a channel it can't read, a channel it
-// stops part-way through and carries on from, archived threads paged to the end, a server it is added back to, and the
-// whole thing once — and only once it finished.
+// The stale 👎 sweep (bot/cleanup.ts): its own reaction off its own answers, a member's and a 👍 left alone, the walk back
+// to the thumbs era, pages read as Discord sends them (a Map, not an array), a channel it can't read, archived threads
+// paged to the end, a server recorded only when it finished, a server added back later, and the whole thing once per
+// server.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Client } from "discord.js";
 import { kvGet, migrate, openDb, run, setDb } from "../server/db";
-import { OLD_DOWN, PAGE, PAGES, SWEEP_KEY, THUMBS_FROM, sweepOldThumbs, sweepStaleThumbs, type SweptChannel, type SweptMessage, type SweptReaction } from "./cleanup";
+import { OLD_DOWN, PAGE, SWEEP_KEY, THUMBS_FROM, sweepOldThumbs, sweepStaleThumbs, type SweptChannel, type SweptMessage, type SweptReaction } from "./cleanup";
 
 const BOT = "bot-1";
 const someone = "person-1";
@@ -27,10 +27,11 @@ const msg = (id: string, at: number, reactions: SweptReaction[] = [reacted(OLD_D
 
 /** A channel whose pages are handed out in order; a page that is an Error is a fetch that failed. Each page is a `Map`
  *  of id → message, as Discord's `Collection` is, so code that spreads the page instead of its values reads nothing. */
-function channel(id: string, pages: (SweptMessage[] | Error)[], asked: { limit: number; before?: string }[] = []): SweptChannel {
+function channel(id: string, pages: (SweptMessage[] | Error)[], asked: { limit: number; before?: string }[] = [], guild = "g1"): SweptChannel {
   const queue = [...pages];
   return {
     id,
+    guild,
     messages: {
       fetch: async (o) => {
         asked.push(o);
@@ -46,8 +47,8 @@ function channel(id: string, pages: (SweptMessage[] | Error)[], asked: { limit: 
 const page = (n: number, start = IN_ERA, reactions?: SweptReaction[]) =>
   Array.from({ length: n }, (_, i) => msg(`m-${start + i}`, start - i, reactions));
 
-const sweep = (channels: SweptChannel[], failed = 0, cursors?: Record<string, string>) =>
-  sweepStaleThumbs({ me: BOT, channels: async () => ({ channels, failed }), ...(cursors ? { cursors } : {}) });
+const sweep = (channels: SweptChannel[], bad: string[] = []) =>
+  sweepStaleThumbs({ me: BOT, channels: async () => ({ channels, bad: new Set(bad) }) });
 
 describe("the stale 👎 sweep", () => {
   it("takes its own 👎 off its own answer, and leaves everything else", async () => {
@@ -58,7 +59,7 @@ describe("the stale 👎 sweep", () => {
     const good = msg("a3", IN_ERA, [reacted("👍", true)]);
     // One removed is the test: the summary counts what was taken off, and nothing else qualified.
     const s = await sweep([channel("c1", [[mine, shared, theirs, good]])]);
-    expect(s).toEqual({ channels: 1, messages: 4, removed: 1, failed: 0, cursors: {} });
+    expect(s).toEqual({ channels: 1, messages: 4, removed: 1, bad: new Set() });
   });
 
   it("walks back to the thumbs era and no further", async () => {
@@ -69,45 +70,31 @@ describe("the stale 👎 sweep", () => {
     // A third page exists and must never be read.
     const never = [msg("a-never", BEFORE - 1)];
     const s = await sweep([channel("c1", [first, second, never], asked)]);
-    expect(s).toEqual({ channels: 1, messages: PAGE + 2, removed: 1, failed: 0, cursors: {} });
+    expect(s).toEqual({ channels: 1, messages: PAGE + 2, removed: 1, bad: new Set() });
     expect(asked.map((a) => a.limit)).toEqual([PAGE, PAGE]);
     // The walk continues from the oldest message of the page before it.
     expect(asked[1].before).toBe(first[first.length - 1].id);
   });
 
-  it("leaves the place it stopped at, and the next run carries on from there", async () => {
-    // A channel with more than one run's worth of messages: twenty full pages, none of them before the thumbs.
-    const all = Array.from({ length: PAGES * PAGE }, (_, i) => msg(`m-${i}`, IN_ERA - i, []));
-    const pages = Array.from({ length: PAGES }, (_, i) => all.slice(i * PAGE, (i + 1) * PAGE));
-    const asked: { limit: number; before?: string }[] = [];
-    const busy = await sweep([channel("c1", pages, asked)]);
-    expect(asked.length).toBe(PAGES);
-    const cursor = busy.cursors.c1;
-    expect(cursor).toBe(`m-${PAGES * PAGE - 1}`);
-    // The next run starts where that one stopped rather than at the newest message, and finishes the channel.
-    const next: { limit: number; before?: string }[] = [];
-    const rest = await sweep([channel("c1", [[msg("ancient", BEFORE, [])]], next)], 0, busy.cursors);
-    expect(next[0]).toEqual({ limit: PAGE, before: cursor });
-    expect(rest).toEqual({ channels: 1, messages: 1, removed: 0, failed: 0, cursors: {} });
-  });
-
-  it("a channel it can't read is counted, and the next one is swept", async () => {
+  it("a channel it can't read leaves its server unfinished, and the next one is swept", async () => {
     const said: string[] = [];
     const s = await sweepStaleThumbs({ me: BOT, channels: async () => ({
-      channels: [channel("closed", [new Error("Missing Permissions")]), channel("open", [[msg("a1", IN_ERA)]])],
-      failed: 0,
+      channels: [channel("closed", [Object.assign(new Error("Missing Permissions"), { code: 50001 })]), channel("open", [[msg("a1", IN_ERA)]])],
+      bad: new Set<string>(),
     }) }, (m) => said.push(m));
-    expect(s).toEqual({ channels: 2, messages: 1, removed: 1, failed: 1, cursors: {} });
+    expect(s).toEqual({ channels: 2, messages: 1, removed: 1, bad: new Set(["g1"]) });
     expect(said.join("\n")).toContain("closed");
+    // A server that added the bot before this release: the log says what fixes it.
+    expect(said.join("\n")).toContain("Read Message History");
   });
 
-  it("a list of channels that couldn't be read is part of the summary", async () => {
-    const s = await sweep([channel("c1", [[msg("a1", IN_ERA)]])], 1);
-    expect(s).toEqual({ channels: 1, messages: 1, removed: 1, failed: 1, cursors: {} });
+  it("a list of channels that couldn't be read leaves its server unfinished", async () => {
+    const s = await sweep([channel("c1", [[msg("a1", IN_ERA)]])], ["g1"]);
+    expect(s).toEqual({ channels: 1, messages: 1, removed: 1, bad: new Set(["g1"]) });
   });
 });
 
-describe("the sweep runs once it finished", () => {
+describe("the sweep runs once per server", () => {
   beforeAll(async () => {
     const c = openDb(":memory:");
     setDb(c);
@@ -125,13 +112,12 @@ describe("the sweep runs once it finished", () => {
     messages: { fetch: async () => new Map([[`${id}-a`, msg(`${id}-a`, IN_ERA)]]) },
   });
 
-  /** A client with one server and one channel holding one stale 👎; `broken` makes listing the channels fail,
-   *  `anonymous` leaves the bot's own id unknown, `archivedPages` is how many pages of archived threads there are, and
-   *  `reads` counts how often the channel is read. */
-  function fake(reads: { n: number }, opts: { broken?: boolean; anonymous?: boolean; archivedPages?: number } = {}): Client {
+  /** One server with one channel holding one stale 👎. `broken` makes listing its channels fail, `archivedPages` is how
+   *  many pages of archived threads it has, and `reads` counts how often its channel is read. */
+  function guild(id: string, reads: { n: number }, opts: { broken?: boolean; archivedPages?: number } = {}) {
     let askedArchived = 0;
     const ch = {
-      id: "c1",
+      id: `${id}-c`,
       isTextBased: () => true,
       threads: {
         fetchArchived: async () => {
@@ -141,85 +127,73 @@ describe("the sweep runs once it finished", () => {
           return { threads: page, hasMore: askedArchived < n };
         },
       },
-      messages: {
-        fetch: async () => { reads.n++; return new Map([["a1", msg("a1", IN_ERA)]]); },
-      },
+      messages: { fetch: async () => { reads.n++; return new Map([["a1", msg("a1", IN_ERA)]]); } },
     };
-    const collection = new Map([["c1", ch]]);
-    const guild = {
-      id: "g1",
+    return {
+      id,
       channels: {
-        fetch: opts.broken ? async () => { throw new Error("Missing Access"); } : async () => collection,
+        fetch: opts.broken ? async () => { throw new Error("Missing Access"); } : async () => new Map([[ch.id, ch]]),
         fetchActiveThreads: async () => ({ threads: new Map() }),
       },
     };
-    return { user: opts.anonymous ? null : { id: BOT }, guilds: { cache: new Map([["g1", guild]]) } } as unknown as Client;
   }
 
-  it("sweeps the first time, records it, and never reads a channel again", async () => {
+  const client = (guilds: ReturnType<typeof guild>[], anonymous = false): Client =>
+    ({ user: anonymous ? null : { id: BOT }, guilds: { cache: new Map(guilds.map((g) => [g.id, g])) } } as unknown as Client);
+
+  it("sweeps each server once, records them, and never reads them again", async () => {
     const reads = { n: 0 };
     const said: string[] = [];
-    const first = await sweepOldThumbs(fake(reads), (m) => said.push(m));
-    expect(first).toEqual({ channels: 1, messages: 1, removed: 1, failed: 0, cursors: {} });
-    expect(await kvGet<{ done: boolean; removed: number }>(SWEEP_KEY)).toMatchObject({ done: true, removed: 1 });
+    const g1 = guild("g1", reads);
+    const g2 = guild("g2", reads);
+    expect(await sweepOldThumbs(client([g1, g2]), (m) => said.push(m))).toMatchObject({ channels: 2, removed: 2, bad: new Set() });
+    expect(await kvGet<{ servers: string[] }>(SWEEP_KEY)).toMatchObject({ servers: ["g1", "g2"] });
+    expect(reads.n).toBe(2);
+    // A restart: both are recorded, so nothing is asked of Discord at all.
+    expect(await sweepOldThumbs(client([g1, g2]), (m) => said.push(m))).toBeNull();
+    expect(reads.n).toBe(2);
+  });
+
+  it("sweeps a server added back later, and adds it to the row", async () => {
+    const reads = { n: 0 };
+    const said: string[] = [];
+    expect(await sweepOldThumbs(client([guild("g1", reads)]), (m) => said.push(m))).toMatchObject({ channels: 1 });
+    expect(await kvGet<{ servers: string[] }>(SWEEP_KEY)).toMatchObject({ servers: ["g1"] });
+    // Added back: only that server is read, and it joins the row so the next restart leaves it alone.
+    const g2 = guild("g2", reads);
+    reads.n = 0;
+    expect(await sweepOldThumbs(client([guild("g1", reads), g2]), (m) => said.push(m), "g2")).toMatchObject({ channels: 1, removed: 1 });
     expect(reads.n).toBe(1);
-    // A restart: the row says it has run, so nothing is asked of Discord at all.
-    expect(await sweepOldThumbs(fake(reads), (m) => said.push(m))).toBeNull();
-    expect(reads.n).toBe(1);
+    expect(await kvGet<{ servers: string[] }>(SWEEP_KEY)).toMatchObject({ servers: ["g1", "g2"] });
+    expect(await sweepOldThumbs(client([g2]), (m) => said.push(m), "g2")).toBeNull();
   });
 
   it("follows the archived threads to the end of what it can list", async () => {
     const reads = { n: 0 };
     const said: string[] = [];
-    // Two pages of archived threads, the second the last: the answer in each is cleaned, and the sweep is recorded.
-    expect(await sweepOldThumbs(fake(reads, { archivedPages: 2 }), (m) => said.push(m))).toMatchObject({ removed: 3, failed: 0 });
-    expect(await kvGet<{ done: boolean }>(SWEEP_KEY)).toMatchObject({ done: true });
+    // Two pages of archived threads, the second the last: the answer in each is cleaned, and the server is recorded.
+    expect(await sweepOldThumbs(client([guild("g1", reads, { archivedPages: 2 })]), (m) => said.push(m))).toMatchObject({ removed: 3, bad: new Set() });
+    expect(await kvGet<{ servers: string[] }>(SWEEP_KEY)).toMatchObject({ servers: ["g1"] });
   });
 
-  it("sweeps a server it is added back to, once the sweep has run for the others", async () => {
-    const reads: string[] = [];
-    const guild = (id: string) => ({
-      id,
-      channels: {
-        fetch: async () => new Map([[`${id}-c`, {
-          id: `${id}-c`,
-          isTextBased: () => true,
-          messages: { fetch: async () => { reads.push(id); return new Map([["a1", msg("a1", IN_ERA)]]); } },
-        }]]),
-        fetchActiveThreads: async () => ({ threads: new Map() }),
-      },
-    });
-    const client = { user: { id: BOT }, guilds: { cache: new Map([["g1", guild("g1")], ["g2", guild("g2")]]) } } as unknown as Client;
-    // Before the sweep has run, a join is left to the startup sweep.
-    expect(await sweepOldThumbs(client, () => {}, "g2")).toBeNull();
-    expect(reads).toEqual([]);
-    expect(await sweepOldThumbs(client, () => {})).toMatchObject({ channels: 2, removed: 2 });
-    // Added back afterwards: only that server is read, and the row is left as it was.
-    const before = await kvGet<{ at: string }>(SWEEP_KEY);
-    reads.length = 0;
-    expect(await sweepOldThumbs(client, () => {}, "g2")).toMatchObject({ channels: 1, removed: 1 });
-    expect(reads).toEqual(["g2"]);
-    expect(await kvGet<{ at: string }>(SWEEP_KEY)).toEqual(before);
+  it("leaves a server it couldn't read out of the row, and looks again next start", async () => {
+    const reads = { n: 0 };
+    const said: string[] = [];
+    const partial = await sweepOldThumbs(client([guild("g1", reads, { broken: true })]), (m) => said.push(m));
+    expect(partial).toMatchObject({ channels: 0, removed: 0, bad: new Set(["g1"]) });
+    expect(await kvGet<{ servers: string[] }>(SWEEP_KEY)).toMatchObject({ servers: [] });
+    expect(said.join("\n")).toContain("g1's channels");
+    // The next start tries again, and this time it finishes and is recorded.
+    expect(await sweepOldThumbs(client([guild("g1", reads)]), (m) => said.push(m))).toMatchObject({ removed: 1, bad: new Set() });
+    expect(await kvGet<{ servers: string[] }>(SWEEP_KEY)).toMatchObject({ servers: ["g1"] });
   });
 
   it("doesn't sweep without the bot's own id: nothing could match, so nothing is recorded", async () => {
     const reads = { n: 0 };
     const said: string[] = [];
-    expect(await sweepOldThumbs(fake(reads, { anonymous: true }), (m) => said.push(m))).toBeNull();
+    expect(await sweepOldThumbs(client([guild("g1", reads)], true), (m) => said.push(m))).toBeNull();
     expect(reads.n).toBe(0);
     expect(await kvGet(SWEEP_KEY)).toBeNull();
     expect(said.join("\n")).toContain("own id isn't known");
-  });
-
-  it("doesn't record a sweep whose channel list couldn't be read: the next start looks again", async () => {
-    const reads = { n: 0 };
-    const said: string[] = [];
-    const partial = await sweepOldThumbs(fake(reads, { broken: true }), (m) => said.push(m));
-    expect(partial).toMatchObject({ channels: 0, removed: 0, failed: 1 });
-    expect(await kvGet(SWEEP_KEY)).toMatchObject({ done: false });
-    expect(said.join("\n")).toContain("g1's channels");
-    // The next start tries again, and this time it finishes and is recorded.
-    expect(await sweepOldThumbs(fake(reads), (m) => said.push(m))).toMatchObject({ removed: 1, failed: 0 });
-    expect(await kvGet<{ done: boolean }>(SWEEP_KEY)).toMatchObject({ done: true });
   });
 });

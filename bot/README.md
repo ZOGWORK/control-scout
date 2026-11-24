@@ -65,16 +65,15 @@ any `downvoted` rows stay readable (the owner console's total, the queue's own r
 **The stale 👎s are taken off** (`bot/cleanup.ts`). The emoji the bot added between 7.9.2 and 8.0.1 is still on the
 answers it posted then, where it is a button that does nothing: on the first connection after 8.0.2 the bot walks back
 through the recent messages of every channel it can read — and each server's active and archived threads — removes its
-own reaction from its own answers, and records that it has in a `kv` row (`bot:down-sweep`), so a restart never scans
-again. Only its own reaction goes: a member's 👎 is theirs, and a 👍 stays. The walk ends at a message older than
-2026-11-21, before any answer could carry a 👎, so a channel's older history is never read. A channel with more than
-2,000 messages in those days keeps its place in the row and the next start carries on from there rather than from the
-newest again; a channel it can't read — no Read Message History, a thread since deleted — is logged and skipped rather
-than stopping the sweep. A sweep that missed anything isn't recorded as done, so the next start carries on, and a server
-the bot is added back to is swept as it joins, since its old answers are still there. The one place it can't reach is an
-answer in a private thread that has since archived: listing those needs Manage Threads, which nothing else here asks
-for. No row is written to `discord_answers`: the counts are what people clicked and stay readable; only the emoji
-nobody can use any more comes off.
+own reaction from its own answers, and records each server it finished in a `kv` row (`bot:down-sweep`), so a restart
+never scans them again. Only its own reaction goes: a member's 👎 is theirs, and a 👍 stays. The walk ends at a message
+older than 2026-11-21, before any answer could carry a 👎, so a channel's older history is never read. A server is
+recorded only when its whole walk finished: one it can't read — no Read Message History, a thread since deleted — or one
+where a 👎 wouldn't come off is left out of the row, logged, and tried again on the next start, while the servers that
+did finish stay recorded. A server the bot is added back to is swept as it joins, since its old answers are still there.
+The one place it can't reach is an answer in a private thread that has since archived: listing those needs Manage
+Threads, which nothing else here asks for. No row is written to `discord_answers`: the counts are what people clicked
+and stay readable; only the emoji nobody can use any more comes off.
 
 **What it was asked** (`bot/asks.ts`, migration 104). Every ask is recorded — the words as typed with personal data
 redacted, the step search answered it at, whether Bruno's chat answered it, and how long it took; never who asked,
