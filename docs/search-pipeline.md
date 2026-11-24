@@ -312,7 +312,9 @@ isn't filed as a failed search again.
 
 `npm run search:heldout` (`scripts/search-heldout.ts`) asks the questions people wrote for search and that search was
 never built from: the 200 unique queries, the 260-query list and the complex queries (`scripts/search-heldout.json`,
-533 in all, the invalid and excluded ones left out). They hold no expected numbers: the answer is judged by what it
+533 in all, the invalid and excluded ones left out), and the sets added since, each in its own file
+(`scripts/heldout/<set>.json`, its questions in order: a new set is a new file, never an edit of a shared list, so two
+changes adding sets never collide). They hold no expected numbers: the answer is judged by what it
 shows, and its numbers are the data's. Each is sorted into a pattern, never fixed one by one:
 
 - **pass**: a card (or an events list) that answers it, every place and time typed stated on it
