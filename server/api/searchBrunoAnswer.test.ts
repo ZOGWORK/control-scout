@@ -220,6 +220,16 @@ describe("a follow-up to the tab's last search", () => {
       expect(asked[1].facts[0]).toContain('"4215 opr"');
     } finally { app.close(); }
   });
+  it("a \"my\" earlier search is read for the My team it was asked with (?afterMy=), each team cached apart", async () => {
+    reply = { text: "Yes." };
+    await brunoAnswer(FOLLOW, { after: "our opr", afterMy: 4215 });
+    const mine = await searchAnswer("4215's opr", { learn: false });
+    expect(asked[0].facts.slice(1)).toEqual(await answerFacts(mine));
+    expect(asked[0].facts.some((f) => f.includes("4215"))).toBe(true);
+    await brunoAnswer(FOLLOW, { after: "our opr" });
+    expect(asked).toHaveLength(2);
+    expect(asked[1].facts.some((f) => f.startsWith("Team 4215"))).toBe(false);
+  });
   it("an earlier search is never read with a question that doesn't point back", async () => {
     reply = { text: "4215 went to states 2 times." };
     await brunoAnswer(Q, { after: "4215 opr" });

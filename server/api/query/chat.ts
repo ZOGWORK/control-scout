@@ -68,9 +68,12 @@ export function chatKind(q: string): ChatKind | null {
   if (pointsBack(ws)) return "follow-up";
   if (asksData(ws)) return null;
   if (asksWhereToGet(ws)) return "off-topic";
-  // Addressed to the site, outside a reaction's own words ("thank you" is thanks, not a question to it).
-  const reacted = new Set(at(ws, REACTION).flatMap((r) => Array.from({ length: r.end - r.i }, (_, k) => r.i + k)));
-  if (at(ws, ADDRESSEE).some((x) => !reacted.has(x.i))) return "meta";
+  // Addressed to the site and asking something: a word beyond the reaction and who it's said to ("who made you").
+  // Thanks or laughter said to it ("thank you", "thanks bruno") is a reaction, not a question to it.
+  const spans = (ps: { i: number; end: number }[]) => ps.flatMap((r) => Array.from({ length: r.end - r.i }, (_, k) => r.i + k));
+  const reacted = new Set(spans(at(ws, REACTION))), addressed = new Set(spans(at(ws, ADDRESSEE)));
+  const asks = ws.some((_, i) => !reacted.has(i) && !addressed.has(i));
+  if (addressed.size && (asks || !reacted.size)) return "meta";
   if (reacted.size) return "reaction";
   return null;
 }
