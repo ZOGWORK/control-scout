@@ -61,9 +61,11 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   // rows' dates or events the headline (src/shared/query/whenWhere.ts).
   const ask = a && askOf(q);
   if (!a || !ask) return a;
-  if (!a.stat) return a.understood ? { ...a, understood: { ...a.understood, label: `${ask === "when" ? "When" : "Where"}: ${a.understood.label}` } } : a;
+  // The reading as said, the ask before it: what it added (which of the teams with a name, a part of a region) stays.
+  const said = a.understood ? { understood: { ...a.understood, label: `${ask === "when" ? "When" : "Where"}: ${a.understood.label}` } } : {};
+  if (!a.stat) return { ...a, ...said };
   const stat = whenWhere(a.stat, ask);
-  return stat === a.stat ? a : { ...a, stat, ...(a.understood ? { understood: { ...a.understood, label: stat.title } } : {}) };
+  return stat === a.stat ? a : { ...a, stat, ...said };
 }
 
 async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {

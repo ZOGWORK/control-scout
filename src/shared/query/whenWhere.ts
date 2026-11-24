@@ -90,7 +90,8 @@ export function whenWhere(stat: StatAnswer, ask: Ask): StatAnswer {
       value,
       label: [was?.value, was?.label].filter(Boolean).join(" · ") || stat.title,
       ...(other.length ? { sub: listed([...new Set(other)]) } : {}),
-      ...(each[0].href ? { href: each[0].href } : was?.href ? { href: was.href } : {}),
+      // A link only to the one row it's about (an answer of several, a count's, opens none: its video is no one row's).
+      ...(each.length === 1 && each[0].href ? { href: each[0].href } : was?.href ? { href: was.href } : {}),
     },
     blocks: [tiles, ...stat.blocks],
   };
