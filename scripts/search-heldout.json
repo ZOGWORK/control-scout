@@ -3040,23 +3040,23 @@
 "q": "23268 matches without penalties at worlds"
 },
 {
-"set": "compares1124",
+"set": "runs1124",
 "n": 1,
-"q": "6980 vs 23268 vs 4215 endgame"
+"q": "highest score from 2022 to 2024"
 },
 {
-"set": "compares1124",
+"set": "runs1124",
 "n": 2,
-"q": "compare 4215 6980 16481 average score"
+"q": "6980 highest score since 2023"
 },
 {
-"set": "compares1124",
+"set": "runs1124",
 "n": 3,
-"q": "23268 vs 16481 vs 6980 vs 4215 teleop opr"
+"q": "best record 2023-24 to 2025-26"
 },
 {
-"set": "compares1124",
+"set": "runs1124",
 "n": 4,
-"q": "4215 vs 23268 win rate"
+"q": "23268 awards since 2022"
 }
 ]
