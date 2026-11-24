@@ -88,6 +88,8 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   const waiting = useRef<{ q: string; run: () => void } | null>(null);
   // The query last asked about (null before the first): only a changed one, typed, waits for the pause.
   const lastQ = useRef<string | null>(null);
+  // The query Bruno AI was last asked to refine (once per answer: a retry asks again).
+  const refined = useRef<string | null>(null);
   const brunoOn = useServerFlag("brunoSearch");
   const prefer = usePreferKey();
   // My team, sent only with a query saying "my" or "our" (src/shared/searchMine.ts).
@@ -99,6 +101,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     // A new request: an earlier query's Bruno AI suggestion goes (it never reappears for a retyped query or a failed one).
     setRefining(false);
     setAi(null);
+    refined.current = null;
     const typed = lastQ.current !== null && lastQ.current !== query;
     lastQ.current = query;
     if (!query) { setRes({ q: "", hits: [] }); setError(null); offlineError.current = false; setBusy(false); return; }
@@ -119,14 +122,6 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
           // or no whole answer): it replaces the last question, so an old team is never borrowed.
           if (thread) rememberTurn({ q: query, answer: answer ?? null, hits: r.hits });
           offlineError.current = false;
-          if (answer?.weak && brunoOn && refine) {
-            setRefining(true);
-            // 204 (null): he had nothing to add. Failing or slow: search's own answer stands.
-            apiFetch<SearchAnswer | null>(`/api/search/refine?q=${encodeURIComponent(query)}&limit=${limit}`)
-              .then((a) => { if (id === seq.current) setAi({ q: query, answer: isAnswer(a) ? a : null }); })
-              .catch(() => {})
-              .finally(() => { if (id === seq.current) setRefining(false); });
-          }
         })
         // The query is answered (with an error): the spinner stops.
         .catch((e) => { if (id === seq.current) { setRes({ q: query, season, hits: [] }); setError(e.message); offlineError.current = e instanceof ApiError && e.offline; } })
@@ -136,7 +131,21 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     const t = setTimeout(run, typed ? SEARCH_DEBOUNCE_MS : 0);
     waiting.current = { q: query, run: () => { clearTimeout(t); run(); } };
     return () => { clearTimeout(t); ctrl.abort(); waiting.current = null; };
-  }, [q, prefer, myTeam, kindKey, limit, brunoOn, refine, attempt, season, thread]);
+  }, [q, prefer, myTeam, kindKey, limit, attempt, season, thread]);
+  // A weak answer is put to Bruno AI once it's on screen (never before: his reading can't slow the first results).
+  // Its own effect, not part of the search's: the flags arriving (brunoSearch confirmed) used to restart the search
+  // itself, so a page opened cold sent its first /api/search twice. Now they only decide whether he's asked.
+  useEffect(() => {
+    if (!refine || !brunoOn || !res.live || !res.answer?.weak || !res.q || res.q !== q.trim() || refined.current === res.q) return;
+    refined.current = res.q;
+    const id = seq.current, query = res.q;
+    setRefining(true);
+    // 204 (null): he had nothing to add. Failing or slow: search's own answer stands.
+    apiFetch<SearchAnswer | null>(`/api/search/refine?q=${encodeURIComponent(query)}&limit=${limit}`)
+      .then((a) => { if (id === seq.current) setAi({ q: query, answer: isAnswer(a) ? a : null }); })
+      .catch(() => {})
+      .finally(() => { if (id === seq.current) setRefining(false); });
+  }, [res, q, brunoOn, refine, limit]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   // "You're offline" stays only while it's true: the connection check finding internet again asks again by itself, as
   // pages loaded through the cache are (api.ts refetchOffline). Before, the error stayed up until Try again (#1557).

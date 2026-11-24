@@ -9,7 +9,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, CalendarDays, Flag, MapPin } from "lucide-react";
 import { seasonLabel } from "../../../lib/format";
 import { cn } from "../../cn";
-import { TONE } from "./v8tone";
+import { TONE, V8_SOFT, v8Stat, v8Tile } from "./v8tone";
 import { AwardChip, TEAM_BAR, TEAM_TEXT } from "./answerCells";
 import type { Appearance, Stat, Standing } from "./records";
 import { AnswerFrame, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
@@ -92,9 +92,9 @@ export function StatBanner({ stats }: { stats: Stat[] }) {
     // Phones: one row that scrolls sideways, three blocks to a screen; from md up a grid.
     <dl className="-mx-1 flex snap-x snap-mandatory scroll-px-1 gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:p-0" data-stat-banner>
       {stats.map((s) => (
-        <div key={s.label} className="w-[calc((100%-1rem)/3)] min-w-0 shrink-0 snap-start rounded-xl border border-border bg-card px-3.5 py-3 max-md:px-2.5 md:w-auto">
+        <div key={s.label} className={cn("w-[calc((100%-1rem)/3)] min-w-0 shrink-0 snap-start rounded-xl border border-border bg-card px-3.5 py-3 max-md:px-2.5 md:w-auto", v8Tile(v8Stat(s.label)).tile)}>
           <dt className="text-[11px] text-muted-foreground">{s.label}</dt>
-          <dd className={cn("mt-1 break-words font-display text-2xl font-semibold tabular-nums leading-tight", TEAM_TEXT)}>{s.value}</dd>
+          <dd className={cn("mt-1 break-words font-display text-2xl font-semibold tabular-nums leading-tight", TEAM_TEXT, v8Tile(v8Stat(s.label)).value)}>{s.value}</dd>
           {s.note && <dd className="text-[11px] text-muted-foreground">{s.note}</dd>}
         </div>
       ))}
@@ -108,7 +108,7 @@ function Gauge({ pct }: { pct: number }) {
   return (
     <svg viewBox="0 0 36 36" className="size-14 shrink-0 -rotate-90" aria-hidden>
       <circle cx="18" cy="18" r={r} fill="none" className="stroke-muted" strokeWidth="3.2" />
-      <circle cx="18" cy="18" r={r} fill="none" className="stroke-team-a v8:stroke-accent" strokeWidth="3.2" strokeLinecap="round" strokeDasharray={`${(pct / 100) * c} ${c}`} />
+      <circle cx="18" cy="18" r={r} fill="none" className={cn("stroke-team-a", V8_SOFT.win.stroke)} strokeWidth="3.2" strokeLinecap="round" strokeDasharray={`${(pct / 100) * c} ${c}`} />
     </svg>
   );
 }
@@ -127,7 +127,7 @@ export function QualityBanner({ s }: { s: Standing }) {
       {s.winRate != null && (
         <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2" data-win-rate>
           <Gauge pct={s.winRate} />
-          <div><p className="text-[11px] text-muted-foreground">Win rate</p><p className={cn("font-display text-lg font-semibold tabular-nums", TEAM_TEXT)}>{s.winRate.toFixed(1)}%</p></div>
+          <div><p className="text-[11px] text-muted-foreground">Win rate</p><p className={cn("font-display text-lg font-semibold tabular-nums", TEAM_TEXT, V8_SOFT.win.text)}>{s.winRate.toFixed(1)}%</p></div>
         </div>
       )}
     </div>

@@ -16,7 +16,7 @@ import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
 import { Badge } from "../../ui/basic";
 import { OPR_CARDS, oprRankHint } from "../../oprCards";
 import { meaningOf } from "../../../lib/textTones";
-import { TONE, V8_SOFT, v8Tile, v8TileColour, type SoftColour } from "./v8tone";
+import { TONE, V8_SOFT, softOfFill, v8Stat, v8Tile, v8TileColour, type SoftColour } from "./v8tone";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
 import { AnswerVideo, NoVideoLine, RowPlay, useRowPlays } from "./AnswerVideo";
@@ -34,8 +34,8 @@ import { LeagueTable } from "../../LeagueTable";
 const H3 = "mb-1.5 text-xs font-semibold text-team-a v8:font-medium v8:text-accent"; // v8: section labels in the accent
 /** A tile in search's palette: a thick left bar in its colour over a wash of it (StatTile's border, its left widened). */
 const PAINT = "border-l-[6px] border-y-transparent border-r-transparent";
-/** v8: the soft colour a swatch's words are in (to colour its tile's icon and bracket the same), if any. */
-const softOf = (s: Swatch): SoftColour | null => (Object.keys(V8_SOFT) as SoftColour[]).find((k) => k !== "neutral" && s.text.split(" ").includes(V8_SOFT[k].text)) ?? null;
+/** v8: the colour a swatch is in (to colour its tile's bar, wash and icon the same), if any. */
+const softOf = (s: Swatch): SoftColour | null => softOfFill(s.fill);
 /** A phase's swatch; the total (no phase) in the team hue. */
 const sw = (k: string): Swatch => (k in TONE ? TONE[k as keyof typeof TONE] : TEAM_SWATCH[0]);
 
@@ -131,7 +131,8 @@ function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string;
  *  ranked list's top team in team A's, else Count's amber (a season's "190 points"). Ink only for a several-team line
  *  naming none. */
 export function headlineTone(stat: Pick<StatAnswer, "intent" | "headline" | "family" | "split">, teams?: { number: number }[]): string {
-  if (teams?.length === 1) return TEAM_TEXT;
+  // One team's card: its hue, and in v8 the colour of what the number is (OPR purple, a record green), when it says.
+  if (teams?.length === 1) { const c = v8Stat(stat.headline?.label ?? ""); return c === "accent" ? TEAM_TEXT : cn(TEAM_TEXT, V8_SOFT[c].text); }
   const v = stat.headline?.value ?? "";
   if (teams?.length) {
     const i = teams.findIndex((t) => new RegExp(`^${t.number}\\b`).test(v));
@@ -139,7 +140,8 @@ export function headlineTone(stat: Pick<StatAnswer, "intent" | "headline" | "fam
     return side >= 0 && side < 3 ? TEAM_SWATCH[side].text : "text-foreground";
   }
   if (stat.family === "leaderboard") return TEAM_TEXT;
-  const m = /winning/.test(stat.intent) ? "winning" : meaningOf(stat.headline?.label ?? "");
+  // The label's meaning, else the number's own words' ("56 auto points" is Auto's blue), else Count's.
+  const m = /winning/.test(stat.intent) ? "winning" : meaningOf(stat.headline?.label ?? "") ?? meaningOf(v.replace(/^[\d,.\s]+/, ""));
   return TONE[m ?? "count"].text;
 }
 
@@ -155,7 +157,7 @@ function Headline({ h, hue, tone, hideLabel }: { h: NonNullable<StatAnswer["head
   const sub = h.sub && season != null ? h.sub.split(" · ").filter((x) => x !== seasonLabel(season)).join(" · ") : h.sub;
   const body = (
     <>
-      {!named && <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:underline", tone, "v8:text-accent")} data-headline-value><HeadlineValue value={h.value} win={hue ? TEAM_TEXT : tone} /></p>}
+      {!named && <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:underline", tone)} data-headline-value><HeadlineValue value={h.value} win={hue ? TEAM_TEXT : tone} /></p>}
       <p className={hideLabel ? "sr-only" : named ? "text-sm text-foreground" : "mt-1 text-sm text-foreground"}><RichText text={h.label} /></p>
       {sub && <p className="mt-0.5 text-xs text-muted-foreground"><RichText text={sub} /></p>}
       {ev && (h.type || season != null) && (
@@ -173,7 +175,7 @@ function Headline({ h, hue, tone, hideLabel }: { h: NonNullable<StatAnswer["head
       <div className="min-w-0 flex-1">
         {named && (
           <>
-            <p className={cn("text-sm font-semibold", tone, "v8:text-accent")} data-headline-word>{h.value}</p>
+            <p className={cn("text-sm font-semibold", tone)} data-headline-word>{h.value}</p>
             <p className="mt-1.5 flex flex-wrap gap-2" aria-label={`${h.value}: ${h.alliance === "red" ? "red" : "blue"} alliance`} data-headline-teams>
               {h.teams!.map((t) => <TeamChip key={t.href} t={t} side={h.alliance!} large />)}
             </p>
@@ -273,12 +275,12 @@ function Block({ b: block, team, teams, said, hue, captioned = true }: { b: Stat
         <figure data-block="record">
           {b.title && <figcaption className={H3}>{b.title}</figcaption>}
           <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={recordWords(b.wins, b.losses, b.ties)}>
-            <span className={TEAM_BAR} style={{ width: w(b.wins) }} data-bar data-value={b.wins} data-scale={n} />
-            <span className="bg-team-a/40 v8:bg-ink/30" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
+            <span className={cn(TEAM_BAR, V8_SOFT.win.bar)} style={{ width: w(b.wins) }} data-bar data-value={b.wins} data-scale={n} />
+            <span className={cn("bg-team-a/40", V8_SOFT.red.bar)} style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
             <span className="bg-team-a/20 v8:bg-ink/15" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />
           </div>
           <p className="mt-1.5 flex flex-wrap gap-x-4 text-xs tabular-nums text-foreground" aria-hidden>
-            <span><b>{b.wins}</b> won</span><span><b>{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
+            <span><b className={V8_SOFT.win.text}>{b.wins}</b> won</span><span><b className={V8_SOFT.red.text}>{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
             {n > 0 && !said?.has(`${Math.round((100 * b.wins) / n)}%`) && <span className="text-muted-foreground">{Math.round((100 * b.wins) / n)}% win rate</span>}
           </p>
           {b.split && <RecordSplit split={b.split} bar={bar} />}
@@ -526,6 +528,8 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
   const pts = b.points.map((p, i) => ({ ...p, i })).filter((p) => p.y != null) as ({ i: number; y: number } & (typeof b.points)[number])[];
   if (!pts.length) return null;
   const lo = Math.min(...pts.map((p) => p.y)), hi = Math.max(...pts.map((p) => p.y));
+  // v8: the line in the colour of what it tracks (OPR purple, Auto blue, …), not the team's slate blue alone.
+  const c = V8_SOFT[v8Stat(b.title)];
   const x = (i: number) => (b.points.length === 1 ? 50 : 4 + (i / (b.points.length - 1)) * 92);
   const y = (v: number) => (hi === lo ? 50 : 88 - ((v - lo) / (hi - lo)) * 76);
   return (
@@ -534,12 +538,12 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
       {/* A size container: a point's label is at most half the chart wide (cqw), so it always fits on its side. */}
       <div className="relative h-32 rounded-lg border border-border bg-muted/20" style={{ containerType: "inline-size" }}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full" aria-hidden>
-          {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className="stroke-team-a v8:stroke-accent" strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+          {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className={cn("stroke-team-a", c.stroke)} strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
         </svg>
         {pts.map((p) => {
           // In the team hue, the latest point larger and filled.
           const last = p.i === pts[pts.length - 1].i;
-          const dot = <span className={cn("block rounded-full border-2 border-team-a v8:border-accent", last ? "size-4 bg-team-a v8:bg-accent" : "size-3 bg-card")} />;
+          const dot = <span className={cn("block rounded-full border-2 border-team-a v8:border-current", c.text, last ? cn("size-4 bg-team-a", c.bar) : "size-3 bg-card")} />;
           const style = { left: `${x(p.i)}%`, top: `${y(p.y)}%` };
           const value = `${p.y}${b.unit ? ` ${b.unit}` : ""}${p.note ? ` · ${p.note}` : ""}`;
           const label = `${p.x}: ${value}`;

@@ -20,6 +20,12 @@ npx tsx scripts/search-signoff/run.ts
 This runs every set against controlscout.org. It writes `report.md` and `results.jsonl` to the OS temp directory, or to `--out <dir>`. `--sets C,D` runs only those sets, `--base <url>` points it at another server, and `--regrade <results.jsonl>` grades a saved run again offline: its saved answers, number checks and release, with nothing fetched.
 
 ```bash
+npx tsx scripts/search-signoff/run.ts --local --sets C --min 90
+```
+
+`--local` restores the shipped snapshot and serves the app in this process (`scripts/search-local.ts`), so it never touches production; `--min` exits 1 when the asked sets' pass rate is under it. CI runs set C this way (`search-heldout` in `.github/workflows/ci.yml`).
+
+```bash
 npx tsx scripts/search-signoff/visual.ts --sets C
 ```
 
