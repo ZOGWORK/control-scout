@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { kvSet, migrate, openDb, run, setDb } from "../server/db";
 import { clearAllCaches } from "../server/caches";
 import { CURRENT_SEASON as S } from "../server/data/seasons";
-import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, teamLookup } from "./lookups";
+import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups";
 import { Friendly } from "./views";
 
 const NOW = Date.parse("2026-10-20T15:00:00Z");
@@ -61,6 +61,20 @@ describe("teamLookup", () => {
 
   it("an unknown number is a friendly error", async () => {
     expect((await friendly(teamLookup(99999))).title).toBe("Team not found");
+  });
+
+  it("the next match FIRST has posted, under the event and linked to its page", async () => {
+    const e = await teamLookup(18360, Date.parse("2026-10-18T09:00:00Z"));
+    expect(e.fields?.map((f) => f.name).slice(-2)).toEqual(["Next event", "Next match"]);
+    // The seeded event has no venue zone, so its matches carry the posted clock time rather than a countdown.
+    expect(e.fields?.find((f) => f.name === "Next match")!.value)
+      .toBe(`[Qual 3 · Austin Qualifier](${site()}/events/${S}/USTXAUQ/match/qual:0:3) · Scheduled 09:03`);
+  });
+
+  it("no match scheduled leaves the line off and the card answers anyway", async () => {
+    const e = await teamLookup(18360, NOW); // its event is over and nothing is scheduled at the next one
+    expect(e.fields?.map((f) => f.name)).toContain("Last event");
+    expect(e.fields?.some((f) => f.name === "Next match")).toBe(false);
   });
 });
 

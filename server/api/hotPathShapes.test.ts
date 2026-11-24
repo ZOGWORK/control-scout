@@ -10,6 +10,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { all, kvSet, migrate, openDb, run, setDb } from "../db";
 import { noteServed, resetServed } from "./searchServed";
 import { clearAllCaches } from "../caches";
+// Bruno, without a model: an answer for "101" questions, nothing for any other.
+vi.mock("./searchBrunoAnswer", async (orig) => ({ ...(await orig<typeof import("./searchBrunoAnswer")>()), brunoAnswer: vi.fn(async (q: string) => (q.includes("101") ? { text: "Strong auto.", points: [] } : null)) }));
 import { createApp } from "../app";
 import { SEASON_NUMBERS } from "../data/seasons";
 
@@ -152,6 +154,24 @@ describe("hot-path API responses", () => {
       expect(now[p].bytes, p).toBeLessThanOrEqual(before[p].bytes);
       expect(now[p].body, p).toEqual(before[p].body);
     }
+  });
+  it("Bruno's budget: an answered early start pays for the page's own ask of it, and nothing else", async () => {
+    const A = encodeURIComponent("why is 101 good at auto"), C = encodeURIComponent("why is 101 good at endgame");
+    const B = encodeURIComponent("why is 102 good at auto");
+    const early = async (q: string) => { await fetch(`${base}/api/search?q=${q}&limit=25&answer=1&bruno=1`); await new Promise((r) => setTimeout(r, 20)); };
+    const ask = async (q: string) => (await fetch(`${base}/api/search/bruno?q=${q}`)).status;
+    // He answers A early (a token: 19 left), and the page's own ask of A joins that answer: free.
+    await early(A);
+    expect(await ask(A)).not.toBe(429);
+    // C early (18 left); the same words following an earlier search are another ask, paid (17 left).
+    await early(C);
+    expect(await ask(`${C}&after=${encodeURIComponent("4215")}`)).not.toBe(429);
+    // B early (16 left), and he gives nothing for it: no free pass, so 16 asks of B and then none.
+    await early(B);
+    const codes: number[] = [];
+    for (let i = 0; i < 17; i++) codes.push(await ask(B));
+    expect(codes.slice(0, 16).every((c) => c !== 429)).toBe(true);
+    expect(codes[16]).toBe(429);
   });
   it("teams-summary with ?before=1: the same teams and, in the same answer, the season before's", async () => {
     const one = await (await fetch(`${base}/api/teams-summary?season=${S}&teams=101,102`)).json();

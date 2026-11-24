@@ -1,10 +1,11 @@
 // Feature flags in the browser: GET /api/flags, read once at start and again every few minutes,
 // so a switch the owner flips (server/flags.ts) reaches open pages without a reload. Until the
-// first answer, and whenever it can't be had (offline), every flag is on: the server still
+// first answer (or the copy in the page's HTML, readInlineFlags), and whenever it can't be had (offline), every flag is on: the server still
 // enforces its own switches, so a stale "on" here only means a feature that politely refuses.
 import { useSyncExternalStore } from "react";
 import { onBackOnline } from "./connection";
 import { DEFAULT_FLAGS, type Flag, type FlagSet, type FlagsAnswer } from "../shared/flags";
+import { FLAGS_FRESH_MS, FLAGS_ID } from "../shared/boot";
 
 let flags: FlagSet = { ...DEFAULT_FLAGS };
 /** The signed-in account's workspaces' own values of workspace-scoped flags (only when some workspace has an override). */
@@ -14,6 +15,22 @@ let byWorkspaceKey = "{}";
 let confirmed = false;
 const subs = new Set<() => void>();
 const listeners = new Set<(f: FlagSet) => void>();
+
+/** The server's flags from the page's HTML (src/shared/boot.ts FLAGS_ID), when fresh: what the app starts with, as if
+ *  GET /api/flags had already answered (null: none, unreadable, or an old copy of the page). */
+export function readInlineFlags(doc: Document, now = Date.now()): FlagSet | null {
+  const raw = doc.getElementById(FLAGS_ID)?.textContent;
+  if (!raw) return null;
+  try {
+    const x = JSON.parse(raw) as { at?: unknown; flags?: Partial<FlagSet> };
+    if (typeof x.at !== "number" || Math.abs(now - x.at) > FLAGS_FRESH_MS || !x.flags || typeof x.flags !== "object") return null;
+    const next = { ...DEFAULT_FLAGS };
+    for (const k of Object.keys(next) as Flag[]) if (typeof x.flags[k] === "boolean") next[k] = x.flags[k]!;
+    return next;
+  } catch { return null; }
+}
+const inline = typeof document === "undefined" ? null : readInlineFlags(document);
+if (inline) { flags = inline; confirmed = true; }
 
 const REFRESH_MS = 3 * 60_000;
 

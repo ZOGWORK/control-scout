@@ -66,6 +66,22 @@ when `--base` names it.
 | `ambiguous` | Two intents matched equally (reported by the layered reader) |
 | `downvoted` | Legacy: the Discord bot answered it and a person voted 👎 on that answer. The 👎 was removed in 8.0.1, so nothing files this type any more; rows from before still read and re-check like this |
 
+### Soft failures (logged, never filed)
+
+An answer can still miss part of the question (audit M5, 24 Nov). These are counted in `search_failures` under a
+key of their own, `soft: <type> (<reason>) · <pattern>`, with their own hourly allowance per visitor, and **never filed
+as GitHub issues** (sync skips them). The owner reads them as JSON at `/api/reports/search-failures/soft` (owner
+only): totals by type and the most counted patterns with their latest examples.
+
+| Soft type | When |
+|---|---|
+| `unread-words` | The answer read past words the visitor typed (its `understood.unread`, the "Not used in this answer" note) |
+| `declined` | The pipeline read the question's intent, and another reader answered instead: "read whole, not answered by it", or "words it couldn't read" |
+
+Both are classified on structured fields only (the answer's unread list, the pipeline's reading on the answer, the
+parser's intent and completeness), never on label text. Working them out reads the query's pattern for answered
+searches too, after the answer is sent.
+
 Any answer counts as a success: a card, a stat answer, a leaderboard, a team page asked for by name, or a page named
 outright ("privacy", "records"). Only the outcome counts, never the phrasing — except for a 👎 on a Discord answer,
 which used to file the question it was given for even though search called that answer answered. That vote is gone

@@ -2,6 +2,7 @@
 // POST /internal/bruno/power-rankings (no real model is ever called): the fact packet, the Friday
 // schedule with catch-up and no double publish, the fact check and the all-template fallback, the
 // markdown override, movement across sources, the switch, and the owner panel's actions and audit.
+import { FLAGS_ID } from "../../src/shared/boot";
 import type { AddressInfo } from "node:net";
 import { createServer, type Server } from "node:http";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -311,7 +312,11 @@ describe("serving", () => {
     await autoPowerRankingsTick(FRI);
     const page = await renderPage(index, "/power-rankings");
     expect(page.html).toContain("Published automatically from this week's data.");
-    expect(page.html).not.toContain("Bruno");
+    // What a visitor reads: not the flags' JSON block the app starts with (FLAGS_ID), which names his switches.
+    const block = `<script type="application/json" id="${FLAGS_ID}">`;
+    const at = page.html.indexOf(block);
+    const shown = at < 0 ? page.html : page.html.slice(0, at) + page.html.slice(page.html.indexOf("</script>", at) + "</script>".length);
+    expect(shown).not.toContain("Bruno");
   });
 
   it("a published hand-written file for the same week takes precedence", async () => {

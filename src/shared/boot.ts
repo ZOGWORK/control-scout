@@ -47,6 +47,13 @@ export const APP_CSS_ID = "cs-css";
  *  straight away instead of a loading state. */
 export const PAGE_DATA_ID = "cs-page-data";
 
+/** The server's flags in the page's HTML (server/seo.ts, a JSON block `{ at, flags }`): the app starts with them
+ *  (src/lib/flags.ts) instead of waiting for GET /api/flags, so a feature that waits on the server's word (Bruno's
+ *  answer on /search) isn't held back by that round trip. Only while fresh (FLAGS_FRESH_MS): an old copy of a page
+ *  (the service worker's, offline) waits for the server as before. */
+export const FLAGS_ID = "cs-flags";
+export const FLAGS_FRESH_MS = 10 * 60_000;
+
 /** The page frame the app's shell puts every page in (src/components/layout/Shell.tsx), shared with the first paint
  *  of a page the server draws whole (server/bootShell.ts): the page sits exactly where the app will draw it. */
 export const PAGE_FRAME = "mx-auto flex min-h-[calc(100svh-var(--header-h))] w-full max-w-[1200px] flex-col px-4 pt-8 max-sm:pt-5 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]";
