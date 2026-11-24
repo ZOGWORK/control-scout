@@ -114,11 +114,11 @@ describe("search page, v8 on", () => {
     expect(new Set(delays.slice(1).map((d, i) => d - delays[i])).size).toBeGreaterThan(1);
   });
 
-  it("groups events as the classic look did (live, then upcoming, each its own section), status a quiet dot, no bands", () => {
+  it("groups events as the classic look did (live, then upcoming, each its own section), each card a thick bar in its status's hue", () => {
     state.answer = answer([ev("USNJQ2", "NJ Qualifier Two", iso(new Date(today.getTime() + 20 * 864e5))), { ...ev("USNJQ1", "NJ Qualifier", iso(today)), event: { start: iso(today), end: iso(new Date(today.getTime() + 864e5)) } } as SearchHit]);
     const { container } = show("/search?q=nj%20qualifier");
     expect([...container.querySelectorAll("[data-status-section]")].map((s) => s.getAttribute("data-status-section"))).toEqual(["live", "upcoming"]);
-    // The heading is plain words with a dot: no coloured bar behind it, no coloured strip on a card.
+    // The section heading is plain words with a dot (no band behind it); the cards carry the status colour.
     for (const h of container.querySelectorAll("[data-section-tone]")) expect(h.className).toContain("v8:bg-transparent");
     expect(container.querySelector('[data-status-section="upcoming"] [data-status-dot]')!.className).toContain("v8:bg-accent");
     expect(container.querySelector('[data-status-section="live"] [data-live-dot]')!.className).toContain("v8:bg-live");
