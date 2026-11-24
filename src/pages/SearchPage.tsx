@@ -175,7 +175,7 @@ export default function SearchPage() {
   const base = asked ?? season;
   // One request: with no season asked for, the one before comes in the same answer (?before=1).
   const sums = useApi<{ teams: TeamSummary[]; before?: { teams: TeamSummary[] } }>(teamNums.length ? `/api/teams-summary${qs({ season: base, teams: teamNums.join(","), before: asked == null ? 1 : undefined })}` : null);
-  const now = { data: sums.data };
+  const now = { data: sums.data, error: sums.error };
   const before = { data: sums.data?.before };
   // Phones: teams picked with VS Compare for the Compare (2) bar (this search's own: a new search starts empty), and
   // the Compare result whose head-to-head is open over the results.
