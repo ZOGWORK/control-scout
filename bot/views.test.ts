@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView } from "../src/shared/api";
 import {
   PRIDE, VOLT, dates, embedBlocks, embedReadChars, eventEmbed, movement, preMatchEmbed, predictEmbed, rankingsEmbed, pride, resultEmbed,
-  storyLine, topByOpr, verdict, winningAlliance,
+  startsText, storyLine, topByOpr, verdict, winningAlliance,
 } from "./views";
 import fixture from "./fixtures/usnjnem3-2026-11-07.json";
 
@@ -35,6 +35,23 @@ describe("dates", () => {
 /** A played match with this call and final score. */
 const played = (pRed: number, red: number, blue: number, means: [number, number] = [100, 90], kind: "live" | "backtest" = "live") =>
   m({ played: true, red: { ...m().red, score: scored(red, red) }, blue: { ...m().blue, score: scored(blue, blue) }, prediction: { ...m().prediction!, pRed, redMean: means[0], blueMean: means[1], kind } });
+
+describe("startsText", () => {
+  it("a countdown and the venue's time once FIRST posts one, the posted clock time before that", () => {
+    const t = Math.floor(Date.parse("2026-10-24T15:15:00Z") / 1000);
+    expect(startsText(m({ startsAt: "2026-10-24T15:15:00Z" }))).toBe(`Starts <t:${t}:R> (<t:${t}:t>)`);
+    expect(startsText(m({ time: "2026-10-24T15:15:00" }))).toBe("Scheduled 15:15");
+  });
+
+  it("nothing for a match with no time, and never \"starts\" for one already played", () => {
+    expect(startsText(m())).toBeNull();
+    expect(startsText(m({ played: true, startsAt: "2026-10-24T15:15:00Z" }))).toBe("Played: the final score isn't posted yet");
+  });
+
+  it("the pre-match card ends its own line", () => {
+    expect(preMatchEmbed("Austin Qualifier", m({ time: "2026-10-24T15:15:00" }), SITE).description!.split("\n")[0]).toBe("Scheduled 15:15.");
+  });
+});
 
 describe("verdict", () => {
   it("a favourite (55%+) is called or upset; an even call (45–55%) and a tie have no verdict", () => {

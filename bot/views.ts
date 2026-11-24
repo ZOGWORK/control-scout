@@ -58,6 +58,9 @@ export interface TeamCard {
   seasonLabel: string;
   /** Today (YYYY-MM-DD), to tell upcoming events from past ones. */
   today: string;
+  /** The team's next unplayed match, when FIRST has posted one (bot/lookups.ts reads it): a field of its own, or none.
+   *  No call is in it, so the card is still the team's record with live predictions switched off. */
+  next?: { event: Pick<EventDetail, "event">; match: MatchView } | null;
 }
 
 export function teamEmbed(c: TeamCard, site: string): APIEmbed {
@@ -79,6 +82,9 @@ export function teamEmbed(c: TeamCard, site: string): APIEmbed {
   const last = [...events].reverse().find((e) => (e.qualPlayed ?? 0) > 0 || e.rank != null);
   if (next) {
     fields.push({ name: "Next event", value: `[${next.name}](${site}/events/${next.season}/${encodeURIComponent(next.code)}) · ${dates(next.start, next.end)}` });
+    // Under the event it is at, and only when there is one: a team whose schedule isn't posted yet has no line here
+    // rather than a second note saying so (that's /next's answer, where the question is the match).
+    if (c.next) fields.push({ name: "Next match", value: nextMatchValue(c.next, site) });
   } else if (last) {
     const result = [last.rank != null ? `Rank ${last.rank}` : null, (last.qualPlayed ?? 0) > 0 ? record(last.wins, last.losses, last.ties) : null].filter(Boolean).join(", ");
     fields.push({ name: "Last event", value: `[${last.name}](${site}/events/${last.season}/${encodeURIComponent(last.code)}) · ${dates(last.start, last.end)}${result ? ` · ${result}` : ""}` });
@@ -90,6 +96,12 @@ export function teamEmbed(c: TeamCard, site: string): APIEmbed {
     fields,
     footer: FOOTER,
   };
+}
+
+/** /team's next-match line: the match linked to its page, then when it starts. */
+function nextMatchValue(n: NonNullable<TeamCard["next"]>, site: string): string {
+  const when = startsText(n.match);
+  return `[${matchTitle(n.match, n.event.event.name)}](${site}${matchReportHref(n.match)})${when ? ` · ${when}` : ""}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -233,17 +245,26 @@ export function resultEmbed(eventName: string, m: MatchView, site: string, o: Re
 }
 
 /**
- * A match not played yet: a lead line (the follow reminder's side and time; /predict's start when known), then
- * the lineup and the call. No fields, no win bars.
+ * When a match starts, worded once for every answer: a countdown and the venue's time once FIRST posts one, else the
+ * posted clock time, else null (nothing posted yet). No full stop — the line around it ends itself, and /team's field
+ * has none to end.
  */
-export function preMatchEmbed(eventName: string, m: MatchView, site: string, lead?: string | null): APIEmbed {
+export function startsText(m: Pick<MatchView, "played" | "startsAt" | "time">): string | null {
   // Marked played with a score still to come: never "Starts …" for a match that's already happened.
-  const starts = m.played ? "Played: the final score isn't posted yet." : m.startsAt ? `Starts <t:${unix(m.startsAt)}:R> (<t:${unix(m.startsAt)}:t>).` : m.time ? `Scheduled ${m.time.slice(11, 16)}.` : null;
+  if (m.played) return "Played: the final score isn't posted yet";
+  if (m.startsAt) { const t = unix(m.startsAt); return `Starts <t:${t}:R> (<t:${t}:t>)`; }
+  return m.time ? `Scheduled ${m.time.slice(11, 16)}` : null;
+}
+
+/** A match not played yet: a lead line (the follow reminder's side and time; /predict's start when known), then
+ * the lineup and the call. No fields, no win bars. */
+export function preMatchEmbed(eventName: string, m: MatchView, site: string, lead?: string | null): APIEmbed {
+  const starts = startsText(m);
   const lineup = `🔴 ${linkedAlliance(teamsOf(m.red, false), site)} vs ${linkedAlliance(teamsOf(m.blue, false), site)} 🔵 · ${callLine(m.prediction)}`;
   return {
     title: matchTitle(m, eventName),
     url: `${site}${matchReportHref(m)}`,
-    description: [lead === undefined ? starts : lead, lineup].filter(Boolean).join("\n"),
+    description: [lead === undefined ? (starts && `${starts}.`) : lead, lineup].filter(Boolean).join("\n"),
     color: VOLT,
     footer: footerFor(m.prediction),
   };
