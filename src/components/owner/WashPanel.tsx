@@ -18,7 +18,7 @@ import { Wash } from "../layout/Wash";
 import { apiFetch, ApiError, markStale, prime, useApi } from "../../lib/api";
 import { applyWash } from "../../lib/wash";
 import {
-  COLOUR_KEYS, WASH_KEYS, WASH_PRESETS, WASH_SPREAD, WASH_STRENGTH, cleanHex, isDefaultWash, parseWash, presetOf, sameWash, softStops, washVars,
+  COLOUR_KEYS, WASH_KEYS, WASH_MIX, WASH_PRESETS, WASH_SPREAD, WASH_STRENGTH, cleanHex, isDefaultWash, parseWash, presetOf, sameWash, softStops, washVars,
   type ColourKey, type OwnerWash, type WashSettings,
 } from "../../shared/wash";
 
@@ -64,10 +64,10 @@ function RangeField({ id, label, hint, value, range, onChange }: { id: string; l
   );
 }
 
-/** The variables a preview box needs: the wash's own, and Light's pale mix and page colour when previewing Light. */
+/** The variables a preview box needs: the wash's own, and Light's mix and page colour when previewing Light. */
 const boxVars = (wash: WashSettings, mode: Mode) => ({
   ...washVars(wash),
-  ...(mode === "light" ? { "--wash-mix": "42%", "--color-background": LIGHT_BG } : { "--color-background": DARK_BG }),
+  ...(mode === "light" ? { "--wash-mix": WASH_MIX.light, "--color-background": LIGHT_BG } : { "--color-background": DARK_BG }),
   background: mode === "light" ? LIGHT_BG : DARK_BG,
 }) as CSSProperties;
 
@@ -96,13 +96,19 @@ export function WashPreview({ wash, mode = "dark" }: { wash: WashSettings; mode?
   );
 }
 
-/** A preset's small preview: its top colours fading down and its glow rising at the bottom, drawn to fit the card. */
-function PresetSwatch({ wash, mode }: { wash: WashSettings; mode: Mode }) {
+/** A preset's small preview, as CSS: its top colours fading down and its glow rising at the bottom, each mixed into the
+ *  page as the site mixes it in that theme (WASH_MIX), so the card, the big preview and the site agree. */
+export function presetSwatchImage(wash: WashSettings, mode: Mode): string {
   const bg = mode === "light" ? LIGHT_BG : DARK_BG;
-  const tint = (c: string, a: number) => `color-mix(in srgb, color-mix(in srgb, ${c} ${mode === "light" ? 42 : 100}%, ${bg}) ${a}%, transparent)`;
+  const tint = (c: string, a: number) => `color-mix(in srgb, color-mix(in srgb, ${c} ${mode === "light" ? WASH_MIX.light : "100%"}, ${bg}) ${a}%, transparent)`;
   const top = `radial-gradient(52% 66% at 12% 0%, ${softStops(tint(wash.a, 95))}), radial-gradient(48% 62% at 52% 0%, ${softStops(tint(wash.b, 95))}), radial-gradient(52% 66% at 90% 0%, ${softStops(tint(wash.c, 95))})`;
   const glow = `radial-gradient(40% 60% at 43% 112%, ${tint(wash.ga, 80)}, transparent 75%), radial-gradient(38% 55% at 65% 110%, ${tint(wash.gb, 70)}, transparent 75%), radial-gradient(32% 45% at 52% 105%, ${tint(wash.gc, 40)}, transparent 80%)`;
-  return <div aria-hidden className="h-24 w-full" style={{ backgroundColor: bg, backgroundImage: `${top}, ${glow}` }} />;
+  return `${top}, ${glow}`;
+}
+
+/** A preset's small preview, drawn to fit the card. */
+function PresetSwatch({ wash, mode }: { wash: WashSettings; mode: Mode }) {
+  return <div aria-hidden className="h-24 w-full" style={{ backgroundColor: mode === "light" ? LIGHT_BG : DARK_BG, backgroundImage: presetSwatchImage(wash, mode) }} />;
 }
 
 function WashEditor({ saved, onSaved }: { saved: OwnerWash; onSaved: (p: OwnerWash) => void }) {
