@@ -85,11 +85,10 @@ async function sideBySide(q: string, places: Region[], st: BoardStat, said: numb
     source: "From the team directory and each team's season stats",
   };
   if (season == null) return { ...read, stat: { ...base, blocks: [], none: `${names.join(" and ")} don't both have ${MIN_TEAMS} or more teams with a ${st.label} in any season yet.` } };
-  const rows = await all<{ at: number; teams: number; avg: number; best: number | null; bestName: string | null; bestV: number | null }>(
+  const rows = await all<{ at: number; teams: number; avg: number; best: number | null; bestV: number | null }>(
     `WITH x AS (SELECT CASE ${which} END at, s.team, t.name, ${st.sql} v FROM team_season_stats s JOIN teams t ON t.number = s.team${join} WHERE s.season = ? AND ${has} AND ${anyPlace})
      SELECT at, COUNT(*) teams, AVG(v) avg,
        (SELECT y.team FROM x y WHERE y.at = x.at ORDER BY y.v ${st.fewerBetter ? "ASC" : "DESC"}, y.team LIMIT 1) best,
-       (SELECT y.name FROM x y WHERE y.at = x.at ORDER BY y.v ${st.fewerBetter ? "ASC" : "DESC"}, y.team LIMIT 1) bestName,
        (SELECT y.v FROM x y WHERE y.at = x.at ORDER BY y.v ${st.fewerBetter ? "ASC" : "DESC"}, y.team LIMIT 1) bestV
      FROM x WHERE at IS NOT NULL GROUP BY at ORDER BY at`,
     [...whichArgs, season, ...places.flatMap(placeArgs)]);
@@ -107,9 +106,9 @@ async function sideBySide(q: string, places: Region[], st: BoardStat, said: numb
       { kind: "kpis", items: places.map((r, i) => ({ label: r.name, value: vals[i] != null ? fmt(st, vals[i]!) : "—", sub: `Average of ${of[i]?.teams ?? 0} teams`, ...(i === lead ? { tone: "accent" as const } : {}) })) },
       {
         kind: "table", title: `Average ${st.label}, ${seasonLabel(season)}`,
-        columns: [{ key: "place", label: "Place" }, { key: "avg", label: `Avg ${st.label}`, num: true }, { key: "teams", label: "Teams", num: true }, { key: "best", label: "Best team" }],
+        columns: [{ key: "place", label: "Place" }, { key: "avg", label: `Avg ${st.label}`, num: true }, { key: "teams", label: "Teams", num: true }, { key: "best", label: `Best, ${st.label}` }],
         rows: places.map((r, i) => ({
-          cells: { place: r.name, avg: vals[i] != null ? fmt(st, vals[i]!) : null, teams: of[i]?.teams ?? 0, best: of[i]?.best != null ? `${of[i]!.best} ${of[i]!.bestName ?? ""} · ${fmt(st, Number(of[i]!.bestV))}`.replace(/\s+·/, " ·") : null },
+          cells: { place: r.name, avg: vals[i] != null ? fmt(st, vals[i]!) : null, teams: of[i]?.teams ?? 0, best: of[i]?.best != null ? `${of[i]!.best} · ${fmt(st, Number(of[i]!.bestV))}` : null },
           strong: i === lead,
         })),
       },
