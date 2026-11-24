@@ -287,14 +287,37 @@ A search nothing answers (`NoResults.tsx`) says what's missing in one sentence, 
 as full cards, and offers searches that answer about them, plus the browse links. What the query was understood as is
 a `data-understood` attribute only, never page text (§7).
 
+## Chat and off-topic
+
+A query search finds nothing in may not be a search of FTC data at all (`server/api/query/chat.ts`, words in
+`CHAT_WORDS` in the lexicon). Read only when the readers found no answer, so an answered query never changes:
+
+- **follow-up**: it points back at an earlier answer ("… the matches you said here", "your last answer"). Its card
+  says search reads each search on its own and needs the team or event. /search keeps the tab's last answered search
+  (`src/lib/lastSearch.ts`, sessionStorage, memory when storage refuses) as it was answered: the season picked on its
+  answer and, for "my"/"our", the My team it was asked with. Bruno is asked with them (`after`, `afterSeason`,
+  `afterMy`) and answers from that search's records, read as the page read them. A search that found nothing clears
+  it (a follow-up never reads an older one), and one older than 30 minutes isn't read.
+  A spelling's guess never stands in for it ("said" read as another word).
+- **meta**: addressed to the site or Bruno and asking something ("who made you"), with no data word: what Control
+  Scout and Bruno are, in the FAQ's words. Thanks said to Bruno is a reaction.
+- **off-topic**: where to get something ("where do i get a <part>"), with no data word: not in FTC results, and where
+  FIRST's rules for robot parts are.
+- **reaction**: laughter or thanks with no data word ("lol"): nothing to look up, never teams sharing a word with it.
+
+A data word is a number or any lexicon phrase that isn't filler. Each answer is a card (`SearchAnswer.chat`), so it
+isn't filed as a failed search again.
+
 ## Held-out sets
 
 `npm run search:heldout` (`scripts/search-heldout.ts`) asks the questions people wrote for search and that search was
-never built from: the 200 unique queries, the 260-query list, the complex queries and the natural questions.
+never built from: the 200 unique queries, the 260-query list, the complex queries and the natural questions
+(`scripts/search-heldout.json`), and the sets added since, each in its own file (`scripts/heldout/<set>.json`, its
+questions in order: a new set is a new file, never an edit of a shared list, so two changes adding sets never collide).
 
 **Held out means held out** (audit M2, 24 Nov). A question that appears word for word in the repo's tests or code
 was seen while building search, so it is in the training set (marked `"train": true` in
-`scripts/search-heldout.json`, 339 questions), not the held-out set (252). `scripts/search-heldout.test.ts` fails when a held-out question
+`scripts/search-heldout.json`, `{ "q", "train": true }` in a set's own file; 355 questions), not the held-out set (281). `scripts/search-heldout.test.ts` fails when a held-out question
 gets into a test or code (`scripts/search-heldout-leaks.ts` says where it looks); `--split` marks such questions.
 `--train` runs the training set.
 
