@@ -12,6 +12,12 @@ import { BOARD_STATS, type BoardStat } from "../answers/families/leaderboard.js"
 import { relativeSeason } from "../answers/season.js";
 import type { Parsed } from "./parse.js";
 
+/** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
+export const BOARD_STAT: Partial<Record<string, string>> = {
+  "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
+  "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:reliability": "reliability", "metric:penalty": "penalties",
+};
+
 /** A place's teams need this many with the stat for the season to be the one both are set side by side in. */
 export const MIN_TEAMS = 3;
 
@@ -20,9 +26,15 @@ export const placeRegion = (pl: Place): Region => ({ key: `${pl.country}:${pl.st
 const placeSql = (r: Region) => `(t.country = ?${r.state ? " AND t.state = ?" : ""})`;
 const placeArgs = (r: Region) => [r.country, ...(r.state ? [r.state] : [])];
 
+/** The words two places' answers read beside the places: a board stat (BOARD_STAT, a score's average), "teams", an
+ *  average or a best, a joining word. Any other ("matches", "highlights", "gain", "never won an award") is another
+ *  question's, never dropped here. */
+const PLACE_WORDS = new Set(["thing:team", "vs", "compare", "or", "and", "no-award"]);
+const placeWord = (s: string) => PLACE_WORDS.has(s) || s.startsWith("agg:") || s.startsWith("prep:") || (s.startsWith("metric:") && (s === "metric:score" || !!BOARD_STAT[s]));
+
 /** Whether the parse holds only two places, a stat or "teams", and a season: nothing this answer would drop. */
 function onlyPlaces(p: Parsed): boolean {
-  return !p.teams.length && !p.rookie && !p.named && p.over == null && !p.notMetrics?.length && !p.notStats?.length && !p.event && !p.eventKind && !p.worlds && !p.states && !p.award && !p.alliance && p.matchNumber == null && !p.level
+  return (!p.intent || p.intent === "leaderboard") && p.symbols.every(placeWord) && !p.teams.length && !p.rookie && !p.named && p.over == null && !p.notMetrics?.length && !p.notStats?.length && !p.event && !p.eventKind && !p.worlds && !p.states && !p.award && !p.alliance && p.matchNumber == null && !p.level
     && !p.finals && !p.leftover.length && !p.scoreCond && !p.withVideo && !p.undefeated && !p.nameHas && !p.conference && (!p.time || p.time.kind === "season");
 }
 
@@ -43,9 +55,11 @@ export function placesAsk(p: Parsed, stat: string | null): "side" | "board" | nu
     const st = BOARD_STATS[stat ?? "opr"];
     return st && !st.count ? "side" : null;
   }
+  // A count stat's board ("most matches") reads one place only: never both.
+  if (stat && BOARD_STATS[stat]?.count) return null;
   // Both places' teams on one board, the leaderboard's (./execute.ts, `also`): "teams" or a stat said ("teams from nj
   // or ny", "best auto in nj or ny"). A count of them, or anything else, is another reader's.
-  return (!p.intent || p.intent === "leaderboard") && (p.symbols.includes("thing:team") || stat || p.agg) ? "board" : null;
+  return p.symbols.includes("thing:team") || stat || p.agg ? "board" : null;
 }
 
 /** Two places' averages side by side, or null when the question asks something else of them (the board over both is
