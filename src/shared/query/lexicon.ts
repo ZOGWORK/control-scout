@@ -56,6 +56,8 @@ export type Sym =
   | { k: "list" }
   | { k: "per"; v: "match" | "event" | "rate" }
   | { k: "nopen" }
+  /** No penalty points at all, a filter on matches: "matches with no penalties", "penalty-free matches". */
+  | { k: "clean" }
   /** Only matches with video to play: "with video", "that have clips" (./matchFind.ts video). */
   | { k: "withvideo" }
   /** No losses: "undefeated", "a perfect record". */
@@ -236,7 +238,9 @@ const TABLE: [string, Sym | Sym[]][] = [
   // A number's rise over the season: "the fastest growing team by rating gain".
   ["fastest growing|gain|gained|gains|growth", { k: "gain" }],
   // Penalty points left out.
-  ["without penalties|no penalties|excluding penalties|minus penalties|penalty free|np|non penalty", { k: "nopen" }],
+  ["without penalties|no penalties|excluding penalties|minus penalties|np|non penalty", { k: "nopen" }],
+  // Matches with no penalty points at all, a filter (never the points without penalties): read before "no penalties".
+  ["with no penalties|with zero penalties|with no penalty points|with no fouls|without any penalties|without a penalty|that had no penalties|that have no penalties|that has no penalties|having no penalties|penalty free|no penalty", [{ k: "nopen" }, { k: "clean" }]],
   ["with video|with videos|with a video|with match video|with match videos|with clips|with a clip|with clip|with recording|with recordings|with a recording|with footage|that have video|that have videos|that have a video|that has video|that has a video|that have clips|that have a clip|that has a clip|having video|on video", { k: "withvideo" }],
   // Prepositions that say which slot follows.
   ["in|inside|within|during", { k: "prep", v: "in" }],
