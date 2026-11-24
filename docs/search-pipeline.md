@@ -347,10 +347,16 @@ generated eval run again.
 
 Failed-search reporting (`server/searchFailures.ts`, `docs/failed-search-reporting.md`) files a failure under its
 pattern, not its query: `server/api/query/pattern.ts` parses it and keeps the intent read, the slots filled (team,
-teams, place, event, window, count…), the symbols left unexplained and how many words weren't read. Names, numbers
-and places never appear in it, so every team's "… opr scorecard" is one issue. The unread words are counted under
-the pattern (`search_failures.missed`, migration 73) and listed on the issue, the most frequent first: the word most
-often missed is the synonym to add. One issue per pattern replaces one issue per query.
+teams, place, event, window, count…), the symbols left unexplained and the words it couldn't read (sorted, three at
+most). Names and numbers it read never appear in it, so every team's "… opr scorecard" is one issue, and "… opr
+scoresheet" another: one gap per issue (audit M8, 24 Nov; before, both were "not read: 1 word", and with no intent
+read, "who is your creator?" shared an issue with an unknown team name, #793). Numbers said as words are read as
+digits first, as search reads them, so "opr over eighty" and "opr over 80" are one pattern. The unread words are also
+counted under the pattern (`search_failures.missed`, migration 73) and listed on the issue, the most frequent first.
+
+A failure whose old pattern (the word count, `Pattern.legacy`) still has an **open** or **dismissed** issue keeps
+landing there, so work in progress isn't split and a dismissal stands. One closed as fixed gets the new key: a split
+pattern failing again is a gap of its own.
 
 ## Plan (one PR per group)
 

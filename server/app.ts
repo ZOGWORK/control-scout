@@ -100,7 +100,7 @@ import { pushRouter } from "./push/routes.js";
 import { digestRouter } from "./digest/routes.js";
 import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
-import { failureOf, keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, searchFailuresRouter } from "./searchFailures.js";
+import { failureOf, keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, searchFailuresRouter, softFailureOf, softKey } from "./searchFailures.js";
 import { supporters } from "./sponsors.js";
 import { statusNow } from "./uptime.js";
 import { packsRouter } from "./packs/routes.js";
@@ -476,8 +476,12 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // unfinished failed query.
       void reportingOn().then(async (on) => {
         if (!on) return;
-        const p = failureOf(q, ans, trace) ? await patternFor(q) : null;
-        noteSearch(q, ans, req.ip ?? "?", trace, at, p?.key ?? (await keyFor(q)), p?.missed);
+        // An answer that didn't fail outright may still be a soft failure (unread words, the pipeline declined):
+        // its pattern is read too, off the answer path, and logged under a soft key that never files an issue.
+        const failed = !!failureOf(q, ans, trace);
+        const p = failed || ans.stat || ans.card ? await patternFor(q) : null;
+        const soft = !failed && p ? softFailureOf(ans, p.read) : null;
+        noteSearch(q, ans, req.ip ?? "?", trace, at, soft && p ? softKey(soft, p.key) : failed ? p?.key ?? (await keyFor(q)) : await keyFor(q), p?.missed, soft, p?.legacy);
       }).catch(() => {});
       // A lone team's highlights, the rows' numbers and the answer's video (server/api/searchPage.ts). Who's asking (for
       // the videos) is read beside the highlights, not after them.
