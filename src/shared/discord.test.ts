@@ -3,9 +3,9 @@ import { DISCORD_PERMISSIONS, discordInviteUrl } from "./discord";
 import { discordFaq } from "./faq";
 
 describe("Discord invite", () => {
-  it("scopes bot + applications.commands with only Send Messages, Embed Links, Add Reactions and Use Slash Commands", () => {
-    expect(DISCORD_PERMISSIONS).toBe(2147502144);
-    expect(discordInviteUrl("123456789012345678")).toBe("https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot+applications.commands&permissions=2147502144");
+  it("scopes bot + applications.commands with only Send Messages, Embed Links, Add Reactions, Read Message History and Use Slash Commands", () => {
+    expect(DISCORD_PERMISSIONS).toBe(2147567680);
+    expect(discordInviteUrl("123456789012345678")).toBe("https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot+applications.commands&permissions=2147567680");
   });
 
   it("no link (and no FAQ answer) without a real client ID", () => {
