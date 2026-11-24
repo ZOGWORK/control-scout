@@ -4,13 +4,13 @@
 // highlights link; nothing at all with none, before the answer is on screen, or with another search's.
 import { act, cleanup, fireEvent, render, renderHook } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SearchFollowUps } from "../../../shared/api";
 import { prime } from "../../../lib/api";
 import { readPageData } from "../../../lib/pageData";
 import { PAGE_DATA_ID } from "../../../shared/boot";
 import { followApiPath } from "../../../shared/search";
-import { PeopleAlsoAsk, PeopleAlsoAskPending, RelatedSearches, useFollowUps } from "./FollowUps";
+import { FOLLOW_REASKS, FOLLOW_REASK_MS, PeopleAlsoAsk, PeopleAlsoAskPending, RelatedSearches, useFollowUps } from "./FollowUps";
 import { ASK_MAX } from "../../../shared/search";
 import { TEAM_TEXT } from "./answerCells";
 import { SEARCH_PALETTE } from "../../../lib/textTones";
@@ -61,6 +61,44 @@ describe("related searches", () => {
 });
 
 describe("useFollowUps", () => {
+  it("asks again while the server sent only part of the set, and the whole set replaces it", async () => {
+    vi.useFakeTimers();
+    try {
+      const path = followApiPath("4215 rank");
+      const part = { q: "4215 rank", ask: f.ask.slice(0, 1), related: [], partial: true };
+      prime(path, part);
+      const asked: string[] = [];
+      let answer: object = part;
+      vi.stubGlobal("fetch", vi.fn(async (u: string) => { asked.push(String(u)); return new Response(JSON.stringify(answer), { status: 200, headers: { "content-type": "application/json" } }); }));
+      const { result } = renderHook(() => useFollowUps("4215 rank", undefined, true));
+      expect(result.current.ask).toEqual(f.ask.slice(0, 1));
+      // Still a part: asked again, a few times at most.
+      for (let i = 0; i < FOLLOW_REASKS + 2; i++) await act(async () => { await vi.advanceTimersByTimeAsync(FOLLOW_REASK_MS); });
+      expect(asked.filter((u) => u.includes("/api/search/follow")).length).toBe(FOLLOW_REASKS);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("the whole set, once back, replaces the part and stops the asking", async () => {
+    vi.useFakeTimers();
+    try {
+      const path = followApiPath("4215 wins");
+      prime(path, { q: "4215 wins", ask: f.ask.slice(0, 1), related: [], partial: true });
+      const asked: string[] = [];
+      vi.stubGlobal("fetch", vi.fn(async (u: string) => { asked.push(String(u)); return new Response(JSON.stringify({ q: "4215 wins", ...f }), { status: 200, headers: { "content-type": "application/json" } }); }));
+      const { result } = renderHook(() => useFollowUps("4215 wins", undefined, true));
+      for (let i = 0; i < 3; i++) await act(async () => { await vi.advanceTimersByTimeAsync(FOLLOW_REASK_MS); });
+      expect(result.current.ask).toEqual(f.ask);
+      expect(result.current.related).toEqual(f.related);
+      expect(asked.length).toBe(1);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("is none before the answer is on screen, and never another search's", () => {
     prime("/api/search/follow?q=4215+opr", { q: "4215 opr", ...f });
     expect(renderHook(() => useFollowUps("4215 opr", undefined, true)).result.current.ask).toEqual(f.ask);

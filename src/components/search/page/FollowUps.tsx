@@ -4,6 +4,7 @@
 // that answer's card colours them (search's palette). Plain rows and chips in the page's card style, nothing when
 // there's nothing to offer. At every
 // width, People also ask goes under the answer and Related searches at the end of the page.
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, Clapperboard, Search } from "lucide-react";
 import { useApi } from "../../../lib/api";
@@ -38,7 +39,13 @@ function Line({ x, className }: { x: SearchFollowUp; className?: string }) {
   );
 }
 
-type Follow = SearchFollowUps & { q: string; season?: number };
+/** `partial`: the server's time ran out (FOLLOW_BUDGET_MS) and it sent the first questions it had checked, no Related
+ *  searches yet; the whole set is still being made there, so the page asks again (FOLLOW_REASK_MS, FOLLOW_REASKS times
+ *  at most) and the newer lists replace these. */
+type Follow = SearchFollowUps & { q: string; season?: number; partial?: boolean };
+
+export const FOLLOW_REASK_MS = 1000;
+export const FOLLOW_REASKS = 4;
 
 /** The follow-ups for `q`, asked once `ready` (the answer on screen), never another search's. `season`: the answer's
  *  picked season (./SeasonPick.tsx), which they're asked about too. The ones the page's first paint carried (no
@@ -52,6 +59,17 @@ export function useFollowUps(q: string, prefer: string | undefined, ready: boole
   const mine = (d: Follow | undefined) => (d?.q === q && (d.season ?? null) === season ? d : null);
   // The visitor's own answer, once back, is the one; a failed call is done, with none.
   const own = mine(ownCall.data);
+  // A part of the set: asked again a little later, a few times at most per search (counted per address).
+  const reask = useRef({ key: "", n: 0 });
+  const key = `${q}|${prefer ?? ""}|${season ?? ""}`;
+  if (reask.current.key !== key) reask.current = { key, n: 0 };
+  const partial = !!own?.partial;
+  const { reload } = ownCall;
+  useEffect(() => {
+    if (!partial || reask.current.n >= FOLLOW_REASKS) return;
+    const t = setTimeout(() => { reask.current.n++; void reload(); }, FOLLOW_REASK_MS);
+    return () => clearTimeout(t);
+  }, [partial, own, reload]);
   if (own) return { ...own, pending: false };
   const failed = !!ownCall.error;
   // The questions the page was served with stand in while the visitor's own are on their way; served with none, the
