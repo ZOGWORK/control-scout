@@ -2953,5 +2953,30 @@
 "set": "natural",
 "n": 58,
 "q": "what is the mascot of 6980"
+},
+{
+"set": "rules1124",
+"n": 1,
+"q": "what does yellow card mean"
+},
+{
+"set": "rules1124",
+"n": 2,
+"q": "define minor foul"
+},
+{
+"set": "rules1124",
+"n": 3,
+"q": "meaning of tiebreaker"
+},
+{
+"set": "rules1124",
+"n": 4,
+"q": "what does leave mean"
+},
+{
+"set": "rules1124",
+"n": 5,
+"q": "how many ranking points is a tie"
 }
 ]
