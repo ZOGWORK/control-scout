@@ -53,11 +53,24 @@ async function load(): Promise<FlagState> {
   return { flags, overrides };
 }
 
+/** A state's values as one comparable string: global flags, then each workspace's overrides, in a fixed order. */
+const stateKey = (s: FlagState): string =>
+  JSON.stringify([Object.entries(s.flags).sort(), [...s.overrides].map(([id, m]) => [id, [...m].sort()]).sort()]);
+
 async function state(now = Date.now()): Promise<FlagState> {
   if (cached && now - cached.at < FLAG_TTL_MS) return cached.state;
   if (!loading) {
     const p = load().then(
-      (s) => { if (loading === p) { cached = { at: Date.now(), state: s }; loading = null; } rememberPublicAccess(s.flags.publicAccess); return s; },
+      (s) => {
+        if (loading === p) {
+          // Read changed from what this server last had (a switch flipped on another server, docs/deploy.md): as a
+          // write here, the kept pages (each carrying the old flags in its head) go.
+          const was = cached?.state;
+          if (was && !was.guessed && stateKey(was) !== stateKey(s)) { writes++; dropKeptPages(); }
+          cached = { at: Date.now(), state: s }; loading = null;
+        }
+        rememberPublicAccess(s.flags.publicAccess); return s;
+      },
       (e) => {
         const s: FlagState = cached?.state ?? { flags: { ...DEFAULT_FLAGS }, overrides: new Map(), guessed: true };
         // Kept for a TTL too, so a database that's down isn't asked again on every request.
