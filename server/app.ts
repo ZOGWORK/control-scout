@@ -14,7 +14,7 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { MAX_QUERY, cleanQuery, learnQuery, plainSearch, searchAnswer } from "./api/searchAnswer.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
 import { pickedQuery, pickedSeasonOf } from "./api/searchPageAnswer.js";
-import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
+import { followUpsWithin, holdChecks, pageAnswer } from "./api/answers/followUps.js";
 import { finishPageAnswer, typedPageAnswer } from "./api/searchPage.js";
 import { withVideoAlternatives } from "./api/answers/videoSuggest.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
@@ -440,6 +440,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     // (server/api/searchAnswer.ts). Pickers ask for plain hits.
     // Team rows carry their season numbers (server/api/searchTeamStats.ts), added once, on the answer that's sent.
     if (req.query.answer === "1" && !kinds.size) {
+      // Other searches' follow-up checks wait while this answer is made (followUps.ts holdChecks).
+      res.once("close", holdChecks());
       const q = await pickedQuery(req.query.q, req.query.season);
       // The same query asked again within a minute (a retry, another visitor) is the answer already worked out
       // (server/api/searchReads.ts); "my" and "our" with no team named: the visitor's My team, sent as ?my=
@@ -488,11 +490,13 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     const prefer = preferOf(req.query.prefer);
     // The answer's picked season (?season=), as /search asks it: the follow-ups are about the answer shown.
     const asked = await pickedQuery(q, req.query.season);
-    // Kept (keptFollowUps): the /search page's first paint drew the same ones (server/seoMeta.ts searchMeta).
+    // Kept (keptFollowUps): the /search page's first paint drew the same ones (server/seoMeta.ts searchMeta). Never
+    // waited for past FOLLOW_BUDGET_MS: what's checked by then, marked partial, and the page asks again.
     const started = performance.now();
-    const follow = await keptFollowUps(asked, prefer);
+    const follow = await followUpsWithin(asked, prefer);
     res.setHeader("Server-Timing", searchTiming({ follow: performance.now() - started }));
-    res.setHeader("Cache-Control", "public, max-age=60");
+    // A partial set is never cached: the next ask gets the whole one.
+    res.setHeader("Cache-Control", follow.partial ? "no-store" : "public, max-age=60");
     // Every valid pick is echoed (the app matches it), with the query as asked for the related searches page.
     const season = q.trim() ? pickedSeasonOf(req.query.season) : null;
     return { q, ...(season != null ? { season, asked } : {}), ...follow };
