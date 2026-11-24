@@ -5,18 +5,19 @@ import type { SearchAnswer } from "../../src/shared/api";
 
 const calls = { highlights: 0, hits: 0, video: 0 };
 const fail = { video: false };
+const served: { video: unknown } = { video: undefined };
 vi.mock("./searchPageAnswer.js", () => ({
   withHighlights: async (a: SearchAnswer) => { calls.highlights++; return { ...a }; },
   answerHits: async (h: SearchAnswer["hits"]) => { calls.hits++; return [...h]; },
 }));
-vi.mock("./answers/video.js", () => ({ answerVideo: async () => { calls.video++; if (fail.video) { fail.video = false; throw new Error("read failed"); } return undefined; } }));
+vi.mock("./answers/video.js", () => ({ answerVideo: async () => { calls.video++; if (fail.video) { fail.video = false; throw new Error("read failed"); } return served.video; } }));
 const { finishPageAnswer } = await import("./searchPage");
 const { clearClipCaches } = await import("../caches");
 
 const answer = (q: string): SearchAnswer => ({ q, hits: [], pages: [], step: "deterministic", weak: false });
 const anyone = Promise.resolve({ userId: null, teams: [] });
 
-beforeEach(() => { calls.highlights = calls.hits = calls.video = 0; vi.useRealTimers(); });
+beforeEach(() => { calls.highlights = calls.hits = calls.video = 0; served.video = undefined; vi.useRealTimers(); });
 
 describe("an answer's extras", () => {
   it("are worked out once for one kept answer, again for another", async () => {
@@ -43,6 +44,18 @@ describe("an answer's extras", () => {
     expect((await finishPageAnswer(a, 25, anyone)).body.video).toBeUndefined();
     expect((await finishPageAnswer(a, 25, anyone)).body.video).toBeNull();
     await finishPageAnswer(a, 25, anyone);
+    expect(calls).toEqual({ highlights: 1, hits: 1, video: 2 });
+  });
+
+  it("read the video again each time while it carries a match video someone added", async () => {
+    const a = answer("w");
+    served.video = { main: { kind: "contributor", videoId: "abc" } };
+    expect((await finishPageAnswer(a, 25, anyone)).contributor).toBe(true);
+    // Hidden or removed meanwhile: the next visitor no longer gets it.
+    served.video = undefined;
+    const next = await finishPageAnswer(a, 25, anyone);
+    expect(next.contributor).toBe(false);
+    expect(next.body.video).toBeNull();
     expect(calls).toEqual({ highlights: 1, hits: 1, video: 2 });
   });
 
