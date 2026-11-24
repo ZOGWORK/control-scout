@@ -19,20 +19,20 @@ export function askOf(q: string): Ask | null {
 /** One row of an answer: an event and a date, and the page it opens. */
 interface Place { event: string | null; date: string | null; href?: string }
 
-/** The first block of `stat` whose rows each name an event or a date: a table with an Event or a Date column, or a
- *  list of matches. Every row it lists (an Inspire table's 2nd places too, as its headline counts them apart). */
+/** The rows of `stat` that each name an event or a date: its tables with an Event or a Date column, else its first
+ *  list of matches. Every row listed (an Inspire table's 2nd places too, as its headline counts them apart). */
 function rowsOf(stat: StatAnswer): Place[] {
-  for (const b of stat.blocks) {
-    if (b.kind === "table") {
-      const keys = new Set(b.columns.map((c) => c.key));
-      const dateKey = keys.has("date") ? "date" : keys.has("when") ? "when" : null;
-      if (!keys.has("event") && !dateKey) continue;
-      const out = b.rows.map((r) => ({ event: str(r.cells.event), date: dateKey ? str(r.cells[dateKey]) : null, ...(r.href ? { href: r.href } : {}) })).filter((x) => x.event || x.date);
-      if (out.length) return out;
-    }
-    if (b.kind === "matches" && b.rows.length) return b.rows.map((r) => ({ event: r.event?.label ?? null, date: dayOf(r.date), href: r.href }));
-  }
-  return [];
+  // Every table of them, in order (an answer split by season is one table a season).
+  const tables = stat.blocks.flatMap((b) => {
+    if (b.kind !== "table") return [];
+    const keys = new Set(b.columns.map((c) => c.key));
+    const dateKey = keys.has("date") ? "date" : keys.has("when") ? "when" : null;
+    if (!keys.has("event") && !dateKey) return [];
+    return b.rows.map((r) => ({ event: str(r.cells.event), date: dateKey ? str(r.cells[dateKey]) : null, ...(r.href ? { href: r.href } : {}) })).filter((x) => x.event || x.date);
+  });
+  if (tables.length) return tables;
+  const m = stat.blocks.find((b) => b.kind === "matches" && b.rows.length);
+  return m?.kind === "matches" ? m.rows.map((r) => ({ event: r.event?.label ?? null, date: dayOf(r.date), href: r.href })) : [];
 }
 const str = (v: unknown) => (v == null || v === "" ? null : String(v));
 /** A row's day as it reads: a stored day ("2026-03-08") said as one ("Mar 8, 2026"), one already said as is. */
