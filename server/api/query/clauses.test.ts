@@ -48,6 +48,9 @@ describe("compound questions", () => {
   it("a question read whole stays whole; a name with \"and\" is a name", async () => {
     expect((await ask("30801 and 30802 opr")).intent?.kind).toBe("stat-opr-vs");
     expect((await ask("30801 record between 2024 and 2025")).intent?.kind).not.toBe("stat-clauses");
+    // A part that points back ("their"), or "also" inside a filter, is one question.
+    expect((await ask("30801 first event and how was their record")).intent?.kind).not.toBe("stat-clauses");
+    expect((await ask("top teams by opr who also won inspire")).intent?.kind).not.toBe("stat-clauses");
     const name = await ask("nuts and bolts");
     expect([name.intent?.kind, name.clauses]).toEqual([undefined, undefined]);
   });
