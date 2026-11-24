@@ -343,6 +343,13 @@ It prints the pass rate per set and per pattern, each failing question with its 
 states them). A pattern is fixed in the pipeline (a phrase in the lexicon, a rule, a family), and every set and the
 generated eval run again.
 
+**One reader per question** (the search audit's C2). A held-out question is claimed by the pipeline when it reads it
+whole (`pipelineReads`), and by the keyword layer when that layer finds a catalog intent with a phrasing to hand on
+(`extract`'s canonical). The questions both claim are recorded by set and number in
+`scripts/search-heldout.claims.json`. A whole held-out run (the CI job) fails when one more question is claimed twice,
+and when a recorded one no longer is. The list only goes down: retiring a keyword intent the pipeline covers takes its
+questions off, and `--claims` rewrites the record.
+
 ## Failure patterns
 
 Failed-search reporting (`server/searchFailures.ts`, `docs/failed-search-reporting.md`) files a failure under its
