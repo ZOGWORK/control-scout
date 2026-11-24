@@ -52,13 +52,14 @@ export async function sorryFor(q: string, a: SearchAnswer, opts: { now?: number;
 /** At most this many suggestions are shown, of the first TRIED. */
 const SHOWN = 4, TRIED = 6;
 
-/** The first SHOWN of `suggest`'s first TRIED that answer, in order: checked one at a time, stopping once SHOWN do (all
- *  six were run at once before, each a whole search, though at most four are ever shown: the search audit's S5). */
+/** The first SHOWN of `suggest`'s first TRIED that answer, in order: the first SHOWN checked at once, the rest only
+ *  when fewer than SHOWN of those answer (all six were run at once before, each a whole search, though at most four
+ *  are ever shown: the search audit's S5). */
 export async function firstAnswering(suggest: string[], answers: (q: string) => Promise<boolean>): Promise<string[]> {
-  const out: string[] = [];
-  for (const x of suggest.slice(0, TRIED)) {
-    if (out.length >= SHOWN) break;
-    if (await answers(x)) out.push(x);
-  }
-  return out;
+  const tried = suggest.slice(0, TRIED);
+  const check = (xs: string[]) => Promise.all(xs.map(async (x) => ((await answers(x)) ? x : null)));
+  const first = (await check(tried.slice(0, SHOWN))).filter((x): x is string => !!x);
+  if (first.length >= SHOWN || tried.length <= SHOWN) return first;
+  const rest = (await check(tried.slice(SHOWN))).filter((x): x is string => !!x);
+  return [...first, ...rest].slice(0, SHOWN);
 }
