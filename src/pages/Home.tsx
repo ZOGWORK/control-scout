@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { UsernameBanner } from "../components/AccountSetup";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, CalendarDays, LockOpen, MapPin, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CalendarDays, Lightbulb, MapPin, Sparkles } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useMediaQuery, useTitle } from "../lib/meta";
 import { usePersonal, type AccountUser } from "../lib/personal";
@@ -23,9 +23,10 @@ import { Button } from "../components/ui/button";
 import { Reveal } from "../components/motion";
 import { CompetitionAtlas, preloadAtlas } from "../components/home/CompetitionAtlas";
 import { FindYourTeam, OnTheCalendar, PredictionRecord, PublicUsagePanel, SeasonCoverage, YourTeam } from "../components/home/HomeSections";
-import { HOME_ABOUT, HOME_HEADLINE_MS, HOME_HEADLINES, HOME_LEAD, homeHeadlineAt } from "../shared/boot";
+import { HOME_HEADLINE_MS, HOME_HEADLINES, HOME_LEAD, homeHeadlineAt } from "../shared/boot";
 import { cn } from "../components/cn";
 import { HomeDashboard } from "../components/home/HomeDashboard";
+import { HomeTips } from "../components/home/HomeTips";
 import { useIsV8 } from "../lib/v8";
 import { readBootLines, useHeroLines } from "../lib/heroLines";
 import { dateRange, place } from "../lib/format";
@@ -169,7 +170,7 @@ function Hero({ query }: { query?: string }) {
         <Button size="lg" asChild className="max-sm:flex-1"><Link to="/predict"><Sparkles /> Predict a match <ArrowUpRight /></Link></Button>
         <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/events"><CalendarDays /> Find an event <ArrowRight /></Link></Button>
       </div>
-      <p className="mt-3 flex items-start gap-1.5 text-sm text-text-muted"><LockOpen className="mt-0.5 size-4 shrink-0" aria-hidden /> {HOME_ABOUT}</p>
+      <HomeTips className="mt-3 max-w-[36rem] text-sm text-text-muted [&_p]:justify-start" icon={<Lightbulb className="mt-0.5 size-4 shrink-0" aria-hidden />} />
     </Reveal>
   );
 }
