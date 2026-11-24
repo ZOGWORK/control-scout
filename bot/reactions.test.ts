@@ -3,7 +3,7 @@
 // given for, and the answer's first 👎 files it in the site's failed-search list in the same write as the vote.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../server/db";
-import { BAD, GOOD, downVote, reactionUsage, serialVotes, trackAnswer, vote } from "./reactions";
+import { BAD, GOOD, downNotes, downVote, firstDown, reactionUsage, serialVotes, trackAnswer, vote } from "./reactions";
 
 /** What the answers' 👎s have filed (server/searchFailures.ts downvoteFailure). */
 const failed = () => all<{ key: string; result_type: string; intent: string | null; count: number; examples: string }>(
@@ -118,5 +118,25 @@ describe("the thumbs on an answer", () => {
     ]);
     // The slow add first, its removal second; another answer's vote didn't wait behind either.
     expect(order).toEqual(["another answer", "add", "remove"]);
+  });
+
+  it("tells the channel once, on an answer's first 👎, that a 👎 files the question", async () => {
+    await trackAnswer("n1", "g1", "where do i get a lazy susan bearing");
+    expect(await firstDown("n1")).toBe(false);
+    await downVote("n1");
+    expect(await firstDown("n1")).toBe(true);
+    const say = downNotes();
+    expect(await say("n1")).toBe(true);
+    // A second 👎 — or the first one taken off and added again — is the same answer: it has been told.
+    await downVote("n1");
+    expect(await firstDown("n1")).toBe(false);
+    expect(await say("n1")).toBe(false);
+    // A message that isn't one of the bot's answers has no count, so nothing is said about it.
+    expect(await firstDown("someone-elses")).toBe(false);
+  });
+
+  it("two 👎 arriving together say it once", async () => {
+    const say = downNotes(async () => true);
+    expect(await Promise.all([say("same"), say("same")])).toEqual([true, false]);
   });
 });

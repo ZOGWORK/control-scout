@@ -18,7 +18,7 @@ import { notifyTick, type Send } from "./follows.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
 import { rememberGuild } from "./guilds.js";
-import { BAD, GOOD, downVote, serialVotes, vote } from "./reactions.js";
+import { BAD, DOWN_NOTE, GOOD, downNotes, downVote, serialVotes, vote } from "./reactions.js";
 import { flushSearchFailures } from "../server/searchFailures.js";
 import { site } from "./lookups.js";
 import { configEmbed, configLines, type Config } from "./config.js";
@@ -186,12 +186,31 @@ client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m 
 const serial = serialVotes();
 /** A 👍/👎 on one of the bot's answers, counted (bot/reactions.ts): never who clicked, and only messages it posted have
  *  a row, so a reaction anywhere else changes nothing. */
-type Counted = { emoji: { name: string | null }; message: { id: string } };
+type Counted = { emoji: { name: string | null }; message: { id: string; channelId?: string | null } };
 const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) => {
   if (user.bot) return;
   const emoji = reaction.emoji.name;
   if (emoji !== GOOD && emoji !== BAD) return;
   void serial(reaction.message.id, () => vote(reaction.message.id, emoji, delta)).catch(() => {});
+};
+/** The answers whose channel has been told what a 👎 does: once per answer, and only for the vote that made its count
+ *  1 (bot/reactions.ts `downNotes`). */
+const worthNoting = downNotes();
+/** Say in the channel what a 👎 did, as a reply to the answer (bot/reactions.ts `DOWN_NOTE`): a 👎 files the question,
+ *  so it is a report rather than a dislike button, and the people using it should hear that where they used it. A note
+ *  that can't be sent is logged and never touches the vote. */
+const sayDownNote = (reaction: Counted): void => {
+  void worthNoting(reaction.message.id)
+    .then((say) => {
+      if (!say) return;
+      const channel = client.channels.cache.get(reaction.message.channelId ?? "");
+      // A channel the bot can't post in (or isn't cached): the vote stands, and nothing is said.
+      if (!channel || !("send" in channel)) return;
+      return (channel as unknown as { send: (o: unknown) => Promise<unknown> })
+        .send({ content: DOWN_NOTE, allowedMentions: { parse: [], repliedUser: false }, reply: { messageReference: reaction.message.id, failIfNotExists: false } })
+        .catch(() => {});
+    })
+    .catch((e) => log(`down note failed: ${(e as Error)?.message ?? String(e)}`));
 };
 /** A 👎 added: counted, and — on an answer's first one — the question it answered is filed in the site's failed-search
  *  queue (bot/reactions.ts `downVote`, written with the vote). A person saying the answer was wrong is the one failure
@@ -199,7 +218,7 @@ const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) =>
  *  again, and the queue counts a repeat as a repeat. */
 const disliked = (reaction: Counted, user: { bot?: boolean }) => {
   if (user.bot) return;
-  void serial(reaction.message.id, () => downVote(reaction.message.id)).catch(() => {});
+  void serial(reaction.message.id, async () => { await downVote(reaction.message.id); sayDownNote(reaction); }).catch(() => {});
 };
 client.on(Events.MessageReactionAdd, (r, u) => {
   if (r.emoji.name === BAD) { disliked(r as Counted, u); return; }

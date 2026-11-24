@@ -46,6 +46,34 @@ export async function downVote(messageId: string, now = Date.now()): Promise<voi
   ]);
 }
 
+/** What a 👎 does, said once per answer in the channel (bot/index.ts): people were using it as a dislike button, and
+ *  every one of them files the question on the list the team works from. One line, sent as a reply to the answer, so
+ *  the button explains itself at the moment it is used. */
+export const DOWN_NOTE = "📝 Noted — a 👎 files this question so we can fix the answer. It's not a dislike button.";
+
+/** Whether this 👎 was the answer's first (its count is 1 now), which is the one vote the channel is told about. A read
+ *  after the vote, so it is the count the vote left; two 👎 arriving together can both see 1, and `downNotes` keeps
+ *  that to one note per answer. */
+export async function firstDown(messageId: string): Promise<boolean> {
+  const row = await get<{ down: number }>("SELECT down FROM discord_answers WHERE message_id = ?", [messageId]);
+  return Number(row?.down) === 1;
+}
+
+/** Which answers' channels have been told what a 👎 does, and whether this vote is the one to tell them: once per
+ *  answer, and only for the vote that made its count 1 (bot/index.ts). */
+export function downNotes(isFirst: (messageId: string) => Promise<boolean> = firstDown, max = 500) {
+  const told = new Set<string>();
+  return async (messageId: string): Promise<boolean> => {
+    if (told.has(messageId)) return false;
+    if (!(await isFirst(messageId))) return false;
+    // Two votes at once both read 1: only the first to get here says it.
+    if (told.has(messageId)) return false;
+    told.add(messageId);
+    if (told.size > max) told.delete(told.values().next().value!);
+    return true;
+  };
+}
+
 /** One vote on an answer: `delta` 1 for a reaction added, -1 for one taken back. Never below zero. */
 export async function vote(messageId: string, emoji: string, delta: 1 | -1 = 1, now = Date.now()): Promise<number> {
   const column = emoji === GOOD ? "up" : emoji === BAD ? "down" : null;
