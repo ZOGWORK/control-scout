@@ -152,6 +152,7 @@ export async function withoutAside(q: string, opts: { now?: number; prefer?: Rea
 }
 
 const SHORT_FORMS_TYPED = new Set(INFORMAL.map(([from]) => from).filter((f) => f.length <= 2));
+const SHORT_PHRASES = INFORMAL.map(([from]) => from.split(" ")).filter((f) => f.length > 1);
 /** Stray letters typed on their own, anywhere ("what is the best team in nj n", "what is t r best team in the world"),
  *  and a stray two-letter word ending the question ("best team in the world en", a slip on a short form): left unread
  *  in a question the parser reads whole without them, and only them. The question without them, and the letters, to
@@ -160,8 +161,10 @@ const SHORT_FORMS_TYPED = new Set(INFORMAL.map(([from]) => from).filter((f) => f
 export async function withoutStrayLetter(q: string, opts: { now?: number; prefer?: ReadonlySet<string> } = {}): Promise<{ rest: string; letters: string[] } | null> {
   if (q.includes('"')) return null;
   const ws = q.trim().split(/\s+/);
-  // A short form ("u" for "you", "rn", ./query/lexicon.ts INFORMAL) is read, said in full later: never stray.
-  const stray = (w: string, i: number) => !SHORT_FORMS_TYPED.has(w.toLowerCase())
+  // A short form ("u" for "you", "rn", ./query/lexicon.ts INFORMAL) is read, said in full later: never stray, nor the
+  // last word of a short form's phrase said right there ("… where id" is "where is").
+  const phrase = (i: number) => SHORT_PHRASES.some((f) => f.length <= i + 1 && ws.slice(i + 1 - f.length, i + 1).map((w) => w.toLowerCase()).join(" ") === f.join(" "));
+  const stray = (w: string, i: number) => !SHORT_FORMS_TYPED.has(w.toLowerCase()) && !phrase(i)
     && (/^[b-hj-z]$/i.test(w) || (i === ws.length - 1 && /^[a-z]{2}$/i.test(w)));
   // Punctuation at the end of the question stays with the words kept ("… nj n?" is "… nj?").
   const end = /[?!.]+$/.exec(ws[ws.length - 1])?.[0] ?? "";
@@ -335,7 +338,10 @@ async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer>
   const owned = said.replace(/(?<=[\p{L}\p{N}][^\p{L}\p{N}\s'’]+)['’]s(?=[\s,;:?!]|$)/gu, "");
   // A team's number said again before an event word ("37032 record at 37032 meet") is the same team's own event, never a
   // second team: "at their meet".
-  const once = owned.replace(/\b(\d{1,6})\b(.*?)\b(at|in|from|during)\s+#?\1(?:['’]s)?\s+(?=(?:events?|meets?|competitions?|comps?|tournaments?)\b)/gi, (_, n: string, mid: string, at: string) => `${n}${mid}${at} their `);
+  const once = owned.replace(/\b(\d{1,6})\b(.*?)\b(at|in|from|during)\s+#?\1(?:['’]s)?\s+(?=(?:events?|meets?|competitions?|comps?|tournaments?)\b)/gi, (_, n: string, mid: string, at: string) => `${n}${mid}${at} their `)
+    // "… in their last" with nothing after it: their last event, the one thing a team is "in" ("best teleop in their
+    // last"). Never before a number or a noun ("in their last 5 matches", "in their last match"), which says its own.
+    .replace(/\b(in|at|during)\s+(their|its)\s+(last|latest|most recent)(\s*[?.!]*)$/i, "$1 $2 $3 event$4");
   const dated = once.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
     .replace(/\b(20\d\d)\s*,\s*(\d\d)\b/g, (w, a: string, b: string) => (next(a, b) ? `${a}-${b}` : w))
     .replace(/\b(season\s+)(\d\d)\s*,\s*(\d\d)\b|\b(\d\d)\s*,\s*(\d\d)(\s+season)\b/gi, (w, pre?: string, a1?: string, b1?: string, a2?: string, b2?: string, post?: string) => {
@@ -361,6 +367,12 @@ async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer>
     }
   }
   const a = await numberedAnswer(raw, opts);
+  // Two questions joined by "and", the second asking where ("top rookie teams and where is 36013"), unanswered whole:
+  // each half answered (twoAsks).
+  if (!a.stat && !a.card) {
+    const b = await twoAsks(said, opts);
+    if (b) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
   // An exact stored event name typed with different word boundaries ("long horn
   // round up scrimmage"). Only a whole contiguous name qualifies, never partial words.
   if (!a.stat && !a.card && !a.hits.length) {
@@ -515,6 +527,36 @@ export function seasonByGame(q: string): string {
     return out === label ? q : out;
   }
   return q;
+}
+
+/** Two questions joined by "and", the second a new question ("top rookie teams and where is 36013"): each half asked on
+ *  its own, the first answered with a stat and the second with a fact card (a team's facts: "where is 36013"), and the
+ *  two drawn as one card, the fact under the stat (src/pages/SearchPage.tsx draws a stat's info card inside it). A
+ *  second half that only asks where, naming nothing ("… and where is", "… and where are they"), asks where the first
+ *  half's teams are: a list that says each team's place answers it as it is. Null when either half isn't answered so. */
+async function twoAsks(said: string, opts: AnswerOptions): Promise<SearchAnswer | null> {
+  const m = /^(.+?)\s+(?:and|&)\s+((?:where|what|who|which|when|how)\b.*)$/i.exec(said.trim());
+  if (!m) return null;
+  // The page's answer decides (as explainTeamAnswer does), so the dropdown and the page read the halves the same way.
+  const whole = { ...opts, learn: false, full: true, limit: Math.max(opts.limit ?? 0, SEARCH_PAGE_LIMIT) };
+  // The page asks by its limit as often as by `full` (/api/search?answer=1&limit=25), as every reader here decides.
+  const page = !!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT);
+  const first = await searchAnswer(m[1], whole);
+  const ask = first.stat ?? null;
+  if (!ask || first.weak || first.card) return null;
+  const label = first.understood?.label ?? ask.title;
+  const shown = async (extra: Partial<SearchAnswer>, hits: SearchHit[] = []): Promise<SearchAnswer> => {
+    const own = page ? first : await searchAnswer(m[1], { ...opts, learn: false });
+    return { ...own, ...(page ? extra : {}), hits: [...own.hits, ...hits.filter((h) => !own.hits.some((x) => x.kind === h.kind && x.ref === h.ref))],
+      understood: { ...(own.understood ?? first.understood!), label: extra.understood!.label } };
+  };
+  if (/^where\s+(?:is|are)(?:\s+(?:they|them|those|these|the\s+teams?))?\s*[?.!]*$/i.test(m[2])) {
+    const placed = ask.blocks.some((b) => b.kind === "leaderboard" && b.rows.some((r) => r.location));
+    return placed ? shown({ understood: { ...first.understood!, label: `${label} · where each is from` } }) : null;
+  }
+  const second = await searchAnswer(m[2], whole);
+  if (second.stat || second.card?.kind !== "info" || second.weak || second.hits[0]?.kind !== "team") return null;
+  return shown({ card: second.card, understood: { ...first.understood!, label: `${label} · ${second.understood?.label ?? second.card.title}` } }, [second.hits[0]]);
 }
 
 /** `q` with its informal short forms said in full (./query/lexicon.ts INFORMAL), never a word of a team's name or,

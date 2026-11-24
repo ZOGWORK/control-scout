@@ -11,6 +11,7 @@ import { all, get, migrate, openDb, run, setDb } from "../db";
 import { FRAME_TIMINGS, frameRow, frameStart, setAutoFrameRows, setFrameTimingsForTests, type FrameTiming } from "../data/frameTimings";
 import { CLIP_CHECKS, clipCheck, setAutoClipChecks, setClipChecksForTests, type ClipCheck } from "../data/clipChecks";
 import { APPLY_TRIES, applyDelivery, claimInbox, CLAIM_STALE_MS, triesOf, withTries, judgeClips, judgeFrames, loadAutoReads, ownerAutoReads, processInbox } from "./autoReads";
+import { approvedOver } from "../data/frameRowRules";
 import { clipCoverageOwnerRoutes } from "./officialOwnerRoutes";
 import { release, tryAcquire } from "../data/lock";
 
@@ -319,6 +320,20 @@ describe("the frames' review entries: matches seen in the video, kept off the si
     expect(frameStart(V1, "XXAUTO", "Q3")).toBe(1400);
     await applyDelivery({ kind: "frames", season: 2025, rows: [frame({ checked: "2026-11-23", review: { Q3: { t: 1400, why: "its clip's first frame shows Q9, not Q3" } } })] });
     expect(frameStart(V1, "XXAUTO", "Q3")).toBeNull();
+  });
+
+  it("placed by hand over its opening frame (the reason, then a note): a re-read seeing that same frame keeps it", async () => {
+    const SHOWS_Q2 = "its clip's first frame shows Q2, not Q3";
+    setFrameTimingsForTests([frame({ checked: "2026-11-10", starts: { Q1: 600, Q3: 1400 }, opens: { Q1: 588, Q3: 1400 }, approved: ["Q3"], approvedWhy: { Q3: `${SHOWS_Q2}; start found by eye at 1400 s (Q3's clock running 2:10 at 1420)` } })]);
+    await applyDelivery({ kind: "frames", season: 2025, rows: [frame({ checked: "2026-11-22", review: { Q3: { t: 1400, why: SHOWS_Q2 } } })] });
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBe(1400);
+    // Another match named there still pulls it, and a reason that only shares the start of this one isn't it.
+    await applyDelivery({ kind: "frames", season: 2025, rows: [frame({ checked: "2026-11-23", review: { Q3: { t: 1400, why: "its clip's first frame shows Q9, not Q3" } } })] });
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBeNull();
+    expect(approvedOver(`${SHOWS_Q2}; by eye`, SHOWS_Q2)).toBe(true);
+    expect(approvedOver(SHOWS_Q2, SHOWS_Q2)).toBe(true);
+    expect(approvedOver("its clip's first frame shows Q2, not Q33", SHOWS_Q2)).toBe(false);
+    expect(approvedOver(undefined, SHOWS_Q2)).toBe(false);
   });
 
   it("approving a read that came in before a review approval keeps the approved start", async () => {
