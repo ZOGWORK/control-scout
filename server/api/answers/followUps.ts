@@ -11,7 +11,7 @@ import { normalise, parseQuery, type Parsed } from "../query/parse.js";
 import { parseContext } from "../query/context.js";
 import { names } from "../query/names.js";
 import { AWARD_WORDS, LEXICON } from "../query/lexicon.js";
-import { keptAnswer } from "../searchReads.js";
+import { keptAnswer, keptGeneration, searchVersion, STALE_MS } from "../searchReads.js";
 import { searchAnswer } from "../searchAnswer.js";
 import { loneTeamHit } from "../searchLayers.js";
 import { forecasterBuilds } from "../../predict/engine.js";
@@ -43,6 +43,9 @@ export const keptFollowUps = (q: string, prefer: ReadonlySet<string> = new Set()
 /** The follow-ups for `q` within `ms`: the whole kept set when it's ready by then, else what's been checked so far,
  *  marked `partial` (never kept: the whole set is still being made, and is kept once it's done). */
 export async function followUpsWithin(q: string, prefer: ReadonlySet<string> = new Set(), ms = FOLLOW_BUDGET_MS): Promise<SearchFollowUps> {
+  // Made ahead for this search index (precomputeFollowUps): served at once, nothing made while anyone waits.
+  const early = prefer.size ? undefined : await aheadOf(q);
+  if (early) return early;
   const whole = keptFollowUps(q, prefer);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<null>((ok) => { timer = setTimeout(ok, ms, null); });
@@ -54,6 +57,65 @@ export async function followUpsWithin(q: string, prefer: ReadonlySet<string> = n
   return { ask: [], related: [], ...now, partial: true };
 }
 
+/** Follow-up sets made ahead of time for the most-asked searches (precomputeFollowUps, the search audit's S9), by
+ *  query (searches any visitor shares: no preferred teams), each with what it was made from: the search index
+ *  ("search:version", moved by each stats run), the kept answers' generation (moved by new results and clip changes:
+ *  ../searchReads.ts keptGeneration), the forecaster builds, and when. Served as kept answers are: fresh for a minute
+ *  while none of those moved; then still served (up to STALE_MS more) while that one set is made again behind it, at
+ *  `later` priority, so nobody waits and the preview catches up with the answer its tap opens. A new index drops them. */
+type Ahead = { version: string; gen: number; builds: number; at: number; value: SearchFollowUps };
+const ahead = new Map<string, Ahead>();
+const remaking = new Map<string, Promise<boolean>>();
+/** How long a set made ahead is fresh: a minute, as a kept answer. */
+const AHEAD_FRESH_MS = STALE_MS / 5;
+
+/** The set made ahead for `q` under the search index in use, if it can still be served (made again behind it when
+ *  it's no longer fresh). */
+async function aheadOf(q: string, now = Date.now()): Promise<SearchFollowUps | undefined> {
+  const a = ahead.get(q);
+  const version = await searchVersion();
+  if (!a || a.version !== version) return undefined;
+  const moved = a.gen !== keptGeneration() || a.builds !== forecasterBuilds();
+  if (!moved && now - a.at < AHEAD_FRESH_MS) return a.value;
+  void makeAhead(q, version);
+  return now - a.at < AHEAD_FRESH_MS + STALE_MS ? a.value : undefined;
+}
+
+/** Make `q`'s set ahead for `version`, every check `later`; one at a time per query. True when it was made. */
+function makeAhead(q: string, version: string): Promise<boolean> {
+  const running = remaking.get(q);
+  if (running) return running;
+  const none: ReadonlySet<string> = new Set();
+  const p = (async () => {
+    const gen = keptGeneration(), builds = forecasterBuilds(), at = Date.now();
+    const value = await followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, none), none, undefined, true);
+    if ((await searchVersion()) !== version) return false;
+    ahead.set(q, { version, gen, builds, at, value });
+    return true;
+  })().catch(() => false).finally(() => remaking.delete(q));
+  remaking.set(q, p);
+  return p;
+}
+
+/** Make the follow-ups of each of `qs` (searches any visitor shares: no preferred teams) ahead of time, for the search
+ *  index in use, one set at a time with every check of theirs `later` (behind every live search's questions), so
+ *  People also ask for the most-asked searches is there at once. Sets made for an older index are dropped once these
+ *  are made. Stops early (keeping what's made) if the index moves meanwhile. Returns how many there are for it. */
+export async function precomputeFollowUps(qs: readonly string[]): Promise<number> {
+  const version = await searchVersion();
+  let made = 0;
+  for (const q of qs) {
+    if ((await searchVersion()) !== version) break;
+    // Made already for this index (a run before one that failed): kept, so a retry makes only the missing ones.
+    if (ahead.get(q)?.version === version || await makeAhead(q, version)) made++;
+  }
+  for (const [k, v] of ahead) if (v.version !== version) ahead.delete(k);
+  return made;
+}
+
+/** How many sets are made ahead right now (tests). */
+export const aheadCount = () => ahead.size;
+
 /** At most this many questions are shown, and this many candidates run to find them. */
 export { ASK_MAX };
 export const RELATED_MAX = 8;
@@ -64,7 +126,9 @@ const START_ASK_CHECK = ASK_MAX, START_RELATED_CHECK = RELATED_MAX;
 /** At most this many of the searches the page already offers are read, to leave out questions that repeat them. */
 const SHOWN_MAX = 8;
 
-type Slots = { t?: number; u?: number; event?: string; place?: string; when?: string; award?: string };
+// `many`: three or four teams as a question names them ("<team>, <team> or <team>"); `vs`: as search compares them
+// ("<team> vs <team> vs <team>").
+type Slots = { t?: number; u?: number; many?: string; vs?: string; event?: string; place?: string; when?: string; award?: string };
 type Template = { family: Family; needs: (keyof Slots)[]; ask: (s: Required<Slots>) => string; short: (s: Required<Slots>) => string; when?: boolean; chip?: boolean; list?: boolean };
 /** A follow-up two ways: a question (People also ask) and the search's short form (Related searches). */
 const T = (family: Family, needs: (keyof Slots)[], ask: Template["ask"], short: Template["short"], when = false): Template => ({ family, needs, ask, short, when });
@@ -106,6 +170,15 @@ const TWO: Template[] = [
   T("predict", ["t", "u"], (s) => `Who would win, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} prediction`),
   T("compare", ["t", "u"], (s) => `Who has the better record${IN(s)}, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} record${AT(s)}`, true),
   T("compare", ["t", "u"], (s) => `How has ${s.t} done against ${s.u}?`, (s) => `${s.t} vs ${s.u} head to head`),
+];
+// Three or four teams: the questions that compare them all, one card ranking every team (never two of them).
+const MANY: Template[] = [
+  T("compare", ["t", "many", "vs"], (s) => `Who has the highest OPR${IN(s)}, ${s.many}?`, (s) => `${s.vs} opr${AT(s)}`, true),
+  T("compare", ["t", "many", "vs"], (s) => `Who has the best record${IN(s)}, ${s.many}?`, (s) => `${s.vs} record${AT(s)}`, true),
+  T("compare", ["t", "many", "vs"], (s) => `Who has the best rating${IN(s)}, ${s.many}?`, (s) => `${s.vs} rating${AT(s)}`, true),
+  T("compare", ["t", "many", "vs"], (s) => `Who has the highest average score${IN(s)}, ${s.many}?`, (s) => `${s.vs} average score${AT(s)}`, true),
+  T("compare", ["t", "many", "vs"], (s) => `Who has the most wins${IN(s)}, ${s.many}?`, (s) => `${s.vs} wins${AT(s)}`, true),
+  T("compare", ["t", "many", "vs"], (s) => `Who has the best Auto OPR${IN(s)}, ${s.many}?`, (s) => `${s.vs} auto opr${AT(s)}`, true),
 ];
 const EVENT: Template[] = [
   T("events", ["event"], (s) => `Who won ${s.event}${IN(s)}?`, (s) => `who won ${s.event}${AT(s)}`),
@@ -203,8 +276,12 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
   const shown = a.stat?.family === "leaderboard" ? `${a.stat.title} ${a.stat.scope.join(" ")}`.toLowerCase() : null;
   // A town is asked about only when its name was meant as one.
   const place = p.place && (p.place.kind !== "city" || meant(p.place.typed)) && (shown == null || shown.includes(p.place.name.toLowerCase())) ? p.place.name : undefined;
+  // Three or four different teams named: asked of all of them, never of the first two.
+  const all = [...new Set(teams)];
+  const many = all.length >= 3 && all.length <= 4 ? all : null;
   const s: Slots = {
     t: teams[0] ?? team, u: teams[1], event, place,
+    ...(many ? { many: `${many.slice(0, -1).join(", ")} or ${many[many.length - 1]}`, vs: many.join(" vs ") } : {}),
     // A season said (a year, a season's two years): a window ("this week") or every season is no season's question.
     when: p.time?.kind === "season" ? p.time.typed : undefined,
     award: p.award ?? undefined,
@@ -220,16 +297,17 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
   // Every award an event gives, its winner's question first: those the questions don't take are Related searches.
   const [award1, ...awards] = event ? AWARDS.filter((x) => x !== s.award).flatMap((award) => fill([AWARD_AT], { ...s, award })) : [];
   const out = [
-    ...(s.u != null ? fill(TWO, s) : []),
+    ...(many ? fill(MANY, s) : s.u != null ? fill(TWO, s) : []),
     // A board's neighbours; a filtered list's too ("teams from texas with opr over 50": the place's boards, best auto
     // opr in Texas …), so its related searches are about the place it asked about, never one team in the list.
     ...(p.intent === "leaderboard" || a.intent?.kind.startsWith("stat-compound-list") ? fill(LEADERS, s) : []),
     ...(event ? fill(EVENT, s) : []),
     ...(award1 ? [award1] : []),
     ...(s.place ? fill(PLACE, s) : []),
-    ...(s.t != null ? fill(TEAM, s) : []),
-    // The second team's own, after the first's; an event's other awards after its winner's questions.
-    ...(s.u != null ? fill(TEAM, { ...s, t: s.u }) : []),
+    // Each team's own questions, one question at a time for every team named, in the order named ("What is A's OPR?",
+    // "What is B's OPR?", then each one's record …): only the first few candidates are checked, so a later team's
+    // never all come after the first's twenty. An event's other awards after its winner's questions.
+    ...(s.t != null ? TEAM.flatMap((x) => (many ?? (s.u != null ? [s.t, s.u] : [s.t])).flatMap((t) => fill([x], { ...s, t }))) : []),
     ...awards,
     ...(s.t == null && !event && !s.place && p.intent !== "leaderboard" ? fill(START, s) : []),
   ];
@@ -305,7 +383,10 @@ export const answerKey = (a: SearchAnswer) => {
     const words = a.stat.title.toLowerCase().split(/[^\p{L}\p{N}–-]+/u).filter((w) => w && !BOARD_WORDING.has(w) && !/^\d+$/.test(w));
     return `${a.stat.intent}|${[...new Set(words)].sort().join(" ")}`;
   }
-  return `${a.stat?.intent ?? a.card?.kind ?? a.understood?.kind}|${a.stat?.title ?? a.card?.title ?? a.understood?.label}`;
+  // A team's own card is titled by what it shows ("OPR", "Record"): its team tells two teams' apart, so one team's
+  // question never hides another's.
+  const team = a.stat?.team?.number ?? a.card?.team?.number;
+  return `${a.stat?.intent ?? a.card?.kind ?? a.understood?.kind}|${a.stat?.title ?? a.card?.title ?? a.understood?.label}${team != null ? `|${team}` : ""}`;
 };
 
 /** An event named by its initials typed in lower case ("mti") is said in capitals ("Who won MTI?"), never title case. */
@@ -319,7 +400,7 @@ export async function initialsUpper(p: Parsed): Promise<Parsed> {
  *  RELATED_MAX short searches about what the questions didn't cover. Each is one search answers directly, with its
  *  answer's own line; none answers what another, the search itself or one the page already offers does. Only the
  *  first CHECK_MAX candidates are run for each: fewer follow-ups, never a slower page. */
-export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set(), progress?: Progress): Promise<SearchFollowUps> {
+export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set(), progress?: Progress, background = false): Promise<SearchFollowUps> {
   const read = await initialsUpper(await parseQuery(q, await parseContext(Date.now(), prefer)));
   // A name several teams still share holds an arbitrary first one: no follow-up is about it (../query/shared.ts).
   // A number the answer read as something else is no team: when the answer says how it read the query (its intent's
@@ -341,7 +422,8 @@ export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<
   // visitor's 40 checks never hold another's behind them. Its related searches and highlights, shown after its
   // questions, wait for every search's questions first (`later`).
   const lane = `f${++lanes}`;
-  const run = (x: string, later = false) => inTurns(() => pageAnswer(x, SEARCH_PAGE_LIMIT, prefer), lane, later).catch(() => null);
+  // Made ahead (`background`: precomputeFollowUps): every check `later`, behind live searches' questions.
+  const run = (x: string, later = false) => inTurns(() => pageAnswer(x, SEARCH_PAGE_LIMIT, prefer), lane, later || background).catch(() => null);
   const askC = all.filter((c) => !c.chip).slice(0, start ? START_ASK_CHECK : CHECK_MAX).map((c) => ({ ...c, run: c.q }));
   // Each check's answer as it comes (undefined: still to run), for what's been checked so far (progress).
   const askDone: (SearchAnswer | null | undefined)[] = askC.map(() => undefined);

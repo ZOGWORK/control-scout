@@ -2,7 +2,7 @@
 // The header's search with the whole answer (docs/search.md): live as you type, an older reply never replacing a
 // newer one, the keyboard, Escape, what a screen reader hears, Bruno AI's suggestion arriving after search's own
 // results (labelled as his), the gap note, the pages and the recovery state.
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../../shared/api";
 
@@ -17,7 +17,7 @@ vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../..
 const flags = { brunoSearch: true, searchLearning: true };
 vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useServerFlag: (n: keyof typeof flags) => flags[n] }));
 
-const { SearchBox, SEARCH_DEBOUNCE_MS } = await import("./SearchBox");
+const { SearchBox, SEARCH_DEBOUNCE_MS, useSearchHits } = await import("./SearchBox");
 
 const beacon = vi.fn(() => true);
 beforeEach(() => {
@@ -284,6 +284,21 @@ describe("the answer's parts", () => {
       await type(input, "zz");
       await reply(/\/api\/search\?q=/, answer("zz", { step: "did-you-mean", weak: true, hits: [t("1", "Zz Bots")] }));
       expect(pending.some((p) => p.url.includes("/refine"))).toBe(false);
+    } finally { flags.brunoSearch = true; }
+  });
+  it("the flags arriving never restart the search: one /api/search, and a weak answer is refined once they say Bruno is on", async () => {
+    flags.brunoSearch = false;
+    try {
+      const { rerender } = renderHook(({ q }) => useSearchHits(q), { initialProps: { q: "robots that hypnotise" } });
+      await act(async () => { vi.advanceTimersByTime(5); });
+      await reply(/\/api\/search\?q=/, answer("robots that hypnotise", { step: "did-you-mean", weak: true, hits: [t("7", "Robot Seven")] }));
+      flags.brunoSearch = true; // the server's flags confirm him
+      rerender({ q: "robots that hypnotise" });
+      await act(async () => { vi.advanceTimersByTime(5); });
+      expect(pending.map((p) => p.url.split("?")[0])).toEqual(["/api/search/refine"]);
+      rerender({ q: "robots that hypnotise" });
+      await act(async () => { vi.advanceTimersByTime(5); });
+      expect(pending).toHaveLength(1); // asked once per answer
     } finally { flags.brunoSearch = true; }
   });
   it("a missing view: what was understood, the closest result, and the gap note (T73)", async () => {

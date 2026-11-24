@@ -88,6 +88,8 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   const waiting = useRef<{ q: string; run: () => void } | null>(null);
   // The query last asked about (null before the first): only a changed one, typed, waits for the pause.
   const lastQ = useRef<string | null>(null);
+  // The query Bruno AI was last asked to refine (once per answer: a retry asks again).
+  const refined = useRef<string | null>(null);
   const brunoOn = useServerFlag("brunoSearch");
   const prefer = usePreferKey();
   // My team, sent only with a query saying "my" or "our" (src/shared/searchMine.ts).
@@ -99,6 +101,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     // A new request: an earlier query's Bruno AI suggestion goes (it never reappears for a retyped query or a failed one).
     setRefining(false);
     setAi(null);
+    refined.current = null;
     const typed = lastQ.current !== null && lastQ.current !== query;
     lastQ.current = query;
     if (!query) { setRes({ q: "", hits: [] }); setError(null); offlineError.current = false; setBusy(false); return; }
@@ -119,14 +122,6 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
           // or no whole answer): it replaces the last question, so an old team is never borrowed.
           if (thread) rememberTurn({ q: query, answer: answer ?? null, hits: r.hits });
           offlineError.current = false;
-          if (answer?.weak && brunoOn && refine) {
-            setRefining(true);
-            // 204 (null): he had nothing to add. Failing or slow: search's own answer stands.
-            apiFetch<SearchAnswer | null>(`/api/search/refine?q=${encodeURIComponent(query)}&limit=${limit}`)
-              .then((a) => { if (id === seq.current) setAi({ q: query, answer: isAnswer(a) ? a : null }); })
-              .catch(() => {})
-              .finally(() => { if (id === seq.current) setRefining(false); });
-          }
         })
         // The query is answered (with an error): the spinner stops.
         .catch((e) => { if (id === seq.current) { setRes({ q: query, season, hits: [] }); setError(e.message); offlineError.current = e instanceof ApiError && e.offline; } })
@@ -136,7 +131,21 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     const t = setTimeout(run, typed ? SEARCH_DEBOUNCE_MS : 0);
     waiting.current = { q: query, run: () => { clearTimeout(t); run(); } };
     return () => { clearTimeout(t); ctrl.abort(); waiting.current = null; };
-  }, [q, prefer, myTeam, kindKey, limit, brunoOn, refine, attempt, season, thread]);
+  }, [q, prefer, myTeam, kindKey, limit, attempt, season, thread]);
+  // A weak answer is put to Bruno AI once it's on screen (never before: his reading can't slow the first results).
+  // Its own effect, not part of the search's: the flags arriving (brunoSearch confirmed) used to restart the search
+  // itself, so a page opened cold sent its first /api/search twice. Now they only decide whether he's asked.
+  useEffect(() => {
+    if (!refine || !brunoOn || !res.live || !res.answer?.weak || !res.q || res.q !== q.trim() || refined.current === res.q) return;
+    refined.current = res.q;
+    const id = seq.current, query = res.q;
+    setRefining(true);
+    // 204 (null): he had nothing to add. Failing or slow: search's own answer stands.
+    apiFetch<SearchAnswer | null>(`/api/search/refine?q=${encodeURIComponent(query)}&limit=${limit}`)
+      .then((a) => { if (id === seq.current) setAi({ q: query, answer: isAnswer(a) ? a : null }); })
+      .catch(() => {})
+      .finally(() => { if (id === seq.current) setRefining(false); });
+  }, [res, q, brunoOn, refine, limit]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   // "You're offline" stays only while it's true: the connection check finding internet again asks again by itself, as
   // pages loaded through the cache are (api.ts refetchOffline). Before, the error stayed up until Try again (#1557).
@@ -309,6 +318,9 @@ export interface SearchBoxProps {
   onPick: (h: SearchHit) => unknown;
   /** v8: this is one of the boxes Home's search glides between (search/glide.ts). */
   glide?: boolean;
+  /** Lets the page put a query in the field without searching it (Home's example chips, the moment before they glide
+   *  to /search with it, so the box that glides shows the words the results are for). */
+  fillRef?: RefObject<((text: string) => void) | null>;
   kinds?: HitKind[];
   placeholder: string;
   label: string;
@@ -434,9 +446,18 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   );
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, fieldClassName, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, initialQuery, seeAll = true, discover, examples, syncQuery, glide, wrap = false }: SearchBoxProps) {
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, fieldClassName, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, initialQuery, seeAll = true, discover, examples, syncQuery, glide, fillRef, wrap = false }: SearchBoxProps) {
   const [q, setQ] = useState(initialQuery ?? syncQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
+  // Text the page put in (fillRef): shown, not searched, until it's edited (the page is leaving with it).
+  const [filled, setFilled] = useState<string | null>(null);
+  useLayoutEffect(() => {
+    if (!fillRef) return;
+    fillRef.current = (text) => { const t = wrap ? oneLine(text) : text; setFilled(t); setQ(t); setOpen(false); };
+    return () => { fillRef.current = null; };
+  }, [fillRef, wrap]);
+  // Any other change to the text (typing, clearing, a synced query) ends it: the same words typed back later search.
+  useEffect(() => { if (filled !== null && q !== filled) setFilled(null); }, [q, filled]);
   const synced = useRef(syncQuery);
   useEffect(() => {
     if (synced.current === syncQuery) return;
@@ -445,7 +466,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     setOpen(false);
   }, [syncQuery]);
   // The page's own query, unedited: its results are on the page, so the box doesn't ask for them again.
-  const idle = syncQuery !== undefined && q === syncQuery;
+  const idle = (syncQuery !== undefined && q === syncQuery) || (filled !== null && q === filled);
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
   // v8 (the page plan): the top hit is highlighted as soon as current results arrive, so Enter goes straight to it.
   const [active, setActive] = useState(-1);
