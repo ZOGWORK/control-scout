@@ -305,6 +305,9 @@ export const INFORMAL: [string, string][] = [
   // "Is" with its letters swapped after a question word ("what si the best team"): two letters are never spell-checked,
   // and alone "si" can be an event's initials, so only there.
   ["what si", "what is"], ["who si", "who is"], ["which si", "which is"], ["where si", "where is"], ["when si", "when is"], ["how si", "how is"],
+  // "Is" with its last letter hit one key over after "where" ("… and where id"): "where" takes no ID, so only there
+  // ("what id" can ask for a number).
+  ["where id", "where is"],
 ];
 
 /** Numbers said as words, read as digits after a word that takes a number ("opr over eighty", "top five teams", "last

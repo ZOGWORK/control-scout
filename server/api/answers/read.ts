@@ -689,7 +689,10 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   }
   // "new jersey leaderboard by rating", "leaderboard by record in nj", "nj leaderboard": the place's ranked list (by
   // the prediction rating, as Rankings, unless a stat is named)
-  if ((m = /^(?:the )?(?:(.+?) )?(?:leaderboard|rankings?|standings)(?: (?:by|for|on) (.+?))?(?: (?:in|from) (.+))?$/.exec(rest)) && (m[1] || m[2] || m[3]) && !(m[1] && m[3])) {
+  // A place's teams ranked ("fl team ranked", "nj teams rankings") are the same list: the teams word between the place
+  // and the ranking word goes with it. "Ranked" only after a place and last ("teams ranked by teleop" is a sort, readSorted).
+  if ((m = new RegExp(String.raw`^(?:the )?(?:(.+?) )?(?:${TEAMS} )?(?:leaderboard|rankings?|standings)(?: (?:by|for|on) (.+?))?(?: (?:in|from) (.+))?$`).exec(rest)
+    ?? new RegExp(String.raw`^(?:the )?(.+?) (?:${TEAMS} )?ranked$`).exec(rest)) && (m[1] || m[2] || m[3]) && !(m[1] && m[3])) {
     const stat = m[2] ? boardStat(m[2]) : "rating", region = place(m[1] ?? m[3]);
     // "12345 rankings" names a team: only a place (or no place, with a stat) is a leaderboard.
     if (stat && region !== false && (region || !m[1])) return { kind: "top", stat, n: m[2] ? 25 : 10, region, city: null, season: scope.season };
