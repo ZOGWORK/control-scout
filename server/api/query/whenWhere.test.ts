@@ -62,8 +62,8 @@ describe("when and where asks", () => {
   });
   it("where: the events, each once; a superlative's own match only", async () => {
     // Every season's table read (an awards list is one table a season).
-    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'USMDOLD', 'Old Harbor Qualifier', 'Qualifier', 'Town', 'MD', 'USA', '2025-01-11', '2025-01-11', 't')");
-    await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2024, 'USMDOLD', 'Design', 1, 30701)");
+    await run("INSERT OR IGNORE INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'USMDOLD', 'Old Harbor Qualifier', 'Qualifier', 'Town', 'MD', 'USA', '2025-01-11', '2025-01-11', 't')");
+    await run("INSERT OR IGNORE INTO awards (season, code, type, placement, team) VALUES (2024, 'USMDOLD', 'Design', 1, 30701)");
     clearAllCaches();
     const aw = await card("where did 30701 win an award");
     expect([aw.headline?.value, aw.headline?.sub]).toEqual(["Bayside Qualifier · Harbor Qualifier · Old Harbor Qualifier", "Feb 14, 2026 · Jan 10, 2026 · Jan 11, 2025"]);
@@ -75,8 +75,8 @@ describe("when and where asks", () => {
   });
   it("when: a score split by season reads its matches' dates (its table has events only)", async () => {
     await run("INSERT OR IGNORE INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'USMDOLD', 'Old Harbor Qualifier', 'Qualifier', 'Town', 'MD', 'USA', '2025-01-11', '2025-01-11', 't')");
-    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2024, 'USMDOLD', 'qual', 0, 1, 'Q1', '2025-01-11T10:00:00Z', 1, 100, 100, 40, 40, 't')");
-    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2024, 'USMDOLD', 'qual', 0, 1, 30701, 'red', 1)");
+    await run("INSERT OR IGNORE INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2024, 'USMDOLD', 'qual', 0, 1, 'Q1', '2025-01-11T10:00:00Z', 1, 100, 100, 40, 40, 't')");
+    await run("INSERT OR IGNORE INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2024, 'USMDOLD', 'qual', 0, 1, 30701, 'red', 1)");
     clearAllCaches();
     const hi = await card("when did 30701 score their highest ever");
     expect([hi.title.startsWith("When: "), hi.headline?.value, hi.headline?.sub]).toEqual([true, "Feb 14, 2026", "Bayside Qualifier"]);
