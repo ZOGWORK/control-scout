@@ -802,7 +802,8 @@ describe("what the server has taught the bot", () => {
   it("sends the server's teams and the asker's name with the chat, and remembers the name and the team asked about", async () => {
     const mem = memory({ recall: vi.fn(async () => ({ teams: [4215, 6980], name: "Alex" })) });
     const l = lookups({ memory: mem, ask: chatAnswer() });
-    await createHandler(() => {}, l).mention(message(`<@${BOT}> what was 4215's auto OPR at the last event?`, { globalName: "Alex" }).m, BOT);
+    // Discord's payload for a guild message always carries the member: no nickname, so the display name is the name.
+    await createHandler(() => {}, l).mention(message(`<@${BOT}> what was 4215's auto OPR at the last event?`, { globalName: "Alex" }, { member: { nick: null } }).m, BOT);
     const lines = vi.mocked(l.ask).mock.calls[0][2] as string[];
     expect(lines[0]).toContain("teams 4215, 6980");
     expect(lines[0]).toContain("say which one you picked");
@@ -817,6 +818,8 @@ describe("what the server has taught the bot", () => {
     const c = command("ask", { question: "4215 highlights" });
     c.i.guildId = "g1";
     c.i.user = { id: "u1", globalName: "Alex" };
+    // A guild interaction's member says whether there's a nickname: none here, so "Alex" is what the server shows.
+    c.i.member = { nick: null };
     await createHandler(() => {}, l)(c.i);
     expect(mem.learn).toHaveBeenCalledWith("g1", "u1", "Alex", [4215]);
   });
@@ -829,6 +832,25 @@ describe("what the server has taught the bot", () => {
     const { m } = message(`<@${BOT}> what is my name?`, { globalName: "ChosenYogurt", username: "chosen.yogurt" }, { member: { displayName: "Lucas" } });
     await createHandler(() => {}, l).mention(m, BOT);
     expect(mem.learn).toHaveBeenCalledWith("g1", "u1", "Lucas", []);
+    expect(vi.mocked(l.ask).mock.calls[0][2]).toEqual(["The person asking goes by Lucas here."]);
+  });
+
+  it("a message without its member keeps the nickname it already remembered", async () => {
+    // The guild wasn't cached, so the message only knows the handle. The nickname in the server's memory is the name
+    // Discord shows there: it must neither be replaced by the handle nor forgotten from the answer.
+    const mem = memory({ recall: vi.fn(async () => ({ teams: [], name: "Lucas" })) });
+    const l = lookups({ memory: mem, ask: chatAnswer() });
+    const { m } = message(`<@${BOT}> what is my name?`, { globalName: "ChosenYogurt", username: "chosen.yogurt" });
+    await createHandler(() => {}, l).mention(m, BOT);
+    expect(mem.learn).toHaveBeenCalledWith("g1", "u1", null, []);
+    expect(vi.mocked(l.ask).mock.calls[0][2]).toEqual(["The person asking goes by Lucas here."]);
+  });
+
+  it("a memory that can't be read still names them from the message itself", async () => {
+    const mem = memory({ recall: async () => { throw new Error("database is locked"); } });
+    const l = lookups({ memory: mem, ask: chatAnswer() });
+    const { m } = message(`<@${BOT}> what is my name?`, {}, { member: { displayName: "Lucas" } });
+    await createHandler(() => {}, l).mention(m, BOT);
     expect(vi.mocked(l.ask).mock.calls[0][2]).toEqual(["The person asking goes by Lucas here."]);
   });
 
