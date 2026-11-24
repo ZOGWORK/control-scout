@@ -59,7 +59,7 @@ import { chatAnswer } from "./answers/chat.js";
 import { fold, names } from "./query/names.js";
 import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
-import { eventPlace, normalise, parseQuery } from "./query/parse.js";
+import { eventPlace, normalise, parseQuery, respell } from "./query/parse.js";
 import { EVENT_FIT, parseContext } from "./query/context.js";
 import { pickShared, whichLine } from "./query/shared.js";
 import { withPage } from "./answers/teamsNamed.js";
@@ -76,6 +76,8 @@ export const WEAK_SCORE = 0.9;
 
 export interface AnswerOptions {
   limit?: number; prefer?: ReadonlySet<string>; learn?: boolean;
+  /** The query's search words one letter off are already written as meant (./query/parse.ts respell). */
+  respelled?: boolean;
   /** Read seasons, regions and missing views (./searchIntents.ts): off for the core of an intent. */
   intents?: boolean;
   /** A season the query named in words ("last season", read by ./searchIntents.ts): as if typed as "2024-25". */
@@ -261,6 +263,13 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
 /** Search's answer for `raw` (docs/search.md). A top-level search goes through the layers (./searchLayers.ts,
  *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
+  // Search words typed one letter off ("4215 recrod"), as the query parser fixes them: every reader reads them as meant
+  // from the start, silently (no "Did you mean"), the answer keeping the query as typed. A check on the words alone
+  // first, so a query with none is never parsed for it.
+  if (!opts.respelled && opts.intents !== false && !opts.rewrites) {
+    const meant = await respell(String(raw ?? ""), await parseContext(opts.now, opts.prefer));
+    if (meant) return { ...(await searchAnswer(meant, { ...opts, respelled: true })), q: cleanQuery(raw) };
+  }
   const a = await answerOf(raw, opts);
   if (opts.inner || opts.intents === false || opts.rewrites) return a;
   // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i

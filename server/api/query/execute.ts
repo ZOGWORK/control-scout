@@ -656,6 +656,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // The search box keeps a link to the answer page.
     if (!opts.full) return null;
     const a = await card(f);
+    // A match's number at an event named with no scored match by it: the names reader's (the event's match itself, its
+    // scores still to come, or the event's matches).
+    if (f.label && (f.events || p.event) && /^From 0 /.test(a.stat?.source ?? "")) return null;
     const where = f.region ? ` in ${f.region.name}` : "";
     if (scope.window && scope.season != null && p.time?.year == null) return relaxed(a, windowSteps(scope.window, scope.season), (season) => card({ ...f, window: undefined, season }));
     // No season said, or "this season": the current one, then the one before when it has nothing yet.
