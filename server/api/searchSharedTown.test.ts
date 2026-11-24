@@ -46,22 +46,26 @@ describe("the names index", () => {
 });
 
 describe("a question about a shared town", () => {
-  it("asks which, each a tap", async () => {
+  it("answered for every town at once: the answer kept, a tap for each town", async () => {
     const a = await ask("teams in fairbrook");
+    expect(a.step).toBe("deterministic");
+    expect(a.understood?.label).not.toMatch(/^Which/);
+    // Each region as it is written: "MO" in capitals is the region, "mo" may be a word.
+    expect([...(a.suggest ?? [])].sort()).toEqual(["teams in fairbrook IL", "teams in fairbrook MO"]);
+  });
+  it("each tap is read as its town", async () => {
+    const a = await ask("teams in fairbrook MO");
+    expect(a.understood?.label).toMatch(/Fairbrook, MO/);
+    expect(a.suggest ?? []).not.toContain("teams in fairbrook IL");
+  });
+  it("with no direct answer, asks which", async () => {
+    const a = await ask("zqx stuff in fairbrook");
     expect(a.step).toBe("did-you-mean");
     expect(a.understood?.label).toMatch(/^Which Fairbrook\? Fairbrook (IL|MO) or Fairbrook (IL|MO)$/);
-    expect([...(a.suggest ?? [])].sort()).toEqual(["teams in fairbrook il", "teams in fairbrook mo"]);
+    expect([...(a.suggest ?? [])].sort()).toEqual(["zqx stuff in fairbrook IL", "zqx stuff in fairbrook MO"]);
   });
-  it("with its region beside it, is that town", async () => {
-    const a = await ask("teams in fairbrook il");
-    expect(a.step).not.toBe("did-you-mean");
-    expect(a.understood?.label).toMatch(/Fairbrook, IL/);
-  });
-  it("a town going on into a longer name (a venue) is never asked about", async () => {
-    expect((await ask("events at fairbrook high school")).understood?.label ?? "").not.toMatch(/^Which/);
-    expect((await ask("teams in fairbrook this season")).understood?.label ?? "").toMatch(/^Which Fairbrook\?/);
-  });
-  it("a town one region holds is never asked about", async () => {
-    expect((await ask("teams in lakemont")).understood?.label ?? "").not.toMatch(/^Which/);
+  it("a town going on into a longer name (a venue), or one region holds, gets no taps", async () => {
+    expect((await ask("events at fairbrook high school")).suggest ?? []).not.toContain("events at fairbrook IL high school");
+    expect((await ask("teams in lakemont")).suggest ?? []).toEqual([]);
   });
 });
