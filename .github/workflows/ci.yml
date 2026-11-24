@@ -12,8 +12,8 @@ name: CI
 # The legs run side by side, so the wall clock is the slowest leg, not the sum:
 #   lint   types + the shell-script tests
 #   test   the full vitest suite, split into shards (every file runs in exactly one shard)
-#   build  production build, server bundle starts, performance budgets (needs the build only, not the tests)
-#   search-eval
+#   build  production build, server bundle starts, performance budgets, search pages' layout shift (needs the build only, not the tests)
+#   search-eval   generated search questions, then People also ask / Related searches
 # `check` waits for all four and fails unless every one of them (and every shard) passed, so it is the one status
 # to read before merging.
 
@@ -112,12 +112,19 @@ jobs:
         run: npx playwright install-deps chromium
       - name: Performance budgets
         run: npm run perf -- --budgets --json perf.json
+      # Search results pages' layout shift (scripts/search-signoff/visual.ts): the pages in cls.json at desktop 1280
+      # and phone 390, on a local production server from this build. Fails over 0.1, or a page's own ceiling in
+      # cls.json (the pages over it today, lowered as each is fixed).
+      - name: Search layout shift
+        run: npx tsx scripts/search-signoff/visual.ts --cls scripts/search-signoff/cls.json --max-cls 0.1 --no-shots --out "$RUNNER_TEMP/visual"
       - name: Keep the numbers
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: perf
-          path: perf.json
+          path: |
+            perf.json
+            ${{ runner.temp }}/visual/visual.json
           if-no-files-found: ignore
 
   # The search eval (scripts/search-eval.ts, docs/search-pipeline.md "Eval"): questions generated from the lexicon and
@@ -135,6 +142,10 @@ jobs:
       - run: npm ci --no-audit --no-fund --loglevel=error
       - name: Search eval
         run: DATA_DIR="$RUNNER_TEMP/evaldata" DATABASE_URL="file:$RUNNER_TEMP/evaldata/scout.db" CS_NO_SCHEDULER=1 npm run search:eval
+      # People also ask and Related searches (scripts/search-followups.ts): each names what the search is about and
+      # answers when tapped, at least the floors in its GATE. The same database the eval restored.
+      - name: Search follow-ups
+        run: DATA_DIR="$RUNNER_TEMP/evaldata" DATABASE_URL="file:$RUNNER_TEMP/evaldata/scout.db" CS_NO_SCHEDULER=1 npm run search:followups
 
   # The one status to gate a merge on. `if: always()` makes it run (and fail) when a leg failed or was cancelled,
   # instead of being skipped, which would read as neither pass nor fail.
