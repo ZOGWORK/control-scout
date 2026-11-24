@@ -448,8 +448,14 @@ function turn(): void {
   setImmediate(() => go(answering > 0));
 }
 
+/** When the oldest held check began waiting (0: none waiting): its ANSWER_FIRST_MS runs from then, however many
+ *  answers' own checks run meanwhile. */
+let heldSince = 0;
+
 function go(held: boolean): void {
   const job = nextJob(held);
+  // A follow-up check runs: no held one has been waiting since before it.
+  if (job && !held) heldSince = 0;
   if (!job) {
     // Only held checks are waiting: run them once the answers are done, or their wait is up.
     if (held && waiting.some((line) => line.size > 0)) { resumeLater(); return; }
@@ -461,8 +467,8 @@ function go(held: boolean): void {
   p.catch(() => {}).finally(() => { turning = false; turn(); });
 }
 
-/** Go on once no answer is being made, or ANSWER_FIRST_MS from now, whichever is first; or at once, still held,
- *  for a check that isn't held (an answer's own, inTurns). */
+/** Go on once no answer is being made, or ANSWER_FIRST_MS after the oldest held check began waiting, whichever is
+ *  first; or at once, still held, for a check that isn't held (an answer's own, inTurns). */
 function resumeLater(): void {
   let done = false;
   const once = (held: boolean) => {
@@ -472,7 +478,8 @@ function resumeLater(): void {
     resumes.delete(once);
     go(held);
   };
-  const timer = setTimeout(once, ANSWER_FIRST_MS, false);
+  heldSince ||= Date.now();
+  const timer = setTimeout(once, Math.max(0, heldSince + ANSWER_FIRST_MS - Date.now()), false);
   resumes.add(once);
 }
 

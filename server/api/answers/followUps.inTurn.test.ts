@@ -85,4 +85,17 @@ describe("inTurn", () => {
     expect(performance.now() - t).toBeGreaterThanOrEqual(150);
     release();
   });
+  it("runs a held check by its wait's end even while an answer's own checks keep coming", async () => {
+    const release = holdChecks();
+    const t = performance.now();
+    let on = true;
+    // An answer's own checks every 50 ms, each consuming a turn of the held wait.
+    const own = (async () => { while (on) { await inTurns(async () => {}); await new Promise((ok) => setTimeout(ok, 50)); } })();
+    await inTurns(async () => {}, "f");
+    const waited = performance.now() - t;
+    on = false;
+    await own;
+    release();
+    expect(waited).toBeLessThan(450);
+  });
 });
