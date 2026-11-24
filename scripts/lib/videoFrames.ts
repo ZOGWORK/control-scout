@@ -141,15 +141,23 @@ export function beforeLead(before: { at: number; label: string | null; division?
 }
 
 /** Seconds into a match the bar is read at (lagConfirms), after every opening lead named another match: the match
- *  before's final screen can stay up into this one's Auto (USTXNONUAMM1 2026 Q22: Q21's 0:00 card until 13 s in). */
-export const LAG_READS = [10, 20, 30];
+ *  before's final screen can stay up into this one's Auto (USTXNONUAMM1 2026 Q22: Q21's 0:00 card until 13 s in), or
+ *  past it (its Q10: Q9's card still up 20 s in; at 30 s the switch's countdown, which places no start). 45 and 60 s
+ *  are in TeleOp, whose clock places it. */
+export const LAG_READS = [10, 20, 30, 45, 60];
+/** How far (seconds) a playing read may land from the second it asked for and still be that read: the player runs on
+ *  while the seek settles (LTCMP 2024 Q20: asked 8948, read 8948.9; 1.3 s seen). A paused read (an opening's) lands
+ *  within 1 s. */
+export const LAG_LANDS = 3;
 /**
  * Whether a read `k` s into a placed match (LAG_READS) says the bar was only late onto it: the bar names the match (not
  * a sibling division's) and its clock, running, gives the same start (within `same` s). The clip then opens at the
- * start itself (a lead of 0), as it does where a results card stays up until the match's own overlay comes on.
+ * start itself (a lead of 0), as it does where a results card stays up until the match's own overlay comes on. The read
+ * plays (its clock must run), so it lands a second or so after `t` (LAG_LANDS); a seek that never landed shows a frame
+ * far from it.
  */
 export function lagConfirms(r: { at: number; label: string | null; start: number | null; division?: "own" | "other" | null }, t: number, label: string, start: number, same: number): boolean {
-  return Math.abs(r.at - t) <= 1 && r.division !== "other" && !!r.label && sameMatch(r.label, label) && r.start != null && Math.abs(r.start - start) <= same;
+  return Math.abs(r.at - t) <= LAG_LANDS && r.division !== "other" && !!r.label && sameMatch(r.label, label) && r.start != null && Math.abs(r.start - start) <= same;
 }
 
 /** A frame's match (overlayLabel) as the event names it, where that's one match: a semifinal's first match ("M2-1")
