@@ -10,7 +10,7 @@ import { cachedEventDetail, NO_MATCH_TYPES } from "../server/api/events.js";
 import { rankings } from "../server/api/rankings.js";
 import { RANKED_MIN_MATCHES } from "../src/shared/rankings.js";
 import { Friendly, dates, eventEmbed, predictEmbed, preMatchEmbed, rankingsEmbed, teamEmbed, teamLink } from "./views.js";
-import { nextPlaying } from "./next.js";
+import { inEvent, nextPlaying } from "./next.js";
 
 /** The site's public address, for every link in an embed (controlscout.org in production). */
 export const site = () => env.canonicalUrl.replace(/\/+$/, "");
@@ -64,16 +64,28 @@ export async function nextLookup(number: number, now = Date.now()): Promise<APIE
     .filter((e) => e.season === CURRENT_SEASON && e.start && (e.end ?? e.start) >= today(now))
     .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""))
     .slice(0, 3);
-  const found = nextPlaying(await Promise.all(ahead.map((e) => cachedEventDetail(e.season, e.code).catch(() => null))), number);
-  if (!found) {
-    const next = ahead[0];
-    throw new Friendly("No match scheduled", next
-      ? `Nothing on [${next.name}](${site()}/events/${next.season}/${encodeURIComponent(next.code)})'s schedule yet for ${number}. The bot posts there as soon as FIRST publishes it.`
-      : `Nothing is scheduled for ${teamLink(number, site())} yet this season. [See the team](${site()}/teams/${number}).`);
+  // One event at a time, earliest first: the first that has an unplayed match answers. A read that fails is not a
+  // "nothing scheduled" — it fails the lookup, since the later events can't stand in for the one that couldn't be read.
+  const read: (EventDetail | null)[] = [];
+  for (const e of ahead) {
+    const detail = await cachedEventDetail(e.season, e.code);
+    read.push(detail);
+    const found = nextPlaying([detail], number);
+    if (!found) continue;
+    const m = found.match, at = m.startsAt ? Date.parse(m.startsAt) : NaN;
+    const when = Number.isFinite(at) ? `Starts <t:${Math.floor(at / 1000)}:R> (<t:${Math.floor(at / 1000)}:t>)` : m.time ? `Scheduled ${m.time.slice(11, 16)}` : "No time posted yet";
+    return preMatchEmbed(found.event.event.name, m, site(), `${when} · next for ${teamLink(number, site())}.`);
   }
-  const m = found.match, at = m.startsAt ? Date.parse(m.startsAt) : NaN;
-  const when = Number.isFinite(at) ? `Starts <t:${Math.floor(at / 1000)}:R> (<t:${Math.floor(at / 1000)}:t>)` : m.time ? `Scheduled ${m.time.slice(11, 16)}` : "No time posted yet";
-  return preMatchEmbed(found.event.event.name, m, site(), `${when} · next for ${teamLink(number, site())}.`);
+  // Nothing unplayed. Say which of the two it is: its matches at the current event are all played, or no schedule has
+  // it yet — never that a published schedule is missing.
+  const first = ahead[0], detail = read[0];
+  if (!first) throw new Friendly("No match scheduled", `Nothing is scheduled for ${teamLink(number, site())} yet this season. [See the team](${site()}/teams/${number}).`);
+  const link = `[${first.name}](${site()}/events/${first.season}/${encodeURIComponent(first.code)})`;
+  const later = ahead.find((e) => e !== first);
+  if (detail && inEvent(detail, number)) {
+    throw new Friendly("No more matches", `${number} has no unplayed match left at ${link}${later ? `; its next event is [${later.name}](${site()}/events/${later.season}/${encodeURIComponent(later.code)})` : ""}.`);
+  }
+  throw new Friendly("No match scheduled", `No schedule with ${number} at ${link} yet. The bot answers with the match as soon as FIRST publishes it${later ? `, and ${number} is entered in [${later.name}](${site()}/events/${later.season}/${encodeURIComponent(later.code)})` : ""}.`);
 }
 
 export async function eventLookup(code: string): Promise<APIEmbed> {

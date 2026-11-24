@@ -105,13 +105,18 @@ describe("commands", () => {
     expect(l.choices).not.toHaveBeenCalled();
   });
 
-  it("live predictions switched off: /predict says so, the other commands still answer", async () => {
+  it("live predictions switched off: /predict and /next say so, the other commands still answer", async () => {
     const l = lookups({ enabled: async (f) => f !== "livePredictions" });
     const h = createHandler(() => {}, l);
     const p = command("predict", { event: "X", match: 1 });
     await h(p.i);
     expect(p.calls[1].payload.embeds[0].title).toBe("Predictions are off");
     expect(l.predict).not.toHaveBeenCalled();
+    // /next shows the same call, so it is off with the same switch.
+    const n = command("next", { team: 1 });
+    await h(n.i);
+    expect(n.calls[1].payload.embeds[0].title).toBe("Predictions are off");
+    expect(l.next).not.toHaveBeenCalled();
     const t = command("team", { number: 1 });
     await h(t.i);
     expect(t.calls[1].payload.embeds[0].title).toBe("team 1");

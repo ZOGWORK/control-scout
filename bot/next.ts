@@ -10,6 +10,10 @@ const order = (a: MatchView, b: MatchView) =>
 /** Whether the team is in the match's lineup, on either side (a playoff alliance's third robot included). */
 const plays = (m: MatchView, team: number) => [...m.red.teams, ...m.blue.teams].some((t) => t.number === team);
 
+/** Whether the team is in the event at all (a schedule posted with any of its matches): what tells "its matches there
+ *  are all played" from "no schedule has it yet", which are different answers. */
+export const inEvent = (event: EventDetail, team: number) => event.matches.some((m) => plays(m, team));
+
 export interface NextMatch {
   event: EventDetail;
   match: MatchView;

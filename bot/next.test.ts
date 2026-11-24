@@ -1,7 +1,7 @@
 // /next's choice of match (bot/next.ts): the earliest event with an unplayed match the team is in, in schedule order.
 import { describe, expect, it } from "vitest";
 import type { EventDetail, MatchView } from "../src/shared/api.js";
-import { nextPlaying } from "./next.js";
+import { inEvent, nextPlaying } from "./next.js";
 
 /** A match: qualification Q<number> unless told otherwise, with `red`/`blue` teams. */
 const match = (number: number, teams: number[], opts: { played?: boolean; level?: "qual" | "playoff"; series?: number } = {}): MatchView =>
@@ -25,9 +25,16 @@ describe("/next's match", () => {
     expect(nextPlaying([e], 4215)?.match.number).toBe(3);
   });
 
-  it("counts the team in a playoff alliance too", () => {
-    const e = event("A", [match(1, [4215], { level: "playoff" })]);
+  it("counts the team as a playoff alliance's third robot", () => {
+    const e = event("A", [match(1, [1111, 2222, 4215], { level: "playoff" })]);
     expect(nextPlaying([e], 4215)?.match.key).toBe("playoff-1");
+  });
+
+  it("tells a schedule that has the team from one that doesn't, even with everything played", () => {
+    const played = event("A", [match(1, [4215], { played: true })]);
+    expect(nextPlaying([played], 4215)).toBeNull();
+    expect(inEvent(played, 4215)).toBe(true);
+    expect(inEvent(event("B", [match(1, [6980])]), 4215)).toBe(false);
   });
 
   it("reads the events in the order it is given them, so the earliest one answers", () => {
