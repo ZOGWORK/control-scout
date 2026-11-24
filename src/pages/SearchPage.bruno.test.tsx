@@ -110,7 +110,7 @@ describe("Bruno leading the v8 page", () => {
     await settle();
     expect(asked.at(-1)).toContain(`&after=${encodeURIComponent("4215 auto points")}`);
     expect(container.querySelector("[data-bruno-lead] [data-bruno-verdict]")).not.toBeNull();
-    expect(container.querySelector("[data-follow-from]")!.textContent).toBe("Read with your last search: 4215 auto points");
+    expect(container.querySelector("[data-follow-from]")!.textContent).toBe("Your last search: 4215 auto points");
     sessionStorage.clear();
   });
   it("a follow-up with no last search is the card alone, saying it needs the team or event", async () => {
