@@ -21,6 +21,7 @@ import { withVideoAlternatives } from "./api/answers/videoSuggest.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
+import { chatWords, pointsBack } from "./api/query/chat.js";
 import { SEARCH_PAGE_LIMIT, isBrunoQuestion, preferOf } from "../src/shared/search.js";
 import { searchTiming } from "./api/searchTiming.js";
 
@@ -475,7 +476,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       if (req.query.bruno === "1" && req.query.season == null && ans.chat !== "follow-up" && !(!ans.weak && (ans.card || ans.stat))) {
         // Only a question he'd answer, and only within the visitor's Bruno budget (the same one his route spends).
         const raw = String(req.query.q ?? "");
-        if (isBrunoQuestion(raw.trim().slice(0, 200)) && brunoBudget.take(req)) {
+        // Nor words that point back at an earlier search ("were those…"): the page may ask him those with it.
+        if (isBrunoQuestion(raw.trim().slice(0, 200)) && !pointsBack(chatWords(raw)) && brunoBudget.take(req)) {
           if (prepaid.size > 5000) prepaid.clear();
           prepaid.set(brunoAsk(req), Date.now());
           void brunoAnswer(raw, { prefer, limit: SEARCH_PAGE_LIMIT }).catch(() => {});
