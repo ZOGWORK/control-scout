@@ -17,7 +17,7 @@ function parsed(path: string, name: string): unknown {
 /** A shared entry as the runner reads one: a set, a number, a question. */
 const isEntry = (x: unknown): x is HeldOut => {
   const e = x as Partial<HeldOut> | null;
-  return !!e && typeof e === "object" && typeof e.set === "string" && !!e.set && Number.isInteger(e.n) && typeof e.q === "string" && !!e.q.trim();
+  return !!e && typeof e === "object" && typeof e.set === "string" && !!e.set.trim() && Number.isInteger(e.n) && typeof e.q === "string" && !!e.q.trim();
 };
 
 /** Every held-out question, the shared file's first, then each set's own file by name. Throws, naming the file, on a

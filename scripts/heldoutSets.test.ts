@@ -50,6 +50,7 @@ describe("held-out sets", () => {
     // The shared file is checked as the set files are, naming itself.
     expect(() => heldoutSets(dirWith({}, { "g.json": ["x"] }))).toThrow("scripts/search-heldout.json: a list of");
     expect(() => heldoutSets(dirWith([{ set: "a", n: 1 }], {}))).toThrow("scripts/search-heldout.json: entry 1");
+    expect(() => heldoutSets(dirWith([{ set: "  ", n: 1, q: "x" }], {}))).toThrow("scripts/search-heldout.json: entry 1");
     // No questions at all never passes as a run that asked none.
     expect(() => heldoutSets(dirWith([], {}))).toThrow("no held-out questions");
   });
