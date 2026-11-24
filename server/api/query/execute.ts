@@ -33,6 +33,7 @@ import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { advancementAt, advancementEvent, advancementNotListed, seasonAdvancement } from "../answers/families/advancement.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { eventFieldAnswer, saysOtherThanOpr } from "../answers/families/eventVersus.js";
+import { seasonsAnswer } from "./seasons.js";
 import { asksNow, streakBoardAnswer } from "./streakBoard.js";
 import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
@@ -71,6 +72,12 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   if (asksSelfMatch(q, p)) {
     const n = String(p.teams[0].number);
     return selfMatchAnswer(p, (await opts.resolve(n)).hits.find((h) => h.kind === "team" && h.ref === n), opts.pages, opts.full);
+  }
+  // A run of seasons ("4215 opr since 2023", "best teams 2023-24 to 2025-26"): each season's rank, never one season's
+  // stat set against another's (./seasons.ts); any other question of a run is left to search's other readers.
+  if (p.time?.kind === "seasons") {
+    const stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s))];
+    return stats.length > 1 ? null : seasonsAnswer(p, stats[0] ?? null, opts);
   }
   // An event's matches and nothing else asked ("<event> matches", "matches at <event>"): its matches in the order played,
   // each row playing its clip, as a team's matches do.

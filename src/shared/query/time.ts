@@ -7,7 +7,7 @@ import { timeWindow, type SearchTime } from "../searchEventQuery.js";
 
 export interface TimeSlot {
   /** What kind of time was said: a date window, one season, every season. */
-  kind: "window" | "season" | "ever";
+  kind: "window" | "season" | "ever" | "seasons";
   /** The window's first and last day (YYYY-MM-DD, inclusive), for a window. */
   from?: string;
   to?: string;
@@ -22,6 +22,9 @@ export interface TimeSlot {
   /** A calendar year typed: a bare one ("2025", read as its season), or a date's or a month's ("march 2026"). A window
    *  with its year typed is never relaxed to another season. */
   year?: number;
+  /** A run of seasons ("since 2023", "2023-24 to 2025-26", "last 3 seasons"): the first and the last (null: the
+   *  latest, resolved by the executor), or the latest `last` seasons. `season` is null for a run. */
+  range?: { from: number | null; to: number | null; last?: number };
 }
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
@@ -114,6 +117,10 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
     return out({ kind: "season", season: y, year: y, label: known(y) ? `in ${SEASONS.find((s) => s.season === y)!.label}` : `in ${y}–${String((y + 1) % 100).padStart(2, "0")}`, typed: y4[0].trim() });
   };
 
+  // A run of seasons: "2023-24 to 2025-26", "from 2023 to 2025", "between 2023 and 2025", "since 2023", "last 3
+  // seasons". A bare year in one only where a year may stand (yearOk), as for one season.
+  const range = seasonRange(rest, yearOk);
+  if (range) { cut(range.m); return out(range.t); }
   // A date: "on mar 15 2026", "march 15, 2026", "3/15/2026", "2026-03-15".
   let m = /\b(?:on\s+)?([a-z]{3,9}\.?)\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+(20\d\d)\b/.exec(rest);
   const said = m && monthIndex(m[1]) >= 0 ? realDay(Number(m[3]), monthIndex(m[1]), Number(m[2])) : null;
@@ -172,4 +179,35 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
   m = /\b(?:ever|all[\s-]*time|of\s+all[\s-]*time|in\s+history|all\s+seasons|every\s+season|career|overall)\b/.exec(rest);
   if (m) { cut(m); return out({ kind: "ever", season: null, label: "all seasons", typed: m[0].trim() }); }
   return bareYear() ?? { time: null, rest: rest.replace(/\s+/g, " ").trim() };
+}
+
+/** A season as typed in a run: "2023-24", "2023–2024" or a bare year (its season). Null when the halves don't follow. */
+const SEASON_WORD = String.raw`(20[1-3]\d)(?:\s*[-–/]\s*(\d\d(?:\d\d)?))?`;
+const seasonOf = (y: string, end: string | undefined): number | null =>
+  end === undefined || (end.length === 2 ? (Number(y) + 1) % 100 : Number(y) + 1) === Number(end) ? Number(y) : null;
+const seasonText = (s: number) => `${s}–${String((s + 1) % 100).padStart(2, "0")}`;
+const COUNT_WORDS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+
+/** The run of seasons `rest` names, and its match, or null. */
+function seasonRange(rest: string, yearOk: (y: number) => boolean): { t: TimeSlot; m: RegExpExecArray } | null {
+  const ok = (y: string, end: string | undefined) => { const s = seasonOf(y, end); return s != null && (end !== undefined || yearOk(Number(y))) ? s : null; };
+  // "2023-24 to 2025-26", "from 2023 to 2025", "between 2023 and 2025", "2023 through 2025".
+  let m = new RegExp(String.raw`\b(?:from\s+|between\s+)?(?:the\s+)?${SEASON_WORD}(?:\s+seasons?)?\s+(?:to|through|thru|until|and|-|–)\s+(?:the\s+)?${SEASON_WORD}(?:\s+seasons?)?\b`).exec(rest);
+  if (m && (!/\band\b/.test(m[0]) || /\bbetween\b/.test(m[0]))) {
+    const a = ok(m[1], m[2]), b = ok(m[3], m[4]);
+    if (a != null && b != null && a < b) return { m, t: { kind: "seasons", season: null, range: { from: a, to: b }, label: `${seasonText(a)} to ${seasonText(b)}`, typed: m[0].trim() } };
+  }
+  // "since 2023", "since the 2023-24 season": that season to the latest.
+  m = new RegExp(String.raw`\b(?:since|from)\s+(?:the\s+)?${SEASON_WORD}(?:\s+seasons?)?(?:\s+(?:on|onwards?))?\b`).exec(rest);
+  if (m && /^since|\bon(?:wards?)?$/.test(m[0].trim())) {
+    const a = ok(m[1], m[2]);
+    if (a != null) return { m, t: { kind: "seasons", season: null, range: { from: a, to: null }, label: `since ${seasonText(a)}`, typed: m[0].trim() } };
+  }
+  // "last 3 seasons", "the past three seasons".
+  m = /\b(?:the\s+)?(?:last|past|previous|recent)\s+(\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)\s+seasons\b/.exec(rest);
+  if (m) {
+    const n = COUNT_WORDS[m[1]] ?? Number(m[1]);
+    if (n >= 2 && n <= 20) return { m, t: { kind: "seasons", season: null, range: { from: null, to: null, last: n }, label: `the last ${n} seasons`, typed: m[0].trim() } };
+  }
+  return null;
 }
