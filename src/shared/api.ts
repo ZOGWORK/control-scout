@@ -184,6 +184,10 @@ export interface SearchAnswer {
   /** Made on the device with no signal (src/lib/offline/search.ts), never by the server: the query needs data the
    *  downloaded event packs don't hold. The page says so, with what is in them. */
   notInPack?: NotInPack;
+  /** A query that isn't a search of FTC data (server/api/query/chat.ts): to the site itself ("meta"), about an earlier
+   *  answer ("follow-up": /search asks Bruno with the tab's last search), about getting something ("off-topic"), or a
+   *  reaction. Its card says so; nothing is guessed from its words. */
+  chat?: "meta" | "follow-up" | "off-topic" | "reaction";
 }
 
 /** Why a search can't be answered with no signal, and what the device does hold (SearchAnswer.notInPack). */

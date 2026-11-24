@@ -8,7 +8,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { invalidateFlags, setFlag } from "../flags";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, brunoAnswer, grounded, partialAnswer, previewOf, resetBrunoAnswerCache, statFacts, type BrunoAnswer } from "./searchBrunoAnswer";
+import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, brunoAnswer, followUpOf, grounded, partialAnswer, previewOf, resetBrunoAnswerCache, statFacts, type BrunoAnswer } from "./searchBrunoAnswer";
 import { isBrunoQuestion } from "../../src/shared/search";
 
 let fake: Server;
@@ -172,6 +172,33 @@ describe("asking Bruno", () => {
     reply = { text: "4215 went to states 2 times." };
     expect(await brunoAnswer(Q)).toEqual(withPoints(reply));
   }, 30_000);
+});
+
+// Logged #2214/#2210: "was that the same auto points in all the matches u said here" points back at an earlier
+// answer: with the page's last search (`after`), he answers from that search's records.
+const FOLLOW = "was that the same auto points in all the matches u said here";
+describe("a follow-up to the tab's last search", () => {
+  it("is answered from the earlier search's facts, said as that search's", async () => {
+    reply = { text: "Hypnotic Robotics (4215) had an OPR of 101.6 in 2025–26." };
+    expect(await brunoAnswer(FOLLOW, { after: "4215 opr" })).toEqual(withPoints(reply));
+    expect(asked[0].question).toBe(FOLLOW);
+    expect(asked[0].facts[0]).toBe(`This question follows up the earlier search "4215 opr": the facts below are that search's answer.`);
+    expect(asked[0].facts.slice(1)).toEqual(await answerFacts(await searchAnswer("4215 opr", { learn: false })));
+  });
+  it("each earlier search is cached apart", async () => {
+    reply = { text: "Yes." };
+    await brunoAnswer(FOLLOW, { after: "4215 opr" });
+    await brunoAnswer(FOLLOW, { after: "4215 record" });
+    expect(asked).toHaveLength(2);
+  });
+  it("an earlier search is never read with a question that doesn't point back", async () => {
+    reply = { text: "4215 went to states 2 times." };
+    await brunoAnswer(Q, { after: "4215 opr" });
+    expect(asked[0].facts).toEqual(await answerFacts(await searchAnswer(Q, { learn: false })));
+    expect(followUpOf(Q, "4215 opr")).toBeNull();
+    expect(followUpOf(FOLLOW, "")).toBeNull();
+    expect(followUpOf(FOLLOW, FOLLOW)).toBeNull();
+  });
 });
 
 describe("streamed to the page", () => {
