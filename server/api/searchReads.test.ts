@@ -3,7 +3,7 @@
 // served from before the move until drawn again once, and everything dropped by "Clear caches".
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, kvSet, migrate, openDb, setDb } from "../db";
-import { clearAllCaches } from "../caches";
+import { clearAllCaches, clearClipCaches } from "../caches";
 import { keptAnswer, keptCounts, keptPage, PAGE_TTL_MS, PAGES_KEPT, searchGet, searchRead, searchVersion, STALE_MS } from "./searchReads";
 
 beforeEach(async () => {
@@ -147,6 +147,21 @@ describe("kept pages", () => {
     await kvSet("data:version", "2");
     tick(3_000);
     expect(await keptPage("/teams/1", async () => "v2")).toBe("v2");
+  });
+
+  it("serves each answer and page from before a clip-start change while one is drawn again; the reads go", async () => {
+    let n = 0;
+    const draw = () => Promise.resolve(++n);
+    expect(await keptPage("/teams/1", draw)).toBe(1);
+    expect(await keptAnswer("q", draw)).toBe(2);
+    await searchRead("SELECT 1 AS x");
+    clearClipCaches();
+    expect(keptCounts()).toMatchObject({ rows: 0, pages: 0, answers: 0, carried: 2 });
+    // Served as kept, once, while the new draw is made; then the new one.
+    expect(await keptPage("/teams/1", draw)).toBe(1);
+    expect(await keptPage("/teams/1", draw)).toBe(3);
+    expect(await keptAnswer("q", draw)).toBe(2);
+    expect(await keptAnswer("q", draw)).toBe(4);
   });
 
   it("is emptied by Clear caches", async () => {
