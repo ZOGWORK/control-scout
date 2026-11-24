@@ -51,8 +51,14 @@ const listAt = async (key: string): Promise<Asked[]> => {
 
 /** Every lane's list, merged: each list's first, then each one's second, and so on, each search once, HOT_MAX in all. */
 export async function hotList(): Promise<Asked[]> {
-  // A lane's list that can't be read is left out (the others still warm).
-  const lists = await Promise.all(LANES.map((l) => listAt(keyOf(l)).catch(() => [] as Asked[])));
+  return (await hotListRead()).list;
+}
+
+/** hotList, and whether every lane's list was read (`whole`): a lane that can't be read is left out, so the others
+ *  still warm, but a run over a partial list isn't the whole index's (precomputeHot tries it again). */
+async function hotListRead(): Promise<{ list: Asked[]; whole: boolean }> {
+  let whole = true;
+  const lists = await Promise.all(LANES.map((l) => listAt(keyOf(l)).catch(() => { whole = false; return [] as Asked[]; })));
   const out: Asked[] = [], seen = new Set<string>();
   for (let i = 0; out.length < HOT_MAX && lists.some((l) => i < l.length); i++) {
     for (const l of lists) {
@@ -60,7 +66,7 @@ export async function hotList(): Promise<Asked[]> {
       if (x && !seen.has(k) && out.length < HOT_MAX) { seen.add(k); out.push(x); }
     }
   }
-  return out;
+  return { list: out, whole };
 }
 
 let saving: Promise<number> = Promise.resolve(0);
@@ -114,12 +120,13 @@ export function precomputeHot(): Promise<number> {
   return (aheadRunning ??= (async () => {
     const version = await searchVersion();
     if (version === aheadFor) return 0;
-    const qs = (await hotList()).filter(([, limit]) => limit === SEARCH_PAGE_LIMIT).map(([q]) => q).slice(0, HOT_FOLLOW_MAX);
+    const { list, whole } = await hotListRead();
+    const qs = list.filter(([, limit]) => limit === SEARCH_PAGE_LIMIT).map(([q]) => q).slice(0, HOT_FOLLOW_MAX);
     const made = await precomputeFollowUps(qs);
-    // Done for this index only when every one was made, and there were some: one that failed, or a list that couldn't
-    // be read (hotList leaves a failed lane out), is tried again on the next tick (server/index.ts), not left slow
-    // until the next stats run.
-    if (qs.length && made === qs.length && (await searchVersion()) === version) aheadFor = version;
+    // Done for this index only when every lane's list was read, there were searches in it, and every one was made:
+    // a set that failed, or a lane that couldn't be read, is tried again on the next tick (server/index.ts), not
+    // left slow until the next stats run.
+    if (whole && qs.length && made === qs.length && (await searchVersion()) === version) aheadFor = version;
     return made;
   })().finally(() => { aheadRunning = null; }));
 }
