@@ -94,6 +94,8 @@ describe("two questions joined by 'and' (#2199, #2200)", () => {
     expect(a.card?.lines.map((l) => l.text).join(" ")).toContain("Miami");
     expect(a.hits.some((h) => h.kind === "team" && h.ref === "36013")).toBe(true);
     expect(a.understood?.label).toMatch(/^Best rookie teams · Decagonator \(36013\)/);
+    // The page asks by its limit (/api/search?answer=1&limit=25), not by `full`: the same card.
+    expect((await searchAnswer("top rookie teams and where is 36013", { limit: 25, learn: false })).card?.kind).toBe("info");
   });
   it("answers the rookie list when asked where with nothing named: each row says where the team is from", async () => {
     const a = await full("top rookie teams and where id");
