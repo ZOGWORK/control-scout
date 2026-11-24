@@ -534,6 +534,21 @@ describe("not, without, except (search audit: general \"not\")", () => {
       } finally { clearAllCaches(); }
     }
   });
+  it("Worlds as a match board's scope, however it's said: its matches only, its divisions' counted", async () => {
+    for (const q of ["highest scoring matches at worlds", "highest scoring games in worlds", "closest matches at worlds", "lowest scoring matches at worlds", "closest games in houston"]) {
+      const a = await ask(q);
+      const blocks = JSON.stringify(a.stat?.blocks ?? []);
+      // The Edison Division's one match; never a New Jersey event's.
+      expect([a.step, a.stat?.intent?.startsWith("find-"), a.stat?.title, blocks.includes("FTCCMP1EDIS"), /USNJ/.test(blocks)], q).toEqual(["deterministic", true, expect.stringContaining("at Worlds"), true, false]);
+    }
+    // A year said is the Worlds held that year: the season before's (its Franklin Division, held in April of that year).
+    const held = await ask(`highest scoring matches at worlds ${S}`);
+    const heldBlocks = JSON.stringify(held.stat?.blocks ?? []);
+    expect([held.stat?.title, heldBlocks.includes("FTCCMP1FRAN"), heldBlocks.includes("FTCCMP1EDIS")]).toEqual([expect.stringContaining(`${S - 1}–`), true, false]);
+    // A division named beside Worlds is that division only, never all of Worlds.
+    const division = JSON.stringify((await ask("closest matches at worlds franklin division")).stat?.blocks ?? []);
+    expect([division.includes("FTCCMP1FRAN"), division.includes("FTCCMP1EDIS")]).toEqual([true, false]);
+  });
 });
 
 describe("a place's count, first paint", () => {
