@@ -62,11 +62,13 @@ export const hasVideo = (v: SearchVideo | null | undefined) => !!(v?.main || v?.
 export async function videoCandidates(a: SearchAnswer, now = Date.now(), typosOf: () => Promise<ReadonlySet<string>> = nameTypos): Promise<string[]> {
   const out: string[] = [];
   const teams = answerTeams(a);
+  // The current season read once for the whole list (a search may refresh it meanwhile).
+  const current = currentSeason();
   for (const team of teams) {
     // Each read on its own: one that fails drops its own questions, never the others'.
     const ms = await teamMatches(team).catch(() => []);
     let mine = 0;
-    for (let s = currentSeason(); s > currentSeason() - SEASONS_BACK && mine < 2; s--) {
+    for (let s = current; s > current - SEASONS_BACK && mine < 2; s--) {
       const theirs = ms.filter((m) => m.season === s);
       if (!theirs.length) continue;
       const keys = await seasonClipKeys(s, now).catch(() => new Set<string>());
@@ -83,7 +85,7 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now(), typosOf
   const at = refs[0] ?? null;
   type Ref = NonNullable<typeof at>;
   const near: [number, Ref][] = at ? [[at.season, at], [at.season - 1, at]] : [];
-  const tries: [number, Ref | null][] = [...near, [currentSeason(), null], [currentSeason() - 1, null]];
+  const tries: [number, Ref | null][] = [...near, [current, null], [current - 1, null]];
   for (const [s, from] of tries) {
     // The latest seasons' only to make three when fewer were found near the answer's own.
     if (out.length >= TRY_MAX || (!from && at && out.length >= own + OFFER_MAX)) break;

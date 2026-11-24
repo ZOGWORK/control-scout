@@ -1,5 +1,7 @@
 // One "current season" for search (docs/search-pipeline.md, "Season default"): ./season.ts reads it from the data and
-// today's date, and every answer and the query pipeline ask it. The fixed CURRENT_SEASON (the newest season in the
+// today's date, and every answer (server/api/answers) and the query pipeline (server/api/query) ask it. The older
+// readers directly under server/api still use CURRENT_SEASON for what is the configured season rather than a search's
+// default (registration counts, a predict link); the second test keeps them from defining a season default of their own. The fixed CURRENT_SEASON (the newest season in the
 // season list) and a reader's own "this season" helper disagree with it around the September rollover, before the
 // next season is listed, and in the days a Championship is under way.
 import { readdirSync, readFileSync } from "node:fs";
