@@ -9,6 +9,7 @@ import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../searchEventQuery.js";
 import { onlyTopicWords } from "../searchQuery.js";
 import { asksWhich, onlyOrdinary } from "./ordinary.js";
+import { everydayWord } from "./everyday.js";
 import { pickShared as pickAmong } from "./shared.js";
 
 /** A name as typed or stored, compared whole: lower case, any run of punctuation and spaces one space. */
@@ -737,6 +738,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       // What a question asks about is never a name typed nearly right ("inspire" is no typo of team Inspires), nor is an
       // ordinary word ("month" is no typo of team Monte).
       if (onlyTopicWords(span.map((t) => t.typed).join(" ")) || onlyOrdinary(span.map((t) => t.w).join(" "))) continue;
+      // Nor is a word of everyday English ("pizza" is no typo of team PITZZA), unless "team" says it names one there.
+      if (span.every((t) => everydayWord(t.w)) && !/^teams?$/.test(toks[start - 1]?.w ?? "")) continue;
       const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
       // A name several teams share typed nearly right ("copper roboics", two teams called Copper Robotics) is that
       // name: its teams, picked or asked about as the name typed right is. A number after it that is no team's

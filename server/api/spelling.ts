@@ -22,6 +22,7 @@ import { REGION_NAMES } from "../../src/shared/regions.js";
 import { SEARCH_FILLER, SEARCH_PAGES, SEARCH_TOPICS, pagesFor } from "../../src/shared/search.js";
 import { CONVERSATIONAL, EVENT_WORDS, PLURALS, QUESTION_WORDS, STOPWORDS, TIME_WORDS } from "../../src/shared/searchQuery.js";
 import { EVENT_NAME_WORDS, LEXICON } from "./query/lexicon.js";
+import { everydayWord } from "../../src/shared/query/everyday.js";
 
 /** Lexicon kinds that name something to show, so a misspelling of one of their words is corrected. */
 const SEE_KINDS = new Set(["highlights", "videos"]);
@@ -301,9 +302,13 @@ export interface WordFix { word: string; own: boolean }
 
 /** The correction for one word (lower case, letters only), or null to leave it as typed. `last`: the query's last
  *  word, which may still be being typed. */
-export function correctWord(w: string, v: Vocab, last = false): WordFix | null {
+export function correctWord(w: string, v: Vocab, last = false, named = false): WordFix | null {
   const max = allowedEdits(w.length);
   if (!max || v.keep.has(w)) return null;
+  // A word of everyday English ("minor", "pizza", "cheap") is a word typed right: only ever a slip from one of search's
+  // own words ("scare" for "score"), never from a word of a name or a place ("Milnor", "PITZZA"), unless the query says
+  // it names a team there (`named`: "team" just before it).
+  const plain = !named && everydayWord(w);
   // A plain form of a known word ("winning") is left as typed, unless it is one of search's own words with a letter
   // added inside it, which no ending makes ("lastest" is "latest", never "last" with "-est").
   const form = formOfKnown(w, v.keep, v.own);
@@ -343,6 +348,7 @@ export function correctWord(w: string, v: Vocab, last = false): WordFix | null {
     }
   }
   if (form) found.splice(0, found.length, ...found.filter((c) => c.own === 2 && letterAdded(w, c.word)));
+  if (plain) found.splice(0, found.length, ...found.filter((c) => c.own > 0));
   if (!found.length) return null;
   // As close by typing, the fewer plain edits first ("lasetest" is "latest", two letters added, not "largest").
   found.sort((a, b) => a.d - b.d || editDistance(w, a.word, 4) - editDistance(w, b.word, 4) || b.own - a.own || Number(b.slip) - Number(a.slip) || b.n - a.n || (a.word < b.word ? -1 : 1));
@@ -435,7 +441,9 @@ export async function correctQuery(q: string, loose = false): Promise<{ q: strin
     if (!(loose ? /^\p{L}{3,}$/u : /^\p{L}{4,}$/u).test(p) || p === p.toUpperCase()) return p;
     const lower = p.toLowerCase();
     if (normalize(p) !== lower) return p;
-    const fix = loose ? looseWord(lower, v) : correctWord(lower, v, i === lastWord) ?? splitWord(lower, v);
+    // "team" just before a word says it names a team ("team pizza"): a name's word may be the fix then.
+    const named = /^teams?$/i.test(parts[i - 2] ?? "");
+    const fix = loose ? looseWord(lower, v) : correctWord(lower, v, i === lastWord, named) ?? splitWord(lower, v);
     if (!fix) return p;
     fixes.push([lower, fix.word]);
     own &&= fix.own;
