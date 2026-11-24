@@ -82,7 +82,7 @@ export function boardStatFor(id: string, season: number): BoardStat | undefined 
 
 export type BoardKind = "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best" | "career" | "oldest" | "number";
 /** `best`: "best team in New Jersey by OPR", one team asked for: titled so, the next few listed under it. */
-export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
+export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; also?: Region[]; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
   /** `city` is a school's name: its teams. */
   school?: boolean;
   /** The state or country said with the town: its teams from there only. */
@@ -127,6 +127,9 @@ export const statWords = (st: BoardStat) => (/OPR/.test(st.label) ? st.label : s
 const fmt = (v: number | null, st: BoardStat) => (v == null ? "–" : st.unit === "%" ? `${Math.round(v * 100)}%` : st.digits ? (Math.round(v * 10) / 10).toFixed(1) : String(Math.round(v)));
 
 /** The Teams page's season table, filtered and sorted as this list (src/lib/records/urlState.ts reads these). */
+/** The board's place in words: the region, and any said beside it ("New Jersey and New York"). */
+export const boardPlace = (b: Pick<BoardQuestion, "region" | "also">) => (b.region ? [b.region, ...(b.also ?? [])].map((r) => r.name).join(" and ") : null);
+
 export function teamsHref(season: number, st: BoardStat, region: Region | null, rookie = false, lowest = false): string | null {
   if (!st.teamsSort) return null;
   const p = new URLSearchParams({ view: "season", season: String(season) });
@@ -179,10 +182,13 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
       definition: `${group ? group.rule : `“${said}” names no New Jersey conference in ${seasonLabel(season)}.`}${why}`, source: `New Jersey's ${seasonLabel(season)} conferences`, blocks: [],
       none: group ? `No team list yet for ${group.label}: neither FIRST nor FTC New Jersey has posted one.` : `No New Jersey conference in ${seasonLabel(season)} has “${said}” in its name.` };
   }
-  const where = b.teams ? " named" : group ? ` in ${group.label}` : b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : " worldwide";
-  const regionSql = `${group ? "" : b.region ? ` AND t.country = ?${b.region.state ? " AND t.state = ?" : ""}` : ""}${b.town ? " AND lower(t.city) = lower(?)" : ""}${group ? ` AND t.number IN (${group.teams.map(() => "?").join(", ")})` : ""}`;
-  const regionArgs = [...(b.region && !group ? [b.region.country, ...(b.region.state ? [b.region.state] : [])] : []), ...(b.town ? [b.town] : []), ...(group ? group.teams.map(String) : [])];
-  const chips = b.teams ? [`${b.teams.length} teams named`, seasonLabel(season)] : group ? [...group.names, "New Jersey", seasonLabel(season)] : [...(b.town ? [b.town] : []), b.region?.name ?? "Worldwide", seasonLabel(season)];
+  // The region and any said beside it ("nj or ny"): the teams of any of them.
+  const regions = b.region ? [b.region, ...(b.also ?? [])] : [];
+  const one = (r: Region) => `t.country = ?${r.state ? " AND t.state = ?" : ""}`;
+  const where = b.teams ? " named" : group ? ` in ${group.label}` : b.town ? ` in ${b.town}` : b.region ? ` in ${boardPlace(b)}` : " worldwide";
+  const regionSql = `${group || !regions.length ? "" : regions.length > 1 ? ` AND ((${regions.map(one).join(") OR (")}))` : ` AND ${one(regions[0])}`}${b.town ? " AND lower(t.city) = lower(?)" : ""}${group ? ` AND t.number IN (${group.teams.map(() => "?").join(", ")})` : ""}`;
+  const regionArgs = [...(group ? [] : regions.flatMap((r) => [r.country, ...(r.state ? [r.state] : [])])), ...(b.town ? [b.town] : []), ...(group ? group.teams.map(String) : [])];
+  const chips = b.teams ? [`${b.teams.length} teams named`, seasonLabel(season)] : group ? [...group.names, "New Jersey", seasonLabel(season)] : [...(b.town ? [b.town] : []), ...(regions.length ? regions.map((r) => r.name) : ["Worldwide"]), seasonLabel(season)];
   if (b.kind === "improved") return improvedAnswer(b, season, where, regionSql, regionArgs, chips, why);
   if (b.kind === "career" || b.kind === "oldest" || b.kind === "number") return careerAnswer(b, where, regionSql, regionArgs);
   if (b.kind === "steady") return steadyAnswer(b, season, where, regionSql, regionArgs, chips, why);
@@ -216,7 +222,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const titled = filters ? `${title}: ${filters}` : title;
   // A link opens the same list or none: Rankings has no rookie filter and no lowest-first order, and neither page
   // takes a town or undefeated teams, so those get no link rather than one to a different list.
-  const href = group || b.town || b.undefeated || b.teams || filters ? null : st.teamsSort ? teamsHref(season, st, b.region, rookie, !!b.asc)
+  const href = group || b.town || b.undefeated || b.teams || b.also?.length || filters ? null : st.teamsSort ? teamsHref(season, st, b.region, rookie, !!b.asc)
     : st.id === "rating" && !rookie && !b.asc ? rankingsHref(season, b.region) : null;
   const definition = `${group ? `${group.rule} ` : ""}${b.nameHas ? `Name includes “${b.nameHas}”: the team's name has those letters anywhere in it, any case. ` : ""}${b.noAward ? `No award ever won: no award on record for the team in any season${firstAward != null ? ` (awards are on record from ${seasonLabel(Number(firstAward))})` : ""}, winning and finalist alliances counted as awards. ` : ""}${b.undefeated ? "Undefeated: no losses in the season's matches (ties allowed). " : ""}${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "record" ? " Record: wins-losses-ties, the best win rate first (wins over matches played, ties counted as played), then the most wins." : ""}${st.id === "penalties" ? " Penalties a match: penalty points the robot alone gives away a match, its prediction rating's estimate as the team page shows it; a tie goes to the points its alliances gave away a match; ranked once 3 matches are rated." : ""}${st.id === "awards" ? " Awards won: every award the team's events gave it that season, winning and finalist alliances included." : ""}${st.id === "matches" || st.id === "events" ? ` ${st.label}: at every event of the season, scrimmages included, as the team page counts them.` : ""}${st.id === "reliability" ? " Reliability: the team page's index out of 100, from no-shows, disqualifications, near-zero matches and how steady its scoring is." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength; ranked once 3 matches are rated, as on Rankings." : ""}${st.id.includes("+") ? ` ${st.label}: each phase's OPR added, as the team page shows them.` : ""}${bottom ? " Lowest first: the bottom of the ranked list, each team's place counted from the top." : ""}${why}`;
   const total = Number(count?.n ?? 0);
@@ -277,7 +283,7 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
   const title = careerBoardTitle(b, where);
   // No season with a match on record: no years to say, so none are made up.
   if (span?.first == null || span?.last == null) {
-    return { family: "leaderboard", intent: oldest ? "oldest-active" : `career-${b.stat.id}`, title, scope: [b.region?.name ?? "Worldwide"], definition: oldest ? "Still active: a match on record in one of the two latest seasons played." : c.rule,
+    return { family: "leaderboard", intent: oldest ? "oldest-active" : `career-${b.stat.id}`, title, scope: [boardPlace(b) ?? "Worldwide"], definition: oldest ? "Still active: a match on record in one of the two latest seasons played." : c.rule,
       source: `Every season on record${where}`, blocks: [], none: `No team${where} has a match on record yet.` };
   }
   const first = Number(span.first), last = Number(span.last);
@@ -295,7 +301,7 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
   // Still active: a match in the latest season played or the one before (a new season's first weeks have few).
   const active = `${seasonLabel(last - 1)} or ${seasonLabel(last)}`;
   const base = {
-    family: "leaderboard" as const, intent: oldest ? "oldest-active" : `career-${b.stat.id}`, title, scope: [b.region?.name ?? "Worldwide", oldest ? `Active in ${active}` : `Every season on record (${S})`],
+    family: "leaderboard" as const, intent: oldest ? "oldest-active" : `career-${b.stat.id}`, title, scope: [boardPlace(b) ?? "Worldwide", oldest ? `Active in ${active}` : `Every season on record (${S})`],
     definition: (oldest ? `Still active: a match on record in ${active}, the two latest seasons played. Oldest: the earliest rookie year, as FIRST lists it; a tie goes to the most seasons on record.`
       : `${c.rule} Seasons on record here run ${S}.`) + " OPR: each team's in its latest season with a match.",
     source: oldest ? `Teams${where} with a match in ${active}` : `From every season on record${where} (${S})`,
@@ -326,7 +332,7 @@ async function numberAnswer(b: BoardQuestion, where: string, regionSql: string, 
   const intent = b.asc ? "lowest-number" : "highest-number";
   const last = (await get<{ last: number | null }>("SELECT MAX(season) last FROM team_season_stats WHERE matches > 0"))?.last;
   const rule = "Team number: the number FIRST lists for the team. Still active: a match on record in one of the two latest seasons played.";
-  if (last == null) return { family: "leaderboard", intent, title, scope: [b.region?.name ?? "Worldwide"], definition: rule, source: `Every season on record${where}`, blocks: [], none: `No team${where} has a match on record yet.` };
+  if (last == null) return { family: "leaderboard", intent, title, scope: [boardPlace(b) ?? "Worldwide"], definition: rule, source: `Every season on record${where}`, blocks: [], none: `No team${where} has a match on record yet.` };
   const active = `${seasonLabel(Number(last) - 1)} or ${seasonLabel(Number(last))}`;
   const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; rookie: number | null; wins: number; losses: number; ties: number; lastPlayed: number; opr: number | null }>(
     `SELECT t.number team, t.name, t.city, t.state, t.country, t.rookie_year rookie, COALESCE(SUM(s.wins), 0) wins, COALESCE(SUM(s.losses), 0) losses, COALESCE(SUM(s.ties), 0) ties,
@@ -336,7 +342,7 @@ async function numberAnswer(b: BoardQuestion, where: string, regionSql: string, 
      WHERE ${teamPageSql("t.number", "t.name")}${regionSql}
      GROUP BY t.number HAVING lastPlayed >= ?
      ORDER BY t.number ${b.asc ? "ASC" : "DESC"} LIMIT ?`, [...regionArgs, Number(last) - 1, b.n]);
-  const base = { family: "leaderboard" as const, intent, title, scope: [b.region?.name ?? "Worldwide", `Active in ${active}`], definition: `${rule} OPR: each team's in its latest season with a match.`, source: `Teams${where} with a match in ${active}` };
+  const base = { family: "leaderboard" as const, intent, title, scope: [boardPlace(b) ?? "Worldwide", `Active in ${active}`], definition: `${rule} OPR: each team's in its latest season with a match.`, source: `Teams${where} with a match in ${active}` };
   if (!rows.length) return { ...base, blocks: [], none: `No team${where} has a match in ${active}.` };
   const top = rows[0];
   return {
@@ -394,7 +400,7 @@ async function windowCount(b: BoardQuestion, w: { from: string; to: string; labe
   const when = w.label;
   const title = b.best ? `Team${where} with the most ${label.toLowerCase()} ${when}` : `Top ${b.n} teams${where} by ${label.toLowerCase()} ${when}`;
   const base = {
-    family: "leaderboard" as const, intent: `top-${st.id}-window`, title, scope: [b.region?.name ?? "Worldwide", when.replace(/^./, (c) => c.toUpperCase()), `${w.from} to ${w.to}`],
+    family: "leaderboard" as const, intent: `top-${st.id}-window`, title, scope: [boardPlace(b) ?? "Worldwide", when.replace(/^./, (c) => c.toUpperCase()), `${w.from} to ${w.to}`],
     definition: `${label} ${when} (${w.from} to ${w.to}): every played match at an official event in those days, a match by its own date, else its event's first day; a team counts once it was on the field. OPR: the team's stored ${seasonLabel(season)} OPR.${st.id === "wins" ? " A win: its alliance's official score, penalties included, above the other's." : ""}${st.id === "events" ? " Events played: the events of those matches." : ""}`,
     source: `From the matches played ${when}`,
   };

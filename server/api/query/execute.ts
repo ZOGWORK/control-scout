@@ -33,6 +33,7 @@ import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { advancementAt, advancementEvent, advancementNotListed, seasonAdvancement } from "../answers/families/advancement.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { eventFieldAnswer, saysOtherThanOpr } from "../answers/families/eventVersus.js";
+import { placesAnswer } from "./places.js";
 import { asksNow, streakBoardAnswer } from "./streakBoard.js";
 import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
@@ -71,6 +72,12 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   if (asksSelfMatch(q, p)) {
     const n = String(p.teams[0].number);
     return selfMatchAnswer(p, (await opts.resolve(n)).hits.find((h) => h.kind === "team" && h.ref === n), opts.pages, opts.full);
+  }
+  // Two places joined ("nj vs texas average opr", "teams from nj or ny"): side by side, or one board over both; any
+  // other question of two places is left to search's other readers, never answered for the first place alone.
+  if (p.places) {
+    const stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
+    return stats.length > 1 ? null : placesAnswer(p, stats[0] ?? null, opts);
   }
   // An event's matches and nothing else asked ("<event> matches", "matches at <event>"): its matches in the order played,
   // each row playing its clip, as a team's matches do.

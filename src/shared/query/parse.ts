@@ -37,6 +37,9 @@ export interface Parsed {
   teams: TeamSlot[];
   event: EventSlot | null;
   place: (Place & { typed: string }) | null;
+  /** Two regions or countries joined ("nj vs texas", "nj or ny"), in the order typed; `place` is the one read first.
+   *  `join`: "vs" for a comparison ("vs", "versus", "against", "compared to"), "or" for both together ("or", "and"). */
+  places?: { list: (Place & { typed: string })[]; join: "vs" | "or" };
   time: TimeSlot | null;
   level: "qual" | "playoff" | null;
   /** The finals only ("closest finals match"), a playoff level too. */
@@ -329,7 +332,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     ...(fl ? { over: { n: Number(fl[2]), atLeast: fl[1] === "at least" } } : {}),
   };
   // Where the place read starts, in the parser's words: a place typed right after a shared name picks the team.
-  let placeFrom = -1;
+  let placeFrom = -1, placeLen = 0;
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
 
@@ -518,7 +521,41 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (!code && lexOnly && !theCountry) continue;
       const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
       if (pl && theCountry && pl.kind !== "country") continue;
-      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = i; span.forEach((t) => (t.used = true)); }
+      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = i; placeLen = len; span.forEach((t) => (t.used = true)); }
+    }
+  }
+  // 2c. A second region or country joined to the first by a word between them ("nj vs texas", "teams from nj or ny",
+  // "texas compared to new jersey"): both places, never one inside the other ("Cluj, Romania") nor a town.
+  if (p.place && p.place.kind !== "city") {
+    const at = (a: number, b: number) => {
+      if (a < 0 || b > toks.length || a >= b) return null;
+      const span = toks.slice(a, b);
+      if (span.some((t) => t.used) || span.every((t) => isLex(t.w) && t.w !== "the") || EVENT_NAME_WORDS.has(toks[b]?.w ?? "")) return null;
+      const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
+      return pl && pl.kind !== "city" && pl.name !== p.place!.name && !within(pl, p.place!) && !within(p.place!, pl) ? { ...pl, typed: span.map((t) => t.typed).join(" ") } : null;
+    };
+    const joinAt = (j: number): [number, "vs" | "or"] | null => {
+      const w = toks[j]?.w, w2 = toks[j + 1]?.w;
+      if (!w || toks[j].used) return null;
+      if (/^(?:vs|versus|v|against)$/.test(w)) return [1, "vs"];
+      if (/^(?:or|and)$/.test(w)) return [1, "or"];
+      if (/^(?:compared|comparing)$/.test(w) && /^(?:to|with)$/.test(w2 ?? "") && !toks[j + 1].used) return [2, "vs"];
+      return null;
+    };
+    const end = placeFrom + placeLen;
+    // After the first place, or before it ("texas vs new jersey": the longer name is read first).
+    const after = joinAt(end);
+    for (let len = 4; len >= 1 && !p.places; len--) {
+      if (after) {
+        const pl = at(end + after[0], end + after[0] + len);
+        if (pl) { p.places = { list: [p.place, pl], join: after[1] }; toks.slice(end, end + after[0] + len).forEach((t) => (t.used = true)); break; }
+      }
+      for (const k of [1, 2]) {
+        const j = placeFrom - k, before = joinAt(j);
+        if (!before || before[0] !== k) continue;
+        const pl = at(j - len, j);
+        if (pl) { p.places = { list: [pl, p.place], join: before[1] }; toks.slice(j - len, placeFrom).forEach((t) => (t.used = true)); placeFrom = j - len; break; }
+      }
     }
   }
 
