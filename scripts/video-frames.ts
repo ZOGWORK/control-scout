@@ -41,7 +41,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, foundBox, sampleFinds, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
@@ -769,6 +769,28 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
     // A clip already live (--verify, or a re-read start the live site serves: --live) whose opening frame named nothing
     // (blank, a transition, a cutaway) stays, to be read again: only an overlay naming another match pulls it.
     if (unread && !named && isLive(label, p.t)) { unread.add(label); continue; }
+    // Every lead named another match: the bar may only be late onto this one, the match before's final screen still up
+    // into its Auto (USTXNONUAMM1 2026 Q22: Q21's card until 13 s in, Q22's clock from 6403 after). A read into the
+    // match whose bar names it, its clock giving the same start (lagConfirms), keeps it, opening at its start. A read
+    // that fails here confirms nothing: the match goes to review as before.
+    if (named) {
+      let lag: number | null = null;
+      for (const k of LAG_READS) {
+        try {
+          const r = await readAt(page, p.t + k);
+          if (lagConfirms(r, p.t + k, label, p.t, SAME_S)) { lag = k; break; }
+        } catch (e) {
+          if (e instanceof EventOverTime) throw e;
+          log(`    ${label}: a read ${k} s into it failed (${(e as Error).message.split("\n")[0]}); not checked for a late bar`);
+          break;
+        }
+      }
+      if (lag != null) {
+        log(`    ${label}: every lead shows ${named}, but ${lag} s in its own bar runs from its start: the bar was late onto it, the clip opens at its start`);
+        j.opens.set(label, p.t);
+        continue;
+      }
+    }
     j.placed.delete(label);
     failed.push(label);
     if (named) j.review.set(label, { t: p.t, why: `its clip's first frame shows ${named}, not ${label}` });

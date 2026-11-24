@@ -117,6 +117,17 @@ describe("Playoffs with no alliances", () => {
     await title("No playoffs at a league meet");
     expect(screen.queryByText("Alliances not selected yet")).toBeNull();
   });
+  it("a league meet's Awards tab says it gives none, not that they are still to be published (#2202)", async () => {
+    current = { ...detail(2025), event: { ...detail(2025).event, type: "LeagueMeet", typeLabel: "League Meet" } };
+    mount("/events/2025/AUBRQ2?tab=awards");
+    await title("No awards at a league meet");
+    expect(screen.queryByText("No awards published yet")).toBeNull();
+  });
+  it("another event's empty Awards tab still waits for them", async () => {
+    mount("/events/2025/AUBRQ2?tab=awards");
+    await title("No awards published yet");
+    expect(screen.queryByText("No awards at a league meet")).toBeNull();
+  });
   it("an event whose last day is behind it at the venue has none on record", async () => {
     mount("/events/2025/AUBRQ2?tab=playoffs");
     await title("No alliances on record");

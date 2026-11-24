@@ -142,7 +142,7 @@ describe("page head in the first HTML", () => {
     expect(team).toContain('<link rel="canonical" href="https://controlscout.org/teams/4215" />');
     expect(team).toContain('<meta property="og:url" content="https://controlscout.org/teams/4215" />');
     expect(team).toContain('<meta name="twitter:card" content="summary_large_image" />');
-    expect(team).toContain('<meta property="og:image" content="https://controlscout.org/og-image.png?v=3" />');
+    expect(team).toContain('<meta property="og:image" content="https://controlscout.org/og-image.png?v=4" />');
     expect(team).not.toContain("generic"); // the template's own tags are replaced, not duplicated
     expect(team.match(/<title>/g)).toHaveLength(1);
     const desc = /<meta name="description" content="([^"]*)"/.exec(team)![1];
@@ -225,7 +225,7 @@ describe("page head in the first HTML", () => {
     const ld = (html: string) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
     const home = ld(await renderIndex(file, "/"));
     expect(home.map((x) => x["@type"]).sort()).toEqual(["Organization", "WebSite"]);
-    expect(home.find((x) => x["@type"] === "Organization").logo).toBe("https://controlscout.org/logo-512.png");
+    expect(home.find((x) => x["@type"] === "Organization").logo).toBe("https://controlscout.org/logo-512.png?v=8");
     const [profile, crumbs] = ld(await renderIndex(file, "/teams/4215"));
     expect(profile).toMatchObject({ "@type": "ProfilePage", url: "https://controlscout.org/teams/4215", isPartOf: { "@id": "https://controlscout.org/#website" } });
     expect(profile.mainEntity).toMatchObject({ "@type": "SportsTeam", name: "Hypnotic Robotics", identifier: "4215", url: "https://controlscout.org/teams/4215", location: { address: { addressLocality: "Oradell", addressRegion: "NJ" } } });
@@ -233,7 +233,7 @@ describe("page head in the first HTML", () => {
     expect(crumbs.itemListElement.map((x: { name: string; item: string }) => [x.name, x.item])).toEqual([
       ["Home", "https://controlscout.org/"], ["Teams", "https://controlscout.org/teams"], ["4215 Hypnotic Robotics", "https://controlscout.org/teams/4215"]]);
     const [ev] = ld(await renderIndex(file, "/events/2025/USNJNOM3"));
-    expect(ev.image).toEqual(["https://controlscout.org/og-image.png?v=3"]);
+    expect(ev.image).toEqual(["https://controlscout.org/og-image.png?v=4"]);
     expect(ev).toMatchObject({ "@type": "SportsEvent", name: "P1-4 PM Northern League Meet", startDate: "2025-11-08", url: "https://controlscout.org/events/2025/USNJNOM3", location: { name: "Don Bosco Prep" } });
     // A name containing </script> can't break out of the tag.
     await run("UPDATE teams SET name = 'Evil</script><script>alert(1)</script>' WHERE number = 4215");
@@ -419,7 +419,7 @@ describe("the site's name for search engines", () => {
       "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: "https://controlscout.org/?q={search_term_string}" }, "query-input": "required name=search_term_string",
     });
     const org = home.find((x) => x["@type"] === "Organization");
-    expect(org).toMatchObject({ name: "Control Scout", url: "https://controlscout.org/", logo: "https://controlscout.org/logo-512.png" });
+    expect(org).toMatchObject({ name: "Control Scout", url: "https://controlscout.org/", logo: "https://controlscout.org/logo-512.png?v=8" });
     expect(org.sameAs).toContain("https://tryctrlpoint.org");
     expect(site.publisher).toEqual({ "@id": org["@id"] });
   });
