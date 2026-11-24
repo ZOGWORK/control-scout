@@ -59,6 +59,11 @@ describe("compound questions", () => {
     // Every word read, "and" too: each part answered as asked.
     expect(a.understood?.unread).toBeUndefined();
   });
+  it("a part with only a scope (a place, an event) still asks of the first part's team", async () => {
+    // 30802's best in the state is 110; the state's best is 140 (30801's).
+    const a = await ask("30802 record and highest score in virginia");
+    expect([a.intent?.kind, a.clauses?.[0].stat?.intent, a.clauses?.[0].stat?.headline?.value]).toEqual(["stat-clauses", "highest-score", "110 points"]);
+  });
   it("a word neither part reads is still said unread, the joining \"and\" never", async () => {
     const a = await ask("30801 opr today and 30802 record");
     expect([a.intent?.kind, a.understood?.unread]).toEqual(["stat-clauses", ["today"]]);
