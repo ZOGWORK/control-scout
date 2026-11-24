@@ -55,6 +55,7 @@ import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
+import { chatAnswer } from "./answers/chat.js";
 import { fold, names } from "./query/names.js";
 import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
@@ -262,6 +263,11 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
   const a = await answerOf(raw, opts);
   if (opts.inner || opts.intents === false || opts.rewrites) return a;
+  // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
+  // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
+  // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.
+  const chat = opts.spell === false ? null : chatAnswer(String(raw ?? ""), a);
+  if (chat) return chat;
   // A place asked for, alone or with its rankings, leagues or conferences ("nj", "nj rankings"): its own pages first
   // (src/shared/placePages.ts), whatever answered it. Kept once by address, so an answer that recursed adds none twice.
   const pages = withPlacePages(String(raw ?? ""), a.pages);
