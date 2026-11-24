@@ -168,7 +168,13 @@ describe("the thumbs on an answer", () => {
     expect(note.due("m", false)).toBe(true);
     note.said("m");
     expect(note.due("m", false)).toBe(false);
-    // Past the cap the oldest answer is forgotten: at worst a repeat note, never a missing one.
+    // Owed notes are bounded too: past the cap the oldest is forgotten (a courtesy line, not the vote).
+    const owedCap = downNotes(1);
+    owedCap.unsent("first");
+    owedCap.unsent("second");
+    expect(owedCap.due("first", false)).toBe(false);
+    expect(owedCap.due("second", false)).toBe(true);
+    // Past the cap the oldest answer told is forgotten: at worst a repeat note, never a missing one.
     const capped = downNotes(1);
     expect(capped.due("a", true)).toBe(true);
     capped.said("a");

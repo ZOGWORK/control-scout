@@ -92,10 +92,13 @@ export function downNotes(max = 500, save: (state: DownNoteState) => void = () =
       if (told.size > max) told.delete(told.values().next().value!);
       keep();
     },
-    /** It couldn't be delivered: the next 👎 on this answer tries again, and a restart still owes it. */
+    /** It couldn't be delivered: the next 👎 on this answer tries again, and a restart still owes it. Bounded like
+     *  `told`: past `max` owed notes the oldest is forgotten — a courtesy line nobody asked for again, while the vote
+     *  and the filing it made are untouched. */
     unsent(messageId: string): void {
       if (told.has(messageId)) return;
       owed.add(messageId);
+      if (owed.size > max) owed.delete(owed.values().next().value!);
       keep();
     },
   };
