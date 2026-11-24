@@ -20,7 +20,7 @@ const today = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
 export async function teamLookup(number: number, now = Date.now()): Promise<APIEmbed> {
   const profile = await teamProfile(number);
   if (!profile) throw new Friendly("Team not found", `There's no FTC team ${number} in Control Scout's data.`);
-  return teamEmbed({ profile, seasonLabel: seasonInfo(profile.season).label, today: today(now), next: await nextFor(profile.events, number, now) }, site());
+  return teamEmbed({ profile, seasonLabel: seasonInfo(profile.season).label, now, next: await nextFor(profile.events, number, now) }, site());
 }
 
 /**

@@ -8,6 +8,7 @@ import type { RankingRow } from "../src/shared/rankings.js";
 import { oddsPct } from "../src/shared/share.js";
 import { tierWord } from "../src/shared/tierWords.js";
 import { matchReportHref } from "../src/shared/matchReport.js";
+import { eventOver } from "../src/shared/eventDay.js";
 
 /** Volt (the site's accent, --color-accent) for answers; the site's danger red for errors. */
 export const VOLT = 0xffc700;
@@ -56,8 +57,9 @@ export interface TeamCard {
   profile: TeamProfile;
   /** The season's label, "2025–26". */
   seasonLabel: string;
-  /** Today (YYYY-MM-DD), to tell upcoming events from past ones. */
-  today: string;
+  /** The moment the card is drawn, to tell upcoming events from past ones on each venue's own calendar: the clock
+   *  nextFor reads (bot/lookups.ts), never UTC's date, which disagrees with a venue for hours around midnight. */
+  now: number;
   /** The team's next unplayed match, when FIRST has posted one (bot/lookups.ts reads it): a field of its own, or none.
    *  No call is in it, so the card is still the team's record with live predictions switched off. */
   next?: { event: Pick<EventDetail, "event">; match: MatchView } | null;
@@ -78,17 +80,18 @@ export function teamEmbed(c: TeamCard, site: string): APIEmbed {
   } else {
     fields.push({ name: `Season ${c.seasonLabel}`, value: "No matches played yet this season.", inline: true });
   }
-  const next = events.filter((e) => e.start && (e.end ?? e.start) >= c.today).sort((a, b) => a.start!.localeCompare(b.start!))[0];
+  const next = events.filter((e) => e.start && !eventOver(e, c.now)).sort((a, b) => a.start!.localeCompare(b.start!))[0];
   const last = [...events].reverse().find((e) => (e.qualPlayed ?? 0) > 0 || e.rank != null);
   if (next) {
     fields.push({ name: "Next event", value: `[${next.name}](${site}/events/${next.season}/${encodeURIComponent(next.code)}) · ${dates(next.start, next.end)}` });
-    // Under the event it is at, and only when there is one: a team whose schedule isn't posted yet has no line here
-    // rather than a second note saying so (that's /next's answer, where the question is the match).
-    if (c.next) fields.push({ name: "Next match", value: nextMatchValue(c.next, site) });
   } else if (last) {
     const result = [last.rank != null ? `Rank ${last.rank}` : null, (last.qualPlayed ?? 0) > 0 ? record(last.wins, last.losses, last.ties) : null].filter(Boolean).join(", ");
     fields.push({ name: "Last event", value: `[${last.name}](${site}/events/${last.season}/${encodeURIComponent(last.code)}) · ${dates(last.start, last.end)}${result ? ` · ${result}` : ""}` });
   }
+  // Its own line, not gated on the event field's branch: the match names its event and links it, so it reads on its
+  // own, and a team whose schedule isn't posted yet has no line here rather than a second note saying so (that is
+  // /next's answer, where the question is the match).
+  if (c.next) fields.push({ name: "Next match", value: nextMatchValue(c.next, site) });
   return {
     title: clip(`#${team.number} — ${team.name ?? "Team name not listed"}`, 256),
     url: `${site}/teams/${team.number}`,
