@@ -304,6 +304,21 @@ describe("pattern keys (audit M8)", () => {
   });
 });
 
+describe("a visitor's searches read out of order", () => {
+  it("an older query arriving last never replaces the newer one: a superseded one is dropped, another logged", async () => {
+    const t = clock + 1000;
+    // The final query's pattern read finished first; the partial one it extends arrives after it.
+    noteSearch("xyzzyq plover", noMatch("xyzzyq plover"), "198.51.100.77", null, t + 500);
+    noteSearch("xyzzyq", noMatch("xyzzyq"), "198.51.100.77", null, t);
+    // An unrelated older search from the same visitor is its own.
+    noteSearch("qwfp arst", noMatch("qwfp arst"), "198.51.100.77", null, t + 100);
+    clock = t + 500 + SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    const examples = (await rows()).flatMap((r) => JSON.parse(r.examples) as string[]).sort();
+    expect(examples).toEqual(["qwfp arst", "xyzzyq plover"]);
+  });
+});
+
 describe("pattern keys split on unread words: old issues kept (audit M8)", () => {
   const old = "pattern: intent: team opr · slots: team · not read: 1 word";
   const split = "pattern: intent: team opr · slots: team · not read: scorecard";

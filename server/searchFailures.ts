@@ -299,17 +299,23 @@ function noteOnce(slot: string, capped: boolean, q: string, a: SearchAnswer, tra
   const n = normalizeQuery(safe);
   if (!n) return;
   const was = pending.get(slot);
+  // Older than the one waiting (its pattern read finished later): never takes its place. One the waiting query
+  // extends or trims is superseded by it; any other is a search of its own, logged as it is.
+  const late = !!was && now < was.at;
+  if (late && related(normalizeQuery(was.q), n)) return;
   // The same visitor's next query supersedes one it extends or trims (typing, a retry): only the last one counts.
-  if (was && !related(normalizeQuery(was.q), n)) commit(slot, was);
-  if (pending.size >= SETTLE_MAX && !pending.has(slot)) { counters.dropped++; return; }
-  // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
-  pending.delete(slot);
+  if (was && !late && !related(normalizeQuery(was.q), n)) commit(slot, was);
+  if (!late && pending.size >= SETTLE_MAX && !pending.has(slot)) { counters.dropped++; return; }
   const hard = failureOf(q, a, trace);
   // A soft failure only for an answer that didn't fail outright, and only under its own soft key.
   const failure: Failure | null = hard ?? (soft && key?.startsWith("soft: ") ? { type: soft.type, intent: soft.intent, trace: trace ?? readTrace(q, a) } : null);
   // A pattern's legacy is its key before unread words were part of it (patternFor's `legacy`), else itself.
   const legacy = key?.startsWith("pattern: ") ? (oldPattern?.startsWith("pattern: ") ? oldPattern : key) : key?.startsWith("soft: ") ? key : reportKey(safe);
-  pending.set(slot, { q: safe, key: key || legacy, legacy, failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now, missed, capped });
+  const entry: Pending = { q: safe, key: key || legacy, legacy, failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now, missed, capped };
+  if (late) { commit(slot, entry); return; }
+  // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
+  pending.delete(slot);
+  pending.set(slot, entry);
 }
 
 /** Moves every query that waited SETTLE_MS into the buffer (failures only). */
@@ -321,7 +327,8 @@ export function settle(now = Date.now(), everything = false): void {
 }
 
 function commit(client: string, p: Pending) {
-  pending.delete(client);
+  // A late query committed beside the one waiting leaves that one where it is.
+  if (pending.get(client) === p) pending.delete(client);
   if (!p.failure) return;
   const { q, key } = p;
   if (onlyRedacted(key)) { counters.skipped++; return; }
