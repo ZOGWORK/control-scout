@@ -171,20 +171,21 @@ export const INTENTS: IntentRule[] = [
   // A team's match by its number: at the event named, else each event of its season with one ("<team> Q6"). Asked to
   // watch ("<team> Q6 video"), the same answer: it plays that match.
   R("match-lookup", 1, ["thing:match"], ["metric:score", "metric:record", "metric:win", "metric:loss", ...WATCH], { matchNo: true }),
-  R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record"], { event: true }),
+  R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record", "nopen"], { event: true }),
   R("event-rank", 1, ["metric:rank"], [], { event: true }),
   R("event-opr", 1, ["metric:opr"], [], { event: true }),
   // A team at an event, nothing else asked ("12345 at <event> in 2025-26"): its results there. "At" said, so a word read
   // loosely as an event's name ("how old is 12345") is never taken for one.
   R("results", 1, ["prep:at"], [], { event: true }),
   // A state championship or Worlds alone ("12345 states", "12345 at worlds"): the team's results there.
-  R("results", 1, ["states"], ["list"]),
-  R("results", 1, ["worlds"], ["list"]),
+  R("results", 1, ["states"], ["list", "nopen"]),
+  R("results", 1, ["worlds"], ["list", "nopen"]),
   // Its matches, no measure asked ("12345 matches in 2025-26"): every one in the scope. After the rules above (a tie goes to the first), so a
   // measure, an outcome, a match type or an event said ("12345 matches at states") still picks its own answer.
   // One team's match by its score ("<team> 226 point match"): the match finder, with the team and the score.
   R("season-matches", 1, ["thing:match", "cond:exact"], ["list"], { noEvent: true, noMatchNo: true }),
-  R("season-matches", 1, ["thing:match"], ["list"], { noEvent: true, noMatchNo: true }),
+  // "Without penalties" said of them: the ones the team's alliance gave away no penalty points in (the match finder's).
+  R("season-matches", 1, ["thing:match"], ["list", "nopen"], { noEvent: true, noMatchNo: true }),
   // A team's matches with video, at an event named or not ("<team> matches with video").
   R("season-matches", 1, ["thing:match", "withvideo"], ["list"], { noMatchNo: true }),
   // Partners and opponents.
@@ -347,6 +348,10 @@ export const SLOT_SYMBOLS = /^(?:level|finals|alliance|worlds|states|award|prep|
 /** The rules that take a word asking to watch ("<team> best auto highlights"): their answer is the match to play. */
 export const WATCH_TAKERS = new Set<string>(INTENTS.filter((r) => r.opt?.includes("highlights") || r.all.includes("highlights")).map((r) => r.id));
 
+/** The questions of matches that take "with no penalties" as a filter (./parse.ts clean): the match finder's, a
+ *  team's matches and results, and the best matches ("best matches in <place> with no penalties", read as the
+ *  highest-scoring board: ../../server/api/query/execute.ts). Matches with the most penalties are never ones with none. */
+export const CLEAN_MATCHES = new Set<PipelineIntent>(["highlights", "top-matches", "match-label", "low-matches", "close-matches", "lopsided-matches", "loss-matches", "upset-matches", "comeback-matches", "miss-matches", "accurate-matches", "season-matches", "highest-score", "results"]);
 /** The intents "with video" filters (./execute.ts, the match finder): a scope's matches by a measure, a match's number,
  *  one team's matches or its best; and highlights, which are the matches' videos already ("<team> highlights with
  *  video"). Any other leaves the parse incomplete, never answered without the filter. */
