@@ -22,7 +22,7 @@
 //   npm run search:heldout -- --min 80        exit 1 below an 80% pass rate (CI, .github/workflows/ci.yml)
 //   npm run search:heldout -- --split         move held-out questions found in tests or code to the training set
 //   DATABASE_URL=file:.data/scout.db npm run search:heldout
-import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { heldoutSets, type HeldOut } from "./heldoutSets.js";
 import { bootSearch, localServer } from "./search-local.js";
@@ -48,8 +48,13 @@ if (process.argv.includes("--split")) {
   const shared = JSON.parse(readFileSync(FILE, "utf8")) as Q[];
   const out = shared.map((x) => (!x.train && found.has(x.q) ? { ...x, train: true } : x));
   // Written whole beside it, then renamed over it: the file is the old one or the new one, never half of either.
-  writeFileSync(`${FILE}.tmp`, `[\n${out.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`);
-  renameSync(`${FILE}.tmp`, FILE);
+  // One that fails part way (disk full, a locked file) leaves no .tmp behind.
+  try {
+    writeFileSync(`${FILE}.tmp`, `[\n${out.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`);
+    renameSync(`${FILE}.tmp`, FILE);
+  } finally {
+    rmSync(`${FILE}.tmp`, { force: true });
+  }
   const trained = out.filter((x) => x.train).length;
   console.log(`moved ${out.filter((x, i) => x.train && !shared[i].train).length} to the training set (now ${trained}); held out: ${all.length - trained}`);
   const own = all.filter((x) => found.has(x.q) && !shared.some((y) => y.set === x.set && y.n === x.n));

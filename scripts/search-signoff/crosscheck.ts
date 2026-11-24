@@ -11,8 +11,13 @@ export const PAGE_MS = 30_000;
 const pages = new Map<string, Promise<TeamPage | null>>();
 export function teamPage(base: string, team: number, season: number): Promise<TeamPage | null> {
   const k = `${team}:${season}`;
-  if (!pages.has(k)) pages.set(k, fetch(`${base}/api/teams/${team}?season=${season}`, { headers: { "user-agent": "cs-signoff" }, signal: AbortSignal.timeout(PAGE_MS) })
-    .then((r) => (r.ok ? (r.json() as Promise<TeamPage>) : null)).catch(() => null));
+  if (!pages.has(k)) {
+    const page = fetch(`${base}/api/teams/${team}?season=${season}`, { headers: { "user-agent": "cs-signoff" }, signal: AbortSignal.timeout(PAGE_MS) })
+      .then((r) => (r.ok ? (r.json() as Promise<TeamPage>) : null)).catch(() => null);
+    // Only a page that came is kept: one that failed or timed out is fetched again by the next question that needs it.
+    pages.set(k, page);
+    void page.then((p) => { if (!p && pages.get(k) === page) pages.delete(k); });
+  }
   return pages.get(k)!;
 }
 

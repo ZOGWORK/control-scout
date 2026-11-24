@@ -82,7 +82,7 @@ async function ask(q: string): Promise<Saved> {
 type Health = { release?: string; engine?: string; at?: string };
 const health: Health = REGRADE
   ? (() => { try { return JSON.parse(readFileSync(join(dirname(REGRADE), "meta.json"), "utf8")) as Health; } catch { return {}; } })()
-  : { ...((await fetch(`${BASE}/api/health`).then((r) => r.json()).catch(() => ({}))) as Health), at: new Date().toISOString() };
+  : { ...((await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(30_000) }).then((r) => r.json()).catch(() => ({}))) as Health), at: new Date().toISOString() };
 console.log(`${BASE} release ${health.release?.slice(0, 8)} · ${qs.length} queries → ${OUT}${REGRADE ? " (regrade, offline)" : ""}`);
 const done: Done[] = [];
 let next = 0;
