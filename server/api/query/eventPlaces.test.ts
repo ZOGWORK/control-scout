@@ -60,8 +60,16 @@ describe("one place's teams at another's events", () => {
     // The season before is tried too, and said so.
     expect(a.stat?.none).toMatch(/^No ranked team from Delaware \(3\+ matches\) played an event held in Maryland in 2025–26\./);
   });
-  it("another question of the two places is never answered for one place alone", async () => {
-    const a = await full("average opr of maryland teams at new jersey events");
-    expect(a.stat?.title ?? "").not.toMatch(/^Top \d+ teams .*in Maryland/);
+  it("another question of the two places is never answered for one place alone, nor as the board", async () => {
+    for (const q of ["average opr of maryland teams at new jersey events", "median opr of maryland teams at new jersey events", "total opr of maryland teams at new jersey events"]) {
+      const a = await full(q);
+      expect(a.stat?.title ?? "", q).not.toMatch(/^Top \d+ teams /);
+    }
+  });
+  it("a country's teams at one of its own states' events, and the other way round", async () => {
+    // Every team here is from the USA: those on New Jersey's list, best first.
+    expect(await listed("usa teams at new jersey events")).toEqual([30411, 30401, 30402]);
+    const p = await parseQuery("new jersey teams at usa events", await parseContext(NOW));
+    expect([p.place?.name, p.eventPlace?.name]).toEqual(["New Jersey", "United States"]);
   });
 });

@@ -110,7 +110,9 @@ async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAns
   // michigan"): the board of the first place's teams, those that played an event in the second only. Anything else
   // asked of them (a comparison, an average) is left to search's other readers, never answered for one place alone.
   if (p.eventPlace) {
-    if (!onlyPlaces(p) || p.symbols.some((s) => s === "vs" || s === "compare" || s === "agg:mean" || s === "gain") || (!p.symbols.includes("thing:team") && !p.agg && !p.symbols.some((s) => BOARD_STAT[s]))) return null;
+    // The board ranks highest or lowest first: a median, an average or a total of them is another reader's.
+    if (!onlyPlaces(p) || (p.agg != null && p.agg !== "max" && p.agg !== "min") || p.symbols.some((s) => s === "vs" || s === "compare" || s === "gain" || (s.startsWith("agg:") && s !== "agg:max" && s !== "agg:min"))
+      || (!p.symbols.includes("thing:team") && !p.agg && !p.symbols.some((s) => BOARD_STAT[s]))) return null;
     if (!p.intent) p = { ...p, intent: "leaderboard", complete: true };
   }
   // A run of seasons ("<team> opr since <year>", "best teams 2023-24 to 2025-26"): each season's rank, never one season's
