@@ -126,4 +126,22 @@ describe("most-asked searches", () => {
     expect(await precomputeHot()).toBe(1);
     expect(ahead).toEqual([[], ["4215"]]);
   });
+
+  it("tries the index again when one lane's list couldn't be read", async () => {
+    await db.kvSet("search:hot:one", [["4215", 25]]);
+    await db.kvSet("search:hot:a", [["lane a only", 25]]);
+    await db.kvSet("search:hot:b", []);
+    index = "v5";
+    ahead.length = 0;
+    // The first read is lane a's (LANES order): it fails once.
+    const spy = vi.spyOn(db, "kvGet").mockRejectedValueOnce(new Error("busy"));
+    try {
+      expect(await precomputeHot()).toBe(1);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await precomputeHot()).toBe(2);
+    expect(await precomputeHot()).toBe(0);
+    expect(ahead).toEqual([["4215"], ["lane a only", "4215"]]);
+  });
 });
