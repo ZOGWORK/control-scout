@@ -108,7 +108,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     const run = () => {
       waiting.current = null;
       // A box limited to some kinds asks the server for only those, so other kinds (often teams) can't crowd its own out.
-      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : "&answer=1"}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}${!kindKey && myTeam && MINE.test(query) ? `&my=${myTeam}` : ""}${!kindKey && season != null ? `&season=${season}` : ""}`, { signal: ctrl.signal })
+      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : "&answer=1"}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}${!kindKey && myTeam && MINE.test(query) ? `&my=${myTeam}` : ""}${!kindKey && season != null ? `&season=${season}` : ""}${thread && !kindKey ? "&bruno=1" : ""}`, { signal: ctrl.signal })
         .then((r) => {
           if (id !== seq.current) return;
           // Offline (saved data) answers plain hits: the plain list, as before.
