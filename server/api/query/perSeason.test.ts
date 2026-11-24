@@ -32,6 +32,8 @@ beforeAll(async () => {
         [season, code, k, `Q${k}`, `${season + 1}-01-10T10:00:00Z`, red, red, blue, blue]);
       for (const [t, a] of [[30501, "red"], [30502, "blue"]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, ?, 'qual', 0, ?, ?, ?, 1)", [season, code, k, t, a]);
     }
+    // One judged award a season for 30501: the same count each season, still a season's own answer.
+    await run("INSERT INTO awards (season, code, type, placement, team) VALUES (?, ?, 'Think', 1, 30501)", [season, code]);
     await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties, opr_np, rank_np, ranked_teams) VALUES (?, 30501, 2, 1, 1, 0, 50, 1, 2), (?, 30502, 2, 1, 1, 0, 40, 2, 2)", [season, season]);
   }
   await rebuildSearch();
@@ -58,6 +60,13 @@ describe("a run of seasons asked of a score, a record or anything but a rank", (
     // A team's record over a run is its record each season, never its OPR rank.
     const rec = (await ask("30501 record 2023 to 2025")).stat as StatAnswer;
     expect([rec.intent === "team-seasons", rows(rec).length]).toEqual([false, 3]);
+    // The same answer each season (one award a season) is still each season's own, side by side.
+    const aw = (await ask("30501 awards since 2023")).stat as StatAnswer;
+    expect([aw.intent, rows(aw).length, new Set(rows(aw).map((c) => c.value)).size]).toEqual([expect.stringMatching(/^seasons-/), 3, 1]);
+  });
+  it("typed into the box, a run is a link to its page, its seasons' cards worked out only there", async () => {
+    const a = await searchAnswer("30501 highest score since 2024", { limit: 8, full: false, now: NOW });
+    expect([a.stat, a.understood?.label, a.pages[0]?.href]).toEqual([undefined, "Crab Bots (30501): each season since 2024–25", "/search?q=30501%20highest%20score%20since%202024"]);
   });
   it("a year read as part of a run is never a team number to look up", async () => {
     expect(nameWords("highest score from 2023 to 2024")).toBe("highest score");

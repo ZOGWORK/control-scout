@@ -21,22 +21,36 @@ const without = (title: string, s: number) => [seasonLabel(s), gameOf(s)].filter
 
 /** The run asked one season at a time by `ask` (the pipeline's own answer for that season), side by side; null when no
  *  season gets an answer of its own (left to search's other readers). */
-export async function perSeasonAnswer(p: Parsed, opts: { full: boolean; pages: SearchPageLink[] }, ask: (p: Parsed) => Promise<SearchAnswer | null>): Promise<SearchAnswer | null> {
+export async function perSeasonAnswer(p: Parsed, opts: { full: boolean; pages: SearchPageLink[] }, ask: (p: Parsed, full: boolean) => Promise<SearchAnswer | null>): Promise<SearchAnswer | null> {
   const t = p.time;
   if (t?.kind !== "seasons" || !t.range || !p.intent) return null;
   const all = await seasonsOf(t.range);
   const seasons = all.slice(-MAX_SEASONS);
   if (seasons.length < 2) return null;
+  const inSeason = (s: number): Parsed => ({ ...p, time: { kind: "season", season: s, label: `in ${seasonLabel(s)}`, typed: t.typed } });
+  // Typed into the box (no card): the link to the run's page, when its latest season reads as a question; every
+  // season's card is worked out only on that page.
+  if (!opts.full) {
+    if (!(await ask(inSeason(seasons[seasons.length - 1]), false))) return null;
+    const label = `${p.teams.length === 1 ? `${p.teams[0].name ? `${p.teams[0].name} (${p.teams[0].number})` : `Team ${p.teams[0].number}`}: e` : "E"}ach season ${t.label}`;
+    return {
+      q: p.q, hits: [], pages: [{ title: label, href: `/search?q=${encodeURIComponent(p.q)}` }, ...opts.pages], step: "deterministic", weak: false,
+      understood: { kind: "question", label },
+      intent: { kind: `stat-seasons-${p.intent}`, pattern: `[${p.intent}] [seasons]`, met: true, understood: [label] },
+    };
+  }
   const each = await Promise.all(seasons.map(async (s) => {
-    const a = await ask({ ...p, time: { kind: "season", season: s, label: `in ${seasonLabel(s)}`, typed: t.typed } });
+    const a = await ask(inSeason(s), true);
     // An answer that stepped to another season (nothing played in this one) is none for this one.
     const st = a?.stat && (a.understood?.season == null || a.understood.season === s) ? a.stat : null;
     return { s, a, st };
   }));
   const answered = each.filter((x) => x.st?.headline);
   if (!answered.length) return null;
-  // The same answer whatever the season (one that doesn't read a season): never shown as a run.
-  if (answered.length > 1 && answered.every((x) => x.st!.headline!.value === answered[0].st!.headline!.value && x.st!.headline!.label === answered[0].st!.headline!.label)) return null;
+  // An answer that doesn't read its season (the same whatever the season, a career's): never shown as a run. One
+  // that does says it (its season read, or the season in its title or chips), however alike two seasons' answers are.
+  const readsSeason = (x: (typeof answered)[number]) => x.a?.understood?.season === x.s || x.st!.title.includes(seasonLabel(x.s)) || x.st!.scope.includes(seasonLabel(x.s));
+  if (!answered.every(readsSeason)) return null;
   const first = answered[0].st!;
   const what = without(first.title, answered[0].s);
   const run = t.label;
@@ -49,7 +63,6 @@ export async function perSeasonAnswer(p: Parsed, opts: { full: boolean; pages: S
     understood: { kind: "question", label },
     intent: { kind: `stat-seasons-${first.intent}`, pattern: `[${p.intent}] [seasons]`, met: true, understood: [label] },
   };
-  if (!opts.full) return { ...read, pages: [{ title: label, href: `/search?q=${encodeURIComponent(p.q)}` }, ...opts.pages] };
   const stat: StatAnswer = {
     family: first.family, intent: `seasons-${first.intent}`, title: label, ...(team ? { team } : {}),
     scope: [`${seasonLabel(seasons[0])} to ${seasonLabel(seasons[seasons.length - 1])}`, ...first.scope.filter((c) => !seasons.some((s) => c === seasonLabel(s)))],
