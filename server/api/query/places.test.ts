@@ -84,7 +84,7 @@ describe("two places in one question", () => {
     const tiles = level.blocks.find((b) => b.kind === "kpis"), rows = level.blocks.find((b) => b.kind === "table");
     expect([level.headline?.value, tiles?.kind === "kpis" && tiles.items.map((i) => i.tone ?? null), rows?.kind === "table" && rows.rows.map((r) => r.strong)]).toEqual(["Level", [null, null], [false, false]]);
     const pen = (await full("maryland vs delaware average penalties")).stat as StatAnswer;
-    expect(pen.headline).toMatchObject({ value: "Maryland", label: "Lower average Penalties a match: 2.5 to 4.0" });
+    expect(pen.headline).toMatchObject({ value: "Maryland", label: "Lower average penalties a match: 2.5 to 4.0" });
     // "Rookie teams" asks of the places something this answer can't keep: left to search's other readers.
     expect(placesAsk(await parseQuery("rookie teams from maryland or delaware", await parseContext(NOW)), null)).toBeNull();
   });
@@ -103,5 +103,21 @@ describe("two places in one question", () => {
     for (const q of ["how many teams from maryland or delaware", "teams from maryland or delaware not opr", "teams named crab from maryland or delaware", "the top maryland team vs the top delaware team"]) {
       expect(placesAsk(await parseQuery(q, ctx), null), q).toBeNull();
     }
+  });
+  it("either place first is the same board; an average is a decimal; the best team breaks ties as the board does", async () => {
+    const teams = async (q: string) => { const b = ((await full(q)).stat as StatAnswer).blocks.find((x) => x.kind === "leaderboard"); return b?.kind === "leaderboard" ? b.rows.map((r) => r.team.label.split(" ")[0]).sort() : []; };
+    expect(await teams("teams from delaware or maryland")).toEqual(await teams("teams from maryland or delaware"));
+    expect((await teams("teams from delaware or maryland")).length).toBe(6);
+    // Every team won 3: level, said as an average.
+    expect(((await full("maryland vs delaware average wins")).stat as StatAnswer).headline).toMatchObject({ value: "Level", label: "Average wins 3.0 in both" });
+    // Two Maryland teams with no penalties: the one with fewer penalty points a match is the best, as on the board.
+    await run("UPDATE team_season_stats SET rating_pen = 0, avg_pen = CASE team WHEN 30301 THEN 2 ELSE 1 END WHERE season = 2025 AND team IN (30301, 30302)");
+    try {
+      const t = ((await full("maryland vs delaware average penalties 2025-26")).stat as StatAnswer).blocks.find((b) => b.kind === "table");
+      expect(t?.kind === "table" && t.rows[0].cells.best).toBe("30302 · 0.0");
+    } finally { await run("UPDATE team_season_stats SET rating_pen = opr_np / 10, avg_pen = NULL WHERE season = 2025 AND team IN (30301, 30302)"); clearAllCaches(); }
+    // A median is not an average: another reader's.
+    const med = await parseQuery("maryland vs delaware median opr", await parseContext(NOW));
+    expect([med.agg != null && med.agg !== "mean", placesAsk(med, null)]).toEqual([true, null]);
   });
 });

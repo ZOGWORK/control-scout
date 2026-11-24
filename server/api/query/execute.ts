@@ -788,7 +788,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && !boardSaid && said.endsWith(` in ${normalise(p.place!.typed)}`)) return null;
     // Fewer is better for penalties: "best" and "cleanest" are the fewest, "worst" the most; "most" and "fewest" as said.
     const goodWord = !!stats[0] && !!BOARD_STATS[stats[0]].fewerBetter && /\b(?:best|better|cleanest|worst|weakest)\b/.test(said);
-    const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : regionOf(p);
+    // Two places: the first typed is the board's place, the other beside it (the parse's `place` is the longer name).
+    const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : p.places ? placeRegion(p.places.list[0]) : regionOf(p);
     const b: LeaderboardQuestion = {
       kind: gain ? "gain" : "top", stat: stats[0] ?? (gain ? "opr" : p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
       ...(one ? { best: true } : {}), ...((p.agg === "min") !== goodWord ? { asc: true } : {}),
