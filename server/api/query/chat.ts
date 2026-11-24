@@ -31,10 +31,14 @@ export function chatWords(q: string): string[] {
 const FRAMING = new Set([...NOT_DATA, "agg", "and", "compare", "vs", "together", "list", "hypo", "named"]);
 /** What a question asks about: every lexicon phrase that reads as FTC data, not framing. */
 const SUBJECT_PHRASES = LEXICON.filter((e) => e.syms.some((s) => !FRAMING.has(s.k))).map((e) => e.words);
-/** FTC's own nouns: a match, an event, a team, a season, an award, an alliance, a playoff, worlds, states. Said in a
- *  question, it is about them, whatever everyday word comes with it ("local event in boston"). */
-const FTC_NOUNS = new Set(["thing", "level", "finals", "alliance", "worlds", "states", "award"]);
-const NOUN_PHRASES = LEXICON.filter((e) => e.syms.some((s) => FTC_NOUNS.has(s.k))).map((e) => e.words);
+/** The words search's data phrases are made of: one that is a data phrase alone ("match", "award"), or one only data
+ *  phrases use ("championship", from "world championship"); never one framing or plain phrases use ("best", "the"). */
+const FRAME_WORDS = new Set(LEXICON.filter((e) => e.syms.every((s) => FRAMING.has(s.k))).flatMap((e) => e.words));
+const ALONE = new Set(SUBJECT_PHRASES.filter((p) => p.length === 1).map((p) => p[0]));
+const DATA_WORDS = new Set(SUBJECT_PHRASES.flat().filter((w) => ALONE.has(w) || !FRAME_WORDS.has(w)));
+/** Data words English uses far more often than FTC questions do: said beside an everyday subject ("weather forecast",
+ *  "pizza place"), they are that subject's. */
+const SHARED_WORDS = new Set(["forecast", "forecasts", "place", "places"]);
 /** Every word search reads something in: its lexicon's and its chat words'. */
 const SEARCH_WORDS = new Set([...LEXICON.flatMap((e) => e.words).flatMap((p) => p.split(" ")), ...Object.values(CHAT_WORDS).flat().flatMap((p) => p.split(" "))]);
 /** Whether search reads `w`, or the word it is the plain plural of ("drivers" as "driver"), as everydayWord reads one. */
@@ -91,12 +95,9 @@ export function otherSubject(q: string): string[] {
   const head = place > 0 ? ws.slice(0, place) : ws;
   if (head.some((w) => !everydayWord(w) && !searchWord(w))) return [];
   const subject = head.filter((w) => !searchWord(w));
-  // A word only search uses ("opr", "teleop") or one of FTC's own nouns ("match", "event") makes it an FTC question;
-  // another English shares ("forecast", "place") doesn't, said beside an everyday subject ("weather forecast",
-  // "pizza place").
-  if (has(head, NOUN_PHRASES)) return [];
-  const data = SUBJECT_PHRASES.filter((p) => has(head, [p]));
-  if (data.some((p) => p.some((w) => !everydayWord(w)))) return [];
+  // Any word of search's data ("match", "award", "opr", "local championship") makes it an FTC question, but the few
+  // English shares far more widely ("weather forecast", "pizza place").
+  if (head.some((w) => DATA_WORDS.has(w) && !SHARED_WORDS.has(w))) return [];
   return subject;
 }
 
