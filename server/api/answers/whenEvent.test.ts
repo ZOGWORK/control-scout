@@ -8,6 +8,7 @@ import { resetSearchSeason } from "./season";
 import { searchAnswer } from "../searchAnswer";
 import { editionFor, whenEventAnswer } from "./whenEvent";
 import type { SearchAnswer, SearchHit } from "../../../src/shared/api";
+import { outcomeTrace } from "../../searchFailures";
 
 const NOW = Date.parse("2026-03-18T12:00:00Z");
 const ask = (q: string, now = NOW) => searchAnswer(q, { limit: 25, full: true, now });
@@ -58,5 +59,23 @@ describe("when is an event", () => {
     const hit = (ref: string, title: string, start: string) => ({ kind: "event", ref, title, subtitle: "", event: { start, end: start } }) as SearchHit;
     const list = { q: "when are the meets in dover", step: "deterministic", hits: [hit("2024:USDEM1", "Dover Meet One", "2025-01-11"), hit("2025:USDEM7", "Dover Meet Seven", "2026-01-10")], pages: [] } as unknown as SearchAnswer;
     expect(whenEventAnswer(list.q, list, NOW)).toBe(list);
+  });
+  it("asked in the past tense, the latest one held leads", async () => {
+    const a = await ask("when was the delaware championship");
+    expect([a.card?.lines[0].text, a.card?.lines[0].tag]).toEqual(["Mar 7, 2026", "The most recent"]);
+  });
+  it("an edition with no date yet may be the one meant: a list", () => {
+    const hit = (ref: string, start: string | null) => ({ kind: "event", ref, title: "Dover Championship", subtitle: "", event: { start, end: start } }) as SearchHit;
+    const list = { q: "when is the dover championship", step: "deterministic", hits: [hit("2025:USDECMP", "2026-03-07"), hit("2026:USDECMP", null)], pages: [] } as unknown as SearchAnswer;
+    expect(whenEventAnswer(list.q, list, NOW)).toBe(list);
+  });
+  it("on now or to come as the edition's own row says it, on its venue's calendar", () => {
+    // Its last day was yesterday by UTC's date, still today at its venue: its row says live, and so does the card.
+    const ed = { kind: "event", ref: "2025:USDECMP", title: "Dover Championship", subtitle: "", event: { start: "2026-03-17", end: "2026-03-17", status: "live" } } as SearchHit;
+    const one = { q: "when is the dover championship", step: "deterministic", hits: [ed], pages: [] } as unknown as SearchAnswer;
+    expect(whenEventAnswer(one.q, one, NOW).card?.lines[0].tag).toBe("On now");
+  });
+  it("keeps the search's outcome trace (failed-search reports read it)", async () => {
+    expect(outcomeTrace(await ask("when is the delaware championship"))).not.toBeNull();
   });
 });

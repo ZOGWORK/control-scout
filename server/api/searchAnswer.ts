@@ -276,7 +276,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const read = await answerOf(raw, opts);
   if (opts.inner || opts.intents === false || opts.rewrites) return read;
   // "When is <event>": an event's editions with the date of the one meant leading (./answers/whenEvent.ts).
-  const a = whenEventAnswer(String(raw ?? ""), read, opts.now ?? Date.now());
+  const a = carryOutcome(read, whenEventAnswer(String(raw ?? ""), read, opts.now ?? Date.now()));
   // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
   // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
   // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.

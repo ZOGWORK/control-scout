@@ -17,27 +17,41 @@ const codeOf = (h: Edition) => h.ref.split(":")[1];
 /** An edition's season, from its ref ("2025:USNJCMP"). */
 const seasonOf = (h: Edition) => Number(h.ref.split(":")[0]);
 
-/** The edition a "when is" question means: the one on or still to come that starts first, else the one that started
- *  last. `today`: YYYY-MM-DD. */
-export function editionFor(editions: Edition[], today: string): Edition {
-  const ahead = editions.filter((h) => (h.event.end ?? h.event.start) >= today).sort((a, b) => a.event.start.localeCompare(b.event.start));
-  return ahead[0] ?? [...editions].sort((a, b) => b.event.start.localeCompare(a.event.start))[0];
+/** An edition's status as its own row shows it (on the venue's calendar), else from its dates and `today`. */
+export const statusOf = (h: Edition, today: string): "upcoming" | "live" | "finished" =>
+  h.event.status ?? (h.event.start > today ? "upcoming" : (h.event.end ?? h.event.start) >= today ? "live" : "finished");
+
+/** The edition a "when" question means: one on now, else the next to come, else the one that started last; asked in
+ *  the past tense ("when was …"), the latest one held (on now or over), else the next. `today`: YYYY-MM-DD. */
+export function editionFor(editions: Edition[], today: string, past = false): Edition {
+  const by = (s: "upcoming" | "live" | "finished") => editions.filter((h) => statusOf(h, today) === s);
+  const first = (xs: Edition[]) => [...xs].sort((a, b) => a.event.start.localeCompare(b.event.start))[0];
+  const last = (xs: Edition[]) => [...xs].sort((a, b) => b.event.start.localeCompare(a.event.start))[0];
+  if (past) return last([...by("live"), ...by("finished")]) ?? first(by("upcoming"));
+  return first(by("live")) ?? first(by("upcoming")) ?? last(editions);
 }
+
+/** Asked in the past tense: "when was …", "when did …", "when were …". */
+const PAST = /^\s*when\s+(?:was|were|did|had)\b/i;
 
 /** `a` with the date of the edition asked about leading, for "when …" asked of an event's editions (`raw`: the query
  *  as typed); else `a` as it is. Editions: the answer's event rows, divisions left out, each of its own season, at
  *  least one with dates; an answer of a card or a stat already answers on its own. */
 export function whenEventAnswer(raw: string, a: SearchAnswer, now: number): SearchAnswer {
   if (askOf(raw) !== "when" || a.stat || a.card || a.step !== "deterministic") return a;
-  const editions = a.hits.filter((h): h is Edition => h.kind === "event" && !h.parent && !!h.event?.start);
+  const events = a.hits.filter((h) => h.kind === "event" && !h.parent);
+  // Every edition dated: one announced with no date yet (a new season's) may be the one meant, so it stays a list.
+  if (events.some((h) => !h.event?.start)) return a;
+  const editions = events as Edition[];
   // One event's editions, one a season: its code the same each season (its name may change), a set of different
   // events ("when are the meets in <place>"), even one a season, is a list.
   if (!editions.length || new Set(editions.map(seasonOf)).size !== editions.length || new Set(editions.map(codeOf)).size !== 1) return a;
   const today = new Date(now).toISOString().slice(0, 10);
-  const lead = editionFor(editions, today);
-  const on = lead.event.start <= today && (lead.event.end ?? lead.event.start) >= today;
+  const lead = editionFor(editions, today, PAST.test(raw));
   const when = dateRange(lead.event.start, lead.event.end);
-  const said = on ? "on now" : lead.event.start > today ? "upcoming" : "the most recent";
+  // As its own row says it: the card and the list under it never disagree.
+  const status = statusOf(lead, today);
+  const said = status === "live" ? "on now" : status === "upcoming" ? "upcoming" : "the most recent";
   // The place asked, said when the event's own name doesn't ("when is the <state> championship": "Chesapeake
   // Championship (Virginia)").
   const place = a.understood?.place?.name;
