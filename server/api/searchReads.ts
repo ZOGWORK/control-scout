@@ -41,7 +41,9 @@ interface Store {
   rows: Map<string, Kept>; answers: Map<string, Kept>; pages: Map<string, Kept>;
   before: { answers: Map<string, Kept>; pages: Map<string, Kept> };
 }
-const fresh = (version = "", checked = 0, writes = dataWriteCount(), before?: Store): Store => ({
+/** How many stores there have been (each data move, clip-start change or Clear caches makes a new one). */
+let generation = 0;
+const fresh = (version = "", checked = 0, writes = dataWriteCount(), before?: Store): Store => (generation++, {
   version, checked, writes, rows: new Map<string, Kept>(), answers: new Map<string, Kept>(), pages: new Map<string, Kept>(),
   /** The answers and pages from before the last data move, served until drawn again (resolved ones only). */
   before: { answers: carried(before, "answers"), pages: carried(before, "pages") },
@@ -152,7 +154,14 @@ export const keptPage = <T>(key: string, make: () => Promise<T>): Promise<T> => 
  *  wash, server/wash.ts), so the next ask draws each page again. Answers and reads stay. */
 export function dropKeptPages(): void { kept.pages.clear(); kept.before.pages.clear(); }
 
+/** Which store is in use: changed by every data move, clip-start change and Clear caches. A value made into an older
+ *  store and still being made when it changed is never carried into the new one (./searchWarm.ts makes it again). */
+export const keptGeneration = (): number => generation;
+
 /** How many of each are kept right now, and how many copies from before the last data move (tests). */
 export const keptCounts = () => ({ rows: kept.rows.size, answers: kept.answers.size, pages: kept.pages.size, carried: kept.before.answers.size + kept.before.pages.size });
 
-registerCache("Search reads, answers and pages", () => { kept = fresh(); version = null; });
+// A clip-start change (the clip autopilot's, about once a minute) is a data move for search, as a sync's is (moved):
+// the reads go, and each answer and page is served as kept until one request has drawn it again. Emptied instead
+// (fresh), every answer and page was drawn again with a visitor waiting, each minute (the search audit's S3).
+registerCache("Search reads, answers and pages", () => { kept = fresh(); version = null; }, { onClip: () => { kept = moved(kept.version, kept.checked); } });
