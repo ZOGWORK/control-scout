@@ -136,11 +136,12 @@ function readList(said: string): CompoundQuestion | null {
   // "Worlds in 2025" is the championship held in 2025 (the 2024–25 season); "worlds 2025-26" names its season.
   const worldsSeason = ws?.[1] ? (ws[2] ? Number(ws[1]) : Number(ws[1]) - 1) : null;
   // Rookies: "rookie teams", "a team that started as a rookie this year".
-  const rookie = !!(take(/\b(?:(?:who|that)\s+)?(?:started|start|starting|began|begun)\s+(?:out\s+)?as\s+(?:an?\s+)?rookies?(?:\s+teams?)?\b/)
+  // Rookies left out, read first so the rookies named after the word are never the list: "not rookies", "that are not
+  // first-year teams", "excluding rookie teams", "non-rookie teams".
+  const notRookie = !!(take(/\b(?:(?:who|that|which)\s+(?:are|is|were|was)\s+|but\s+)?(?:not|never|excluding|except|without|no)\s+(?:the\s+|any\s+)?(?:rookies?|first[\s-]year)(?:\s+(?:ftc\s+)?(?:teams?|robots?))?\b/)
+    ?? take(/\bnon[\s-]?(?:rookies?|first[\s-]year)(?=\s+(?:ftc\s+)?(?:teams?|robots?)\b)/));
+  const rookie = !notRookie && !!(take(/\b(?:(?:who|that)\s+)?(?:started|start|starting|began|begun)\s+(?:out\s+)?as\s+(?:an?\s+)?rookies?(?:\s+teams?)?\b/)
     ?? take(/\b(?<!\bnon[\s-]?)(?:rookie|first[\s-]year)(?=\s+(?:ftc\s+)?(?:teams?|robots?)\b)/));
-  // Rookies left out: "not rookies", "that are not rookies", "excluding rookies", "non-rookie teams".
-  const notRookie = !rookie && !!(take(/\b(?:(?:who|that|which)\s+(?:are|is|were|was)\s+|but\s+)?(?:not|never|excluding|except|without|no)\s+(?:the\s+|any\s+)?rookies?(?:\s+teams?)?\b/)
-    ?? take(/\bnon[\s-]?rookies?(?=\s+(?:ftc\s+)?(?:teams?|robots?)\b)/));
   // Thresholds, each applied: a stat against a number ("with OPR over 100", ", OPR 90+", "a win rate over 70 percent"),
   // or a count of matches or wins ("with at least 30 matches", "that played 20+ matches"). A stat with a bare number
   // and no comparison is at least that number; a year is never one ("by opr 2025").

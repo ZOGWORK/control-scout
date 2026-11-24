@@ -643,7 +643,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const f: MatchFind = {
       // The current season is the one today is in.
       // A match's number at Worlds or states in a year ("q6 at worlds 2026") is the championship held that year (2025–26).
-      measure: FIND[intent] ?? "high", season: eventSeason ?? (labelled && (p.worlds || p.states) && year != null ? year - 1 : placeSeason(p, scope.season, opts)), region: regionOf(p), level: p.level, finals: p.finals, kind,
+      measure: FIND[intent] ?? "high", season: eventSeason ?? ((labelled || cleanAsk) && (p.worlds || p.states) && year != null ? year - 1 : placeSeason(p, scope.season, opts)), region: regionOf(p), level: p.level, finals: p.finals, kind,
       ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
       // "Ever" with video ("highest score ever with video"): every season's matches with video, read as one.
       ...(scope.ever && p.withVideo ? { ever: true } : {}),
