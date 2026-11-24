@@ -209,6 +209,17 @@ describe("Bruno's answer leading the page", () => {
     await settle();
     expect(pending).toHaveLength(0);
   });
+  it("keeps no failed ask in the memo: the other card asks him again", async () => {
+    const memo = new Map();
+    const first = render(<BrunoAnswer q="is absolute zero a real team" ready lead memo={memo} />);
+    await settle();
+    await act(async () => { pending.shift()!.resolve(Promise.reject(new Error("offline"))); });
+    expect(memo.size).toBe(0);
+    first.unmount();
+    render(<BrunoAnswer q="is absolute zero a real team" ready memo={memo} />);
+    await settle();
+    expect(pending).toHaveLength(1);
+  });
   it("holds no slot with his switch off", () => {
     flags.brunoAnswers = false;
     render(<BrunoAnswer q="is absolute zero a real team" ready lead />);
