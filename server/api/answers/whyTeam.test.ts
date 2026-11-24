@@ -84,6 +84,9 @@ describe("the answer", () => {
     const a = await ask("why was 31301 so good at auto in 2024-25");
     expect(a.card?.lines[0].text).toBe("Auto OPR 20.5: #30 of 80 (top 38%)");
     expect(a.understood?.label).toMatch(/2024–25/);
+    expect((await ask("why were gear owls so good at auto in 2024")).card?.lines[0].text).toBe("Auto OPR 20.5: #30 of 80 (top 38%)");
+    expect((await ask("why is 31301 so good at auto this season")).card?.lines[0].text).toBe("Auto OPR 48.2: #1 of 100 (top 1%)");
+    expect((await ask("why was 31301 so good at auto last season")).understood?.label).toMatch(/2025–26/);
     expect((await ask("why was 31301 so good at auto at worlds")).card?.title ?? "").not.toMatch(/against the field/);
     expect((await ask("why was 31301 so good at auto this weekend")).card?.title ?? "").not.toMatch(/against the field/);
   });

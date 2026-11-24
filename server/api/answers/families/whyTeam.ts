@@ -6,7 +6,7 @@ import type { SearchAnswer, SearchCardLine } from "../../../../src/shared/api.js
 import { seasonLabel } from "../../../../src/shared/format.js";
 import { get } from "../../../db.js";
 import { teamReliability } from "../../teams.js";
-import { defaultSeason, teamSeason } from "../season.js";
+import { defaultSeason, lastSeason, teamSeason } from "../season.js";
 import { teamHref } from "../matchSet.js";
 import { readTime } from "../../query/time.js";
 
@@ -57,17 +57,18 @@ const top = (rank: number, of: number) => `top ${Math.max(1, Math.ceil((rank * 1
 /** The answer to a question asking why a team is strong: its numbers against the field, or null (no such question, no
  *  team, or a team with no ranked season). `resolve` reads the team from the question's other words. */
 export async function whyTeamAnswer(q: string, resolve: (core: string) => Promise<SearchAnswer>): Promise<SearchAnswer | null> {
-  const w = readWhy(q);
-  if (!w) return null;
-  // A season said with it ("last season", "in 2024-25", the season picker's): that season's numbers. Any other time
-  // (a weekend, a date) is a question about those matches, never a season's card.
-  // A bare four-digit number is a season only said as one ("in 2024") or beside another number (the team's): alone it
-  // is the team ("why is 2025 so good at auto"), as the parser reads it.
-  const nums = w.core.match(/\b\d{1,5}\b/g) ?? [];
-  const yearOk = (y: number) => new RegExp(`\\b(?:in|during|for|from|season)\\s+(?:the\\s+)?${y}\\b`).test(w.core) || nums.some((n) => Number(n) !== y);
-  const said = readTime(w.core, new Date().toISOString().slice(0, 10), yearOk);
+  // A season said with it ("last season", "in 2024-25", the season picker's), read from the whole question before its
+  // frame: that season's numbers. Any other time (a weekend, a date) is a question about those matches, never a
+  // season's card. A bare four-digit number is a season only said as one ("in 2024") or beside another number (the
+  // team's): alone it is the team ("why is 2025 so good at auto"), as the parser reads it.
+  const text = q.toLowerCase();
+  const nums = text.match(/\b\d{1,5}\b/g) ?? [];
+  const yearOk = (y: number) => new RegExp(`\\b(?:in|during|for|from|season)\\s+(?:the\\s+)?${y}\\b`).test(text) || nums.some((n) => Number(n) !== y);
+  const said = readTime(text, new Date().toISOString().slice(0, 10), yearOk);
   if (said.time && said.time.kind !== "season") return null;
-  const core = said.rest.trim();
+  const w = readWhy(said.rest);
+  if (!w) return null;
+  const core = w.core;
   const base = await resolve(core);
   const hit = base.hits[0];
   if (base.step === "recovery" || hit?.kind !== "team" || !/^\d+$/.test(hit.ref)) return null;
@@ -76,8 +77,8 @@ export async function whyTeamAnswer(q: string, resolve: (core: string) => Promis
   // something this card doesn't read, so it is left to the readers that do.
   const named = new Set(`${hit.ref} ${hit.title}`.toLowerCase().split(/[^\p{L}\p{N}]+/u));
   if (!core.split(/\s+/).every((x) => named.has(x))) return null;
-  const relative = said.time?.relative === "last" ? defaultSeason() - 1 : said.time?.relative ? defaultSeason() : null;
-  const season = said.time ? (said.time.season ?? relative) : ((await teamSeason(team)) ?? defaultSeason());
+  // A season named; "last season" as every reader takes it (lastSeason); none said, or "this season": the team's own.
+  const season = said.time?.season ?? (said.time?.relative === "last" ? lastSeason() : ((await teamSeason(team)) ?? defaultSeason()));
   if (season == null) return null;
   const r = await get<Row>(
     `SELECT opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams, matches, wins, losses, ties
