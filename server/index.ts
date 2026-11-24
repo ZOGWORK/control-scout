@@ -36,6 +36,7 @@ import { warmSpelling } from "./api/spelling.js";
 import { warmNameTypos } from "./api/answers/nameTypos.js";
 import { warmVideoQuestions } from "./api/answers/videoSuggest.js";
 import { ensureSearchIndex, warmTypoIndex } from "./api/search.js";
+import { saveHot, warmHot } from "./api/searchWarm.js";
 import { rebuildSearch } from "./stats/job.js";
 import { scheduleCycles, warmUp } from "./warm.js";
 import { handingOver } from "./lanes.js";
@@ -80,7 +81,8 @@ let http: Server | null = null;
 process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); closeProjectionStreams(); });
 // Queued inbox fan-outs (activity already written) finish before the process exits.
 // On the way out, failed searches still in memory (settling or buffered) are written to the table too.
-drainOnSigterm(() => http, log, 10_000, () => Promise.all([inboxSettled(), flushSearchFailures(Date.now(), true).catch(() => 0)]));
+// The most-asked searches too, for the next process to make before it answers (./api/searchWarm.ts).
+drainOnSigterm(() => http, log, 10_000, () => Promise.all([inboxSettled(), flushSearchFailures(Date.now(), true).catch(() => 0), saveHot().catch(() => 0)]));
 let ready = false;
 // Every warm-up step done (server/warm.ts): `ready` waits for them only up to WARM_CAP_MS; this says when the rest are.
 let warm = false;
@@ -132,10 +134,21 @@ const warming = await warmUp([
 const handover = await handingOver();
 const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))]], log, Infinity, Date.now, handover ? "warm (before taking over)" : "warm (background)");
 if (handover) await Promise.all([warming.settled, rated]);
+// The most-asked searches' answers (./api/searchWarm.ts): made before taking over when another lane is serving, so
+// the first visitors after a deploy find them kept; after ready otherwise (a cold boot has visitors waiting already).
+const hot = async () => {
+  const t = Date.now();
+  const made = await warmHot().catch(() => 0);
+  log(`warm: ${made} most-asked searches ${((Date.now() - t) / 1000).toFixed(1)}s`);
+};
+if (handover) await hot();
 void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(() => { warm = true; });
 ready = true;
 if (socket) http = server.listen(socket, listening("the systemd socket"));
 log("ready");
+if (!handover) void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(hot);
+// The most-asked list written every few minutes too: a process that dies without SIGTERM still leaves a recent one.
+setInterval(() => { void saveHot().catch(() => {}); }, 5 * 60_000).unref();
 // The questions with video offered when nothing near a search's answer plays in time (server/api/answers/
 // videoSuggest.ts): a few searches, checked once the search index and the event-name typos are ready. Nothing waits
 // on them: neither `ready` nor `warm` (the deploy's check), and each check and the whole build are bounded.
