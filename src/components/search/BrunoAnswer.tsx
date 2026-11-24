@@ -71,12 +71,13 @@ export function BrunoAnswer({ q, prefer = "", ready, answered = false, lead = fa
     const stop = new AbortController();
     const t = setTimeout(() => {
       const url = `/api/search/bruno?q=${encodeURIComponent(query)}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`;
-      const settle = (v: { text: string | null; points: string[] }) => {
+      // Only what he answered is kept for the page's other card: a failed ask is asked again next time.
+      const show = (r: BrunoAnswerBody | null) => {
+        const v = { text: r?.text?.trim() ? r.text : null, points: r?.points ?? [] };
         if (memo) { memo.set(key, v); if (memo.size > 50) memo.delete(memo.keys().next().value!); }
         if (live) setState({ key, ...v });
       };
-      const show = (r: BrunoAnswerBody | null) => settle({ text: r?.text?.trim() ? r.text : null, points: r?.points ?? [] });
-      const none = () => settle({ text: null, points: [] });
+      const none = () => { if (live) setState({ key, text: null, points: [] }); };
       // Only his finished answer shows: a part still being written can be withdrawn, or the answer dropped by the
       // number check, and a card that shows and then vanishes is worse than none. A stream that breaks asks the plain
       // way, which shares the same model call on the server (or its cached answer).
