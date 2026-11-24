@@ -154,6 +154,14 @@ describe("the thumbs on an answer", () => {
     after.hydrate(saved!);
     expect(after.due("told", true)).toBe(false);
     expect(after.due("owed", false)).toBe(true);
+    // A note answered before the saved state finished loading is not forgotten, and said beats owed.
+    const racing = downNotes();
+    expect(racing.due("early", true)).toBe(true);
+    racing.said("early");
+    racing.hydrate({ told: ["old"], owed: ["early", "late"] });
+    expect(racing.due("early", true)).toBe(false);
+    expect(racing.due("old", true)).toBe(false);
+    expect(racing.due("late", false)).toBe(true);
     // Junk in the saved state is ignored rather than crashing the bot.
     const odd = downNotes();
     odd.hydrate({ told: ["a", 5 as unknown as string], owed: [null as unknown as string] });

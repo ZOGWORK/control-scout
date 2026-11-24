@@ -74,12 +74,15 @@ export function downNotes(max = 500, save: (state: DownNoteState) => void = () =
   const owed = new Set<string>();
   const keep = () => save({ told: [...told], owed: [...owed] });
   return {
-    /** Take up what an earlier run saved (a restart, a deploy). */
+    /** Take up what an earlier run saved (a restart, a deploy), added to what this run already knows: loading is
+     *  asynchronous, so a 👎 can be answered before it finishes, and that note must not be forgotten (or owed again). */
     hydrate(state: DownNoteState): void {
-      told.clear();
-      owed.clear();
       for (const id of state.told ?? []) if (typeof id === "string") told.add(id);
       for (const id of state.owed ?? []) if (typeof id === "string") owed.add(id);
+      // Said beats owed, whichever run said it.
+      for (const id of told) owed.delete(id);
+      while (told.size > max) told.delete(told.values().next().value!);
+      while (owed.size > max) owed.delete(owed.values().next().value!);
     },
     /** Whether this vote owes the note: it filed the question, or an earlier vote's note never arrived. */
     due(messageId: string, filed: boolean): boolean {
