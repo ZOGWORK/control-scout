@@ -62,6 +62,19 @@ site's failed-search list as a `downvoted` failure. People read it as a dislike 
 fine put questions in the queue, and a note had to explain what the button did. Both are gone: the `down` column and
 any `downvoted` rows stay readable (the owner console's total, the queue's own re-check) and nothing writes them.
 
+**The stale 👎s are taken off** (`bot/cleanup.ts`). The emoji the bot added between 7.9.2 and 8.0.1 is still on the
+answers it posted then, where it is a button that does nothing: on the first connection after 8.0.2 the bot walks back
+through the recent messages of every channel it can read — and each server's active threads — removes its own reaction
+from its own answers, and records that server's finished walk in a `kv` row of its own (`bot:down-sweep:<server>`), so a restart never scans it again. Only its
+own reaction goes: a member's 👎 is theirs, and a 👍 stays. The walk ends at a message older than 2026-11-21, before any
+answer could carry a 👎, so a channel's older history is never read and the two days the thumbs existed are all it
+covers. A sweep that met a channel it couldn't read — no Read Message History, a thread since deleted — or a 👎 that
+wouldn't come off is logged and that server is not recorded, so the next start walks it again — and only it; a 👎 that
+is already gone counts as done. A server with no row is walked when it is first seen: one the bot is added back to has its row deleted with its other data (`bot/forget.ts`) and is swept as it joins, and one added while the bot was down is walked on the next start, since no join event reaches it. Archived threads are left
+alone: a thread from those two days has to still be active to be read now, and paging every channel's archive for it
+isn't worth the calls. No row is written to `discord_answers`: the counts are what people clicked and stay readable;
+only the emoji nobody can use any more comes off.
+
 **What it was asked** (`bot/asks.ts`, migration 104). Every ask is recorded — the words as typed with personal data
 redacted, the step search answered it at, whether Bruno's chat answered it, and how long it took; never who asked,
 only the server. The owner console lists the questions it couldn't answer, most asked first. A **records question**
@@ -298,14 +311,17 @@ code; you can also type a code yourself).
 ## Invite link
 
 ```
-https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=2147502144
+https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=2147567680
 ```
 
 - Scopes: `bot` and `applications.commands`.
-- Permissions `2147502144` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Use Application
-  Commands (2147483648). Nothing else: the bot never reads messages, manages anything or joins voice. A server that
-  invited the bot before 7.9.2 has no Add Reactions, so its answers get no 👍 until the bot is re-invited with this
-  link; nothing else changes for it.
+- Permissions `2147567680` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Read Message History
+  (65536) + Use Application Commands (2147483648). Nothing else: the bot manages nothing and joins voice. It reads a
+  channel's recent messages once, on the first start after 8.0.2, to take its own stale 👎s off its answers
+  (`bot/cleanup.ts`, above), and otherwise only the messages that @mention it. A server that invited the bot before
+  7.9.2 has no Add Reactions, so its answers get no 👍 until the bot is re-invited with this link; a server that
+  invited it before 8.0.2 has no Read Message History, so the stale 👎s stay until then (the bot logs which channels
+  it can't read and asks again on every start). Nothing else changes for either.
 
 `discordInviteUrl()` in `src/shared/discord.ts` builds exactly this link.
 

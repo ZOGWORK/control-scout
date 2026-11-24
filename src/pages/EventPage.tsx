@@ -37,7 +37,6 @@ import { AdvancedTeams } from "../components/AdvancedTeams";
 import { Projections } from "../components/Projections";
 import { OFFLINE_FORECAST } from "../lib/offline/readers";
 import { cn } from "../components/cn";
-import { eventMorphKey, useMorphTarget } from "../components/CardMorph";
 import { ROSTER_CHIP_TONE } from "../lib/textTones";
 import { OfflineNote } from "../components/OfflineNote";
 import { EventGlance } from "../components/EventGlance";
@@ -75,6 +74,7 @@ import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, Odd
 import { EventPackButton } from "../components/offline/EventPackButton";
 import { isV8, useIsV8, V8_NUM } from "../lib/v8";
 import { V8_AWARD, v8Rank } from "../lib/v8colour";
+import { WLT_TONE } from "../lib/rankShade";
 import { Disclosure, eventState, FinishedFocus, noAwardsNote, LiveFocus, UpcomingFocus, V8_DEFAULT_TAB, V8_TAB_ORDER } from "../components/EventFocus";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/overlay";
 import { EVENT_TABS, type EventTab } from "../lib/eventTab";
@@ -100,8 +100,6 @@ export default function EventPage() {
 function Event({ d, path }: { d: EventDetail; path: string }) {
   const [sp, setSp] = useSearchParams();
   const e = d.event;
-  // The card morph's landing spot: a tapped event card's title glides here (src/components/CardMorph.tsx).
-  const morphTitle = useMorphTarget(eventMorphKey(e.season, e.code));
   // v8: the page is built around the event's state (live / finished / upcoming), components/EventFocus.tsx.
   const v8 = useIsV8();
   const st = eventState(e.status);
@@ -260,7 +258,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">{statusBadge}<span className="text-xs text-text-faint">{e.typeLabel} · <span className="font-mono">{e.code}</span> · {seasonLabel(e.season)}</span></div>
-            <h1 {...morphTitle} className="mt-2 text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">{e.name}</h1>
+            <h1 className="mt-2 text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">{e.name}</h1>
             <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-muted">
               <span className="inline-flex items-center gap-1.5"><CalendarDays className="size-4" aria-hidden />{dateRange(e.start, e.end)}</span>
               {(e.venue || e.city) && (
@@ -308,7 +306,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent opacity-15 blur-3xl v8:hidden" />
           <div className="relative flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <h1 {...morphTitle} className={cn("font-display text-xl font-semibold tracking-tight sm:text-2xl", V8_TITLE)}>{e.name}</h1>
+              <h1 className={cn("font-display text-xl font-semibold tracking-tight sm:text-2xl", V8_TITLE)}>{e.name}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                 {statusBadge}
                 <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>
@@ -339,7 +337,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               {typeChip}
               <span className="font-mono text-xs text-muted-foreground v8:text-text-faint">{e.code} · {seasonLabel(e.season)}</span>
             </div>
-            <h1 {...morphTitle} className={cn("mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl", V8_TITLE)}>{e.name}</h1>
+            <h1 className={cn("mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl", V8_TITLE)}>{e.name}</h1>
             {live}
             {facts(true)}
           </div>
@@ -386,7 +384,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               {predictable && !d.matches.some((m) => m.level === "qual" && m.played) && d.field.length >= 4 && <SimulatedRankings d={d} team={teamParam} />}
               {unofficial && <UnofficialNote text={unofficial} />}
               <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="rank" storageKey="event-rankings" noun="teams"
-                defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam} emptyColumnNotes={EMPTY_COLUMN_NOTES}
+                defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam} rankingColours emptyColumnNotes={EMPTY_COLUMN_NOTES}
                 schedulePlaces={schedulePlaces(schedule)}
                 aboveRows={<RankingNotes d={d} advOdds={predictable && !d.forecastUnsupported} refreshKey={recordsKey} />}
                 emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} schedule={schedule} />}
@@ -719,13 +717,13 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
   const rs = (r: FieldRow) => (meet ? r.meet?.rs ?? null : r.rp);
   const rec = (r: FieldRow): (number | null)[] => (meet ? (r.meet ? [r.meet.wins, r.meet.losses, r.meet.ties] : [null, null, null]) : [r.wins, r.losses, r.ties]);
   const cols: Col<FieldRow>[] = [
-    // v8: gold, silver and bronze for the top three ranks (lib/v8colour.ts).
-    { key: "rank", label: "Rank", value: rank, asc: true, align: "right", render: (r) => <span className={cn((rank(r) ?? 9) <= 3 && "v8:font-semibold", v8Rank(rank(r)))} data-rank={rank(r) ?? undefined}>{rank(r) ?? "—"}</span> },
+    // Rank, RS and TBP shade green (best here) to red (worst) by value; W-L-T in its status tones (lib/rankShade.ts).
+    { key: "rank", label: "Rank", value: rank, asc: true, align: "right", shade: true, render: (r) => <span className={cn((rank(r) ?? 9) <= 3 && "v8:font-semibold")} data-rank={rank(r) ?? undefined}>{rank(r) ?? "—"}</span> },
     { key: "team", label: "Team", value: (r) => r.team, render: (r) => phone && hasTeamPage(r.team, r.name)
-      ? <TeamNumber team={r.team} name={r.name ?? ""} href={`/teams/${r.team}?season=${season}`} />
-      : <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className={cn("font-mono font-medium", V8_NUM)}>{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
-    { key: "rs", label: "RS", title: meet ? "Ranking score at this meet (average ranking points per match)" : "Ranking score (average ranking points)", value: rs, align: "right", render: (r) => num(rs(r), 2), heat: true },
-    { key: "wlt", label: "W-L-T", value: (r) => { const [w, l] = rec(r); return w == null ? null : w - (l ?? 0); }, align: "right", render: (r) => { const [w, l, t] = rec(r); return `${w ?? "–"}-${l ?? "–"}-${t ?? "–"}`; }, heat: true },
+      ? <TeamNumber team={r.team} name={r.name ?? ""} href={`/teams/${r.team}?season=${season}`} plain />
+      : <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
+    { key: "rs", label: "RS", title: meet ? "Ranking score at this meet (average ranking points per match)" : "Ranking score (average ranking points)", value: rs, align: "right", render: (r) => num(rs(r), 2), shade: true },
+    { key: "wlt", label: "W-L-T", value: (r) => { const [w, l] = rec(r); return w == null ? null : w - (l ?? 0); }, align: "right", render: (r) => <WLT rec={rec(r)} /> },
     // Schedule difficulty (src/shared/scheduleDifficulty.ts), next to the record it helps explain (and in view on a
     // phone): red = a hard draw. Tap a value for it in words.
     ...(schedule ? [{ key: "schedule", label: "Schedule", title: "Schedule difficulty: opponents' average rating over the field's, minus partners' (points; + = harder). Tap a value for the plain-words version.",
@@ -734,16 +732,16 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
     ...(left ? [{ key: "scheduleLeft", label: "Sched. left", title: "Schedule difficulty of the qualification matches still to play. Tap a value for the plain-words version.",
       value: (r: FieldRow) => sched.get(r.team)?.remaining?.difficulty ?? null, asc: true, align: "right" as const, heat: true,
       render: (r: FieldRow) => { const x = sched.get(r.team)?.remaining; return <ScheduleValue stat="scheduleDifficulty" v={x?.difficulty} opponents={x?.opponents} partners={x?.partners} rank={x ?? undefined} />; } }] : []),
-    ...(meet ? [{ key: "avg", label: season >= 2025 ? "npAVG" : "Auto AVG", title: season >= 2025 ? "Average non-penalty points (the first tiebreaker)" : "Average auto points (the first tiebreaker)", value: (r: FieldRow) => r.meet?.tb[0] ?? null, align: "right" as const, render: (r: FieldRow) => num(r.meet?.tb[0] ?? null, 2), heat: true }] : []),
-    { key: "opr", label: "OPR", value: (r) => r.opr.np, align: "right", render: (r) => num(r.opr.np), heat: true, v8Tone: V8_PHASE.np },
+    ...(meet ? [{ key: "avg", label: season >= 2025 ? "npAVG" : "Auto AVG", title: season >= 2025 ? "Average non-penalty points (the first tiebreaker)" : "Average auto points (the first tiebreaker)", value: (r: FieldRow) => r.meet?.tb[0] ?? null, align: "right" as const, render: (r: FieldRow) => num(r.meet?.tb[0] ?? null, 2), shade: true }] : []),
+    { key: "opr", label: "OPR", value: (r) => r.opr.np, align: "right", render: (r) => num(r.opr.np), heat: true },
     // Swing at this event, the consistency stat (src/shared/reliability.ts): lower = steadier, "—" below the minimum.
     ...(field.some((r) => r.swing) ? [{ key: "swing", label: "Swing", title: SWING_LINE, value: (r: FieldRow) => r.swing?.value ?? null, asc: true, align: "right" as const, heat: true,
       render: (r: FieldRow) => <span title={swingTitle(r.swing)}>{swingText(r.swing)}</span> }] : []),
-    { key: "auto", label: "Auto", value: (r) => r.opr.auto, align: "right", render: (r) => num(r.opr.auto), hideOnMobile: true, heat: true, v8Tone: V8_PHASE.auto },
-    { key: "teleop", label: "TeleOp", value: (r) => r.opr.teleop, align: "right", render: (r) => num(r.opr.teleop), hideOnMobile: true, heat: true, v8Tone: V8_PHASE.teleop },
-    { key: "endgame", label: "Endgame", value: (r) => r.opr.endgame, align: "right", render: (r) => num(r.opr.endgame), hideOnMobile: true, heat: true, v8Tone: V8_PHASE.endgame },
-    { key: "pen", label: "Pen.", title: "Penalty points given away per match (OPR)", value: (r) => r.opr.pen, asc: true, align: "right", render: (r) => num(r.opr.pen), hideOnMobile: true, heat: true, v8Tone: V8_PHASE.pen },
-    { key: "rating", label: "Rating", title: "Prediction rating now (± uncertainty)", value: (r) => r.rating?.np ?? null, align: "right", render: (r) => r.rating ? <span>{num(r.rating.np)} <span className="text-muted-foreground">±{num(r.rating.sd, 0)}</span></span> : "—", v8Tone: V8_PHASE.np },
+    { key: "auto", label: "Auto", value: (r) => r.opr.auto, align: "right", render: (r) => num(r.opr.auto), hideOnMobile: true, heat: true },
+    { key: "teleop", label: "TeleOp", value: (r) => r.opr.teleop, align: "right", render: (r) => num(r.opr.teleop), hideOnMobile: true, heat: true },
+    { key: "endgame", label: "Endgame", value: (r) => r.opr.endgame, align: "right", render: (r) => num(r.opr.endgame), hideOnMobile: true, heat: true },
+    { key: "pen", label: "Pen.", title: "Penalty points given away per match (OPR)", value: (r) => r.opr.pen, asc: true, align: "right", render: (r) => num(r.opr.pen), hideOnMobile: true, heat: true },
+    { key: "rating", label: "Rating", title: "Prediction rating now (± uncertainty)", value: (r) => r.rating?.np ?? null, align: "right", render: (r) => r.rating ? <span>{num(r.rating.np)} <span className="text-muted-foreground">±{num(r.rating.sd, 0)}</span></span> : "—" },
   ];
   return (
     <div className="space-y-2">
@@ -760,6 +758,11 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
       {field.some((r) => r.swing) && <p className="text-xs text-muted-foreground" data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>}
     </div>
   );
+}
+
+/** A record as W-L-T: wins green, losses red, ties neutral (lib/rankShade.ts WLT_TONE). */
+function WLT({ rec: [w, l, t] }: { rec: (number | null)[] }) {
+  return <span data-wlt><span className={WLT_TONE.wins}>{w ?? "–"}</span><span className="text-muted-foreground">-</span><span className={WLT_TONE.losses}>{l ?? "–"}</span><span className="text-muted-foreground">-</span><span className={WLT_TONE.ties}>{t ?? "–"}</span></span>;
 }
 
 /** Teams (N): everyone registered, as cards — rank, OPR and rating at a glance, searchable. At a league meet:
