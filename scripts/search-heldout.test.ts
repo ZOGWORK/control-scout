@@ -99,14 +99,19 @@ describe("the record of questions claimed twice", () => {
     expect(recorded.filter((k) => !ids.has(k))).toEqual([]);
     expect(recorded).toEqual([...new Set(recorded)].sort());
   });
-  it("is rewritten by a whole held-out run only: --claims with a set, a filter or the training set is refused", () => {
-    // Refused before any database is opened, so quick; the record is left as it was.
-    const before = readFileSync(join(import.meta.dirname, "search-heldout.claims.json"), "utf8");
-    for (const part of [["--set", "q260"], ["--only", "closest"], ["--train"]]) {
-      const r = spawnSync(process.execPath, ["--import", "tsx", join(import.meta.dirname, "search-heldout.ts"), "--claims", ...part], { encoding: "utf8", timeout: 60_000 });
-      expect(r.status, part.join(" ")).toBe(1);
-      expect(r.stdout).toContain("--claims records a whole held-out run only");
+  it("is rewritten by a whole held-out run only: --claims with a set, a filter, the training set or --split is refused", () => {
+    // Refused before any database is opened, so quick; the record is left as it was (and put back if a refusal ever
+    // stops working, so a failing run never leaves a smaller record in the checkout).
+    const file = join(import.meta.dirname, "search-heldout.claims.json"), before = readFileSync(file, "utf8");
+    try {
+      for (const part of [["--set", "q260"], ["--only", "closest"], ["--train"], ["--split"]]) {
+        const r = spawnSync(process.execPath, ["--import", "tsx", join(import.meta.dirname, "search-heldout.ts"), "--claims", ...part], { encoding: "utf8", timeout: 60_000 });
+        expect(r.status, part.join(" ")).toBe(1);
+        expect(r.stdout).toContain("--claims records a whole held-out run only");
+      }
+      expect(readFileSync(file, "utf8")).toBe(before);
+    } finally {
+      writeFileSync(file, before);
     }
-    expect(readFileSync(join(import.meta.dirname, "search-heldout.claims.json"), "utf8")).toBe(before);
   }, 120_000);
 });
