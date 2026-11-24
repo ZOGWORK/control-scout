@@ -47,11 +47,14 @@ import { readAsk } from "../searchAsks.js";
 
 export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resolve: Resolve; now?: number; prefer?: ReadonlySet<string>;
   /** A window read exactly as asked: one with nothing in it says so, never relaxed to its season (two windows side by side). */
-  exact?: boolean }
+  exact?: boolean;
+  /** The query held a quoted phrase: no word fixed in the parse (ParseContext.asTyped). */
+  asTyped?: boolean }
 
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  const ctx = await parseContext(opts.now, opts.prefer);
+  const ctx0 = await parseContext(opts.now, opts.prefer);
+  const ctx = opts.asTyped ? { ...ctx0, asTyped: true } : ctx0;
   let p = await parseQuery(q, ctx);
   // A team's highlights asked by part of its name ("hypnotic highlights") or by a name teams share, with its place
   // ("ultraviolet nj highlights"): the parser takes only a whole name that is one team's, so search's own team lookup
