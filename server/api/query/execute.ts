@@ -729,8 +729,12 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // match type's ("playoff matches in NJ") are left to search.
   if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond && !p.withVideo && !cleanAsk) return null;
   const labelled = intent === "match-label" && p.matchNumber != null;
-  // A match's number at Worlds ("q6 at worlds"): Worlds' matches with it, its divisions' and finals'.
-  const kind = (labelled || cleanAsk) && p.worlds ? WORLDS_KIND : (labelled || cleanAsk) && p.states ? STATES_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
+  // Worlds or a state championship as a match board's scope ("q6 at worlds", "closest matches at worlds", "highest
+  // scoring matches in houston"): its matches, its divisions' and finals'. A division or an edition named beside it
+  // ("closest matches at worlds jackson division"): that event, read among the championship's own events below, never
+  // all of it.
+  const championship = p.worlds ? WORLDS_KIND : p.states ? STATES_KIND : null;
+  const kind = championship && !p.event ? championship : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
   // One team's match by its score ("<team> 226 point match"): that team's matches with the score, found the same way.
   const scored = p.teams.length === 1 && p.scoreCond?.op === "=" && (intent === "season-matches" || intent === "top-matches");
   // One team's matches with video ("<team> matches with video", "<team> best match with video"): found the same way.
@@ -743,10 +747,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // its divisions' too. A calendar year said is the edition held that year; none said, its latest.
     const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
     // A measure asked of an event named by its name ("closest match in <event>") is that event's matches too.
-    const named = p.event && !kind && (p.scoreCond || labelled || p.withVideo || cleanAsk || (FIND[intent] && intent !== "match-label")) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
+    const named = p.event && !kind && (p.scoreCond || labelled || p.withVideo || cleanAsk || (FIND[intent] && intent !== "match-label")) ? await eventsNamed(normalise(p.event.words), championship?.types ?? null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
     const events = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
     if (events && !events.length) return null;
-    if (((p.event || p.eventKind) && !kind && !events) || (p.worlds && !labelled && !cleanAsk) || (p.states && !labelled && !cleanAsk) || p.alliance || (scope.ever && !p.withVideo) || (p.place?.kind === "city" && (p.teams.length || !p.place.city))) return null;
+    if (((p.event || p.eventKind) && !kind && !events) || p.alliance || (scope.ever && !p.withVideo) || (p.place?.kind === "city" && (p.teams.length || !p.place.city))) return null;
     // A town ("closest matches in <town>"): the events held there, in its state (as a scope's highlights read one).
     const town = p.place?.kind === "city" ? p.place : null;
     // Its name as each season held it: the main event's, never a division's.
@@ -759,8 +763,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses|predictions|misses)\b/.test(said);
     const f: MatchFind = {
       // The current season is the one today is in.
-      // A match's number at Worlds or states in a year ("q6 at worlds 2026") is the championship held that year (2025–26).
-      measure: FIND[intent] ?? "high", season: eventSeason ?? ((labelled || cleanAsk) && (p.worlds || p.states) && year != null ? year - 1 : placeSeason(p, scope.season, opts)),
+      // Worlds or states in a year ("q6 at worlds 2026", "closest matches at worlds 2026") is the championship held that
+      // year (2025–26).
+      measure: FIND[intent] ?? "high", season: eventSeason ?? ((p.worlds || p.states) && year != null ? year - 1 : placeSeason(p, scope.season, opts)),
       region: town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.city! } : regionOf(p), ...(town ? { city: town.city! } : {}), level: p.level, finals: p.finals, kind,
       ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
       // "Ever" with video ("highest score ever with video"): every season's matches with video, read as one.
