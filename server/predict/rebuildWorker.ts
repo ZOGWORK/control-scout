@@ -76,5 +76,17 @@ let queue = Promise.resolve();
 port.on("message", (m: ToRebuildWorker) => {
   if (m.t === "ack") { const go = acked; acked = null; go?.(); return; }
   if (m.t === "reset") { queue = queue.then(() => resetForecasters()); return; }
+  // The process is stopping: close the connection here, on the thread that opened it (offThread.ts `close`). A rebuild
+  // still in flight is abandoned with it — the connection is going, so its results are of no use.
+  if (m.t === "stop") {
+    // `closed` is what the parent counts: a close that threw leaves the connection to a finalizer on a thread that is
+    // about to end, which is the crash this exists to prevent, so it must not be reported as a close.
+    let closed = true;
+    try { db.close(); } catch { closed = false; }
+    post({ t: "stopped", closed });
+    // Posted first, then the port released: the thread ends once the message is out.
+    setImmediate(() => port.unref());
+    return;
+  }
   queue = queue.then(() => rebuild(m).catch((e) => post({ t: "error", id: m.id, error: e instanceof Error ? e.message : String(e) })));
 });
