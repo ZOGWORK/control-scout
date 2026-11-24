@@ -11,10 +11,10 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchCard, SearchHit, TeamSummary } from "../shared/api";
 
-const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined }));
+const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined, error: null as string | null, busy: false }));
 vi.mock("../components/search/SearchBox", async (orig) => ({
   ...(await orig<typeof import("../components/search/SearchBox")>()),
-  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: false, error: null, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: false, prefer: "" }),
+  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: state.busy, error: state.error, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: false, prefer: "" }),
 }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2025 }));
 const summaries: TeamSummary[] = [
@@ -26,8 +26,10 @@ vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../l
   // The phone's search bar is a real SearchBox, which ranks the visitor's own teams first: none here.
   usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
 const asked = vi.hoisted(() => [] as string[]);
+// What he writes back (null: nothing to add).
+const says = vi.hoisted(() => ({ text: "Bruno's overview of the records." as string | null, fail: false }));
 vi.mock("../lib/brunoStream", () => ({
-  streamBrunoAnswer: (url: string) => { asked.push(url); return Promise.resolve({ text: "Bruno's overview of the records.", points: [] }); },
+  streamBrunoAnswer: (url: string) => { asked.push(url); return says.fail ? Promise.reject(new Error("down")) : Promise.resolve(says.text ? { text: says.text, points: [] } : null); },
 }));
 
 const { default: SearchPage } = await import("./SearchPage");
@@ -63,7 +65,104 @@ const show = (q: string) => render(<MemoryRouter initialEntries={[`/search?q=${e
 const settle = () => act(async () => { vi.advanceTimersByTime(BRUNO_SETTLE_MS + 5); });
 
 beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); asked.length = 0; });
-afterEach(() => { cleanup(); state.answer = undefined; vi.useRealTimers(); });
+afterEach(() => { cleanup(); state.answer = undefined; state.error = null; state.busy = false; says.fail = false; says.text = "Bruno's overview of the records."; vi.useRealTimers(); });
+
+// v8 (owner, 2026-11-23): a question search has no direct answer to leads with his answer, under the search box; a
+// shared name's reading is a plain line heading its list, never the page's biggest words.
+describe("Bruno leading the v8 page", () => {
+  beforeEach(() => document.documentElement.setAttribute("data-v8", ""));
+  afterEach(() => document.documentElement.removeAttribute("data-v8"));
+  const NAMES = "is absolute zero a real team";
+  const names = () => answer(NAMES, [team(12096, "Absolute Zero"), team(13048, "Absolute Zero")], {
+    understood: { kind: "names", label: 'Which "absolute zero"? 5 teams have that name; 2 of them still play: 12096 (Sterling, VA), 13048 (Englewood, NJ)' },
+    suggest: ["is 12096 a real team", "is 13048 a real team"],
+  } as Partial<SearchAnswer>);
+
+  it("puts his answer first, a yes as the headline, the names as a plain line and one Related searches row", async () => {
+    says.text = "Yes, Absolute Zero is several real teams.";
+    state.answer = names();
+    const { container } = show(NAMES);
+    const lead = container.querySelector("[data-bruno-lead]")!;
+    // Held from the first frame, before he answers.
+    expect(lead.querySelector("[data-bruno-pending]")).not.toBeNull();
+    await settle();
+    expect(lead.querySelector("[data-bruno-verdict]")!.getAttribute("data-bruno-verdict")).toBe("Yes");
+    const h1 = container.querySelector("h1")!;
+    expect(lead.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(h1.textContent).toBe("5 teams are named Absolute Zero; 2 still play");
+    expect(h1.getAttribute("data-heading-size")).toBe("label");
+    // The reading isn't said twice, and his card shows once.
+    expect(container.querySelector("[data-understood]")).toBeNull();
+    expect(container.querySelectorAll("[data-bruno-answer]")).toHaveLength(1);
+    expect(container.textContent).not.toContain("Search can answer these");
+    const related = container.querySelector("[data-related-lead]")!;
+    expect(related.querySelector("h2")!.textContent).toBe("Related searches");
+    expect([...related.querySelectorAll("[data-follow-chip]")].slice(0, 2).map((c) => c.textContent)).toEqual(["is 12096 a real team", "is 13048 a real team"]);
+  });
+  it("lets his slot go and gives the heading its size back when he has nothing to add", async () => {
+    says.text = null;
+    state.answer = answer("where are the nj workshops", [ev("NJW1", "FTC NJ Multi-Track Workshops (North)")], { understood: { kind: "names", label: 'Teams, events and matches matching "nj workshops"' } } as Partial<SearchAnswer>);
+    const { container } = show("where are the nj workshops");
+    expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBe("label");
+    await settle();
+    expect(container.querySelector("[data-bruno-pending], [data-bruno-answer]")).toBeNull();
+    // The slot's frame goes too: no empty gap above the heading.
+    expect(container.querySelector("[data-bruno-lead]")).toBeNull();
+    expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
+  });
+  it.each([["as typed", "where are the nj workshops"], ["with spaces around it", "  where are the nj workshops  "]])("lets the slot go for a question %s", async (_, q) => {
+    says.text = null;
+    state.answer = answer(q.trim(), [ev("NJW1", "FTC NJ Multi-Track Workshops (North)")], { understood: { kind: "names", label: 'Teams, events and matches matching "nj workshops"' } } as Partial<SearchAnswer>);
+    const { container } = show(q);
+    expect(container.querySelector("[data-bruno-lead]")).not.toBeNull();
+    await settle();
+    expect(container.querySelector("[data-bruno-lead]")).toBeNull();
+    expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
+  });
+  it("asks again when the search runs again after he couldn't be reached", async () => {
+    says.fail = true;
+    state.answer = names();
+    const page = () => <MemoryRouter initialEntries={[`/search?q=${encodeURIComponent(NAMES)}`]}><SearchPage /></MemoryRouter>;
+    const { container, rerender } = render(page());
+    await settle();
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(container.querySelector("[data-bruno-lead]")).toBeNull();
+    says.fail = false;
+    state.busy = true;
+    rerender(page());
+    state.busy = false;
+    rerender(page());
+    expect(container.querySelector("[data-bruno-lead] [data-bruno-pending]")).not.toBeNull();
+    await settle();
+    expect(container.querySelector("[data-bruno-lead] [data-bruno-answer]")).not.toBeNull();
+  });
+  it("says a comparison of two shared names as a plain line too", () => {
+    const q = "is ultraviolet better than mirror";
+    state.answer = answer(q, [team(20245, "Ultraviolet"), team(23268, "Ultraviolet"), team(1111, "Mirror"), team(2222, "Mirror")], {
+      understood: { kind: "compare", label: 'Which "ultraviolet"? 3 teams have that name; 2 of them still play: 20245 (Norton Shores, MI), 23268 (Hackettstown, NJ) · Which "mirror"? 2 teams have that name: 1111 (A, B), 2222 (C, D)' },
+    } as Partial<SearchAnswer>);
+    const { container } = show(q);
+    const h1 = container.querySelector("h1")!;
+    expect(h1.textContent).toBe("3 teams are named Ultraviolet; 2 still play · 2 teams are named Mirror");
+    expect(h1.getAttribute("data-heading-size")).toBe("label");
+  });
+  it("keeps a failed search's heading at its size, with no card above it", () => {
+    state.answer = names();
+    state.error = "Search failed. Check your connection.";
+    const { container } = show(NAMES);
+    expect(container.querySelector("[data-bruno-lead]")).toBeNull();
+    expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
+    // Nor its words: no names list shows under it.
+    expect(container.querySelector("h1")!.textContent).not.toContain("teams are named");
+  });
+  it("never leads a standing question, whose summary comes with the team's numbers", async () => {
+    state.answer = answer("how good is simply complex", [team(18061, "Simply Complex")]);
+    const { container } = show("how good is simply complex");
+    await settle();
+    expect(container.querySelector("[data-bruno-lead]")).toBeNull();
+    expect(container.querySelectorAll("[data-bruno-answer]")).toHaveLength(1);
+  });
+});
 
 describe.each([
   ["desktop", false],
@@ -102,7 +201,9 @@ describe.each([
     expect(cards).toHaveLength(1);
     expect(cards[0].textContent).toContain("Bruno AI");
     expect(cards[0].textContent).toContain("Bruno's overview of the records.");
-    // On a phone his writing is folded under "Show AI Analysis", never dropped.
-    if (phone) expect(cards[0].querySelector("[data-ai-analysis]")!.textContent).toContain("Bruno's overview of the records.");
+    // On a phone his writing is folded under "Show AI Analysis" (never dropped) when a summary comes first in his
+    // card; with none, his answer is the page's answer and shows open.
+    if (phone && cards[0].querySelector("[data-search-summary]")) expect(cards[0].querySelector("[data-ai-analysis]")!.textContent).toContain("Bruno's overview of the records.");
+    else expect(cards[0].querySelector("[data-ai-analysis]")).toBeNull();
   });
 });

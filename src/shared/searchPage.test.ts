@@ -2,7 +2,7 @@
 // title takes), a Compare by both sides, a question by its team and what it asked, else the server's reading.
 import { describe, expect, it } from "vitest";
 import type { SearchAnswer, SearchHit } from "./api";
-import { answerDescription, badgeUnder, capWords, cardTitle, contextBadge, headingOver, pageTitle, repeats, teamParts } from "./searchPage";
+import { answerDescription, badgeUnder, capWords, cardTitle, contextBadge, headingOver, namesSaid, pageTitle, repeats, teamParts } from "./searchPage";
 
 const a = (hits: SearchHit[], extra: Partial<Omit<SearchAnswer, "understood">> & { understood?: { label: string } } = {}) => ({ q: "", hits, pages: [], step: "deterministic" as const, weak: false, ...extra });
 const team = (title: string): SearchHit => ({ kind: "team", ref: "18061", title, subtitle: "", season: 2025 });
@@ -131,5 +131,20 @@ describe("badgeUnder a heading that says it and more", () => {
   it("drops the badge", () => {
     expect(badgeUnder("Teams in Oradell, NJ", "Teams in Oradell")).toBeNull();
     expect(badgeUnder("Teams in Oradell, NJ", "Teams in Ora")).toBe("Teams in Ora");
+  });
+});
+
+describe("namesSaid", () => {
+  it("says a shared name's reading as a plain line, in the teams' own spelling", () => {
+    const label = 'Which "absolute zero"? 5 teams have that name; 3 of them still play: 12096 (Sterling, VA), 13048 (Englewood, NJ), 19656 (Chuansha, SH)';
+    expect(namesSaid(label, ["Absolute Zero"])).toBe("5 teams are named Absolute Zero; 3 still play");
+    expect(namesSaid('Which "twin gears"? 2 teams have that name: 1 (A, B), 2 (C, D)')).toBe('2 teams are named "twin gears"');
+  });
+  it("says each side of a comparison, and nothing for any other reading", () => {
+    expect(namesSaid('Which "ultraviolet"? 3 teams have that name; 2 of them still play: … · Which "mirror"? 2 teams have that name: …', ["Ultraviolet", "Mirror"]))
+      .toBe("3 teams are named Ultraviolet; 2 still play · 2 teams are named Mirror");
+    expect(namesSaid("Teams in Oradell, NJ")).toBeNull();
+    expect(namesSaid(undefined)).toBeNull();
+    expect(namesSaid('Which "mirror"? 3 teams have that name; 1 of them still play: 1 (A, B)', ["Mirror"])).toBe("3 teams are named Mirror; 1 still plays");
   });
 });
