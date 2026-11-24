@@ -64,7 +64,7 @@ import { pickShared, whichLine } from "./query/shared.js";
 import { withPage } from "./answers/teamsNamed.js";
 import { asideWord, asksWhich, onlyOrdinary } from "./query/ordinary.js";
 import { LEXICON } from "./query/lexicon.js";
-import { SEARCH_MAX_QUERY as MAX_QUERY, cleanQuery } from "../../src/shared/search.js";
+import { SEARCH_MAX_QUERY as MAX_QUERY, cleanQuery, queryCut } from "../../src/shared/search.js";
 import { awardQuery, bottomAnswer, calledTeams, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, explainTeamAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 /** The longest query read, and the query as search reads it (src/shared/search.ts: the event pack reads a query the
@@ -260,8 +260,12 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
 /** Search's answer for `raw` (docs/search.md). A top-level search goes through the layers (./searchLayers.ts,
  *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
-  const a = await answerOf(raw, opts);
-  if (opts.inner || opts.intents === false || opts.rewrites) return a;
+  const read = await answerOf(raw, opts);
+  if (opts.inner || opts.intents === false || opts.rewrites) return read;
+  // A question longer than search reads (a pasted paragraph): the words past the cut are said under the answer, as
+  // words it read past are, never dropped silently.
+  const cut = queryCut(String(raw ?? ""));
+  const a = cut && read.understood ? carryOutcome(read, { ...read, understood: { ...read.understood, unread: [...(read.understood.unread ?? []), cut] } }) : read;
   // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
   // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
   // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.

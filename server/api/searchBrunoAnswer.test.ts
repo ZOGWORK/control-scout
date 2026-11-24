@@ -101,6 +101,19 @@ describe("grounding", () => {
     expect(grounded("Its OPR was 120.", facts, Q)).toBe(false);
     expect(grounded("It went 5 times.", facts, Q)).toBe(false);
   });
+  it("with the answer's teams, each number must be its own sentence's team's (search audit Q6)", () => {
+    const two = ["4215 Hypnotic Robotics vs 6980 Bad Wolf:", "Team 4215 in 2025–26: OPR 142.3, record 26-6-0.", "Team 6980 in 2025–26: OPR 46.9.", "Bad Wolf (6980) awards:", "- Think Award, 2025–26", "Events in 2025–26: 9 events"];
+    const teams = new Set([4215, 6980]);
+    expect(grounded("4215's OPR is 142.3.", two, "4215 vs 6980", teams)).toBe(true);
+    // 142.3 is 4215's, never 6980's: the same number in another team's sentence fails.
+    expect(grounded("6980's OPR is 142.3.", two, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("4215 leads 6980, 142.3 to 46.9. 6980 has an OPR of 46.9.", two, "4215 vs 6980", teams)).toBe(true);
+    // A line under a team's heading is that team's; a line about no team is anyone's.
+    expect(grounded("6980 won the Think Award in 2025–26.", two, "4215 vs 6980", teams)).toBe(true);
+    expect(grounded("4215 played 9 events.", two, "4215 vs 6980", teams)).toBe(true);
+    // Without the teams, as before: any fact's number.
+    expect(grounded("6980's OPR is 142.3.", two, "4215 vs 6980")).toBe(true);
+  });
 });
 
 /** What brunoAnswer gives for a reply: his points, or none. */

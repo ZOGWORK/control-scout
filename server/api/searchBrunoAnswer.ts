@@ -22,6 +22,7 @@ import { chatWords, pointsBack } from "./query/chat.js";
 import { mineAnswer } from "./searchMine.js";
 import { pickedQuery, pickedSeasonOf } from "./searchPageAnswer.js";
 import { MINE } from "../../src/shared/searchMine.js";
+import { searchVersion } from "./searchReads.js";
 
 export const BRUNO_ANSWER_TIMEOUT_MS = 12_000;
 /** At most this many facts, and this much text in all: a small, fast prompt. */
@@ -163,15 +164,61 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
  *  every dash read as "-". */
 const numbers = (s: string) => (s.replace(/[–—]/g, "-").replace(/(\d),(?=\d{3}(?!\d))/g, "$1").match(/\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)*/g) ?? []).map((n) => n.replace(/^0+(?=\d)/, ""));
 
-/** Whether every number in `text` is one the facts or the question have (counting words like "three" don't count as numbers). */
-export function grounded(text: string, facts: string[], question: string): boolean {
-  return ungrounded(text, facts, question).length === 0;
+/** Whether every number in `text` is one the facts or the question have (counting words like "three" don't count as
+ *  numbers), each with its team (`teams`: the team numbers the answer is about; see ungrounded). */
+export function grounded(text: string, facts: string[], question: string, teams?: ReadonlySet<number>): boolean {
+  return ungrounded(text, facts, question, teams).length === 0;
 }
 
-/** The numbers in `text` that neither the facts nor the question have (what makes an answer fail `grounded`). */
-export function ungrounded(text: string, facts: string[], question: string): string[] {
-  const known = new Set(numbers([question, ...facts].join(" ")));
-  return numbers(text).filter((n) => !known.has(n) && !known.has(n.replace(/\.0+$/, "")));
+/** A sentence of an answer: split where one ends (". ", "; "), never inside a number ("101.6"). */
+const sentences = (s: string) => s.split(/(?<=[.!?;])\s+/).filter(Boolean);
+
+/** The numbers in `text` that neither the facts nor the question have (what makes an answer fail `grounded`). With
+ *  `teams`, each number is checked with the team its sentence names: it must be in a fact line about that team (a line
+ *  naming it, or under a heading line that does) or in one about no team, so "6980's OPR is 142.3" fails when 142.3 is
+ *  4215's. A sentence naming no team is checked against every fact. */
+export function ungrounded(text: string, facts: string[], question: string, teams?: ReadonlySet<number>): string[] {
+  const asked = new Set(numbers(question));
+  const known = (n: string, pool: Iterable<string>) => { for (const k of pool) if (k === n || k === n.replace(/\.0+$/, "")) return true; return false; };
+  if (!teams?.size) {
+    const all = new Set([...asked, ...numbers(facts.join(" "))]);
+    return numbers(text).filter((n) => !known(n, all));
+  }
+  const isTeam = (n: string) => /^\d+$/.test(n) && teams.has(Number(n));
+  // Each fact line with the teams it is about: its own, else, for a list item ("- …"), those of the heading line it is
+  // listed under ("Bad Wolf (6980) awards:").
+  let heading: number[] = [];
+  const lines = facts.map((f) => {
+    const own = [...new Set(numbers(f).filter(isTeam).map(Number))];
+    const item = /^\s*-\s/.test(f);
+    const about = own.length || !item ? own : heading;
+    if (!item) heading = /:\s*$/.test(f) ? own : [];
+    return { nums: new Set(numbers(f)), about };
+  });
+  const bad: string[] = [];
+  for (const s of sentences(text)) {
+    const named = new Set(numbers(s).filter(isTeam).map(Number));
+    for (const n of numbers(s)) {
+      if (named.has(Number(n)) && isTeam(n)) continue;
+      if (known(n, asked)) continue;
+      const ok = lines.some((l) => known(n, l.nums) && (!named.size || !l.about.length || l.about.some((t) => named.has(t))));
+      if (!ok) bad.push(n);
+    }
+  }
+  return bad;
+}
+
+/** The team numbers an answer is about: its teams' results, its card's team, its stat's teams and rows. */
+export function answerTeams(a: SearchAnswer): Set<number> {
+  const out = new Set<number>();
+  for (const h of a.hits) if (h.kind === "team" && /^\d+$/.test(h.ref)) out.add(Number(h.ref));
+  if (a.card?.team) out.add(a.card.team.number);
+  const s = a.stat;
+  if (s?.team) out.add(s.team.number);
+  for (const t of s?.teams ?? []) out.add(t.number);
+  // A board's rows link each team's page ("/teams/4215").
+  for (const b of s?.blocks ?? []) if (b.kind === "leaderboard") for (const r of b.rows) { const n = /^\/teams\/(\d+)/.exec(r.team.href)?.[1]; if (n) out.add(Number(n)); }
+  return out;
 }
 
 /** The page's search choices, and `after`: the search a follow-up points back at ("was that the same in all the
@@ -197,7 +244,9 @@ export async function brunoAnswer(raw: string, opts: BrunoOptions = {}, now = Da
   if (!(await isEnabled(flag).catch(() => false)) || !brunoAvailable()) return null;
   // `learn: false` (the Discord bot): his facts come from the same unlearned search the bot shows, kept apart.
   const after = followUpOf(q, opts.after);
-  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}${after ? `|after:${normalize(after)}${opts.afterSeason != null ? `|in:${opts.afterSeason}` : ""}${opts.afterMy != null && MINE.test(after) ? `|my:${opts.afterMy}` : ""}` : ""}`;
+  // Keyed on the data's version too (search:version, moved by every stats run and live check): a meet under way never
+  // gets facts from before its latest matches.
+  const k = `${await searchVersion()}|${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}${after ? `|after:${normalize(after)}${opts.afterSeason != null ? `|in:${opts.afterSeason}` : ""}${opts.afterMy != null && MINE.test(after) ? `|my:${opts.afterMy}` : ""}` : ""}`;
   const hit = cache.get(k);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.answer;
   let flight = pending.get(k);
@@ -266,21 +315,21 @@ const tidy = (s: unknown, max: number) => (typeof s === "string" ? s.replace(/\s
  * written held back (its next digit could change it), and checked like the answer. undefined: a number in it isn't
  * in the facts (the answer will be dropped, so nothing more of it is shown).
  */
-export function previewOf(raw: string, facts: string[], question: string): BrunoAnswer | null | undefined {
+export function previewOf(raw: string, facts: string[], question: string, teams?: ReadonlySet<number>): BrunoAnswer | null | undefined {
   const p = partialAnswer(raw);
   const pieces = [p.text, ...p.points];
   if (p.open) pieces[pieces.length - 1] = pieces[pieces.length - 1].replace(/[\d.,\-–—]+$/, "");
   const [text, ...points] = pieces.map((s, i) => tidy(s, i ? 200 : 600));
   if (!text) return null;
   const shown = { text, points: points.filter(Boolean).slice(0, 6) };
-  return grounded([shown.text, ...shown.points].join(" "), facts, question) ? shown : undefined;
+  return grounded([shown.text, ...shown.points].join(" "), facts, question, teams) ? shown : undefined;
 }
 
 async function ask(q: string, opts: BrunoOptions, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
   const { after, afterSeason, afterMy, ...search } = opts;
   // A follow-up is answered from the search it points back at: that search's facts, said as its. A failed read of
   // them (a database error) is no answer, as a failed model call is, never an error to the page; not cached.
-  let facts: string[];
+  let facts: string[], teams: ReadonlySet<number>;
   try {
     const read = (x: string) => searchAnswer(x, { ...search, learn: search.learn ?? true });
     if (after) {
@@ -290,7 +339,12 @@ async function ask(q: string, opts: BrunoOptions, k: string, now: number, show?:
       const base = await read(earlier);
       const mine = afterMy != null ? await mineAnswer(earlier, base, afterMy, read) : null;
       facts = [`This question follows up the earlier search "${earlier}": the facts below are that search's answer.`, ...(await answerFacts(mine ?? base))];
-    } else facts = await answerFacts(await read(q));
+      teams = answerTeams(mine ?? base);
+    } else {
+      const found = await read(q);
+      facts = await answerFacts(found);
+      teams = answerTeams(found);
+    }
   } catch (e) {
     console.warn("[search] Bruno's facts unavailable:", (e as Error).message?.slice(0, 120));
     return null;
@@ -303,7 +357,7 @@ async function ask(q: string, opts: BrunoOptions, k: string, now: number, show?:
     let withdrawn = false;
     const onRaw = (raw: string) => {
       if (withdrawn) return;
-      const p = previewOf(raw, facts, q);
+      const p = previewOf(raw, facts, q, teams);
       if (p === undefined) { withdrawn = true; if (last) show!(null); return; }
       const key = p ? JSON.stringify(p) : "";
       if (key && key !== last) { last = key; show!(p); }
@@ -312,7 +366,8 @@ async function ask(q: string, opts: BrunoOptions, k: string, now: number, show?:
     const clean = tidy(r.text, 600);
     // Points are checked with the sentence: one number not in the facts drops the whole answer.
     const points = (Array.isArray(r.points) ? r.points : []).map((p) => tidy(p, 200)).filter(Boolean).slice(0, 6);
-    if (clean && grounded([clean, ...points].join(" "), facts, q)) answer = { text: clean, points };
+    // The sentence and each point checked on their own, so a point's number is read with its own team.
+    if (clean && [clean, ...points].every((x) => grounded(x, facts, q, teams))) answer = { text: clean, points };
     else if (clean) console.warn("[search] Bruno's answer named a number not in the facts: dropped");
   } catch (e) {
     console.warn("[search] Bruno answer unavailable:", (e as Error).name === "TimeoutError" ? "timeout" : (e as Error).message?.slice(0, 120));
