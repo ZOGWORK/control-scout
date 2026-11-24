@@ -41,9 +41,9 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
-import { cornerBox, zoomCss } from "./lib/frameZoom";
+import { cornerBox, foundBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type RecheckRead, type RecheckVerdict } from "./lib/reviewRecheck";
 
@@ -413,12 +413,14 @@ async function seek(page: Page, t: number, still = false) {
 }
 
 /** Zoom the player onto one half of a split stream (splitZoomCss), or back to the whole frame (null). */
-async function zoom(page: Page, side: SplitSide | null) {
+const zoom = (page: Page, side: SplitSide | null) => zoomTo(page, side ? splitZoomCss(side) : "");
+/** Zoom the player by `css` (splitZoomCss, zoomCss), or back to the whole frame (""). */
+async function zoomTo(page: Page, css: string) {
   await within(page.evaluate((css) => {
     let s = document.getElementById("__split");
     if (!s) { s = document.createElement("style"); s.id = "__split"; document.head.append(s); }
     s.textContent = css;
-  }, side ? splitZoomCss(side) : ""), 30, "zooming the player");
+  }, css), 30, "zooming the player");
 }
 /** Seconds through the video, as fractions of it, the bar's row is read at on each half to find a split stream's. */
 const SPLIT_SAMPLES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
@@ -450,6 +452,29 @@ async function findSplit(page: Page, length: number): Promise<SplitSide | null> 
   }
   await zoom(page, null);
   return splitSide(reads);
+}
+
+/** Where a shrunk score bar (overlayBar) is on the frame at second t, paused; null where there is none, or a full-size
+ *  bar is on screen (overlayBand's: the crops read those as they are). Bounded as a split check's read is (splitRow). */
+async function shrunkBar(page: Page, t: number): Promise<{ x0: number; x1: number; top: number; bottom: number } | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    (async () => {
+      await seek(page, t, true);
+      if (await barBand(page)) return null;
+      return page.evaluate(`(${overlayBar.toString()})(window.__frame.data, window.__frame.width, window.__frame.height)`) as Promise<{ x0: number; x1: number; top: number; bottom: number } | null>;
+    })().finally(() => clearTimeout(timer)),
+    new Promise<never>((_, no) => { timer = setTimeout(() => no(new Error(`a shrunk-bar check at ${t} s hung over ${READ_LIMIT_S} s`)), READ_LIMIT_S * 1000); }),
+  ]);
+}
+/** The zoom that fills the frame with a score bar drawn small in it (foundBox over overlayBar at each of SPLIT_SAMPLES),
+ *  for a recording whose producer shrank FTC Live's screen into a corner over the camera (USTXNAM1 2024: the top-left
+ *  42% of the frame) and that isn't in CORNER_BOXES. Null: no bar found in one place on enough frames. */
+async function findShrunk(page: Page, length: number): Promise<string | null> {
+  const found: ({ x0: number; x1: number; top: number; bottom: number } | null)[] = [];
+  for (const f of SPLIT_SAMPLES) found.push(await shrunkBar(page, Math.round(length * f)));
+  const box = foundBox(found);
+  return box && zoomCss(box.box, box.shift);
 }
 
 /** What the frame at second t shows: the match its overlay names and, while that match is being played, the second it
@@ -1575,6 +1600,27 @@ async function doCode(code: string): Promise<void> {
           // The event's own limit passed during the check: it stops the event as anywhere else (no row kept).
           stops: (e) => e instanceof EventOverTime,
           failed: (e) => log(`    couldn't check for a split stream: ${e.message.split("\n")[0]} (kept as nothing read)`),
+        });
+      }
+      // Still nothing: FTC Live's screen drawn small over the camera (findShrunk), every crop missing its bar. Read again
+      // zoomed so the bar fills the frame's width where a bottom bar sits. A recording with a measured box (CORNER_BOXES)
+      // is zoomed already. A check that fails keeps the read as it was, as the split check's does.
+      if (!cornerBox(v.videoId) && !j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
+        const pg = page;
+        await splitChecked(async () => {
+          const css = await findShrunk(pg, m.length!);
+          if (css) {
+            log("    a score bar drawn small in the frame: read zoomed to it");
+            await zoomTo(pg, css);
+            const zoomedUnread = new Set<string>();
+            j = await placeVideo(pg, mine, from == null ? null : -from, m.length!, log, zoomedUnread, live, liveMedium);
+            unread.clear();
+            for (const l of zoomedUnread) unread.add(l);
+          }
+        }, {
+          cleanup: () => zoomTo(pg, ""),
+          stops: (e) => e instanceof EventOverTime,
+          failed: (e) => log(`    couldn't check for a score bar drawn small: ${e.message.split("\n")[0]} (kept as nothing read)`),
         });
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));

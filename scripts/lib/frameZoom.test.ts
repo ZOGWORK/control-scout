@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CORNER_BOXES, cornerBox, zoomCss, type CornerBox } from "./frameZoom";
+import { BAR_FLOOR, CORNER_BOXES, FOUND_MIN, cornerBox, foundBox, zoomCss, type CornerBox } from "./frameZoom";
 
 /** Where a point of the unzoomed frame lands under zoomCss's transform. */
 function lands(css: string, px: number, py: number): [number, number] {
@@ -47,5 +47,25 @@ describe("the corner box list", () => {
       expect(b.checked).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(b.seen.length).toBeGreaterThan(10);
     }
+  });
+});
+
+describe("a box from a shrunk bar found on sampled frames", () => {
+  const bar = { x0: 9, x1: 526, top: 70, bottom: 120 };
+
+  it("zooms the bar most frames agree on to fill the width, its bottom row at a bottom bar's", () => {
+    const found = [bar, null, { ...bar, bottom: 119 }, { x0: 3, x1: 535, top: 270, bottom: 311 }, { ...bar, x1: 559 }, bar, null];
+    const z = foundBox(found)!;
+    expect(z.box).toEqual([9, 70, 526 - 9, 50]);
+    const css = zoomCss(z.box, z.shift);
+    expect(lands(css, 9, 120)[0]).toBeCloseTo(0, 1);
+    expect(lands(css, 9, 120)[1]).toBeCloseTo(BAR_FLOOR, 1);
+    expect(lands(css, 526, 70)[0]).toBeCloseTo(1280, 1);
+  });
+
+  it("zooms nothing where too few frames agree (a results screen's halves, a stray patch of crowd)", () => {
+    expect(foundBox([bar, { ...bar, bottom: 311 }, null, bar, null])).toBeNull();
+    expect(foundBox([])).toBeNull();
+    expect(FOUND_MIN).toBe(3);
   });
 });

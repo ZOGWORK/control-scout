@@ -699,6 +699,102 @@ export function overlayBand(px: ArrayLike<number>, width: number, height: number
 }
 
 /**
+ * FTC Live's score bar drawn small somewhere in the frame (a producer's picture in picture: USTXNAM1 2024, the whole
+ * screen shrunk into the top-left 42% of the frame over the camera), where overlayBand, which looks for a bar across the
+ * whole width, finds none. Found by its timer box: a neutral run (white, grey or the digits' black) with one alliance's
+ * colour just left of it and the other's just right, each colour running on from there about as far as the other (the
+ * timer sits at the bar's centre). Each half is followed in steps of 0.6 timer widths, a step at least a quarter its
+ * colour; one step short of that (a white score badge in the half) is stepped over, two end the half. Steps scale with
+ * the timer, so a bar of any size is followed the same way. The tallest run of rows found so (gaps of up to 3 rows
+ * bridged), all within 3% of the frame's width of its first row's ends, is the bar: its ends and rows, or null where
+ * none is at least 2% of the frame tall or the bar spans most of the width (a full-size bar: overlayBand's). Self-
+ * contained (no imports, no outer names): the reader runs it in the page.
+ */
+export function overlayBar(px: ArrayLike<number>, width: number, height: number): { x0: number; x1: number; top: number; bottom: number } | null {
+  const BLUE = 1, RED = 2;
+  const colour = (x: number, y: number): number => {
+    const i = (y * width + x) * 4, r = px[i], g = px[i + 1], b = px[i + 2];
+    if (b >= 60 && b > r + 40 && b > g * 1.4) return BLUE;
+    if (r >= 70 && r > g * 2 && r > b * 2) return RED;
+    return 0;
+  };
+  const neutral = (x: number, y: number) => {
+    const i = (y * width + x) * 4, r = px[i], g = px[i + 1], b = px[i + 2];
+    return Math.max(r, g, b) - Math.min(r, g, b) <= 24;
+  };
+  // The colour at least 3 of the 4 pixels 3–6 px beyond `x` (in direction `d`) are, or 0: the box's edge blends into
+  // the bar's colour over a pixel or two (USTXNAM1: 238 is 155, 209, 253 between the white and the blue).
+  const beside = (x: number, y: number, d: number): number => {
+    const n = [0, 0, 0];
+    for (let k = 3; k <= 6; k++) { const xx = x + d * k; if (xx >= 0 && xx < width) n[colour(xx, y)]++; }
+    return n[BLUE] >= 3 ? BLUE : n[RED] >= 3 ? RED : 0;
+  };
+  // Where the half beside the timer stops, followed from x in direction d in steps of `step` px: by the shade just
+  // beyond the timer's edge (each channel within 48 of it), not the colour class, which a crowd's dark red seats
+  // (107, 15, 2 beside the bar's 232, 31, 39) pass too.
+  const reach = (x: number, y: number, d: number, step: number): number => {
+    const at = (xx: number) => { const i = (y * width + xx) * 4; return [px[i], px[i + 1], px[i + 2]]; };
+    const ref = at(Math.min(width - 1, Math.max(0, d < 0 ? x - 5 : x + 4)));
+    const like = (xx: number) => { const c = at(xx); return Math.abs(c[0] - ref[0]) <= 48 && Math.abs(c[1] - ref[1]) <= 48 && Math.abs(c[2] - ref[2]) <= 48; };
+    let end = x, misses = 0;
+    for (let s = x; d < 0 ? s - step >= 0 : s + step <= width; s += d * step) {
+      let hit = 0;
+      for (let k = 0; k < step; k++) if (like(d < 0 ? s - 1 - k : s + k)) hit++;
+      if (hit / step >= 0.25) { end = s + d * step; misses = 0; } else if (++misses > 1) break;
+    }
+    return end;
+  };
+  const MIN_T = Math.round(width * 0.015), MAX_T = Math.round(width * 0.12);
+  type Row = { x0: number; x1: number; t0: number; t1: number };
+  const rowBar = (y: number): Row | null => {
+    let best: Row | null = null;
+    for (let x = 0; x < width; ) {
+      if (!neutral(x, y)) { x++; continue; }
+      let e = x;
+      while (e + 1 < width && neutral(e + 1, y)) e++;
+      const tw = e - x + 1;
+      if (tw >= MIN_T && tw <= MAX_T) {
+        const cl = beside(x, y, -1), cr = beside(e, y, 1);
+        if (cl && cr && cl !== cr) {
+          const step = Math.max(6, Math.round(tw * 0.6));
+          const x0 = reach(x, y, -1, step), x1 = reach(e + 1, y, 1, step);
+          const l = x - x0, r = x1 - e - 1;
+          if (Math.min(l, r) >= tw && Math.max(l, r) <= Math.min(l, r) * 1.6 && (!best || x1 - x0 > best.x1 - best.x0)) best = { x0, x1, t0: x, t1: e };
+        }
+      }
+      x = e + 1;
+    }
+    return best;
+  };
+  // Rows go together while their timer box stays in the same columns (a quarter of its width either way): the halves'
+  // ends move from row to row (a badge's or a digit's row stops a half short), the box doesn't. The bar's ends are
+  // the furthest at least 3 of its rows reach: most rows stop short, a single row's stray reach is no end.
+  const GAP = 3, TALL = Math.round(height * 0.02), CARD = Math.round(height * 0.2);
+  type Run = { rows: Row[]; top: number; last: number };
+  let best: Run | null = null, run: Run | null = null;
+  const close = () => {
+    const r = run as Run | null, tall = r ? r.last - r.top + 1 : 0;
+    if (r && tall >= TALL && tall <= CARD && (!best || tall > best.last - best.top + 1)) best = r;
+    run = null;
+  };
+  for (let y = 0; y < height; y++) {
+    const b = rowBar(y);
+    if (run && y - (run as Run).last > GAP + 1) close();
+    if (!b) continue;
+    const r = run as Run | null, first = r?.rows[0];
+    if (r && first && Math.abs(b.t0 + b.t1 - first.t0 - first.t1) / 2 <= Math.max(4, (first.t1 - first.t0) / 4)) { r.rows.push(b); r.last = y; continue; }
+    close();
+    run = { rows: [b], top: y, last: y };
+  }
+  close();
+  const found = best as Run | null;
+  if (!found) return null;
+  const third = (xs: number[]) => xs[Math.min(xs.length - 1, 2)];
+  const x0 = third(found.rows.map((r) => r.x0).sort((a, b) => a - b)), x1 = third(found.rows.map((r) => r.x1).sort((a, b) => b - a));
+  return x1 - x0 <= width * 0.85 ? { x0, x1, top: found.top, bottom: found.last + 1 } : null;
+}
+
+/**
  * The timer's digits in a score bar found in the frame (overlayBand): the light box between the two alliances' scores,
  * and in it the tallest run of inked rows, the digits (the icon over or under them, a robot or a gamepad, is shorter).
  * Null where no such box stands at the bar's centre (`cx`). Self-contained, as it runs in the page too (`toString`).
