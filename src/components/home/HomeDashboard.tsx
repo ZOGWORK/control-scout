@@ -14,7 +14,6 @@ import { usePersonal } from "../../lib/personal";
 import { matchTime, oddsPct, place, seasonLabel } from "../../lib/format";
 import type { EventListItem, MatchView, SearchHit, TeamSummary } from "../../shared/api";
 import type { RecordsResponse, TeamSeasonRecord } from "../../shared/statCatalog";
-import { HOME_ABOUT } from "../../shared/boot";
 import { SUGGESTION_HOUR_MS, suggestionLabel, suggestionsAt, type HomeSuggestion } from "../../shared/homeSuggestions";
 import { TIER_WORD } from "../../shared/tierWords";
 import { SEARCH_HINT, usePageSearch, useSearch } from "../layout/Search";
@@ -22,6 +21,7 @@ import { SearchBox, hitHref, searchPagePick } from "../search/SearchBox";
 import { glideTo, preloadSearchPage } from "../search/glide";
 import { addRecentSearch } from "../search/discover";
 import { nextMatch } from "./HomeSections";
+import { HomeTips } from "./HomeTips";
 import { myTeamsOf } from "../../lib/myTeams";
 import { cn } from "../cn";
 import { V8_NUM } from "../../lib/v8";
@@ -142,7 +142,7 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
           {teams.length ? <TeamsCard teams={teams} season={season} /> : <PickTeamCard onPick={search.open} />}
         </div>
 
-      <p className="mt-10 text-center text-xs text-text-muted">{HOME_ABOUT}</p>
+      <HomeTips className="mt-10 text-center text-xs text-text-muted" />
     </div>
   );
 }
