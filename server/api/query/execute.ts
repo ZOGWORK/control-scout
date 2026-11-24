@@ -15,7 +15,7 @@ import { CURRENT_SEASON, isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, teamSetSearch, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { currentSeason, defaultSeason, lastSeason, seasonWhy, teamSeason } from "../answers/season.js";
-import { BOARD_STATS } from "../answers/families/leaderboard.js";
+import { BOARD_STATS, boardPlace } from "../answers/families/leaderboard.js";
 import { askOf, whenWhere } from "../../../src/shared/query/whenWhere.js";
 import { conferencesNamed } from "../answers/families/conference.js";
 import { allConferences } from "../conferences.js";
@@ -34,6 +34,7 @@ import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { advancementAt, advancementEvent, advancementNotListed, seasonAdvancement } from "../answers/families/advancement.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { eventFieldAnswer, saysOtherThanOpr } from "../answers/families/eventVersus.js";
+import { BOARD_STAT, placeRegion, placesAnswer, placesAsk } from "./places.js";
 import { seasonsAnswer, seasonsAsk } from "./seasons.js";
 import { perSeasonAnswer } from "./perSeason.js";
 import { asksNow, streakBoardAnswer } from "./streakBoard.js";
@@ -93,6 +94,17 @@ async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAns
   if (asksSelfMatch(q, p)) {
     const n = String(p.teams[0].number);
     return selfMatchAnswer(p, (await opts.resolve(n)).hits.find((h) => h.kind === "team" && h.ref === n), opts.pages, opts.full);
+  }
+  // Two places joined ("nj vs texas average opr", "teams from nj or ny"): side by side (./places.ts), or the board
+  // below over both; any other question of two places is left to search's other readers, never answered for the first
+  // place alone.
+  if (p.places) {
+    const stat = placesStat(p);
+    const ask = stat === undefined ? null : placesAsk(p, stat);
+    if (ask === "side") { const a = await placesAnswer(p, stat!, opts); return a && partNotes(a, p); }
+    if (ask !== "board") return null;
+    // "Teams from <place> or <place>": no intent of its own, as one place's teams aren't; read as the board of them.
+    if (!p.intent) p = { ...p, intent: "leaderboard", complete: true };
   }
   // A run of seasons ("<team> opr since <year>", "best teams 2023-24 to 2025-26"): each season's rank, never one season's
   // stat set against another's (./seasons.ts). Any other question of a run ("highest score from <year> to <year>") is
@@ -180,7 +192,7 @@ async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAns
     if (t.candidates && t.rule && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${t.typed}: ${t.number}, ${t.rule} of ${t.candidates.length} teams with the name` } };
   }
   // Part of a region ("north jersey") is read as all of it, and the card says so.
-  if (p.place?.part && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${p.place.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${p.place.name}` } };
+  a = partNotes(a, p);
   // A team's name typed nearly right: answered for that team, with the spelling to search for.
   const near = p.teams.filter((t) => t.via === "near" && t.name);
   if (near.length) {
@@ -236,6 +248,16 @@ export async function asksOfTeams(q: string, now?: number, prefer?: ReadonlySet<
   return p.teams.length > 0 || (!!p.place && /\b(?:teams?|who|whose)\b/i.test(q));
 }
 
+/** The one board stat said beside two places (null: none), or undefined when several are. */
+function placesStat(p: Parsed): string | null | undefined {
+  let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
+  // A phase's OPR ("auto opr") is the phase's, as the one-place board reads it.
+  if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
+  // A score's average set side by side ("<place> vs <place> average score"): the teams' average score.
+  if (!stats.length && p.symbols.includes("metric:score")) stats = ["avg-score"];
+  return stats.length > 1 ? undefined : stats[0] ?? null;
+}
+
 /** The one stat said beside a run of seasons (null: none; "auto opr" is the auto phase's), or undefined when several are. */
 function seasonsStat(p: Parsed): string | null | undefined {
   let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s))];
@@ -243,9 +265,20 @@ function seasonsStat(p: Parsed): string | null | undefined {
   return stats.length > 1 ? undefined : stats[0] ?? null;
 }
 
+/** Each place said as part of a region ("north jersey"), the one place or both of two, read as all of it: the card
+ *  says so. */
+function partNotes(a: SearchAnswer, p: Parsed): SearchAnswer {
+  const parts = (p.places?.list ?? (p.place ? [p.place] : [])).filter((pl) => pl.part);
+  if (!parts.length || !a.understood) return a;
+  const notes = parts.map((pl) => `${pl.part!.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${pl.name}`);
+  return { ...a, understood: { ...a.understood, label: [a.understood.label, ...notes].join(" · ") } };
+}
+
 /** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
+  // Two places joined ("teams from nj or ny"): the pipeline's (./places.ts), never two searches joined by "or".
+  if (p.places) { const stat = placesStat(p); return stat !== undefined && !!placesAsk(p, stat); }
   // A run of seasons said with "and" ("between 2023 and 2025"): the pipeline's (./seasons.ts), never two searches.
   if (p.time?.kind === "seasons") { const stat = seasonsStat(p); if (stat !== undefined && seasonsAsk(p, stat)) return true; }
   // A comparison is the pipeline's only at an event (or Worlds, or states): "12345 or 67890" stays the boolean reader's.
@@ -325,11 +358,6 @@ function placeSeason(p: Parsed, said: number | null | undefined, _opts: Pipeline
 /** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
 const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
 const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "event-scores", "team-predict", "predict-rank-events", "highlights", "teams-named", "count-teams", "alliance-predict", "swap-predict", "pick-partners", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
-/** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
-const BOARD_STAT: Partial<Record<string, string>> = {
-  "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
-  "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:reliability": "reliability", "metric:penalty": "penalties",
-};
 
 /** The words a comparison by one stat may hold beside its teams, the stat and a season. */
 const COMPARE_BY_WORDS = new Set(["vs", "compare", "and", "thing:team", "agg:mean"]);
@@ -848,13 +876,16 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && !boardSaid && said.endsWith(` in ${normalise(p.place!.typed)}`)) return null;
     // Fewer is better for penalties: "best" and "cleanest" are the fewest, "worst" the most; "most" and "fewest" as said.
     const goodWord = !!stats[0] && !!BOARD_STATS[stats[0]].fewerBetter && /\b(?:best|better|cleanest|worst|weakest)\b/.test(said);
-    const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : regionOf(p);
+    // Two places: the first typed is the board's place, the other beside it (the parse's `place` is the longer name).
+    const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : p.places ? placeRegion(p.places.list[0]) : regionOf(p);
     const b: LeaderboardQuestion = {
       kind: gain ? "gain" : "top", stat: stats[0] ?? (gain ? "opr" : p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
       ...(one ? { best: true } : {}), ...((p.agg === "min") !== goodWord ? { asc: true } : {}),
       ...(p.nameHas ? { nameHas: p.nameHas.typed } : {}), ...(p.symbols.includes("no-award") ? { noAward: true } : {}),
       ...(atKind ? { atKind, ...(p.recordSaid ? { recordSaid: p.recordSaid } : {}) } : {}),
       ...(p.conference ? { conference: p.conference } : {}),
+      // Two places joined ("teams from <place> or <place>"): one board over both.
+      ...(p.places ? { also: [placeRegion(p.places.list[1])], alsoWord: p.places.said === "and" ? "and" as const : "or" as const } : {}),
     };
     // A fewer-is-better board (penalties) is titled by its card on the page ("… with the most penalties"), never here.
     if (!opts.full && !own && BOARD_STATS[b.stat]?.fewerBetter) return null;
@@ -873,7 +904,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (!opts.full && !own) return a;
     // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
     if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return asked(a);
-    return asked(await relaxed(a, defaultSteps(b.season!, p.conference ? ` in New Jersey's “${p.conference.join(" ")}” conferences` : town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.atKind ? `teams unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season })));
+    return asked(await relaxed(a, defaultSteps(b.season!, p.conference ? ` in New Jersey's “${p.conference.join(" ")}” conferences` : town ? ` in ${town.city}` : region ? ` in ${boardPlace(b)}` : "", b.atKind ? `teams unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season })));
   }
   return null;
 }
