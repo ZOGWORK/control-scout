@@ -103,6 +103,9 @@ describe("two places in one question", () => {
     for (const q of ["maryland vs delaware matches", "maryland vs delaware highlights", "maryland vs delaware opr gain", "which team has the most matches in maryland or delaware", "top 3 maryland vs delaware average opr", "maryland vs delaware average opr teams that never won an award", "how many teams from maryland or delaware", "teams from maryland or delaware not opr", "teams named crab from maryland or delaware", "the top maryland team vs the top delaware team"]) {
       expect(placesAsk(await parseQuery(q, ctx), null), q).toBeNull();
     }
+    // The board ranks by its own stats, highest or lowest first: a score's average or a median over both is not it.
+    expect(placesAsk(await parseQuery("teams from maryland or delaware by score", ctx), "avg-score")).toBeNull();
+    for (const q of ["median opr teams from maryland or delaware", "median opr of teams from maryland or delaware"]) expect(placesAsk(await parseQuery(q, ctx), "opr"), q).toBeNull();
   });
   it("either place first is the same board; an average is a decimal; the best team breaks ties as the board does", async () => {
     const teams = async (q: string) => { const b = ((await full(q)).stat as StatAnswer).blocks.find((x) => x.kind === "leaderboard"); return b?.kind === "leaderboard" ? b.rows.map((r) => r.team.label.split(" ")[0]).sort() : []; };

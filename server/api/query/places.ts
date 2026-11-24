@@ -55,8 +55,11 @@ export function placesAsk(p: Parsed, stat: string | null): "side" | "board" | nu
     const st = BOARD_STATS[stat ?? "opr"];
     return st && !st.count ? "side" : null;
   }
-  // A count stat's board ("most matches") reads one place only: never both.
-  if (stat && BOARD_STATS[stat]?.count) return null;
+  // A count stat's board ("most matches") reads one place only, and a score's average is set side by side only (the
+  // board ranks by its own stats): never both places' board.
+  if (stat && (BOARD_STATS[stat]?.count || stat === "avg-score")) return null;
+  // The board ranks highest or lowest first: a median, an average or a total over both places is another reader's.
+  if (p.agg != null && p.agg !== "max" && p.agg !== "min") return null;
   // Both places' teams on one board, the leaderboard's (./execute.ts, `also`): "teams" or a stat said ("teams from nj
   // or ny", "best auto in nj or ny"). A count of them, or anything else, is another reader's.
   return p.symbols.includes("thing:team") || stat || p.agg ? "board" : null;
