@@ -741,7 +741,7 @@ export function understoodOf(a: SearchAnswer): SearchUnderstood {
     if (same.length > 1 && event && same.every((h) => h.title.startsWith(`${event[1]} · ${event[2]} - `))) return { kind: "names", label: `${event[1]} at ${event[2]}, in each of its ${same.length} divisions` };
     return { kind: "names", label: top.title };
   }
-  return { kind: "names", label: `Teams, events and matches matching "${nameWords(a.q)}"` };
+  return { kind: "names", label: `Teams, events and matches matching "${saidWords(a.q)}"` };
 }
 
 /** Marks each team and event hit exact or fuzzy (SearchHit.match): exact when every word typed starts a word of its
@@ -957,6 +957,10 @@ async function resolveCore(core: string, opts: AnswerOptions): Promise<SearchAns
   const whole = (t: string) => t.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
   return { ...r, hits: r.hits.filter((h) => h.kind !== "team" || whole(teamNameOf(h.title)) === whole(core)) };
 }
+
+/** The words a label says were looked for: the name words, else (only a run of seasons said, nothing looked up) the
+ *  query as typed, never "". */
+const saidWords = (q: string) => nameWords(q) || q.trim();
 
 async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswer> {
   const limit = opts.limit ?? 12, prefer = opts.prefer ?? new Set<string>();
@@ -1204,7 +1208,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     if (kept) return { ...kept, q };
     // A question ("what is the best ftc team right now") isn't a list of names: a word of it matching a town
     // ("Best") or a team ("The Best Friends") is no answer, so it says what it read and offers the browse links.
-    if (opts.asked || isQuestionForm(opts.typed ?? q)) return recovery(q, [`No team, event or match matched "${nameWords(q)}"`]);
+    if (opts.asked || isQuestionForm(opts.typed ?? q)) return recovery(q, [`No team, event or match matched "${saidWords(q)}"`]);
     // A match's number with words no stored event's name fits whole ("Q16 <town> Meet 2 <word>"): a match is only ever
     // at an event, so the closest are the events named by the longest run of its words from the start, the words past
     // it said as matching none; never teams with a word in common.
@@ -1224,7 +1228,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     }
     const ws = words(nameWords(rest, opts.asked));
     const closest = uniq(hits).slice(0, 10).map((h): SearchHit => ({ ...h, match: "fuzzy", matched: ws.filter((w) => words(`${h.title} ${h.subtitle}`).some((x) => x.startsWith(w))) }));
-    return recovery(q, [`No team, event or match matched all of "${nameWords(q)}"`, "Closest matches: each has some of the words"], closest);
+    return recovery(q, [`No team, event or match matched all of "${saidWords(q)}"`, "Closest matches: each has some of the words"], closest);
   }
 
   if (!hits.length && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic", understood: pageUnderstood(opts.typed ?? q) }); // "records": the pages

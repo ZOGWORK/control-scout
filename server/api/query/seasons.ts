@@ -18,11 +18,13 @@ const RANKED: Record<string, { label: string; rank: string }> = {
   endgame: { label: "Endgame OPR", rank: "s.rank_endgame" },
   rating: { label: "Prediction rating", rank: "s.rating_rank" },
 };
+/** The words for those stats (the parse's symbols): a team's run says one of them, or none (OPR). */
+const RANKED_SAID = new Set(["metric:opr", "metric:auto", "metric:teleop", "metric:endgame", "metric:rating"]);
 /** A board over a run: a team ranked in at least this many of its seasons (every one, in a run of one or two). */
 const MIN_SEASONS = 2;
 
 /** The seasons a run names, oldest first: the ones with ranked teams, up to the latest played. */
-async function seasonsOf(range: NonNullable<NonNullable<Parsed["time"]>["range"]>): Promise<number[]> {
+export async function seasonsOf(range: NonNullable<NonNullable<Parsed["time"]>["range"]>): Promise<number[]> {
   const latest = defaultSeason();
   const to = Math.min(range.to ?? latest, latest);
   const rows = await all<{ season: number }>("SELECT DISTINCT season FROM team_season_stats WHERE season <= ? AND rank_np IS NOT NULL ORDER BY season DESC", [to]);
@@ -44,7 +46,9 @@ export function seasonsAsk(p: Parsed, stat: string | null): "team" | "board" | n
   if (!p.teams.length && (p.intent === "leaderboard" || p.symbols.includes("thing:team"))) return "board";
   if (p.teams.length !== 1) return null;
   // A team's own run asks its stat or nothing else ("<team> last 3 seasons"), never a match or a record question.
-  return p.symbols.every((s) => s.startsWith("metric:") || s.startsWith("prep:") || s === "thing:season") ? "team" : null;
+  // Its stat is one a season ranks ("<team> auto opr since <year>"); any other ("<team> awards since <year>") is asked
+  // season by season (./perSeason.ts).
+  return p.symbols.every((s) => RANKED_SAID.has(s) || s.startsWith("prep:") || s === "thing:season") ? "team" : null;
 }
 
 /** What a run of seasons asks, answered; null when the question asks something else of the run (left to search's
