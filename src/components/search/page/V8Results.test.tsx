@@ -55,3 +55,18 @@ describe("V8TeamAnswer fact tiles (issue #2014)", () => {
     expect(score.querySelector("span")!.className).toContain(V8_SOFT.red.text);
   });
 });
+
+describe("V8TeamAnswer while its season numbers are on their way", () => {
+  const draw = (pending: boolean, sum?: SeasonSummary) => render(<MemoryRouter><V8TeamAnswer team={26000} name="Theseus" summary={sum} pending={pending} stat={stat} /></MemoryRouter>).container;
+  it("holds one row of four: placeholders where the numbers will land, beside the best score already known", () => {
+    const c = draw(true);
+    expect(c.querySelectorAll("[data-team-facts]")).toHaveLength(1);
+    const cells = [...c.querySelectorAll<HTMLElement>("[data-team-facts] > div")];
+    expect(cells.map((x) => x.dataset.fact ?? "hole")).toEqual(["hole", "hole", "hole", "Best score"]);
+  });
+  it("no placeholders once they've come, or when asking for them failed (not pending)", () => {
+    expect(draw(false).querySelector("[data-team-facts-pending]")).toBeNull();
+    cleanup();
+    expect(draw(true, summary).querySelector("[data-team-facts-pending]")).toBeNull();
+  });
+});
