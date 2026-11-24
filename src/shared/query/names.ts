@@ -55,6 +55,9 @@ export interface Names {
    *  more, the same first letter, within the edits allowed for its length (a swap of two letters is one), and no other
    *  such word as close. Null when none is, or two are. */
   nearEventWord?(word: string): string | null;
+  /** Whether a word (folded, five letters or more) is a word of some stored team's, event's or town's name: the
+   *  parser's spelling fix (./parse.ts) never turns one into a search word. */
+  nameWord?(word: string): boolean;
 }
 
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
@@ -175,6 +178,13 @@ export function* namesSteps(teams: NameRow[], places: PlaceRow[]): Generator<voi
     for (const w of [...fold(`${p.name ?? ""} ${p.code ?? ""}`).split(" "), ...eventInitialisms(p.name ?? "")]) if (w.length >= 3) stems.add(w.slice(0, 3));
     if (p.code) for (const i of eventInitialisms(p.name ?? "")) (initials.get(i) ?? initials.set(i, new Set()).get(i)!).add(p.code);
   }
+  // Every word of five letters or more in a stored name (a team's, an event's, a town's).
+  const nameWords = new Set<string>();
+  for (const k of [...byName.keys(), ...towns.keys()]) {
+    if (++step % STEP_ITEMS === 0) yield;
+    for (const w of k.split(" ")) if (w.length >= 5) nameWords.add(w);
+  }
+  for (const ws of eventWords.values()) for (const w of ws) nameWords.add(w);
   const countries = new Map<string, string>();
   for (const p of [...teams, ...places]) {
     if (++step % STEP_ITEMS === 0) yield;
@@ -229,6 +239,7 @@ export function* namesSteps(teams: NameRow[], places: PlaceRow[]): Generator<voi
     longest,    eventStem: (w) => stems.has(fold(w).slice(0, 3)),
     initialism: (w) => [...(initials.get(fold(w)) ?? [])],
     eventNamed: (w) => eventNames.has(fold(w)),
+    nameWord: (w) => nameWords.has(fold(w)),
     eventLongest,
     nearEventWord(w) {
       const f = fold(w);
