@@ -114,7 +114,7 @@ export function RecordText({ text, className, win = "text-foreground", loss }: {
   if (!m) return <>{text}</>;
   return (
     <span className={cn("whitespace-nowrap tabular-nums", className)} aria-label={`${recordWords(m[1], m[2], m[3])}${m[4]}`} data-record-text>
-      <span aria-hidden><b className={cn("font-semibold", win)}>{m[1]}</b><span className="text-muted-foreground">-{loss ? <b className={cn("font-semibold", loss)} data-record-losses>{m[2]}</b> : m[2]}-{m[3]}</span></span>
+      <span aria-hidden><b className={cn("font-semibold", win)}>{m[1]}</b><span className="text-muted-foreground">-{loss ? <span className={loss} data-record-losses>{m[2]}</span> : m[2]}-{m[3]}</span></span>
       {m[4] && <span aria-hidden className="text-muted-foreground">{m[4]}</span>}
     </span>
   );
