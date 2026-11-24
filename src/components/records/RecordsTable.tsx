@@ -41,6 +41,7 @@ import { useFlag } from "../../lib/flags";
 import { HEAT_MIN, heatable, heatBand } from "../../shared/statTones";
 import { Spacer, useSteadyColumns, useVirtualRows } from "../ui/windowing";
 import { useIsV8, V8_NUM } from "../../lib/v8";
+import { columnShade, SHADE_COLS, WLT_TONE } from "../../lib/rankShade";
 import { V8_ICON } from "../rankings/v8";
 
 /** The filter in words, a button that opens the builder: a quiet white line in v8, not the accent. */
@@ -67,6 +68,9 @@ export interface RecordsTableProps {
   /** Checkboxes on team rows and "Compare selected". */
   selectable?: boolean;
   highlightTeam?: number | null;
+  /** An event's Rankings tab (owner, 11-23): rank, RS and TBP shade green (best in the event) to red (worst), wins
+   *  green, losses red, ties neutral, and no other colour (no stat-category tints, no slate team numbers). */
+  rankingColours?: boolean;
   /** Shown instead of the empty state when there are no records at all (no filter on). */
   emptyFallback?: ReactNode;
   /** Shown instead of the error when offline (records need the server; e.g. the event's downloaded ranking). */
@@ -491,7 +495,7 @@ export function RecordsTable(p: RecordsTableProps) {
             </div>
           )}
           {summary ? <MatchSummaryList rows={data.rows as MatchRecordRow[]} cols={cols} /> : (
-            <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam} schedulePlaces={p.schedulePlaces}
+            <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam} schedulePlaces={p.schedulePlaces} rankingColours={p.rankingColours}
               selectable={selectable} selected={selected} onSelect={toggleTeam} pageSelection={pageSelection} onSelectAll={toggleAll} />
           )}
           {p.emptyColumnNotes && !filtered && data.total === data.rows.length && (
@@ -692,8 +696,8 @@ export function heatBands(rows: { stats: Record<string, unknown> }[], cols: stri
 /** A table row's height, for rows not measured yet. */
 const ROW_H = 37;
 
-function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedulePlaces, selectable, selected, onSelect, pageSelection, onSelectAll }: {
-  data: Resp; scope: RecordScope; cols: string[]; state: TableState; sortBy: (k: string) => void; code?: string; schedulePlaces?: SchedulePlaces;
+function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedulePlaces, rankingColours, selectable, selected, onSelect, pageSelection, onSelectAll }: {
+  data: Resp; scope: RecordScope; cols: string[]; state: TableState; sortBy: (k: string) => void; code?: string; schedulePlaces?: SchedulePlaces; rankingColours?: boolean;
   highlightTeam?: number | null; selectable: boolean; selected: number[]; onSelect: (t: number) => void;
   pageSelection: PageSelection; onSelectAll: () => void;
 }) {
@@ -702,6 +706,13 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
   // red mean only where a team stands, so the other columns drop their category colour (the header keeps it).
   const whole = scope === "teamEvent" && !!code && !state.filter && data.total === data.rows.length;
   const heat = useMemo(() => (whole ? heatBands(data.rows as { stats: Record<string, unknown> }[], cols) : new Map<string, (v: unknown) => string>()), [whole, data.rows, cols]);
+  // The Rankings tab: rank, RS and TBP shaded against the whole event (lib/rankShade.ts); a filtered subset isn't the
+  // event, so it keeps plain numbers there. W, L and T take their status tone either way.
+  const shade = useMemo(() => new Map(rankingColours && whole ? cols.filter((k) => SHADE_COLS[k]).map((k) =>
+    [k, columnShade(data.rows.map((r) => r.stats[k]), SHADE_COLS[k].lowerIsBetter)] as const) : []), [rankingColours, whole, data.rows, cols]);
+  const wlt = (k: string) => (rankingColours && Object.hasOwn(WLT_TONE, k) ? WLT_TONE[k as keyof typeof WLT_TONE] : undefined);
+  // Owned by the ranking colours: no heat band, category colour or #1 accent on these columns.
+  const owned = (k: string) => !!rankingColours && (!!SHADE_COLS[k] || !!wlt(k));
   // Phones: the Team column shows the number only, and a tap on it shows the name (TeamNumber).
   const phone = usePhone();
   const { ref, more } = useMoreToTheRight();
@@ -730,9 +741,10 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
             )}
             {cols.map((k) => {
               const d = STAT_BY_KEY.get(k);
-              const tone = TONE_CLASS[toneOf(d)];
+              // The Rankings tab: neutral heads (no category text or underline), so its only colours are its own.
+              const tone = TONE_CLASS[rankingColours ? "slate" : toneOf(d)];
               return (
-                <SortHead key={k} k={k} state={state} sortBy={sortBy} tone={tone.text} v8Tone={v8CategoryOf(d)} title={`${d?.label}${d?.description ? ` — ${d.description}` : ""}`}
+                <SortHead key={k} k={k} state={state} sortBy={sortBy} tone={tone.text} v8Tone={rankingColours ? undefined : v8CategoryOf(d)} title={`${d?.label}${d?.description ? ` — ${d.description}` : ""}`}
                   className={cn("relative border-l border-text-base/[0.08]", state.sort === k && "bg-accent/[0.06]")}
                   label={<>{d?.category === "Control Scout Exclusives" && <Sparkles className="size-3" />}{headerOf(d, k)}<span aria-hidden className={cn("absolute inset-x-2 bottom-0 h-0.5 rounded-full v8:hidden", tone.bar, state.sort === k ? "opacity-100" : "opacity-50")} /></>} />
               );
@@ -789,7 +801,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                           ? <TeamNumber team={team!} name={String(r.stats.teamName ?? "")} href={`/teams/${team}?season=${r.season}`} />
                           : (
                             <Link to={`/teams/${team}?season=${r.season}`} className="flex min-w-0 items-baseline gap-2 still-hover:text-accent-text">
-                              <span className={cn("font-mono font-semibold tabular-nums", !hl && V8_NUM)}>{team}</span>
+                              <span className={cn("font-mono font-semibold tabular-nums", !hl && !rankingColours && V8_NUM)}>{team}</span>
                               <span className="max-w-[13rem] truncate text-text-muted" title={String(r.stats.teamName ?? "") || undefined}>{String(r.stats.teamName ?? "")}</span>
                             </Link>
                           )}
@@ -810,13 +822,15 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                   const d = STAT_BY_KEY.get(k);
                   const v = r.stats[k];
                   const tone = toneOf(d);
-                  const band = heat.get(k)?.(v);
+                  const band = owned(k) ? undefined : heat.get(k)?.(v);
+                  const shaded = shade.get(k)?.(v);
                   return (
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold v8:bg-transparent",
-                      band || (heat.size === 0 && tone !== "slate" && v != null && cellText(tone)),
+                      band || (!rankingColours && heat.size === 0 && tone !== "slate" && v != null && cellText(tone)),
                       // v8: no heat bands; a scoring category's numbers in its colour (V8_CATEGORY), the rest white; the
-                      // accent marks the #1 rank alone.
-                      "v8:border-line v8:font-normal", v8CategoryOf(d) ?? "v8:text-text-base", k === "rank" && v === 1 && "v8:font-semibold v8:text-accent")} data-heat={band ? HEAT.indexOf(band) : undefined}>
+                      // accent marks the #1 rank alone. The Rankings tab: its own colours only (rankingColours).
+                      "v8:border-line v8:font-normal", rankingColours ? (wlt(k) ?? (shaded ? undefined : "v8:text-text-base")) : cn(v8CategoryOf(d) ?? "v8:text-text-base", k === "rank" && v === 1 && "v8:font-semibold v8:text-accent"))}
+                      style={shaded ? { color: shaded } : undefined} data-heat={band ? HEAT.indexOf(band) : undefined} data-shade={shaded ? "" : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" />
                         : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} rank={placeFor(schedulePlaces, team, v)} />
                         : formatStat(d, v)}
