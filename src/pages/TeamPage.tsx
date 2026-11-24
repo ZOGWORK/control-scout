@@ -443,9 +443,9 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
  *  Text and a matching hairline, in both looks; deeper shades on a light theme so each stays readable. */
 export function placeTone(rank: number): string {
   return rank === 1 ? "border-amber-600/50 text-amber-700 dark:border-[#fcd34d]/50 dark:text-[#fcd34d]"
-    : rank === 2 ? "border-zinc-400/70 text-zinc-500 dark:border-zinc-300/50 dark:text-zinc-300"
+    : rank === 2 ? "border-zinc-400/70 text-zinc-500 dark:border-zinc-200/60 dark:text-zinc-200"
     : rank === 3 ? "border-[#a4532a]/50 text-[#a4532a] dark:border-[#d9895b]/50 dark:text-[#d9895b]"
-    : "border-slate-400/50 text-slate-500 dark:border-[#a9bbd3]/30 dark:text-[#a9bbd3]";
+    : "border-slate-400/50 text-slate-500 dark:border-[#8ea4c4]/35 dark:text-[#8ea4c4]";
 }
 
 function RankMedal({ rank }: { rank: number | null }) {
