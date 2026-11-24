@@ -147,7 +147,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // A bare year with nothing else naming a team is the team's number ("2024 reliability").
     const more = { ...(country ? { country } : {}), ...(r.id === "events-season" || r.id === "events-place" ? listed : {}), ...(mo ? { month } : {}) };
     // The month's own year stays its season ("2024 events in march 2024"): the bare year was the team's.
-    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: mo ? (monthSeason ?? currentSeason()) : null, region, world, event, ...more };
+    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: mo ? (monthSeason ?? lastMonthSeason(month)) : null, region, world, event, ...more };
     if (!core) return null;
     return { id: r.id, core, season: scope.season, region, world, event, ...more, ...(scope.latest && scope.season == null ? { latest: true } : {}), ...(scope.future ? { future: scope.future } : {}) };
   }
