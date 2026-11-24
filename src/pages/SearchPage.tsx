@@ -222,8 +222,9 @@ export default function SearchPage() {
   // v8: a question search has no direct answer to (a names reading, a list, a fallback) is Bruno's to answer: his card
   // leads the page, its slot held from the first frame (the owner, 11-23). A computed summary keeps his card where it was.
   const brunoAsks = useBrunoAsks(q, answered);
-  // A shared name's reading, said as a plain line heading the names list, never as the page's biggest words.
-  const namesLine = v8 && ax?.understood?.kind === "names"
+  // A shared name's reading, said as a plain line heading the names list, never as the page's biggest words: a names
+  // reading, or a comparison whose sides are each a shared name (server/api/searchCompare.ts, "Which … · Which …").
+  const namesLine = v8 && (ax?.understood?.kind === "names" || ax?.understood?.kind === "compare")
     ? namesSaid(ax.understood.label, hits.filter((h) => h.kind === "team").map((h) => teamParts(h.title)?.name ?? "").filter(Boolean))
     : null;
   // v8: a team asked for by itself (its highlights answer, or a team reading with nothing else to answer) is answered

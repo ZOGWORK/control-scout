@@ -110,6 +110,16 @@ describe("Bruno leading the v8 page", () => {
     expect(container.querySelector("[data-bruno-lead]")).toBeNull();
     expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
   });
+  it("says a comparison of two shared names as a plain line too", () => {
+    const q = "is ultraviolet better than mirror";
+    state.answer = answer(q, [team(20245, "Ultraviolet"), team(23268, "Ultraviolet"), team(1111, "Mirror"), team(2222, "Mirror")], {
+      understood: { kind: "compare", label: 'Which "ultraviolet"? 3 teams have that name; 2 of them still play: 20245 (Norton Shores, MI), 23268 (Hackettstown, NJ) · Which "mirror"? 2 teams have that name: 1111 (A, B), 2222 (C, D)' },
+    } as Partial<SearchAnswer>);
+    const { container } = show(q);
+    const h1 = container.querySelector("h1")!;
+    expect(h1.textContent).toBe("3 teams are named Ultraviolet; 2 still play · 2 teams are named Mirror");
+    expect(h1.getAttribute("data-heading-size")).toBe("label");
+  });
   it("keeps a failed search's heading at its size, with no card above it", () => {
     state.answer = names();
     state.error = "Search failed. Check your connection.";
