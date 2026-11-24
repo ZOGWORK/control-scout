@@ -25,7 +25,8 @@ export function isTestTraffic(req: Pick<Request, "get">, q: string): boolean {
   if (!ref) return false;
   try {
     const u = new URL(ref);
-    return u.searchParams.get(REPRODUCE_PARAM) === REPRODUCE_VALUE && fold(u.searchParams.get("q") ?? "") === fold(q);
+    // Only the search page a Reproduce link opens (reproduceUrl): the same words on any other page are a visitor's.
+    return u.pathname.replace(/\/+$/, "") === "/search" && u.searchParams.get(REPRODUCE_PARAM) === REPRODUCE_VALUE && fold(u.searchParams.get("q") ?? "") === fold(q);
   } catch {
     return false;
   }
