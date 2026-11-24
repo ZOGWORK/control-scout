@@ -729,8 +729,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // match type's ("playoff matches in NJ") are left to search.
   if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond && !p.withVideo && !cleanAsk) return null;
   const labelled = intent === "match-label" && p.matchNumber != null;
-  // A match's number at Worlds ("q6 at worlds"): Worlds' matches with it, its divisions' and finals'.
-  const kind = (labelled || cleanAsk) && p.worlds ? WORLDS_KIND : (labelled || cleanAsk) && p.states ? STATES_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
+  // Worlds or a state championship as a match board's scope ("q6 at worlds", "closest matches at worlds", "highest
+  // scoring matches in houston"): its matches, its divisions' and finals'.
+  const kind = p.worlds ? WORLDS_KIND : p.states ? STATES_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
   // One team's match by its score ("<team> 226 point match"): that team's matches with the score, found the same way.
   const scored = p.teams.length === 1 && p.scoreCond?.op === "=" && (intent === "season-matches" || intent === "top-matches");
   // One team's matches with video ("<team> matches with video", "<team> best match with video"): found the same way.
@@ -746,7 +747,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const named = p.event && !kind && (p.scoreCond || labelled || p.withVideo || cleanAsk || (FIND[intent] && intent !== "match-label")) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
     const events = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
     if (events && !events.length) return null;
-    if (((p.event || p.eventKind) && !kind && !events) || (p.worlds && !labelled && !cleanAsk) || (p.states && !labelled && !cleanAsk) || p.alliance || (scope.ever && !p.withVideo) || (p.place?.kind === "city" && (p.teams.length || !p.place.city))) return null;
+    if (((p.event || p.eventKind) && !kind && !events) || p.alliance || (scope.ever && !p.withVideo) || (p.place?.kind === "city" && (p.teams.length || !p.place.city))) return null;
     // A town ("closest matches in <town>"): the events held there, in its state (as a scope's highlights read one).
     const town = p.place?.kind === "city" ? p.place : null;
     // Its name as each season held it: the main event's, never a division's.
