@@ -21,16 +21,17 @@ import { conversationQuery, EVENT_WORDS, isQuestionForm, nameWords, onlyCommonWo
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
 import { compareOneAnswer, versusAnswer, versusLoneTeam } from "./searchCompare.js";
-import { ruleAnswer } from "./searchRules.js";
+import { definitionAnswer, ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
-import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
+import { readDefinition, readRuleQuery } from "../../src/shared/searchRuleQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamHighlights } from "./answers/highlights.js";
 import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
-import { searchRead } from "./searchReads.js";
+import { keptAnswer, searchRead } from "./searchReads.js";
+import { forecasterBuilds } from "../predict/engine.js";
 import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
 import { ftsQuery, search, searchIntent, teamAtEventAnswer } from "./search.js";
 import { rerank } from "./searchLearn.js";
@@ -52,12 +53,14 @@ import { INFORMAL, informalQuery, spelledNumbers } from "./query/lexicon.js";
 import { numberQuery, spelled, strength } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
+import { clausesAnswer, isCard, readClauses } from "./query/clauses.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
+import { chatAnswer } from "./answers/chat.js";
 import { fold, names } from "./query/names.js";
 import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
-import { eventPlace, normalise, parseQuery } from "./query/parse.js";
+import { eventPlace, normalise, mayRespell, parseQuery, respell } from "./query/parse.js";
 import { EVENT_FIT, parseContext } from "./query/context.js";
 import { pickShared, whichLine } from "./query/shared.js";
 import { withPage } from "./answers/teamsNamed.js";
@@ -74,6 +77,8 @@ export const WEAK_SCORE = 0.9;
 
 export interface AnswerOptions {
   limit?: number; prefer?: ReadonlySet<string>; learn?: boolean;
+  /** The query's search words one letter off are already written as meant (./query/parse.ts respell). */
+  respelled?: boolean;
   /** Read seasons, regions and missing views (./searchIntents.ts): off for the core of an intent. */
   intents?: boolean;
   /** A season the query named in words ("last season", read by ./searchIntents.ts): as if typed as "2024-25". */
@@ -81,6 +86,10 @@ export interface AnswerOptions {
   /** Set by searchAnswer for its own query: the query as typed (cleaned, its plurals kept: page words read it), and
    *  whether it ended in "?". */
   typed?: string;
+  /** A part of a compound question, asked on its own (./query/clauses.ts): never split again. */
+  clause?: boolean;
+  /** The query held a quoted phrase: its words are read exactly as typed, never one fixed in the parse. */
+  quoted?: boolean;
   asked?: boolean;
   /** The time "upcoming", "past" and "this weekend" are read from (tests). */
   now?: number;
@@ -259,8 +268,20 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
 /** Search's answer for `raw` (docs/search.md). A top-level search goes through the layers (./searchLayers.ts,
  *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
+  // Search words typed one letter off ("4215 recrod"), as the query parser fixes them: every reader reads them as meant
+  // from the start, silently (no "Did you mean"), the answer keeping the query as typed. A check on the words alone
+  // first, so a query with none is never parsed for it. Never a quoted phrase, which asks for exactly those words.
+  if (!opts.respelled && opts.intents !== false && !opts.rewrites && !String(raw ?? "").includes('"') && mayRespell(String(raw ?? ""))) {
+    const meant = await respell(String(raw ?? ""), await parseContext(opts.now, opts.prefer));
+    if (meant) return { ...(await searchAnswer(meant, { ...opts, respelled: true })), q: cleanQuery(raw) };
+  }
   const a = await answerOf(raw, opts);
   if (opts.inner || opts.intents === false || opts.rewrites) return a;
+  // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
+  // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
+  // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.
+  const chat = opts.spell === false ? null : chatAnswer(String(raw ?? ""), a);
+  if (chat) return chat;
   // A place asked for, alone or with its rankings, leagues or conferences ("nj", "nj rankings"): its own pages first
   // (src/shared/placePages.ts), whatever answered it. Kept once by address, so an answer that recursed adds none twice.
   const pages = withPlacePages(String(raw ?? ""), a.pages);
@@ -619,11 +640,15 @@ async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): P
  *  (./answers/sorry.ts). */
 async function withSorry(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer> {
   // Each suggestion run as the page runs it (with no sorry of its own, so never in a loop), kept only if it answers.
-  const answers = async (s: string) => {
+  const check = async (s: string) => {
     const b = await searchAnswer(s, { ...opts, full: true, limit: SEARCH_PAGE_LIMIT, learn: false, sorry: false });
     const empty = (b.card?.none && !b.card.lines.length) || (b.stat?.none && !b.stat.headline);
     return b.step !== "recovery" && !(b.understood?.label ?? "").includes(FALLBACK_NOTE) && (!!b.hits.length || !!b.stat || !!b.card) && !empty;
   };
+  // Kept as answers are (./searchReads.ts keptAnswer): the same suggestions follow many questions ("teams in Paris"
+  // under every question about Paris), each a whole search (the search audit's S5). Not with a clock of its own (tests).
+  const key = (s: string) => JSON.stringify(["sorry-check", s, [...(opts.prefer ?? [])].sort(), opts.season ?? null, opts.intents ?? null, opts.rewrites ?? 0, opts.spell ?? null, opts.initialisms ?? null, forecasterBuilds()]);
+  const answers = (s: string) => (opts.now != null ? check(s) : keptAnswer(key(s), () => check(s)));
   const sorry = await sorryFor(cleanQuery(raw), a, { ...opts, answers });
   // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
   return sorry ? carryOutcome(a, { ...a, sorry }) : a;
@@ -662,7 +687,9 @@ const STATES_WORD = /(^| )states(?= |$)/i;
 /** searchAnswer for the query as typed. */
 async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
   const asked = /\?\s*$/.test(String(raw ?? ""));
-  const reader = (q: string) => readerAnswer(asked ? `${q}?` : q, { ...opts, inner: true });
+  // A quoted phrase's words reach the readers without their quotes: still read exactly as typed (no word fixed).
+  const quoted = String(raw ?? "").includes('"') ? { quoted: true } : {};
+  const reader = (q: string) => readerAnswer(asked ? `${q}?` : q, { ...opts, inner: true, ...quoted });
   // Boolean operators and quoted phrases are read from the query as typed, before cleaning drops '"' and '|'
   // (./searchBoolean.ts); a query without them goes through the layers exactly as before.
   // A question the search pipeline reads completely ("12345 and 67890 matches together") is its answer, whatever
@@ -688,7 +715,7 @@ export async function readerAnswer(raw: string, opts: AnswerOptions): Promise<Se
   // One reading for every surface (brief Requirement 2): the answer is worked out on the page's full list, whatever
   // the caller's limit, and only then cut to it. A dropdown's 15 are the page's first 15, same step, same order.
   const shown = opts.limit ?? 12;
-  const a = await answerFor(read, { ...opts, full: opts.full ?? shown >= SEARCH_PAGE_LIMIT, typed, asked: /\?\s*$/.test(String(raw ?? "")), limit: Math.max(shown, SEARCH_PAGE_LIMIT) });
+  const a = await answerFor(read, { ...opts, full: opts.full ?? shown >= SEARCH_PAGE_LIMIT, typed, asked: /\?\s*$/.test(String(raw ?? "")), ...(String(raw ?? "").includes('"') ? { quoted: true } : {}), limit: Math.max(shown, SEARCH_PAGE_LIMIT) });
   // The page words as typed ("records" stays a page word); links the answer added itself (a region's rankings) stay.
   const own = (p: { href: string }) => !pagesFor(read).some((x) => x.href === p.href);
   const out = read === typed ? a : { ...a, q: typed, pages: [...a.pages.filter(own), ...pagesFor(typed).filter((p) => !a.pages.some((x) => x.href === p.href && own(x)))] };
@@ -717,7 +744,7 @@ export function understoodOf(a: SearchAnswer): SearchUnderstood {
     if (same.length > 1 && event && same.every((h) => h.title.startsWith(`${event[1]} · ${event[2]} - `))) return { kind: "names", label: `${event[1]} at ${event[2]}, in each of its ${same.length} divisions` };
     return { kind: "names", label: top.title };
   }
-  return { kind: "names", label: `Teams, events and matches matching "${nameWords(a.q)}"` };
+  return { kind: "names", label: `Teams, events and matches matching "${saidWords(a.q)}"` };
 }
 
 /** Marks each team and event hit exact or fuzzy (SearchHit.match): exact when every word typed starts a word of its
@@ -934,6 +961,10 @@ async function resolveCore(core: string, opts: AnswerOptions): Promise<SearchAns
   return { ...r, hits: r.hits.filter((h) => h.kind !== "team" || whole(teamNameOf(h.title)) === whole(core)) };
 }
 
+/** The words a label says were looked for: the name words, else (only a run of seasons said, nothing looked up) the
+ *  query as typed, never "". */
+const saidWords = (q: string) => nameWords(q) || q.trim();
+
 async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswer> {
   const limit = opts.limit ?? 12, prefer = opts.prefer ?? new Set<string>();
   const q = read;
@@ -945,12 +976,32 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // A league's standings with no team: before the pipeline reads "league leaderboard" as its own board.
   // A New Jersey conference ("4215 conference ranking", "who won East Bergen Conference"): before the league reader and
   // the pipeline, which would read a conference's name as its tournament's.
+  // A word's meaning asked ("what does park mean", "define major foul", "what is a yellow card"): Control Scout's
+  // explainer or the season's rules for it, before any reader takes a word of it for a team's name ("what does inspire
+  // award mean" is never team Mean); a meaning asked outright and found nowhere is said so, Bruno's answer leading.
+  const def = opts.intents === false ? null : readDefinition(opts.typed ?? q);
+  const defined = def ? await definitionAnswer(q, def, explainAnswer, (said) => recovery(q, [said])) : null;
+  if (defined) return defined;
   const conference = opts.intents === false ? null : await conferenceSearch(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q) });
   if (conference) return conference;
   const league = opts.intents === false ? null : await leagueSearch(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q) });
   if (league) return league;
-  const piped = opts.intents === false ? null : await pipelineAnswer(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q), now: opts.now, prefer, resolve: (core) => resolveCore(core, opts) });
+  // A compound question ("<team> opr and <team> record", "<team> awards and highest score"): each part the pipeline reads
+  // on its own, answered one under another (./query/clauses.ts). Parts about subjects of their own are two questions,
+  // split first ("<team> last match and <team> next event" is never one compare); others only when the whole isn't read.
+  // Each part searched as any question is (its card needed, so always in full), one level deep.
+  const clauses = opts.intents === false || opts.clause ? null : await readClauses(opts.typed ?? q, opts.now, prefer);
+  const split = async () => {
+    if (!clauses) return null;
+    const answers = await Promise.all(clauses.parts.map((part) => searchAnswer(part, { ...opts, typed: undefined, full: true, learn: false, clause: true })));
+    return answers.every(isCard) ? clausesAnswer(q, clauses.parts, answers, { full: !!opts.full, pages: pagesFor(q) }) : null;
+  };
+  const first = clauses?.apart ? await split() : null;
+  if (first) return first;
+  const piped = opts.intents === false ? null : await pipelineAnswer(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q), now: opts.now, prefer, ...(opts.quoted ? { asTyped: true } : {}), resolve: (core) => resolveCore(core, opts) });
   if (piped) return piped;
+  const later = clauses && !clauses.apart ? await split() : null;
+  if (later) return later;
 
   // A name several teams share, read before the readers below pick one of them by search's order: the one the shared
   // rules pick (./query/shared.ts), asked again with its number; still tied, which one (each with its place).
@@ -1191,7 +1242,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     if (kept) return { ...kept, q };
     // A question ("what is the best ftc team right now") isn't a list of names: a word of it matching a town
     // ("Best") or a team ("The Best Friends") is no answer, so it says what it read and offers the browse links.
-    if (opts.asked || isQuestionForm(opts.typed ?? q)) return recovery(q, [`No team, event or match matched "${nameWords(q)}"`]);
+    if (opts.asked || isQuestionForm(opts.typed ?? q)) return recovery(q, [`No team, event or match matched "${saidWords(q)}"`]);
     // A match's number with words no stored event's name fits whole ("Q16 <town> Meet 2 <word>"): a match is only ever
     // at an event, so the closest are the events named by the longest run of its words from the start, the words past
     // it said as matching none; never teams with a word in common.
@@ -1211,7 +1262,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     }
     const ws = words(nameWords(rest, opts.asked));
     const closest = uniq(hits).slice(0, 10).map((h): SearchHit => ({ ...h, match: "fuzzy", matched: ws.filter((w) => words(`${h.title} ${h.subtitle}`).some((x) => x.startsWith(w))) }));
-    return recovery(q, [`No team, event or match matched all of "${nameWords(q)}"`, "Closest matches: each has some of the words"], closest);
+    return recovery(q, [`No team, event or match matched all of "${saidWords(q)}"`, "Closest matches: each has some of the words"], closest);
   }
 
   if (!hits.length && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic", understood: pageUnderstood(opts.typed ?? q) }); // "records": the pages

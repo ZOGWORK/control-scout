@@ -22,7 +22,7 @@ import { matchRow, teamHref, teamLinks, teamMatches, type TeamMatch } from "./an
 import { readScope, readTwoTeam } from "./answers/read.js";
 import { sourceOf, whoOf, type AnswerTeam } from "./answers/families/matches.js";
 import { nameKey, teamExists, teamNames, teamsNamed } from "./searchLayers.js";
-import { search } from "./search.js";
+import { search, teamNumberHits } from "./search.js";
 import { place } from "../../src/shared/format.js";
 
 /** Matches listed at most, teams an expression may name at most, words a protected name may span. */
@@ -254,7 +254,8 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
   const wanted = [...new Set(b.groups.flat().filter((l) => !l.neg).map((l) => l.team))];
   const left = [...new Set(b.groups.flat().filter((l) => l.neg).map((l) => l.team))].filter((t) => !wanted.includes(t));
   const { scope: rs, rest } = readScope(` ${b.rest} `);
-  const hitsOf = async (ts: number[]) => (await Promise.all(ts.map(async (t) => (await read(String(t))).hits.find((h) => h.kind === "team" && h.ref === String(t))))).filter((h): h is SearchHit => !!h && !h.href);
+  // Each team's hit as a search for its number gives it, all in one read (./search.ts teamNumberHits).
+  const hitsOf = async (ts: number[]) => { const by = await teamNumberHits(ts); return ts.flatMap((t) => by.get(t) ?? []); };
   // A match list opens each team's matches; a stat keeps the section its own answer opens.
   const base = (hits: SearchHit[], label: string, kind: string, section?: SearchHit["section"]): SearchAnswer => ({
     q, hits: hits.map((h) => ({ ...h, ...(section ? { section } : {}), facts: undefined, events: undefined })), pages: pagesFor(q), step: "deterministic", weak: false,
@@ -406,7 +407,8 @@ async function phraseAnswer(raw: string, read: Reader): Promise<SearchAnswer | n
   // apart can rank above one that holds them.
   const pool = [...a.hits, ...(await search(phrase, PHRASE_POOL))];
   const missing = exact.filter((n) => !pool.some((h) => h.kind === "team" && h.ref === n));
-  const extra = (await Promise.all(missing.slice(0, 25).map(async (n) => (await read(n)).hits.find((h) => h.kind === "team" && h.ref === n)))).filter((h): h is SearchHit => !!h);
+  const some = missing.slice(0, 25), by = await teamNumberHits(some.map(Number));
+  const extra = some.flatMap((n) => by.get(Number(n)) ?? []);
   const seen = new Set<string>();
   const kept = [...pool, ...extra].filter((h) => holds(h) && !seen.has(`${h.kind}:${h.ref}`) && !!seen.add(`${h.kind}:${h.ref}`));
   const unread = rest ? ` · "${rest}" isn't read: ${exact.length > 1 ? `${exact.length} teams are named "${phrase}", so say which by its number` : `no team is named exactly "${phrase}"`}` : "";

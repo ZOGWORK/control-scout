@@ -147,6 +147,9 @@ export interface SearchPageLink { title: string; href: string }
  *                  `intent.gap` says plainly what doesn't exist yet
  *   recovery       nothing matched: `recovery` says what was understood, the closest matches if any, and where to browse
  */
+/** One part of a compound question, as its own answer would draw: a stat's card (with its explainer), else a fact's. */
+export interface SearchClause { stat?: StatAnswer; card?: SearchCard }
+
 export interface SearchAnswer {
   q: string;
   hits: SearchHit[];
@@ -167,6 +170,9 @@ export interface SearchAnswer {
   card?: SearchCard;
   /** A stat question's answer ("4215 highest score in worlds"), as blocks /search draws: src/shared/searchStat.ts. */
   stat?: StatAnswer;
+  /** A compound question's other parts ("<team> opr and <team> record"): each part's own card, drawn under the first
+   *  part's in the order asked (server/api/query/clauses.ts). */
+  clauses?: SearchClause[];
   /** A yes-or-no question's answer ("has 12345 ever been to worlds"): drawn first, above the card that proves it
    *  (server/api/answers/yesNo.ts). */
   verdict?: { answer: "Yes" | "No"; label: string };
@@ -184,6 +190,10 @@ export interface SearchAnswer {
   /** Made on the device with no signal (src/lib/offline/search.ts), never by the server: the query needs data the
    *  downloaded event packs don't hold. The page says so, with what is in them. */
   notInPack?: NotInPack;
+  /** A query that isn't a search of FTC data (server/api/query/chat.ts): to the site itself ("meta"), about an earlier
+   *  answer ("follow-up": /search asks Bruno with the tab's last search), about getting something ("off-topic"), or a
+   *  reaction. Its card says so; nothing is guessed from its words. */
+  chat?: "meta" | "follow-up" | "off-topic" | "reaction";
 }
 
 /** Why a search can't be answered with no signal, and what the device does hold (SearchAnswer.notInPack). */
@@ -259,7 +269,9 @@ export interface RelatedPageView { q: string; found: boolean; groups: { title: s
 /** GET /api/search/follow: People also ask, Related searches, and the team's highlights search (`team`: whose). */
 /** `about`: the team the follow-ups are about, when there's one (the team asked about, else the one its answer is). */
 /** `asked`: the query as asked with the answer's picked season (?season=), for the related searches page's link. */
-export interface SearchFollowUps { ask: SearchFollowUp[]; related: SearchFollowUp[]; highlights?: SearchFollowUp & { team: number }; about?: number; asked?: string }
+/** `partial`: the set took longer than the server waits (server/api/answers/followUps.ts FOLLOW_BUDGET_MS): what's
+ *  checked so far, the rest still being made; ask again shortly for the whole set. */
+export interface SearchFollowUps { ask: SearchFollowUp[]; related: SearchFollowUp[]; highlights?: SearchFollowUp & { team: number }; about?: number; asked?: string; partial?: true }
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {

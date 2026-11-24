@@ -17,7 +17,7 @@ import { canonicalQuery } from "../../../src/lib/meta";
 import { RELATED_QUERY_MAX, followApiPath, relatedApiPath } from "../../../src/shared/search";
 import { MAX_QUERY } from "../searchAnswer";
 import type { SearchAnswer, SearchFollowUp } from "../../../src/shared/api";
-import { answerKey, candidates, followUps, keptFollowUps, lineOf, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
+import { answerKey, candidates, followUps, followUpsWithin, keptFollowUps, lineOf, type Progress, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -371,5 +371,46 @@ describe("the search page's first paint", () => {
     const m = await pageMeta("/search", { q: "zzqx nothing at all" });
     expect(m.bodyHtml).not.toContain("people-also-ask");
     expect(m.bodyHtml).not.toContain("related-searches");
+  });
+});
+
+describe("the follow-ups' time budget (followUpsWithin)", () => {
+  it("past its time sends the questions checked so far, marked partial, then the whole set once made", async () => {
+    clearAllCaches();
+    const part = await followUpsWithin("4215", new Set(), 0);
+    expect(part.partial).toBe(true);
+    const whole = await keptFollowUps("4215");
+    expect(whole.partial).toBeUndefined();
+    expect(whole.ask.length).toBeGreaterThan(0);
+    // Made and kept: within its time now, whole.
+    expect(await followUpsWithin("4215", new Set(), 50)).toEqual(whole);
+  });
+
+  it("what's checked so far is always the first of the whole set's questions, in its order", async () => {
+    clearAllCaches();
+    const a = await pageAnswer("4215", 25, new Set());
+    clearAllCaches();
+    const progress: Progress = {};
+    let done = false;
+    const making = followUps("4215", a, new Set(), progress).finally(() => { done = true; });
+    // Read it each turn of the loop while it's made: every reading with questions, until it's done.
+    const seen: string[][] = [];
+    while (!done) {
+      await new Promise((ok) => setImmediate(ok));
+      const now = progress.now?.();
+      if (now?.ask.length) seen.push(now.ask.map((x) => x.q));
+    }
+    const whole = (await making).ask.map((x) => x.q);
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.some((x) => x.length < whole.length)).toBe(true);
+    for (const x of seen) expect(whole.slice(0, x.length)).toEqual(x);
+  });
+
+  it("gives the same set as followUps itself, ready in time", async () => {
+    clearAllCaches();
+    const a = await pageAnswer("4215 vs 6980", 25, new Set());
+    const direct = await followUps("4215 vs 6980", a);
+    clearAllCaches();
+    expect(await followUpsWithin("4215 vs 6980", new Set(), 60_000)).toEqual(direct);
   });
 });
