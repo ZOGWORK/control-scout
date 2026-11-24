@@ -1,0 +1,50 @@
+// Which held-out questions appear word for word in the repo's tests or code (audit M2, 24 Nov). A question that does
+// was seen while building search, so it isn't held out: it belongs in the training set (scripts/search-train.json).
+// The guard test (scripts/search-heldout.test.ts) fails when one does; scripts/search-heldout.ts --split moves them.
+//
+// Looked through: every .ts/.tsx/.js/.mjs/.json/.txt file under server/, src/, scripts/, packages/ and bot/, the other
+// eval lists aside (they hold questions to ask, not code that answers them): the held-out and training sets themselves,
+// the sign-off sets (scripts/search-signoff/sets/, set A is the unique200 set) and the latency bench's query list.
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
+
+export const ROOT = join(import.meta.dirname, "..");
+export const SCANNED = ["server", "src", "scripts", "packages", "bot"];
+/** Eval lists: questions to ask, never read by search. */
+export const EVAL_LISTS = [/^scripts\/search-heldout\.json$/, /^scripts\/search-train\.json$/, /^scripts\/search-signoff\/sets\//, /^scripts\/search-bench\//];
+const EXT = /\.(?:ts|tsx|js|mjs|json|txt)$/;
+/** Bigger files are data (seasons' frame timings, packs), not tests or code that reads a question. */
+const MAX_BYTES = 3_000_000;
+
+/** Every scanned file's text, lower case, by its path from the repo root (forward slashes). */
+export function scannedTexts(root = ROOT): Map<string, string> {
+  const out = new Map<string, string>();
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      if (name === "node_modules" || name.startsWith(".")) continue;
+      const p = join(dir, name), st = statSync(p);
+      if (st.isDirectory()) { walk(p); continue; }
+      const rel = relative(root, p).replace(/\\/g, "/");
+      if (!EXT.test(name) || st.size > MAX_BYTES || EVAL_LISTS.some((r) => r.test(rel))) continue;
+      out.set(rel, readFileSync(p, "utf8").toLowerCase());
+    }
+  };
+  for (const d of SCANNED) { try { walk(join(root, d)); } catch { /* a folder this checkout lacks */ } }
+  return out;
+}
+
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** The question as a whole phrase: not inside a longer word ("4215 opr" is in "4215 opr rank", never in "14215 oprs"). */
+const phrase = (q: string) => new RegExp(`(?<![\\p{L}\\p{N}])${esc(q.trim().toLowerCase()).replace(/\s+/g, "\\s+")}(?![\\p{L}\\p{N}])`, "u");
+
+/** The files each question appears in word for word (questions that appear nowhere are left out). */
+export function leaks(questions: string[], texts = scannedTexts()): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const q of new Set(questions)) {
+    // The plain text first (fast), the whole-phrase test only where it is: spacing as written in code is one space.
+    const re = phrase(q), lower = q.trim().toLowerCase().replace(/\s+/g, " ");
+    const files = [...texts].filter(([, t]) => t.includes(lower) && re.test(t)).map(([p]) => p);
+    if (files.length) out.set(q, files);
+  }
+  return out;
+}
