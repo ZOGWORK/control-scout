@@ -106,6 +106,8 @@ export function V8TeamAnswer({ team, name, place, summary, pending = false, stat
   if (s?.opr != null) facts.push({ label: "OPR", value: s.opr.toFixed(1) });
   if (s?.oprRank != null) facts.push({ label: "OPR rank", value: <>#{s.oprRank.toLocaleString()}{s.of != null && <span className="text-text-faint"> of {s.of.toLocaleString()}</span>}</> });
   if (stat?.intent === "team-highlights" && stat.headline) facts.push({ label: "Best score", value: stat.headline.value.replace(/\s*points?$/i, "") });
+  // While the numbers are on their way: one row of four, the facts not known yet held by placeholders.
+  const holes = pending && !summary ? Math.max(0, 4 - facts.length) : 0;
   const us = next?.m ? (next.m.red.teams.some((t) => t.number === team) ? "red" : "blue") : null;
   // The match's event by name (the summary knows the team's last and next events), never its code alone.
   const at = next?.m ? ([s?.nextEvent, s?.lastEvent].find((e) => e?.code === next.m.code)?.name ?? next.m.code) : null;
@@ -121,13 +123,10 @@ export function V8TeamAnswer({ team, name, place, summary, pending = false, stat
           Team page<ArrowRight className="size-4" aria-hidden />
         </Link>
       </div>
-      {pending && !summary && (
-        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line pt-4 sm:grid-cols-4" aria-hidden data-team-facts-pending>
-          {[0, 1, 2, 3].map((i) => <div key={i} className="min-w-0 pl-3"><div className="skeleton h-4 w-14" /><div className="skeleton mt-1.5 h-6 w-16" /></div>)}
-        </div>
-      )}
-      {facts.length > 0 && (
+      {(facts.length > 0 || holes > 0) && (
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line pt-4 sm:grid-cols-4" data-team-facts>
+          {/* The season numbers' places, first (where they land), beside a fact already known (the best score). */}
+          {Array.from({ length: holes }, (_, i) => <div key={`hole${i}`} className="min-w-0 pl-3" aria-hidden data-team-facts-pending><div className="skeleton h-4 w-14" /><div className="skeleton mt-1.5 h-6 w-16" /></div>)}
           {facts.map((f) => (
             <div key={f.label} className={cn("min-w-0 pl-3", v8Tile(TEAM_FACT_COLOUR[f.label] ?? "neutral").tile)} data-fact={f.label} data-colour={TEAM_FACT_COLOUR[f.label] ?? "neutral"}>
               <dt className="text-xs text-text-faint">{f.label}{f.label === "Record" && summary ? `, ${seasonLabel(summary.season)}` : ""}</dt>

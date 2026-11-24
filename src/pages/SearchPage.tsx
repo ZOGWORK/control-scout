@@ -402,7 +402,7 @@ export default function SearchPage() {
                 {/* A highlights search leads with the team's videos (./search/page/HighlightReel.tsx); a team searched alone
                     shows its standout matches' clips under its card. */}
                 {reel === "lead" && <HighlightReel stat={answer!.stat!} className="mb-5" />}
-                {teamAnswer ? <V8TeamAnswer team={teamAnswer.number} name={teamAnswer.name} place={teamAnswer.place} summary={summaries.get(teamAnswer.number)} pending={!now.data} stat={answer?.stat} />
+                {teamAnswer ? <V8TeamAnswer team={teamAnswer.number} name={teamAnswer.name} place={teamAnswer.place} summary={summaries.get(teamAnswer.number)} pending={!now.data && !now.error} stat={answer?.stat} />
                   : answer?.stat ? <StatAnswerCard stat={answer.stat} heading={title ?? undefined} explain={inStat ? answer.card : undefined} />
                   : apps.length ? <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} headline={answer!.card!.headline} trip={answer!.card!.trip} apps={apps} />
                   : answer?.card?.kind === "event-awards" ? <EventAwardsAnswer card={answer.card} heading={title ?? undefined} />
