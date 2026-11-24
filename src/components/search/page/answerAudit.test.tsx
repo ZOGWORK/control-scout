@@ -265,6 +265,8 @@ describe("every card kind and block kind has its colour", () => {
     expect(offV8(headlineTone(h("30030 Exodus", { intent: "winning-alliance", family: "event" }))!)).toBe(SEARCH_PALETTE.winning.text);
     expect(offV8(headlineTone(h("19163 NIS 2", { family: "leaderboard" }))!)).toBe("text-team-a");
     expect(offV8(headlineTone(h("190 points", { family: "superlative" }))!)).toBe(SEARCH_PALETTE.count.text);
+    // A number whose own words name a phase is in that phase's colour.
+    expect(offV8(headlineTone(h("56 auto points", { family: "superlative" }))!)).toBe(SEARCH_PALETTE.auto.text);
   });
   it("a colour on the card itself counts: an amber card of plain words isn't grey", () => {
     const d = document.createElement("article");

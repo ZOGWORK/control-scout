@@ -140,7 +140,8 @@ export function headlineTone(stat: Pick<StatAnswer, "intent" | "headline" | "fam
     return side >= 0 && side < 3 ? TEAM_SWATCH[side].text : "text-foreground";
   }
   if (stat.family === "leaderboard") return TEAM_TEXT;
-  const m = /winning/.test(stat.intent) ? "winning" : meaningOf(stat.headline?.label ?? "");
+  // The label's meaning, else the number's own words' ("56 auto points" is Auto's blue), else Count's.
+  const m = /winning/.test(stat.intent) ? "winning" : meaningOf(stat.headline?.label ?? "") ?? meaningOf(v.replace(/^[\d,.\s]+/, ""));
   return TONE[m ?? "count"].text;
 }
 
