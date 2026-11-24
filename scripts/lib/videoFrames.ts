@@ -630,6 +630,13 @@ export function rowLabel(half: string, row: string | null, ctx?: { own: string; 
   return row != null && overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
 }
 
+/** The row's half that names the match: the right (FTC Live's bar), else the left where it names one and the right
+ *  doesn't. RO Bucharest's POWERPLAY stream (ROBUQ2 2022) puts "Qualification 49 of 125" on the left, beside the FIRST
+ *  ENERGIZE logo, the event's name on the right: its right half alone read "ROBUCHAREST #2 - FTC + POWERPLAY", and the
+ *  ~140 frames of its two videos named no match. */
+export const leftHalf = (right: string, left: string, semifinals = false): string =>
+  !overlayLabel(right, semifinals) && overlayLabel(left, semifinals) ? left : right;
+
 /** The darkest a pixel's brightest channel may be and still count as ink (inkOnly). */
 export const INK_MAX = 50;
 /**
