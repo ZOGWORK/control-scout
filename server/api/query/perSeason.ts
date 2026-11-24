@@ -61,7 +61,7 @@ export async function perSeasonAnswer(p: Parsed, opts: { full: boolean; pages: S
         kind: "table", title: `${what}, season by season`,
         columns: [{ key: "season", label: "Season" }, { key: "value", label: "Answer" }, { key: "detail", label: "Detail" }],
         rows: each.map((x) => ({
-          cells: { season: seasonLabel(x.s), value: x.st?.headline?.value ?? null, detail: x.st?.headline ? [x.st.headline.label, x.st.headline.sub].filter(Boolean).join(" · ") : (x.st?.none ?? "No answer for this season") },
+          cells: { season: seasonLabel(x.s), value: x.st?.headline?.value ?? null, detail: x.st?.headline ? without([x.st.headline.label, x.st.headline.sub].filter(Boolean).join(" · "), x.s) : (x.st?.none ?? "No answer for this season") },
           ...(x.st?.headline?.href ? { href: x.st.headline.href } : {}),
         })),
       },
