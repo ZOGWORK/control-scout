@@ -363,7 +363,10 @@ pattern failing again is a gap of its own.
 1. **Slot parser, intent and synonym tables, time and place resolution** (`server/api/query/`), with tests that read
    one intent in any word order and with any filler, for any team. Not yet wired in.
 2. **Executor**: complete parses run first, as structured questions over the existing families (no rereading of text),
-   with the slots on the card; the window clause, place by country or town, and the no-event-yet card.
+   with the slots on the card; the window clause, place by country or town, and the no-event-yet card. How a question
+   was said beside what it asks (one match or several, "official", a comparison word) comes from the parse's `cues`
+   (`src/shared/query/lexicon.ts` CUES), read in any word order; `server/api/query/wordOrder.test.ts` keeps a regex
+   on the raw text out of the executor.
 3. **Relaxation**: when the exact filters return nothing, relax them in a stated order (time window → its season → the
    season before; event → season; place kept). The card says what was relaxed.
 4. **Prediction and matchup**: a team at a named event, before and after side by side; two teams' winner, scores and
