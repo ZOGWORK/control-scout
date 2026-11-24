@@ -110,7 +110,8 @@ async function sideBySide(q: string, places: Region[], st: BoardStat, said: numb
   const known = vals.filter((v): v is number => v != null);
   const top = known.length ? (st.fewerBetter ? Math.min(...known) : Math.max(...known)) : null;
   // A leader only when the two differ: level places accent neither.
-  const lead = known.length === 2 && vals[0] !== vals[1] ? vals.findIndex((v) => v === top) : -1;
+  // Level when the two read the same as shown ("40.0 to 40.0"): a leader only by a difference the card shows.
+  const lead = known.length === 2 && fmtAvg(st, vals[0]!) !== fmtAvg(st, vals[1]!) ? vals.findIndex((v) => v === top) : -1;
   const stat: StatAnswer = {
     ...base,
     headline: lead >= 0
