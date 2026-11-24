@@ -122,7 +122,9 @@ for (const x of sets) {
   let want = isAnswer ? graded(live) : null;
   // About another season than the one the want was written for (the default moved on): asked again in that season,
   // as the page's season picker asks it (server/api/searchPageAnswer.ts pickedQuery), and that answer graded.
-  // Its number is checked against the team page too, as the first answer's is.
+  // Its number is checked against the team page too, as the first answer's is. The first answer's check still stands:
+  // it is the one a visitor gets, so a number on it unlike the team page's fails the question whatever the re-ask
+  // says. The re-ask stands in only for the written-answer grade.
   let check = isAnswer ? await crosscheck(local.base, live) : { compared: false, ok: true, note: "" };
   let pageMissing = check.note === UNAVAILABLE;
   if (want && x.want && /answer is about/.test(want.note ?? "")) {
