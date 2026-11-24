@@ -19,6 +19,7 @@ import { threadId } from "node:worker_threads";
 import type { NextFunction, Request, Response } from "express";
 import { db, primaryDb } from "./db.js";
 import { registerCache } from "./caches.js";
+import { dropKeptPages } from "./api/searchReads.js";
 import { env } from "./env.js";
 import { DEFAULT_FLAGS, FEATURE_DISABLED, FLAGS, featureOffMessage, isFlag, isWorkspaceFlag, type FeatureDisabledBody, type Flag, type FlagSet } from "../src/shared/flags.js";
 
@@ -52,11 +53,24 @@ async function load(): Promise<FlagState> {
   return { flags, overrides };
 }
 
+/** A state's values as one comparable string: global flags, then each workspace's overrides, in a fixed order. */
+const stateKey = (s: FlagState): string =>
+  JSON.stringify([Object.entries(s.flags).sort(), [...s.overrides].map(([id, m]) => [id, [...m].sort()]).sort()]);
+
 async function state(now = Date.now()): Promise<FlagState> {
   if (cached && now - cached.at < FLAG_TTL_MS) return cached.state;
   if (!loading) {
     const p = load().then(
-      (s) => { if (loading === p) { cached = { at: Date.now(), state: s }; loading = null; } rememberPublicAccess(s.flags.publicAccess); return s; },
+      (s) => {
+        if (loading === p) {
+          // Read changed from what this server last had (a switch flipped on another server, docs/deploy.md): as a
+          // write here, the kept pages (each carrying the old flags in its head) go.
+          const was = cached?.state;
+          if (was && !was.guessed && stateKey(was) !== stateKey(s)) { writes++; dropKeptPages(); }
+          cached = { at: Date.now(), state: s }; loading = null;
+        }
+        rememberPublicAccess(s.flags.publicAccess); return s;
+      },
       (e) => {
         const s: FlagState = cached?.state ?? { flags: { ...DEFAULT_FLAGS }, overrides: new Map(), guessed: true };
         // Kept for a TTL too, so a database that's down isn't asked again on every request.
@@ -68,6 +82,11 @@ async function state(now = Date.now()): Promise<FlagState> {
     loading = p;
   }
   return loading;
+}
+
+/** Whether the flags were read (or last read) from the database, not guessed as the defaults after a failed read. */
+export async function flagsKnown(now = Date.now()): Promise<boolean> {
+  return !(await state(now)).guessed;
 }
 
 /** Every flag's global value (cached up to FLAG_TTL_MS). */
@@ -150,7 +169,7 @@ export async function setFlag(flag: Flag, enabled: boolean, by: string): Promise
       args: [flag, enabled ? 1 : 0, new Date().toISOString(), by],
     },
   ], "write");
-  invalidateFlags();
+  flagsWritten();
   const row = before.rows[0] as unknown as { enabled: number } | undefined;
   return row ? Number(row.enabled) === 1 : DEFAULT_FLAGS[flag];
 }
@@ -172,7 +191,7 @@ export async function setWorkspaceOverride(flag: Flag, workspaceId: string, enab
     { sql: "SELECT enabled FROM workspace_flag_overrides WHERE cp_workspace_id = ? AND name = ?", args: [workspaceId, flag] },
     write,
   ], "write");
-  invalidateFlags();
+  flagsWritten();
   const row = before.rows[0] as unknown as { enabled: number } | undefined;
   return row ? Number(row.enabled) === 1 : null;
 }
@@ -210,6 +229,14 @@ export function requireFeature(flag: Flag) {
     isEnabledFor(flag, null).then((on) => { if (on) next(); else featureDisabled(res, flag); }, next);
   };
 }
+
+/** How many flag writes this server has made: a page drawn with the flags (server/publicFlags.ts sharedFlags) checks it
+ *  didn't change while it read them. */
+let writes = 0;
+export const flagWrites = (): number => writes;
+/** A switch changed: the cached values go, and so does every kept page (each carries the flags in its head, marked
+ *  fresh: server/seo.ts flagsBlock), so the next visitor gets them as they are now. */
+function flagsWritten(): void { writes++; invalidateFlags(); dropKeptPages(); }
 
 /** Forget the cached values (a write here, the portal's "clear caches", tests). */
 export function invalidateFlags(): void { cached = null; loading = null; }
