@@ -108,14 +108,17 @@ let aheadFor: string | null = null, aheadRunning: Promise<number> | null = null;
 
 /** The most-asked searches' follow-ups made ahead once per search index (after start, and after each stats run moves
  *  "search:version"): People also ask for them is there at once (./answers/followUps.ts followUpsWithin). Only the
- *  page's own searches (its limit). Never two runs at once; nothing when the index hasn't moved since the last. */
+ *  page's own searches (its limit). Never two runs at once; nothing when the index hasn't moved since a run that made
+ *  them all. */
 export function precomputeHot(): Promise<number> {
   return (aheadRunning ??= (async () => {
     const version = await searchVersion();
     if (version === aheadFor) return 0;
     const qs = (await hotList()).filter(([, limit]) => limit === SEARCH_PAGE_LIMIT).map(([q]) => q).slice(0, HOT_FOLLOW_MAX);
     const made = await precomputeFollowUps(qs);
-    if ((await searchVersion()) === version) aheadFor = version;
+    // Done for this index only when every one was made: one that failed (a passing read error) is tried again on the
+    // next tick (server/index.ts), not left slow until the next stats run.
+    if (made === qs.length && (await searchVersion()) === version) aheadFor = version;
     return made;
   })().finally(() => { aheadRunning = null; }));
 }

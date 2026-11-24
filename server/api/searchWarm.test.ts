@@ -8,9 +8,10 @@ const made: string[] = [];
 let moves = 0;
 let index = "v1";
 const ahead: string[][] = [];
+let failing = 0;
 vi.mock("./searchReads.js", () => ({ keptGeneration: () => moves, searchVersion: async () => index }));
 vi.mock("./answers/followUps.js", () => ({
-  precomputeFollowUps: async (qs: string[]) => { ahead.push([...qs]); return qs.length; },
+  precomputeFollowUps: async (qs: string[]) => { ahead.push([...qs]); const n = Math.max(0, qs.length - failing); failing = 0; return n; },
   pageAnswer: async (q: string, limit: number) => { made.push(`${q}|${limit}`); return { q, hits: [], pages: [], step: "deterministic", weak: false }; },
 }));
 const { HOT_MAX, hotList, noteAsked, precomputeHot, saveHot, warmHot } = await import("./searchWarm");
@@ -102,6 +103,17 @@ describe("most-asked searches", () => {
     index = "v2";
     const [x, y] = await Promise.all([precomputeHot(), precomputeHot()]);
     expect([x, y]).toEqual([2, 2]);
+    expect(ahead.length).toBe(2);
+  });
+
+  it("tries the index again when one of its follow-up sets wasn't made", async () => {
+    await db.kvSet("search:hot:one", [["4215", 25], ["top teams", 25]]);
+    index = "v3";
+    ahead.length = 0;
+    failing = 1;
+    expect(await precomputeHot()).toBe(1);
+    expect(await precomputeHot()).toBe(2);
+    expect(await precomputeHot()).toBe(0);
     expect(ahead.length).toBe(2);
   });
 });

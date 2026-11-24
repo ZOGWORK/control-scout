@@ -77,6 +77,8 @@ export async function precomputeFollowUps(qs: readonly string[]): Promise<number
   let made = 0;
   for (const q of qs) {
     if ((await searchVersion()) !== version) break;
+    // Made already for this index (a run before one that failed): kept, so a retry makes only the missing ones.
+    if (ahead.get(followKey(q, none))?.version === version) { made++; continue; }
     try {
       const value = await followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, none), none, undefined, true);
       ahead.set(followKey(q, none), { version, value });
