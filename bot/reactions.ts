@@ -32,18 +32,82 @@ export async function trackAnswer(messageId: string, guild: string | null, quest
  *  it is the same complaint about the same question.
  *
  *  The vote is written even when there is nothing to file (a message the bot never posted has no row; an answer from
- *  before questions were kept has none; an all-personal question has nothing the queue may hold). */
-export async function downVote(messageId: string, now = Date.now()): Promise<void> {
-  if (!messageId) return;
+ *  before questions were kept has none; an all-personal question has nothing the queue may hold). Returns whether this
+ *  vote filed the question — what the channel is told a 👎 does (bot/index.ts) is read from the write, so it is said
+ *  only when something was actually filed. */
+export async function downVote(messageId: string, now = Date.now()): Promise<{ filed: boolean }> {
+  if (!messageId) return { filed: false };
   const at = new Date(now).toISOString();
   // Read first for the words; the filing's own condition (`down` = 1) is what says "first", inside the same batch as
   // the increment, so this read can be a moment stale without two votes both filing.
   const row = await get<{ question: string | null }>("SELECT question FROM discord_answers WHERE message_id = ?", [messageId]);
-  const failure = row?.question ? downvoteFailure(row.question, messageId, now) : null;
-  await writeBatch([
+  if (!row) return { filed: false };
+  const failure = row.question ? downvoteFailure(row.question, messageId, now) : null;
+  const [, filed] = await writeBatch([
     { sql: "UPDATE discord_answers SET down = down + 1, voted_at = ? WHERE message_id = ?", args: [at, messageId] },
     ...(failure ? [failure] : []),
   ]);
+  // The filing's own condition (`down` = 1) is inside the batch: this is what the write did, not what a count said
+  // before it. Two 👎 arriving together file once, so exactly one of them reports it.
+  return { filed: (filed?.rowsAffected ?? 0) > 0 };
+}
+
+/** What a 👎 does, said once per answer in the channel (bot/index.ts): people were using it as a dislike button, and
+ *  every one of them files the question on the list the team works from. One line, sent as a reply to the answer, so
+ *  the button explains itself at the moment it is used. */
+export const DOWN_NOTE = "📝 Noted — a 👎 files this question so we can fix the answer. It's not a dislike button.";
+
+/** What the 👎 notes remember: the answers a channel has been told about, and the ones it owes a note that never
+ *  reached a channel. Saved (bot/index.ts) so a restart neither says it twice nor drops it. */
+export interface DownNoteState { told: string[]; owed: string[] }
+
+/** Which answers' channels have been told what a 👎 does, and whether this vote owes the note (bot/index.ts).
+ *
+ *  The note is due when the vote filed the question — `due` is handed `downVote`'s own answer, so an answer from before
+ *  questions were kept, or one whose question is all personal, says nothing instead of promising a filing that never
+ *  happened — and again on any later 👎 if the note couldn't be delivered: a channel that wouldn't take the message, or
+ *  a send Discord refused, leaves it owed rather than spent. Every change is saved through `save`, so a restart picks
+ *  the sets up again ('hydrate'); the answers already told are capped at `max`, past which the oldest is forgotten and a
+ *  vote taken off and added again on it can say the note once more — a repeat, never a missing one. */
+export function downNotes(max = 500, save: (state: DownNoteState) => void = () => {}) {
+  const told = new Set<string>();
+  const owed = new Set<string>();
+  const keep = () => save({ told: [...told], owed: [...owed] });
+  return {
+    /** Take up what an earlier run saved (a restart, a deploy), added to what this run already knows: loading is
+     *  asynchronous, so a 👎 can be answered before it finishes, and that note must not be forgotten (or owed again). */
+    hydrate(state: DownNoteState): void {
+      for (const id of state.told ?? []) if (typeof id === "string") told.add(id);
+      for (const id of state.owed ?? []) if (typeof id === "string") owed.add(id);
+      // Said beats owed, whichever run said it.
+      for (const id of told) owed.delete(id);
+      while (told.size > max) told.delete(told.values().next().value!);
+      while (owed.size > max) owed.delete(owed.values().next().value!);
+      // Saved again as merged: a note answered before the load queued a snapshot of its own, and this one must land
+      // after it rather than the merged state living only in memory until the next vote.
+      keep();
+    },
+    /** Whether this vote owes the note: it filed the question, or an earlier vote's note never arrived. */
+    due(messageId: string, filed: boolean): boolean {
+      return !told.has(messageId) && (filed || owed.has(messageId));
+    },
+    /** It reached the channel: never again for this answer. */
+    said(messageId: string): void {
+      owed.delete(messageId);
+      told.add(messageId);
+      if (told.size > max) told.delete(told.values().next().value!);
+      keep();
+    },
+    /** The note is owed: called the moment it is decided and before it is sent, so a restart between the two still
+     *  owes it, and again after a send that failed. Bounded like `told`: past `max` owed notes the oldest is forgotten —
+     *  a courtesy line nobody asked for again, while the vote and the filing it made are untouched. */
+    owe(messageId: string): void {
+      if (told.has(messageId) || owed.has(messageId)) return;
+      owed.add(messageId);
+      if (owed.size > max) owed.delete(owed.values().next().value!);
+      keep();
+    },
+  };
 }
 
 /** One vote on an answer: `delta` 1 for a reaction added, -1 for one taken back. Never below zero. */

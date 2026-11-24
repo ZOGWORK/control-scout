@@ -3,7 +3,7 @@
 // given for, and the answer's first 👎 files it in the site's failed-search list in the same write as the vote.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../server/db";
-import { BAD, GOOD, downVote, reactionUsage, serialVotes, trackAnswer, vote } from "./reactions";
+import { BAD, GOOD, downNotes, downVote, reactionUsage, serialVotes, trackAnswer, vote, type DownNoteState } from "./reactions";
 
 /** What the answers' 👎s have filed (server/searchFailures.ts downvoteFailure). */
 const failed = () => all<{ key: string; result_type: string; intent: string | null; count: number; examples: string }>(
@@ -101,9 +101,11 @@ describe("the thumbs on an answer", () => {
 
   it("two 👎 arriving together file once: the count is the claim", async () => {
     await trackAnswer("m6", "g1", "4215 opr");
-    await Promise.all([downVote("m6"), downVote("m6")]);
+    const outcomes = await Promise.all([downVote("m6"), downVote("m6")]);
     expect(await failed()).toMatchObject([{ key: "4215 opr", count: 1 }]);
     expect(await reactionUsage()).toEqual({ up: 0, down: 2 });
+    // And exactly one of them says it filed the question (bot/index.ts tells the channel only then).
+    expect(outcomes.filter((o) => o.filed)).toHaveLength(1);
   });
 
   it("runs one answer's votes in the order Discord sent them, and different answers side by side", async () => {
@@ -118,5 +120,74 @@ describe("the thumbs on an answer", () => {
     ]);
     // The slow add first, its removal second; another answer's vote didn't wait behind either.
     expect(order).toEqual(["another answer", "add", "remove"]);
+  });
+
+  it("says a 👎 filed the question — only when it filed one, and once per answer", async () => {
+    await trackAnswer("n1", "g1", "where do i get a lazy susan bearing");
+    const note = downNotes();
+    // A message that isn't one of the bot's answers files nothing, so there is no note to promise.
+    expect(await downVote("someone-elses")).toEqual({ filed: false });
+    // An answer from before questions were kept, and one whose question is all personal: counted, nothing filed.
+    await trackAnswer("old", "g1");
+    expect(await downVote("old")).toEqual({ filed: false });
+    await trackAnswer("personal", "g1", "someone@example.com");
+    expect(await downVote("personal")).toEqual({ filed: false });
+    // The answer with a question the queue may hold: this vote files it, and the channel hears it once.
+    expect(await downVote("n1")).toEqual({ filed: true });
+    expect(note.due("n1", true)).toBe(true);
+    note.said("n1");
+    expect(note.due("n1", true)).toBe(false);
+    // A second 👎 files nothing, so it says nothing.
+    expect(await downVote("n1")).toEqual({ filed: false });
+    expect(note.due("n1", false)).toBe(false);
+  });
+
+  it("remembers what it told and still owes across a restart", () => {
+    let saved: DownNoteState | undefined;
+    const first = downNotes(500, (s) => { saved = s; });
+    expect(first.due("told", true)).toBe(true);
+    first.said("told");
+    expect(first.due("owed", true)).toBe(true);
+    first.owe("owed");
+    // A new process (a deploy, a crash) picks both up: the note it said stays unsaid, the one it owes is still owed.
+    const after = downNotes();
+    after.hydrate(saved!);
+    expect(after.due("told", true)).toBe(false);
+    expect(after.due("owed", false)).toBe(true);
+    // A note answered before the saved state finished loading is not forgotten, and said beats owed.
+    const racing = downNotes();
+    expect(racing.due("early", true)).toBe(true);
+    racing.said("early");
+    racing.hydrate({ told: ["old"], owed: ["early", "late"] });
+    expect(racing.due("early", true)).toBe(false);
+    expect(racing.due("old", true)).toBe(false);
+    expect(racing.due("late", false)).toBe(true);
+    // Junk in the saved state is ignored rather than crashing the bot.
+    const odd = downNotes();
+    odd.hydrate({ told: ["a", 5 as unknown as string], owed: [null as unknown as string] });
+    expect(odd.due("a", true)).toBe(false);
+  });
+
+  it("keeps a note that couldn't be delivered owed until it arrives", () => {
+    const note = downNotes();
+    expect(note.due("m", true)).toBe(true);
+    note.owe("m");
+    // The next 👎 on that answer files nothing, but the note it owes is still owed.
+    expect(note.due("m", false)).toBe(true);
+    note.said("m");
+    expect(note.due("m", false)).toBe(false);
+    // Owed notes are bounded too: past the cap the oldest is forgotten (a courtesy line, not the vote).
+    const owedCap = downNotes(1);
+    owedCap.owe("first");
+    owedCap.owe("second");
+    expect(owedCap.due("first", false)).toBe(false);
+    expect(owedCap.due("second", false)).toBe(true);
+    // Past the cap the oldest answer told is forgotten: at worst a repeat note, never a missing one.
+    const capped = downNotes(1);
+    expect(capped.due("a", true)).toBe(true);
+    capped.said("a");
+    expect(capped.due("b", true)).toBe(true);
+    capped.said("b");
+    expect(capped.due("a", true)).toBe(true);
   });
 });
