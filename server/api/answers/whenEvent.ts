@@ -12,6 +12,8 @@ type Edition = SearchHit & { event: NonNullable<SearchHit["event"]> & { start: s
 const whereOf = (h: Edition) => [h.event.venue, h.subtitle.split(" · ").pop()].filter((x) => x && !/^\d{4}-\d\d-\d\d$/.test(x)).join(", ");
 /** An edition's link: its event page. */
 const hrefOf = (h: Edition) => { const [season, code] = h.ref.split(":"); return `/events/${season}/${encodeURIComponent(code)}`; };
+/** An edition's event code, from its ref ("2025:USNJCMP"): the same in every season the event is held. */
+const codeOf = (h: Edition) => h.ref.split(":")[1];
 /** An edition's season, from its ref ("2025:USNJCMP"). */
 const seasonOf = (h: Edition) => Number(h.ref.split(":")[0]);
 
@@ -28,8 +30,9 @@ export function editionFor(editions: Edition[], today: string): Edition {
 export function whenEventAnswer(raw: string, a: SearchAnswer, now: number): SearchAnswer {
   if (askOf(raw) !== "when" || a.stat || a.card || a.step !== "deterministic") return a;
   const editions = a.hits.filter((h): h is Edition => h.kind === "event" && !h.parent && !!h.event?.start);
-  // One event's editions, one a season: a set of different events ("when are the meets in <place>") is a list.
-  if (!editions.length || new Set(editions.map(seasonOf)).size !== editions.length) return a;
+  // One event's editions, one a season: its code the same each season (its name may change), a set of different
+  // events ("when are the meets in <place>"), even one a season, is a list.
+  if (!editions.length || new Set(editions.map(seasonOf)).size !== editions.length || new Set(editions.map(codeOf)).size !== 1) return a;
   const today = new Date(now).toISOString().slice(0, 10);
   const lead = editionFor(editions, today);
   const on = lead.event.start <= today && (lead.event.end ?? lead.event.start) >= today;

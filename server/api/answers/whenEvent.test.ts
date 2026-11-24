@@ -6,8 +6,8 @@ import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { resetSearchSeason } from "./season";
 import { searchAnswer } from "../searchAnswer";
-import { editionFor } from "./whenEvent";
-import type { SearchHit } from "../../../src/shared/api";
+import { editionFor, whenEventAnswer } from "./whenEvent";
+import type { SearchAnswer, SearchHit } from "../../../src/shared/api";
 
 const NOW = Date.parse("2026-03-18T12:00:00Z");
 const ask = (q: string, now = NOW) => searchAnswer(q, { limit: 25, full: true, now });
@@ -53,5 +53,10 @@ describe("when is an event", () => {
     const set = await ask("when are the qualifiers in delaware this season");
     expect([set.card, set.hits.filter((h) => h.kind === "event").length]).toEqual([undefined, 2]);
     expect((await ask("delaware championship")).card).toBeUndefined();
+  });
+  it("different events, even one a season, are never one event's editions", () => {
+    const hit = (ref: string, title: string, start: string) => ({ kind: "event", ref, title, subtitle: "", event: { start, end: start } }) as SearchHit;
+    const list = { q: "when are the meets in dover", step: "deterministic", hits: [hit("2024:USDEM1", "Dover Meet One", "2025-01-11"), hit("2025:USDEM7", "Dover Meet Seven", "2026-01-10")], pages: [] } as unknown as SearchAnswer;
+    expect(whenEventAnswer(list.q, list, NOW)).toBe(list);
   });
 });
