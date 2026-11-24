@@ -4,10 +4,12 @@
 //
 // What's counted: the searches answered with no preferred teams and no My team (the answers any visitor shares),
 // by query and limit, in this process's memory. Every few minutes, and as the process stops, the top HOT_MAX are
-// written to kv ("search:hot"), this process's own first, then the last list's for the rest. Only the queries, never
-// who asked or how often. The next process reads the list and makes each answer (warmHot), a turn of the loop
-// between them, before it takes over from the lane still serving (server/index.ts), or right after it's ready on a
-// cold start.
+// written to kv under this lane's own key ("search:hot:a", "search:hot:b": deploy/lanes.sh; "search:hot:one" outside
+// the lanes), this process's own first, then its lane's last list for the rest. One writer per key (one process per
+// lane at a time, its saves one after another), so two lanes saving at once never lose each other's. Only the
+// queries, never who asked or how often. The next process reads every lane's list, merged (warmHot), and makes each
+// answer, a turn of the loop between them, before it takes over from the lane still serving (server/index.ts), or
+// right after it's ready on a cold start.
 import { kvGet, kvSet } from "../db.js";
 import { pageAnswer } from "./answers/followUps.js";
 
@@ -17,7 +19,10 @@ export const HOT_MAX = 500;
 export const HOT_WARM_MS = 45_000;
 /** How many different searches are counted before the least-asked are dropped. */
 const COUNTED_MAX = 20_000;
-const KEY = "search:hot";
+/** This lane's key, and every lane's (read by the next process). */
+const LANES = ["a", "b", "one"] as const;
+const keyOf = (lane: string) => `search:hot:${lane}`;
+const ownKey = () => keyOf(process.env.CS_LANE === "a" || process.env.CS_LANE === "b" ? process.env.CS_LANE : "one");
 
 type Asked = [q: string, limit: number];
 const counts = new Map<string, number>();
@@ -36,22 +41,39 @@ export function noteAsked(q: string, limit: number): void {
 }
 
 const valid = (x: unknown): x is Asked => Array.isArray(x) && typeof x[0] === "string" && typeof x[1] === "number";
-
-/** The list as kept: the searches to make, most asked first. */
-export async function hotList(): Promise<Asked[]> {
-  const v = await kvGet<unknown>(KEY).catch(() => null);
+const listAt = async (key: string): Promise<Asked[]> => {
+  const v = await kvGet<unknown>(key).catch(() => null);
   return Array.isArray(v) ? v.filter(valid).slice(0, HOT_MAX) : [];
+};
+
+/** Every lane's list, merged: each list's first, then each one's second, and so on, each search once, HOT_MAX in all. */
+export async function hotList(): Promise<Asked[]> {
+  const lists = await Promise.all(LANES.map((l) => listAt(keyOf(l))));
+  const out: Asked[] = [], seen = new Set<string>();
+  for (let i = 0; out.length < HOT_MAX && lists.some((l) => i < l.length); i++) {
+    for (const l of lists) {
+      const x = l[i], k = x && JSON.stringify(x);
+      if (x && !seen.has(k) && out.length < HOT_MAX) { seen.add(k); out.push(x); }
+    }
+  }
+  return out;
 }
 
-/** This process's most asked first, then the kept list's others, HOT_MAX in all. Written only when there's
- *  something counted. */
-export async function saveHot(): Promise<number> {
-  if (!counts.size) return 0;
-  const mine = [...counts].sort((a, b) => b[1] - a[1]).map(([k]) => JSON.parse(k) as Asked);
-  const seen = new Set(mine.map((x) => JSON.stringify(x)));
-  const list = [...mine, ...(await hotList()).filter((x) => !seen.has(JSON.stringify(x)))].slice(0, HOT_MAX);
-  await kvSet(KEY, list);
-  return list.length;
+let saving: Promise<number> = Promise.resolve(0);
+/** This process's most asked first, then its lane's last list for the others, HOT_MAX in all, under its lane's key.
+ *  Written only when there's something counted; one save at a time. */
+export function saveHot(): Promise<number> {
+  const next = saving.catch(() => 0).then(async () => {
+    if (!counts.size) return 0;
+    const key = ownKey();
+    const mine = [...counts].sort((a, b) => b[1] - a[1]).map(([k]) => JSON.parse(k) as Asked);
+    const seen = new Set(mine.map((x) => JSON.stringify(x)));
+    const list = [...mine, ...(await listAt(key)).filter((x) => !seen.has(JSON.stringify(x)))].slice(0, HOT_MAX);
+    await kvSet(key, list);
+    return list.length;
+  });
+  saving = next;
+  return next;
 }
 
 /** Make each answer on the list (kept a minute, then served stale while remade: ./searchReads.ts), one at a time with
