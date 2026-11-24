@@ -11,10 +11,10 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchCard, SearchHit, TeamSummary } from "../shared/api";
 
-const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined }));
+const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined, error: null as string | null }));
 vi.mock("../components/search/SearchBox", async (orig) => ({
   ...(await orig<typeof import("../components/search/SearchBox")>()),
-  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: false, error: null, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: false, prefer: "" }),
+  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: false, error: state.error, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: false, prefer: "" }),
 }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2025 }));
 const summaries: TeamSummary[] = [
@@ -65,7 +65,7 @@ const show = (q: string) => render(<MemoryRouter initialEntries={[`/search?q=${e
 const settle = () => act(async () => { vi.advanceTimersByTime(BRUNO_SETTLE_MS + 5); });
 
 beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); asked.length = 0; });
-afterEach(() => { cleanup(); state.answer = undefined; says.text = "Bruno's overview of the records."; vi.useRealTimers(); });
+afterEach(() => { cleanup(); state.answer = undefined; state.error = null; says.text = "Bruno's overview of the records."; vi.useRealTimers(); });
 
 // v8 (owner, 2026-11-23): a question search has no direct answer to leads with his answer, under the search box; a
 // shared name's reading is a plain line heading its list, never the page's biggest words.
@@ -106,6 +106,13 @@ describe("Bruno leading the v8 page", () => {
     expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBe("label");
     await settle();
     expect(container.querySelector("[data-bruno-pending], [data-bruno-answer]")).toBeNull();
+    expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
+  });
+  it("keeps a failed search's heading at its size, with no card above it", () => {
+    state.answer = names();
+    state.error = "Search failed. Check your connection.";
+    const { container } = show(NAMES);
+    expect(container.querySelector("[data-bruno-lead]")).toBeNull();
     expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
   });
   it("never leads a standing question, whose summary comes with the team's numbers", async () => {
