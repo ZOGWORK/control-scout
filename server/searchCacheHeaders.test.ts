@@ -28,4 +28,21 @@ describe("search follow-ups at the edge", () => {
     expect(r.headers.get("cloudflare-cdn-cache-control")).toBe("public, max-age=60, stale-while-revalidate=300");
     expect(r.headers.get("set-cookie")).toBeNull();
   });
+  it("an error response is never edge-cacheable, even from a route that said so before failing", async () => {
+    const { createServer } = await import("node:http");
+    const { errorsNeverKept } = await import("./app");
+    const srv = createServer((_req, res) => {
+      errorsNeverKept(res);
+      res.setHeader("Cache-Control", "public, max-age=60");
+      res.setHeader("Cloudflare-CDN-Cache-Control", "public, max-age=60");
+      res.statusCode = 500;
+      res.end("{}");
+    }).listen(0);
+    await new Promise((r) => srv.once("listening", r));
+    try {
+      const r = await fetch(`http://127.0.0.1:${(srv.address() as AddressInfo).port}/`);
+      expect(r.headers.get("cache-control")).toBe("no-store");
+      expect(r.headers.get("cloudflare-cdn-cache-control")).toBeNull();
+    } finally { srv.close(); }
+  });
 });
