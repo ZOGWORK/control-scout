@@ -30,16 +30,27 @@ describe("isTestTraffic", () => {
     expect(isTestTraffic(req({ referer: "not a url" }), "4215 opr")).toBe(false);
   });
 
-  it("is sent by every eval script the header comment names, whatever it fetches", () => {
+  it("is sent by every eval script the header comment names, at each request it makes", () => {
     // scripts/search-*.ts and scripts/search-signoff/*: one that asks a server without it would log its misses as a
-    // visitor's (a script added later included).
+    // visitor's (a script added later included). Each fetch or k6 request carries it in its own call, and a script
+    // that drives a browser adds it to the site's requests (ctx.route), with no service worker to answer around it.
     const root = join(import.meta.dirname, "..", "scripts");
     const files = [
       ...readdirSync(root).filter((f) => /^search-.*\.(?:ts|mts|js)$/.test(f)).map((f) => join(root, f)),
       ...readdirSync(join(root, "search-signoff")).filter((f) => /\.(?:ts|mts|js)$/.test(f)).map((f) => join(root, "search-signoff", f)),
     ].filter((p) => !/\.test\./.test(p));
     expect(files.length).toBeGreaterThan(3);
-    const without = files.filter((p) => { const s = readFileSync(p, "utf8"); return /\bfetch\(/.test(s) && !/TEST_HEADER|x-cs-test/i.test(s); });
-    expect(without.map((p) => p.slice(root.length + 1).replace(/\\/g, "/"))).toEqual([]);
+    const header = /TEST_HEADER|x-cs-test/i;
+    const missing: string[] = [];
+    for (const p of files) {
+      const name = p.slice(root.length + 1).replace(/\\/g, "/");
+      const src = readFileSync(p, "utf8").split("\n");
+      src.forEach((l, n) => { if (/\b(?:fetch|http\.(?:get|post|request))\(/.test(l) && !header.test(l)) missing.push(`${name}:${n + 1}`); });
+      if (src.some((l) => /\.newContext\(/.test(l))) {
+        if (!src.some((l) => /\.route\(/.test(l) && header.test(l))) missing.push(`${name}: browser requests (ctx.route)`);
+        if (!src.some((l) => /\.newContext\(/.test(l) && /serviceWorkers: "block"/.test(l))) missing.push(`${name}: service workers not blocked`);
+      }
+    }
+    expect(missing).toEqual([]);
   });
 });

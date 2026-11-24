@@ -116,7 +116,12 @@ const browser = await chromium.launch();
 const checks: Check[] = [];
 for (const v of VIEWS) {
   // A fresh context per viewport: signed out, no stored state, phones as phones.
-  const ctx = await browser.newContext({ viewport: { width: v.width, height: v.height }, deviceScaleFactor: 2, isMobile: v.mobile, hasTouch: v.mobile, colorScheme: "dark" });
+  // No service worker: a request it answers never reaches ctx.route, so it would go out without the header below.
+  const ctx = await browser.newContext({ viewport: { width: v.width, height: v.height }, deviceScaleFactor: 2, isMobile: v.mobile, hasTouch: v.mobile, colorScheme: "dark", serviceWorkers: "block" });
+  // Test traffic, said so (X-CS-Test: 1), on the site's own requests only: a custom header would turn a request to
+  // another origin into a preflighted one.
+  const origin = new URL(BASE).origin;
+  await ctx.route((u) => u.origin === origin, (route) => route.continue({ headers: { ...route.request().headers(), "x-cs-test": "1" } }));
   // tsx names the audit's inner functions with an __name helper the page doesn't have.
   await ctx.addInitScript("window.__name = (f) => f");
   // The privacy question answered "No thanks" up front, as npm run shots does, so it never covers the answer.
