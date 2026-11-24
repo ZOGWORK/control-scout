@@ -238,7 +238,7 @@ function placeOf(at: string) {
 
 /** The scope an answer covers: the season named, else "this season" or an intent that defaults to one as the team's
  *  latest season with matches at official events (said so), else every season. */
-async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
+async function scopeFor(it: StatQuestion, team: number, now?: number): Promise<Scope | null> {
   const s = it.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, ...(s.finals ? { finals: true } : {}), alliance: s.alliance ?? undefined, ...(s.ever ? { ever: true } : {}) };
   if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
@@ -247,7 +247,7 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   // A month said without its year ("<team> events in june"): that month of the team's latest season, never one still
   // to come unless the question looks ahead (teamMonth).
   if (s.window?.month != null && s.season != null && !s.window.ahead) {
-    const moved = teamMonthWindow(s.window, s.season, (await teamSeason(team)) ?? s.season, new Date().toISOString().slice(0, 10));
+    const moved = teamMonthWindow(s.window, s.season, (await teamSeason(team)) ?? s.season, new Date(now ?? Date.now()).toISOString().slice(0, 10));
     if (moved) { scope.season = moved.season; scope.window = moved.window; }
   }
   if (s.outOfState) {
@@ -585,7 +585,7 @@ const placeNamed = (core: string) => !/\d/.test(core) && (!!countryOf(core) || !
 
 /** The answer to a stat question already read (by ./read.ts, or by the search pipeline from its slots), or null when
  *  its team isn't found. */
-export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[]; now?: number }): Promise<SearchAnswer | null> {
   const lead = await withLead(q, it0.core);
   const it = { ...it0, core: lead.core };
   // A place's name beside states or a championship is the place's championship ("romania states results"), never a team
@@ -597,7 +597,7 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
   // A season after every one on record ("12345 auto opr 2027"): said so, never the default season's numbers.
   if (it.scope.future) return futureAnswer(q, top, team, it.scope.future, it.id, opts);
-  const scope = await scopeFor(it, team.number);
+  const scope = await scopeFor(it, team.number, opts.now);
   if (!scope) return null;
   // "average winning margin" is titled as asked, not as the plain average margin.
   // A win or a loss said with a match question is in its title too ("Most recent loss", "Longest losing streak").
