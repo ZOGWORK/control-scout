@@ -4,7 +4,7 @@ import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { pageModule, pageTitle } from "../shared/routes";
-import { SEARCH_FAMILIES, SEARCH_SHOWCASE, SEARCH_STEPS } from "../components/howitworks/searchDocs";
+import { SEARCH_COMPLEX, SEARCH_FAMILIES, SEARCH_SHOWCASE, SEARCH_STEPS, SEARCH_VIDEO } from "../components/howitworks/searchDocs";
 
 afterEach(cleanup);
 beforeAll(() => {
@@ -52,5 +52,20 @@ describe("FTC One Search page", () => {
       expect(links[i].className, it.q).toContain("min-h-11");
     });
     expect(section.querySelector('a[href="/search"]')).not.toBeNull();
+  });
+
+  it("lists the harder questions in their groups and the video searches, each a link that runs that exact search", async () => {
+    const { default: Docs } = await import("./SearchDocsPage");
+    const { container } = render(<MemoryRouter initialEntries={["/how-it-works/search"]}><Docs /></MemoryRouter>);
+    const harder = container.querySelector("section#harder")!;
+    expect([...harder.querySelectorAll("h3")].map((h) => h.textContent)).toEqual(SEARCH_COMPLEX.map((g) => g.title));
+    const hrefsIn = (el: Element) => [...el.querySelectorAll("li a")].map((a) => a.getAttribute("href"));
+    expect(hrefsIn(harder)).toEqual(SEARCH_COMPLEX.flatMap((g) => g.items).map((it) => `/search?q=${encodeURIComponent(it.q)}`));
+    const video = container.querySelector("section#video")!;
+    expect(hrefsIn(video)).toEqual(SEARCH_VIDEO.map((v) => `/search?q=${encodeURIComponent(v.q)}`));
+    // The player figure: one button per match, the first picked.
+    const chapters = [...video.querySelectorAll('[aria-label="Matches in this recording"] button')];
+    expect(chapters.length).toBeGreaterThan(3);
+    expect(chapters[0].getAttribute("aria-pressed")).toBe("true");
   });
 });

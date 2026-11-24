@@ -66,6 +66,10 @@ export const SEARCH_FAMILIES: { title: string; q: string; what: string }[] = [
   { title: "High scores", q: "highest score this season", what: "The top matches" },
   { title: "Team history", q: "when did hypnotic go to worlds", what: "Every appearance, newest first" },
   { title: "What a word means", q: "what is OPR", what: "A short explainer" },
+  { title: "Several teams at once", q: "4215 vs 6980 vs 7149 opr", what: "Up to four teams on one stat" },
+  { title: "A rule", q: "what is a minor foul", what: "The game manual's rule and its penalty" },
+  { title: "Won Worlds?", q: "did 4215 win worlds", what: "Yes or no, with the best finish" },
+  { title: "Match videos", q: "4215 videos at worlds", what: "Every match with video, to play here" },
 ];
 
 /** "Ask in plain words": newer kinds of question, grouped by what they show. Each query was run on the live site
@@ -98,11 +102,64 @@ export const SEARCH_SHOWCASE: { title: string; items: { q: string; what: string 
   ] },
 ];
 
+/** "Harder questions": the kinds that take more than one slot of each, or a filter, or two questions at once. Each
+ *  query was run on the live site (/api/search?answer=1) and came back with a full answer card before it was listed. */
+export const SEARCH_COMPLEX: { title: string; body: string; items: { q: string; what: string }[] }[] = [
+  { title: "Compare two to four teams", body: "Any stat, side by side, in one season.", items: [
+    { q: "4215 vs 6980 vs 7149 opr", what: "Three teams' OPR in one table" },
+  ] },
+  { title: "Season ranges", body: "From a year on, or between two, answered season by season.", items: [
+    { q: "4215 opr since 2023", what: "The team's OPR rank in each season since 2023–24" },
+    { q: "4215 opr 2022 to 2024", what: "The same, for 2022–23 to 2024–25" },
+  ] },
+  { title: "Leave some out", body: "“Not”, “no” and “didn't” take teams or matches off the list.", items: [
+    { q: "top teams in new jersey not rookies", what: "A state's board without its rookie teams" },
+    { q: "highest scoring matches in new jersey with no penalties", what: "Top matches where neither side gave up a penalty" },
+    { q: "teams that didn't make worlds in new jersey", what: "A state's teams that weren't at the FIRST Championship" },
+  ] },
+  { title: "Two places", body: "Side by side, together, or teams from one place at another's events.", items: [
+    { q: "texas vs michigan opr", what: "Two states' average OPR, side by side" },
+    { q: "top teams in california and washington", what: "One board across both states" },
+    { q: "oklahoma teams at texas events", what: "Teams from one state, at the other's events" },
+  ] },
+  { title: "Two questions in one", body: "Joined with “and”, each part gets its own answer card.", items: [
+    { q: "4215 opr and 6980 record", what: "One team's OPR, another team's record" },
+    { q: "4215 awards and highest score in new jersey", what: "A team's awards, then its best score in one state" },
+  ] },
+  { title: "Matches and match boards", body: "One match by event and number, or a place's best, worst and closest.", items: [
+    { q: "USNJCMPPKWY Q12", what: "That match, by event code and number" },
+    { q: "closest matches in michigan", what: "A state's tightest finishes" },
+    { q: "lowest scoring matches in texas", what: "The bottom of a state's board" },
+  ] },
+  { title: "Rules, when and where", body: "The game manual, an event's dates, a team's home.", items: [
+    { q: "what is a minor foul", what: "The rule from the game manual, with its penalty" },
+    { q: "when is the michigan state championship 2026", what: "The event's dates and place" },
+    { q: "where is 7149 from", what: "The team's town, state and FIRST region" },
+  ] },
+  { title: "Yes or no", body: "A straight answer first, then what it's based on.", items: [
+    { q: "did 4215 win worlds", what: "No or yes, with the team's best finish at Worlds" },
+  ] },
+];
+
+/** "Video search": matches with video, by team, event, place or season. Each run on the live site with a list of
+ *  matches with video before it was listed. */
+export const SEARCH_VIDEO: { q: string; what: string }[] = [
+  { q: "4215 videos at worlds", what: "Every match a team played at Worlds that has video" },
+  { q: "7149 highlights 2025-26", what: "A team's standout matches of one season" },
+  { q: "nj states videos", what: "Match videos from a state championship" },
+  { q: "highlights in michigan 2025-26", what: "A state's best, closest and biggest matches, with video" },
+  { q: "worlds 2025 videos", what: "Match videos from one FIRST Championship" },
+];
+
 /** Worked readings for the "how a query is read" figure: each word and what it was read as. */
-export type Role = "team" | "stat" | "scope" | "place" | "time" | "kind" | "filler" | "versus";
+export type Role = "team" | "stat" | "scope" | "place" | "time" | "kind" | "filler" | "versus" | "filter" | "and";
 export const READINGS: { q: string; words: { w: string; role: Role }[]; result: string }[] = [
   { q: "4215 highest score in worlds", words: [{ w: "4215", role: "team" }, { w: "highest score", role: "stat" }, { w: "in", role: "filler" }, { w: "worlds", role: "scope" }], result: "One team's best alliance score at the FIRST Championship" },
   { q: "upcoming meets in New Jersey", words: [{ w: "upcoming", role: "time" }, { w: "meets", role: "kind" }, { w: "in", role: "filler" }, { w: "New Jersey", role: "place" }], result: "A list of events, soonest first" },
   { q: "4215 vs 6980", words: [{ w: "4215", role: "team" }, { w: "vs", role: "versus" }, { w: "6980", role: "team" }], result: "Compare, never counted as a team" },
+  { q: "4215 opr since 2023", words: [{ w: "4215", role: "team" }, { w: "opr", role: "stat" }, { w: "since 2023", role: "time" }], result: "OPR rank in each season, 2023–24 on" },
+  { q: "texas vs michigan opr", words: [{ w: "texas", role: "place" }, { w: "vs", role: "versus" }, { w: "michigan", role: "place" }, { w: "opr", role: "stat" }], result: "Two states side by side: average OPR" },
+  { q: "top teams in new jersey not rookies", words: [{ w: "top teams", role: "stat" }, { w: "in", role: "filler" }, { w: "new jersey", role: "place" }, { w: "not rookies", role: "filter" }], result: "A state's board, rookie teams left out" },
+  { q: "4215 opr and 6980 record", words: [{ w: "4215", role: "team" }, { w: "opr", role: "stat" }, { w: "and", role: "and" }, { w: "6980", role: "team" }, { w: "record", role: "stat" }], result: "Two questions, two answer cards" },
   { q: "how many teams in OR", words: [{ w: "how many", role: "stat" }, { w: "teams", role: "kind" }, { w: "in", role: "filler" }, { w: "OR", role: "place" }], result: "A count: \"OR\" in capitals is Oregon" },
 ];
