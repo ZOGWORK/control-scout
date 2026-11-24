@@ -3018,5 +3018,25 @@
 "set": "seasons1124",
 "n": 4,
 "q": "7149 auto opr between 2023 and 2025"
+},
+{
+"set": "not1124",
+"n": 1,
+"q": "teams in ohio that are not rookies"
+},
+{
+"set": "not1124",
+"n": 2,
+"q": "non-rookie teams in michigan"
+},
+{
+"set": "not1124",
+"n": 3,
+"q": "auto opr over 50 who did not make worlds"
+},
+{
+"set": "not1124",
+"n": 4,
+"q": "23268 matches without penalties at worlds"
 }
 ]
