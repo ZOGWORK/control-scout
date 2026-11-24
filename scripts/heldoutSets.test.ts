@@ -42,5 +42,14 @@ describe("held-out sets", () => {
     const bare = mkdtempSync(join(tmpdir(), "heldout-"));
     writeFileSync(join(bare, "search-heldout.json"), "[]");
     expect(() => heldoutSets(bare)).toThrow("scripts/heldout/ is missing");
+    // A file that can't be read says so, never "not valid JSON".
+    const gone = mkdtempSync(join(tmpdir(), "heldout-"));
+    mkdirSync(join(gone, "heldout"));
+    expect(() => heldoutSets(gone)).toThrow("scripts/search-heldout.json: can't be read");
+    // The shared file is checked as the set files are, naming itself.
+    expect(() => heldoutSets(dirWith({}, { "g.json": ["x"] }))).toThrow("scripts/search-heldout.json: a list of");
+    expect(() => heldoutSets(dirWith([{ set: "a", n: 1 }], {}))).toThrow("scripts/search-heldout.json: entry 1");
+    // No questions at all never passes as a run that asked none.
+    expect(() => heldoutSets(dirWith([], {}))).toThrow("no held-out questions");
   });
 });
