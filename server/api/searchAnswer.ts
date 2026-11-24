@@ -21,9 +21,9 @@ import { conversationQuery, EVENT_WORDS, isQuestionForm, nameWords, onlyCommonWo
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
 import { compareOneAnswer, versusAnswer, versusLoneTeam } from "./searchCompare.js";
-import { ruleAnswer } from "./searchRules.js";
+import { definitionAnswer, ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
-import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
+import { readDefinition, readRuleQuery } from "../../src/shared/searchRuleQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamHighlights } from "./answers/highlights.js";
 import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
@@ -969,6 +969,12 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // A league's standings with no team: before the pipeline reads "league leaderboard" as its own board.
   // A New Jersey conference ("4215 conference ranking", "who won East Bergen Conference"): before the league reader and
   // the pipeline, which would read a conference's name as its tournament's.
+  // A word's meaning asked ("what does park mean", "define major foul", "what is a yellow card"): Control Scout's
+  // explainer or the season's rules for it, before any reader takes a word of it for a team's name ("what does inspire
+  // award mean" is never team Mean); a meaning asked outright and found nowhere is said so, Bruno's answer leading.
+  const def = opts.intents === false ? null : readDefinition(opts.typed ?? q);
+  const defined = def ? await definitionAnswer(q, def, explainAnswer, (said) => recovery(q, [said])) : null;
+  if (defined) return defined;
   const conference = opts.intents === false ? null : await conferenceSearch(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q) });
   if (conference) return conference;
   const league = opts.intents === false ? null : await leagueSearch(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q) });
