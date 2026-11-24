@@ -51,10 +51,8 @@ import { ensureSearchIndex } from "./api/search.js";
 import { MAX_QUERY } from "./api/searchAnswer.js";
 import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
-import { withTeamStats } from "./api/searchTeamStats.js";
 import { seasonRecordLine } from "./api/searchHighScores.js";
 import { MATCHES_TABLE_HEADING, SEASON_RECORD_LABEL, SEASON_RECORD_RULE, recordMarks } from "../src/shared/seasonRecord.js";
-import { withEventParents } from "./api/searchEvents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
 import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, SORRY_SENTENCE, cardWho, followApiPath, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
@@ -65,6 +63,8 @@ import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTab
 export const OG_IMAGE_PATH = "/og-image.png?v=4";
 /** What the card says, for screen readers in apps that show it. */
 export const OG_IMAGE_ALT = "Control Scout: Scouting, Reimagined. Free FTC scouting and predictions.";
+import { finishPageAnswer } from "./api/searchPage.js";
+import { viewerOf } from "./videos/contributors.js";
 import { answerDescription, badgeUnder, contextBadge, headingOver, isQualityQuestion, pageTitle, repeats, unreadNote } from "../src/shared/searchPage.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
@@ -732,8 +732,10 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   // rest of the page is put together (FOLLOW_FIRST_PAINT_MS). A page without one asks for none.
   const answered = !found.sorry && !!(found.hits.length || found.card || found.stat || found.pages.length);
   const following = answered ? followUpsWithin(q, FOLLOW_FIRST_PAINT_MS) : null;
-  // As /api/search sends it: team rows with their season numbers, so the app starts from the same answer.
-  const answer = { ...found, hits: await withTeamStats(await withEventParents(found.hits)) };
+  // As /api/search sends it to a signed-out visitor (finishPageAnswer: a lone team's highlights, the rows' numbers and
+  // parents, the answer's video), so the app starts from the same answer and draws its video, highlights and team
+  // numbers from the first frame: they used to arrive with the app's own refresh, and pushed the page down when they did.
+  const { body: answer } = await finishPageAnswer(found, SEARCH_PAGE_LIMIT, viewerOf(null));
   const { sections, notes } = answerSections(answer);
   // A question search can't answer yet (server/api/answers/sorry.ts): the heading says sorry, once; what was read and
   // the searches that answer are its note, so the badge (which would say the team and sorry again) is left out.

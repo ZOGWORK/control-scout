@@ -179,7 +179,8 @@ export interface SearchAnswer {
    *  from what its records hold ("4215 worlds appearances", "4215 record 2025–26"), shown as taps. */
   suggest?: string[];
   /** The video the site has for what the answer is about (server/api/answers/video.ts); null: read, and none; absent: not
-   *  read yet (a page's first paint carries the answer without it), so nothing may say there is none. */
+   *  read (a read that failed; /search's first paint carries it as a signed-out visitor sees it), so nothing may say
+   *  there is none. */
   video?: SearchVideo | null;
   /** Made on the device with no signal (src/lib/offline/search.ts), never by the server: the query needs data the
    *  downloaded event packs don't hold. The page says so, with what is in them. */
