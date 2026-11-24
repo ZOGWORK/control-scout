@@ -19,20 +19,22 @@ export function askOf(q: string): Ask | null {
 /** One row of an answer: an event and a date, and the page it opens. */
 interface Place { event: string | null; date: string | null; href?: string }
 
-/** The rows of `stat` that each name an event or a date: its tables with an Event or a Date column, else its first
- *  list of matches. Every row listed (an Inspire table's 2nd places too, as its headline counts them apart). */
-function rowsOf(stat: StatAnswer): Place[] {
+/** The rows of `stat` that say what's asked (a date for "when", an event for "where"): its tables' rows that do, else
+ *  its first list of matches (a score split by season is a table of events with no dates: its matches have them).
+ *  Every row listed (an Inspire table's 2nd places too, as its headline counts them apart). */
+function rowsOf(stat: StatAnswer, ask: Ask): Place[] {
+  const says = (r: Place) => !!(ask === "when" ? r.date : r.event);
   // Every table of them, in order (an answer split by season is one table a season).
   const tables = stat.blocks.flatMap((b) => {
     if (b.kind !== "table") return [];
     const keys = new Set(b.columns.map((c) => c.key));
     const dateKey = keys.has("date") ? "date" : keys.has("when") ? "when" : null;
     if (!keys.has("event") && !dateKey) return [];
-    return b.rows.map((r) => ({ event: str(r.cells.event), date: dateKey ? str(r.cells[dateKey]) : null, ...(r.href ? { href: r.href } : {}) })).filter((x) => x.event || x.date);
+    return b.rows.map((r) => ({ event: str(r.cells.event), date: dateKey ? str(r.cells[dateKey]) : null, ...(r.href ? { href: r.href } : {}) })).filter(says);
   });
   if (tables.length) return tables;
   const m = stat.blocks.find((b) => b.kind === "matches" && b.rows.length);
-  return m?.kind === "matches" ? m.rows.map((r) => ({ event: r.event?.label ?? null, date: dayOf(r.date), href: r.href })) : [];
+  return m?.kind === "matches" ? m.rows.map((r) => ({ event: r.event?.label ?? null, date: dayOf(r.date), href: r.href })).filter(says) : [];
 }
 const str = (v: unknown) => (v == null || v === "" ? null : String(v));
 /** A row's day as it reads: a stored day ("2026-03-08") said as one ("Mar 8, 2026"), one already said as is. */
@@ -59,9 +61,9 @@ export function whenWhere(stat: StatAnswer, ask: Ask): StatAnswer {
   if (stat.none) return stat;
   // An answer of one thing (its headline links it: a superlative's match, one award's event) is that row alone, the
   // row the headline links else the first (rows lead with the answer); a count's rows (no link) are every one.
-  const all = rowsOf(stat);
+  const all = rowsOf(stat, ask);
   const own = all.filter((r) => r.href && r.href === stat.headline?.href);
-  const rows = own.length ? own : stat.headline?.href ? headlineRow(stat) : all;
+  const rows = own.length ? own : stat.headline?.href ? headlineRow(stat).filter((r) => (ask === "when" ? r.date : r.event)) : all;
   // Each event once (a team's two awards at one event are one place, one date).
   const seen = new Set<string>();
   const each = rows.filter((r) => { const k = `${r.event}|${r.date}`; return seen.has(k) ? false : (seen.add(k), true); });
@@ -73,6 +75,8 @@ export function whenWhere(stat: StatAnswer, ask: Ask): StatAnswer {
     items: each.slice(0, 6).map((r) => ({ label: (ask === "when" ? r.event : r.date) ?? "", value: (ask === "when" ? r.date : r.event) ?? "—", tone: "accent" as const, ...(r.href ? { href: r.href } : {}) })),
   };
   const was = stat.headline;
+  // What the headline drew besides its words stays (an event's type chip, an alliance's team chips, a match to play).
+  const { value: _v, label: _l, sub: _s, href: _h, ...drawn } = was ?? ({} as Partial<NonNullable<StatAnswer["headline"]>>);
   // An answer that already leads with what's asked ("which event did <team> score highest in"): as it is.
   const value = listed([...new Set(said)]);
   if (was?.value === value) return stat;
@@ -80,6 +84,7 @@ export function whenWhere(stat: StatAnswer, ask: Ask): StatAnswer {
     ...stat,
     title: `${ask === "when" ? "When" : "Where"}: ${stat.title}`,
     headline: {
+      ...drawn,
       value,
       label: [was?.value, was?.label].filter(Boolean).join(" · ") || stat.title,
       ...(other.length ? { sub: listed([...new Set(other)]) } : {}),
