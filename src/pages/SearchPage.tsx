@@ -347,10 +347,10 @@ export default function SearchPage() {
       </h1>
       {/* Not when the heading already says the reading (a shared name's line). */}
       {v8 && query && found && !busy && !error && !namesLine && <UnderstoodLine query={query} understood={ax?.understood} className="mt-2" />}
-      {/* A follow-up: the search it was read with, a tap back to it. */}
+      {/* A follow-up: the tab's last search, which Bruno reads it with, as a tap back to it. */}
       {followFrom && found && !busy && !error && (
         <p className="mt-1.5 break-words text-xs text-muted-foreground" data-follow-from>
-          Read with your last search: <Link to={`/search?q=${encodeURIComponent(followFrom)}`} className="font-medium text-foreground underline-offset-2 hover:underline">{followFrom}</Link>
+          Your last search: <Link to={`/search?q=${encodeURIComponent(followFrom)}`} className="font-medium text-foreground underline-offset-2 hover:underline">{followFrom}</Link>
         </p>
       )}
       {badge && !v8 && (
