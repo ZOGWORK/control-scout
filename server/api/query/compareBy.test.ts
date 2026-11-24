@@ -62,6 +62,8 @@ describe("two to four teams compared by one stat", () => {
     expect((await card("30601 vs 30602 vs 30603")).headline?.value).toBe("30601 leads 100.0 – 90.0 – 80.0");
     // Two teams by penalties: their own side-by-side card.
     expect((await card("30601 vs 30602 penalties")).intent).toBe("penalties-vs");
+    // Two teams by a phase or by reliability: those side-by-side cards, however it's said.
+    expect([(await card("30601 vs 30602 auto")).intent, (await card("30601 vs 30602 reliability")).intent]).toEqual(["phase-vs", "reliability-vs"]);
     // Two alliances, or two stats at once: never a comparison by one stat.
     for (const q of ["30601 30602 vs 30603 30604 win rate", "30601 vs 30602 vs 30603 auto and win rate"]) expect((await ask(q)).intent?.kind, q).not.toBe("stat-compare-by");
   });
