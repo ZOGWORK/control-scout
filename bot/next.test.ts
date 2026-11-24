@@ -24,6 +24,12 @@ describe("/next's match", () => {
     expect(aheadEvents([tonight], Date.parse("2026-11-25T06:00:00Z"))).toEqual([]);
   });
 
+  it("keeps an event with no date published yet, after the dated ones", () => {
+    const dated = { start: "2026-11-24", end: "2026-11-24", timezone: null };
+    const undated = { start: null, end: null, timezone: null };
+    expect(aheadEvents([undated, dated], Date.parse("2026-11-24T12:00:00Z"))).toEqual([dated, undated]);
+  });
+
   it("takes the first unplayed match the team is in, in schedule order", () => {
     const e = event("A", [match(2, [4215]), match(1, [4215]), match(3, [4215])]);
     expect(nextPlaying([e], 4215)?.match.number).toBe(1);

@@ -62,9 +62,12 @@ export async function nextLookup(number: number, now = Date.now()): Promise<APIE
   const ahead = aheadEvents(profile.events.filter((e) => e.season === CURRENT_SEASON), now);
   // One event at a time, earliest first: the first that has an unplayed match answers. A read that fails is not a
   // "nothing scheduled" — it fails the lookup, since the later events can't stand in for the one that couldn't be read.
-  const read: (EventDetail | null)[] = [];
+  const read: EventDetail[] = [];
   for (const e of ahead) {
     const detail = await cachedEventDetail(e.season, e.code);
+    // A null is an event that should be there and isn't readable (already over, or the row went): not an empty schedule,
+    // so it fails the lookup rather than letting a later event answer as "the next one".
+    if (!detail) throw new Friendly("Couldn't read the schedule", `Control Scout couldn't read ${e.name}'s schedule just now. Try again in a minute.`);
     read.push(detail);
     const found = nextPlaying([detail], number);
     if (!found) continue;

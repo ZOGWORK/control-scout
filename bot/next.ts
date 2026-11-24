@@ -14,7 +14,9 @@ export const AHEAD = 3;
  * still to be played that evening must not drop out of "next".
  */
 export function aheadEvents<T extends EventCalendar & { start: string | null }>(events: readonly T[], now = Date.now()): T[] {
-  return events.filter((e) => e.start && !eventOver(e, now)).sort((a, b) => (a.start ?? "").localeCompare(b.start ?? "")).slice(0, AHEAD);
+  // An event with no date published yet is not over (eventOver says so) and is kept, after the dated ones: its team is
+  // entered in it, and "nothing scheduled" must be able to name it.
+  return events.filter((e) => !eventOver(e, now)).sort((a, b) => (a.start ?? "9999").localeCompare(b.start ?? "9999")).slice(0, AHEAD);
 }
 
 /** Schedule order at one event: qualifications before playoffs, then series and number. */
