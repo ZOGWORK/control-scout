@@ -10,7 +10,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { streamBrunoAnswer, type BrunoAnswerBody } from "../../lib/brunoStream";
-import { useServerFlag } from "../../lib/flags";
+import { useFlag, useServerFlag } from "../../lib/flags";
 import { useMediaQuery } from "../../lib/meta";
 import { isBrunoQuestion } from "../../shared/search";
 import { cn } from "../cn";
@@ -22,9 +22,11 @@ export const BRUNO_SETTLE_MS = 600;
 export const brunoKey = (q: string, prefer = "") => `${q.trim()}\n${prefer}`;
 
 /** Whether the page asks Bruno for this query at all (his flag on, a question, search's own answer not a direct one):
- *  the page lays itself out from this before he answers, so his card's slot is there from the first frame. */
+ *  the page lays itself out from this before he answers, so his card's slot is there from the first frame. The flag's
+ *  last known value (on until the server says otherwise), so the layout doesn't wait for the flags to load; the ask
+ *  itself still waits for the server to confirm it (BrunoAnswer). */
 export function useBrunoAsks(q: string, answered: boolean): boolean {
-  const on = useServerFlag("brunoAnswers");
+  const on = useFlag("brunoAnswers");
   return on && !answered && isBrunoQuestion(q.trim());
 }
 
@@ -55,7 +57,8 @@ export function BrunoAnswer({ q, prefer = "", ready, answered = false, lead = fa
   const query = q.trim();
   // `answered`: search's own answer card already says it; his card would say the same thing twice.
   const willAsk = useBrunoAsks(query, answered);
-  const asks = willAsk && ready;
+  const confirmed = useServerFlag("brunoAnswers");
+  const asks = willAsk && confirmed && ready;
   // An answer belongs to its question and the preferred teams it was read with: either changing hides it.
   const key = brunoKey(query, prefer);
   const [state, setState] = useState<{ key: string; text: string | null; points: string[] }>(() => {

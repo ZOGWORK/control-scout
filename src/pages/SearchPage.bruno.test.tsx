@@ -11,10 +11,10 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchCard, SearchHit, TeamSummary } from "../shared/api";
 
-const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined, error: null as string | null }));
+const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined, error: null as string | null, busy: false }));
 vi.mock("../components/search/SearchBox", async (orig) => ({
   ...(await orig<typeof import("../components/search/SearchBox")>()),
-  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: false, error: state.error, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: false, prefer: "" }),
+  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: state.busy, error: state.error, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: false, prefer: "" }),
 }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2025 }));
 const summaries: TeamSummary[] = [
@@ -27,9 +27,9 @@ vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../l
   usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
 const asked = vi.hoisted(() => [] as string[]);
 // What he writes back (null: nothing to add).
-const says = vi.hoisted(() => ({ text: "Bruno's overview of the records." as string | null }));
+const says = vi.hoisted(() => ({ text: "Bruno's overview of the records." as string | null, fail: false }));
 vi.mock("../lib/brunoStream", () => ({
-  streamBrunoAnswer: (url: string) => { asked.push(url); return Promise.resolve(says.text ? { text: says.text, points: [] } : null); },
+  streamBrunoAnswer: (url: string) => { asked.push(url); return says.fail ? Promise.reject(new Error("down")) : Promise.resolve(says.text ? { text: says.text, points: [] } : null); },
 }));
 
 const { default: SearchPage } = await import("./SearchPage");
@@ -65,7 +65,7 @@ const show = (q: string) => render(<MemoryRouter initialEntries={[`/search?q=${e
 const settle = () => act(async () => { vi.advanceTimersByTime(BRUNO_SETTLE_MS + 5); });
 
 beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); asked.length = 0; });
-afterEach(() => { cleanup(); state.answer = undefined; state.error = null; says.text = "Bruno's overview of the records."; vi.useRealTimers(); });
+afterEach(() => { cleanup(); state.answer = undefined; state.error = null; state.busy = false; says.fail = false; says.text = "Bruno's overview of the records."; vi.useRealTimers(); });
 
 // v8 (owner, 2026-11-23): a question search has no direct answer to leads with his answer, under the search box; a
 // shared name's reading is a plain line heading its list, never the page's biggest words.
@@ -118,6 +118,23 @@ describe("Bruno leading the v8 page", () => {
     await settle();
     expect(container.querySelector("[data-bruno-lead]")).toBeNull();
     expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
+  });
+  it("asks again when the search runs again after he couldn't be reached", async () => {
+    says.fail = true;
+    state.answer = names();
+    const page = () => <MemoryRouter initialEntries={[`/search?q=${encodeURIComponent(NAMES)}`]}><SearchPage /></MemoryRouter>;
+    const { container, rerender } = render(page());
+    await settle();
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(container.querySelector("[data-bruno-lead]")).toBeNull();
+    says.fail = false;
+    state.busy = true;
+    rerender(page());
+    state.busy = false;
+    rerender(page());
+    expect(container.querySelector("[data-bruno-lead] [data-bruno-pending]")).not.toBeNull();
+    await settle();
+    expect(container.querySelector("[data-bruno-lead] [data-bruno-answer]")).not.toBeNull();
   });
   it("says a comparison of two shared names as a plain line too", () => {
     const q = "is ultraviolet better than mirror";

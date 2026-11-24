@@ -259,6 +259,9 @@ export default function SearchPage() {
   const [brunoSilent, setBrunoSilent] = useState<string | null>(null);
   const [silentFor, setSilentFor] = useState(askKey);
   if (silentFor !== askKey) { setSilentFor(askKey); setBrunoSilent(null); }
+  // The search run again (Try again, a refresh): his slot is held again, and a failed ask is asked again (an answer
+  // of nothing to add is remembered by brunoMemo, so it lets the slot go at once).
+  if (busy && brunoSilent != null) setBrunoSilent(null);
   const onBruno = useCallback((k: string, said: boolean) => setBrunoSilent((s) => (said ? (s === k ? null : s) : k)), []);
   // Not on a failed search: no answer or names list shows there, so its heading keeps its size.
   // His slot at the top, until he's known to have nothing to add to this question (then it stays let go).
