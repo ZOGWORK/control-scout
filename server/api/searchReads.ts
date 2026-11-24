@@ -155,4 +155,7 @@ export function dropKeptPages(): void { kept.pages.clear(); kept.before.pages.cl
 /** How many of each are kept right now, and how many copies from before the last data move (tests). */
 export const keptCounts = () => ({ rows: kept.rows.size, answers: kept.answers.size, pages: kept.pages.size, carried: kept.before.answers.size + kept.before.pages.size });
 
-registerCache("Search reads, answers and pages", () => { kept = fresh(); version = null; });
+// A clip-start change (the clip autopilot's, about once a minute) is a data move for search, as a sync's is (moved):
+// the reads go, and each answer and page is served as kept until one request has drawn it again. Emptied instead
+// (fresh), every answer and page was drawn again with a visitor waiting, each minute (the search audit's S3).
+registerCache("Search reads, answers and pages", () => { kept = fresh(); version = null; }, { onClip: () => { kept = moved(kept.version, kept.checked); } });
