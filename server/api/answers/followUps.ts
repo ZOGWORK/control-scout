@@ -11,7 +11,7 @@ import { normalise, parseQuery, type Parsed } from "../query/parse.js";
 import { parseContext } from "../query/context.js";
 import { names } from "../query/names.js";
 import { AWARD_WORDS, LEXICON } from "../query/lexicon.js";
-import { keptAnswer, searchVersion } from "../searchReads.js";
+import { keptAnswer, keptGeneration, searchVersion, STALE_MS } from "../searchReads.js";
 import { searchAnswer } from "../searchAnswer.js";
 import { loneTeamHit } from "../searchLayers.js";
 import { forecasterBuilds } from "../../predict/engine.js";
@@ -44,7 +44,7 @@ export const keptFollowUps = (q: string, prefer: ReadonlySet<string> = new Set()
  *  marked `partial` (never kept: the whole set is still being made, and is kept once it's done). */
 export async function followUpsWithin(q: string, prefer: ReadonlySet<string> = new Set(), ms = FOLLOW_BUDGET_MS): Promise<SearchFollowUps> {
   // Made ahead for this search index (precomputeFollowUps): served at once, nothing made while anyone waits.
-  const early = await aheadOf(followKey(q, prefer));
+  const early = prefer.size ? undefined : await aheadOf(q);
   if (early) return early;
   const whole = keptFollowUps(q, prefer);
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -57,33 +57,57 @@ export async function followUpsWithin(q: string, prefer: ReadonlySet<string> = n
   return { ask: [], related: [], ...now, partial: true };
 }
 
-/** Follow-up sets made ahead of time for the most-asked searches (precomputeFollowUps, the search audit's S9), by key,
- *  each with the search index version it was made under ("search:version", moved by each stats run). */
-const ahead = new Map<string, { version: string; value: SearchFollowUps }>();
+/** Follow-up sets made ahead of time for the most-asked searches (precomputeFollowUps, the search audit's S9), by
+ *  query (searches any visitor shares: no preferred teams), each with what it was made from: the search index
+ *  ("search:version", moved by each stats run), the kept answers' generation (moved by new results and clip changes:
+ *  ../searchReads.ts keptGeneration), the forecaster builds, and when. Served as kept answers are: fresh for a minute
+ *  while none of those moved; then still served (up to STALE_MS more) while that one set is made again behind it, at
+ *  `later` priority, so nobody waits and the preview catches up with the answer its tap opens. A new index drops them. */
+type Ahead = { version: string; gen: number; builds: number; at: number; value: SearchFollowUps };
+const ahead = new Map<string, Ahead>();
+const remaking = new Map<string, Promise<boolean>>();
+/** How long a set made ahead is fresh: a minute, as a kept answer. */
+const AHEAD_FRESH_MS = STALE_MS / 5;
 
-/** The set made ahead under `key` for the search index in use, if there is one. */
-async function aheadOf(key: string): Promise<SearchFollowUps | undefined> {
-  const a = ahead.get(key);
-  return a && a.version === (await searchVersion()) ? a.value : undefined;
+/** The set made ahead for `q` under the search index in use, if it can still be served (made again behind it when
+ *  it's no longer fresh). */
+async function aheadOf(q: string, now = Date.now()): Promise<SearchFollowUps | undefined> {
+  const a = ahead.get(q);
+  const version = await searchVersion();
+  if (!a || a.version !== version) return undefined;
+  const moved = a.gen !== keptGeneration() || a.builds !== forecasterBuilds();
+  if (!moved && now - a.at < AHEAD_FRESH_MS) return a.value;
+  void makeAhead(q, version);
+  return now - a.at < AHEAD_FRESH_MS + STALE_MS ? a.value : undefined;
+}
+
+/** Make `q`'s set ahead for `version`, every check `later`; one at a time per query. True when it was made. */
+function makeAhead(q: string, version: string): Promise<boolean> {
+  const running = remaking.get(q);
+  if (running) return running;
+  const none: ReadonlySet<string> = new Set();
+  const p = (async () => {
+    const gen = keptGeneration(), builds = forecasterBuilds(), at = Date.now();
+    const value = await followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, none), none, undefined, true);
+    if ((await searchVersion()) !== version) return false;
+    ahead.set(q, { version, gen, builds, at, value });
+    return true;
+  })().catch(() => false).finally(() => remaking.delete(q));
+  remaking.set(q, p);
+  return p;
 }
 
 /** Make the follow-ups of each of `qs` (searches any visitor shares: no preferred teams) ahead of time, for the search
  *  index in use, one set at a time with every check of theirs `later` (behind every live search's questions), so
  *  People also ask for the most-asked searches is there at once. Sets made for an older index are dropped once these
- *  are made. Stops early (keeping what's made) if the index moves meanwhile. Returns how many were made. */
+ *  are made. Stops early (keeping what's made) if the index moves meanwhile. Returns how many there are for it. */
 export async function precomputeFollowUps(qs: readonly string[]): Promise<number> {
   const version = await searchVersion();
-  const none: ReadonlySet<string> = new Set();
   let made = 0;
   for (const q of qs) {
     if ((await searchVersion()) !== version) break;
     // Made already for this index (a run before one that failed): kept, so a retry makes only the missing ones.
-    if (ahead.get(followKey(q, none))?.version === version) { made++; continue; }
-    try {
-      const value = await followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, none), none, undefined, true);
-      ahead.set(followKey(q, none), { version, value });
-      made++;
-    } catch { /* the next one */ }
+    if (ahead.get(q)?.version === version || await makeAhead(q, version)) made++;
   }
   for (const [k, v] of ahead) if (v.version !== version) ahead.delete(k);
   return made;

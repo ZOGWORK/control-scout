@@ -116,9 +116,10 @@ export function precomputeHot(): Promise<number> {
     if (version === aheadFor) return 0;
     const qs = (await hotList()).filter(([, limit]) => limit === SEARCH_PAGE_LIMIT).map(([q]) => q).slice(0, HOT_FOLLOW_MAX);
     const made = await precomputeFollowUps(qs);
-    // Done for this index only when every one was made: one that failed (a passing read error) is tried again on the
-    // next tick (server/index.ts), not left slow until the next stats run.
-    if (made === qs.length && (await searchVersion()) === version) aheadFor = version;
+    // Done for this index only when every one was made, and there were some: one that failed, or a list that couldn't
+    // be read (hotList leaves a failed lane out), is tried again on the next tick (server/index.ts), not left slow
+    // until the next stats run.
+    if (qs.length && made === qs.length && (await searchVersion()) === version) aheadFor = version;
     return made;
   })().finally(() => { aheadRunning = null; }));
 }

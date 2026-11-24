@@ -116,4 +116,14 @@ describe("most-asked searches", () => {
     expect(await precomputeHot()).toBe(0);
     expect(ahead.length).toBe(2);
   });
+
+  it("tries the index again when the list was empty (a lane that couldn't be read)", async () => {
+    await db.kvSet("search:hot:one", []);
+    index = "v4";
+    ahead.length = 0;
+    expect(await precomputeHot()).toBe(0);
+    await db.kvSet("search:hot:one", [["4215", 25]]);
+    expect(await precomputeHot()).toBe(1);
+    expect(ahead).toEqual([[], ["4215"]]);
+  });
 });
