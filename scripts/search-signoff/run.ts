@@ -16,6 +16,8 @@ import { fold, grade, sameAnswer, type Grade, type Live } from "./grade.js";
 
 const arg = (f: string) => { const i = process.argv.indexOf(`--${f}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const LOCAL = process.argv.includes("--local"), MIN = arg("min");
+// A --min that isn't a number would turn the floor off: refused instead.
+if (MIN != null && !Number.isFinite(Number(MIN))) { console.log(`FAIL: --min ${MIN} is not a number`); process.exit(1); }
 const local = LOCAL ? await (async () => { const l = await import("../search-local.js"); await l.bootSearch(); return l.localServer(); })() : null;
 const BASE = (local?.base ?? arg("base") ?? "https://controlscout.org").replace(/\/$/, "");
 const SETS = (arg("sets") ?? "A,B,C,D,P,T").split(",");

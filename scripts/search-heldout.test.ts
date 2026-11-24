@@ -19,12 +19,17 @@ describe("held out means held out", () => {
     expect(lines, `held-out questions in tests or code (move them: npm run search:heldout -- --split):\n${lines.join("\n")}`).toEqual([]);
   });
   it("a question is in one set or the other, never both", () => {
-    const t = new Set(train.map((x) => `${x.set}#${x.n}`));
-    expect(held.filter((x) => t.has(`${x.set}#${x.n}`))).toEqual([]);
+    // By its set and number, and by its words: the same question under another id is still in both.
+    const key = (q: string) => q.trim().toLowerCase().replace(/\s+/g, " ");
+    const ids = new Set(train.map((x) => `${x.set}#${x.n}`)), qs = new Set(train.map((x) => key(x.q)));
+    expect(held.filter((x) => ids.has(`${x.set}#${x.n}`) || qs.has(key(x.q)))).toEqual([]);
   });
-  it("finds a question as a whole phrase, never inside a longer word", () => {
+  it("finds a question as a whole phrase, never inside a longer word, and across lines", () => {
     const texts = new Map([["server/x.test.ts", 'expect(await ask("4215 opr rank")).tobe(1); // 14215 oprs']]);
     expect([...leaks(["4215 opr", "4215 opr rank", "215 opr", "4215 oprs"], texts).keys()]).toEqual(["4215 opr", "4215 opr rank"]);
+    // Split across lines in a test: scannedTexts folds it to one space, so it is still that question.
+    const split = new Map([["server/y.test.ts", 'ask("best auto in\n      nj")'.replace(/\s+/g, " ")]]);
+    expect([...leaks(["best auto in nj"], split).keys()]).toEqual(["best auto in nj"]);
   });
   it("looks through tests and code, never the eval lists themselves", () => {
     const paths = [...scannedTexts().keys()];
