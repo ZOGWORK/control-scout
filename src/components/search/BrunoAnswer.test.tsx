@@ -18,7 +18,7 @@ vi.mock("../../lib/brunoStream", () => ({
     : new Promise((resolve, reject) => streams.push({ url, part, resolve, reject })),
 }));
 const flags = { brunoAnswers: true };
-vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useServerFlag: (n: keyof typeof flags) => flags[n] }));
+vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useServerFlag: (n: keyof typeof flags) => flags[n], useFlag: (n: keyof typeof flags) => flags[n] }));
 
 const { BrunoAnswer, BRUNO_SETTLE_MS, brunoKey } = await import("./BrunoAnswer");
 
