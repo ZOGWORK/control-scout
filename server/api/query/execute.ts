@@ -669,7 +669,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // One team's matches with video ("<team> matches with video", "<team> best match with video"): found the same way.
   const teamVideo = p.teams.length === 1 && !!p.withVideo && (intent === "season-matches" || intent === "highest-score");
   const teamFind = p.teams.length === 1 && (TEAM_FIND.has(FIND[intent]!) || scored || teamVideo || cleanAsk);
-  if ((!p.teams.length || teamFind) && (FIND[intent] || scored || teamVideo || cleanAsk || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond || p.withVideo)))) {
+  if ((!p.teams.length || teamFind) && (FIND[intent] || scored || teamVideo || cleanAsk || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond || p.withVideo || p.place?.kind === "city")))) {
     // A match's number said to any other finder ("highest scoring M14 matches") is never dropped: left to search.
     if (p.matchNumber != null && !labelled) return null;
     // An event named with a score to reach ("matches at <event> where both alliances scored over 250"): its matches,
