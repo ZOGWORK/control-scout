@@ -23,7 +23,8 @@ import { withVideoAlternatives } from "./api/answers/videoSuggest.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
-import { SEARCH_PAGE_LIMIT, preferOf } from "../src/shared/search.js";
+import { chatWords, pointsBack } from "./api/query/chat.js";
+import { SEARCH_PAGE_LIMIT, isBrunoQuestion, preferOf } from "../src/shared/search.js";
 import { searchTiming, slowSearchLine } from "./api/searchTiming.js";
 
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
@@ -98,9 +99,8 @@ import { matchReportRouter } from "./scout/matchReport.js";
 import { inboxRouter } from "./inbox/routes.js";
 import { pushRouter } from "./push/routes.js";
 import { digestRouter } from "./digest/routes.js";
-import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
-import { failureOf, keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, searchFailuresRouter } from "./searchFailures.js";
+import { failureOf, keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, searchFailuresRouter, softFailureOf, softKey } from "./searchFailures.js";
 import { supporters } from "./sponsors.js";
 import { statusNow } from "./uptime.js";
 import { packsRouter } from "./packs/routes.js";
@@ -127,7 +127,7 @@ import { REGION_SORTS, isRegionSort, type LeaguesResponse } from "../src/shared/
 import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
 import { registerCache } from "./caches.js";
 import { normalizeRoute, requestMetrics } from "./metrics.js";
-import { allFlags, featureDisabled, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFlags } from "./flags.js";
+import { featureDisabled, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFlags } from "./flags.js";
 import type { FlagsAnswer } from "../src/shared/flags.js";
 import { currentUser } from "./auth/session.js";
 import { linkedAccountId } from "./auth/controlPoint.js";
@@ -139,7 +139,7 @@ import { photosRouter } from "./scout/photos.js";
 import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/match.js";
 import { CardQueueFull } from "./share/offThread.js";
 import { env } from "./env.js";
-import { r2 } from "./scout/r2.js";
+import { servedFlags } from "./publicFlags.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
 import { liteRouter, liteSwitch, pageVary } from "./lite/routes.js";
 import { openSearchRoute } from "./openSearch.js";
@@ -232,23 +232,31 @@ export function searchLimit(max = SEARCHES_PER_MINUTE, windowMs = SEARCH_WINDOW_
 /** Tiny per-visitor token bucket (heavy endpoints only). */
 function limiter(perMinute: number) {
   const buckets = new Map<string, { tokens: number; at: number }>();
-  return (req: Request, res: Response, next: NextFunction) => {
+  /** One request's worth from this visitor's budget: the seconds until there's one again when there isn't (0: taken). */
+  const spend = (req: Request): number => {
     const ip = visitorIp(req);
     const now = Date.now();
     const b = buckets.get(ip) ?? { tokens: perMinute, at: now };
     b.tokens = Math.min(perMinute, b.tokens + ((now - b.at) / 60000) * perMinute);
     b.at = now;
-    if (b.tokens < 1) {
-      // When the next request will get through, so a client that waits (an event pack being prepared) can.
-      res.setHeader("Retry-After", String(Math.max(1, Math.ceil(((1 - b.tokens) / perMinute) * 60))));
-      res.status(429).json({ error: "Too many requests — try again in a minute." });
-      return;
-    }
+    if (b.tokens < 1) return Math.max(1, Math.ceil(((1 - b.tokens) / perMinute) * 60));
     b.tokens -= 1;
     buckets.set(ip, b);
     if (buckets.size > 10000) buckets.clear();
+    return 0;
+  };
+  const middleware = (req: Request, res: Response, next: NextFunction) => {
+    const wait = spend(req);
+    if (wait) {
+      // When the next request will get through, so a client that waits (an event pack being prepared) can.
+      res.setHeader("Retry-After", String(wait));
+      res.status(429).json({ error: "Too many requests — try again in a minute." });
+      return;
+    }
     next();
   };
+  /** Spend from the same budget outside the route (true: there was one). */
+  return Object.assign(middleware, { take: (req: Request) => spend(req) === 0 });
 }
 
 /** Short-lived cache for expensive results, keyed by data version. */
@@ -362,8 +370,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   // switch flipped in the owner portal reaches open pages within a minute.
   api.get("/flags", h(async (req, res): Promise<FlagsAnswer> => {
     // Photos also need R2 configured on this server: without it the app hides them as if switched off.
-    const g = await allFlags();
-    const flags = { ...g, photos: g.photos && !!r2(), push: g.push && vapidReady() };
+    const flags = await servedFlags();
     // No per-workspace overrides anywhere (the usual case): one answer for everyone, as before.
     if (!(await hasWorkspaceOverrides())) { res.setHeader("Cache-Control", "public, max-age=15"); return { flags }; }
     // Some workspace has its own setting: the answer depends on who asks, so it's private. A signed-in account gets
@@ -441,6 +448,19 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     return statusNow();
   }));
 
+  // Bruno's model calls, per visitor: his own route (/search/bruno) and the early start /search gives him share it.
+  // An early start pays for its question once: the page's own ask for it (same visitor, words and preferred teams)
+  // joins that answer and spends nothing more (`prepaid`, kept two minutes).
+  const brunoBudget = limiter(20);
+  const prepaid = new Map<string, number>();
+  const brunoAsk = (req: Request) => `${visitorIp(req)}|${String(req.query.q ?? "").trim().toLowerCase()}|${String(req.query.prefer ?? "")}`;
+  const brunoSpend = (req: Request, res: Response, next: NextFunction) => {
+    // Only the very ask the early start made: no earlier search it follows (`after…`), which it never has.
+    const plain = req.query.after == null && req.query.afterSeason == null && req.query.afterMy == null;
+    const k = brunoAsk(req), at = plain ? prepaid.get(k) : undefined;
+    if (at != null && Date.now() - at < 120_000) { prepaid.delete(k); next(); return; }
+    brunoBudget(req, res, next);
+  };
   api.get("/search", searches, h(async (req, res) => {
     const started = performance.now();
     await ensureSearchIndex(rebuildSearch);
@@ -461,6 +481,25 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       const my = myTeamOf(req.query.my);
       const ans = await typedPageAnswer(q, limit, prefer, my);
       const answered = performance.now();
+      // The results page (?bruno=1) asks Bruno AI next whenever this answer isn't a direct one (a card or stat answer,
+      // not a guess: src/pages/SearchPage.tsx `answered`): his answer starts now, so the page's own ask
+      // (/api/search/bruno, the same words and preferred teams) joins it instead of starting it. Never awaited;
+      // brunoAnswer itself asks only for a question, with his switch on. A follow-up question (chat "follow-up") is
+      // asked by the page with the search it points back at, which this request doesn't know: left to the page.
+      if (req.query.bruno === "1" && req.query.season == null && ans.chat !== "follow-up" && !(!ans.weak && (ans.card || ans.stat))) {
+        // Only a question he'd answer, and only within the visitor's Bruno budget (the same one his route spends).
+        const raw = String(req.query.q ?? "");
+        // Nor words that point back at an earlier search ("were those…"): the page may ask him those with it.
+        if (isBrunoQuestion(raw.trim().slice(0, 200)) && !pointsBack(chatWords(raw)) && brunoBudget.take(req)) {
+          if (prepaid.size > 5000) prepaid.clear();
+          // Paid while his answer is coming or came; one that failed (not kept) leaves the page's ask to pay again.
+          const k = brunoAsk(req), paidAt = Date.now();
+          prepaid.set(k, paidAt);
+          // Only this start's own pass: a newer early start of the same ask keeps its own.
+          const unpay = () => { if (prepaid.get(k) === paidAt) prepaid.delete(k); };
+          void brunoAnswer(raw, { prefer, limit: SEARCH_PAGE_LIMIT }).then((r) => { if (!r) unpay(); }, unpay);
+        }
+      }
       // An answer any visitor shares: counted, so the next process makes it before it answers (./api/searchWarm.ts).
       if (!prefer.size && my == null) noteAsked(q, limit);
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
@@ -476,8 +515,12 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // unfinished failed query.
       void reportingOn().then(async (on) => {
         if (!on) return;
-        const p = failureOf(q, ans, trace) ? await patternFor(q) : null;
-        noteSearch(q, ans, req.ip ?? "?", trace, at, p?.key ?? (await keyFor(q)), p?.missed);
+        // An answer that didn't fail outright may still be a soft failure (unread words, the pipeline declined):
+        // its pattern is read too, off the answer path, and logged under a soft key that never files an issue.
+        const failed = !!failureOf(q, ans, trace);
+        const p = failed || ans.stat || ans.card ? await patternFor(q) : null;
+        const soft = !failed && p ? softFailureOf(ans, p.read) : null;
+        noteSearch(q, ans, req.ip ?? "?", trace, at, soft && p ? softKey(soft, p.key) : failed ? p?.key ?? (await keyFor(q)) : await keyFor(q), p?.missed, soft, p?.legacy);
       }).catch(() => {});
       // A lone team's highlights, the rows' numbers and the answer's video (server/api/searchPage.ts). Who's asking (for
       // the videos) is read beside the highlights, not after them.
@@ -555,7 +598,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
 
   // Bruno's written answer to a question on /search (server/api/searchBrunoAnswer.ts): asked by the page after its
   // results are on screen. 204: no answer (not a question, off, unconfigured, failed, or nothing he could say from the facts).
-  api.get("/search/bruno", limiter(20), h(async (req, res) => {
+  api.get("/search/bruno", brunoSpend, h(async (req, res) => {
     await ensureSearchIndex(rebuildSearch);
     // The page's own search choices (its preferred teams), so he reads the results the page shows.
     const q = String(req.query.q ?? "");

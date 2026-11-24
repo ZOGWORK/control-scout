@@ -124,6 +124,12 @@ describe("page head in the first HTML", () => {
     const file = join(mkdtempSync(join(tmpdir(), "cs-seo-")), "index.html");
     writeFileSync(file, "<html><head><title>FTC Control Scout</title>\n</head><body></body></html>");
     expect((await renderPage(file, "/events")).html).toContain('<meta name="cs-coin-flips" content="1" />');
+    // The flags go in the head for the app to start with (src/lib/flags.ts readInlineFlags), stamped with their time.
+    const block = /<script type="application\/json" id="cs-flags">(.*?)<\/script>/.exec((await renderPage(file, "/events")).html);
+    expect(block).not.toBeNull();
+    const inline = JSON.parse(block![1]) as { at: number; flags: Record<string, boolean> };
+    expect(Math.abs(Date.now() - inline.at)).toBeLessThan(60_000);
+    expect(inline.flags.coinFlips).toBe(true);
     for (const p of ["/", "/teams", "/events/2025/USNJNOM3"]) expect(await coinFlipsHint(p)).toBe("");
     // Switched off: none today, whatever is stored, so nothing of the radar shows while the page's flags load.
     const { setFlag } = await import("./flags");

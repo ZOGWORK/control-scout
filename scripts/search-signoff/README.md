@@ -31,6 +31,14 @@ npx tsx scripts/search-signoff/visual.ts --sets C
 
 This opens each question's results page in headless Chromium, at desktop 1280 and phone 390 (the way `npm run shots` works, never an in-app browser). It checks that there's no sideways scroll, that tap targets are at least 44px, that there's one answer card, no duplicate header, no TEAMS card repeating the answered team, no yellow band or yellow-bordered box, no debug text, and a 640–720px column on desktop. It saves a PNG of each page. `--sample 10` takes the first 10 questions of each family from every set.
 
+It also measures layout shift (CLS, scored as Chrome does). Unlike `run.ts`, it runs against a local production server that it starts itself from the build (`npm run build` first), unless `--base <url>` names another server. Every request it makes carries `X-CS-Test: 1`. CI runs it on the pages in `cls.json` with `--cls scripts/search-signoff/cls.json --max-cls 0.1`, and it fails when a page view shifts more than 0.1, or more than its own ceiling in `cls.json`. Those ceilings are for the pages over 0.1 today: each one is today's number plus a margin. The phone view has its own default of 0.3 (`views` in `cls.json`): phone readings in CI moved between 0.0 and 0.13 from one run to the next, and the audit measured 0.24–0.26 live, so 0.1 can't hold on phone until U1 lands. A page over its ceiling is loaded up to twice more and the lowest reading kept. Lower a ceiling as that page's layout is fixed, and remove it once the page is under 0.1; lower the phone default to 0.1 when U1 lands.
+
+```bash
+npm run search:followups
+```
+
+This checks People also ask and Related searches in-process against the shipped snapshot, with no server. For set C and a few team, place and event searches, it checks that each follow-up names a team, event or place the search typed or its answer card is about, and that it answers when tapped (a card, never a sorry, a fallback or names only, as `failureOf` judges). It prints both rates and every offender, and CI fails it under the floors in the script (`GATE`).
+
 ```bash
 npx tsx scripts/search-signoff/literals.ts
 ```
