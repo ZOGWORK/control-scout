@@ -46,6 +46,8 @@ await forecasterFor(season);
 const FILLER = new Set(LEXICON.filter((e) => e.syms.every((x) => x.k === "filler")).flatMap((e) => e.words));
 const sets = heldoutSets()
   .filter((x) => (!SET || x.set === SET) && (!ONLY || x.q.toLowerCase().includes(ONLY)));
+// A set or a filter that matches nothing asks nothing: never a pass.
+if (!sets.length) { console.error(`no held-out questions match${SET ? ` set ${SET}` : ""}${ONLY ? ` "${ONLY}"` : ""}`); process.exit(1); }
 
 type Row = { set: string; n: number; q: string; ms: number; intent: string | null; filters: string[]; place: string | null; time: string | null; card: string; stated: boolean; pattern: string; unread: string[] };
 const rows: Row[] = [];
