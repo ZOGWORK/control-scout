@@ -122,7 +122,7 @@ export default function SearchPage() {
   const askedTime = askedWhen(ax);
   const filters = readFilters(params, askedTime);
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
-  const leaving = useSubmittedSearch(query, { answer, live, error, searchNow, seeded });
+  const { waiting: leaving, going } = useSubmittedSearch(query, { answer, live, error, searchNow, seeded });
   // Home's glide on its way in (search/glide.ts): the loading shapes until the box lands, then the answer.
   const gliding = useGliding();
   const phone = useMediaQuery("(max-width: 767px)");
@@ -349,7 +349,7 @@ export default function SearchPage() {
   const bar = phone ? <PhoneSearchBar query={query} /> : null;
   const loading = !!query && !error && ((busy && ((stale && !reseason) || !found)) || leaving || gliding);
   // Time to answer and how the search ended, anonymous and sampled (../lib/searchScore.ts).
-  useSearchScore(query, { drawn: !!query && !loading, settled: !busy && !stale, leaving, outcome: error ? "error" : !found || ax?.sorry ? "sorry" : answered ? "direct" : "results" });
+  useSearchScore(query, { drawn: !!query && !loading, settled: !busy && !stale, leaving: going, outcome: error ? "error" : !found || ax?.sorry ? "sorry" : answered ? "direct" : "results" });
   if (loading) return <>{bar}<SearchSkeleton query={query} /></>;
   return (
     <>{bar}
