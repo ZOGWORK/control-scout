@@ -204,8 +204,8 @@ function othersHold(): Map<string, number> {
 // --- A lane: reads the job its coordinator sent, for it to collect --------------------------------------------------------
 // No gh, no VM key: the job's snapshot, its events read (readSeason) over what's live in it (layLiveRows), and per season
 // the rows the read changed, whether a read failed and the events stopped at their limit, left in
-// .data/lane/results/<job> with the run's log. The coordinator checks and hands them over as its own reads (settle) on
-// its next run.
+// .data/lane/results/<job> with the run's log. The coordinator checks and hands them over as its own reads (settle) when it
+// next services its lanes (after one of its seasons, or at its next run's start).
 const LANE_DIR = join(".data", "lane"), LANE_STATE = join(LANE_DIR, "state.json");
 if (LANE) {
   const state = existsSync(LANE_STATE) ? JSON.parse(readFileSync(LANE_STATE, "utf8")) : { state: "idle" };
@@ -439,7 +439,20 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
 const LANE_HOME = "control-scout-autopilot";
 const laneSsh = (host: string, cmd: string) => sh("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=20", host, cmd], { timeoutMs: 120_000 });
 const rsync = (from: string, to: string, timeoutMs: number) => sh("rsync", ["-a", "-e", "ssh -o BatchMode=yes", from, to], { timeoutMs });
-for (const lane of DRY ? [] : LANES) {
+// Serviced at the start of the run and again after each season this computer reads (`round` 1, 2, …): a lane that
+// finished its job is collected and sent its next one then, not hours later at the next run's start (a run reads for 7 h
+// or more; lexie sat idle from 02:33 to 04:10 on 2026-11-24 with its job done). A later round's job id carries the
+// round, so a lane's result folder (named by job id) is never one an earlier job of this run used.
+async function serviceLanes(round: number): Promise<void> {
+// Hours into the run, the held set is read again before a lane's job is picked: an event another session's PR took up
+// (othersHold), or one left by hand to a session (skip.txt), since the run started is held as at its start, not sent
+// to a lane to be read for hours and then wait at settle.
+if (round && LANES.length && !DRY) {
+  for (const [k, n] of othersHold()) if (!inPr.has(k)) { inPr.add(k); log(`  held: ${k} is in #${n}, another open PR`); }
+  for (const k of existsSync(skipFile) ? parseSkip(readFileSync(skipFile, "utf8")) : []) if (!inPr.has(k)) { inPr.add(k); log(`  held: ${k} is in ${skipFile}, left to another session`); }
+}
+// LANES is a list here (an error string stopped the run above; a function sees the wider type).
+for (const lane of DRY ? [] : LANES as Exclude<typeof LANES, string>) {
   const name = `lane ${lane.k} (${lane.host})`, here = join(DIR, "lanes", String(lane.k)), there = `${LANE_HOME}/.data/lane`;
   try {
     const job = laneJob(lane.k);
@@ -483,7 +496,7 @@ for (const lane of DRY ? [] : LANES) {
     // Idle: its next job, from its own shard (what this computer remembers of each event, and the held set, as its own).
     const { picked: next } = pickEvents(inShard(lane.k), inPr, memory, MAX);
     if (!next.length) { log(`${name}: nothing in its shard to read`); continue; }
-    const job2: LaneJob = { id: STAMP, seasons: [...new Set(next.map((q) => q.season))].map((season) => {
+    const job2: LaneJob = { id: round ? `${STAMP}-${round}` : STAMP, seasons: [...new Set(next.map((q) => q.season))].map((season) => {
       const mine = next.filter((q) => q.season === season), recheck = mine.filter(recheckOnly).map((q) => q.code);
       return { season, codes: mine.map((q) => q.code), ...(recheck.length ? { recheck } : {}) };
     }) };
@@ -492,7 +505,7 @@ for (const lane of DRY ? [] : LANES) {
     writeFileSync(sending, JSON.stringify(job2));
     try {
       // The snapshot goes gzipped when this run took one (a fifth of the size); the lane unpacks it.
-      const gz = join(DIR, "snapshot.db.gz"), send = !DB && existsSync(gz) ? gz : snapshot;
+      const gz = join(DIR, "snapshot.db.gz"), send = !DB && existsSync(gz) ? gz : snapshot!;
       laneSsh(lane.host, `mkdir -p ${there} && rm -f ${there}/snapshot.db ${there}/snapshot.db.gz`);
       rsync(send, `${lane.host}:${there}/${send.endsWith(".gz") ? "snapshot.db.gz" : "snapshot.db"}`, 1_800_000);
       rsync(sending, `${lane.host}:${there}/job.json`, 120_000);
@@ -505,15 +518,19 @@ for (const lane of DRY ? [] : LANES) {
     log(`${name}: sent job ${job2.id}: ${next.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ")}`);
   } catch (e) { log(`${name}: ${(e as Error).message}; tried again next run`); }
 }
+}
+await serviceLanes(0);
 
 // --- 4–6. This computer's own: read the due events, check, hand over, season by season ----------------------------------
 const bySeason = new Map<number, typeof picked>();
+let laneRound = 0;
 for (const q of picked) (bySeason.get(q.season) ?? bySeason.set(q.season, []).get(q.season)!).push(q);
 for (const [season, events] of bySeason) {
   const file = seasonFile(season);
   if (!existsSync(file)) { log(`${season}: no ${file} to write (add the season's file first)`); continue; }
   const codes = events.map((e) => e.code);
   await settle(season, codes, await readSeason(season, codes, new Set(events.filter(recheckOnly).map((e) => e.code))));
+  await serviceLanes(++laneRound);
 }
 
 // --- 7. The live clips the clock places, checked by their first frame --------------------------------------------------------

@@ -148,7 +148,10 @@ Several computers can share the queue. An event (`season/code`) belongs to shard
 scripts/lib/autopilotRun.ts), the same on every computer and every run. Only one computer needs credentials (gh signed
 in, the VM's key): it runs with `--shard 0/N --lanes 1=user@host,2=user@host…` and reads shard 0 itself. The others
 are **lanes**, with no credentials at all. A lane runs `--lane` (from launchd, `org.controlscout.clip-lane`, started by
-its coordinator) and only reads. Each coordinator run, for every lane, over ssh:
+its coordinator) and only reads. The coordinator services its lanes at the start of each run and again after each
+season it reads itself (a run reads for hours: a lane that finished meanwhile isn't left idle until the next run; a
+later round re-reads the held set, open PRs and `skip.txt`, before picking, and its job id carries the round). Each
+time, for every lane, over ssh:
 
 - **collects** a finished (or failed) job: the rows each season's read changed, whether a read failed, and the events
   stopped at their limit (`.data/lane/results/<job>` there, copied to `.data/autopilot/lanes/<K>/` here). They're checked
