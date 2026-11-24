@@ -58,7 +58,7 @@ describe("one place's teams at another's events", () => {
   it("says so when none of them played there", async () => {
     const a = await full("delaware teams at maryland events");
     // The season before is tried too, and said so.
-    expect(a.stat?.none).toMatch(/^No ranked team from Delaware \(3\+ matches\) played an event held in Maryland in 2025–26\./);
+    expect(a.stat?.none).toMatch(/^No ranked team from Delaware \(3\+ matches\) played an event held in Maryland in 2025–26\. Nothing in 2024–25 either/);
   });
   it("another question of the two places is never answered for one place alone, nor as the board", async () => {
     for (const q of ["average opr of maryland teams at new jersey events", "median opr of maryland teams at new jersey events", "total opr of maryland teams at new jersey events"]) {
