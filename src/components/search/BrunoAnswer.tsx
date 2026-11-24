@@ -17,6 +17,8 @@ import { cn } from "../cn";
 
 /** How long the question must stay unchanged before Bruno is asked. */
 export const BRUNO_SETTLE_MS = 600;
+/** How long a held slot waits for the server to confirm his switch (the flags may never load) before it's let go. */
+export const BRUNO_FLAG_WAIT_MS = 5000;
 
 /** One answer's key: the question and the preferred teams it was read with (either changing asks again). */
 export const brunoKey = (q: string, prefer = "") => `${q.trim()}\n${prefer}`;
@@ -90,6 +92,13 @@ export function BrunoAnswer({ q, prefer = "", ready, answered = false, lead = fa
     }, BRUNO_SETTLE_MS);
     return () => { live = false; clearTimeout(t); stop.abort(); };
   }, [asks, query, prefer, key, memo]);
+  // A slot held for an ask the server never confirms (the flags didn't load) is let go, as if he had nothing to add.
+  const waiting = lead && willAsk && ready && !confirmed;
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const t = setTimeout(() => setState((s) => (s.key === key ? s : { key, text: null, points: [] })), BRUNO_FLAG_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [waiting, key]);
   // The page hears whether he answered this question, by its key (brunoKey: the question and the preferred teams), so
   // a leading card's page lays its heading out by it.
   const outcome = state.key === key ? !!state.text : null;

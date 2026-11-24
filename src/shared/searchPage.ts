@@ -166,7 +166,7 @@ export function namesSaid(label: string | null | undefined, names: string[] = []
   const spelled = (typed: string) => names.find((n) => n.toLowerCase() === typed.toLowerCase()) ?? `"${typed}"`;
   const parts = label.split(" · ").map((seg) => {
     const m = /^Which "([^"]+)"\? (\d+) teams have that name(?:; (\d+) of them still play)?/.exec(seg);
-    return m ? `${m[2]} teams are named ${spelled(m[1])}${m[3] ? `; ${m[3]} still play` : ""}` : null;
+    return m ? `${m[2]} teams are named ${spelled(m[1])}${m[3] ? `; ${m[3]} still ${m[3] === "1" ? "plays" : "play"}` : ""}` : null;
   });
   return parts.every((p) => p) ? parts.join(" · ") : null;
 }

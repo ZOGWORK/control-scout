@@ -145,5 +145,6 @@ describe("namesSaid", () => {
       .toBe("3 teams are named Ultraviolet; 2 still play · 2 teams are named Mirror");
     expect(namesSaid("Teams in Oradell, NJ")).toBeNull();
     expect(namesSaid(undefined)).toBeNull();
+    expect(namesSaid('Which "mirror"? 3 teams have that name; 1 of them still play: 1 (A, B)', ["Mirror"])).toBe("3 teams are named Mirror; 1 still plays");
   });
 });
