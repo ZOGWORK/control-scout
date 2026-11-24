@@ -52,6 +52,23 @@ describe("highlights: clips from another season", () => {
     expect(vs[0].empty).toEqual({ text: "No match video of 19564 in any season yet.", href: "/teams/19564" });
   });
 
+  it("a season the search named stays that season: no other season's clips, one line saying it has none yet (#2238)", async () => {
+    ms.fail = false;
+    ms.rows = [m({ number: 1, label: "Q1" }), m({ season: 2025, code: "FTCCMP1JACK", number: 7, label: "Q7" })];
+    ms.keys = new Map([[2026, []], [2025, ["FTCCMP1JACK|qual|0|7"]]]);
+    const vs = videoBlocks(await teamHighlights(team, 2026, undefined, undefined, "highlights"));
+    expect(vs.map((b) => b.season)).toEqual([undefined]);
+    expect(vs[0].empty).toEqual({ text: "No match video of 19564 in 2026–27 yet.", href: "/teams/19564?season=2026" });
+  });
+
+  it("a season named that has clips: its own, no line", async () => {
+    ms.rows = [m({ number: 1 }), m({ season: 2025, code: "FTCCMP1JACK", number: 7 })];
+    ms.keys = new Map([[2026, ["USTXNONIM1|qual|0|1"]], [2025, ["FTCCMP1JACK|qual|0|7"]]]);
+    const vs = videoBlocks(await teamHighlights(team, 2026, undefined, undefined, "highlights"));
+    expect(vs).toHaveLength(1);
+    expect(vs[0].empty).toBeUndefined();
+  });
+
   it("a failed clip read says nothing either way", async () => {
     ms.fail = true;
     const vs = videoBlocks(await highlights());
