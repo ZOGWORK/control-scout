@@ -1,5 +1,6 @@
 // HTTP API. Browsing, search and predictions need no account, ever; only
 // /api/me/* (personal data) does.
+import type { ServerResponse } from "node:http";
 import express, { type NextFunction, type Request, type Response } from "express";
 import compression from "compression";
 import { existsSync } from "node:fs";
@@ -145,6 +146,15 @@ import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, Sear
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const bad = (msg: string) => new HttpError(400, msg);
+/** An error answer is never kept, by the browser or the edge: its Cache-Control becomes no-store as it's sent, and a
+ *  Cloudflare-CDN-Cache-Control a route set before failing is dropped. */
+export function errorsNeverKept(res: ServerResponse): void {
+  const writeHead = res.writeHead;
+  res.writeHead = function (this: ServerResponse, ...a: Parameters<typeof writeHead>) {
+    if (this.statusCode >= 400 || (typeof a[0] === "number" && a[0] >= 400)) { this.setHeader("Cache-Control", "no-store"); this.removeHeader("Cloudflare-CDN-Cache-Control"); }
+    return writeHead.apply(this, a);
+  } as typeof writeHead;
+}
 /** Follow-ups and related searches: the same for everyone asking the same address, kept a minute (as the server keeps
  *  them), then served stale for up to 5 minutes while a fresh copy is asked for. */
 const FOLLOW_CACHE = "public, max-age=60, stale-while-revalidate=300";
@@ -339,11 +349,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   api.use((req, res, next) => {
     const personal = /^\/(me|auth|health|stats|reports|scout|owner|inbox|digest|videos)(\/|$)/i.test(req.path);
     res.setHeader("Cache-Control", req.method === "GET" && !personal ? "public, max-age=60, stale-while-revalidate=300" : "no-store");
-    const writeHead = res.writeHead;
-    res.writeHead = function (this: typeof res, ...a: Parameters<typeof writeHead>) {
-      if (this.statusCode >= 400 || (typeof a[0] === "number" && a[0] >= 400)) this.setHeader("Cache-Control", "no-store");
-      return writeHead.apply(this, a);
-    } as typeof writeHead;
+    errorsNeverKept(res);
     next();
   });
 
@@ -515,9 +521,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   // The related searches page (/related-searches, server/api/answers/relatedPage.ts): the same follow-ups, grouped.
   api.get("/search/related", limiter(30), h(async (req, res) => {
     await ensureSearchIndex(rebuildSearch);
+    const page = await relatedPage(String(req.query.q ?? ""), preferOf(req.query.prefer));
+    // Only once it's made: a failure never carries the edge's cache headers.
     res.setHeader("Cache-Control", FOLLOW_CACHE);
     res.setHeader("Cloudflare-CDN-Cache-Control", FOLLOW_CACHE);
-    return relatedPage(String(req.query.q ?? ""), preferOf(req.query.prefer));
+    return page;
   }));
 
   // Step 3 of search's chain (server/api/searchBruno.ts): asked by the app after the first answer is on screen,
