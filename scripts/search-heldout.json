@@ -2953,5 +2953,150 @@
 "set": "natural",
 "n": 58,
 "q": "what is the mascot of 6980"
+},
+{
+"set": "kinds1124",
+"n": 1,
+"q": "Q8 at New Jersey Championship Parkway Division"
+},
+{
+"set": "kinds1124",
+"n": 2,
+"q": "qualification match 20 USNJCMP"
+},
+{
+"set": "kinds1124",
+"n": 3,
+"q": "New Jersey Championship final 1 2025-26"
+},
+{
+"set": "kinds1124",
+"n": 4,
+"q": "q3 Chicago Meet 2A"
+},
+{
+"set": "rules1124",
+"n": 1,
+"q": "what does yellow card mean"
+},
+{
+"set": "rules1124",
+"n": 2,
+"q": "define minor foul"
+},
+{
+"set": "rules1124",
+"n": 3,
+"q": "meaning of tiebreaker"
+},
+{
+"set": "rules1124",
+"n": 4,
+"q": "what does leave mean"
+},
+{
+"set": "rules1124",
+"n": 5,
+"q": "how many ranking points is a tie"
+},
+{
+"set": "seasons1124",
+"n": 1,
+"q": "6980 opr since 2022"
+},
+{
+"set": "seasons1124",
+"n": 2,
+"q": "23268 last three seasons"
+},
+{
+"set": "seasons1124",
+"n": 3,
+"q": "best teams from 2022-23 to 2024-25"
+},
+{
+"set": "seasons1124",
+"n": 4,
+"q": "7149 auto opr between 2023 and 2025"
+},
+{
+"set": "not1124",
+"n": 1,
+"q": "teams in ohio that are not rookies"
+},
+{
+"set": "not1124",
+"n": 2,
+"q": "non-rookie teams in michigan"
+},
+{
+"set": "not1124",
+"n": 3,
+"q": "auto opr over 50 who did not make worlds"
+},
+{
+"set": "not1124",
+"n": 4,
+"q": "23268 matches without penalties at worlds"
+},
+{
+"set": "runs1124",
+"n": 1,
+"q": "highest score from 2022 to 2024"
+},
+{
+"set": "runs1124",
+"n": 2,
+"q": "6980 highest score since 2023"
+},
+{
+"set": "runs1124",
+"n": 3,
+"q": "best record 2023-24 to 2025-26"
+},
+{
+"set": "runs1124",
+"n": 4,
+"q": "23268 awards since 2022"
+},
+{
+"set": "clean1124",
+"n": 1,
+"q": "highest scoring matches with no penalties in michigan"
+},
+{
+"set": "clean1124",
+"n": 2,
+"q": "penalty free matches at worlds"
+},
+{
+"set": "clean1124",
+"n": 3,
+"q": "lowest scoring matches with no penalties"
+},
+{
+"set": "clean1124",
+"n": 4,
+"q": "6980 matches with no penalties"
+},
+{
+"set": "whenwhere1124",
+"n": 1,
+"q": "when did 6980 win the inspire award"
+},
+{
+"set": "whenwhere1124",
+"n": 2,
+"q": "where did 23268 win an award"
+},
+{
+"set": "whenwhere1124",
+"n": 3,
+"q": "where did 4215 score their highest"
+},
+{
+"set": "whenwhere1124",
+"n": 4,
+"q": "when was the last time 23268 played"
 }
 ]

@@ -7,6 +7,7 @@
 // `GuildDelete` also fires when a server is only unreachable (`available: false`, a Discord outage): bot/index.ts skips
 // that case, since the bot is still in the server and its data must be there when the gateway comes back.
 import { all, run } from "../server/db.js";
+import { sweepKey } from "./cleanup.js";
 
 /** Everything the bot knows about one server, gone. Returns how many rows that took. */
 export async function forgetGuild(guild: string): Promise<number> {
@@ -24,5 +25,8 @@ export async function forgetGuild(guild: string): Promise<number> {
   gone += await run("DELETE FROM discord_asks WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_answers WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_guilds WHERE guild_id = ?", [guild]);
+  // The stale 👎 sweep's row (bot/cleanup.ts): a server added back is walked again, since its old answers still hold the
+  // bot's thumbs-down.
+  gone += await run("DELETE FROM kv WHERE key = ?", [sweepKey(guild)]);
   return gone;
 }
