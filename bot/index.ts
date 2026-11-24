@@ -202,7 +202,8 @@ const DOWN_NOTE_KEY = "bot:down-note-state";
 // snapshot must not be overwritten by the earlier one's write.
 let savingNote: Promise<void> = Promise.resolve();
 const downNote = downNotes(500, (state) => {
-  savingNote = savingNote.then(() => kvSet(DOWN_NOTE_KEY, state)).catch(() => {});
+  savingNote = savingNote.then(() => kvSet(DOWN_NOTE_KEY, state))
+    .catch((e) => log(`down note state not saved: ${(e as Error)?.message ?? String(e)}`));
 });
 void kvGet<DownNoteState>(DOWN_NOTE_KEY)
   .then((state) => { if (state) downNote.hydrate(state); })
