@@ -35,6 +35,7 @@ import { advancementAt, advancementEvent, advancementNotListed, seasonAdvancemen
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { eventFieldAnswer, saysOtherThanOpr } from "../answers/families/eventVersus.js";
 import { seasonsAnswer, seasonsAsk } from "./seasons.js";
+import { perSeasonAnswer } from "./perSeason.js";
 import { asksNow, streakBoardAnswer } from "./streakBoard.js";
 import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
@@ -86,10 +87,13 @@ async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAns
     return selfMatchAnswer(p, (await opts.resolve(n)).hits.find((h) => h.kind === "team" && h.ref === n), opts.pages, opts.full);
   }
   // A run of seasons ("<team> opr since <year>", "best teams 2023-24 to 2025-26"): each season's rank, never one season's
-  // stat set against another's (./seasons.ts); any other question of a run is left to search's other readers.
+  // stat set against another's (./seasons.ts). Any other question of a run ("highest score from <year> to <year>") is
+  // asked one season at a time, the answers side by side (./perSeason.ts).
   if (p.time?.kind === "seasons") {
     const stat = seasonsStat(p);
-    return stat === undefined ? null : seasonsAnswer(p, stat, opts);
+    const ranked = stat === undefined ? null : await seasonsAnswer(p, stat, opts);
+    if (ranked || !p.complete || !p.intent || !ANSWERED.has(p.intent)) return ranked;
+    return perSeasonAnswer(p, opts, (x, full) => execute(x, { ...opts, full }));
   }
   // An event's matches and nothing else asked ("<event> matches", "matches at <event>"): its matches in the order played,
   // each row playing its clip, as a team's matches do.
@@ -222,7 +226,7 @@ function seasonsStat(p: Parsed): string | null | undefined {
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
   // A run of seasons said with "and" ("between 2023 and 2025"): the pipeline's (./seasons.ts), never two searches.
-  if (p.time?.kind === "seasons") { const stat = seasonsStat(p); return stat !== undefined && !!seasonsAsk(p, stat); }
+  if (p.time?.kind === "seasons") { const stat = seasonsStat(p); if (stat !== undefined && seasonsAsk(p, stat)) return true; }
   // A comparison is the pipeline's only at an event (or Worlds, or states): "12345 or 67890" stays the boolean reader's.
   return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event || p.worlds || p.states || seasonOdds(p)) && (p.intent !== "count-teams" || townCount(p))
     && (p.intent !== "compare" || !!p.event || p.worlds || p.states);
