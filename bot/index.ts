@@ -193,22 +193,22 @@ const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) =>
   if (emoji !== GOOD && emoji !== BAD) return;
   void serial(reaction.message.id, () => vote(reaction.message.id, emoji, delta)).catch(() => {});
 };
-/** The answers whose channel has been told what a 👎 does: once per answer, for the vote that made its count 1 — or
- *  for the next 👎 when that note couldn't be sent (bot/reactions.ts `downNotes`). */
+/** The answers whose channel has been told what a 👎 does: once per answer, for the vote that filed the question — or
+ *  for the next 👎 when that note couldn't be delivered (bot/reactions.ts `downNotes`). */
 const downNote = downNotes();
 /** Say in the channel what a 👎 did, as a reply to the answer (bot/reactions.ts `DOWN_NOTE`): a 👎 files the question,
  *  so it is a report rather than a dislike button, and the people using it should hear that where they used it. Awaited
- *  inside that answer's vote chain (below), so a second 👎 can't raise the count past 1 while this vote is deciding;
- *  a note that can't be sent is logged, frees the answer for a later try, and never touches the vote. */
+ *  inside that answer's vote chain (below). A note that can't be delivered is logged, stays owed for a later 👎, and
+ *  never touches the vote. */
 const sayDownNote = async (reaction: Counted): Promise<void> => {
   const id = reaction.message.id;
-  // The whole note — its own read included — is inside the try: a failure here is the note's, never the vote's, which
-  // has already been written.
+  const channelId = reaction.message.channelId ?? "";
   try {
-    if (!(await downNote.worth(id))) return;
-    const channel = client.channels.cache.get(reaction.message.channelId ?? "");
-    // A channel the bot can't post in (or isn't cached): the vote stands, the note is owed to a later vote.
-    if (!channel || !("send" in channel)) { downNote.unsent(id); return; }
+    // Fetched when not cached (a restart forgets channels), as the follow posts do (the `send` helper above).
+    const channel = client.channels.cache.get(channelId)
+      ?? (channelId ? await client.channels.fetch(channelId).catch(() => null) : null);
+    const canSend = channel as unknown as { isSendable?: () => boolean } | null;
+    if (!channel || !("send" in channel) || canSend?.isSendable?.() === false) { downNote.unsent(id); return; }
     await (channel as unknown as { send: (o: unknown) => Promise<unknown> })
       .send({ content: DOWN_NOTE, allowedMentions: { parse: [], repliedUser: false }, reply: { messageReference: id, failIfNotExists: false } });
     downNote.said(id);
@@ -223,8 +223,12 @@ const sayDownNote = async (reaction: Counted): Promise<void> => {
  *  again, and the queue counts a repeat as a repeat. */
 const disliked = (reaction: Counted, user: { bot?: boolean }) => {
   if (user.bot) return;
-  void serial(reaction.message.id, async () => { await downVote(reaction.message.id); await sayDownNote(reaction); })
-    .catch((e) => log(`down vote failed: ${(e as Error)?.message ?? String(e)}`));
+  void serial(reaction.message.id, async () => {
+    const { filed } = await downVote(reaction.message.id);
+    // Said when the vote filed the question — never later for an answer with nothing to file, and again for a note an
+    // earlier 👎 owed but couldn't deliver.
+    if (downNote.due(reaction.message.id, filed)) await sayDownNote(reaction);
+  }).catch((e) => log(`down vote failed: ${(e as Error)?.message ?? String(e)}`));
 };
 client.on(Events.MessageReactionAdd, (r, u) => {
   if (r.emoji.name === BAD) { disliked(r as Counted, u); return; }

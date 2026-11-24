@@ -32,18 +32,24 @@ export async function trackAnswer(messageId: string, guild: string | null, quest
  *  it is the same complaint about the same question.
  *
  *  The vote is written even when there is nothing to file (a message the bot never posted has no row; an answer from
- *  before questions were kept has none; an all-personal question has nothing the queue may hold). */
-export async function downVote(messageId: string, now = Date.now()): Promise<void> {
-  if (!messageId) return;
+ *  before questions were kept has none; an all-personal question has nothing the queue may hold). Returns whether this
+ *  vote filed the question — what the channel is told a 👎 does (bot/index.ts) is read from the write, so it is said
+ *  only when something was actually filed. */
+export async function downVote(messageId: string, now = Date.now()): Promise<{ filed: boolean }> {
+  if (!messageId) return { filed: false };
   const at = new Date(now).toISOString();
   // Read first for the words; the filing's own condition (`down` = 1) is what says "first", inside the same batch as
   // the increment, so this read can be a moment stale without two votes both filing.
   const row = await get<{ question: string | null }>("SELECT question FROM discord_answers WHERE message_id = ?", [messageId]);
-  const failure = row?.question ? downvoteFailure(row.question, messageId, now) : null;
-  await writeBatch([
+  if (!row) return { filed: false };
+  const failure = row.question ? downvoteFailure(row.question, messageId, now) : null;
+  const [, filed] = await writeBatch([
     { sql: "UPDATE discord_answers SET down = down + 1, voted_at = ? WHERE message_id = ?", args: [at, messageId] },
     ...(failure ? [failure] : []),
   ]);
+  // The filing's own condition (`down` = 1) is inside the batch: this is what the write did, not what a count said
+  // before it. Two 👎 arriving together file once, so exactly one of them reports it.
+  return { filed: (filed?.rowsAffected ?? 0) > 0 };
 }
 
 /** What a 👎 does, said once per answer in the channel (bot/index.ts): people were using it as a dislike button, and
@@ -51,56 +57,31 @@ export async function downVote(messageId: string, now = Date.now()): Promise<voi
  *  the button explains itself at the moment it is used. */
 export const DOWN_NOTE = "📝 Noted — a 👎 files this question so we can fix the answer. It's not a dislike button.";
 
-/** Whether this 👎 was the answer's first (its count is 1 now), which is the one vote the channel is told about. A read
- *  after the vote, so it is the count the vote left; two 👎 arriving together can both see 1, and `downNotes` keeps
- *  that to one note per answer. */
-export async function firstDown(messageId: string): Promise<boolean> {
-  const row = await get<{ down: number }>("SELECT down FROM discord_answers WHERE message_id = ?", [messageId]);
-  return Number(row?.down) === 1;
-}
-
-/** Which answers' channels have been told what a 👎 does, and whether this vote is the one to tell them: once per
- *  answer, and only for the vote that made its count 1 (bot/index.ts).
+/** Which answers' channels have been told what a 👎 does, and whether this vote owes the note (bot/index.ts).
  *
- *  `worth` claims the answer while the note is being sent, so two 👎 arriving together say it once; `said` keeps it, and
- *  `unsent` owes it — a channel that couldn't be posted in, or a send Discord refused, leaves the note owed rather than
- *  spent, and the next 👎 on that answer tries again whatever its count is by then (the second person's 👎 takes the
- *  count past 1, so the count alone can't be what decides a retry). Owed notes are kept until they are said: they are
- *  the ones that must not be lost. The answers already told are capped at `max`, past which the oldest is forgotten and
- *  a vote taken off and added again on it can say the note once more — a repeat, never a missing one. */
-export function downNotes(isFirst: (messageId: string) => Promise<boolean> = firstDown, max = 500) {
+ *  The note is due when the vote filed the question — `due` is handed `downVote`'s own answer, so an answer from before
+ *  questions were kept, or one whose question is all personal, says nothing instead of promising a filing that never
+ *  happened — and again on any later 👎 if the note couldn't be delivered: a channel that wouldn't take the message, or
+ *  a send Discord refused, leaves it owed rather than spent. Owed notes are kept until they are said; the answers
+ *  already told are capped at `max`, past which the oldest is forgotten and a vote taken off and added again on it can
+ *  say the note once more — a repeat, never a missing one. */
+export function downNotes(max = 500) {
   const told = new Set<string>();
-  const claimed = new Set<string>();
   const owed = new Set<string>();
   return {
-    /** Whether this vote is the one to say it for: not said before, not being said, and either the note is owed or this
-     *  vote is the one that made the count 1. */
-    async worth(messageId: string): Promise<boolean> {
-      if (told.has(messageId) || claimed.has(messageId)) return false;
-      if (!owed.has(messageId)) {
-        // A read that fails says nothing rather than owing a note: the next 👎 tries the read again, and no message is
-        // claimed for a note it may not be due.
-        try {
-          if (!(await isFirst(messageId))) return false;
-        } catch { return false; }
-      }
-      // Two votes at once can both get here: only the first claims it.
-      if (told.has(messageId) || claimed.has(messageId)) return false;
-      claimed.add(messageId);
-      return true;
+    /** Whether this vote owes the note: it filed the question, or an earlier vote's note never arrived. */
+    due(messageId: string, filed: boolean): boolean {
+      return !told.has(messageId) && (filed || owed.has(messageId));
     },
-    /** It was said: never again for this answer in this process. */
+    /** It reached the channel: never again for this answer in this process. */
     said(messageId: string): void {
-      claimed.delete(messageId);
       owed.delete(messageId);
       told.add(messageId);
       if (told.size > max) told.delete(told.values().next().value!);
     },
-    /** It couldn't be said: the next 👎 on this answer tries again, whatever its count is by then. Kept until it is
-     *  said — only a note that reaches a channel leaves `owed`. */
+    /** It couldn't be delivered: the next 👎 on this answer tries again. */
     unsent(messageId: string): void {
-      claimed.delete(messageId);
-      owed.add(messageId);
+      if (!told.has(messageId)) owed.add(messageId);
     },
   };
 }

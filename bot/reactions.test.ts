@@ -3,7 +3,7 @@
 // given for, and the answer's first 👎 files it in the site's failed-search list in the same write as the vote.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../server/db";
-import { BAD, GOOD, downNotes, downVote, firstDown, reactionUsage, serialVotes, trackAnswer, vote } from "./reactions";
+import { BAD, GOOD, downNotes, downVote, reactionUsage, serialVotes, trackAnswer, vote } from "./reactions";
 
 /** What the answers' 👎s have filed (server/searchFailures.ts downvoteFailure). */
 const failed = () => all<{ key: string; result_type: string; intent: string | null; count: number; examples: string }>(
@@ -101,9 +101,11 @@ describe("the thumbs on an answer", () => {
 
   it("two 👎 arriving together file once: the count is the claim", async () => {
     await trackAnswer("m6", "g1", "4215 opr");
-    await Promise.all([downVote("m6"), downVote("m6")]);
+    const outcomes = await Promise.all([downVote("m6"), downVote("m6")]);
     expect(await failed()).toMatchObject([{ key: "4215 opr", count: 1 }]);
     expect(await reactionUsage()).toEqual({ up: 0, down: 2 });
+    // And exactly one of them says it filed the question (bot/index.ts tells the channel only then).
+    expect(outcomes.filter((o) => o.filed)).toHaveLength(1);
   });
 
   it("runs one answer's votes in the order Discord sent them, and different answers side by side", async () => {
@@ -120,50 +122,40 @@ describe("the thumbs on an answer", () => {
     expect(order).toEqual(["another answer", "add", "remove"]);
   });
 
-  it("tells the channel once, on an answer's first 👎, that a 👎 files the question", async () => {
+  it("says a 👎 filed the question — only when it filed one, and once per answer", async () => {
     await trackAnswer("n1", "g1", "where do i get a lazy susan bearing");
-    expect(await firstDown("n1")).toBe(false);
-    await downVote("n1");
-    expect(await firstDown("n1")).toBe(true);
     const note = downNotes();
-    expect(await note.worth("n1")).toBe(true);
+    // A message that isn't one of the bot's answers files nothing, so there is no note to promise.
+    expect(await downVote("someone-elses")).toEqual({ filed: false });
+    // An answer from before questions were kept, and one whose question is all personal: counted, nothing filed.
+    await trackAnswer("old", "g1");
+    expect(await downVote("old")).toEqual({ filed: false });
+    await trackAnswer("personal", "g1", "someone@example.com");
+    expect(await downVote("personal")).toEqual({ filed: false });
+    // The answer with a question the queue may hold: this vote files it, and the channel hears it once.
+    expect(await downVote("n1")).toEqual({ filed: true });
+    expect(note.due("n1", true)).toBe(true);
     note.said("n1");
-    // A second 👎 — or the first one taken off and added again — is the same answer: it has been told.
-    await downVote("n1");
-    expect(await firstDown("n1")).toBe(false);
-    expect(await note.worth("n1")).toBe(false);
-    // A message that isn't one of the bot's answers has no count, so nothing is said about it.
-    expect(await firstDown("someone-elses")).toBe(false);
+    expect(note.due("n1", true)).toBe(false);
+    // A second 👎 files nothing, so it says nothing.
+    expect(await downVote("n1")).toEqual({ filed: false });
+    expect(note.due("n1", false)).toBe(false);
   });
 
-  it("two 👎 arriving together say it once, and a note that couldn't be sent is owed, not spent", async () => {
-    const note = downNotes(async () => true);
-    expect(await Promise.all([note.worth("same"), note.worth("same")])).toEqual([true, false]);
-    // The send failed, or the channel wasn't there: the claim is released, so a later 👎 can say it.
-    note.unsent("same");
-    expect(await note.worth("same")).toBe(true);
-    note.said("same");
-    expect(await note.worth("same")).toBe(false);
-    // An owed note is retried by the next 👎 even though that vote took the count past 1: the count alone can't say
-    // whether the answer has been told.
-    let count = 1;
-    const owed = downNotes(async () => count === 1);
-    expect(await owed.worth("x")).toBe(true);
-    owed.unsent("x");
-    count = 2;
-    expect(await owed.worth("x")).toBe(true);
-    owed.said("x");
-    expect(await owed.worth("x")).toBe(false);
-    // A read that fails says nothing and owes nothing: no message is claimed for a note it may not be due.
-    const broken = downNotes(async () => { throw new Error("database is locked"); });
-    expect(await broken.worth("y")).toBe(false);
-    expect(await broken.worth("y")).toBe(false);
+  it("keeps a note that couldn't be delivered owed until it arrives", () => {
+    const note = downNotes();
+    expect(note.due("m", true)).toBe(true);
+    note.unsent("m");
+    // The next 👎 on that answer files nothing, but the note it owes is still owed.
+    expect(note.due("m", false)).toBe(true);
+    note.said("m");
+    expect(note.due("m", false)).toBe(false);
     // Past the cap the oldest answer is forgotten: at worst a repeat note, never a missing one.
-    const capped = downNotes(async () => true, 1);
-    expect(await capped.worth("a")).toBe(true);
+    const capped = downNotes(1);
+    expect(capped.due("a", true)).toBe(true);
     capped.said("a");
-    expect(await capped.worth("b")).toBe(true);
+    expect(capped.due("b", true)).toBe(true);
     capped.said("b");
-    expect(await capped.worth("a")).toBe(true);
+    expect(capped.due("a", true)).toBe(true);
   });
 });
