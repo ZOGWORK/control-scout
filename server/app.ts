@@ -520,8 +520,10 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     await ensureSearchIndex(rebuildSearch);
     // The page's own search choices (its preferred teams), so he reads the results the page shows.
     const q = String(req.query.q ?? "");
-    // `after`: the tab's last search, for a question pointing back at it (searchBrunoAnswer.ts followUpOf).
-    const opts = { prefer: preferOf(req.query.prefer), limit: SEARCH_PAGE_LIMIT, after: typeof req.query.after === "string" ? req.query.after : undefined };
+    // `after`: the tab's last search, for a question pointing back at it (searchBrunoAnswer.ts followUpOf), read in the
+    // season picked on its answer (?afterSeason=, as /search's ?season=) so he reads the records that were on screen.
+    const after = typeof req.query.after === "string" ? await pickedQuery(req.query.after, req.query.afterSeason) : undefined;
+    const opts = { prefer: preferOf(req.query.prefer), limit: SEARCH_PAGE_LIMIT, after };
     if (req.query.stream !== "1") {
       const r = await brunoAnswer(q, opts);
       if (!r) { res.status(204).end(); return undefined; }

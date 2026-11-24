@@ -294,7 +294,8 @@ A query search finds nothing in may not be a search of FTC data at all (`server/
 
 - **follow-up**: it points back at an earlier answer ("… the matches you said here", "your last answer"). Its card
   says search reads each search on its own and needs the team or event. /search keeps the tab's last answered search
-  (`src/lib/lastSearch.ts`, sessionStorage) and asks Bruno with it (`after`): he answers from that search's records.
+  (`src/lib/lastSearch.ts`, sessionStorage, memory when storage refuses) with the season picked on its answer, and asks
+  Bruno with both (`after`, `afterSeason`): he answers from that search's records, in that season.
   A spelling's guess never stands in for it ("said" read as another word).
 - **meta**: addressed to the site or Bruno ("who made you"), with no data word: what Control Scout and Bruno are,
   in the FAQ's words.

@@ -103,7 +103,7 @@ describe("Bruno leading the v8 page", () => {
   const FOLLOW = "was that the same auto points in all the matches u said here";
   const follow = () => answer(FOLLOW, [], { chat: "follow-up", card: card("info", "A question about an earlier answer", undefined, [{ text: "Search reads each search on its own, so it can't see what it answered before", detail: "Ask again with the team or event in it" }]), understood: { kind: "question", label: "A question about an earlier answer" } });
   it("a follow-up asks him with the tab's last search, said under the heading", async () => {
-    sessionStorage.setItem("cs-last-search", "4215 auto points");
+    sessionStorage.setItem("cs-last-search", JSON.stringify({ q: "4215 auto points", season: null }));
     says.text = "Yes, 4215 scored the same auto points in each match.";
     state.answer = follow();
     const { container } = show(FOLLOW);
@@ -111,6 +111,26 @@ describe("Bruno leading the v8 page", () => {
     expect(asked.at(-1)).toContain(`&after=${encodeURIComponent("4215 auto points")}`);
     expect(container.querySelector("[data-bruno-lead] [data-bruno-verdict]")).not.toBeNull();
     expect(container.querySelector("[data-follow-from]")!.textContent).toBe("Your last search: 4215 auto points");
+    sessionStorage.clear();
+  });
+  it("a follow-up of a season-picked search asks him in that season", async () => {
+    sessionStorage.setItem("cs-last-search", JSON.stringify({ q: "4215 auto points", season: 2024 }));
+    says.text = "Yes, the same in each match.";
+    state.answer = follow();
+    const { container } = show(FOLLOW);
+    await settle();
+    expect(asked.at(-1)).toContain(`&after=${encodeURIComponent("4215 auto points")}&afterSeason=2024`);
+    const link = container.querySelector("[data-follow-from] a")!;
+    expect(link.getAttribute("href")).toBe(`/search?q=${encodeURIComponent("4215 auto points")}&in=2024`);
+    expect(link.textContent).toBe("4215 auto points (2024–25)");
+    sessionStorage.clear();
+  });
+  it("remembers a search with the season picked on its answer", async () => {
+    sessionStorage.clear();
+    state.answer = answer("4215 auto points", [team(4215, "Hypnotic Robotics")]);
+    render(<MemoryRouter initialEntries={["/search?q=4215%20auto%20points&in=2024"]}><SearchPage /></MemoryRouter>);
+    await settle();
+    expect(JSON.parse(sessionStorage.getItem("cs-last-search")!)).toEqual({ q: "4215 auto points", season: 2024 });
     sessionStorage.clear();
   });
   it("a follow-up with no last search is the card alone, saying it needs the team or event", async () => {

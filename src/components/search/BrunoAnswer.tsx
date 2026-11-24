@@ -10,6 +10,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { streamBrunoAnswer, type BrunoAnswerBody } from "../../lib/brunoStream";
+import type { LastSearch } from "../../lib/lastSearch";
 import { useFlag, useServerFlag } from "../../lib/flags";
 import { useMediaQuery } from "../../lib/meta";
 import { isBrunoQuestion } from "../../shared/search";
@@ -21,7 +22,7 @@ export const BRUNO_SETTLE_MS = 600;
 export const BRUNO_FLAG_WAIT_MS = 5000;
 
 /** One answer's key: the question and the preferred teams it was read with (either changing asks again). */
-/** `after`: the earlier search a follow-up is read with (server/api/searchBrunoAnswer.ts followUpOf). */
+/** `after`: the earlier search a follow-up is read with (server/api/searchBrunoAnswer.ts followUpOf), as afterKey says it. */
 export const brunoKey = (q: string, prefer = "", after = "") => `${q.trim()}\n${prefer}${after ? `\n${after}` : ""}`;
 
 /** Whether the page asks Bruno for this query at all (his flag on, a question, search's own answer not a direct one):
@@ -51,20 +52,25 @@ export type BrunoMemo = Map<string, { text: string | null; points: string[] }>;
  *  `lead`: his card is the page's answer, at the top: its slot is held (a quiet skeleton) while he writes, and let go
  *  when he has nothing to add.
  *  `prefer`: the visitor's preferred teams and events, as the page's own search sent them, so Bruno reads the same results.
- *  `after`: the tab's last search, for a question pointing back at it: he answers from that search's records.
+ *  `after`: the tab's last search (with its picked season), for a question pointing back at it: he answers from that
+ *  search's records, in that season.
  *  `children`: a summary computed from the records (timeline, stat banner), shown at the top of the card, and on its
  *  own (as "Summary") while Bruno is off, still writing, or has nothing to add. A summary never stands in for him: every
  *  question (isBrunoQuestion) asks him, whatever summary the page also shows (SearchPage.bruno.test.tsx), unless
  *  `answered`: search's own answer card (a card or stat answer, not a guess) already says it, and his card beside it
  *  would say the same thing twice. */
-export function BrunoAnswer({ q, prefer = "", after = "", ready, answered = false, lead = false, memo, onOutcome, className, children }: { q: string; prefer?: string; after?: string; ready: boolean; answered?: boolean; lead?: boolean; memo?: BrunoMemo; onOutcome?: (key: string, said: boolean) => void; className?: string; children?: ReactNode }) {
+/** A follow-up's earlier search, with its picked season, as one part of brunoKey. */
+export const afterKey = (a: LastSearch | null | undefined) => (a ? `${a.q}\n${a.season ?? ""}` : "");
+
+export function BrunoAnswer({ q, prefer = "", after = null, ready, answered = false, lead = false, memo, onOutcome, className, children }: { q: string; prefer?: string; after?: LastSearch | null; ready: boolean; answered?: boolean; lead?: boolean; memo?: BrunoMemo; onOutcome?: (key: string, said: boolean) => void; className?: string; children?: ReactNode }) {
   const query = q.trim();
   // `answered`: search's own answer card already says it; his card would say the same thing twice.
   const willAsk = useBrunoAsks(query, answered);
   const confirmed = useServerFlag("brunoAnswers");
   const asks = willAsk && confirmed && ready;
   // An answer belongs to its question and the preferred teams it was read with: either changing hides it.
-  const key = brunoKey(query, prefer, after);
+  const key = brunoKey(query, prefer, afterKey(after));
+  const afterQ = after?.q ?? "", afterSeason = after?.season ?? null;
   const [state, setState] = useState<{ key: string; text: string | null; points: string[] }>(() => {
     const known = memo?.get(key);
     return known ? { key, ...known } : { key: "", text: null, points: [] };
@@ -77,7 +83,7 @@ export function BrunoAnswer({ q, prefer = "", after = "", ready, answered = fals
     let live = true;
     const stop = new AbortController();
     const t = setTimeout(() => {
-      const url = `/api/search/bruno?q=${encodeURIComponent(query)}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}${after ? `&after=${encodeURIComponent(after)}` : ""}`;
+      const url = `/api/search/bruno?q=${encodeURIComponent(query)}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}${afterQ ? `&after=${encodeURIComponent(afterQ)}${afterSeason != null ? `&afterSeason=${afterSeason}` : ""}` : ""}`;
       // Only what he answered is kept for the page's other card: a failed ask is asked again next time.
       const show = (r: BrunoAnswerBody | null) => {
         const v = { text: r?.text?.trim() ? r.text : null, points: r?.points ?? [] };
@@ -93,7 +99,7 @@ export function BrunoAnswer({ q, prefer = "", after = "", ready, answered = fals
         .catch(() => { if (live) apiFetch<BrunoAnswerBody | null>(url).then(show).catch(none); });
     }, BRUNO_SETTLE_MS);
     return () => { live = false; clearTimeout(t); stop.abort(); };
-  }, [asks, query, prefer, after, key, memo]);
+  }, [asks, query, prefer, afterQ, afterSeason, key, memo]);
   // A slot held for an ask the server never confirms (the flags didn't load) is let go, as if he had nothing to add.
   const waiting = lead && willAsk && ready && !confirmed;
   useEffect(() => {
