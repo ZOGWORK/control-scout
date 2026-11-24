@@ -534,6 +534,14 @@ describe("not, without, except (search audit: general \"not\")", () => {
       } finally { clearAllCaches(); }
     }
   });
+  it("Worlds as a match board's scope, however it's said: its matches only, its divisions' counted", async () => {
+    for (const q of ["highest scoring matches at worlds", "highest scoring games in worlds", "closest matches at worlds", "lowest scoring matches at worlds", "closest games in houston"]) {
+      const a = await ask(q);
+      const blocks = JSON.stringify(a.stat?.blocks ?? []);
+      // The Edison Division's one match; never a New Jersey event's.
+      expect([a.step, a.stat?.intent?.startsWith("find-"), a.stat?.title, blocks.includes("FTCCMP1EDIS"), /USNJ/.test(blocks)], q).toEqual(["deterministic", true, expect.stringContaining("at Worlds"), true, false]);
+    }
+  });
 });
 
 describe("a place's count, first paint", () => {
