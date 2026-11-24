@@ -4,6 +4,7 @@
 import { Link } from "react-router-dom";
 import type { StatBlock } from "../../../shared/searchStat";
 import { buttonVariants } from "../../ui/button";
+import { V8_SOFT } from "./v8tone";
 import { cn } from "../../cn";
 import { oddsPct } from "../../../shared/format";
 import { TAP, TEAM_BAR, TEAM_TEXT } from "./answerCells";
@@ -15,11 +16,11 @@ export function ChanceBar({ b }: { b: Extract<StatBlock, { kind: "chance" }> }) 
   const shown = oddsPct(p, b.decided === true);
   return (
     <section data-block="chance">
-      <p className="text-sm"><span className={cn("font-display text-3xl font-semibold tabular-nums", TEAM_TEXT)} data-chance-value data-kpi>{shown}</span> <span className="text-muted-foreground">{b.label}</span></p>
+      <p className="text-sm"><span className={cn("font-display text-3xl font-semibold tabular-nums", TEAM_TEXT, V8_SOFT.win.text)} data-chance-value data-kpi>{shown}</span> <span className="text-muted-foreground">{b.label}</span></p>
       <div className="mt-2 flex items-center gap-2 text-xs tabular-nums text-muted-foreground">
         <span aria-hidden>0</span>
         <div role="img" aria-label={`${b.who}: ${shown} on a 0 to 100% scale`} className="h-[14px] flex-1 overflow-hidden rounded-sm bg-[var(--color-chance-track)]">
-          <div className={cn("h-full", TEAM_BAR)} style={{ width: `${pc}%` }} data-chance-fill data-bar data-value={pc} data-scale={100} />
+          <div className={cn("h-full", TEAM_BAR, V8_SOFT.win.bar)} style={{ width: `${pc}%` }} data-chance-fill data-bar data-value={pc} data-scale={100} />
         </div>
         <span aria-hidden>100%</span>
       </div>

@@ -15,7 +15,8 @@ export interface LeagueAsk {
   /** The words naming the league and its place ("ne", "nj northeast"). */
   words: string[];
   season: number | null;
-  /** "Last season": the season before the current one (the caller's askSeason()), not readScope's latest completed. */
+  /** "Last season": the caller reads ../season.ts lastSeason() (the latest completed season, the one before the current
+   *  in the weeks between a Championship and the next kickoff). */
   last: boolean;
   /** "Who is first …": the leader is the headline. */
   leader: boolean;

@@ -362,9 +362,12 @@ const SEARCH_PATH = /^\/api\/search(\?|$)/;
 const SUMMARY_PATH = /^\/api\/teams-summary(\?|$)/;
 /** A saved /api/teams-summary answer holds every team asked (lib/offline/search.ts leaves out the ones no pack holds). */
 function summaryWhole(path: string, data: unknown): boolean {
-  const asked = (new URL(path, "http://offline.invalid").searchParams.get("teams") ?? "").split(",").filter((t) => /^\d{1,6}$/.test(t));
-  const got = new Set(((data as { teams?: Pick<TeamSummary, "team">[] }).teams ?? []).map((t) => String(t.team)));
-  return asked.every((t) => got.has(String(Number(t))));
+  const params = new URL(path, "http://offline.invalid").searchParams;
+  const asked = (params.get("teams") ?? "").split(",").filter((t) => /^\d{1,6}$/.test(t));
+  const all = (d: unknown) => { const got = new Set(((d as { teams?: Pick<TeamSummary, "team">[] } | undefined)?.teams ?? []).map((t) => String(t.team))); return asked.every((t) => got.has(String(Number(t)))); };
+  // ?before=1: the season before's teams too (a first covered season has none to send: its answer has no `before`).
+  const before = (data as { before?: unknown }).before;
+  return all(data) && (params.get("before") !== "1" || before === undefined || all(before));
 }
 /** The server is up: it answered within the last minute, since the last request that failed for want of a network
  *  (whatever navigator.onLine says: iOS can say offline while online). */

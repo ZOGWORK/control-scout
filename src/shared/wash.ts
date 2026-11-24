@@ -40,6 +40,12 @@ export const WASH_PRESETS: readonly { id: string; name: string; wash: Readonly<W
   { id: "nebula", name: "Nebula", wash: { a: "#b0469e", b: "#5a4fc4", c: "#2f8fb8", ga: "#c24fa8", gb: "#6a4fd0", gc: "#2fa0c8", strength: 1, spread: 1 } },
 ]);
 
+/** How much of each wash colour is laid over the page, per theme (index.css --wash-mix; the first paint's copy in
+ *  server/bootShell.ts; the Appearance tab's Light preview). Light takes the colours whole, as Dark does: mixed any
+ *  further into the near-white page the band went nearly white and the gradient could not be seen. Every text over it
+ *  still reads at 4.5:1 (the clock and names are ink; the muted labels sit below where the band has faded). */
+export const WASH_MIX = { light: "100%", dim: "82%" } as const;
+
 /** How strong a glow is from its centre (0) to its edge (1): 1 - smoothstep, flat at the centre and flat at the edge,
  *  so neither its middle nor its rim shows as a circle. A two-stop gradient (colour → transparent) falls off in a
  *  straight line and stops dead at its end, and the eye picks out that corner as a ring (Mach bands). */
