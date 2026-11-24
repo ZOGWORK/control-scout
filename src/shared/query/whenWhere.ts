@@ -26,11 +26,12 @@ function rowsOf(stat: StatAnswer, ask: Ask): Place[] {
   const says = (r: Place) => !!(ask === "when" ? r.date : r.event);
   // Every table of them, in order (an answer split by season is one table a season).
   const tables = stat.blocks.flatMap((b) => {
-    if (b.kind !== "table") return [];
+    // Played rows only: a table of matches still to play never answers "when did …" (nor does a row of one).
+    if (b.kind !== "table" || b.upcoming) return [];
     const keys = new Set(b.columns.map((c) => c.key));
     const dateKey = keys.has("date") ? "date" : keys.has("when") ? "when" : null;
     if (!keys.has("event") && !dateKey) return [];
-    return b.rows.map((r) => ({ event: str(r.cells.event), date: dateKey ? str(r.cells[dateKey]) : null, ...(r.href ? { href: r.href } : {}) })).filter(says);
+    return b.rows.filter((r) => !r.upcoming).map((r) => ({ event: str(r.cells.event), date: dateKey ? str(r.cells[dateKey]) : null, ...(r.href ? { href: r.href } : {}) })).filter(says);
   });
   if (tables.length) return tables;
   const m = stat.blocks.find((b) => b.kind === "matches" && b.rows.length);
@@ -75,8 +76,9 @@ export function whenWhere(stat: StatAnswer, ask: Ask): StatAnswer {
     items: each.slice(0, 6).map((r) => ({ label: (ask === "when" ? r.event : r.date) ?? "", value: (ask === "when" ? r.date : r.event) ?? "—", tone: "accent" as const, ...(r.href ? { href: r.href } : {}) })),
   };
   const was = stat.headline;
-  // What the headline drew besides its words stays (an event's type chip, an alliance's team chips, a match to play).
-  const { value: _v, label: _l, sub: _s, href: _h, ...drawn } = was ?? ({} as Partial<NonNullable<StatAnswer["headline"]>>);
+  // What the headline drew of its one event stays (its type chip, a match still to play). An alliance's team chips
+  // go: they're drawn beside a score, and the headline is a day or an event now (its score is the label's).
+  const drawn = { ...(was?.type !== undefined && each.length === 1 ? { type: was.type } : {}), ...(was?.upcoming ? { upcoming: true } : {}) };
   // An answer that already leads with what's asked ("which event did <team> score highest in"): as it is.
   const value = listed([...new Set(said)]);
   if (was?.value === value) return stat;
