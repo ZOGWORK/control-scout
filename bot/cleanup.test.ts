@@ -1,0 +1,135 @@
+// The stale 👎 sweep (bot/cleanup.ts): its own reaction off its own answers, a member's and a 👍 left alone, the walk
+// back to the thumbs era, a channel it can't read skipped, and the whole thing once ever.
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { Client } from "discord.js";
+import { kvGet, migrate, openDb, run, setDb } from "../server/db";
+import { OLD_DOWN, PAGE, PAGES, SWEEP_KEY, THUMBS_FROM, sweepOldThumbs, sweepStaleThumbs, type SweptChannel, type SweptMessage, type SweptReaction } from "./cleanup";
+
+const BOT = "bot-1";
+const someone = "person-1";
+/** A moment inside the thumbs era. */
+const IN_ERA = THUMBS_FROM + 86_400_000;
+/** Before any answer could carry one. */
+const BEFORE = THUMBS_FROM - 86_400_000;
+
+/** One reaction on a message. */
+const reacted = (emoji: string, me: boolean): SweptReaction => ({ emoji: { name: emoji }, me, users: { remove: async () => ({ ok: true }) } });
+
+/** One message: the bot's own (`mine`) unless told otherwise. */
+const msg = (id: string, at: number, reactions: SweptReaction[] = [], mine = true): SweptMessage => ({
+  id,
+  createdTimestamp: at,
+  author: { id: mine ? BOT : someone },
+  reactions: { cache: { values: () => reactions[Symbol.iterator]() } },
+});
+
+/** A channel whose pages are handed out in order; a page that is an Error is a fetch that failed. */
+function channel(id: string, pages: (SweptMessage[] | Error)[], asked: { limit: number; before?: string }[] = []): SweptChannel {
+  const queue = [...pages];
+  return {
+    id,
+    messages: {
+      fetch: async (o) => {
+        asked.push(o);
+        const page = queue.shift() ?? [];
+        if (page instanceof Error) throw page;
+        return page;
+      },
+    },
+  };
+}
+
+/** A page of `n` messages the bot posted, newest first, each just older than the one before it. */
+const page = (n: number, start = IN_ERA, reactions: SweptReaction[] = []) =>
+  Array.from({ length: n }, (_, i) => msg(`m-${start + i}`, start - i, reactions));
+
+const sweep = (channels: SweptChannel[]) => sweepStaleThumbs({ me: BOT, channels: async () => channels });
+
+describe("the stale 👎 sweep", () => {
+  it("takes its own 👎 off its own answer, and leaves everything else", async () => {
+    const mine = msg("a1", IN_ERA, [reacted("👍", true), reacted(OLD_DOWN, true)]);
+    // A member's own 👎 on the same answer, a person's message the bot reacted to, and a 👍 on an answer: all stay.
+    const shared = msg("a2", IN_ERA, [reacted(OLD_DOWN, false)]);
+    const theirs = msg("p1", IN_ERA, [reacted(OLD_DOWN, true)], false);
+    const good = msg("a3", IN_ERA, [reacted("👍", true)]);
+    // One removed is the test: the summary counts what was taken off, and nothing else qualified.
+    const s = await sweep([channel("c1", [[mine, shared, theirs, good]])]);
+    expect(s).toEqual({ channels: 1, messages: 4, removed: 1, failed: 0 });
+  });
+
+  it("walks back to the thumbs era and no further", async () => {
+    const asked: { limit: number; before?: string }[] = [];
+    const first = page(PAGE);
+    // The second page holds the answer that still has one, and a message from before the thumbs: the walk ends there.
+    const second = [msg("a-old", IN_ERA - PAGE, [reacted(OLD_DOWN, true)]), msg("ancient", BEFORE)];
+    // A third page exists and must never be read.
+    const never = [msg("a-never", BEFORE - 1, [reacted(OLD_DOWN, true)])];
+    const s = await sweep([channel("c1", [first, second, never], asked)]);
+    expect(s).toEqual({ channels: 1, messages: PAGE + 2, removed: 1, failed: 0 });
+    expect(asked.map((a) => a.limit)).toEqual([PAGE, PAGE]);
+    // The walk continues from the oldest message of the page before it.
+    expect(asked[1].before).toBe(first[first.length - 1].id);
+  });
+
+  it("stops at its page cap on a channel with nothing older in reach", async () => {
+    const asked: { limit: number; before?: string }[] = [];
+    const pages = Array.from({ length: PAGES + 3 }, () => page(PAGE));
+    const s = await sweep([channel("c1", pages, asked)]);
+    expect(asked.length).toBe(PAGES);
+    expect(s.messages).toBe(PAGES * PAGE);
+    expect(s.removed).toBe(0);
+  });
+
+  it("a channel it can't read is counted, and the next one is swept", async () => {
+    const said: string[] = [];
+    const s = await sweepStaleThumbs({ me: BOT, channels: async () => [
+      channel("closed", [new Error("Missing Permissions")]),
+      channel("open", [[msg("a1", IN_ERA, [reacted(OLD_DOWN, true)])]]),
+    ] }, (m) => said.push(m));
+    expect(s).toEqual({ channels: 2, messages: 1, removed: 1, failed: 1 });
+    expect(said.join("\n")).toContain("closed");
+  });
+});
+
+describe("the sweep runs once", () => {
+  beforeAll(async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+  });
+  beforeEach(async () => {
+    await run("DELETE FROM kv WHERE key = ?", [SWEEP_KEY]);
+  });
+
+  /** A client whose one server has one channel with one stale 👎, counting how often it is read. */
+  function fake(reads: { n: number }): Client {
+    const ch = {
+      id: "c1",
+      isTextBased: () => true,
+      messages: {
+        fetch: async () => { reads.n++; return [msg("a1", IN_ERA, [reacted(OLD_DOWN, true)])]; },
+      },
+    };
+    const collection = new Map([["c1", ch]]);
+    const guild = {
+      id: "g1",
+      channels: {
+        fetch: async () => collection,
+        fetchActiveThreads: async () => ({ threads: new Map() }),
+      },
+    };
+    return { user: { id: BOT }, guilds: { cache: new Map([["g1", guild]]) } } as unknown as Client;
+  }
+
+  it("sweeps the first time, records it, and never reads a channel again", async () => {
+    const reads = { n: 0 };
+    const said: string[] = [];
+    const first = await sweepOldThumbs(fake(reads), (m) => said.push(m));
+    expect(first).toEqual({ channels: 1, messages: 1, removed: 1, failed: 0 });
+    expect(await kvGet<{ done: boolean; removed: number }>(SWEEP_KEY)).toMatchObject({ done: true, removed: 1 });
+    expect(reads.n).toBe(1);
+    // A restart: the row says it has run, so nothing is asked of Discord at all.
+    expect(await sweepOldThumbs(fake(reads), (m) => said.push(m))).toBeNull();
+    expect(reads.n).toBe(1);
+  });
+});

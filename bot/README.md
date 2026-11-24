@@ -62,6 +62,16 @@ site's failed-search list as a `downvoted` failure. People read it as a dislike 
 fine put questions in the queue, and a note had to explain what the button did. Both are gone: the `down` column and
 any `downvoted` rows stay readable (the owner console's total, the queue's own re-check) and nothing writes them.
 
+**The stale 👎s are taken off** (`bot/cleanup.ts`). The emoji the bot added between 7.9.2 and 8.0.1 is still on the
+answers it posted then, where it is a button that does nothing: on the first connection after 8.0.2 the bot walks back
+through the recent messages of every channel it can read — and each server's active and recently archived threads —
+removes its own reaction from its own answers, and records that it has in a `kv` row (`bot:down-sweep`), so a restart
+never scans again. Only its own reaction goes: a member's 👎 is theirs, and a 👍 stays. The walk ends at a message older
+than 2026-11-21, before any answer could carry a 👎, so a channel's older history is never read; it reads 2,000 messages
+a channel at most, and a channel it can't read — no Read Message History, a thread since deleted — is logged and
+skipped rather than stopping the sweep. No row is written to `discord_answers`: the counts are what people clicked and
+stay readable; only the emoji nobody can use any more comes off.
+
 **What it was asked** (`bot/asks.ts`, migration 104). Every ask is recorded — the words as typed with personal data
 redacted, the step search answered it at, whether Bruno's chat answered it, and how long it took; never who asked,
 only the server. The owner console lists the questions it couldn't answer, most asked first. A **records question**

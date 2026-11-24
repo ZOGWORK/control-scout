@@ -19,6 +19,7 @@ import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
 import { rememberGuild } from "./guilds.js";
 import { GOOD, serialVotes, vote } from "./reactions.js";
+import { sweepOldThumbs } from "./cleanup.js";
 import { flushSearchFailures } from "../server/searchFailures.js";
 import { site } from "./lookups.js";
 import { configEmbed, configLines, type Config } from "./config.js";
@@ -136,6 +137,9 @@ client.once(Events.ClientReady, (c) => {
   // after this ships, and a rename or a new server keeps it current.
   for (const g of c.guilds.cache.values()) void rememberGuild(g.id, g.name).catch(() => {});
   void registerUntilDone(c.application.id);
+  // The 👎 the bot added before it was removed is still on its older answers, where it is a button that does nothing:
+  // taken off once, on this first connection (bot/cleanup.ts).
+  void sweepOldThumbs(client, log).catch((e) => log(`stale 👎: sweep failed: ${(e as Error)?.message ?? String(e)}`));
   // Warm the season's ratings so the first /predict doesn't wait for them.
   liveForecaster(CURRENT_SEASON).then(() => log("ratings ready")).catch((e) => log(`ratings not ready: ${(e as Error).message}`));
 });
@@ -185,8 +189,8 @@ client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m 
  *  way round. */
 const serial = serialVotes();
 /** A 👍 on one of the bot's answers, counted (bot/reactions.ts): never who clicked, and only messages it posted have a
- *  row — so a reaction anywhere else, a 👎 left on an answer from before it was removed, or any other emoji, changes
- *  nothing. */
+ *  row — so a reaction anywhere else, a 👎 still on an answer from before it was removed, or any other emoji, changes
+ *  nothing (the stale 👎s themselves are taken off once at startup, bot/cleanup.ts). */
 type Counted = { emoji: { name: string | null }; message: { id: string } };
 const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) => {
   if (user.bot) return;
