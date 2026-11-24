@@ -4,7 +4,7 @@
 // highlights link; nothing at all with none, before the answer is on screen, or with another search's.
 import { act, cleanup, fireEvent, render, renderHook } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SearchFollowUps } from "../../../shared/api";
 import { prime } from "../../../lib/api";
 import { readPageData } from "../../../lib/pageData";
@@ -103,5 +103,28 @@ describe("People also ask's held place", () => {
     const c = draw(<PeopleAlsoAskPending />);
     expect(c.querySelector('[data-block="people-also-ask-pending"]')!.getAttribute("aria-hidden")).toBe("true");
     expect(c.querySelectorAll('[data-block="people-also-ask-pending"] .divide-y > div')).toHaveLength(ASK_MAX);
+  });
+});
+
+describe("useFollowUps: a partial set", () => {
+  it("is shown at once, then asked for again until the whole set arrives", async () => {
+    vi.useFakeTimers();
+    const path = followApiPath("12345 opr");
+    const whole = { q: "12345 opr", ...f };
+    const fetched = vi.fn(async () => new Response(JSON.stringify(whole), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetched);
+    try {
+      act(() => prime(path, { q: "12345 opr", ask: f.ask.slice(0, 1), related: [], partial: true }));
+      const { result } = renderHook(() => useFollowUps("12345 opr", undefined, true));
+      expect(result.current.ask).toEqual(f.ask.slice(0, 1));
+      expect(result.current.pending).toBe(false);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_100); });
+      expect(fetched).toHaveBeenCalled();
+      expect(result.current.related).toEqual(f.related);
+      expect(result.current.partial).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
   });
 });

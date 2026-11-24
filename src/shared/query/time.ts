@@ -3,11 +3,12 @@
 // is 2026–27), so "this week" is a window inside the current season, "2025" is the 2025–26 season, and "in March" is
 // the March of the season the question is about.
 import { SEASONS } from "../seasonList.js";
+import { seasonRange } from "./seasonRun.js";
 import { timeWindow, type SearchTime } from "../searchEventQuery.js";
 
 export interface TimeSlot {
   /** What kind of time was said: a date window, one season, every season. */
-  kind: "window" | "season" | "ever";
+  kind: "window" | "season" | "ever" | "seasons";
   /** The window's first and last day (YYYY-MM-DD, inclusive), for a window. */
   from?: string;
   to?: string;
@@ -25,6 +26,9 @@ export interface TimeSlot {
   /** A month said without its year ("in june"): its index (0 for January). Read here as that month of the season
    *  today is in; the question's own season moves it (monthIn: a team's question is about the team's latest season). */
   month?: number;
+  /** A run of seasons ("since 2023", "2023-24 to 2025-26", "last 3 seasons"): the first and the last (null: the
+   *  latest, resolved by the executor), or the latest `last` seasons. `season` is null for a run. */
+  range?: { from: number | null; to: number | null; last?: number };
 }
 
 /** A month said without its year (`t.month`) moved to the same month of `season` (September to August): "<team> events
@@ -125,6 +129,10 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
     return out({ kind: "season", season: y, year: y, label: known(y) ? `in ${SEASONS.find((s) => s.season === y)!.label}` : `in ${y}–${String((y + 1) % 100).padStart(2, "0")}`, typed: y4[0].trim() });
   };
 
+  // A run of seasons: "2023-24 to 2025-26", "from 2023 to 2025", "between 2023 and 2025", "since 2023", "last 3
+  // seasons". A bare year in one is a season by the run's words, even a number a team has ("since 2023").
+  const range = seasonRange(rest);
+  if (range) { cut(range.m); return out(range.t); }
   // A date: "on mar 15 2026", "march 15, 2026", "3/15/2026", "2026-03-15".
   let m = /\b(?:on\s+)?([a-z]{3,9}\.?)\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+(20\d\d)\b/.exec(rest);
   const said = m && monthIndex(m[1]) >= 0 ? realDay(Number(m[3]), monthIndex(m[1]), Number(m[2])) : null;
@@ -190,3 +198,4 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
   if (m) { cut(m); return out({ kind: "ever", season: null, label: "all seasons", typed: m[0].trim() }); }
   return bareYear() ?? { time: null, rest: rest.replace(/\s+/g, " ").trim() };
 }
+
