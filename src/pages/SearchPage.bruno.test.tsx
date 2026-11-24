@@ -110,6 +110,15 @@ describe("Bruno leading the v8 page", () => {
     expect(container.querySelector("[data-bruno-lead]")).toBeNull();
     expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
   });
+  it.each([["as typed", "where are the nj workshops"], ["with spaces around it", "  where are the nj workshops  "]])("lets the slot go for a question %s", async (_, q) => {
+    says.text = null;
+    state.answer = answer(q.trim(), [ev("NJW1", "FTC NJ Multi-Track Workshops (North)")], { understood: { kind: "names", label: 'Teams, events and matches matching "nj workshops"' } } as Partial<SearchAnswer>);
+    const { container } = show(q);
+    expect(container.querySelector("[data-bruno-lead]")).not.toBeNull();
+    await settle();
+    expect(container.querySelector("[data-bruno-lead]")).toBeNull();
+    expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
+  });
   it("says a comparison of two shared names as a plain line too", () => {
     const q = "is ultraviolet better than mirror";
     state.answer = answer(q, [team(20245, "Ultraviolet"), team(23268, "Ultraviolet"), team(1111, "Mirror"), team(2222, "Mirror")], {
