@@ -14,7 +14,8 @@ import { searchAnswer } from "./api/searchAnswer";
 import {
   counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteBotSearch, noteSearch, outcomeTrace, recheck, redact, reportKey,
   PER_IP_HOUR,
-  NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_KEEP, mergeMissed, patternFor } from "./searchFailures";
+  NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_KEEP, mergeMissed, patternFor,
+  preSplitPattern, softFailureOf, softKey, softSummary } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
 import { FALLBACK_NOTE } from "./api/searchLayers";
 
@@ -243,6 +244,128 @@ describe("failure patterns (docs/search-pipeline.md)", () => {
     clock += SETTLE_MS;
     await Promise.all([one, flushSearchFailures(clock)]);
     expect(JSON.parse((await all<{ missed: string }>("SELECT missed FROM search_failures WHERE key = ?", [key]))[0].missed)).toEqual({ aaa: 1, bbb: 1 });
+  });
+});
+
+describe("soft failures (audit M5): answered, but not the whole question", () => {
+  const piped = (q: string): SearchAnswer => ({ ...answered(q), intent: { kind: "pipeline-team-opr", pattern: "team-opr", met: true, understood: ["Intent: team opr", "Team: 4215"] } });
+  const read = (intent: string | null, complete = true) => ({ intent, complete });
+  it("classified on the answer's structured fields, never its label", () => {
+    expect(softFailureOf(noMatch("xyzzyq"), read(null))).toBeNull();
+    expect(softFailureOf(piped("4215 opr"), read("team-opr"))).toBeNull();
+    // Words the answer read past (understood.unread), whatever its label says.
+    const past = { ...piped("4215 today opr"), understood: { kind: "question" as const, label: "Hypnotic Robotics (4215) · OPR", unread: ["today"] } };
+    expect(softFailureOf(past, read("team-opr"))).toEqual({ type: "unread-words", reason: "1 word read past", intent: "team-opr" });
+    // The pipeline had the intent and another reader answered: declined, with why.
+    expect(softFailureOf(answered("4215 opr"), read("team-opr", true))).toMatchObject({ type: "declined", reason: "read whole, not answered by it" });
+    expect(softFailureOf(answered("4215 opr scorecard"), read("team-opr", false))).toMatchObject({ type: "declined", reason: "words it couldn't read" });
+    // No intent read: the pipeline never had the question, so nothing was declined.
+    expect(softFailureOf(answered("hypnotic robotics"), read(null, false))).toBeNull();
+  });
+
+  it("logged under a soft key with its own hourly allowance, counted, and never filed as an issue", async () => {
+    const soft = softFailureOf(answered("4215 opr"), read("team-opr"))!;
+    const key = softKey(soft, "pattern: intent: team opr · slots: team");
+    expect(key).toBe("soft: declined (read whole, not answered by it) · intent: team opr · slots: team");
+    const ip = "198.51.100.77";
+    // A visitor's hard failures fill their hour: soft ones are still logged.
+    for (let i = 0; i < PER_IP_HOUR; i++) searched(`zz${i}qq`, noMatch(`zz${i}qq`), ip);
+    clock += 1000;
+    noteSearch("4215 opr", answered("4215 opr"), ip, null, clock, key, [], soft);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    expect((await rows()).find((r) => r.key === key)).toMatchObject({ result_type: "declined", count: 1, issue_number: null });
+    // Sync files the hard failures and never the soft row.
+    calls = [];
+    for (let i = 0; i < 3; i++) await syncSearchFailures();
+    expect(calls.filter((c) => c.method === "POST" && c.path === "/issues").every((c) => !String(c.body.title).includes("soft:"))).toBe(true);
+    expect((await rows()).find((r) => r.key === key)?.issue_number).toBeNull();
+    expect(await softSummary()).toMatchObject({ totals: { declined: 1, "unread-words": 0 }, rows: [{ key, type: "declined", count: 1, examples: ["4215 opr"] }] });
+  });
+
+  it("a soft failure never lands on a hard row, and a hard failure is never made soft", async () => {
+    const soft = { type: "declined" as const, reason: "words it couldn't read", intent: "team-opr" };
+    // Failed outright: filed as the failure it is, under the pattern key it was given.
+    searched("4215 opr rn", fallback("4215 opr rn", "opr rn"));
+    noteSearch("6980 opr rn", fallback("6980 opr rn", "opr rn"), "198.51.100.88", null, clock, "pattern: intent: team opr · slots: team", [], soft);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    expect((await rows()).map((r) => r.result_type).sort()).toEqual(["team-fallback", "team-fallback"]);
+  });
+});
+
+describe("pattern keys (audit M8)", () => {
+  it("unread words split a pattern; numbers said as words are one pattern with digits", async () => {
+    const a = await patternFor("4215 opr scorecard"), b = await patternFor("6980 opr scoresheet");
+    expect(a?.key).toMatch(/not read: scorecard$/);
+    expect(b?.key).toMatch(/not read: scoresheet$/);
+    expect((await patternFor("who is your creator"))?.key).not.toBe((await patternFor("bergen qualifier"))?.key);
+    expect((await patternFor("teams with opr over eighty zzq"))?.key).toBe((await patternFor("teams with opr over 80 zzq"))?.key);
+  });
+});
+
+describe("a visitor's searches read out of order", () => {
+  it("an older query arriving last never replaces the newer one: a superseded one is dropped, another logged", async () => {
+    const t = clock + 1000;
+    // The final query's pattern read finished first; the partial one it extends arrives after it.
+    noteSearch("xyzzyq plover", noMatch("xyzzyq plover"), "198.51.100.77", null, t + 500);
+    noteSearch("xyzzyq", noMatch("xyzzyq"), "198.51.100.77", null, t);
+    // An unrelated older search from the same visitor is its own.
+    noteSearch("qwfp arst", noMatch("qwfp arst"), "198.51.100.77", null, t + 100);
+    clock = t + 500 + SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    const examples = (await rows()).flatMap((r) => JSON.parse(r.examples) as string[]).sort();
+    expect(examples).toEqual(["qwfp arst", "xyzzyq plover"]);
+  });
+});
+
+describe("pattern keys split on unread words: old issues kept (audit M8)", () => {
+  const old = "pattern: intent: team opr · slots: team · not read: 1 word";
+  const split = "pattern: intent: team opr · slots: team · not read: scorecard";
+  const note = async (state: string) => {
+    await run("DELETE FROM search_failures");
+    await run("INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen, issue_number, issue_state, reported_count) VALUES (?, 'h', 'team-fallback', 'opr', '{}', '', '[]', 1, 'a', 'a', 900, ?, 1)", [old, state]);
+    clock += 1000;
+    noteSearch("4215 opr scorecard", fallback("4215 opr scorecard", "opr scorecard"), "198.51.100.91", null, clock, split, ["scorecard"], null, old);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    return (await rows()).map((r) => [r.key, r.count]);
+  };
+  it("lands on its old pattern's row while that issue is open or dismissed", async () => {
+    expect(await note("open")).toEqual([[old, 2]]);
+    expect(await note("dismissed")).toEqual([[old, 2]]);
+  });
+  it("is a pattern of its own once the old issue was closed as fixed", async () => {
+    expect(await note("closed")).toEqual([[old, 1], [split, 1]]);
+  });
+  it("lands on its old pattern's row while that one isn't filed yet: one gap, one issue", async () => {
+    await run("DELETE FROM search_failures");
+    await run("INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen, reported_count) VALUES (?, 'h', 'team-fallback', 'opr', '{}', '', '[]', 1, 'a', 'a', 0)", [old]);
+    clock += 1000;
+    noteSearch("4215 opr scorecard", fallback("4215 opr scorecard", "opr scorecard"), "198.51.100.92", null, clock, split, ["scorecard"], null, old);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    expect((await rows()).map((r) => [r.key, r.count])).toEqual([[old, 2]]);
+  });
+  it("an old issue closed as fixed since the last sync is never reopened: the split pattern files its own next time", async () => {
+    // Synced as open, then closed on GitHub: here it still says open, so the split pattern lands on it once.
+    issues[900] = { state: "closed", state_reason: "completed", closed_at: new Date(clock).toISOString() };
+    expect(await note("open")).toEqual([[old, 2]]);
+    calls = [];
+    await syncSearchFailures();
+    expect(writes()).toHaveLength(0);
+    expect(issues[900].state).toBe("closed");
+    expect((await rows())[0]).toMatchObject({ key: old, issue_state: "closed", reported_count: 2 });
+    // Its next failure is a gap of its own.
+    clock += 1000;
+    noteSearch("4215 opr scorecard", fallback("4215 opr scorecard", "opr scorecard"), "198.51.100.93", null, clock, split, ["scorecard"], null, old);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    expect((await rows()).map((r) => [r.key, r.count])).toEqual([[old, 2], [split, 1]]);
+  });
+  it("knows a pre-split pattern key by its word count", () => {
+    expect([old, "pattern: intent: x · not read: 3+ words", "pattern: x · not read: 2 words"].every(preSplitPattern)).toBe(true);
+    expect([split, "pattern: intent: x · not read: scorecard, 2", "4215 opr · not read: 1 word", "pattern: intent: x"].some(preSplitPattern)).toBe(false);
   });
 });
 
@@ -481,7 +604,7 @@ describe("GitHub issues (cases 23–30)", () => {
     clock = Date.now() + SETTLE_MS * 2;
     await flushSearchFailures(clock);
     // Filed by its pattern (names and numbers left out), the unread word counted beside it.
-    expect((await rows()).map((r) => r.key)).toEqual(["pattern: intent: unread question · slots: none · read: nothing · not read: 1 word"]);
+    expect((await rows()).map((r) => r.key)).toEqual(["pattern: intent: unread question · slots: none · read: nothing · not read: xyzzyq"]);
     expect(JSON.parse((await all<{ missed: string }>("SELECT missed FROM search_failures"))[0].missed)).toEqual({ xyzzyq: 1 });
     await syncSearchFailures();
     expect(counters.unfiled).toBe(1);
