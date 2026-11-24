@@ -1,17 +1,18 @@
 // Which held-out questions appear word for word in the repo's tests or code (audit M2, 24 Nov). A question that does
-// was seen while building search, so it isn't held out: it belongs in the training set (scripts/search-train.json).
-// The guard test (scripts/search-heldout.test.ts) fails when one does; scripts/search-heldout.ts --split moves them.
+// was seen while building search, so it isn't held out: it belongs in the training set ("train": true in
+// scripts/search-heldout.json). The guard test (scripts/search-heldout.test.ts) fails when one does;
+// scripts/search-heldout.ts --split marks them.
 //
 // Looked through: every .ts/.tsx/.js/.mjs/.json/.txt file under server/, src/, scripts/, packages/ and bot/, the other
-// eval lists aside (they hold questions to ask, not code that answers them): the held-out and training sets themselves,
+// eval lists aside (they hold questions to ask, not code that answers them): the held-out file itself,
 // the sign-off sets (scripts/search-signoff/sets/, set A is the unique200 set) and the latency bench's query list.
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 export const ROOT = join(import.meta.dirname, "..");
 export const SCANNED = ["server", "src", "scripts", "packages", "bot"];
 /** Eval lists: questions to ask, never read by search. */
-export const EVAL_LISTS = [/^scripts\/search-heldout\.json$/, /^scripts\/search-train\.json$/, /^scripts\/search-signoff\/sets\//, /^scripts\/search-bench\//];
+export const EVAL_LISTS = [/^scripts\/search-heldout\.json$/, /^scripts\/search-signoff\/sets\//, /^scripts\/search-bench\//];
 const EXT = /\.(?:ts|tsx|js|mjs|json|txt)$/;
 /** Bigger files are data (seasons' frame timings, packs), not tests or code that reads a question. */
 const MAX_BYTES = 3_000_000;
@@ -30,7 +31,8 @@ export function scannedTexts(root = ROOT): Map<string, string> {
       out.set(rel, readFileSync(p, "utf8").toLowerCase().replace(/\s+/g, " "));
     }
   };
-  for (const d of SCANNED) { try { walk(join(root, d)); } catch { /* a folder this checkout lacks */ } }
+  // A folder this checkout lacks is skipped; any other read error fails loudly, never a silently smaller scan.
+  for (const d of SCANNED) if (existsSync(join(root, d))) walk(join(root, d));
   return out;
 }
 

@@ -11,9 +11,9 @@
 //     the same snapshot.
 // A wrong fact is "wrong answer", a number unlike the team page's "numbers differ from the team page".
 //
-// The held-out sets live in scripts/search-heldout.json ({ set, n, q, want? }). A question that appears word for word
-// in the repo's tests or code isn't held out: it is in the training set, scripts/search-train.json, and the guard test
-// (./search-heldout.test.ts) fails when one gets in. --split moves them.
+// The sets live in scripts/search-heldout.json ({ set, n, q, want?, train? }). A question that appears word for word
+// in the repo's tests or code isn't held out: it is marked "train": true (the training set), and the guard test
+// (./search-heldout.test.ts) fails when a held-out one gets in. --split marks them; one file, so one rename.
 //
 //   npm run search:heldout                    the shipped snapshot, every held-out set
 //   npm run search:heldout -- --set q260 --out .data/heldout.jsonl
@@ -22,7 +22,7 @@
 //   npm run search:heldout -- --min 80        exit 1 below an 80% pass rate (CI, .github/workflows/ci.yml)
 //   npm run search:heldout -- --split         move held-out questions found in tests or code to the training set
 //   DATABASE_URL=file:.data/scout.db npm run search:heldout
-import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { bootSearch, localServer } from "./search-local.js";
 import { gradeWant, wantSeason } from "./search-heldout-grade.js";
@@ -33,35 +33,20 @@ import { answerText, type Live } from "./search-signoff/grade.js";
 const flag = (name: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const SET = flag("set"), OUT = flag("out"), ONLY = flag("only")?.toLowerCase(), MIN = flag("min"), JSON_OUT = flag("json");
 const TRAIN = process.argv.includes("--train");
-type Q = { set: string; n: number; q: string; want?: string };
-const HELD = join(import.meta.dirname, "search-heldout.json"), TRAINING = join(import.meta.dirname, "search-train.json");
-const read = (f: string): Q[] => JSON.parse(readFileSync(f, "utf8"));
-const text = (xs: Q[]) => `[\n${xs.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`;
-/** Both files written in full first, then each moved into place; if any step fails, both are put back as they were,
- *  so a question is never lost and never left in both sets. */
-const writeBoth = (sets: [string, Q[]][]) => {
-  // Each file replaced whole by a rename, never truncated in place: the new contents, or on failure the old ones.
-  const swap = (files: (readonly [string, string])[]) => {
-    for (const [f, t] of files) writeFileSync(`${f}.tmp`, t);
-    for (const [f] of files) renameSync(`${f}.tmp`, f);
-  };
-  const before = sets.map(([f]) => [f, readFileSync(f, "utf8")] as const);
-  try {
-    swap(sets.map(([f, xs]) => [f, text(xs)] as const));
-  } catch (e) {
-    try { swap(before); } finally { for (const [f] of sets) rmSync(`${f}.tmp`, { force: true }); }
-    throw e;
-  }
-};
-/** A --min that isn't a number would turn the floor off: refused instead. */
-if (MIN != null && !Number.isFinite(Number(MIN))) { console.log(`FAIL: --min ${MIN} is not a number`); process.exit(1); }
+// A --min with no number after it would turn the floor off: refused instead.
+if (process.argv.includes("--min") && !Number.isFinite(Number(MIN ?? NaN))) { console.log(`FAIL: --min needs a number (got ${MIN ?? "nothing"})`); process.exit(1); }
+type Q = { set: string; n: number; q: string; want?: string; train?: boolean };
+const FILE = join(import.meta.dirname, "search-heldout.json");
+const all = JSON.parse(readFileSync(FILE, "utf8")) as Q[];
 
 if (process.argv.includes("--split")) {
-  const held = read(HELD), train = read(TRAINING);
-  const found = leaks(held.map((x) => x.q));
-  const moved = held.filter((x) => found.has(x.q));
-  writeBoth([[TRAINING, [...train, ...moved]], [HELD, held.filter((x) => !found.has(x.q))]]);
-  console.log(`moved ${moved.length} of ${held.length} to the training set (now ${train.length + moved.length}); held out: ${held.length - moved.length}`);
+  const found = leaks(all.filter((x) => !x.train).map((x) => x.q));
+  const out = all.map((x) => (!x.train && found.has(x.q) ? { ...x, train: true } : x));
+  // Written whole beside it, then renamed over it: the file is the old one or the new one, never half of either.
+  writeFileSync(`${FILE}.tmp`, `[\n${out.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`);
+  renameSync(`${FILE}.tmp`, FILE);
+  const moved = out.filter((x, i) => x.train && !all[i].train).length;
+  console.log(`moved ${moved} to the training set (now ${out.filter((x) => x.train).length}); held out: ${out.filter((x) => !x.train).length}`);
   process.exit(0);
 }
 
@@ -80,7 +65,7 @@ const { seasonLabel } = await import("../src/shared/format.js");
 const { LEXICON } = await import("../server/api/query/lexicon.js");
 
 const FILLER = new Set(LEXICON.filter((e) => e.syms.every((x) => x.k === "filler")).flatMap((e) => e.words));
-const sets = read(TRAIN ? TRAINING : HELD).filter((x) => (!SET || x.set === SET) && (!ONLY || x.q.toLowerCase().includes(ONLY)));
+const sets = all.filter((x) => !!x.train === TRAIN).filter((x) => (!SET || x.set === SET) && (!ONLY || x.q.toLowerCase().includes(ONLY)));
 
 type Row = Q & { ms: number; intent: string | null; filters: string[]; place: string | null; time: string | null; card: string; stated: boolean; pattern: string; unread: string[];
   graded: "correct" | "wrong" | "unchecked"; wrong: string; numbers: "same" | "differ" | "not compared";

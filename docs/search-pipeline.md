@@ -293,9 +293,9 @@ a `data-understood` attribute only, never page text (§7).
 never built from: the 200 unique queries, the 260-query list, the complex queries and the natural questions.
 
 **Held out means held out** (audit M2, 24 Nov). A question that appears word for word in the repo's tests or code
-was seen while building search, so it is in the training set (`scripts/search-train.json`, 339 questions), not the
-held-out set (`scripts/search-heldout.json`, 252). `scripts/search-heldout.test.ts` fails when a held-out question
-gets into a test or code (`scripts/search-heldout-leaks.ts` says where it looks); `--split` moves such questions.
+was seen while building search, so it is in the training set (marked `"train": true` in
+`scripts/search-heldout.json`, 339 questions), not the held-out set (252). `scripts/search-heldout.test.ts` fails when a held-out question
+gets into a test or code (`scripts/search-heldout-leaks.ts` says where it looks); `--split` marks such questions.
 `--train` runs the training set.
 
 **Graded, not just answered.** The 260-query list's questions carry the answer a person wrote for them (`want`). Its

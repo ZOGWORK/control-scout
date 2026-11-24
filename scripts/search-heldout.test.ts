@@ -9,9 +9,9 @@ import { describe, expect, it } from "vitest";
 import { leaks, scannedTexts } from "./search-heldout-leaks";
 import { gradeWant, wantFacts } from "./search-heldout-grade";
 
-type Q = { set: string; n: number; q: string; want?: string };
-const held = JSON.parse(readFileSync(join(import.meta.dirname, "search-heldout.json"), "utf8")) as Q[];
-const train = JSON.parse(readFileSync(join(import.meta.dirname, "search-train.json"), "utf8")) as Q[];
+type Q = { set: string; n: number; q: string; want?: string; train?: boolean };
+const rows = JSON.parse(readFileSync(join(import.meta.dirname, "search-heldout.json"), "utf8")) as Q[];
+const held = rows.filter((x) => !x.train), train = rows.filter((x) => x.train);
 
 describe("held out means held out", () => {
   it("no held-out question appears word for word in tests or code", () => {
@@ -41,7 +41,7 @@ describe("held out means held out", () => {
   it("looks through tests and code, never the eval lists themselves", () => {
     const paths = [...scannedTexts().keys()];
     expect(paths.some((p) => p.endsWith(".test.ts"))).toBe(true);
-    expect(paths.some((p) => /search-heldout\.json|search-train\.json|search-signoff\/sets\//.test(p))).toBe(false);
+    expect(paths.some((p) => /search-heldout\.json|search-signoff\/sets\//.test(p))).toBe(false);
   });
 });
 
