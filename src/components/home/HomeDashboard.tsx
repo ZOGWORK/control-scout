@@ -5,7 +5,7 @@
 // No headline of any kind (no H1), no slogan, no globe. Every number comes from the same APIs the live Home uses.
 //   - One accent, mint: the live progress, the search focus, the #1 rank, links on hover. Live is red, with the slow
 //     ring (index.css live-ring). Numbers and names are white, labels grey; red and blue stay alliances.
-import { useState } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Radio, Search, Star, Trophy } from "lucide-react";
 import { useApi, qs } from "../../lib/api";
@@ -14,7 +14,6 @@ import { usePersonal } from "../../lib/personal";
 import { matchTime, oddsPct, place, seasonLabel } from "../../lib/format";
 import type { EventListItem, MatchView, SearchHit, TeamSummary } from "../../shared/api";
 import type { RecordsResponse, TeamSeasonRecord } from "../../shared/statCatalog";
-import { HOME_ABOUT } from "../../shared/boot";
 import { SUGGESTION_HOUR_MS, suggestionLabel, suggestionsAt, type HomeSuggestion } from "../../shared/homeSuggestions";
 import { TIER_WORD } from "../../shared/tierWords";
 import { SEARCH_HINT, usePageSearch, useSearch } from "../layout/Search";
@@ -22,6 +21,7 @@ import { SearchBox, hitHref, searchPagePick } from "../search/SearchBox";
 import { glideTo, preloadSearchPage } from "../search/glide";
 import { addRecentSearch } from "../search/discover";
 import { nextMatch } from "./HomeSections";
+import { HomeTips } from "./HomeTips";
 import { myTeamsOf } from "../../lib/myTeams";
 import { cn } from "../cn";
 import { V8_NUM } from "../../lib/v8";
@@ -99,6 +99,16 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
   const [sp] = useSearchParams();
   const query = sp.get("q")?.trim().slice(0, 100) || undefined;
   const [examples] = useState(() => rotatedExamples(visitHour()));
+  // The example chips run like Enter does: the box takes the chip's words, then glides up to /search with them (the
+  // plain, instant navigation where the browser can't glide). A modified click (new tab, new window) stays a link's.
+  const fill = useRef<((text: string) => void) | null>(null);
+  const runExample = (e: MouseEvent<HTMLAnchorElement>, text: string, to: string) => {
+    addRecentSearch(text);
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    fill.current?.(text);
+    glideTo(to, () => nav(to));
+  };
   const teams = yourTeams(myTeamsOf(user).teams.map((t) => t.teamNumber), state.myTeam ?? null, state.tracked?.teams ?? []);
   return (
     <div data-home-dashboard className={cn("relative z-10 mx-auto flex w-full max-w-[72rem] flex-col", framed && "px-5 pb-24 sm:px-8")}>
@@ -110,18 +120,18 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
           label="Search teams, events and matches"
           placeholder="Search teams, events, matches…"
           onPick={(h: SearchHit) => { const to = hitHref(h); return glideTo(to, () => nav(to)); }}
-          glide
+          glide fillRef={fill}
           className="w-full"
           fieldClassName="h-14 rounded-2xl border-ink/15 bg-[#121214]/85 v8light:bg-card/85 [html.dim_&]:bg-card/85 px-5 text-lg shadow-none backdrop-blur max-sm:text-base focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgb(127_209_174/0.18)] [&_[data-search-submit]_svg]:text-text-muted [&_[data-search-submit]:hover]:bg-ink/[0.08]"
         />
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           <span className="text-sm text-text-muted">Try:</span>
-          {examples.map((s) => (
+          {examples.map((s) => { const to = hitHref(searchPagePick(s.q)); return (
             <Link
-              key={s.q} data-example-chip to={hitHref(searchPagePick(s.q))} onClick={() => addRecentSearch(s.q)}
+              key={s.q} data-example-chip to={to} onClick={(e) => runExample(e, s.q, to)} onPointerEnter={preloadSearchPage} onPointerDown={preloadSearchPage}
               data-press className="tap-44 inline-flex h-8 items-center rounded-full border border-ink/15 bg-ink/[0.03] px-3 text-sm text-text-base transition-[color,background-color,border-color,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-ink/30 hover:bg-ink/[0.07] active:scale-[0.97] motion-reduce:active:scale-100"
             >{suggestionLabel(s)}</Link>
-          ))}
+          ); })}
         </div>
       </section>
 
@@ -132,7 +142,7 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
           {teams.length ? <TeamsCard teams={teams} season={season} /> : <PickTeamCard onPick={search.open} />}
         </div>
 
-      <p className="mt-10 text-center text-xs text-text-muted">{HOME_ABOUT}</p>
+      <HomeTips className="mt-10 text-center text-xs text-text-muted" />
     </div>
   );
 }

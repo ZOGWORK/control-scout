@@ -12,8 +12,8 @@ import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { latestStoredSeason, noEventsStat, withoutYear } from "./noEventsYet.js";
 import { edits, findRegions, regionLabel } from "../../../src/shared/regions.js";
 import { eventTypeLabel } from "../../../src/shared/labels.js";
-import { CURRENT_SEASON, SEASON_NUMBERS } from "../../data/seasons.js";
-import { completedSeason, currentSeason, defaultSeason, seasonWhy } from "./season.js";
+import { SEASON_NUMBERS } from "../../data/seasons.js";
+import { completedSeason, currentSeason, defaultSeason, lastSeason, seasonWhy } from "./season.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { teamSetAnswer, twoTeamCompareAnswer } from "../../../src/shared/searchVersus.js";
 import { teamPageSql } from "../../../src/shared/teamPages.js";
@@ -21,7 +21,7 @@ import { all, get } from "../../db.js";
 import { OFFICIAL_ONLY, isOfficialEvent } from "../../../src/shared/eventRecord.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
-import { askSeason, eventWon, readAsk } from "../searchAsks.js";
+import { eventWon, readAsk } from "../searchAsks.js";
 import { defaultSteps, relaxed } from "../query/relax.js";
 import { eventHit, searchToday } from "../searchEvents.js";
 import { namedTeam, versusAnswer } from "../searchCompare.js";
@@ -40,7 +40,7 @@ import { readOverview } from "./families/overview.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, resolveChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
-import { BOARD_STATS, LEADERBOARD_MAX, boardFilterWords, boardPlace, conferenceGroup, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
+import { BOARD_STATS, LEADERBOARD_MAX, boardFilterWords, boardWhere, conferenceGroup, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
 import { readTime } from "../query/time.js";
 import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
 import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
@@ -391,10 +391,12 @@ const TOP_TEAMS_SAID = /\b(?:top|best|strongest)\s+(?:\d{1,2}\s+)?teams?\b/i;
 export async function leagueSearch(q: string, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const la = readLeagueAsk(q);
   if (!la) return null;
-  const season = la.last ? askSeason() - 1 : la.season ?? askSeason();
+  // The current season read once: a search refreshing it during the read never moves the gate below.
+  const current = currentSeason();
+  const season = la.last ? lastSeason() : la.season ?? current;
   const stat = await leagueAskAnswer(la, season, la.season != null || la.last);
   // No league by those words: the pipeline reads it. A season with nothing yet ("… in 2027") says so.
-  if (stat.none && season <= askSeason()) return null;
+  if (stat.none && season <= current) return null;
   return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
     intent: { kind: "stat-league-standings", pattern: `[league] standings${la.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
 }
@@ -406,10 +408,11 @@ export async function conferenceSearch(q: string, opts: { full: boolean; pages: 
   // A conference's whole name alone ("East Bergen") is its table too, unless a team goes by those very words.
   const ca = readConferenceAsk(q) ?? await bareConference(q);
   if (!ca) return null;
-  const got = await conferenceAskAnswer(ca, askSeason());
+  const current = currentSeason();
+  const got = await conferenceAskAnswer(ca, current);
   if (!got) return null;
   const { events, ...answered } = got;
-  const season = Number(/^(\d{4})/.exec(answered.scope[0] ?? "")?.[1]) || askSeason();
+  const season = Number(/^(\d{4})/.exec(answered.scope[0] ?? "")?.[1]) || current;
   // What the answer is about, as cards under it: its tournament, then the team asked about.
   const rows = events?.length ? await all<any>(`SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE ${events.map(() => "(season = ? AND code = ?)").join(" OR ")}`, events.flatMap((e) => [e.season, e.code])) : [];
   const team = answered.team ? (await search(String(answered.team.number), 5)).find((h) => h.kind === "team" && h.ref === String(answered.team!.number)) : undefined;
@@ -506,7 +509,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // Asked to watch ("best teleop videos in romania"): matches to play, never a board of teams (./read.ts WATCH_WORDS).
   const asked = opts.full && !WATCH_WORDS.test(q.toLowerCase()) ? boardOfAsk(q) : null;
   if (asked) {
-    const season = askSeason();
+    const season = currentSeason();
     const a = await boardSearch(q, { ...asked, season }, opts);
     return relaxed(a, defaultSteps(season, asked.region ? ` in ${asked.region.name}` : "", "ranked teams"), (s) => boardSearch(q, { ...asked, season: s }, opts));
   }
@@ -1327,14 +1330,14 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
   if (!st) return null;
   // Conferences as the place ("nj bergen"): named as the card names them, in the board's season.
   const group = b.conference ? await conferenceGroup(b.conference, b.season ?? defaultSeason()) : null;
-  const where = group ? ` in ${group.label}` : b.town ? ` in ${b.town}` : b.region ? ` in ${boardPlace(b)}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
+  const where = group ? ` in ${group.label}` : b.town ? ` in ${b.town}` : b.region ? boardWhere(b) : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
   let label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "oldest" || b.kind === "career" || b.kind === "number" ? careerBoardTitle({ kind: b.kind, stat: st, asc: b.asc }, where || " worldwide"): b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.kind === "gain" ? `Most ${st.id === "rating" ? "prediction rating" : "OPR"} gained${where} between first and last event`: b.undefeated && b.atKind ? `Teams${where} unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.teams ? `${b.teams.length} teams by ${statWords(st)}` : b.undefeated ? `Undefeated teams${where}` : (st.count || b.window) && b.best ? `Team${where} with the most ${statWords(st)}${b.window ? ` ${b.window.label}` : ""}` : b.window ? `Top ${b.n} teams${where} by ${statWords(st)} ${b.window.label}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? (b.climb ? `Teams${where} that climbed from OPR rank ${b.climb.from}+ to the top ${b.climb.to}` : `Most improved teams${where}`) : b.kind === "steady" ? `Most stable OPR${where}: the fewest ups and downs` : b.kind === "phases" ? `Strongest in every phase${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   // A filter on the teams ("name includes “Robot”", "no award ever won") is said in the heading, as on the card.
   const filters = boardFilterWords(b);
   if (filters) label = `${label}: ${filters}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
-    understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region && !b.also?.length ? { place: { key: b.region.key, name: b.region.name } } : {}) },
+    understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region && !b.also?.length && !b.playedIn ? { place: { key: b.region.key, name: b.region.name } } : {}) },
     intent: { kind: `stat-leaderboard-${b.kind}`, pattern: b.kind === "city" ? "teams in [city]" : b.kind === "city-best" ? "best team in [city]" : `${b.kind} [stat]${b.region ? " [place]" : ""}`, met: true, understood: [label] },
   };
   // The search box gets a link to the answer page, never an empty answer.

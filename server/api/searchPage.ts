@@ -39,8 +39,8 @@ export async function finishPageAnswer(ans: SearchAnswer, limit: number, viewer:
   const readVideo = () => answerVideo(full, Date.now(), who).then((v) => v ?? null, () => undefined);
   const [hits, video] = await Promise.all([kept.hits, anyone ? keptVideo(kept, readVideo) : readVideo()]);
   const contributor = carriesContributor(video);
-  // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
-  // none (src/shared/api.ts): the page then says nothing about video.
+  // null: read, and nothing plays (the page then says so); a read that failed sends none (src/shared/api.ts): the
+  // page then says nothing about video.
   return { body: { ...full, hits, ...(video !== undefined ? { video } : {}) }, contributor };
 }
 
