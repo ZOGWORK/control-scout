@@ -9,7 +9,7 @@
 import "../server/env.js";
 import { Client, Events, GatewayIntentBits, Partials, REST, Routes, type APIApplicationCommand } from "discord.js";
 import { env } from "../server/env.js";
-import { configure, db, get } from "../server/db.js";
+import { configure, db, get, kvGet, kvSet } from "../server/db.js";
 import { CURRENT_SEASON } from "../server/data/seasons.js";
 import { liveForecaster, refreshForecasters } from "../server/predict/engine.js";
 import { COMMANDS, sameCommands } from "./commands.js";
@@ -18,7 +18,7 @@ import { notifyTick, type Send } from "./follows.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
 import { rememberGuild } from "./guilds.js";
-import { BAD, DOWN_NOTE, GOOD, downNotes, downVote, serialVotes, vote } from "./reactions.js";
+import { BAD, DOWN_NOTE, GOOD, downNotes, downVote, serialVotes, vote, type DownNoteState } from "./reactions.js";
 import { flushSearchFailures } from "../server/searchFailures.js";
 import { site } from "./lookups.js";
 import { configEmbed, configLines, type Config } from "./config.js";
@@ -193,9 +193,15 @@ const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) =>
   if (emoji !== GOOD && emoji !== BAD) return;
   void serial(reaction.message.id, () => vote(reaction.message.id, emoji, delta)).catch(() => {});
 };
+/** Where the 👎 notes remember what they told and what they still owe (bot/reactions.ts `DownNoteState`), so a
+ *  restart or a deploy neither repeats one nor drops one. */
+const DOWN_NOTE_KEY = "bot:down-note-state";
 /** The answers whose channel has been told what a 👎 does: once per answer, for the vote that filed the question — or
  *  for the next 👎 when that note couldn't be delivered (bot/reactions.ts `downNotes`). */
-const downNote = downNotes();
+const downNote = downNotes(500, (state) => { void kvSet(DOWN_NOTE_KEY, state).catch(() => {}); });
+void kvGet<DownNoteState>(DOWN_NOTE_KEY)
+  .then((state) => { if (state) downNote.hydrate(state); })
+  .catch(() => {});
 /** Say in the channel what a 👎 did, as a reply to the answer (bot/reactions.ts `DOWN_NOTE`): a 👎 files the question,
  *  so it is a report rather than a dislike button, and the people using it should hear that where they used it. Awaited
  *  inside that answer's vote chain (below). A note that can't be delivered is logged, stays owed for a later 👎, and
@@ -208,7 +214,11 @@ const sayDownNote = async (reaction: Counted): Promise<void> => {
     const channel = client.channels.cache.get(channelId)
       ?? (channelId ? await client.channels.fetch(channelId).catch(() => null) : null);
     const canSend = channel as unknown as { isSendable?: () => boolean } | null;
-    if (!channel || !("send" in channel) || canSend?.isSendable?.() === false) { downNote.unsent(id); return; }
+    if (!channel || !("send" in channel) || canSend?.isSendable?.() === false) {
+      downNote.unsent(id);
+      log(`down note failed: ${channelId || "no channel"} is not a channel I can post in`);
+      return;
+    }
     await (channel as unknown as { send: (o: unknown) => Promise<unknown> })
       .send({ content: DOWN_NOTE, allowedMentions: { parse: [], repliedUser: false }, reply: { messageReference: id, failIfNotExists: false } });
     downNote.said(id);
