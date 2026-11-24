@@ -26,22 +26,28 @@ function onlyPlaces(p: Parsed): boolean {
     && !p.finals && !p.leftover.length && !p.scoreCond && !p.withVideo && !p.undefeated && !p.nameHas && !p.conference && (!p.time || p.time.kind === "season");
 }
 
-/** The answer for two places, or null when the question asks something else of them (left to search's other readers). */
-export async function placesAnswer(p: Parsed, stat: string | null, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+/** What a question of two places asks: "side" (each place's average, side by side) or "board" (both places' teams on
+ *  one board), or null when it asks something else of them. `stat`: the board stat said, if any. */
+export function placesAsk(p: Parsed, stat: string | null): "side" | "board" | null {
   if (!p.places || !onlyPlaces(p)) return null;
-  const [a, b] = p.places.list.map(regionOf);
-  const season = p.time?.kind === "season" && p.time.season != null ? p.time.season : null;
-  const mean = p.symbols.includes("agg:mean") || p.symbols.includes("compare");
   // Side by side: "vs" said, or an average asked of either place.
-  if (p.places.join === "vs" || mean) {
+  if (p.places.join === "vs" || p.symbols.includes("agg:mean") || p.symbols.includes("compare")) {
     const st = BOARD_STATS[stat ?? "opr"];
-    if (!st || st.count) return null;
-    return sideBySide(p.q, [a, b], st, season, opts);
+    return st && !st.count ? "side" : null;
   }
   // Both places' teams on one board: "teams" or a stat said ("teams from nj or ny", "best auto in nj or ny").
-  if (!p.symbols.includes("thing:team") && !stat && !p.agg) return null;
+  return p.symbols.includes("thing:team") || stat || p.agg ? "board" : null;
+}
+
+/** The answer for two places, or null when the question asks something else of them (left to search's other readers). */
+export async function placesAnswer(p: Parsed, stat: string | null, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const ask = placesAsk(p, stat);
+  if (!ask || !p.places) return null;
+  const [a, b] = p.places.list.map(regionOf);
+  const season = p.time?.kind === "season" && p.time.season != null ? p.time.season : null;
+  if (ask === "side") return sideBySide(p.q, [a, b], BOARD_STATS[stat ?? "opr"], season, opts, p.places.said === "versus" ? "versus" : "vs");
   const q: LeaderboardQuestion = {
-    kind: "top", stat: stat ?? "opr", n: Math.min(25, p.n ?? 10), region: a, also: [b], city: null, season,
+    kind: "top", stat: stat ?? "opr", n: Math.min(25, p.n ?? 10), region: a, also: [b], alsoWord: p.places.said === "and" ? "and" : "or", city: null, season,
     ...(p.agg === "min" ? { asc: true } : {}),
   };
   return boardSearch(p.q, q, opts);
@@ -50,9 +56,9 @@ export async function placesAnswer(p: Parsed, stat: string | null, opts: { full:
 const fmt = (st: BoardStat, v: number) => (st.unit === "%" ? `${Math.round(v * 100)}%` : v.toFixed(st.digits));
 
 /** Each place's teams' average of the stat in one season (the one said, else the latest both have), never across seasons. */
-async function sideBySide(q: string, places: Region[], st: BoardStat, said: number | null, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer> {
+async function sideBySide(q: string, places: Region[], st: BoardStat, said: number | null, opts: { full: boolean; pages: SearchPageLink[] }, vs: "vs" | "versus"): Promise<SearchAnswer> {
   const names = places.map((r) => r.name);
-  const label = `${names.join(" vs ")}: average ${st.label}`;
+  const label = `${names.join(` ${vs} `)}: average ${st.label}`;
   const read: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(said != null ? { season: said } : {}) },
@@ -73,7 +79,7 @@ async function sideBySide(q: string, places: Region[], st: BoardStat, said: numb
     [...places.flatMap(placeArgs), ...places.flatMap((_, i) => [...whichArgs, i, MIN_TEAMS])]);
   const season = seasonRow[0]?.season ?? null;
   const base = {
-    family: "leaderboard" as const, intent: "places-compare", title: `${names.join(" vs ")} · average ${st.label}${season != null ? `, ${seasonLabel(season)}` : ""}`,
+    family: "leaderboard" as const, intent: "places-compare", title: `${names.join(` ${vs} `)} · average ${st.label}${season != null ? `, ${seasonLabel(season)}` : ""}`,
     scope: [...names, ...(season != null ? [seasonLabel(season)] : [])],
     definition: `A place's average is the mean ${st.label} of its teams that played in the season, by the team's home region or country in FIRST's team directory. Both places are read in the same season: a stat is never compared across seasons.`,
     source: "From the team directory and each team's season stats",

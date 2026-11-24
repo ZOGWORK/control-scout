@@ -39,7 +39,7 @@ export interface Parsed {
   place: (Place & { typed: string }) | null;
   /** Two regions or countries joined ("nj vs texas", "nj or ny"), in the order typed; `place` is the one read first.
    *  `join`: "vs" for a comparison ("vs", "versus", "against", "compared to"), "or" for both together ("or", "and"). */
-  places?: { list: (Place & { typed: string })[]; join: "vs" | "or" };
+  places?: { list: (Place & { typed: string })[]; join: "vs" | "or"; said: string };
   time: TimeSlot | null;
   level: "qual" | "playoff" | null;
   /** The finals only ("closest finals match"), a playoff level too. */
@@ -534,12 +534,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
       return pl && pl.kind !== "city" && pl.name !== p.place!.name && !within(pl, p.place!) && !within(p.place!, pl) ? { ...pl, typed: span.map((t) => t.typed).join(" ") } : null;
     };
-    const joinAt = (j: number): [number, "vs" | "or"] | null => {
+    const joinAt = (j: number): [number, "vs" | "or", string] | null => {
       const w = toks[j]?.w, w2 = toks[j + 1]?.w;
       if (!w || toks[j].used) return null;
-      if (/^(?:vs|versus|v|against)$/.test(w)) return [1, "vs"];
-      if (/^(?:or|and)$/.test(w)) return [1, "or"];
-      if (/^(?:compared|comparing)$/.test(w) && /^(?:to|with)$/.test(w2 ?? "") && !toks[j + 1].used) return [2, "vs"];
+      if (/^(?:vs|versus|v|against)$/.test(w)) return [1, "vs", w];
+      if (/^(?:or|and)$/.test(w)) return [1, "or", w];
+      if (/^(?:compared|comparing)$/.test(w) && /^(?:to|with)$/.test(w2 ?? "") && !toks[j + 1].used) return [2, "vs", `${w} ${w2}`];
       return null;
     };
     const end = placeFrom + placeLen;
@@ -548,13 +548,13 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     for (let len = 4; len >= 1 && !p.places; len--) {
       if (after) {
         const pl = at(end + after[0], end + after[0] + len);
-        if (pl) { p.places = { list: [p.place, pl], join: after[1] }; toks.slice(end, end + after[0] + len).forEach((t) => (t.used = true)); break; }
+        if (pl) { p.places = { list: [p.place, pl], join: after[1], said: after[2] }; toks.slice(end, end + after[0] + len).forEach((t) => (t.used = true)); break; }
       }
       for (const k of [1, 2]) {
         const j = placeFrom - k, before = joinAt(j);
         if (!before || before[0] !== k) continue;
         const pl = at(j - len, j);
-        if (pl) { p.places = { list: [pl, p.place], join: before[1] }; toks.slice(j - len, placeFrom).forEach((t) => (t.used = true)); placeFrom = j - len; break; }
+        if (pl) { p.places = { list: [pl, p.place], join: before[1], said: before[2] }; toks.slice(j - len, placeFrom).forEach((t) => (t.used = true)); placeFrom = j - len; break; }
       }
     }
   }

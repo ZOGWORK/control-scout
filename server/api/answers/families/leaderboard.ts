@@ -82,7 +82,7 @@ export function boardStatFor(id: string, season: number): BoardStat | undefined 
 
 export type BoardKind = "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best" | "career" | "oldest" | "number";
 /** `best`: "best team in New Jersey by OPR", one team asked for: titled so, the next few listed under it. */
-export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; also?: Region[]; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
+export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; also?: Region[]; alsoWord?: "or" | "and"; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
   /** `city` is a school's name: its teams. */
   school?: boolean;
   /** The state or country said with the town: its teams from there only. */
@@ -128,7 +128,7 @@ const fmt = (v: number | null, st: BoardStat) => (v == null ? "–" : st.unit ==
 
 /** The Teams page's season table, filtered and sorted as this list (src/lib/records/urlState.ts reads these). */
 /** The board's place in words: the region, and any said beside it ("New Jersey and New York"). */
-export const boardPlace = (b: Pick<BoardQuestion, "region" | "also">) => (b.region ? [b.region, ...(b.also ?? [])].map((r) => r.name).join(" and ") : null);
+export const boardPlace = (b: Pick<BoardQuestion, "region" | "also" | "alsoWord">) => (b.region ? [b.region, ...(b.also ?? [])].map((r) => r.name).join(` ${b.alsoWord ?? "and"} `) : null);
 
 export function teamsHref(season: number, st: BoardStat, region: Region | null, rookie = false, lowest = false): string | null {
   if (!st.teamsSort) return null;
