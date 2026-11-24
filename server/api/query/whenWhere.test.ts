@@ -56,8 +56,12 @@ describe("when and where asks", () => {
     expect(tiles.kind === "kpis" && tiles.items.map((i) => [i.label, i.value])).toEqual([["Bayside Qualifier", "Feb 14, 2026"], ["Harbor Qualifier", "Jan 10, 2026"]]);
   });
   it("where: the events, each once; a superlative's own match only", async () => {
+    // Every season's table read (an awards list is one table a season).
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'USMDOLD', 'Old Harbor Qualifier', 'Qualifier', 'Town', 'MD', 'USA', '2025-01-11', '2025-01-11', 't')");
+    await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2024, 'USMDOLD', 'Design', 1, 30701)");
+    clearAllCaches();
     const aw = await card("where did 30701 win an award");
-    expect([aw.headline?.value, aw.headline?.sub]).toEqual(["Bayside Qualifier · Harbor Qualifier", "Feb 14, 2026 · Jan 10, 2026"]);
+    expect([aw.headline?.value, aw.headline?.sub]).toEqual(["Bayside Qualifier · Harbor Qualifier · Old Harbor Qualifier", "Feb 14, 2026 · Jan 10, 2026 · Jan 11, 2025"]);
     const hi = await card("where did 30701 score their highest");
     expect([hi.title.startsWith("Where: "), hi.headline?.value, hi.headline?.sub]).toEqual([true, "Bayside Qualifier", "Feb 14, 2026"]);
   });
