@@ -32,6 +32,17 @@ export const V8_TAB_ORDER: Record<EventState, EventTab[]> = {
 /** v8's tab when the address names none: live = Matches, finished = Rankings, upcoming = Teams. */
 export const V8_DEFAULT_TAB: Record<EventState, EventTab> = { live: "matches", finished: "rankings", upcoming: "teams" };
 
+/**
+ * Events that never give awards or play playoffs, by FIRST's type, with the plain words the page says instead of
+ * "not published yet" (issue #2202). A league meet plays qualification matches only: its awards and alliance picks
+ * come at the league tournament (none of the 3,043 finished league meets on record has either).
+ */
+export const NO_AWARDS_NOTE: Readonly<Record<string, { title: string; text: string }>> = {
+  LeagueMeet: { title: "No awards at a league meet", text: "League meets play qualification matches only, so there is no winning alliance and no awards. Both come at the league tournament." },
+};
+/** The note for an event of this type that never has awards, else null (awards may still come). */
+export const noAwardsNote = (type: string | null | undefined) => (type && Object.hasOwn(NO_AWARDS_NOTE, type) ? NO_AWARDS_NOTE[type] : null);
+
 /** A neutral v8 card with a header row (title left, a quiet note or action right). */
 export function FocusCard({ title, aside, children, className, label }: { title: ReactNode; aside?: ReactNode; children: ReactNode; className?: string; label?: string }) {
   return (
@@ -146,10 +157,17 @@ export function FinishedFocus({ d, mine, nameOf, onAll }: { d: EventDetail; mine
   const rankOf = (a: EventDetail["awards"][number]) => (/inspire/i.test(a.name ?? awardLabel(a.type, a.placement)) ? 0 : 1) * 100 + (a.placement ?? 9);
   // The alliance awards (winning / finalist alliance) are the Winners card already: not repeated here.
   const awards = d.awards.filter((a) => !/alliance/i.test(a.name ?? awardLabel(a.type, a.placement))).sort((a, b) => rankOf(a) - rankOf(b)).slice(0, 6);
+  // An event that never has a winner or awards (a league meet) says so once, not with two cards that look unfilled.
+  const none = !won && !d.awards.length ? noAwardsNote(d.event.type) : null;
   return (
     // On a phone the order reads winners, awards, standings, advancing; on a wide screen standings sit on the right.
     <div className="mb-6 grid gap-4 max-sm:mb-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]" data-event-focus="finished">
       <div className="min-w-0 space-y-4 lg:col-start-1">
+        {none ? (
+          <FocusCard title={<span className="inline-flex items-center gap-2"><Award className={cn("size-4 text-text-muted", V8_AWARD)} aria-hidden />Winners and awards</span>} label="Winners and awards">
+            <p className="px-4 py-6 text-sm text-text-muted" data-no-awards>{none.text}</p>
+          </FocusCard>
+        ) : <>
         <FocusCard title={<span className="inline-flex items-center gap-2"><Crown className={cn("size-4 text-text-muted", V8_AWARD)} aria-hidden />Winners</span>} aside={won?.alliance != null ? `Alliance ${won.alliance}` : undefined} label="Winners">
           {won ? (
             <ul className="divide-y divide-line" data-winners>
@@ -171,6 +189,7 @@ export function FinishedFocus({ d, mine, nameOf, onAll }: { d: EventDetail; mine
             </ul>
           ) : <p className="px-4 py-6 text-sm text-text-muted">No awards published yet. They appear after the closing ceremony.</p>}
         </FocusCard>
+        </>}
       </div>
       <FocusCard title="Final standings" aside={<CardLink onClick={() => onAll("rankings")}>Full rankings</CardLink>} label="Final standings" className="self-start lg:col-start-2 lg:row-span-2 lg:row-start-1">
         <TopStandings field={d.field} season={season} mine={mine} />
