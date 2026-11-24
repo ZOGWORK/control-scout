@@ -191,6 +191,18 @@ describe("a follow-up to the tab's last search", () => {
     await brunoAnswer(FOLLOW, { after: "4215 record" });
     expect(asked).toHaveLength(2);
   });
+  it("a failed read of the earlier search's facts is no answer, not an error, and isn't cached", async () => {
+    reply = { text: "Yes." };
+    // The records the facts are read from, gone for a moment (a database error).
+    await run("ALTER TABLE events RENAME TO events_gone");
+    try {
+      expect(await brunoAnswer(FOLLOW, { after: "4215 opr" })).toBeNull();
+    } finally {
+      await run("ALTER TABLE events_gone RENAME TO events");
+    }
+    expect(asked).toHaveLength(0);
+    expect(await brunoAnswer(FOLLOW, { after: "4215 opr" })).toEqual(withPoints(reply));
+  });
   it("an earlier search is never read with a question that doesn't point back", async () => {
     reply = { text: "4215 went to states 2 times." };
     await brunoAnswer(Q, { after: "4215 opr" });
