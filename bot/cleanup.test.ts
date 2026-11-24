@@ -213,6 +213,28 @@ describe("the sweep runs once it finished", () => {
     expect(await kvGet<{ done: boolean }>(SWEEP_KEY)).toMatchObject({ done: true });
   });
 
+  it("leaves a channel it can't see out of the walk, so it can't keep the sweep unfinished", async () => {
+    const reads: string[] = [];
+    const said: string[] = [];
+    /** A channel the bot can read, one it can't see, and a thread it can't see: only the first is walked. */
+    const reader = (id: string, seen: boolean) => ({
+      id,
+      isTextBased: () => true,
+      viewable: seen,
+      messages: { fetch: async () => { reads.push(id); return new Map([["a1", msg("a1", IN_ERA)]]); } },
+    });
+    const client = {
+      user: { id: BOT },
+      guilds: { cache: new Map([["g1", { id: "g1", channels: {
+        fetch: async () => new Map([["open", reader("open", true)], ["private", reader("private", false)]]),
+        fetchActiveThreads: async () => ({ threads: new Map([["t", reader("t", false)]]) }),
+      } }]]) },
+    } as unknown as Client;
+    expect(await sweepOldThumbs(client, (m) => said.push(m))).toMatchObject({ channels: 1, removed: 1, failed: 0 });
+    expect(reads).toEqual(["open"]);
+    expect(await kvGet<{ done: boolean }>(SWEEP_KEY)).toMatchObject({ done: true });
+  });
+
   it("doesn't sweep without the bot's own id: nothing could match, so nothing is recorded", async () => {
     const reads: string[] = [];
     const said: string[] = [];

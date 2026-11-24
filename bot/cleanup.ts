@@ -155,9 +155,15 @@ async function places(client: Client, log: (m: string) => void, only?: string): 
   for (const guild of client.guilds.cache.values()) {
     if (only && guild.id !== only) continue;
     const channels = await guild.channels.fetch().catch((e) => missed(`${guild.id}'s channels`, e));
-    for (const ch of channels?.values() ?? []) if (ch?.isTextBased()) add(ch);
+    for (const ch of channels?.values() ?? []) {
+      if (!ch?.isTextBased()) continue;
+      // A channel it can't see isn't walked: there is nothing it may read there, and one such channel would keep the
+      // sweep unfinished (and asking for a permission that fixes nothing) on every start.
+      if ("viewable" in ch && !ch.viewable) continue;
+      add(ch);
+    }
     const active = await guild.channels.fetchActiveThreads().catch((e) => missed(`${guild.id}'s active threads`, e));
-    for (const t of active?.threads.values() ?? []) if (t?.isTextBased()) add(t);
+    for (const t of active?.threads.values() ?? []) if (t?.isTextBased() && t.viewable !== false) add(t);
   }
   return { channels: out, unreadable };
 }

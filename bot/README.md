@@ -318,7 +318,7 @@ https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applic
 - Permissions `2147567680` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Read Message History
   (65536) + Use Application Commands (2147483648). Nothing else: the bot manages nothing and joins voice. It reads a
   channel's recent messages once, on the first start after 8.0.2, to take its own stale 👎s off its answers
-  (`bot/cleanup.ts`, below), and otherwise only the messages that @mention it. A server that invited the bot before
+  (`bot/cleanup.ts`, above), and otherwise only the messages that @mention it. A server that invited the bot before
   7.9.2 has no Add Reactions, so its answers get no 👍 until the bot is re-invited with this link; a server that
   invited it before 8.0.2 has no Read Message History, so the stale 👎s stay until then (the bot logs which channels
   it can't read and asks again on every start). Nothing else changes for either.
