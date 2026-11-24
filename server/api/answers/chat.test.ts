@@ -56,6 +56,10 @@ describe("a reaction (#2215)", () => {
     expect(r.hits).toEqual([]);
     expect(r.card?.title).toBe("Nothing to look up in that");
   });
+  it("said to Bruno by name is still a reaction, never the About card", () => {
+    expect(chatKind("thanks bruno")).toBe("reaction");
+    expect(chatKind("who is your creator?")).toBe("meta");
+  });
   it("a team named by it alone is still that team", async () => {
     const r = await full("lol");
     expect(r.chat).toBeUndefined();

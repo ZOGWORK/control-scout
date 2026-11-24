@@ -16,7 +16,9 @@ import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
 import { BrunoAnswer, afterKey, brunoKey, useBrunoAsks, type BrunoMemo } from "../components/search/BrunoAnswer";
-import { lastSearch, rememberSearch } from "../lib/lastSearch";
+import { forgetSearch, lastSearch, rememberSearch } from "../lib/lastSearch";
+import { MINE } from "../shared/searchMine";
+import { usePersonal } from "../lib/personal";
 import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
@@ -223,10 +225,17 @@ export default function SearchPage() {
   // tab's last search, Bruno answers it from that search's records, above the card saying search reads each search
   // alone. With no last search, the card says it needs the team or event, and he isn't asked.
   const followFrom = useMemo(() => (answer?.chat === "follow-up" ? lastSearch(query) : null), [answer?.chat, query]);
-  // Every other search the tab answered is the one a follow-up after it reads.
-  const settled = !!query && !busy && !stale && !error && !!answer && !answer.chat && found;
-  // With the season picked on its answer (?in=), so the follow-up reads the records that were on screen.
-  useEffect(() => { if (settled) rememberSearch(query, picked); }, [settled, query, picked]);
+  // Every other search the tab settled is the one a follow-up after it reads: answered, it's remembered as it was
+  // asked (the season picked on its answer, ?in=, and the My team a "my"/"our" search was sent with), so the
+  // follow-up reads the records that were on screen; found nothing, the last search is cleared, never an older one
+  // read in its place. A chat answer (a reaction, a question to the site, a follow-up) is no search and leaves it.
+  const settled = !!query && !busy && !stale && !error && !!answer && !answer.chat;
+  const myTeam = usePersonal().state.myTeam;
+  const askedMy = myTeam && MINE.test(query) ? myTeam : null;
+  useEffect(() => {
+    if (!settled) return;
+    if (found) rememberSearch(query, picked, askedMy); else forgetSearch();
+  }, [settled, found, query, picked, askedMy]);
   const answered = !!answer && !answer.weak && !!(answer.card || answer.stat) && !followFrom;
   // v8: a question search has no direct answer to (a names reading, a list, a fallback) is Bruno's to answer: his card
   // leads the page, its slot held from the first frame (the owner, 11-23). A computed summary keeps his card where it was.

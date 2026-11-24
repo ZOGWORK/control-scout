@@ -60,7 +60,7 @@ export type BrunoMemo = Map<string, { text: string | null; points: string[] }>;
  *  `answered`: search's own answer card (a card or stat answer, not a guess) already says it, and his card beside it
  *  would say the same thing twice. */
 /** A follow-up's earlier search, with its picked season, as one part of brunoKey. */
-export const afterKey = (a: LastSearch | null | undefined) => (a ? `${a.q}\n${a.season ?? ""}` : "");
+export const afterKey = (a: LastSearch | null | undefined) => (a ? `${a.q}\n${a.season ?? ""}\n${a.my ?? ""}` : "");
 
 export function BrunoAnswer({ q, prefer = "", after = null, ready, answered = false, lead = false, memo, onOutcome, className, children }: { q: string; prefer?: string; after?: LastSearch | null; ready: boolean; answered?: boolean; lead?: boolean; memo?: BrunoMemo; onOutcome?: (key: string, said: boolean) => void; className?: string; children?: ReactNode }) {
   const query = q.trim();
@@ -70,7 +70,7 @@ export function BrunoAnswer({ q, prefer = "", after = null, ready, answered = fa
   const asks = willAsk && confirmed && ready;
   // An answer belongs to its question and the preferred teams it was read with: either changing hides it.
   const key = brunoKey(query, prefer, afterKey(after));
-  const afterQ = after?.q ?? "", afterSeason = after?.season ?? null;
+  const afterQ = after?.q ?? "", afterSeason = after?.season ?? null, afterMy = after?.my ?? null;
   const [state, setState] = useState<{ key: string; text: string | null; points: string[] }>(() => {
     const known = memo?.get(key);
     return known ? { key, ...known } : { key: "", text: null, points: [] };
@@ -83,7 +83,7 @@ export function BrunoAnswer({ q, prefer = "", after = null, ready, answered = fa
     let live = true;
     const stop = new AbortController();
     const t = setTimeout(() => {
-      const url = `/api/search/bruno?q=${encodeURIComponent(query)}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}${afterQ ? `&after=${encodeURIComponent(afterQ)}${afterSeason != null ? `&afterSeason=${afterSeason}` : ""}` : ""}`;
+      const url = `/api/search/bruno?q=${encodeURIComponent(query)}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}${afterQ ? `&after=${encodeURIComponent(afterQ)}${afterSeason != null ? `&afterSeason=${afterSeason}` : ""}${afterMy != null ? `&afterMy=${afterMy}` : ""}` : ""}`;
       // Only what he answered is kept for the page's other card: a failed ask is asked again next time.
       const show = (r: BrunoAnswerBody | null) => {
         const v = { text: r?.text?.trim() ? r.text : null, points: r?.points ?? [] };
@@ -99,7 +99,7 @@ export function BrunoAnswer({ q, prefer = "", after = null, ready, answered = fa
         .catch(() => { if (live) apiFetch<BrunoAnswerBody | null>(url).then(show).catch(none); });
     }, BRUNO_SETTLE_MS);
     return () => { live = false; clearTimeout(t); stop.abort(); };
-  }, [asks, query, prefer, afterQ, afterSeason, key, memo]);
+  }, [asks, query, prefer, afterQ, afterSeason, afterMy, key, memo]);
   // A slot held for an ask the server never confirms (the flags didn't load) is let go, as if he had nothing to add.
   const waiting = lead && willAsk && ready && !confirmed;
   useEffect(() => {

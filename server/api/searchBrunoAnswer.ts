@@ -19,6 +19,8 @@ import { answerVideo } from "./answers/video.js";
 import { normalize } from "./fuzzy.js";
 import { cleanQuery, searchAnswer, type AnswerOptions } from "./searchAnswer.js";
 import { chatWords, pointsBack } from "./query/chat.js";
+import { mineAnswer } from "./searchMine.js";
+import { MINE } from "../../src/shared/searchMine.js";
 
 export const BRUNO_ANSWER_TIMEOUT_MS = 12_000;
 /** At most this many facts, and this much text in all: a small, fast prompt. */
@@ -174,7 +176,7 @@ export function ungrounded(text: string, facts: string[], question: string): str
 /** The page's search choices, and `after`: the search a follow-up points back at ("was that the same in all the
  *  matches you said": the tab's last search), whose answer gives his facts. Taken only for a follow-up
  *  (./query/chat.ts pointsBack), so every other question is answered from its own search as before. */
-export type BrunoOptions = Pick<AnswerOptions, "prefer" | "limit" | "learn"> & { after?: string };
+export type BrunoOptions = Pick<AnswerOptions, "prefer" | "limit" | "learn"> & { after?: string; afterMy?: number | null };
 
 /** The earlier search a follow-up reads, or null: only for a question that points back, never the question itself. */
 export function followUpOf(q: string, after: string | undefined): string | null {
@@ -194,7 +196,7 @@ export async function brunoAnswer(raw: string, opts: BrunoOptions = {}, now = Da
   if (!(await isEnabled(flag).catch(() => false)) || !brunoAvailable()) return null;
   // `learn: false` (the Discord bot): his facts come from the same unlearned search the bot shows, kept apart.
   const after = followUpOf(q, opts.after);
-  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}${after ? `|after:${normalize(after)}` : ""}`;
+  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}${after ? `|after:${normalize(after)}${opts.afterMy != null && MINE.test(after) ? `|my:${opts.afterMy}` : ""}` : ""}`;
   const hit = cache.get(k);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.answer;
   let flight = pending.get(k);
@@ -274,14 +276,18 @@ export function previewOf(raw: string, facts: string[], question: string): Bruno
 }
 
 async function ask(q: string, opts: BrunoOptions, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
-  const { after, ...search } = opts;
+  const { after, afterMy, ...search } = opts;
   // A follow-up is answered from the search it points back at: that search's facts, said as its. A failed read of
   // them (a database error) is no answer, as a failed model call is, never an error to the page; not cached.
   let facts: string[];
   try {
-    facts = after
-      ? [`This question follows up the earlier search "${after}": the facts below are that search's answer.`, ...(await answerFacts(await searchAnswer(after, { ...search, learn: search.learn ?? true })))]
-      : await answerFacts(await searchAnswer(q, { ...search, learn: search.learn ?? true }));
+    const read = (x: string) => searchAnswer(x, { ...search, learn: search.learn ?? true });
+    if (after) {
+      // "My"/"our" read for the My team it was asked with, as /api/search reads it (./searchMine.ts).
+      const base = await read(after);
+      const mine = afterMy != null ? await mineAnswer(after, base, afterMy, read) : null;
+      facts = [`This question follows up the earlier search "${after}": the facts below are that search's answer.`, ...(await answerFacts(mine ?? base))];
+    } else facts = await answerFacts(await read(q));
   } catch (e) {
     console.warn("[search] Bruno's facts unavailable:", (e as Error).message?.slice(0, 120));
     return null;

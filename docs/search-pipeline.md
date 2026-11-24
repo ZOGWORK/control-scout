@@ -294,11 +294,13 @@ A query search finds nothing in may not be a search of FTC data at all (`server/
 
 - **follow-up**: it points back at an earlier answer ("… the matches you said here", "your last answer"). Its card
   says search reads each search on its own and needs the team or event. /search keeps the tab's last answered search
-  (`src/lib/lastSearch.ts`, sessionStorage, memory when storage refuses) with the season picked on its answer, and asks
-  Bruno with both (`after`, `afterSeason`): he answers from that search's records, in that season.
+  (`src/lib/lastSearch.ts`, sessionStorage, memory when storage refuses) as it was answered: the season picked on its
+  answer and, for "my"/"our", the My team it was asked with. Bruno is asked with them (`after`, `afterSeason`,
+  `afterMy`) and answers from that search's records, read as the page read them. A search that found nothing clears
+  it (a follow-up never reads an older one), and one older than 30 minutes isn't read.
   A spelling's guess never stands in for it ("said" read as another word).
-- **meta**: addressed to the site or Bruno ("who made you"), with no data word: what Control Scout and Bruno are,
-  in the FAQ's words.
+- **meta**: addressed to the site or Bruno and asking something ("who made you"), with no data word: what Control
+  Scout and Bruno are, in the FAQ's words. Thanks said to Bruno is a reaction.
 - **off-topic**: where to get something ("where do i get a <part>"), with no data word: not in FTC results, and where
   FIRST's rules for robot parts are.
 - **reaction**: laughter or thanks with no data word ("lol"): nothing to look up, never teams sharing a word with it.
