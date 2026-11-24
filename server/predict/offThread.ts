@@ -28,7 +28,9 @@ export type ToRebuildWorker =
   | { t: "rebuild"; id: number; anchor: number; seasons: number[]; have: Record<string, string> }
   /** The last slice is taken in: send the next. */
   | { t: "ack" }
-  | { t: "reset" };
+  | { t: "reset" }
+  /** Close the database and end: this process is stopping (stop). */
+  | { t: "stop" };
 export type PartKind = "events" | "whole" | "table";
 export type FromRebuildWorker =
   /** One slice of a part: events (an array to append), whole (the value), table (entries of one of its maps). */
@@ -37,7 +39,9 @@ export type FromRebuildWorker =
   | { t: "done"; id: number; parts: { name: string; kind: PartKind; hash: string | null }[]; meta: { regionByCode: [string, string][]; regions: string[]; partnershipComplete: boolean } }
   | { t: "error"; id: number; error: string }
   /** The finished seasons' pair history finished building on the worker (engine.ts rebuilds the forecasters that went without it). */
-  | { t: "prefixReady"; before: number };
+  | { t: "prefixReady"; before: number }
+  /** The database is closed and the worker is done (the reply to "stop"). */
+  | { t: "stopped" };
 
 /** The worker's entry: build/server/forecasterWorker.mjs next to the server bundle, or the source through tsx. */
 export const rebuildWorkerEntry = (moduleUrl = import.meta.url, execArgv: readonly string[] = process.execArgv) =>
@@ -65,12 +69,42 @@ export const rebuildWorkerAlive = () => worker != null;
 /** Called when the worker's pair-history prefix finishes building (engine.ts registers its handler). */
 export function onWorkerPrefixReady(fn: (before: number) => void): void { prefixListener = fn; }
 
-function stop(reason: Error): void {
+/** How many workers closed their database and said so (tests): a stop that had to end the thread instead doesn't. */
+let closes = 0;
+/** Worker closes the worker acknowledged (tests), rather than the thread being ended under it. */
+export const rebuildWorkerCloses = () => closes;
+
+/** The stop budget: a worker that doesn't answer "stop" in this long is ended anyway (nothing waits on it). */
+const CLOSE_MS = 2000;
+
+/** Asked to close its database and end, then ended: the connection is closed on the thread that opened it. A thread
+ *  ended with a libsql connection still open leaves it to a finalizer that runs on a dying thread, and the native
+ *  driver aborts the whole process there — the SIGABRT that took a vitest shard down with this file (libsql-js's
+ *  teardown crash, `PendingException` in neon). */
+function close(w: Worker): Promise<void> {
+  return new Promise<void>((done) => {
+    let over = false;
+    const finish = () => {
+      if (over) return;
+      over = true;
+      clearTimeout(timer);
+      void w.terminate().then(() => done(), () => done());
+    };
+    const timer = setTimeout(finish, CLOSE_MS);
+    timer.unref();
+    w.once("message", (m: FromRebuildWorker) => { if (m.t === "stopped") { closes++; finish(); } });
+    w.once("error", finish);
+    w.once("exit", finish);
+    try { w.postMessage({ t: "stop" } satisfies ToRebuildWorker); } catch { finish(); }
+  });
+}
+
+function stop(reason: Error): Promise<void> {
   const w = worker;
   worker = null;
   workerFile = null;
   for (const [id, p] of pending) { clearTimeout(p.timer); pending.delete(id); p.reject(reason); }
-  if (w) void w.terminate();
+  return w ? close(w) : Promise.resolve();
 }
 
 function start(file: string): Worker {
@@ -78,8 +112,8 @@ function start(file: string): Worker {
   const w = new Worker(url, { workerData: { file }, ...(execArgv ? { execArgv } : {}) });
   w.unref(); // a script or test that's done exits without stopping it
   w.on("message", (m: FromRebuildWorker) => { if (worker === w) onMessage(m); });
-  w.once("error", (e) => { if (worker === w) stop(e); });
-  w.once("exit", (code) => { if (worker === w) stop(new Error(`forecaster rebuild worker exited with code ${code}`)); });
+  w.once("error", (e) => { if (worker === w) void stop(e); });
+  w.once("exit", (code) => { if (worker === w) void stop(new Error(`forecaster rebuild worker exited with code ${code}`)); });
   worker = w;
   workerFile = file;
   return w;
@@ -87,6 +121,8 @@ function start(file: string): Worker {
 
 function onMessage(m: FromRebuildWorker): void {
   if (m.t === "prefixReady") { prefixListener(m.before); return; }
+  // The stop acknowledgement belongs to `close`, not to a rebuild.
+  if (m.t === "stopped") return;
   const p = pending.get(m.id);
   if (m.t === "chunk") {
     if (p) take(p, m);
@@ -189,7 +225,7 @@ export async function replayOffThread(anchor: number, seasons: number[], timeout
   if (hereOnly) return null;
   const file = await localDbFile();
   if (!file) return null;
-  if (worker && workerFile !== file) stop(new Error("database changed"));
+  if (worker && workerFile !== file) void stop(new Error("database changed"));
   const w = worker ?? start(file);
   const id = nextId++;
   runs++;
@@ -197,7 +233,7 @@ export async function replayOffThread(anchor: number, seasons: number[], timeout
   const had = new Map<string, { hash: string; value: unknown }>();
   for (const [key, v] of held) if (key.startsWith(`${anchor}|`)) { const name = key.slice(`${anchor}|`.length); have[name] = v.hash; had.set(name, v); }
   return new Promise<ForecasterParts>((resolve, reject) => {
-    const timer = setTimeout(() => stop(new Error(`forecaster rebuild took over ${Math.round(timeoutMs / 1000)} s`)), timeoutMs);
+    const timer = setTimeout(() => void stop(new Error(`forecaster rebuild took over ${Math.round(timeoutMs / 1000)} s`)), timeoutMs);
     timer.unref();
     pending.set(id, { resolve, reject, anchor, got: new Map(), had, timer });
     w.postMessage({ t: "rebuild", id, anchor, seasons, have } satisfies ToRebuildWorker);
@@ -210,5 +246,5 @@ export function resetOffThread(): void {
   worker?.postMessage({ t: "reset" } satisfies ToRebuildWorker);
 }
 
-/** Stop the worker (tests). */
-export function stopRebuildWorker(): void { stop(new Error("stopped")); held.clear(); }
+/** Stop the worker (tests), its database closed on its own thread first; resolves once the thread is gone. */
+export function stopRebuildWorker(): Promise<void> { held.clear(); return stop(new Error("stopped")); }
