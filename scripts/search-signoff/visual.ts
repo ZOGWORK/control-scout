@@ -34,6 +34,8 @@ const arg = (f: string) => { const i = argv.indexOf(`--${f}`); return i >= 0 ? a
 const LOCAL_PORT = 3387;
 const BASE = (arg("base") ?? `http://localhost:${LOCAL_PORT}`).replace(/\/$/, "");
 const MAX_CLS = arg("max-cls") != null ? Number(arg("max-cls")) : null;
+/** Loads after the first for a page over its layout shift ceiling (the gate is the best of 1 + RELOADS). */
+const RELOADS = 2;
 const BUDGET: ClsBudget | null = arg("cls") ? JSON.parse(readFileSync(arg("cls")!, "utf8")) : null;
 const started = performance.now();
 const OUT = arg("out") ?? join(tmpdir(), "control-scout-signoff", `shots-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}`);
@@ -200,9 +202,10 @@ for (const v of VIEWS) {
     const ceiling = MAX_CLS == null ? null : clsCeiling(BUDGET, it.q, v.name, MAX_CLS);
     const over = (r: { issues: string[]; cls: number | null }) => ceiling != null && (r.cls == null || r.cls > ceiling);
     let seen = await look(it, png);
-    // Gated, a page over its ceiling is loaded once more and the lower reading kept: when a late part lands moves its
-    // shifts in or out of one burst, so one load can read high by chance. A page over it twice is over it.
-    if (over(seen)) { const again = await look(it, png); if (!over(again) || (again.cls ?? Infinity) < (seen.cls ?? Infinity)) seen = again; }
+    // Gated, a page over its ceiling is loaded up to RELOADS more times and the lowest reading kept: when a late part
+    // lands moves its shifts in or out of one burst, so one load can read high by chance (phone readings of one page
+    // ran 0.049–0.271 across runs on 24 Nov). A page over it on every load is over it.
+    for (let k = 0; k < RELOADS && over(seen); k++) { const again = await look(it, png); if (!over(again) || (again.cls ?? Infinity) < (seen.cls ?? Infinity)) seen = again; }
     const { cls } = seen, issues = [...seen.issues];
     if (over(seen) && !issues.some((i) => i.startsWith("page failed"))) issues.push(cls == null ? "layout shift not measured" : `layout shift ${cls.toFixed(3)} > ${ceiling}`);
     checks.push({ id: it.id, q: it.q, view: v.name, issues, png, cls, ceiling });
