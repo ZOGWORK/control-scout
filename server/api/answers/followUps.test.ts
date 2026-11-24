@@ -17,7 +17,7 @@ import { canonicalQuery } from "../../../src/lib/meta";
 import { RELATED_QUERY_MAX, followApiPath, relatedApiPath } from "../../../src/shared/search";
 import { MAX_QUERY } from "../searchAnswer";
 import type { SearchAnswer, SearchFollowUp } from "../../../src/shared/api";
-import { answerKey, candidates, followUps, followUpsWithin, keptFollowUps, lineOf, type Progress, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
+import { aheadCount, answerKey, candidates, followUps, followUpsWithin, keptFollowUps, lineOf, precomputeFollowUps, type Progress, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -413,4 +413,26 @@ describe("the follow-ups' time budget (followUpsWithin)", () => {
     clearAllCaches();
     expect(await followUpsWithin("4215 vs 6980", new Set(), 60_000)).toEqual(direct);
   });
+});
+
+describe("follow-ups made ahead (precomputeFollowUps)", () => {
+  it("are served at once, the same set followUps makes, until the search index moves", async () => {
+    clearAllCaches();
+    const { kvSet } = await import("../../db");
+    await kvSet("search:version", "ahead-1");
+    await new Promise((ok) => setTimeout(ok, 2_100));
+    expect(await precomputeFollowUps(["4215", "6980"])).toBe(2);
+    expect(aheadCount()).toBe(2);
+    const direct = await followUps("4215", await pageAnswer("4215", 25, new Set()));
+    clearAllCaches();
+    // Ready with no time at all: made ahead.
+    expect(await followUpsWithin("4215", new Set(), 0)).toEqual(direct);
+    // A stats run moves the index: no longer served (made again as any search's).
+    await kvSet("search:version", "ahead-2");
+    await new Promise((ok) => setTimeout(ok, 2_100));
+    expect((await followUpsWithin("4215", new Set(), 0)).partial).toBe(true);
+    // Made again for the new index, the old ones dropped.
+    expect(await precomputeFollowUps(["6980"])).toBe(1);
+    expect(aheadCount()).toBe(1);
+  }, 60_000);
 });

@@ -6,11 +6,14 @@ import { kvSet, migrate, openDb, setDb } from "../db";
 
 const made: string[] = [];
 let moves = 0;
-vi.mock("./searchReads.js", () => ({ keptGeneration: () => moves }));
+let index = "v1";
+const ahead: string[][] = [];
+vi.mock("./searchReads.js", () => ({ keptGeneration: () => moves, searchVersion: async () => index }));
 vi.mock("./answers/followUps.js", () => ({
+  precomputeFollowUps: async (qs: string[]) => { ahead.push([...qs]); return qs.length; },
   pageAnswer: async (q: string, limit: number) => { made.push(`${q}|${limit}`); return { q, hits: [], pages: [], step: "deterministic", weak: false }; },
 }));
-const { HOT_MAX, hotList, noteAsked, saveHot, warmHot } = await import("./searchWarm");
+const { HOT_MAX, hotList, noteAsked, precomputeHot, saveHot, warmHot } = await import("./searchWarm");
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -88,5 +91,17 @@ describe("most-asked searches", () => {
       delete (made as { push?: unknown }).push;
     }
     expect(made).toEqual(["moved|25", "moved|25"]);
+  });
+  it("makes the most-asked searches' follow-ups ahead once per search index, the page's own searches only", async () => {
+    await db.kvSet("search:hot:one", [["4215", 25], ["dropdown", 12], ["top teams", 25]]);
+    ahead.length = 0;
+    expect(await precomputeHot()).toBe(2);
+    expect(ahead).toEqual([["4215", "top teams"]]);
+    // The same index: nothing again. Two asks at once: one run.
+    expect(await precomputeHot()).toBe(0);
+    index = "v2";
+    const [x, y] = await Promise.all([precomputeHot(), precomputeHot()]);
+    expect([x, y]).toEqual([2, 2]);
+    expect(ahead.length).toBe(2);
   });
 });

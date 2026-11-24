@@ -11,7 +11,7 @@ import { normalise, parseQuery, type Parsed } from "../query/parse.js";
 import { parseContext } from "../query/context.js";
 import { names } from "../query/names.js";
 import { AWARD_WORDS, LEXICON } from "../query/lexicon.js";
-import { keptAnswer } from "../searchReads.js";
+import { keptAnswer, searchVersion } from "../searchReads.js";
 import { searchAnswer } from "../searchAnswer.js";
 import { loneTeamHit } from "../searchLayers.js";
 import { forecasterBuilds } from "../../predict/engine.js";
@@ -43,6 +43,9 @@ export const keptFollowUps = (q: string, prefer: ReadonlySet<string> = new Set()
 /** The follow-ups for `q` within `ms`: the whole kept set when it's ready by then, else what's been checked so far,
  *  marked `partial` (never kept: the whole set is still being made, and is kept once it's done). */
 export async function followUpsWithin(q: string, prefer: ReadonlySet<string> = new Set(), ms = FOLLOW_BUDGET_MS): Promise<SearchFollowUps> {
+  // Made ahead for this search index (precomputeFollowUps): served at once, nothing made while anyone waits.
+  const early = await aheadOf(followKey(q, prefer));
+  if (early) return early;
   const whole = keptFollowUps(q, prefer);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<null>((ok) => { timer = setTimeout(ok, ms, null); });
@@ -53,6 +56,39 @@ export async function followUpsWithin(q: string, prefer: ReadonlySet<string> = n
   const now = making.get(followKey(q, prefer))?.now?.();
   return { ask: [], related: [], ...now, partial: true };
 }
+
+/** Follow-up sets made ahead of time for the most-asked searches (precomputeFollowUps, the search audit's S9), by key,
+ *  each with the search index version it was made under ("search:version", moved by each stats run). */
+const ahead = new Map<string, { version: string; value: SearchFollowUps }>();
+
+/** The set made ahead under `key` for the search index in use, if there is one. */
+async function aheadOf(key: string): Promise<SearchFollowUps | undefined> {
+  const a = ahead.get(key);
+  return a && a.version === (await searchVersion()) ? a.value : undefined;
+}
+
+/** Make the follow-ups of each of `qs` (searches any visitor shares: no preferred teams) ahead of time, for the search
+ *  index in use, one set at a time with every check of theirs `later` (behind every live search's questions), so
+ *  People also ask for the most-asked searches is there at once. Sets made for an older index are dropped once these
+ *  are made. Stops early (keeping what's made) if the index moves meanwhile. Returns how many were made. */
+export async function precomputeFollowUps(qs: readonly string[]): Promise<number> {
+  const version = await searchVersion();
+  const none: ReadonlySet<string> = new Set();
+  let made = 0;
+  for (const q of qs) {
+    if ((await searchVersion()) !== version) break;
+    try {
+      const value = await followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, none), none, undefined, true);
+      ahead.set(followKey(q, none), { version, value });
+      made++;
+    } catch { /* the next one */ }
+  }
+  for (const [k, v] of ahead) if (v.version !== version) ahead.delete(k);
+  return made;
+}
+
+/** How many sets are made ahead right now (tests). */
+export const aheadCount = () => ahead.size;
 
 /** At most this many questions are shown, and this many candidates run to find them. */
 export { ASK_MAX };
@@ -319,7 +355,7 @@ export async function initialsUpper(p: Parsed): Promise<Parsed> {
  *  RELATED_MAX short searches about what the questions didn't cover. Each is one search answers directly, with its
  *  answer's own line; none answers what another, the search itself or one the page already offers does. Only the
  *  first CHECK_MAX candidates are run for each: fewer follow-ups, never a slower page. */
-export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set(), progress?: Progress): Promise<SearchFollowUps> {
+export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set(), progress?: Progress, background = false): Promise<SearchFollowUps> {
   const read = await initialsUpper(await parseQuery(q, await parseContext(Date.now(), prefer)));
   // A name several teams still share holds an arbitrary first one: no follow-up is about it (../query/shared.ts).
   // A number the answer read as something else is no team: when the answer says how it read the query (its intent's
@@ -341,7 +377,8 @@ export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<
   // visitor's 40 checks never hold another's behind them. Its related searches and highlights, shown after its
   // questions, wait for every search's questions first (`later`).
   const lane = `f${++lanes}`;
-  const run = (x: string, later = false) => inTurns(() => pageAnswer(x, SEARCH_PAGE_LIMIT, prefer), lane, later).catch(() => null);
+  // Made ahead (`background`: precomputeFollowUps): every check `later`, behind live searches' questions.
+  const run = (x: string, later = false) => inTurns(() => pageAnswer(x, SEARCH_PAGE_LIMIT, prefer), lane, later || background).catch(() => null);
   const askC = all.filter((c) => !c.chip).slice(0, start ? START_ASK_CHECK : CHECK_MAX).map((c) => ({ ...c, run: c.q }));
   // Each check's answer as it comes (undefined: still to run), for what's been checked so far (progress).
   const askDone: (SearchAnswer | null | undefined)[] = askC.map(() => undefined);
