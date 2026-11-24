@@ -26,6 +26,7 @@ import { ownerOf } from "./owner.js";
 import { GITHUB_REPO, GithubError, fenced, gh, refused, takeReportSlot } from "./errorReports.js";
 import { FALLBACK_NOTE, searchKey, searchOutcome, traceOf, type OutcomeResult } from "./api/searchLayers.js";
 import { failurePattern } from "./api/query/pattern.js";
+import { REPRODUCE_PARAM, REPRODUCE_VALUE } from "./testTraffic.js";
 import type { SearchAnswer } from "../src/shared/api.js";
 
 // --- What counts as a failed search (brief §12.1) ---------------------------------------------------------------
@@ -243,8 +244,9 @@ interface Buffered { key: string; legacy: string; count: number; first: number; 
 
 const pending = new Map<string, Pending>();
 const buffer = new Map<string, Buffered>();
-/** Counters for the log line and tests: dropped (buffer full), skipped (all personal data), limited (per-IP cap), unfiled (GitHub writes that failed). */
-export const counters = { dropped: 0, skipped: 0, limited: 0, unfiled: 0 };
+/** Counters for the log line and tests: dropped (buffer full), skipped (all personal data), limited (per-IP cap),
+ *  unfiled (GitHub writes that failed), test (our own traffic, server/testTraffic.ts: never logged). */
+export const counters = { dropped: 0, skipped: 0, limited: 0, unfiled: 0, test: 0 };
 
 const related = (a: string, b: string) => a.startsWith(b) || b.startsWith(a);
 
@@ -308,7 +310,7 @@ function commit(client: string, p: Pending) {
 }
 
 /** Tests: forget what's waiting and buffered. */
-export function resetSearchFailures() { pending.clear(); buffer.clear(); Object.assign(counters, { dropped: 0, skipped: 0, limited: 0, unfiled: 0 }); pausedUntil = 0; opened = { day: "", n: 0 }; }
+export function resetSearchFailures() { pending.clear(); buffer.clear(); Object.assign(counters, { dropped: 0, skipped: 0, limited: 0, unfiled: 0, test: 0 }); pausedUntil = 0; opened = { day: "", n: 0 }; }
 
 // --- Store --------------------------------------------------------------------------------------------------------
 
@@ -463,7 +465,9 @@ export function failureTitle(key: string): string {
   return `Failed search: ${inert(key.length > TITLE_MAX ? `${key.slice(0, TITLE_MAX - 1)}…` : key)}`;
 }
 
-export const reproduceUrl = (q: string) => `${SITE}/search?q=${encodeURIComponent(q)}`;
+/** The link an issue gives to try the query again. `from=issue` marks the page's own search as our test traffic
+ *  (server/testTraffic.ts), so opening it never counts as a visitor's failure. */
+export const reproduceUrl = (q: string) => `${SITE}/search?q=${encodeURIComponent(q)}&${REPRODUCE_PARAM}=${REPRODUCE_VALUE}`;
 /** The query to try again: the latest one as typed (redacted), never the key, which drops filler and may answer. */
 const latestTyped = (r: Pick<Row, "examples" | "key">) => (JSON.parse(r.examples) as string[])[0] ?? r.key;
 

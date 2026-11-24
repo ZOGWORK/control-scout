@@ -97,13 +97,14 @@ import { pushRouter } from "./push/routes.js";
 import { digestRouter } from "./digest/routes.js";
 import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
-import { failureOf, keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, searchFailuresRouter } from "./searchFailures.js";
+import { counters as failureCounters, failureOf, keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, searchFailuresRouter } from "./searchFailures.js";
 import { supporters } from "./sponsors.js";
 import { statusNow } from "./uptime.js";
 import { packsRouter } from "./packs/routes.js";
 import { bundleRouter } from "./packs/bundle.js";
 import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, rateLimiter, statsRouter } from "./analytics.js";
 import { visitorIp } from "./visitorIp.js";
+import { isTestTraffic } from "./testTraffic.js";
 import { vitalsRouter } from "./vitals.js";
 import { onboardingStatsRouter } from "./onboardingStats.js";
 import { abuseMonitor } from "./moderation.js";
@@ -452,11 +453,16 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // Failed searches → GitHub issues (server/searchFailures.ts): after the answer, in memory only, never awaited.
       // The key is the failure's pattern (patternFor, worked out only for an answer that failed), else search's own
       // key for the query (keyFor), off the answer path too. A success is still noted: it supersedes the visitor's
-      // unfinished failed query.
+      // unfinished failed query. Keyed by the visitor (CF-Connecting-IP from Cloudflare, server/visitorIp.ts), never
+      // Cloudflare's edge, which many visitors share. Our own traffic (the X-CS-Test header, a Reproduce link's page:
+      // server/testTraffic.ts) is counted and left out.
+      const test = isTestTraffic(req, q);
+      const client = visitorIp(req);
       void reportingOn().then(async (on) => {
         if (!on) return;
+        if (test) { failureCounters.test++; return; }
         const p = failureOf(q, ans, trace) ? await patternFor(q) : null;
-        noteSearch(q, ans, req.ip ?? "?", trace, at, p?.key ?? (await keyFor(q)), p?.missed);
+        noteSearch(q, ans, client, trace, at, p?.key ?? (await keyFor(q)), p?.missed);
       }).catch(() => {});
       // A lone team's highlights, the rows' numbers and the answer's video (server/api/searchPage.ts). Who's asking (for
       // the videos) is read beside the highlights, not after them.

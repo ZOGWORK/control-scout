@@ -14,7 +14,8 @@ import http from "k6/http";
 import { check } from "k6";
 import { SharedArray } from "k6/data";
 
-const BASE = __ENV.BASE || "https://controlscout.org";
+// A local server unless BASE is named outright; every request carries the test header (server/testTraffic.ts).
+const BASE = __ENV.BASE || "http://127.0.0.1:3000";
 const HOLD = __ENV.HOLD || "2m";
 const COLD = __ENV.CACHE === "cold";
 const secs = (d) => (d.endsWith("m") ? 60 * parseFloat(d) : parseFloat(d));
@@ -38,7 +39,7 @@ export const options = {
 export default function () {
   const q = QUERIES[Math.floor(Math.random() * QUERIES.length)];
   const cold = COLD ? `&prefer=team:${900000 + Math.floor(Math.random() * 99999)}` : "";
-  const r = http.get(`${BASE}/api/search?q=${encodeURIComponent(q)}&limit=40&answer=1${cold}`, { headers: { "user-agent": "cs-signoff-k6" }, timeout: "30s" });
+  const r = http.get(`${BASE}/api/search?q=${encodeURIComponent(q)}&limit=40&answer=1${cold}`, { headers: { "user-agent": "cs-signoff-k6", "x-cs-test": "1" }, timeout: "30s" });
   check(r, { "status 200": (x) => x.status === 200 });
 }
 
