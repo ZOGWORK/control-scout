@@ -45,8 +45,8 @@ export function EventTree({ f, open: first, onOpen }: { f: EventFamily; open: bo
   const members = familyMembers(f);
   return (
     <section aria-label={`${f.name}, ${season}`} data-event-family={f.key} data-status={status} className="relative overflow-hidden rounded-xl border border-border bg-card sm:col-span-full v8:border-line">
-      {/* The status's thick bar (v8 too: the owner's "exaggerate the colour"), in its v8 hue. */}
-      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1.5", tone.bar, V8_STATUS[status].dot)} data-status-bar />
+      {/* The status's bar, thin in v8 (the owner, 11-24), in its v8 hue. */}
+      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1.5 v8:w-0.5", tone.bar, V8_STATUS[status].dot)} data-status-bar />
       <div className={cn("grid gap-x-6 gap-y-3 py-4 pl-6 pr-4 lg:grid-cols-[280px_minmax(0,1fr)] v8:p-5 v8:lg:grid-cols-[18rem_minmax(0,1fr)]", !open && "v8:lg:grid-cols-1")}>
         <header className="min-w-0" data-family-parent>
           <div className="flex items-start gap-3">

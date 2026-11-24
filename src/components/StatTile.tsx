@@ -63,7 +63,7 @@ export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, s
   action?: string;
   className?: string;
   /** The icon chip's own colours, over the tone's (search's palette: a filled chip in the tile's meaning). Kept
-   *  filled in v8 too (search answers: the owner's "exaggerate the colour"), so it carries its own `v8:` colours. */
+   *  kept in v8 too (search answers: a soft chip in its meaning), so it carries its own `v8:` colours. */
   chip?: string;
 }) {
   const t = TONES[tone];

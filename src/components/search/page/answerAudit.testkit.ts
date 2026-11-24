@@ -170,9 +170,8 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
 // classic classes, can pass while v8 paints the card grey: the rules, off-topic and shared-name pages were 1–6%
 // saturated (search audit 11-24, U2). The owner's rule (11-06, "exaggerate the colour") holds in v8 too: every card
 // has a saturated hue, and its headline number and stat numbers are in a colour, never plain ink.
-/** Hues that read as colour on a v8 card. Slate-blue accent counts for a team's own number (the owner, 11-19), but a
- *  card needs one of the saturated families as well. */
-const V8_SATURATED = /^(red|orange|amber|yellow|lime|green|emerald|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|live|info|success|danger|video|team-[abc](-text)?|(red|blue)-alliance(-text|-ink)?)$/;
+/** Hues that read as colour on a v8 card, the slate-blue accent among them (the owner, 11-24: "accent colours"). */
+const V8_SATURATED = /^(accent|accent-text|red|orange|amber|yellow|lime|green|emerald|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|live|info|success|danger|video|team-[abc](-text)?|(red|blue)-alliance(-text|-ink)?)$/;
 const V8_PROPS = /^!?(text|bg|border-l|border|stroke|fill|ring)-/;
 
 /** The colour family each property of `el` paints in v8 dark: a `v8:` class wins over a `dark:` one, which wins over a
