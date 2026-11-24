@@ -195,22 +195,25 @@ const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) =>
 };
 /** The answers whose channel has been told what a 👎 does: once per answer, and only for the vote that made its count
  *  1 (bot/reactions.ts `downNotes`). */
-const worthNoting = downNotes();
+const downNote = downNotes();
 /** Say in the channel what a 👎 did, as a reply to the answer (bot/reactions.ts `DOWN_NOTE`): a 👎 files the question,
- *  so it is a report rather than a dislike button, and the people using it should hear that where they used it. A note
- *  that can't be sent is logged and never touches the vote. */
-const sayDownNote = (reaction: Counted): void => {
-  void worthNoting(reaction.message.id)
-    .then((say) => {
-      if (!say) return;
-      const channel = client.channels.cache.get(reaction.message.channelId ?? "");
-      // A channel the bot can't post in (or isn't cached): the vote stands, and nothing is said.
-      if (!channel || !("send" in channel)) return;
-      return (channel as unknown as { send: (o: unknown) => Promise<unknown> })
-        .send({ content: DOWN_NOTE, allowedMentions: { parse: [], repliedUser: false }, reply: { messageReference: reaction.message.id, failIfNotExists: false } })
-        .catch(() => {});
-    })
-    .catch((e) => log(`down note failed: ${(e as Error)?.message ?? String(e)}`));
+ *  so it is a report rather than a dislike button, and the people using it should hear that where they used it. Awaited
+ *  inside that answer's vote chain (below), so a second 👎 can't raise the count past 1 while this vote is deciding;
+ *  a note that can't be sent is logged, frees the answer for a later try, and never touches the vote. */
+const sayDownNote = async (reaction: Counted): Promise<void> => {
+  const id = reaction.message.id;
+  if (!(await downNote.worth(id))) return;
+  try {
+    const channel = client.channels.cache.get(reaction.message.channelId ?? "");
+    // A channel the bot can't post in (or isn't cached): the vote stands, the note is owed to a later vote.
+    if (!channel || !("send" in channel)) { downNote.unsent(id); return; }
+    await (channel as unknown as { send: (o: unknown) => Promise<unknown> })
+      .send({ content: DOWN_NOTE, allowedMentions: { parse: [], repliedUser: false }, reply: { messageReference: id, failIfNotExists: false } });
+    downNote.said(id);
+  } catch (e) {
+    downNote.unsent(id);
+    log(`down note failed: ${(e as Error)?.message ?? String(e)}`);
+  }
 };
 /** A 👎 added: counted, and — on an answer's first one — the question it answered is filed in the site's failed-search
  *  queue (bot/reactions.ts `downVote`, written with the vote). A person saying the answer was wrong is the one failure
@@ -218,7 +221,8 @@ const sayDownNote = (reaction: Counted): void => {
  *  again, and the queue counts a repeat as a repeat. */
 const disliked = (reaction: Counted, user: { bot?: boolean }) => {
   if (user.bot) return;
-  void serial(reaction.message.id, async () => { await downVote(reaction.message.id); sayDownNote(reaction); }).catch(() => {});
+  void serial(reaction.message.id, async () => { await downVote(reaction.message.id); await sayDownNote(reaction); })
+    .catch((e) => log(`down vote failed: ${(e as Error)?.message ?? String(e)}`));
 };
 client.on(Events.MessageReactionAdd, (r, u) => {
   if (r.emoji.name === BAD) { disliked(r as Counted, u); return; }

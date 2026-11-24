@@ -60,17 +60,35 @@ export async function firstDown(messageId: string): Promise<boolean> {
 }
 
 /** Which answers' channels have been told what a 👎 does, and whether this vote is the one to tell them: once per
- *  answer, and only for the vote that made its count 1 (bot/index.ts). */
+ *  answer, and only for the vote that made its count 1 (bot/index.ts).
+ *
+ *  `worth` claims the answer while the note is being sent, so two 👎 arriving together say it once; `said` keeps it, and
+ *  `unsent` frees it — a channel that couldn't be posted in, or a send Discord refused, leaves the note owed rather than
+ *  spent. At most `max` answers are remembered: past that the oldest is forgotten, so a vote taken off and added again on
+ *  one of them can say it once more — a repeat, never a missing one. */
 export function downNotes(isFirst: (messageId: string) => Promise<boolean> = firstDown, max = 500) {
   const told = new Set<string>();
-  return async (messageId: string): Promise<boolean> => {
-    if (told.has(messageId)) return false;
-    if (!(await isFirst(messageId))) return false;
-    // Two votes at once both read 1: only the first to get here says it.
-    if (told.has(messageId)) return false;
-    told.add(messageId);
-    if (told.size > max) told.delete(told.values().next().value!);
-    return true;
+  const claimed = new Set<string>();
+  return {
+    /** Whether this vote is the one to say it for: not said before, not being said, and the count is 1 now. */
+    async worth(messageId: string): Promise<boolean> {
+      if (told.has(messageId) || claimed.has(messageId)) return false;
+      if (!(await isFirst(messageId))) return false;
+      // Two votes at once can both read 1: only the first to get here claims it.
+      if (told.has(messageId) || claimed.has(messageId)) return false;
+      claimed.add(messageId);
+      return true;
+    },
+    /** It was said: never again for this answer in this process. */
+    said(messageId: string): void {
+      claimed.delete(messageId);
+      told.add(messageId);
+      if (told.size > max) told.delete(told.values().next().value!);
+    },
+    /** It couldn't be said: a later 👎 on the same answer may try again. */
+    unsent(messageId: string): void {
+      claimed.delete(messageId);
+    },
   };
 }
 
