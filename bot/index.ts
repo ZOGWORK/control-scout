@@ -221,7 +221,7 @@ const sayDownNote = async (reaction: Counted): Promise<void> => {
       ?? (channelId ? await client.channels.fetch(channelId).catch(() => null) : null);
     const canSend = channel as unknown as { isSendable?: () => boolean } | null;
     if (!channel || !("send" in channel) || canSend?.isSendable?.() === false) {
-      downNote.unsent(id);
+      downNote.owe(id);
       log(`down note failed: ${channelId || "no channel"} is not a channel I can post in`);
       return;
     }
@@ -229,7 +229,7 @@ const sayDownNote = async (reaction: Counted): Promise<void> => {
       .send({ content: DOWN_NOTE, allowedMentions: { parse: [], repliedUser: false }, reply: { messageReference: id, failIfNotExists: false } });
     downNote.said(id);
   } catch (e) {
-    downNote.unsent(id);
+    downNote.owe(id);
     log(`down note failed: ${(e as Error)?.message ?? String(e)}`);
   }
 };
@@ -243,7 +243,11 @@ const disliked = (reaction: Counted, user: { bot?: boolean }) => {
     const { filed } = await downVote(reaction.message.id);
     // Said when the vote filed the question — never later for an answer with nothing to file, and again for a note an
     // earlier 👎 owed but couldn't deliver.
-    if (downNote.due(reaction.message.id, filed)) await sayDownNote(reaction);
+    if (!downNote.due(reaction.message.id, filed)) return;
+    // Owed before it is sent: a restart between the filing and the send must still owe the note, since the count is
+    // already past 1 and no later vote would be told about it.
+    downNote.owe(reaction.message.id);
+    await sayDownNote(reaction);
   }).catch((e) => log(`down vote failed: ${(e as Error)?.message ?? String(e)}`));
 };
 client.on(Events.MessageReactionAdd, (r, u) => {
