@@ -4,7 +4,9 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 
-export interface HeldOut { set: string; n: number; q: string }
+/** A shared entry may also carry the answer a person wrote (`want`) and `train` (found in tests or code: the training
+ *  set, ./search-heldout.test.ts). */
+export interface HeldOut { set: string; n: number; q: string; want?: string; train?: boolean }
 
 /** A file's JSON. Each failure names the file and says what it is: one that can't be read (missing, a folder), or
  *  one that isn't JSON (a truncated set file). */
@@ -17,7 +19,10 @@ function parsed(path: string, name: string): unknown {
 /** A shared entry as the runner reads one: a set, a number, a question. */
 const isEntry = (x: unknown): x is HeldOut => {
   const e = x as Partial<HeldOut> | null;
-  return !!e && typeof e === "object" && typeof e.set === "string" && !!e.set.trim() && Number.isInteger(e.n) && typeof e.q === "string" && !!e.q.trim();
+  return !!e && typeof e === "object" && typeof e.set === "string" && !!e.set.trim() && Number.isInteger(e.n) && typeof e.q === "string" && !!e.q.trim()
+    // A want that isn't words would crash the grading after the whole boot; a train that isn't true or false ("false")
+    // would take a question out of the held-out run with no word said.
+    && (e.want === undefined || typeof e.want === "string") && (e.train === undefined || typeof e.train === "boolean");
 };
 
 /** Every held-out question, the shared file's first, then each set's own file by name. Throws, naming the file, on a
@@ -28,7 +33,7 @@ export function heldoutSets(dir: string = import.meta.dirname): HeldOut[] {
   const shared = parsed(join(dir, "search-heldout.json"), "scripts/search-heldout.json");
   if (!Array.isArray(shared)) throw new Error("scripts/search-heldout.json: a list of { set, n, q } entries");
   const bad = shared.findIndex((x) => !isEntry(x));
-  if (bad >= 0) throw new Error(`scripts/search-heldout.json: entry ${bad + 1} isn't { set, n, q } with a question`);
+  if (bad >= 0) throw new Error(`scripts/search-heldout.json: entry ${bad + 1} isn't { set, n, q } with a question (and a want in words, train true or false)`);
   // The folder is where every set since the shared file's is: missing, those sets would be missing with no word said.
   const folder = join(dir, "heldout");
   if (!existsSync(folder)) throw new Error("scripts/heldout/ is missing: the held-out sets added since search-heldout.json live there");
