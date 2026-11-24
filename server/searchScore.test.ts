@@ -81,7 +81,8 @@ describe("POST /api/collect/search", () => {
     expect(r).toMatchObject({ screen: "phone", entry: "app", searches: 3, direct: 1, sorry: 1, page: 1, re_search: 1, via_related: 1, timed: 2, total_ms: 2220, max_ms: 1800, b3: 1 });
   });
   it("accepts and doesn't count test traffic, bots, headless browsers or privacy signals", async () => {
-    for (const h of [{ "X-CS-Test": "1" }, { "User-Agent": HEADLESS }, { "User-Agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" }, { "Sec-GPC": "1" }, { DNT: "1" }]) {
+    const skipped: Record<string, string>[] = [{ "X-CS-Test": "1" }, { "User-Agent": HEADLESS }, { "User-Agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" }, { "Sec-GPC": "1" }, { DNT: "1" }];
+    for (const h of skipped) {
       expect((await post(beacon(), h)).status).toBe(204);
     }
     expect(await rows()).toEqual([]);
