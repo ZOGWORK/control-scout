@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
@@ -154,6 +154,16 @@ describe("the frame reader", () => {
     // The bottom bar where it always is: the usual row, already read. No room over a bar at the very top.
     expect(rowAbove({ top: 612 }, usual)).toBeNull();
     expect(rowAbove({ top: 10 }, usual)).toBeNull();
+  });
+
+  it("reads the row's left half only where the right names no match (ROBUQ2 2022's bar)", () => {
+    // ROBUQ2 ksvPRJRbu3s at 9000 s: the right half names the event, the left the match.
+    const right = "ENT  ROBUCHAREST #2 - FTC + POWERZ)PIaY GEE,", left = "FIRST ZN=R@i]= asa Qualification 49 of 125";
+    expect(rowLabel(leftHalf(right, left), null)).toBe("Q49");
+    // A right half naming the match keeps it, whatever the left says.
+    expect(leftHalf("Qualification 8 of 23", "Qualification 49 of 125")).toBe("Qualification 8 of 23");
+    // Neither naming one: the right, as before.
+    expect(leftHalf(right, "FIRST ENERGIZE")).toBe(right);
   });
 
   it("names the match the bar's row names on its own, on a shared stream only with this division's name", () => {
