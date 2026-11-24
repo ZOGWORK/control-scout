@@ -1,0 +1,78 @@
+// What a query is when it isn't about FTC data (docs/search-pipeline.md, "Chat and off-topic"): a question to the site
+// itself ("who made you"), a question about an earlier answer ("was that the same in all the matches you said"), a
+// question about getting something ("where do i get a <part>"), or a reaction ("lol"). Read only when search found
+// nothing in the query (server/api/searchAnswer.ts), so a query search answers is never read here. Every word comes
+// from the lexicon (CHAT_WORDS); none of it names a team, an event or a query.
+import { CHAT_WORDS, INFORMAL, LEXICON } from "./lexicon.js";
+
+export type ChatKind = "follow-up" | "meta" | "off-topic" | "reaction";
+
+/** Symbols that say nothing about FTC data: a query with only these (and unread words) asks nothing search holds. */
+const NOT_DATA = new Set(["filler", "prep", "future"]);
+const DATA_PHRASES = LEXICON.filter((e) => e.syms.some((s) => !NOT_DATA.has(s.k))).map((e) => e.words);
+const SHORT_FORMS = INFORMAL.map(([from, to]) => [from.split(" "), to.split(" ")] as const);
+const phrases = (ps: string[]) => ps.map((p) => p.split(" "));
+
+/** The query's words, lower case, informal short forms said in full ("u" → "you"). */
+export function chatWords(q: string): string[] {
+  const ws = q.toLowerCase().replace(/['’]/g, "").split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const out: string[] = [];
+  for (let i = 0; i < ws.length;) {
+    const short = SHORT_FORMS.find(([from]) => from.every((w, k) => ws[i + k] === w));
+    if (short) { out.push(...short[1]); i += short[0].length; } else out.push(ws[i++]);
+  }
+  return out;
+}
+
+/** Where each phrase of `ps` starts in `ws`. */
+const at = (ws: string[], ps: string[][]) => ws.flatMap((_, i) => ps.filter((p) => p.every((w, k) => ws[i + k] === w)).map((p) => ({ i, end: i + p.length })));
+const has = (ws: string[], ps: string[][]) => at(ws, ps).length > 0;
+
+/** Whether any word asks about FTC data: a number, or a lexicon phrase that reads as a metric, a thing, a scope… */
+export function asksData(ws: string[]): boolean {
+  return ws.some((w) => /\d/.test(w)) || has(ws, DATA_PHRASES);
+}
+
+const SAYER = phrases(CHAT_WORDS.sayer), SAID = phrases(CHAT_WORDS.said), THERE = new Set(CHAT_WORDS.there);
+const EARLIER = new Set(CHAT_WORDS.earlier), ANSWER = new Set(CHAT_WORDS.answerWord);
+
+/** A query pointing back at an earlier answer: "you said", "u just told me", "the matches listed here", "your last
+ *  answer". Its words may name data ("the same auto points"): that data is the earlier answer's. */
+export function pointsBack(ws: string[]): boolean {
+  // Who said it, then saying (one word may sit between: "you just said").
+  for (const s of at(ws, SAYER)) {
+    for (const d of at(ws, SAID)) if (d.i === s.end || d.i === s.end + 1) return true;
+  }
+  // Saying, then where it was said: "said here", "listed above".
+  for (const d of at(ws, SAID)) if (THERE.has(ws[d.end])) return true;
+  // The earlier answer named: "your last answer", "the previous search".
+  return ws.some((w, i) => EARLIER.has(w) && ANSWER.has(ws[i + 1]));
+}
+
+const ADDRESSEE = phrases(CHAT_WORDS.addressee), REACTION = phrases(CHAT_WORDS.reaction), QUESTION = new Set(CHAT_WORDS.question);
+const ACQUIRE = new Set(CHAT_WORDS.acquire), ASKER = new Set(CHAT_WORDS.asker), MODAL = new Set(CHAT_WORDS.modal);
+
+/** "Where do i get", "where can we buy", "where to order": a question about getting hold of something. */
+function asksWhereToGet(ws: string[]): boolean {
+  return ws.some((w, i) => {
+    if (w !== "where") return false;
+    const [a, b, c] = ws.slice(i + 1, i + 4);
+    return (a === "to" && ACQUIRE.has(b)) || (MODAL.has(a) && ASKER.has(b) && ACQUIRE.has(c));
+  });
+}
+
+/** What `q` is, when it isn't a search of FTC data; null when it may be one. */
+export function chatKind(q: string): ChatKind | null {
+  const ws = chatWords(q);
+  if (!ws.length) return null;
+  if (pointsBack(ws)) return "follow-up";
+  if (asksData(ws)) return null;
+  if (asksWhereToGet(ws)) return "off-topic";
+  // Addressed to the site ("who made you", "tell me about bruno"). With thanks or laughter in it, only when it asks a
+  // question ("thanks bruno, who made you?"): "thank you", "thanks a lot bruno" is a reaction, whatever words it adds.
+  const addressed = has(ws, ADDRESSEE), reacted = has(ws, REACTION);
+  const asked = /\?\s*$/.test(q) || ws.some((w) => QUESTION.has(w));
+  if (addressed && (!reacted || asked)) return "meta";
+  if (reacted) return "reaction";
+  return null;
+}

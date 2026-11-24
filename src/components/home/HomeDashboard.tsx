@@ -24,7 +24,6 @@ import { addRecentSearch } from "../search/discover";
 import { nextMatch } from "./HomeSections";
 import { myTeamsOf } from "../../lib/myTeams";
 import { cn } from "../cn";
-import { eventMorphKey, MorphScope, teamMorphKey, useMorphCard, warmEvent, warmTeam } from "../CardMorph";
 import { V8_NUM } from "../../lib/v8";
 import { v8Rank } from "../../lib/v8colour";
 import { V8_PHASE } from "../../lib/records/describe";
@@ -127,14 +126,11 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
       </section>
 
       {/* Three cards of the same weight. On a phone, your teams come first when you have any. */}
-      {/* A tapped event or team card grows into its page (src/components/CardMorph.tsx); Top teams stays a ranking list. */}
-      <MorphScope name="home">
         <div className={cn("grid gap-4 lg:grid-cols-3", framed ? "mt-20 max-sm:mt-12" : "mt-16 max-sm:mt-10")}>
           <LiveCard season={season} />
           <TopTeamsCard season={season} />
           {teams.length ? <TeamsCard teams={teams} season={season} /> : <PickTeamCard onPick={search.open} />}
         </div>
-      </MorphScope>
 
       <p className="mt-10 text-center text-xs text-text-muted">{HOME_ABOUT}</p>
     </div>
@@ -195,13 +191,12 @@ function LiveRow({ e }: { e: EventListItem }) {
   const share = e.matchesTotal > 0 ? Math.min(1, e.matchesPlayed / e.matchesTotal) : 0;
   const where = place(e.city, e.state, e.country);
   const href = `/events/${e.season}/${encodeURIComponent(e.code)}`;
-  const morph = useMorphCard(eventMorphKey(e.season, e.code), href, () => warmEvent(e.season, e.code));
   return (
     <li data-live-event>
-      <Link to={href} {...morph} className={cn(rowLink, "py-2")}>
+      <Link to={href} className={cn(rowLink, "py-2")}>
         <Radio className="size-4 shrink-0 text-live" aria-hidden />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium group-hover:underline" title={e.name} data-morph-title>{e.name}</span>
+          <span className="block truncate text-sm font-medium group-hover:underline" title={e.name}>{e.name}</span>
           {e.matchesTotal > 0 && e.matchesPlayed > 0 ? (
             <span className="mt-1.5 flex items-center gap-2">
               <span className="h-1 flex-1 overflow-hidden rounded-full bg-ink/10" aria-hidden>
@@ -321,12 +316,11 @@ function OneTeam({ team, season, t, loaded }: { team: number; season: number; t:
   const next = sched.data ? nextMatch(sched.data.matches) : undefined;
   const pWin = next ? callFor(next, team) : null;
   const eventName = next && t?.nextEvent?.code === next.code ? t.nextEvent.name : next?.code;
-  const morph = useMorphCard(teamMorphKey(team), `/teams/${team}`, () => warmTeam(team));
   return (
     <>
-      <Link to={`/teams/${team}`} {...morph} className="group -mt-1 flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
+      <Link to={`/teams/${team}`} className="group -mt-1 flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
         {/* The name and place sit centred on the big number, not hung from its baseline. */}
-        <span data-morph-title className={cn("font-display text-4xl leading-none font-semibold tabular-nums", V8_NUM)}>{team}</span>
+        <span className={cn("font-display text-4xl leading-none font-semibold tabular-nums", V8_NUM)}>{team}</span>
         <span className="min-w-0">
           <span className="block truncate font-medium group-hover:underline">{t?.name ?? (loaded ? `Team ${team}` : " ")}</span>
           {t?.place && <span className="block truncate text-xs text-text-muted">{t.place}</span>}
@@ -403,11 +397,10 @@ function TeamRow({ team, season, t, loaded }: { team: number; season: number; t:
   const sched = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
   const next = sched.data ? nextMatch(sched.data.matches) : undefined;
   const pWin = next ? callFor(next, team) : null;
-  const morph = useMorphCard(teamMorphKey(team), `/teams/${team}`, () => warmTeam(team));
   return (
     <li data-your-team>
-      <Link to={`/teams/${team}`} {...morph} className={cn(rowLink, "py-1.5")}>
-        <span data-morph-title className={cn("w-14 shrink-0 font-display text-base font-semibold tabular-nums", V8_NUM)}>{team}</span>
+      <Link to={`/teams/${team}`} className={cn(rowLink, "py-1.5")}>
+        <span className={cn("w-14 shrink-0 font-display text-base font-semibold tabular-nums", V8_NUM)}>{team}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium group-hover:underline">{t?.name ?? (loaded ? `Team ${team}` : " ")}</span>
           <span data-team-next className="block truncate text-xs text-text-muted">

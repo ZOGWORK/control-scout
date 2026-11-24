@@ -8,6 +8,7 @@ import { explainAnswer, explainTeamAnswer, placeTeamsAnswer, rewriteQuery, teamL
 import { CURRENT_SEASON } from "../data/seasons";
 import { pageMeta } from "../seoMeta";
 import { seasonLabel } from "../../src/shared/format";
+import { informalQuery } from "../../src/shared/query/lexicon";
 
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
@@ -553,7 +554,8 @@ describe("failed-search issues (11-04)", () => {
     expect(rewriteQuery("top auto opr decode")?.q).toBe("top 10 teams by auto opr 2025-26");
     expect(rewriteQuery("best auto opr in 2025-26")?.q).toBe("top 10 teams by auto opr 2025-26"); // "in" is never a place
     const now = seasonLabel(CURRENT_SEASON).replace("–", "-");
-    for (const q of ["events", "events this season", "events ths", "all events"]) expect(rewriteQuery(q)?.q, q).toBe(`events in ${now}`); // #515
+    // "ths" is said in full before any reader sees it (src/shared/query/lexicon.ts INFORMAL), as search does.
+    for (const q of ["events", "events this season", "events ths", "events thsi", "all events"]) expect(rewriteQuery(informalQuery(q, () => false))?.q, q).toBe(`events in ${now}`); // #515
     expect(rewriteQuery("meets")?.q).toBe(`meets in ${now}`);
     expect(rewriteQuery("event horizon")).toBeNull(); // a team's name stays one
     expect(rewriteQuery("jackson division dcode")?.q).toBe("jackson division 2025-26"); // #518
