@@ -443,7 +443,7 @@ export default function SearchPage() {
                   : answer?.card && !inStat ? <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />
                   : null}
                 {/* A compound question's other parts, each its own card, in the order asked. */}
-                {!teamAnswer && <ClauseCards clauses={answer?.clauses} />}
+                <ClauseCards clauses={answer?.clauses} />
                 {!answer?.stat && !answer?.card && !teamAnswer && <AnswerVideo className="mt-0 max-sm:mx-0" />}
                 {reel === "under" && <HighlightReel stat={answer!.stat!} className="mt-5" />}
                 <FollowChips lead={ax?.sorry ? [] : ax?.suggest} ask={askAside ? [] : follow.ask} related={follow.related} seeAll={follow.asked ?? query} className={answer?.stat || answer?.card || teamAnswer ? "mt-4" : "mb-1"} />

@@ -1,5 +1,5 @@
 // Compound questions (search audit, "compound clauses"): "<team> opr and <team> record", "<team> awards and highest
-// score". Each part joined by "and" (or "and also", "&", ";") is asked on its own as search asks any question, and
+// score". Each part joined by "and" (or "and also", "&") is asked on its own as search asks any question, and
 // when every part gets a card of its own, the cards stand one under another. Only when the whole question isn't read
 // as one already (the pipeline's "between 2023 and 2025" stays one run), and only parts that each ask something (a
 // stat, a best, a kind of thing): "12345 and 67890" and a team named "Nuts and Bolts" are never split. A part with no
@@ -12,9 +12,9 @@ import { parseQuery } from "./parse.js";
 /** At most this many parts are asked (each is a question of its own). */
 export const MAX_CLAUSES = 3;
 
-/** The words that join two questions: "and", "and also", "&", ";". Never a bare "also" ("teams who also won
- *  inspire" is one filter). */
-const JOIN = /\s*;\s*|\s+(?:and\s+also|and|&)\s+/i;
+/** The words that join two questions: "and", "and also", "&". Never a bare "also" ("teams who also won inspire" is
+ *  one filter); never ";" (search reads the query with its punctuation gone). */
+const JOIN = /\s+(?:and\s+also|and|&)\s+/i;
 /** A part that points back at the one before ("… and how was their record", "… and which was its best"): one
  *  question, read whole by search's long-form readers. */
 const BACK = /\b(?:their|they|them|theirs|its|it|his|her|he|she|that|those|these|which)\b/i;
@@ -28,10 +28,11 @@ export interface Clauses { parts: string[]; apart: boolean }
 
 /** The parts of `q` to ask one by one, each as asked (the first part's team put before a part with no subject of its
  *  own), or null: fewer than two parts, more than MAX_CLAUSES, two the same, or a part that asks nothing. */
-export async function readClauses(q: string, now?: number): Promise<Clauses | null> {
+export async function readClauses(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<Clauses | null> {
   const parts = q.split(JOIN).map((s) => s.trim()).filter(Boolean);
   if (parts.length < 2 || parts.length > MAX_CLAUSES || parts.slice(1).some((s) => BACK.test(s))) return null;
-  const ctx = await parseContext(now);
+  // The visitor's own team first among teams sharing a name, as each part's own search reads it.
+  const ctx = await parseContext(now, prefer);
   const parsed = await Promise.all(parts.map((s) => parseQuery(s, ctx)));
   if (!parsed.every((p) => p.symbols.some((s) => ASKS.test(s)))) return null;
   // The first part's one team, for a part that names nothing it asks about ("… and highest score").

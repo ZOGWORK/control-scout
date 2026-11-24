@@ -123,14 +123,16 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
   const v = await answerVideo(a).catch(() => undefined);
   const clips = v ? [v.main ?? v.watch, ...Object.values(v.rows ?? {})].filter((i): i is NonNullable<typeof i> => !!i && i.kind !== "contributor") : [];
   if (clips.length) facts.push(`Videos on Control Scout for this answer: ${[...new Set(clips.map((i) => i.match ?? (i.kind === "stream" ? "a stream" : "an event recording")))].join(", ")}.`);
-  if (a.card) {
-    const c = a.card;
+  const cardFacts = (c: NonNullable<SearchAnswer["card"]>) => {
     const who = c.team ? ` for team ${`${c.team.number} ${c.team.name ?? ""}`.trim()}` : "";
     facts.push(`${c.title}${who}: ${c.lines.length} found${c.count ? ` (${c.count} ${c.count === 1 ? "time" : "times"})` : ""}.`);
     for (const l of c.lines) facts.push(`- ${lineText(l)}`);
     if (c.none) facts.push(c.none);
     for (const l of c.closest ?? []) facts.push(`- Closest record: ${lineText(l)}`);
-  }
+  };
+  if (a.card) cardFacts(a.card);
+  // A compound question's other parts, each answered as asked (server/api/query/clauses.ts): every part's facts.
+  for (const c of a.clauses ?? []) { if (c.stat) facts.push(...statFacts(c.stat)); else if (c.card) cardFacts(c.card); }
   for (const h of a.hits.slice(0, 5)) {
     const extra = (h.facts ?? []).map((f) => `${f.label} ${f.value}`).join("; ");
     facts.push(`Result: ${h.title}${h.subtitle ? ` (${h.subtitle})` : ""}${extra ? `: ${extra}` : ""}`);

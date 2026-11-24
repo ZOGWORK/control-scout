@@ -173,6 +173,8 @@ export function searchPage(q: string, season: number | null, a: SearchAnswer | n
     + (a.sorry.suggest.length ? `<div class="sec">${chips(a.sorry.suggest.map((x) => ({ href: liteSearch(x), text: x })))}</div>` : ""));
   if (a.stat) body += statAnswer(a.stat);
   if (a.card) body += searchCard(a.card);
+  // A compound question's other parts, each its own card, in the order asked (server/api/query/clauses.ts).
+  for (const c of a.clauses ?? []) body += c.stat ? statAnswer(c.stat) : c.card ? searchCard(c.card) : "";
   if (a.intent && !a.intent.met && a.intent.gap) body += note(esc(a.intent.gap));
   const hits = a.hits.slice(0, SEARCH_ROWS);
   if (hits.length) body += section(a.stat || a.card ? "Results" : "Top results", list(hits.map(hitRow), "") + more(SEARCH_ROWS, a.hits.length));

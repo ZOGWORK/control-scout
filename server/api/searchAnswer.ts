@@ -990,7 +990,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // on its own, answered one under another (./query/clauses.ts). Parts about subjects of their own are two questions,
   // split first ("<team> last match and <team> next event" is never one compare); others only when the whole isn't read.
   // Each part searched as any question is (its card needed, so always in full), one level deep.
-  const clauses = opts.intents === false || opts.clause ? null : await readClauses(opts.typed ?? q, opts.now);
+  const clauses = opts.intents === false || opts.clause ? null : await readClauses(opts.typed ?? q, opts.now, prefer);
   const split = async () => {
     if (!clauses) return null;
     const answers = await Promise.all(clauses.parts.map((part) => searchAnswer(part, { ...opts, typed: undefined, full: true, learn: false, clause: true })));
