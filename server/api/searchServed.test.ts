@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { SERVED_TTL_MS, noteServed, resetServed, servedHit } from "./searchServed";
 
 afterEach(resetServed);
-const intent = { kind: "team", pattern: "[team]", met: true } as const;
+const intent = { kind: "team", pattern: "[team]", met: true, understood: ["Team 4215"] };
 
 describe("results search sent, for a click to be checked without searching again", () => {
   it("knows what a query gave, however it was typed, and the intent it read", () => {

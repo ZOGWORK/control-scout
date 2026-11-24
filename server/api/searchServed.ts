@@ -11,6 +11,7 @@ const SERVED_MAX = 2000;
 
 interface Served { at: number; intent: SearchIntentNote | undefined; hits: Map<string, boolean> }
 const served = new Map<string, Served>();
+type Kind = SearchHit["kind"];
 const keyOf = (q: string) => normalize(cleanQuery(q));
 const hitKey = (kind: string, ref: string) => `${kind}\n${ref}`;
 
@@ -31,11 +32,11 @@ export function noteServed(q: string, intent: SearchIntentNote | undefined, hits
 
 /** What search sent for `q`: null when it isn't known here (the caller searches), else whether it gave this result
  *  (`hit`: its href flag, for results that open a feature) and the intent it read. */
-export function servedHit(q: string, kind: string, ref: string, now = Date.now()): { intent: SearchIntentNote | undefined; hit: { kind: string; ref: string; href: boolean } | null } | null {
+export function servedHit(q: string, kind: string, ref: string, now = Date.now()): { intent: SearchIntentNote | undefined; hit: { kind: Kind; ref: string; href: boolean } | null } | null {
   const s = served.get(keyOf(q));
   if (!s || now - s.at >= SERVED_TTL_MS) return null;
   const href = s.hits.get(hitKey(kind, ref));
-  return { intent: s.intent, hit: href === undefined ? null : { kind, ref, href } };
+  return { intent: s.intent, hit: href === undefined ? null : { kind: kind as Kind, ref, href } };
 }
 
 export const resetServed = () => served.clear();

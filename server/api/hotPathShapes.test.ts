@@ -151,4 +151,10 @@ describe("hot-path API responses", () => {
       expect(now[p].body, p).toEqual(before[p].body);
     }
   });
+  it("teams-summary with ?before=1: the same teams and, in the same answer, the season before's", async () => {
+    const one = await (await fetch(`${base}/api/teams-summary?season=${S}&teams=101,102`)).json();
+    const last = await (await fetch(`${base}/api/teams-summary?season=${S - 1}&teams=101,102`)).json();
+    const both = await (await fetch(`${base}/api/teams-summary?season=${S}&teams=101,102&before=1`)).json();
+    expect(both).toEqual({ ...one, before: last });
+  });
 });
