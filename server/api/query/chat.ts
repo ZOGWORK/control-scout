@@ -4,6 +4,8 @@
 // nothing in the query (server/api/searchAnswer.ts), so a query search answers is never read here. Every word comes
 // from the lexicon (CHAT_WORDS); none of it names a team, an event or a query.
 import { CHAT_WORDS, INFORMAL, LEXICON } from "./lexicon.js";
+import { everydayWord } from "../../../src/shared/query/everyday.js";
+import { readTime } from "./time.js";
 
 export type ChatKind = "follow-up" | "meta" | "off-topic" | "reaction";
 
@@ -23,6 +25,11 @@ export function chatWords(q: string): string[] {
   }
   return out;
 }
+
+/** What a question asks about, beyond ranking it ("best", "top"): every lexicon phrase but the plain words and those. */
+const SUBJECT_PHRASES = LEXICON.filter((e) => e.syms.some((s) => !NOT_DATA.has(s.k) && s.k !== "agg")).map((e) => e.words);
+/** Every word search reads something in: its lexicon's and its chat words'. */
+const SEARCH_WORDS = new Set([...LEXICON.flatMap((e) => e.words), ...Object.values(CHAT_WORDS).flat().flatMap((p) => p.split(" "))]);
 
 /** Where each phrase of `ps` starts in `ws`. */
 const at = (ws: string[], ps: string[][]) => ws.flatMap((_, i) => ps.filter((p) => p.every((w, k) => ws[i + k] === w)).map((p) => ({ i, end: i + p.length })));
@@ -61,11 +68,26 @@ function asksWhereToGet(ws: string[]): boolean {
   });
 }
 
+/** The words of `q` that name what it is about when that's something search holds nothing on: everyday English
+ *  ("weather", "pizza") that is none of search's own words, its time said aside ("today"). Empty when it asks about
+ *  FTC data: a number, or anything search asks about but a ranking ("best"). */
+export function otherSubject(q: string): string[] {
+  const ws = chatWords(readTime(q.toLowerCase(), new Date().toISOString().slice(0, 10)).rest);
+  if (ws.some((w) => /\d/.test(w)) || has(ws, SUBJECT_PHRASES)) return [];
+  return ws.filter((w) => everydayWord(w) && !SEARCH_WORDS.has(w));
+}
+
+/** Whether `q` asks where to get something ("where do i get a <part>"). */
+export const asksToGet = (q: string): boolean => asksWhereToGet(chatWords(q));
+
 /** What `q` is, when it isn't a search of FTC data; null when it may be one. */
 export function chatKind(q: string): ChatKind | null {
   const ws = chatWords(q);
   if (!ws.length) return null;
   if (pointsBack(ws)) return "follow-up";
+  // About something search holds nothing on ("what is the weather in <city> today", "best pizza in <place>"): its
+  // place, its time and a ranking said with it are no FTC question.
+  if (otherSubject(q).length) return "off-topic";
   if (asksData(ws)) return null;
   if (asksWhereToGet(ws)) return "off-topic";
   // Addressed to the site ("who made you", "tell me about bruno"). With thanks or laughter in it, only when it asks a
