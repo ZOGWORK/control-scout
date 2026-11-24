@@ -75,7 +75,7 @@ import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, Odd
 import { EventPackButton } from "../components/offline/EventPackButton";
 import { isV8, useIsV8, V8_NUM } from "../lib/v8";
 import { V8_AWARD, v8Rank } from "../lib/v8colour";
-import { Disclosure, eventState, FinishedFocus, LiveFocus, UpcomingFocus, V8_DEFAULT_TAB, V8_TAB_ORDER } from "../components/EventFocus";
+import { Disclosure, eventState, FinishedFocus, noAwardsNote, LiveFocus, UpcomingFocus, V8_DEFAULT_TAB, V8_TAB_ORDER } from "../components/EventFocus";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/overlay";
 import { EVENT_TABS, type EventTab } from "../lib/eventTab";
 import { V8_PHASE } from "../lib/records/describe";
@@ -926,6 +926,12 @@ function LegacyBracket({ d, bySeries }: { d: EventDetail; bySeries: Map<number, 
   );
 }
 
+/** No awards: plainly "none at this kind of event" (a league meet), else "not published yet" (#2202). */
+function AwardsEmpty({ type }: { type: string | null | undefined }) {
+  const none = noAwardsNote(type);
+  return none ? <EmptyState icon={Award} title={none.title} description={none.text} /> : <EmptyState icon={Award} title="No awards published yet" description="Awards appear after the closing ceremony." />;
+}
+
 function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }) {
   const s = d.event.season;
   return (
@@ -933,7 +939,7 @@ function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }
       {/* The tab's heading for screen readers: Advancement (h3) sits under it, first. */}
       <h2 className="sr-only">Awards</h2>
       {d.advancement && <AdvancedTeams adv={d.advancement} season={s} nameOf={nameOf} />}
-      {!d.awards.length ?<EmptyState icon={Award} title="No awards published yet" description="Awards appear after the closing ceremony." /> : (
+      {!d.awards.length ? <AwardsEmpty type={d.event.type} /> : (
         <ul className="grid gap-2 sm:grid-cols-2">
           {d.awards.map((a) => (
             <li key={`${a.type}${a.placement}${a.team}`} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 v8:border-line">
