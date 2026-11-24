@@ -16,6 +16,7 @@ import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { currentSeason, defaultSeason, lastSeason, seasonWhy, teamSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
+import { askOf, whenWhere } from "../../../src/shared/query/whenWhere.js";
 import { conferencesNamed } from "../answers/families/conference.js";
 import { allConferences } from "../conferences.js";
 import { CONFERENCE_REGION } from "../../../src/shared/conferences.js";
@@ -54,6 +55,17 @@ export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resol
 
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  const a = await pipelineRead(q, opts);
+  // "When …" or "where …" ("when did <team> win inspire", "where did <team> play last"): the question as asked, its
+  // rows' dates or events the headline (src/shared/query/whenWhere.ts).
+  const ask = a && askOf(q);
+  if (!a || !ask) return a;
+  if (!a.stat) return a.understood ? { ...a, understood: { ...a.understood, label: `${ask === "when" ? "When" : "Where"}: ${a.understood.label}` } } : a;
+  const stat = whenWhere(a.stat, ask);
+  return stat === a.stat ? a : { ...a, stat, ...(a.understood ? { understood: { ...a.understood, label: stat.title } } : {}) };
+}
+
+async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const ctx0 = await parseContext(opts.now, opts.prefer);
   const ctx = opts.asTyped ? { ...ctx0, asTyped: true } : ctx0;
   let p = await parseQuery(q, ctx);
