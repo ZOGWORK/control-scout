@@ -382,3 +382,31 @@ export function informalQuery(q: string, named: (words: string, wider: boolean) 
   }
   return ws.join(" ");
 }
+
+/** What a query says that isn't about FTC data (server/api/query/chat.ts): read only when search found nothing in it.
+ *  Each list is words or phrases, matched whole; a new way of saying one is one more entry here. */
+export const CHAT_WORDS = {
+  /** Words that address the site or its AI ("who made you", "what is bruno"). */
+  addressee: ["you", "your", "yours", "yourself", "bruno", "control scout", "controlscout", "this site", "this website", "this app", "this search"],
+  /** Having said or shown, after an addressee: "you said", "bruno told me", "it showed". Past tense only: "can you
+   *  show me …" asks for something new. */
+  said: ["said", "told", "showed", "shown", "gave", "listed", "mentioned", "wrote", "answered"],
+  /** Who said it, for `said`: the addressees, or the answer itself ("it said"). */
+  sayer: ["you", "bruno", "it", "search"],
+  /** Where it was said: "said here", "listed above". */
+  there: ["here", "above", "earlier", "before"],
+  /** The earlier answer named outright: "your last answer", "the previous search". */
+  earlier: ["last", "previous", "earlier", "prior"],
+  /** Never "results": "<team> previous results" asks for a team's past results. */
+  answerWord: ["answer", "answers", "search", "reply", "response"],
+  /** Words that ask a question ("who made you"): with a reaction ("thanks bruno, who made you?"), it's the question. */
+  question: ["who", "whom", "whose", "what", "whats", "when", "where", "why", "how", "which"],
+  /** Laughter, thanks and reactions: nothing asked. */
+  reaction: ["lol", "lmao", "lmfao", "rofl", "haha", "hahaha", "hehe", "xd", "bruh", "lolol", "omg", "thanks", "thank you", "thx", "nice", "cool", "wow"],
+  /** Getting hold of something ("where do i get", "where can we buy"): a question about buying, never FTC results. */
+  acquire: ["get", "buy", "purchase", "order", "obtain"],
+  /** Who gets it, after where: "where do i get", "where can we buy". */
+  asker: ["i", "we", "you", "one", "someone"],
+  /** The verb between them: "where do i", "where can we", "where should i". */
+  modal: ["do", "can", "could", "should", "would", "to"],
+};
