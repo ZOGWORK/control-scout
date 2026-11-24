@@ -2,9 +2,9 @@
 // Home under v8 is the dashboard (src/components/home/HomeDashboard.tsx): the mark and search first, four Try chips,
 // then Events live now, Top teams and Your teams, in that order, with no headline. The v8 shell draws the sidebar,
 // your picture, the wash and Report a bug, so Home draws none of them. Without v8, Home is the old one.
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import type { EventListItem } from "../shared/api";
 
 let data: Record<string, unknown> = {};
@@ -27,7 +27,9 @@ const event = (i: number, played: number, total: number): EventListItem => ({
 } as EventListItem);
 
 const { default: Home } = await import("./Home");
-const mount = () => render(<MemoryRouter initialEntries={["/"]}><Home /></MemoryRouter>);
+let at = "";
+function Where() { at = useLocation().pathname + useLocation().search; return null; }
+const mount = () => render(<MemoryRouter initialEntries={["/"]}><Home /><Where /></MemoryRouter>);
 
 beforeEach(() => { data = {}; personal = { user: null, state: st(null) }; });
 afterEach(() => { cleanup(); document.documentElement.removeAttribute("data-v8"); });
@@ -48,6 +50,34 @@ describe("Home under v8", () => {
     expect(searchSection.compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelectorAll("[data-example-chip]")).toHaveLength(4);
     expect([...container.querySelectorAll("[data-card]")].map((c) => c.getAttribute("data-card"))).toEqual(["live", "top", "team"]);
+  });
+
+  it("a Try chip runs like Enter: its words go in the box, then it glides to /search (plain navigation without the API)", async () => {
+    const { container } = mount();
+    const chip = container.querySelector<HTMLAnchorElement>("[data-example-chip]")!;
+    const box = within(screen.getByRole("region", { name: "Search" })).getByRole("combobox", { name: /Search teams, events and matches/ }) as HTMLTextAreaElement;
+    const doc = document as unknown as { startViewTransition?: unknown };
+    let update: (() => Promise<void> | void) | null = null;
+    doc.startViewTransition = (cb: () => Promise<void> | void) => { update = cb; return { finished: new Promise(() => {}), ready: Promise.resolve(), updateCallbackDone: Promise.resolve() }; };
+    try {
+      fireEvent.click(chip);
+      expect(document.documentElement.hasAttribute("data-search-glide")).toBe(true);
+      // The box shows the chip's words before the browser takes its first picture (the next frame, after this click).
+      const q = new URLSearchParams(chip.getAttribute("href")!.split("?")[1]).get("q");
+      expect(box.value).toBe(q);
+      expect(at).toBe("/");
+      await update!();
+      expect(at).toBe(chip.getAttribute("href"));
+    } finally { delete doc.startViewTransition; document.documentElement.removeAttribute("data-search-glide"); }
+  });
+
+  it("a Try chip without View Transitions navigates at once; a modified click is left to the browser", () => {
+    const { container } = mount();
+    const chip = container.querySelector<HTMLAnchorElement>("[data-example-chip]")!;
+    fireEvent.click(chip, { ctrlKey: true });
+    expect(at).toBe("/");
+    fireEvent.click(chip);
+    expect(at).toBe(chip.getAttribute("href"));
   });
 
   it("leaves the sidebar, corner, wash and bug button to the shell, and the old Home's pieces out", () => {

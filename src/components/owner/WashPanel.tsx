@@ -18,7 +18,7 @@ import { Wash } from "../layout/Wash";
 import { apiFetch, ApiError, markStale, prime, useApi } from "../../lib/api";
 import { applyWash } from "../../lib/wash";
 import {
-  COLOUR_KEYS, WASH_KEYS, WASH_PRESETS, WASH_SPREAD, WASH_STRENGTH, cleanHex, isDefaultWash, parseWash, presetOf, sameWash, softStops, washVars,
+  COLOUR_KEYS, WASH_KEYS, WASH_MIX, WASH_PRESETS, WASH_SPREAD, WASH_STRENGTH, cleanHex, isDefaultWash, parseWash, presetOf, sameWash, softStops, washVars,
   type ColourKey, type OwnerWash, type WashSettings,
 } from "../../shared/wash";
 
@@ -64,10 +64,10 @@ function RangeField({ id, label, hint, value, range, onChange }: { id: string; l
   );
 }
 
-/** The variables a preview box needs: the wash's own, and Light's pale mix and page colour when previewing Light. */
+/** The variables a preview box needs: the wash's own, and Light's mix and page colour when previewing Light. */
 const boxVars = (wash: WashSettings, mode: Mode) => ({
   ...washVars(wash),
-  ...(mode === "light" ? { "--wash-mix": "42%", "--color-background": LIGHT_BG } : { "--color-background": DARK_BG }),
+  ...(mode === "light" ? { "--wash-mix": WASH_MIX.light, "--color-background": LIGHT_BG } : { "--color-background": DARK_BG }),
   background: mode === "light" ? LIGHT_BG : DARK_BG,
 }) as CSSProperties;
 
