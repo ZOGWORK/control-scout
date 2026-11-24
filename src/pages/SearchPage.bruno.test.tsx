@@ -24,8 +24,10 @@ vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/ap
 vi.mock("../lib/flags", async (orig) => ({ ...(await orig<typeof import("../lib/flags")>()), useServerFlag: (n: string) => n === "brunoAnswers" }));
 vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../lib/personal")>()), useTeamFlags: () => ({ bookmarked: false, toggleBookmark: () => {} }),
   // The phone's search bar is a real SearchBox, which ranks the visitor's own teams first: none here.
-  usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
+  usePersonal: () => ({ state: { myTeam: mine.team, tracked: { teams: [], events: [] }, bookmarks: [] } }), useMyTeamNumber: () => mine.team }));
 const asked = vi.hoisted(() => [] as string[]);
+// The visitor's My team, for "my"/"our" searches.
+const mine = vi.hoisted(() => ({ team: null as number | null }));
 // What he writes back (null: nothing to add).
 const says = vi.hoisted(() => ({ text: "Bruno's overview of the records." as string | null, fail: false }));
 vi.mock("../lib/brunoStream", () => ({
@@ -98,6 +100,71 @@ describe("Bruno leading the v8 page", () => {
     const related = container.querySelector("[data-related-lead]")!;
     expect(related.querySelector("h2")!.textContent).toBe("Related searches");
     expect([...related.querySelectorAll("[data-follow-chip]")].slice(0, 2).map((c) => c.textContent)).toEqual(["is 12096 a real team", "is 13048 a real team"]);
+  });
+  // Logged #2214/#2210: a question pointing back at an earlier answer ("… the matches u said here").
+  const FOLLOW = "was that the same auto points in all the matches u said here";
+  const follow = () => answer(FOLLOW, [], { chat: "follow-up", card: card("info", "A question about an earlier answer", undefined, [{ text: "Search reads each search on its own, so it can't see what it answered before", detail: "Ask again with the team or event in it" }]), understood: { kind: "question", label: "A question about an earlier answer" } });
+  it("a follow-up asks him with the tab's last search, said under the heading", async () => {
+    sessionStorage.setItem("cs-last-search", JSON.stringify({ q: "4215 auto points", season: null, my: null, at: Date.now() }));
+    says.text = "Yes, 4215 scored the same auto points in each match.";
+    state.answer = follow();
+    const { container } = show(FOLLOW);
+    await settle();
+    expect(asked.at(-1)).toContain(`&after=${encodeURIComponent("4215 auto points")}`);
+    expect(container.querySelector("[data-bruno-lead] [data-bruno-verdict]")).not.toBeNull();
+    expect(container.querySelector("[data-follow-from]")!.textContent).toBe("Your last search: 4215 auto points");
+    sessionStorage.clear();
+  });
+  it("a follow-up of a season-picked search asks him in that season", async () => {
+    sessionStorage.setItem("cs-last-search", JSON.stringify({ q: "4215 auto points", season: 2024, my: null, at: Date.now() }));
+    says.text = "Yes, the same in each match.";
+    state.answer = follow();
+    const { container } = show(FOLLOW);
+    await settle();
+    expect(asked.at(-1)).toContain(`&after=${encodeURIComponent("4215 auto points")}&afterSeason=2024`);
+    const link = container.querySelector("[data-follow-from] a")!;
+    expect(link.getAttribute("href")).toBe(`/search?q=${encodeURIComponent("4215 auto points")}&in=2024`);
+    expect(link.textContent).toBe("4215 auto points (2024–25)");
+    sessionStorage.clear();
+  });
+  it("remembers a search with the season picked on its answer", async () => {
+    sessionStorage.clear();
+    state.answer = answer("4215 auto points", [team(4215, "Hypnotic Robotics")]);
+    render(<MemoryRouter initialEntries={["/search?q=4215%20auto%20points&in=2024"]}><SearchPage /></MemoryRouter>);
+    await settle();
+    expect(JSON.parse(sessionStorage.getItem("cs-last-search")!)).toMatchObject({ q: "4215 auto points", season: 2024, my: null });
+    sessionStorage.clear();
+  });
+  it("a \"my\" search is remembered with the My team it was asked with, and a follow-up sends it", async () => {
+    sessionStorage.clear();
+    mine.team = 4215;
+    state.answer = answer("our auto points", [team(4215, "Hypnotic Robotics")]);
+    const first = show("our auto points");
+    await settle();
+    expect(JSON.parse(sessionStorage.getItem("cs-last-search")!)).toMatchObject({ q: "our auto points", my: 4215 });
+    first.unmount();
+    state.answer = follow();
+    show(FOLLOW);
+    await settle();
+    expect(asked.at(-1)).toContain(`&after=${encodeURIComponent("our auto points")}&afterMy=4215`);
+    mine.team = null;
+    sessionStorage.clear();
+  });
+  it("a search that found nothing clears the last search, so a follow-up never reads an older one", async () => {
+    sessionStorage.setItem("cs-last-search", JSON.stringify({ q: "4215 auto points", season: null, my: null, at: Date.now() }));
+    state.answer = answer("xyzzy plugh", [], { step: "recovery", weak: true, recovery: { understood: ["No team, event or match matched \"xyzzy plugh\""], closest: [], browse: [] } });
+    show("xyzzy plugh");
+    await settle();
+    expect(sessionStorage.getItem("cs-last-search")).toBeNull();
+  });
+  it("a follow-up with no last search is the card alone, saying it needs the team or event", async () => {
+    sessionStorage.clear();
+    state.answer = follow();
+    const { container } = show(FOLLOW);
+    await settle();
+    expect(asked).toHaveLength(0);
+    expect(container.querySelector("[data-follow-from]")).toBeNull();
+    expect(container.textContent).toContain("Ask again with the team or event in it");
   });
   it("lets his slot go and gives the heading its size back when he has nothing to add", async () => {
     says.text = null;
