@@ -16,7 +16,7 @@ export function openSearchXml(origin = canonicalOrigin()): string {
     `  <ShortName>Control Scout</ShortName>`,
     `  <Description>Search FTC teams, events and matches on Control Scout</Description>`,
     `  <InputEncoding>UTF-8</InputEncoding>`,
-    `  <Image width="48" height="48" type="image/png">${o}/favicon-48.png</Image>`,
+    `  <Image width="48" height="48" type="image/png">${o}/favicon-48.png?v=8</Image>`,
     `  <Url type="text/html" method="get" template="${o}/search?q={searchTerms}"/>`,
     `  <Url type="${OPENSEARCH_TYPE}" rel="self" template="${o}/opensearch.xml"/>`,
     `  <moz:SearchForm>${o}/search</moz:SearchForm>`,
