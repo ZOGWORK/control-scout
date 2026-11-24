@@ -14,7 +14,7 @@ import { all, get } from "../../../db.js";
 import { isEnabled } from "../../../flags.js";
 import { ATTENDED, LEAGUE_RANKED, seasonStats, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
 import { readScope } from "../read.js";
-import { currentSeason, seasonWhy, teamSeason } from "../season.js";
+import { currentSeason, seasonDay, seasonWhy, teamSeason } from "../season.js";
 import { seasonOfDate } from "../../query/time.js";
 import { ratingKpis } from "./oprRating.js";
 import { eventHref, matchHref, shortEvent, teamHref } from "../matchSet.js";
@@ -58,8 +58,9 @@ const monthYear = (season: number, month: number) => (month >= 8 ? season : seas
  *  come ("june" asked in November 2026), the season before's (June 2026). A month said without its year is never one
  *  that hasn't happened. */
 export const lastMonthSeason = (month: number, today?: string) => {
-  // As of the date given, its own season (a replay of an earlier day); with none, today's.
-  const s = today ? seasonOfDate(today) : currentSeason(), day = today ?? new Date().toISOString().slice(0, 10);
+  // As of the date given, its own season (a replay of an earlier day); with none, the search's own day and season (an
+  // as-of question reads both as of its date).
+  const s = today ? seasonOfDate(today) : currentSeason(), day = today ?? seasonDay();
   return `${monthYear(s, month)}-${String(month + 1).padStart(2, "0")}-01` > day ? s - 1 : s;
 };
 
