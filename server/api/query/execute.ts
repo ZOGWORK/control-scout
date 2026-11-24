@@ -73,7 +73,7 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     const n = String(p.teams[0].number);
     return selfMatchAnswer(p, (await opts.resolve(n)).hits.find((h) => h.kind === "team" && h.ref === n), opts.pages, opts.full);
   }
-  // A run of seasons ("4215 opr since 2023", "best teams 2023-24 to 2025-26"): each season's rank, never one season's
+  // A run of seasons ("<team> opr since <year>", "best teams 2023-24 to 2025-26"): each season's rank, never one season's
   // stat set against another's (./seasons.ts); any other question of a run is left to search's other readers.
   if (p.time?.kind === "seasons") {
     const stat = seasonsStat(p);

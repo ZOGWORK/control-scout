@@ -1,4 +1,4 @@
-// A run of seasons asked (search audit, "season ranges"): "4215 opr since 2023", "4215 last 3 seasons", "best teams
+// A run of seasons asked (search audit, "season ranges"): "<team> opr since <year>", "<team> last 3 seasons", "best teams
 // 2023-24 to 2025-26". A stat is never set against another season's raw number: each season is read as the team's
 // rank and share of that season's ranked teams, and a board over the run ranks teams by their average share. Nothing
 // here names a team, a season or a place: the parse reads them (./parse.ts, time.ts `range`).
@@ -41,7 +41,7 @@ export function seasonsAsk(p: Parsed, stat: string | null): "team" | "board" | n
   if (!RANKED[stat ?? "opr"]) return null;
   if (!p.teams.length && (p.intent === "leaderboard" || p.symbols.includes("thing:team"))) return "board";
   if (p.teams.length !== 1) return null;
-  // A team's own run asks its stat or nothing else ("4215 last 3 seasons"), never a match or a record question.
+  // A team's own run asks its stat or nothing else ("<team> last 3 seasons"), never a match or a record question.
   return p.symbols.every((s) => s.startsWith("metric:") || s.startsWith("prep:") || s === "thing:season") ? "team" : null;
 }
 

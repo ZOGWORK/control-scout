@@ -64,7 +64,7 @@ describe("a run of seasons", () => {
     expect(table(await stat("30402 last 2 seasons")).map((c) => c.season)).toEqual(["2024–25", "2025–26"]);
     // "Auto OPR" is the auto phase's own rank; "between … and …" is one run, never two searches joined by "and".
     const auto = await stat("30402 auto opr between 2023 and 2025");
-    expect([auto?.title, table(auto).map((c) => c.rank)]).toEqual(["Bots 30402 (30402): Auto OPR rank each season, 2023–24 to 2025–26", ["#9 of 10", "#10 of 10", "#8 of 10"]]);
+    expect([auto?.title, table(auto).map((c) => c.rank)]).toEqual(["Bots 30402 (30402): Auto OPR rank each season, between 2023–24 and 2025–26", ["#9 of 10", "#10 of 10", "#8 of 10"]]);
   });
   it("the best teams over a run: by their average share of each season's ranked teams, in a place too", async () => {
     const s = await stat("best teams 2023-24 to 2025-26");
