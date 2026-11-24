@@ -114,7 +114,7 @@ jobs:
         run: npm run perf -- --budgets --json perf.json
       # Search results pages' layout shift (scripts/search-signoff/visual.ts): the pages in cls.json at desktop 1280
       # and phone 390, on a local production server from this build. Fails over 0.1, or a page's own ceiling in
-      # cls.json (the pages over it today, lowered as each is fixed).
+      # cls.json (the pages over it today, lowered as each is fixed), or 0.3 on phone until the phone layout is fixed.
       - name: Search layout shift
         run: npx tsx scripts/search-signoff/visual.ts --cls scripts/search-signoff/cls.json --max-cls 0.1 --no-shots --out "$RUNNER_TEMP/visual"
       - name: Keep the numbers

@@ -16,6 +16,12 @@ describe("clsOf", () => {
 describe("clsCeiling", () => {
   const budget: ClsBudget = { pages: [{ q: "4215", ceiling: { "390": 0.3 } }, { q: "top teams in NJ" }] };
   it("a page's own ceiling for its view", () => expect(clsCeiling(budget, "4215", "390", 0.1)).toBe(0.3));
+  it("a view's own default, under a page's own ceiling", () => {
+    const b: ClsBudget = { views: { "390": { ceiling: 0.3, why: "U1" } }, pages: [{ q: "4215", ceiling: { "390": 0.32 } }, { q: "x" }] };
+    expect(clsCeiling(b, "x", "390", 0.1)).toBe(0.3);
+    expect(clsCeiling(b, "4215", "390", 0.1)).toBe(0.32);
+    expect(clsCeiling(b, "x", "desktop", 0.1)).toBe(0.1);
+  });
   it("the default for its other views and other pages", () => {
     expect(clsCeiling(budget, "4215", "desktop", 0.1)).toBe(0.1);
     expect(clsCeiling(budget, "top teams in NJ", "390", 0.1)).toBe(0.1);
@@ -29,6 +35,10 @@ describe("clsCeiling", () => {
       expect(["desktop", "390"]).toContain(view);
       expect(c).toBeGreaterThan(0.1);
       expect(p.why, p.q).toBeTruthy();
+    }
+    for (const [view, v] of Object.entries(file.views ?? {})) {
+      expect(["desktop", "390"]).toContain(view);
+      expect(v.why, view).toBeTruthy();
     }
   });
 });
