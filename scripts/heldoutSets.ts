@@ -34,8 +34,8 @@ export function heldoutSets(dir: string = import.meta.dirname): HeldOut[] {
   if (!existsSync(folder)) throw new Error("scripts/heldout/ is missing: the held-out sets added since search-heldout.json live there");
   const names = readdirSync(folder);
   // Only <set>.json is read: a file named any other way would be left out with no word said.
-  const odd = names.filter((f) => !f.endsWith(".json"));
-  if (odd.length) throw new Error(`scripts/heldout/ holds ${odd.join(", ")}: each set is a <set>.json file (lower-case .json)`);
+  const odd = names.filter((f) => !f.endsWith(".json") || !basename(f, ".json").trim());
+  if (odd.length) throw new Error(`scripts/heldout/ holds ${odd.join(", ")}: each set is a <set>.json file (a name, then lower-case .json)`);
   const files = names.sort();
   const own = files.flatMap((f) => {
     const qs: unknown = parsed(join(folder, f), `scripts/heldout/${f}`);
