@@ -52,6 +52,14 @@ export function teamMonth(t: TimeSlot, own: number, today: string): TimeSlot {
   return moved;
 }
 
+/** A question's window and season with its yearless month moved to the team's latest season `own` (teamMonth), or null
+ *  when nothing moves: what a team's month question is answered from, and widened from when that month is empty. */
+export function teamMonthWindow(w: { from: string; to: string; label: string; month?: number; ahead?: boolean } | undefined, season: number | null | undefined, own: number, today: string): { season: number; window: { from: string; to: string; label: string } } | null {
+  if (!w || w.month == null || w.ahead || season == null) return null;
+  const moved = teamMonth({ kind: "window", season, from: w.from, to: w.to, label: w.label, typed: "", month: w.month }, own, today);
+  return moved.season !== season ? { season: moved.season!, window: { from: moved.from!, to: moved.to!, label: moved.label } } : null;
+}
+
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 const MON = MONTHS.map((m) => m.slice(0, 3));
 /** The FTC season a date falls in: September on starts the next season. */
