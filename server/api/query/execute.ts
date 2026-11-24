@@ -15,7 +15,7 @@ import { isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, teamSetSearch, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { currentSeason, defaultSeason, lastSeason, seasonWhy, teamSeason } from "../answers/season.js";
-import { BOARD_STATS, boardPlace } from "../answers/families/leaderboard.js";
+import { BOARD_STATS, boardWhere } from "../answers/families/leaderboard.js";
 import { askOf, whenWhere } from "../../../src/shared/query/whenWhere.js";
 import { conferencesNamed } from "../answers/families/conference.js";
 import { allConferences } from "../conferences.js";
@@ -34,7 +34,7 @@ import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { advancementAt, advancementEvent, advancementNotListed, seasonAdvancement } from "../answers/families/advancement.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { eventFieldAnswer, saysOtherThanOpr } from "../answers/families/eventVersus.js";
-import { BOARD_STAT, placeRegion, placesAnswer, placesAsk } from "./places.js";
+import { BOARD_STAT, onlyPlaces, placeRegion, placesAnswer, placesAsk } from "./places.js";
 import { seasonsAnswer, seasonsAsk } from "./seasons.js";
 import { perSeasonAnswer } from "./perSeason.js";
 import { asksNow, streakBoardAnswer } from "./streakBoard.js";
@@ -104,6 +104,15 @@ async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAns
     if (ask === "side") { const a = await placesAnswer(p, stat!, opts); return a && partNotes(a, p); }
     if (ask !== "board") return null;
     // "Teams from <place> or <place>": no intent of its own, as one place's teams aren't; read as the board of them.
+    if (!p.intent) p = { ...p, intent: "leaderboard", complete: true };
+  }
+  // One place's teams that played in another ("texas teams at michigan events", "teams from ohio who played in
+  // michigan"): the board of the first place's teams, those that played an event in the second only. Anything else
+  // asked of them (a comparison, an average) is left to search's other readers, never answered for one place alone.
+  if (p.eventPlace) {
+    // The board ranks highest or lowest first: a median, an average or a total of them is another reader's.
+    if (!onlyPlaces(p) || (p.agg != null && p.agg !== "max" && p.agg !== "min") || p.symbols.some((s) => s === "vs" || s === "compare" || s === "gain" || (s.startsWith("agg:") && s !== "agg:max" && s !== "agg:min"))
+      || (!p.symbols.includes("thing:team") && !p.agg && !p.symbols.some((s) => BOARD_STAT[s]))) return null;
     if (!p.intent) p = { ...p, intent: "leaderboard", complete: true };
   }
   // A run of seasons ("<team> opr since <year>", "best teams 2023-24 to 2025-26"): each season's rank, never one season's
@@ -369,13 +378,18 @@ const TWO_TEAM_STATS = new Set(["opr", "rating", "penalties", "record", "wins"])
 function comparedStat(p: Parsed): string | null {
   const n = p.teams.length;
   if (n < 2 || n > 4 || new Set(p.teams.map((t) => t.number)).size !== n || p.teams.some((t) => t.candidates)) return null;
-  if (!p.symbols.includes("vs") && !p.symbols.includes("compare")) return null;
+  // Three or four teams listed and asked which leads ("who has the highest opr, <team>, <team> or <team>", "which of
+  // <team>, <team> and <team> has the best record"): the same compare, its card ranking them. Two teams asked so are
+  // their own side-by-side card's; teams set "vs" each other and asked which leads ("… which has highest
+  // reliability") are the compound reader's, its card beside other stats.
+  const leads = n > 2 && p.symbols.includes("agg:max") && !p.symbols.includes("vs");
+  if (!leads && !p.symbols.includes("vs") && !p.symbols.includes("compare")) return null;
   // Four teams with "vs" between every two are four sides, never two alliances ("12345 23456 vs 34567 45678").
   const sides = (p.q.match(/\b(?:vs|versus)\b/gi) ?? []).length >= n - 1;
   if ((p.intent && p.intent !== "compare" && !(p.intent === "alliance-predict" && sides)) || p.leftover.length || (p.time && p.time.kind !== "season")) return null;
   if (p.event || p.place || p.worlds || p.states || p.level || p.alliance || p.finals || p.matchNumber != null || p.eventKind || p.award || p.n != null || p.over
     || p.undefeated || p.rookie || p.named || p.nameHas || p.withVideo || p.noPenalties || p.notStats?.length || p.notMetrics?.length) return null;
-  if (!p.symbols.every((s) => COMPARE_BY_WORDS.has(s) || s.startsWith("prep:") || s.startsWith("metric:"))) return null;
+  if (!p.symbols.every((s) => COMPARE_BY_WORDS.has(s) || (leads && s === "agg:max") || s.startsWith("prep:") || s.startsWith("metric:"))) return null;
   const mean = p.symbols.includes("agg:mean");
   let stats = [...new Set(p.symbols.filter((s) => s.startsWith("metric:")).map((s) => (s === "metric:score" && mean ? "avg-score" : BOARD_STAT[s] ?? "")))];
   if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
@@ -888,7 +902,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // readers' own cards. Said any other way ("in Cluj-Napoca, Romania", "best Romanian teams", "leaderboard in
     // Romania", which those readers don't take): its teams by OPR here.
     const boardSaid = /\bleader ?boards?\b/.test(said);
-    if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && !boardSaid && said.endsWith(` in ${normalise(p.place!.typed)}`)) return null;
+    if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && !boardSaid && !p.eventPlace && said.endsWith(` in ${normalise(p.place!.typed)}`)) return null;
     // Fewer is better for penalties: "best" and "cleanest" are the fewest, "worst" the most; "most" and "fewest" as said.
     const goodWord = !!stats[0] && !!BOARD_STATS[stats[0]].fewerBetter && /\b(?:best|better|cleanest|worst|weakest)\b/.test(said);
     // Two places: the first typed is the board's place, the other beside it (the parse's `place` is the longer name).
@@ -901,6 +915,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       ...(p.conference ? { conference: p.conference } : {}),
       // Two places joined ("teams from <place> or <place>"): one board over both.
       ...(p.places ? { also: [placeRegion(p.places.list[1])], alsoWord: p.places.said === "and" ? "and" as const : "or" as const } : {}),
+      // The teams that played in another place ("texas teams at michigan events"): those only.
+      ...(p.eventPlace ? { playedIn: placeRegion(p.eventPlace) } : {}),
     };
     // A fewer-is-better board (penalties) is titled by its card on the page ("… with the most penalties"), never here.
     if (!opts.full && !own && BOARD_STATS[b.stat]?.fewerBetter) return null;
@@ -919,7 +935,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (!opts.full && !own) return a;
     // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
     if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return asked(a);
-    return asked(await relaxed(a, defaultSteps(b.season!, p.conference ? ` in New Jersey's “${p.conference.join(" ")}” conferences` : town ? ` in ${town.city}` : region ? ` in ${boardPlace(b)}` : "", b.atKind ? `teams unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season })));
+    return asked(await relaxed(a, defaultSteps(b.season!, p.conference ? ` in New Jersey's “${p.conference.join(" ")}” conferences` : town ? ` in ${town.city}` : region ? boardWhere(b) : "", b.atKind ? `teams unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season })));
   }
   return null;
 }

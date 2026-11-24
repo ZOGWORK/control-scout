@@ -12,7 +12,8 @@ import type { BugFiling } from "../../shared/bugReport";
 vi.mock("../../hooks/useTheme", () => ({ useTheme: () => ({ palette: "dark", theme: "dark" }) }));
 vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ user: { id: 7, email: "ada@scout.test" }, providers: {}, state: { myTeam: null }, syncReady: false }) }));
 
-const { BugReportButton, issueLinkOk, PUBLIC_NOTE, waitForIssue } = await import("./BugReport");
+const { BugReportButton, PUBLIC_NOTE } = await import("./BugReport");
+const { issueLinkOk, waitForIssue } = await import("./BugReportForm");
 
 let posted: Record<string, unknown> | null = null;
 let filing: BugFiling = { state: "pending" };

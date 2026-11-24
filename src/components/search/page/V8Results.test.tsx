@@ -36,8 +36,13 @@ describe("V8TeamAnswer fact tiles (issue #2014)", () => {
       expect(t.querySelector("dd")!.className).toContain(c.text);
       expect(t.className).not.toMatch(/\bbg-/); // a bracket and words, never a filled block
     }
-    // The record's wins in green, its losses and ties stay muted.
+    // The record's wins green, its losses red, its ties grey (the owner, 11-24).
     expect(tiles[0].querySelector("[data-record-text] b")!.className).toContain(V8_SOFT.green.text);
+    const losses = tiles[0].querySelector("[data-record-losses]")!;
+    expect(losses.textContent).toBe("5");
+    expect(losses.className).toContain(V8_SOFT.red.text);
+    expect(losses.parentElement!.className).toContain("text-muted-foreground"); // the ties' grey
+    expect(losses.parentElement!.textContent).toBe("-5-0");
   });
 
   it("tints the last match's own score by its result", () => {
@@ -53,5 +58,20 @@ describe("V8TeamAnswer fact tiles (issue #2014)", () => {
     score = container.querySelector<HTMLElement>("[data-last-result]")!;
     expect(score.dataset.lastResult).toBe("lost");
     expect(score.querySelector("span")!.className).toContain(V8_SOFT.red.text);
+  });
+});
+
+describe("V8TeamAnswer while its season numbers are on their way", () => {
+  const draw = (pending: boolean, sum?: SeasonSummary) => render(<MemoryRouter><V8TeamAnswer team={26000} name="Theseus" summary={sum} pending={pending} stat={stat} /></MemoryRouter>).container;
+  it("holds one row of four: placeholders where the numbers will land, beside the best score already known", () => {
+    const c = draw(true);
+    expect(c.querySelectorAll("[data-team-facts]")).toHaveLength(1);
+    const cells = [...c.querySelectorAll<HTMLElement>("[data-team-facts] > div")];
+    expect(cells.map((x) => x.dataset.fact ?? "hole")).toEqual(["hole", "hole", "hole", "Best score"]);
+  });
+  it("no placeholders once they've come, or when asking for them failed (not pending)", () => {
+    expect(draw(false).querySelector("[data-team-facts-pending]")).toBeNull();
+    cleanup();
+    expect(draw(true, summary).querySelector("[data-team-facts-pending]")).toBeNull();
   });
 });

@@ -36,7 +36,7 @@ import { warmSpelling } from "./api/spelling.js";
 import { warmNameTypos } from "./api/answers/nameTypos.js";
 import { warmVideoQuestions } from "./api/answers/videoSuggest.js";
 import { ensureSearchIndex, warmTypoIndex } from "./api/search.js";
-import { saveHot, warmHot } from "./api/searchWarm.js";
+import { precomputeHot, saveHot, warmHot } from "./api/searchWarm.js";
 import { rebuildSearch } from "./stats/job.js";
 import { scheduleCycles, warmUp } from "./warm.js";
 import { handingOver } from "./lanes.js";
@@ -140,6 +140,14 @@ const hot = async () => {
   const t = Date.now();
   const made = await warmHot().catch(() => 0);
   log(`warm: ${made} most-asked searches ${((Date.now() - t) / 1000).toFixed(1)}s`);
+  // Their follow-ups made ahead, in the background (later work, behind live searches): never held for.
+  void aheadHot();
+};
+/** The most-asked searches' follow-ups made ahead for the search index in use (./api/searchWarm.ts precomputeHot). */
+const aheadHot = async () => {
+  const t = Date.now();
+  const made = await precomputeHot().catch(() => 0);
+  if (made) log(`follow-ups made ahead: ${made} most-asked searches ${((Date.now() - t) / 1000).toFixed(1)}s`);
 };
 if (handover) await hot();
 void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(() => { warm = true; });
@@ -160,6 +168,8 @@ void afterIndex().then(() => warmNameTypos()).then(() => warmVideoQuestions()).c
 // Then the event packs asked for lately (server/packs/eventApi.ts), so the next look at one isn't the one that builds it.
 // Then the event names stored with a typo, and the questions with video checked in the background, built again once a
 // search index rebuild moves its version.
+// And the most-asked searches' follow-ups, made ahead again once a stats run has moved the search index.
+setInterval(() => { void aheadHot(); }, 60_000).unref();
 setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}).then(() => import("./packs/eventApi.js")).then((m) => m.rewarmPacks()).catch(() => {}).then(() => warmNameTypos()).catch(() => {}).then(() => warmVideoQuestions()).catch(() => {}); }, 15_000).unref();
 
 // One cycle at a time in this process, whether the schedule or the owner portal started it (data/jobs.ts).
