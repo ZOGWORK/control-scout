@@ -96,7 +96,9 @@ function when(m: MatchView): string | null {
 export const TEAM_FACT_COLOUR: Record<string, SoftColour> = { Record: "green", OPR: "purple", "OPR rank": "accent", "Best score": "orange" };
 
 /** A team asked for by itself: its summary in one compact card, its next match (else its last) in it, the team page a tap away. */
-export function V8TeamAnswer({ team, name, place, summary, stat }: { team: number; name: string; place?: string; summary?: SeasonSummary; stat?: StatAnswer }) {
+/** `pending`: the team's season numbers are on their way: their tiles' row is held (quiet placeholders) so the card
+ *  doesn't grow under the page when they come. */
+export function V8TeamAnswer({ team, name, place, summary, pending = false, stat }: { team: number; name: string; place?: string; summary?: SeasonSummary; pending?: boolean; stat?: StatAnswer }) {
   const s = summary?.s;
   const next = useNextMatch(team, summary?.season ?? null);
   const facts: { label: string; value: ReactNode }[] = [];
@@ -108,7 +110,7 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
   // The match's event by name (the summary knows the team's last and next events), never its code alone.
   const at = next?.m ? ([s?.nextEvent, s?.lastEvent].find((e) => e?.code === next.m.code)?.name ?? next.m.code) : null;
   return (
-    <section aria-label={`Team ${team}`} className="rounded-xl border border-line bg-card p-5" data-v8-answer="team">
+    <section aria-label={`Team ${team}`} className="rounded-xl border border-line bg-card p-5" data-answer-frame data-v8-answer="team">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="font-display text-[2.5rem] font-semibold leading-none tracking-tight tabular-nums text-accent" data-team-number>{team}</p>
@@ -119,6 +121,11 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
           Team page<ArrowRight className="size-4" aria-hidden />
         </Link>
       </div>
+      {pending && !summary && (
+        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line pt-4 sm:grid-cols-4" aria-hidden data-team-facts-pending>
+          {[0, 1, 2, 3].map((i) => <div key={i} className="min-w-0 pl-3"><div className="skeleton h-4 w-14" /><div className="skeleton mt-1.5 h-6 w-16" /></div>)}
+        </div>
+      )}
       {facts.length > 0 && (
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line pt-4 sm:grid-cols-4" data-team-facts>
           {facts.map((f) => (

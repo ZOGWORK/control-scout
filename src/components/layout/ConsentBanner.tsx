@@ -11,6 +11,7 @@
 // has painted (idle time). Fixed in place, so it never shifts the layout. Esc
 // inside it means "No thanks".
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { cn } from "../cn";
 import { Link } from "react-router-dom";
 import { AnimatePresence } from "motion/react";
 import { m } from "../motion";
@@ -32,13 +33,61 @@ function afterFirstPaint(cb: () => void): () => void {
   return () => cancel();
 }
 
+// Docks on screen (ConsentDock): while one is, the banner is drawn there, in the page under its answer, and the
+// floating one stands down, so nothing covers what the page is showing (the search audit, U5).
+let docks = 0;
+const dockSubs = new Set<() => void>();
+const dockChanged = () => { for (const f of dockSubs) f(); };
+/** Whether a dock is on screen, followed in a layout effect: a dock appearing (its own layout effect runs first) hides
+ *  the floating banner before the browser paints, so the two never show in the same frame. */
+function useDocked(): boolean {
+  const [docked, setDocked] = useState(false);
+  useLayoutEffect(() => {
+    const f = () => setDocked(docks > 0);
+    f();
+    dockSubs.add(f);
+    return () => { dockSubs.delete(f); };
+  }, []);
+  return docked;
+}
+
+/** The privacy question in the page itself (/search puts it under the answer): the same two choices as the banner,
+ *  small, in the flow, so it covers nothing. Shown only until a choice is stored (or the browser sends GPC/DNT). */
+export function ConsentDock({ className }: { className?: string }) {
+  const { decided, setAnalytics } = useConsent();
+  // Before the browser paints: the floating banner (and the server's copy of it) gives way in the same frame.
+  useLayoutEffect(() => {
+    if (decided) return undefined;
+    docks++;
+    dockChanged();
+    return () => { docks--; dockChanged(); };
+  }, [decided]);
+  if (decided) return null;
+  return (
+    <section role="region" aria-label="Privacy choices" aria-describedby="cs-consent-dock-text"
+      onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setAnalytics(false); } }}
+      className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line bg-card px-4 py-3", className)} data-consent-dock>
+      <p id="cs-consent-dock-text" className="min-w-0 flex-1 basis-64 text-xs leading-relaxed text-muted-foreground">
+        <ShieldCheck className="mr-1.5 inline size-3.5 align-[-2px] text-text-faint" aria-hidden />
+        May we count <span className="text-foreground">anonymous page views</span>? No cookies, no IDs, no third parties.
+        {" "}<Link to="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy policy</Link>
+      </p>
+      <div className="grid shrink-0 grid-cols-2 gap-2 max-sm:w-full">
+        <Button variant="secondary" size="sm" onClick={() => setAnalytics(false)}>No thanks</Button>
+        <Button variant="secondary" size="sm" onClick={() => setAnalytics(true)}>Allow</Button>
+      </div>
+    </section>
+  );
+}
+
 export function ConsentBanner() {
   const { decided, setAnalytics } = useConsent();
+  const docked = useDocked();
   // The server's static banner is already on screen: take over from it straight away.
   const [fromBoot] = useState(() => !!document.getElementById(BOOT_CONSENT_ID));
   const [ready, setReady] = useState(fromBoot);
   useEffect(() => (fromBoot ? undefined : afterFirstPaint(() => setReady(true))), [fromBoot]);
-  const show = ready && !decided;
+  const show = ready && !decided && !docked;
   const ref = useRef<HTMLElement>(null);
   // Before the browser paints: drop the static copy, keeping keyboard focus on the same button.
   useLayoutEffect(() => {
