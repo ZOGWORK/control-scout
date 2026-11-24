@@ -61,7 +61,11 @@ export async function whyTeamAnswer(q: string, resolve: (core: string) => Promis
   if (!w) return null;
   // A season said with it ("last season", "in 2024-25", the season picker's): that season's numbers. Any other time
   // (a weekend, a date) is a question about those matches, never a season's card.
-  const said = readTime(w.core, new Date().toISOString().slice(0, 10));
+  // A bare four-digit number is a season only said as one ("in 2024") or beside another number (the team's): alone it
+  // is the team ("why is 2025 so good at auto"), as the parser reads it.
+  const nums = w.core.match(/\b\d{1,5}\b/g) ?? [];
+  const yearOk = (y: number) => new RegExp(`\\b(?:in|during|for|from|season)\\s+(?:the\\s+)?${y}\\b`).test(w.core) || nums.some((n) => Number(n) !== y);
+  const said = readTime(w.core, new Date().toISOString().slice(0, 10), yearOk);
   if (said.time && said.time.kind !== "season") return null;
   const core = said.rest.trim();
   const base = await resolve(core);
