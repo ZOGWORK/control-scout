@@ -15,7 +15,10 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
-import { BrunoAnswer, brunoKey, useBrunoAsks, type BrunoMemo } from "../components/search/BrunoAnswer";
+import { BrunoAnswer, afterKey, brunoKey, useBrunoAsks, type BrunoMemo } from "../components/search/BrunoAnswer";
+import { forgetSearch, lastSearch, rememberSearch } from "../lib/lastSearch";
+import { MINE } from "../shared/searchMine";
+import { useMyTeamNumber } from "../lib/personal";
 import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
@@ -24,7 +27,6 @@ import { AnswerNotesView, useSearchHits, useSections } from "../components/searc
 import { SeasonPickContext, pickedSeason, type SeasonPick } from "../components/search/page/SeasonPick";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults, SorryNote } from "../components/search/page/NoResults";
-import { MorphScope } from "../components/CardMorph";
 import { NotInPackCard } from "../components/search/page/NotInPack";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { AnswerClip, AnswerVideo, AnswerVideoProvider, clipLabel } from "../components/search/page/AnswerVideo";
@@ -218,7 +220,23 @@ export default function SearchPage() {
   const aboutTeam = answer?.card?.team?.number ?? (quality && topTeam ? Number(topTeam.ref) : null);
   // Search answered it directly (a card or a stat answer, not a guess): Bruno isn't asked, so the page never shows his
   // card and the answer saying the same thing twice.
-  const answered = !!answer && !answer.weak && !!(answer.card || answer.stat);
+  // A question pointing back at an earlier answer ("… the matches you said", server/api/query/chat.ts): read with this
+  // tab's last search, Bruno answers it from that search's records, above the card saying search reads each search
+  // alone. With no last search, the card says it needs the team or event, and he isn't asked.
+  const followFrom = useMemo(() => (answer?.chat === "follow-up" ? lastSearch(query) : null), [answer?.chat, query]);
+  // Every other search the tab settled is the one a follow-up after it reads: answered, it's remembered as it was
+  // asked (the season picked on its answer, ?in=, and the My team a "my"/"our" search was sent with), so the
+  // follow-up reads the records that were on screen; found nothing, the last search is cleared, never an older one
+  // read in its place. A chat answer (a reaction, a question to the site, a follow-up) is no search and leaves it.
+  const settled = !!query && !busy && !stale && !error && !!answer && !answer.chat;
+  // Null outside a PersonalProvider (a page drawn on its own), as the search's own hook reads it inside one.
+  const myTeam = useMyTeamNumber();
+  const askedMy = myTeam && MINE.test(query) ? myTeam : null;
+  useEffect(() => {
+    if (!settled) return;
+    if (found) rememberSearch(query, picked, askedMy); else forgetSearch();
+  }, [settled, found, query, picked, askedMy]);
+  const answered = !!answer && !answer.weak && !!(answer.card || answer.stat) && !followFrom;
   // v8: a question search has no direct answer to (a names reading, a list, a fallback) is Bruno's to answer: his card
   // leads the page, its slot held from the first frame (the owner, 11-23). A computed summary keeps his card where it was.
   const brunoAsks = useBrunoAsks(q, answered);
@@ -252,7 +270,7 @@ export default function SearchPage() {
   const brunoLeads = v8 && brunoAsks && !apps.length && !quality && !mayStand;
   // He had nothing to add to this question (with these preferred teams): its heading is full size again, as his slot
   // is let go. A new question or preference is pending again until he answers it.
-  const askKey = brunoKey(q, prefer); // trimmed, as his card keys it
+  const askKey = brunoKey(q, prefer, afterKey(followFrom)); // trimmed, as his card keys it
   // His answers for this page's cards: one moving between the top and below the results (a late card or summary
   // changes where he goes) keeps what he said instead of asking him again.
   const [brunoMemo] = useState<BrunoMemo>(() => new Map());
@@ -271,7 +289,7 @@ export default function SearchPage() {
   const brunoReady = !stale && (!busy || (seeded && !!answer));
   const smallHeading = !!(brunoTop || namesLine) && found && !error;
   const summary = (
-    <BrunoAnswer q={q} prefer={prefer} ready={brunoReady} answered={answered} memo={brunoMemo} className="mb-4 lg:mb-0">
+    <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={brunoReady} answered={answered} memo={brunoMemo} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
@@ -331,7 +349,7 @@ export default function SearchPage() {
           results column's width, beside where People also ask starts). */}
       {brunoTop && query && found && !error && (
         <div className={cn("mb-5", side && "lg:pr-[24rem]")} data-bruno-lead>
-          <BrunoAnswer q={q} prefer={prefer} ready={brunoReady} answered={answered} lead memo={brunoMemo} onOutcome={onBruno} />
+          <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={brunoReady} answered={answered} lead memo={brunoMemo} onOutcome={onBruno} />
         </div>
       )}
       <h1 className={cn("mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl v8:font-sans v8:text-[1.375rem] v8:leading-7 v8:md:text-[1.375rem] v8:lg:text-[1.375rem]",
@@ -342,6 +360,12 @@ export default function SearchPage() {
       </h1>
       {/* Not when the heading already says the reading (a shared name's line). */}
       {v8 && query && found && !busy && !error && !namesLine && <UnderstoodLine query={query} understood={ax?.understood} className="mt-2" />}
+      {/* A follow-up: the tab's last search, which Bruno reads it with, as a tap back to it. */}
+      {followFrom && found && !busy && !error && (
+        <p className="mt-1.5 break-words text-xs text-muted-foreground" data-follow-from>
+          Your last search: <Link to={`/search?q=${encodeURIComponent(followFrom.q)}${followFrom.season != null ? `&in=${followFrom.season}` : ""}`} className="font-medium text-foreground underline-offset-2 hover:underline">{followFrom.q}{followFrom.season != null && ` (${seasonLabel(followFrom.season)})`}</Link>
+        </p>
+      )}
       {badge && !v8 && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground v8:bg-transparent v8:text-muted-foreground" data-context-badge>
           <ScanSearch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span className="min-w-0 break-words">{badge}</span>
@@ -417,7 +441,7 @@ export default function SearchPage() {
                   </section>
                 )}
                 {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mt-6"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
-                {view.filter((x) => x !== placesAside).map((s) => <MorphScope key={s.id} name={`search-${s.id}`}><V8Group s={s} statuses={statuses} summaries={summaries} skip={teamAnswer?.number ?? null} fuzzyWord={fuzzyWords(hits) ?? undefined} picks={picks} onPick={pick} phone={phone} twoCol={side} onOpen={open} /></MorphScope>)}
+                {view.filter((x) => x !== placesAside).map((s) => <V8Group key={s.id} s={s} statuses={statuses} summaries={summaries} skip={teamAnswer?.number ?? null} fuzzyWord={fuzzyWords(hits) ?? undefined} picks={picks} onPick={pick} phone={phone} twoCol={side} onOpen={open} />)}
                 {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                   <div className="mt-4 rounded-xl border border-line bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                     <p className="text-foreground">{emptyLine(filters, hits)}</p>
@@ -428,7 +452,7 @@ export default function SearchPage() {
                   </div>
                 )}
                 {(apps.length > 0 || !!quality) && <div className="mt-6">{summary}</div>}
-                {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} ready={brunoReady} answered={answered} memo={brunoMemo} className="mt-6" />}
+                {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={brunoReady} answered={answered} memo={brunoMemo} className="mt-6" />}
                 {clipFor && <AnswerClip about={clipFor} className="mt-6" />}
               </div>
               </div>
@@ -480,7 +504,7 @@ export default function SearchPage() {
                   )}
                   {/* Phones: a versus query's side-by-side numbers under its Compare (desktop has them beside it). */}
                   {shownH2h && <div className="mb-5 lg:hidden"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
-                  {view.map((s) => <MorphScope key={s.id} name={`search-${s.id}`}><ResultSection s={s} statuses={statuses} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={side} onOpen={open} /></MorphScope>)}
+                  {view.map((s) => <ResultSection key={s.id} s={s} statuses={statuses} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={side} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     // Never a dead end: what's empty, said plainly, and each choice that isn't, one tap away.
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
