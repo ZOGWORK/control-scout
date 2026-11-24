@@ -24,4 +24,15 @@ describe("OptionalParts", () => {
     expect(await screen.findByText("sync ready")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy();
   });
+  it("mounts nothing until the page has loaded and gone idle: its chunks never share the start with the page's own", async () => {
+    const Part = () => <p>part</p>;
+    Object.defineProperty(document, "readyState", { configurable: true, get: () => "loading" });
+    try {
+      render(<OptionalParts><Part /></OptionalParts>);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(screen.queryByText("part")).toBeNull();
+      window.dispatchEvent(new Event("load"));
+      expect(await screen.findByText("part")).toBeTruthy();
+    } finally { delete (document as { readyState?: unknown }).readyState; }
+  });
 });
