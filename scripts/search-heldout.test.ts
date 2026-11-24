@@ -100,18 +100,24 @@ describe("the record of questions claimed twice", () => {
     expect(recorded).toEqual([...new Set(recorded)].sort());
   });
   it("is rewritten by a whole held-out run only: --claims with a set, a filter, the training set or --split is refused", () => {
-    // Refused before any database is opened, so quick; the record is left as it was (and put back if a refusal ever
-    // stops working, so a failing run never leaves a smaller record in the checkout).
-    const file = join(import.meta.dirname, "search-heldout.claims.json"), before = readFileSync(file, "utf8");
+    // Refused before any database is opened, so quick; the record is left as it was. Every file a run that wasn't
+    // refused could write (the record, and the held-out file --split rewrites) is put back whatever happens, so a
+    // failing run never leaves the checkout changed.
+    const files = ["search-heldout.claims.json", "search-heldout.json"].map((n) => join(import.meta.dirname, n));
+    const before = files.map((p) => readFileSync(p, "utf8"));
     try {
       for (const part of [["--set", "q260"], ["--only", "closest"], ["--train"], ["--split"]]) {
         const r = spawnSync(process.execPath, ["--import", "tsx", join(import.meta.dirname, "search-heldout.ts"), "--claims", ...part], { encoding: "utf8", timeout: 60_000 });
-        expect(r.status, part.join(" ")).toBe(1);
-        expect(r.stdout).toContain("--claims records a whole held-out run only");
+        // The child's own error, when it didn't start, timed out or died on an import: never read as a refusal gone.
+        const why = `${part.join(" ")}: status ${r.status}${r.error ? `, ${r.error.message}` : ""}
+${r.stderr ?? ""}`;
+        expect(r.status, why).toBe(1);
+        expect(r.stdout, why).toContain("--claims records a whole held-out run only");
       }
-      expect(readFileSync(file, "utf8")).toBe(before);
+      files.forEach((p, i) => expect(readFileSync(p, "utf8"), p).toBe(before[i]));
     } finally {
-      writeFileSync(file, before);
+      files.forEach((p, i) => writeFileSync(p, before[i]));
+      rmSync(`${files[1]}.tmp`, { force: true });
     }
   }, 120_000);
 });
