@@ -38,6 +38,8 @@ const topShare = (rank: number, of: number) => { const p = (100 * rank) / of; re
  *  something else of the run. `stat`: the board stat said (null: none). */
 export function seasonsAsk(p: Parsed, stat: string | null): "team" | "board" | null {
   if (p.time?.kind !== "seasons" || !p.time.range || p.event || p.eventKind || p.worlds || p.states || p.award || p.alliance || p.matchNumber != null || p.level || p.leftover.length) return null;
+  // A town's board, or rookies only, is a filter this answer can't keep: left to search's other readers.
+  if (p.rookie || p.place?.kind === "city") return null;
   if (!RANKED[stat ?? "opr"]) return null;
   if (!p.teams.length && (p.intent === "leaderboard" || p.symbols.includes("thing:team"))) return "board";
   if (p.teams.length !== 1) return null;

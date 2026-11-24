@@ -8,6 +8,9 @@ import { clearAllCaches } from "../../caches";
 import { resetSearchSeason } from "../answers/season";
 import { searchAnswer } from "../searchAnswer";
 import { readTime } from "../../../src/shared/query/time";
+import { parseQuery } from "./parse";
+import { parseContext } from "./context";
+import { seasonsAsk } from "./seasons";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
 const NOW = Date.parse("2026-03-18T12:00:00Z");
@@ -23,7 +26,7 @@ beforeAll(async () => {
   await migrate(c);
   // Three seasons, ten ranked teams in each. A later game scores higher: raw OPR rises while the ranks don't.
   const teams = [30401, 30402, 30403, 30404, 30405, 30406, 30407, 30408, 30409, 30410];
-  for (const n of teams) await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', ?, 'USA')", [n, `Bots ${n}`, n <= 30403 ? "MD" : "DE"]);
+  for (const n of teams) await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, 'USA')", [n, `Bots ${n}`, n <= 30403 ? "Annapolis" : "Dover", n <= 30403 ? "MD" : "DE"]);
   // Each season's order, best first: 30401 leads 2023 and 2025; 30402 leads 2024.
   const order: Record<number, number[]> = {
     2023: [30401, 30402, 30403, 30404, 30405, 30406, 30407, 30408, 30409, 30410],
@@ -38,6 +41,8 @@ beforeAll(async () => {
         VALUES (?, ?, 6, 3, 3, 0, ?, ?, ?, ?, 10)`, [season, n, (Number(season) - 2000) * 4 - i, i + 1, i + 1, 10 - i]);
     }
   }
+  // A team whose number is a year: a run's words still make it the season ("since <year>").
+  await run("INSERT INTO teams (number, name, city, state, country) VALUES (2023, 'Year Bots', 'Town', 'MD', 'USA')");
   await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USMDQ1', 'Maryland Qualifier', 'Qualifier', 'Town', 'MD', 'USA', '2026-02-01', '2026-02-01', 't')");
   await rebuildSearch();
   resetSearchSeason();
@@ -71,5 +76,17 @@ describe("a run of seasons", () => {
     expect(s?.intent).toBe("seasons-board");
     expect(table(s).slice(0, 3).map((c) => [c.team, c.avg])).toEqual([["30401 Bots 30401", "Top 14%"], ["30402 Bots 30402", "Top 20%"], ["30403 Bots 30403", "Top 30%"]]);
     expect(table(await stat("best teams in delaware since 2023")).map((c) => c.team)[0]).toBe("30404 Bots 30404");
+  });
+  it("a run said either way round, with a year a team has, is the same run; a town or rookies are never dropped", async () => {
+    const t = (q: string) => readTime(q, "2026-03-18").time;
+    expect(t("best teams 2025-26 to 2023-24")).toMatchObject({ kind: "seasons", range: { from: 2023, to: 2025 }, label: "2023–24 to 2025–26" });
+    expect(t("best teams 2024 to 2024")).toMatchObject({ kind: "season", season: 2024 });
+    const since = await stat("best teams since 2023");
+    expect([since?.intent, table(since)[0]?.team]).toEqual(["seasons-board", "30401 Bots 30401"]);
+    const ctx = await parseContext(NOW);
+    for (const q of ["best rookie teams since 2023", "best teams in annapolis since 2023"]) {
+      const p = await parseQuery(q, ctx);
+      expect([!!p.rookie || p.place?.kind === "city", seasonsAsk(p, null)], q).toEqual([true, null]);
+    }
   });
 });
