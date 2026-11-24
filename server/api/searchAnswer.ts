@@ -56,6 +56,7 @@ import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
 import { chatAnswer } from "./answers/chat.js";
+import { whenEventAnswer } from "./answers/whenEvent.js";
 import { fold, names } from "./query/names.js";
 import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
@@ -272,8 +273,10 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     const meant = await respell(String(raw ?? ""), await parseContext(opts.now, opts.prefer));
     if (meant) return { ...(await searchAnswer(meant, { ...opts, respelled: true })), q: cleanQuery(raw) };
   }
-  const a = await answerOf(raw, opts);
-  if (opts.inner || opts.intents === false || opts.rewrites) return a;
+  const read = await answerOf(raw, opts);
+  if (opts.inner || opts.intents === false || opts.rewrites) return read;
+  // "When is <event>": an event's editions with the date of the one meant leading (./answers/whenEvent.ts).
+  const a = whenEventAnswer(String(raw ?? ""), read, opts.now ?? Date.now());
   // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
   // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
   // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.
