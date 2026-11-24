@@ -5,7 +5,7 @@ an embed that links back to controlscout.org:
 
 | Command | What it shows |
 | --- | --- |
-| `/team number:` | Location, season record, OPR (total and auto / TeleOp / endgame), world ranking, next event (or the last one) |
+| `/team number:` | Location, season record, OPR (total and auto / TeleOp / endgame), world ranking, next event (or the last one), and the next match at it when FIRST has posted one — the match, a countdown to its start and a link to its page |
 | `/next team:` | The team's next match: when it starts, its alliance and partner, and the call (win odds, predicted score, confidence). Says plainly when nothing is scheduled yet |
 | `/compare team: other:` | Two teams side by side: records and OPR, and who wins the head-to-head |
 | `/predict event: match:` | The lineup, the favourite's win chance (or "Even call"), the predicted score and its confidence for a qualification match. Once it's played: the score, and the call against it (called, upset, or an even call) |

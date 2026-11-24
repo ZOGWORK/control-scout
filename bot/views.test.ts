@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { EventDetail, FieldRow, MatchView } from "../src/shared/api";
+import type { EventDetail, FieldRow, MatchView, TeamProfile } from "../src/shared/api";
 import {
   PRIDE, VOLT, dates, embedBlocks, embedReadChars, eventEmbed, movement, preMatchEmbed, predictEmbed, rankingsEmbed, pride, resultEmbed,
-  storyLine, topByOpr, verdict, winningAlliance,
+  startsText, storyLine, teamEmbed, topByOpr, verdict, winningAlliance, type TeamCard,
 } from "./views";
 import fixture from "./fixtures/usnjnem3-2026-11-07.json";
 
@@ -36,6 +36,23 @@ describe("dates", () => {
 const played = (pRed: number, red: number, blue: number, means: [number, number] = [100, 90], kind: "live" | "backtest" = "live") =>
   m({ played: true, red: { ...m().red, score: scored(red, red) }, blue: { ...m().blue, score: scored(blue, blue) }, prediction: { ...m().prediction!, pRed, redMean: means[0], blueMean: means[1], kind } });
 
+describe("startsText", () => {
+  it("a countdown and the venue's time once FIRST posts one, the posted clock time before that", () => {
+    const t = Math.floor(Date.parse("2026-10-24T15:15:00Z") / 1000);
+    expect(startsText(m({ startsAt: "2026-10-24T15:15:00Z" }))).toBe(`Starts <t:${t}:R> (<t:${t}:t>)`);
+    expect(startsText(m({ time: "2026-10-24T15:15:00" }))).toBe("Scheduled 15:15");
+  });
+
+  it("nothing for a match with no time, and never \"starts\" for one already played", () => {
+    expect(startsText(m())).toBeNull();
+    expect(startsText(m({ played: true, startsAt: "2026-10-24T15:15:00Z" }))).toBe("Played: the final score isn't posted yet");
+  });
+
+  it("the pre-match card ends its own line", () => {
+    expect(preMatchEmbed("Austin Qualifier", m({ time: "2026-10-24T15:15:00" }), SITE).description!.split("\n")[0]).toBe("Scheduled 15:15.");
+  });
+});
+
 describe("verdict", () => {
   it("a favourite (55%+) is called or upset; an even call (45–55%) and a tie have no verdict", () => {
     expect(verdict(played(0.68, 150, 100))).toEqual({ called: true, text: "Called it ✅" });
@@ -48,6 +65,52 @@ describe("verdict", () => {
     expect(verdict(played(0.544, 30, 41))?.called).toBeNull(); // reads 54%
     expect(verdict(played(0.7, 90, 90))).toEqual({ called: null, text: "Tie" });
     expect(verdict(m())).toBeNull();
+  });
+});
+
+/** A team's card with one event on it, as the lookups would hand it over. */
+const card = (now: number, event: Partial<TeamProfile["events"][number]>, next: TeamCard["next"] = null) => teamEmbed({
+  profile: {
+    team: { number: 4215, name: "Alpha", city: null, state: null, country: null },
+    stats: null,
+    events: [{ season: 2025, code: "USNYX", name: "Evening Qualifier", start: "2026-10-24", end: "2026-10-24", qualPlayed: 0, rank: null, ...event }],
+  } as unknown as TeamProfile,
+  seasonLabel: "2025–26", now, next,
+}, SITE);
+
+const nextAt = (code: string, name: string, startsAt?: string) =>
+  ({ event: { event: { season: 2025, code, name } } as Pick<EventDetail, "event">, match: m(startsAt ? { startsAt } : {}) });
+const at = (iso: string) => nextAt("USNYX", "Evening Qualifier", iso);
+
+ describe("teamEmbed", () => {
+  it("keeps tonight's match on the card after UTC's midnight: the event is read on the venue's calendar", () => {
+    // 19:30 on Oct 24 in New York is already Oct 25 in UTC, and the match is still to be played.
+    const e = card(Date.parse("2026-10-25T00:30:00Z"), { timezone: "America/New_York" }, at("2026-10-25T01:00:00Z"));
+    expect(e.fields?.map((f) => f.name).slice(-2)).toEqual(["Next event", "Next match"]);
+    expect(e.fields?.at(-1)?.value).toMatch(/^\[Qual 12 · Evening Qualifier\]\(.*\) · Starts <t:\d+:R>/);
+  });
+
+  it("a dateless event holding the next match is the next event too, not a later dated one", () => {
+    const e = teamEmbed({
+      profile: {
+        team: { number: 4215, name: "Alpha", city: null, state: null, country: null },
+        stats: null,
+        events: [
+          { season: 2025, code: "NODATE", name: "Dates Not Posted Meet", start: null, end: null, qualPlayed: 0, rank: null },
+          { season: 2025, code: "LATER", name: "Later Qualifier", start: "2026-11-08", end: "2026-11-08", qualPlayed: 0, rank: null },
+        ],
+      } as unknown as TeamProfile,
+      seasonLabel: "2025–26", now: Date.parse("2026-10-24T15:00:00Z"), next: nextAt("NODATE", "Dates Not Posted Meet"),
+    }, SITE);
+    expect(e.fields?.map((f) => f.name).slice(-2)).toEqual(["Next event", "Next match"]);
+    expect(e.fields?.at(-2)?.value).toContain("Dates Not Posted Meet");
+    expect(e.fields?.at(-2)?.value).toContain("Dates not posted");
+  });
+
+  it("a venue's day that has ended is not next, even while UTC's date still says it is", () => {
+    // 01:00 on Oct 26 in Brisbane, with UTC still on Oct 25, the event's last date.
+    const e = card(Date.parse("2026-10-25T15:00:00Z"), { start: "2026-10-25", end: "2026-10-25", timezone: "Australia/Brisbane", qualPlayed: 4, wins: 2, losses: 2, ties: 0 });
+    expect(e.fields?.map((f) => f.name)).toEqual(["Season 2025–26", "Last event"]);
   });
 });
 
