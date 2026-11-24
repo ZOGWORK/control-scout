@@ -181,9 +181,10 @@ export function nameWords(q: string, asked = false): string {
   let rest = one;
   // Every time phrase goes ("upcoming qualifiers this weekend"): each pass takes one out, so this ends.
   for (let time = timePhrase(rest); time; time = timePhrase(rest)) rest = time.rest;
-  // A run of seasons goes too ("from 2022 to 2024", "since 2023"): its years are seasons, never a team number to look up.
-  const run = seasonRunAt(rest);
-  if (run) rest = `${rest.slice(0, run.index)} ${rest.slice(run.index + run.length)}`.replace(/\s+/g, " ").trim();
+  // Every run of seasons goes too ("from 2022 to 2024", "since 2023"): its years are seasons, never a team number to
+  // look up. Each pass takes one out, so this ends.
+  let runs = 0;
+  for (let run = seasonRunAt(rest); run; run = seasonRunAt(rest), runs++) rest = `${rest.slice(0, run.index)} ${rest.slice(run.index + run.length)}`.replace(/\s+/g, " ").trim();
   const question = asked || isQuestionForm(q);
   const all = rest.split(" ").filter(Boolean);
   const place = placeWords(all);
@@ -196,5 +197,6 @@ export function nameWords(q: string, asked = false): string {
     if (l === "from" && i > 0 && isPlaceName(all.slice(i + 1).join(" "))) return false;
     return !STOPWORDS.has(l) && !(question && QUESTION_WORDS.has(l));
   });
-  return ws.length ? ws.join(" ") : one;
+  // Only a run said ("since 2023"): nothing names a team or event (its years are never looked up).
+  return ws.length ? ws.join(" ") : runs ? "" : one;
 }

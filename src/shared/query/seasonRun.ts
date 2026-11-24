@@ -40,8 +40,9 @@ export function seasonRange(rest: string): { t: TimeSlot; m: RegExpExecArray } |
   return null;
 }
 
-/** Where a run of seasons stands in `q` (lower case or not), or null: the words to leave out of a name search. */
+/** Where a run of seasons stands in `q` (lower case or not), or null: the words to leave out of a name search. Only
+ *  A–Z are lowered, so every other letter keeps its place (a run's words are all A–Z) and the place is `q`'s own. */
 export function seasonRunAt(q: string): { index: number; length: number } | null {
-  const r = seasonRange(q.toLowerCase());
+  const r = seasonRange(q.replace(/[A-Z]+/g, (w) => w.toLowerCase()));
   return r ? { index: r.m.index, length: r.m[0].length } : null;
 }

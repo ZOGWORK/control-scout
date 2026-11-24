@@ -71,6 +71,9 @@ describe("a run of seasons asked of a score, a record or anything but a rank", (
   it("a year read as part of a run is never a team number to look up", async () => {
     expect(nameWords("highest score from 2023 to 2024")).toBe("highest score");
     expect(nameWords("30501 since 2023")).toBe("30501");
+    // Every run goes, a run alone leaves nothing to look up, and a letter that lowers to two keeps the words around it.
+    expect([nameWords("highest score from 2022 to 2023 since 2024"), nameWords("since 2023"), nameWords("from 2022 to 2024")]).toEqual(["highest score", "", ""]);
+    expect(nameWords("İ since 2023 teams")).toBe("İ team");
     // A year alone is still a number to look up.
     expect(nameWords("2024")).toBe("2024");
     for (const q of ["highest score from 2023 to 2024", "highest score since 2023"]) {
