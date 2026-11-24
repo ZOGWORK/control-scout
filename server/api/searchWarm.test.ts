@@ -17,7 +17,7 @@ beforeAll(async () => {
 
 describe("most-asked searches", () => {
   it("writes this process's most asked first, then the last list's others, and makes each", async () => {
-    await kvSet("search:hot", [["old one", 25], ["4215", 25]]);
+    await kvSet("search:hot:one", [["old one", 25], ["4215", 25]]);
     for (let i = 0; i < 3; i++) noteAsked("4215", 25);
     noteAsked("top teams", 25);
     noteAsked("  ", 25);
@@ -35,9 +35,27 @@ describe("most-asked searches", () => {
   });
 
   it("keeps at most HOT_MAX, and reads nothing it doesn't recognise", async () => {
-    await kvSet("search:hot", [...Array.from({ length: HOT_MAX + 5 }, (_, i) => [`q${i}`, 25]), "junk", [1, 2]]);
+    await kvSet("search:hot:one", [...Array.from({ length: HOT_MAX + 5 }, (_, i) => [`q${i}`, 25]), "junk", [1, 2]]);
     expect((await hotList()).length).toBe(HOT_MAX);
-    await kvSet("search:hot", { not: "a list" });
+    await kvSet("search:hot:one", { not: "a list" });
     expect(await hotList()).toEqual([]);
+  });
+
+  it("merges every lane's list, each lane writing only its own key, saves one at a time", async () => {
+    await kvSet("search:hot:one", null);
+    await kvSet("search:hot:a", [["a1", 25], ["shared", 25], ["a2", 25]]);
+    await kvSet("search:hot:b", [["b1", 25], ["shared", 25]]);
+    expect(await hotList()).toEqual([["a1", 25], ["b1", 25], ["shared", 25], ["a2", 25]]);
+    const was = process.env.CS_LANE;
+    process.env.CS_LANE = "b";
+    try {
+      noteAsked("b-new", 25);
+      // Two saves at once (the interval and SIGTERM): one after the other, the same list.
+      const [x, y] = await Promise.all([saveHot(), saveHot()]);
+      expect(x).toBe(y);
+      expect(((await hotList()).map(([q]) => q))).toEqual(expect.arrayContaining(["a1", "a2", "b-new", "b1", "shared"]));
+    } finally {
+      if (was === undefined) delete process.env.CS_LANE; else process.env.CS_LANE = was;
+    }
   });
 });
