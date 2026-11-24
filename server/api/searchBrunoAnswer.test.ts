@@ -8,7 +8,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { invalidateFlags, setFlag } from "../flags";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, brunoAnswer, grounded, partialAnswer, previewOf, resetBrunoAnswerCache, statFacts, type BrunoAnswer } from "./searchBrunoAnswer";
+import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, brunoAnswer, followUpOf, grounded, partialAnswer, previewOf, resetBrunoAnswerCache, statFacts, type BrunoAnswer } from "./searchBrunoAnswer";
 import { isBrunoQuestion } from "../../src/shared/search";
 
 let fake: Server;
@@ -172,6 +172,83 @@ describe("asking Bruno", () => {
     reply = { text: "4215 went to states 2 times." };
     expect(await brunoAnswer(Q)).toEqual(withPoints(reply));
   }, 30_000);
+});
+
+// Logged #2214/#2210: "was that the same auto points in all the matches u said here" points back at an earlier
+// answer: with the page's last search (`after`), he answers from that search's records.
+const FOLLOW = "was that the same auto points in all the matches u said here";
+describe("a follow-up to the tab's last search", () => {
+  it("is answered from the earlier search's facts, said as that search's", async () => {
+    reply = { text: "Hypnotic Robotics (4215) had an OPR of 101.6 in 2025–26." };
+    expect(await brunoAnswer(FOLLOW, { after: "4215 opr" })).toEqual(withPoints(reply));
+    expect(asked[0].question).toBe(FOLLOW);
+    expect(asked[0].facts[0]).toBe(`This question follows up the earlier search "4215 opr": the facts below are that search's answer.`);
+    expect(asked[0].facts.slice(1)).toEqual(await answerFacts(await searchAnswer("4215 opr", { learn: false })));
+  });
+  it("each earlier search is cached apart", async () => {
+    reply = { text: "Yes." };
+    await brunoAnswer(FOLLOW, { after: "4215 opr" });
+    await brunoAnswer(FOLLOW, { after: "4215 record" });
+    expect(asked).toHaveLength(2);
+  });
+  it("a failed read of the earlier search's facts is no answer, not an error, and isn't cached", async () => {
+    reply = { text: "Yes." };
+    // The records the facts are read from, gone for a moment (a database error).
+    await run("ALTER TABLE events RENAME TO events_gone");
+    try {
+      expect(await brunoAnswer(FOLLOW, { after: "4215 opr" })).toBeNull();
+    } finally {
+      await run("ALTER TABLE events_gone RENAME TO events");
+    }
+    expect(asked).toHaveLength(0);
+    expect(await brunoAnswer(FOLLOW, { after: "4215 opr" })).toEqual(withPoints(reply));
+  });
+  it("over the route, is read in the season picked on the earlier search's answer (?afterSeason=)", async () => {
+    reply = { text: "Yes." };
+    const { createApp } = await import("../app");
+    const { pickedQuery } = await import("./searchPageAnswer");
+    const app = createApp().listen(0);
+    await new Promise((r) => app.once("listening", r));
+    try {
+      const base = `http://127.0.0.1:${(app.address() as AddressInfo).port}/api/search/bruno?q=${encodeURIComponent(FOLLOW)}&after=${encodeURIComponent("4215 opr")}`;
+      expect((await fetch(`${base}&afterSeason=2024`)).status).toBe(200);
+      const picked = await pickedQuery("4215 opr", 2024);
+      expect(picked).not.toBe("4215 opr");
+      expect(asked[0].facts[0]).toBe(`This question follows up the earlier search "${picked}": the facts below are that search's answer.`);
+      // No season picked: the search as it was typed.
+      expect((await fetch(base)).status).toBe(200);
+      expect(asked[1].facts[0]).toContain('"4215 opr"');
+      // The records gone for a moment while reading it in its season: no answer (204), never an error.
+      resetBrunoAnswerCache();
+      // The search pipeline's names (read for the season pick) are built again from the database, which fails.
+      const { clearAllCaches } = await import("../caches");
+      clearAllCaches();
+      await run("ALTER TABLE events RENAME TO events_gone");
+      try {
+        expect((await fetch(`${base}&afterSeason=2024`)).status).toBe(204);
+      } finally {
+        await run("ALTER TABLE events_gone RENAME TO events");
+      }
+    } finally { app.close(); }
+  });
+  it("a \"my\" earlier search is read for the My team it was asked with (?afterMy=), each team cached apart", async () => {
+    reply = { text: "Yes." };
+    await brunoAnswer(FOLLOW, { after: "our opr", afterMy: 4215 });
+    const mine = await searchAnswer("4215's opr", { learn: false });
+    expect(asked[0].facts.slice(1)).toEqual(await answerFacts(mine));
+    expect(asked[0].facts.some((f) => f.includes("4215"))).toBe(true);
+    await brunoAnswer(FOLLOW, { after: "our opr" });
+    expect(asked).toHaveLength(2);
+    expect(asked[1].facts.some((f) => f.startsWith("Team 4215"))).toBe(false);
+  });
+  it("an earlier search is never read with a question that doesn't point back", async () => {
+    reply = { text: "4215 went to states 2 times." };
+    await brunoAnswer(Q, { after: "4215 opr" });
+    expect(asked[0].facts).toEqual(await answerFacts(await searchAnswer(Q, { learn: false })));
+    expect(followUpOf(Q, "4215 opr")).toBeNull();
+    expect(followUpOf(FOLLOW, "")).toBeNull();
+    expect(followUpOf(FOLLOW, FOLLOW)).toBeNull();
+  });
 });
 
 describe("streamed to the page", () => {

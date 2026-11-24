@@ -59,6 +59,40 @@ export interface RuleQuery {
   past?: Record<string, number>;
   /** A season named outright ("2024-25", "INTO THE DEEP"): that season's rules, or its manual. */
   season?: number;
+  /** Only rules whose number, title or own keywords hold every keyword ("what is park": LEAVE and PARK), never one that
+   *  only mentions it in passing: a word's meaning asked (readDefinition). */
+  titled?: boolean;
+}
+
+/** A word's meaning asked ("what does park mean", "define major foul", "what is a yellow card", "how many points is a
+ *  hive tip"): the term, and whether the question asks a meaning outright (`strict`: a "what does … mean", "define …",
+ *  "… meaning" or a points question), not a bare "what is …", which a stat question can be too. Null when it isn't one,
+ *  or the term holds a number (a team's, a season's) or more than four words. */
+export interface Definition { term: string; strict: boolean; points?: true }
+const CONTEXT_END = /\s+(?:in ftc|in first tech challenge|this season|this year|in this game|in the game|in bio ?buzz|in decode|in into the deep)$/;
+export function readDefinition(typed: string): Definition | null {
+  const t = typed.toLowerCase().replace(/[’`]/g, "'").replace(/[?!.,;:"()]/g, " ").replace(/\s+/g, " ").trim().replace(CONTEXT_END, "");
+  const forms: [RegExp, boolean, boolean?][] = [
+    [/^(?:what|whats|what's) (?:does|do|is|are) (?:(?:an?|the) )?(.+?) (?:mean|means|stand for|stands for)$/, true],
+    [/^(?:define|definition of|meaning of|what is the meaning of|what's the meaning of|whats the meaning of) (?:(?:an?|the) )?(.+)$/, true],
+    [/^(?:(?:an?|the) )?(.+?) (?:meaning|definition)$/, true],
+    [/^how many (?:ranking )?(?:points?|rps?) (?:is|are|for|does|do you get for|do you get from|is it for) (?:(?:an?|the) )?(.+)$/, true, true],
+    [/^(?:what|whats|what's) (?:is|are) (?:(?:an?|the) )?(.+)$/, false],
+  ];
+  for (const [re, strict, points] of forms) {
+    const m = re.exec(t);
+    if (!m) continue;
+    const term = m[1].replace(CONTEXT_END, "").trim();
+    if (!term || /\d/.test(term) || term.split(" ").length > 4) return null;
+    return { term: points ? `${/\b(?:ranking|rps?)\b/.test(t) ? "ranking " : ""}${term}` : term, strict, ...(points ? { points: true as const } : {}) };
+  }
+  return null;
+}
+
+/** The keywords of a term, as a rules question reads them ("major foul": major, foul). */
+export function termKeywords(term: string): string[] {
+  const ws = fold(singularize(term)).split(/\s+/).filter(Boolean);
+  return [...new Set(ws.filter((w) => !STOPWORDS.has(w) && !QUESTION_WORDS.has(w) && !RULE_FRAME.has(w) && w.length > 1).map((w) => (Object.hasOwn(SYNONYM, w) ? SYNONYM[w] : w)))];
 }
 
 /** Game names, for a season named by its game ("G402 in INTO THE DEEP"). */
@@ -127,5 +161,7 @@ export function rulesFor(ref: SeasonReference, rq: RuleQuery): RuleEntry[] {
   if (rq.id) return ref.rules.filter((r) => r.id.toUpperCase() === rq.id);
   if (!rq.keywords.length) return [];
   const title = new Map(ref.sections.map((s) => [s.id, s.title]));
-  return ref.rules.filter((r) => { const ws = haystack(r, title.get(r.section) ?? ""); return rq.keywords.every((k) => has(ws, k)); });
+  // A meaning asked: the rule named by the words (its number, title or keywords), never one only mentioning them.
+  const named = (r: RuleEntry) => fold(`${r.id} ${r.title} ${(r.keywords ?? []).join(" ")}`).split(/\s+/).filter(Boolean);
+  return ref.rules.filter((r) => { const ws = rq.titled ? named(r) : haystack(r, title.get(r.section) ?? ""); return rq.keywords.every((k) => has(ws, k)); });
 }
