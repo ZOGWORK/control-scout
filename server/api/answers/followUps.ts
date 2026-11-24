@@ -5,7 +5,7 @@
 // headline, so the numbers are the ones the linked page shows. No team, event or year is written here: the words come
 // from the query as typed, the answer and the lexicon.
 import type { SearchAnswer, SearchFollowUp, SearchFollowUps } from "../../../src/shared/api.js";
-import { ASK_MAX, FOLLOW_BUDGET_MS, SEARCH_PAGE_LIMIT } from "../../../src/shared/search.js";
+import { ASK_MAX, FOLLOW_BUDGET_MS, SEARCH_PAGE_LIMIT, firstCards } from "../../../src/shared/search.js";
 import { seasonLabel } from "../../../src/shared/format.js";
 import { normalise, parseQuery, type Parsed } from "../query/parse.js";
 import { parseContext } from "../query/context.js";
@@ -13,16 +13,29 @@ import { names } from "../query/names.js";
 import { AWARD_WORDS, LEXICON } from "../query/lexicon.js";
 import { keptAnswer, keptGeneration, searchVersion, STALE_MS } from "../searchReads.js";
 import { searchAnswer } from "../searchAnswer.js";
-import { loneTeamHit } from "../searchLayers.js";
+import { carryOutcome, loneTeamHit } from "../searchLayers.js";
 import { forecasterBuilds } from "../../predict/engine.js";
 import { failureOf, outcomeTrace } from "../../searchFailures.js";
 
 type Family = SearchFollowUp["family"];
 
 /** The whole answer for `q` as /api/search?answer=1 gives it, kept a minute: a follow-up checked here is the answer its
- *  tap opens. */
-export const pageAnswer = (q: string, limit: number, prefer: ReadonlySet<string>): Promise<SearchAnswer> =>
-  keptAnswer(JSON.stringify([q, limit, [...prefer].sort(), forecasterBuilds()]), () => searchAnswer(q, { limit, prefer }));
+ *  tap opens. One reading for every list: worked out once on the page's full list and kept without the caller's limit,
+ *  then cut to it, so the dropdown's answer is the page's first cards (the search audit's Q13). */
+export const pageAnswer = async (q: string, limit: number, prefer: ReadonlySet<string>): Promise<SearchAnswer> => {
+  const a = await keptAnswer(JSON.stringify([q, [...prefer].sort(), forecasterBuilds()]), () => searchAnswer(q, { limit: SEARCH_PAGE_LIMIT, prefer }));
+  return limit >= SEARCH_PAGE_LIMIT ? a : cutTo(a, limit);
+};
+/** A kept answer cut to a shorter list: one copy per answer and length, so it is the same object each time it's asked
+ *  (what's kept by the answer, such as the page's extras, is found again), with the answer's search outcome on it. */
+const cuts = new WeakMap<SearchAnswer, Map<number, SearchAnswer>>();
+function cutTo(a: SearchAnswer, limit: number): SearchAnswer {
+  let byLimit = cuts.get(a);
+  if (!byLimit) cuts.set(a, (byLimit = new Map()));
+  let cut = byLimit.get(limit);
+  if (!cut) byLimit.set(limit, (cut = carryOutcome(a, { ...a, hits: firstCards(a.hits, limit) })));
+  return cut;
+}
 
 /** The kept follow-ups' key for `q` and `prefer`. */
 const followKey = (q: string, prefer: ReadonlySet<string>) => JSON.stringify(["follow", q, [...prefer].sort(), forecasterBuilds()]);

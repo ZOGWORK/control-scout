@@ -14,7 +14,7 @@ import { clearAllCaches } from "../../caches";
 import { relatedPage, grouped, teamTitle } from "./relatedPage";
 import { pageMeta } from "../../seoMeta";
 import { canonicalQuery } from "../../../src/lib/meta";
-import { RELATED_QUERY_MAX, followApiPath, relatedApiPath } from "../../../src/shared/search";
+import { RELATED_QUERY_MAX, SEARCH_MAX_QUERY, SEARCH_PAGE_LIMIT, firstCards, followApiPath, queryCut, relatedApiPath } from "../../../src/shared/search";
 import { MAX_QUERY } from "../searchAnswer";
 import type { SearchAnswer, SearchFollowUp } from "../../../src/shared/api";
 import { aheadCount, answerKey, candidates, followUps, followUpsWithin, keptFollowUps, lineOf, precomputeFollowUps, type Progress, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
@@ -430,6 +430,42 @@ describe("the follow-ups' time budget (followUpsWithin)", () => {
     const direct = await followUps("4215 vs 6980", a);
     clearAllCaches();
     expect(await followUpsWithin("4215 vs 6980", new Set(), 60_000)).toEqual(direct);
+  });
+});
+
+// Search audit 2026-11-24, Q13 and Q14: the dropdown and the page are one reading, kept once whatever the list's
+// length; a question longer than search reads says what it left out.
+describe("one reading for every list, and a long question's cut said", () => {
+  it("the dropdown's answer is the page's, cut to its first cards", async () => {
+    for (const q of ["4215 record", "hypnotic robotics", "best opr in nj"]) {
+      const page = await pageAnswer(q, SEARCH_PAGE_LIMIT, new Set());
+      const drop = await pageAnswer(q, 15, new Set());
+      expect({ ...drop, hits: [] }, q).toEqual({ ...page, hits: [] });
+      expect(drop.hits, q).toEqual(firstCards(page.hits, 15));
+      // The same cut each time, with the search's outcome on it (Loopy on #2263).
+      expect(await pageAnswer(q, 15, new Set()), q).toBe(drop);
+      expect(outcomeTrace(drop), q).toEqual(outcomeTrace(page));
+      expect(outcomeTrace(drop), q).not.toBeNull();
+    }
+  });
+  it("words past the length search reads are said, never dropped", async () => {
+    const tail = "and also what about their alliance partners at the qualifier";
+    const q = `${"what is the record of team 4215 hypnotic robotics this season ".repeat(3)}${tail}`;
+    expect(q.length).toBeGreaterThan(SEARCH_MAX_QUERY);
+    const a = await searchAnswer(q, { limit: 25, learn: false });
+    expect(a.understood?.unread?.at(-1)).toBe(queryCut(q));
+    expect(queryCut(q).endsWith("qualifier")).toBe(true);
+    expect((await searchAnswer("4215 record", { limit: 25, learn: false })).understood?.unread ?? []).toEqual([]);
+    // A long question searched again as rewritten (a chat command pasted whole): its cut said once (Loopy on #2263).
+    const asked = `/ask question:${q}`;
+    const b = await searchAnswer(asked, { limit: 25, learn: false });
+    expect((b.understood?.unread ?? []).filter((u) => u.includes("qualifier"))).toEqual([queryCut(asked)]);
+    // A long question answered as chat: its cut said on that answer too (Loopy on #2263).
+    const chat = "who made you? ".repeat(13).trim();
+    expect(chat.length).toBeGreaterThan(SEARCH_MAX_QUERY);
+    const c = await searchAnswer(chat, { limit: 25, learn: false });
+    expect(c.chat).toBe("meta");
+    expect(c.understood?.unread?.at(-1)).toBe(queryCut(chat));
   });
 });
 

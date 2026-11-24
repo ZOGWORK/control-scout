@@ -7,6 +7,7 @@ import { rebuildSearch } from "../stats/job";
 import { CURRENT_SEASON } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
 import { buildNames } from "../../src/shared/query/names";
+import { queryCut } from "../../src/shared/search";
 
 const S = CURRENT_SEASON;
 const now = Date.parse("2026-11-02T12:00:00Z");
@@ -52,6 +53,12 @@ describe("a question about a shared town", () => {
     expect(a.understood?.label).not.toMatch(/^Which/);
     // Each region as it is written: "MO" in capitals is the region, "mo" may be a word.
     expect([...(a.suggest ?? [])].sort()).toEqual(["teams in fairbrook IL", "teams in fairbrook MO"]);
+  });
+  it("a long question about it says its cut once (Loopy on #2263)", async () => {
+    const q = `teams in fairbrook this season ${"please ".repeat(22)}thanks`;
+    const a = await ask(q);
+    expect(a.suggest?.length).toBe(2);
+    expect((a.understood?.unread ?? []).filter((u) => u === queryCut(q))).toEqual([queryCut(q)]);
   });
   it("each tap is read as its town", async () => {
     const a = await ask("teams in fairbrook MO");
