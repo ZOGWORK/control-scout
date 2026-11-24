@@ -4,12 +4,16 @@
 //     same words;
 //   - a typo said in full before anything reads the query (INFORMAL: "ths" is "this") is never spelled out again in a
 //     reader's regex;
-//   - the FIRST Championship's names are one list (CHAMPIONSHIP_NAMES), and the lexicon's Worlds phrases hold them all.
+//   - the FIRST Championship's names are one list (CHAMPIONSHIP_NAMES), and the lexicon's Worlds phrases hold them all;
+//   - the keyword layer's words (./searchCatalog.ts) are the lexicon's own lists, the catalog spelling out none.
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CHAMPIONSHIP_NAMES, INFORMAL, LEXICON, championshipNames } from "../../src/shared/query/lexicon";
-import { FILLER } from "./searchCatalog";
+import * as lexicon from "../../src/shared/query/lexicon";
+import { CHAMPIONSHIP_NAMES, INFORMAL, INTENT_WORDS, LEADER_STAT_ORDER, LEXICON, championshipNames } from "../../src/shared/query/lexicon";
+import * as catalog from "./searchCatalog";
+
+const { FILLER, INTENTS, LEADER_STAT_WORDS } = catalog;
 
 const ROOT = join(import.meta.dirname, "..", "..");
 const phrasesOf = (k: string) => new Set(LEXICON.filter((e) => e.syms.every((s) => s.k === k)).map((e) => e.words.join(" ")));
@@ -58,5 +62,24 @@ describe("search's words come from the lexicon", () => {
     // Words apart by any spaces, as typed.
     expect(re.test("world   championship")).toBe(true);
     expect(re.test("houston")).toBe(false);
+  });
+
+  it("every catalog keyword is a lexicon phrase: the catalog's word lists are the lexicon's own", () => {
+    // Each intent's words are its INTENT_WORDS row, and every row is an intent's.
+    for (const i of INTENTS) expect(i.words, i.id).toBe(INTENT_WORDS[i.id]);
+    expect(Object.keys(INTENT_WORDS).sort()).toEqual(INTENTS.map((i) => i.id).sort());
+    // The lists the keyword layer reads are the lexicon's objects, not copies.
+    for (const name of ["AWARDS", "FILLER", "FORBIDDEN", "PARAPHRASES", "PHASES", "SCAFFOLD", "TAIL_FILLER", "WEAK_SIGNALS"] as const)
+      expect(catalog[name], name).toBe(lexicon[name]);
+    // A leaderboard's stat words are looked for in the lexicon's order, every one of them.
+    expect([...LEADER_STAT_WORDS].sort()).toEqual([...LEADER_STAT_ORDER].sort());
+  });
+
+  it("the catalog spells out no word list of its own", () => {
+    const src = readFileSync(join(ROOT, "server", "api", "searchCatalog.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    // A list of words is three or more strings in a row; an intent's scope or a precedence pair is two at most.
+    expect(src.match(/\[\s*"[^"]*"\s*,\s*"[^"]*"\s*,\s*"/g) ?? []).toEqual([]);
+    expect(src.match(/words:\s*\[/g) ?? []).toEqual([]);
   });
 });
