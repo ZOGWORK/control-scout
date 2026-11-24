@@ -426,7 +426,11 @@ describe("follow-ups made ahead (precomputeFollowUps)", () => {
     const direct = await followUps("4215", await pageAnswer("4215", 25, new Set()));
     clearAllCaches();
     // Ready with no time at all: made ahead.
-    expect(await followUpsWithin("4215", new Set(), 0)).toEqual(direct);
+    const served = await followUpsWithin("4215", new Set(), 0);
+    expect(served).toEqual(direct);
+    // Run again on the same index (a retry after one failed): what was made is kept, not made again.
+    expect(await precomputeFollowUps(["4215", "6980"])).toBe(2);
+    expect(await followUpsWithin("4215", new Set(), 0)).toBe(served);
     // A stats run moves the index: no longer served (made again as any search's).
     await kvSet("search:version", "ahead-2");
     await new Promise((ok) => setTimeout(ok, 2_100));
