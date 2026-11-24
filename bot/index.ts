@@ -211,9 +211,9 @@ client.on(Events.GuildCreate, (g) => {
   self.servers = client.guilds.cache.size;
   log(`added to a server (${self.servers} now): ${g.id}`);
   void rememberGuild(g.id, g.name).catch(() => {});
-  // A server it is added back to still has the answers it posted there, 👎s and all: swept on the way in, since the
-  // one-time sweep has already run for the servers it was in then (bot/cleanup.ts).
-  void sweepOldThumbs(client, log, g.id).catch((e) => log(`stale 👎: sweep failed in ${g.id}: ${(e as Error)?.message ?? String(e)}`));
+  // A server it is added back to still has the answers it posted there, 👎s and all: the sweep runs again (taking off a
+  // 👎 that is already gone is not a failure), since the row says it is done and would otherwise skip it.
+  void sweepOldThumbs(client, log, { force: true }).catch((e) => log(`stale 👎: sweep failed: ${(e as Error)?.message ?? String(e)}`));
 });
 client.on(Events.GuildUpdate, (_old, g) => { void rememberGuild(g.id, g.name).catch(() => {}); });
 client.on(Events.GuildDelete, (g) => {
