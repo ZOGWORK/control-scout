@@ -6,6 +6,7 @@ import { cn } from "./cn";
 import { downloadCsv } from "../lib/csv";
 import { Spacer, useSteadyColumns, useVirtualRows } from "./ui/windowing";
 import { isV8 } from "../lib/v8";
+import { columnShade } from "../lib/rankShade";
 
 /** A row's height (desktop density), for rows not measured yet: v8 rows are 44px (brief §3.3). */
 const ROW_H = 37;
@@ -27,6 +28,9 @@ export interface Col<T> {
   v8Tone?: string;
   /** Colour each number by where the row stands in this column (green top fifth … red bottom fifth); `asc` flips it. */
   heat?: boolean;
+  /** Shade each number green (best in this column) to red (worst) by value, in both looks (lib/rankShade.ts);
+   *  `asc` means lower is better. Wins over `heat` and `v8Tone`. */
+  shade?: boolean;
 }
 
 /** Best to worst, as the number's own colour (no cell shading): bold green, light green, plain, light red, bold red. */
@@ -66,6 +70,7 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
   }, [rows, cols, sort]);
   const heatVals = useMemo(() => new Map(cols.filter((c) => c.heat).map((c) => [c.key,
     rows.map((r) => c.value(r)).filter((v): v is number => typeof v === "number" && Number.isFinite(v)).sort((a, b) => a - b)])), [rows, cols]);
+  const shades = useMemo(() => new Map(cols.filter((c) => c.shade).map((c) => [c.key, columnShade(rows.map((r) => c.value(r)), !!c.asc)] as const)), [rows, cols]);
   // A big event's standings (60+ teams) render only the rows on screen (src/components/ui/windowing.tsx).
   // v8 (docs/design/v8-revamp-brief.md §5 Tables): numbers keep the text colour (no heat bands), a quiet
   // sentence-case head, 44px rows with hairlines, and the highlighted row ("your team") marked in mint at its edge.
@@ -101,8 +106,11 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
             {vr.rows(sorted).map(({ item: r, index, rowProps, gapBefore }) => (
               <Fragment key={rowKey(r)}>
                 <Spacer height={gapBefore} colSpan={cols.length} />
-                <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03] v8:h-11 v8:border-line v8:transition-colors v8:duration-150 v8:hover:bg-ink/[0.03]", highlight?.(r) && "bg-accent/[0.06] v8:bg-accent/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]")} data-highlight={highlight?.(r) || undefined}>
-                  {cols.map((c) => <td key={c.key} className={cn("density-row whitespace-nowrap px-3 py-2", c.align === "right" && "text-right tabular-nums", c.hideOnMobile && "max-sm:hidden", c.className, c.heat && !v8 && bandOf(heatVals.get(c.key)!, c.value(r), c.asc), v8 && cn("v8:py-0", c.v8Tone))}>{c.render ? c.render(r) : (c.value(r) ?? "—")}</td>)}
+                <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03] v8:h-11 v8:border-line v8:transition-colors v8:duration-150 v8:hover:bg-ink/[0.03]", highlight?.(r) && "bg-accent/[0.06] v8:bg-ink/[0.05] v8:shadow-[inset_2px_0_0_var(--color-text-base)]")} data-highlight={highlight?.(r) || undefined}>
+                  {cols.map((c) => {
+                    const shaded = shades.get(c.key)?.(c.value(r));
+                    return <td key={c.key} style={shaded ? { color: shaded } : undefined} data-shade={shaded ? "" : undefined} className={cn("density-row whitespace-nowrap px-3 py-2", c.align === "right" && "text-right tabular-nums", c.hideOnMobile && "max-sm:hidden", c.className, c.heat && !c.shade && !v8 && bandOf(heatVals.get(c.key)!, c.value(r), c.asc), v8 && cn("v8:py-0", !c.shade && c.v8Tone))}>{c.render ? c.render(r) : (c.value(r) ?? "—")}</td>;
+                  })}
                 </tr>
               </Fragment>
             ))}
