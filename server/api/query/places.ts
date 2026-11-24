@@ -10,8 +10,9 @@ import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all } from "../../db.js";
 import { BOARD_STATS, type BoardStat } from "../answers/families/leaderboard.js";
 import { boardSearch } from "../answers/index.js";
+import { relativeSeason } from "../answers/season.js";
 import type { LeaderboardQuestion } from "../answers/read.js";
-import type { Parsed } from "./parse.js";
+import { normalise, type Parsed } from "./parse.js";
 
 /** A place's teams need this many with the stat for the season to be the one both are set side by side in. */
 export const MIN_TEAMS = 3;
@@ -22,7 +23,7 @@ const placeArgs = (r: Region) => [r.country, ...(r.state ? [r.state] : [])];
 
 /** Whether the parse holds only two places, a stat or "teams", and a season: nothing this answer would drop. */
 function onlyPlaces(p: Parsed): boolean {
-  return !p.teams.length && !p.rookie && !p.event && !p.eventKind && !p.worlds && !p.states && !p.award && !p.alliance && p.matchNumber == null && !p.level
+  return !p.teams.length && !p.rookie && !p.named && p.over == null && !p.notMetrics?.length && !p.notStats?.length && !p.event && !p.eventKind && !p.worlds && !p.states && !p.award && !p.alliance && p.matchNumber == null && !p.level
     && !p.finals && !p.leftover.length && !p.scoreCond && !p.withVideo && !p.undefeated && !p.nameHas && !p.conference && (!p.time || p.time.kind === "season");
 }
 
@@ -32,6 +33,9 @@ export function placesAsk(p: Parsed, stat: string | null): "side" | "board" | nu
   if (!p.places || !onlyPlaces(p)) return null;
   // Side by side: "vs" said, or an average asked of either place.
   if (p.places.join === "vs" || p.symbols.includes("agg:mean") || p.symbols.includes("compare")) {
+    // Each place's top team ("the top <place> team vs the top <place> team") is two teams set side by side, the
+    // top-teams reader's: never the places' averages.
+    if (p.agg === "max" || p.agg === "min") return null;
     const st = BOARD_STATS[stat ?? "opr"];
     return st && !st.count ? "side" : null;
   }
@@ -44,11 +48,13 @@ export async function placesAnswer(p: Parsed, stat: string | null, opts: { full:
   const ask = placesAsk(p, stat);
   if (!ask || !p.places) return null;
   const [a, b] = p.places.list.map(regionOf);
-  const season = p.time?.kind === "season" && p.time.season != null ? p.time.season : null;
+  // A season said, or "this season" / "last season" as the season it names.
+  const season = p.time?.kind === "season" ? relativeSeason(p.time.relative, p.time.season) : null;
   if (ask === "side") return sideBySide(p.q, [a, b], BOARD_STATS[stat ?? "opr"], season, opts, p.places.said === "versus" ? "versus" : "vs");
   const q: LeaderboardQuestion = {
     kind: "top", stat: stat ?? "opr", n: Math.min(25, p.n ?? 10), region: a, also: [b], alsoWord: p.places.said === "and" ? "and" : "or", city: null, season,
-    ...(p.agg === "min" ? { asc: true } : {}),
+    // Fewer is better ("best … by penalties"): fewest first, as the one-place board reads "best" and "worst".
+    ...((p.agg === "min") !== (!!BOARD_STATS[stat ?? "opr"]?.fewerBetter && /\b(?:best|better|cleanest|worst|weakest)\b/.test(normalise(p.q))) ? { asc: true } : {}),
   };
   return boardSearch(p.q, q, opts);
 }
@@ -58,7 +64,9 @@ const fmt = (st: BoardStat, v: number) => (st.unit === "%" ? `${Math.round(v * 1
 /** Each place's teams' average of the stat in one season (the one said, else the latest both have), never across seasons. */
 async function sideBySide(q: string, places: Region[], st: BoardStat, said: number | null, opts: { full: boolean; pages: SearchPageLink[] }, vs: "vs" | "versus"): Promise<SearchAnswer> {
   const names = places.map((r) => r.name);
-  const label = `${names.join(` ${vs} `)}: average ${st.label}`;
+  // A stat that is itself an average ("Average score") is said once: "average score", never "average Average score".
+  const what = /^average /i.test(st.label) ? st.label.slice(8) : st.label;
+  const label = `${names.join(` ${vs} `)}: average ${what}`;
   const read: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(said != null ? { season: said } : {}) },
@@ -79,9 +87,9 @@ async function sideBySide(q: string, places: Region[], st: BoardStat, said: numb
     [...places.flatMap(placeArgs), ...places.flatMap((_, i) => [...whichArgs, i, MIN_TEAMS])]);
   const season = seasonRow[0]?.season ?? null;
   const base = {
-    family: "leaderboard" as const, intent: "places-compare", title: `${names.join(` ${vs} `)} · average ${st.label}${season != null ? `, ${seasonLabel(season)}` : ""}`,
+    family: "leaderboard" as const, intent: "places-compare", title: `${names.join(` ${vs} `)} · average ${what}${season != null ? `, ${seasonLabel(season)}` : ""}`,
     scope: [...names, ...(season != null ? [seasonLabel(season)] : [])],
-    definition: `A place's average is the mean ${st.label} of its teams that played in the season, by the team's home region or country in FIRST's team directory. Both places are read in the same season: a stat is never compared across seasons.`,
+    definition: `A place's average is the mean ${what} of its teams that played in the season, by the team's home region or country in FIRST's team directory. Both places are read in the same season: a stat is never compared across seasons.`,
     source: "From the team directory and each team's season stats",
   };
   if (season == null) return { ...read, stat: { ...base, blocks: [], none: `${names.join(" and ")} don't both have ${MIN_TEAMS} or more teams with a ${st.label} in any season yet.` } };
@@ -104,13 +112,13 @@ async function sideBySide(q: string, places: Region[], st: BoardStat, said: numb
   const stat: StatAnswer = {
     ...base,
     headline: lead >= 0
-      ? { value: names[lead], label: `${st.fewerBetter ? "Lower" : "Higher"} average ${st.label}: ${fmt(st, vals[lead]!)} to ${fmt(st, vals[1 - lead]!)}`, sub: seasonLabel(season) }
-      : { value: "Level", label: `Average ${st.label} ${known.length ? fmt(st, known[0]) : "—"} in both`, sub: seasonLabel(season) },
+      ? { value: names[lead], label: `${st.fewerBetter ? "Lower" : "Higher"} average ${what}: ${fmt(st, vals[lead]!)} to ${fmt(st, vals[1 - lead]!)}`, sub: seasonLabel(season) }
+      : { value: "Level", label: `Average ${what} ${known.length ? fmt(st, known[0]) : "—"} in both`, sub: seasonLabel(season) },
     blocks: [
       { kind: "kpis", items: places.map((r, i) => ({ label: r.name, value: vals[i] != null ? fmt(st, vals[i]!) : "—", sub: `Average of ${of[i]?.teams ?? 0} teams`, ...(i === lead ? { tone: "accent" as const } : {}) })) },
       {
-        kind: "table", title: `Average ${st.label}, ${seasonLabel(season)}`,
-        columns: [{ key: "place", label: "Place" }, { key: "avg", label: `Avg ${st.label}`, num: true }, { key: "teams", label: "Teams", num: true }, { key: "best", label: `Best, ${st.label}` }],
+        kind: "table", title: `Average ${what}, ${seasonLabel(season)}`,
+        columns: [{ key: "place", label: "Place" }, { key: "avg", label: `Avg ${what}`, num: true }, { key: "teams", label: "Teams", num: true }, { key: "best", label: `Best, ${st.label}` }],
         rows: places.map((r, i) => ({
           cells: { place: r.name, avg: vals[i] != null ? fmt(st, vals[i]!) : null, teams: of[i]?.teams ?? 0, best: of[i]?.best != null ? `${of[i]!.best} · ${fmt(st, Number(of[i]!.bestV))}` : null },
           strong: i === lead,

@@ -201,7 +201,11 @@ export async function asksOfTeams(q: string, now?: number, prefer?: ReadonlySet<
 
 /** The one board stat said beside two places (null: none), or undefined when several are. */
 function placesStat(p: Parsed): string | null | undefined {
-  const stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
+  let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
+  // A phase's OPR ("auto opr") is the phase's, as the one-place board reads it.
+  if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
+  // A score's average set side by side ("<place> vs <place> average score"): the teams' average score.
+  if (!stats.length && p.symbols.includes("metric:score")) stats = ["avg-score"];
   return stats.length > 1 ? undefined : stats[0] ?? null;
 }
 

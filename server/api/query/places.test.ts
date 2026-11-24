@@ -33,7 +33,7 @@ beforeAll(async () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', ?, 'USA')", [n, name, state]);
     for (const [season, opr] of seasons) {
       await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [season, n]);
-      await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties, opr_np, opr_auto, rating_pen) VALUES (?, ?, 6, 3, 3, 0, ?, ?, ?)", [season, n, opr, opr / 4, opr / 10]);
+      await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties, opr_np, opr_auto, rating_pen, avg_np) VALUES (?, ?, 6, 3, 3, 0, ?, ?, ?, ?)", [season, n, opr, opr / 4, opr / 10, opr * 2]);
     }
   }
   await rebuildSearch();
@@ -87,5 +87,18 @@ describe("two places in one question", () => {
     expect(pen.headline).toMatchObject({ value: "Maryland", label: "Lower average Penalties a match: 2.5 to 4.0" });
     // "Rookie teams" asks of the places something this answer can't keep: left to search's other readers.
     expect(placesAsk(await parseQuery("rookie teams from maryland or delaware", await parseContext(NOW)), null)).toBeNull();
+  });
+  it("the stat, the season and the order as said; a question these words can't keep is left to search's other readers", async () => {
+    const title = async (q: string) => ((await full(q)).stat as StatAnswer | undefined)?.title;
+    expect(await title("maryland vs delaware average auto opr")).toBe("Maryland vs Delaware · average Auto OPR, 2024–25");
+    expect(await title("maryland vs delaware average score")).toBe("Maryland vs Delaware · average score, 2024–25");
+    // "This season" is the season it names (2025–26 in March 2026), never the latest both places fill.
+    expect(await title("maryland vs delaware average opr this season")).toBe("Maryland vs Delaware · average OPR, 2025–26");
+    // Fewer is better: the best by penalties are the fewest first.
+    expect(await title("best teams from maryland or delaware by penalties")).toMatch(/^Lowest 10 teams by penalties a match in Maryland or Delaware/);
+    const ctx = await parseContext(NOW);
+    for (const q of ["teams from maryland or delaware not opr", "teams named crab from maryland or delaware", "the top maryland team vs the top delaware team"]) {
+      expect(placesAsk(await parseQuery(q, ctx), null), q).toBeNull();
+    }
   });
 });
