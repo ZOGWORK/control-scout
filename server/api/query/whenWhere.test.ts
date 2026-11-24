@@ -52,6 +52,11 @@ describe("when and where asks", () => {
     expect([s.title, s.headline?.value, s.headline?.sub]).toEqual(["When: Inspire Awards", "Feb 14, 2026 · Jan 10, 2026", "Bayside Qualifier · Harbor Qualifier"]);
     // What it answered stays under it (the 2nd place counted apart), and a tile for each.
     expect(s.headline?.label).toBe("1 Inspire Award · plus 1 2nd- or 3rd-place Inspire");
+    // Two events: the headline opens neither (a link is one row's, and its video with it).
+    expect(s.headline?.href).toBeUndefined();
+    // The reading as said, "When" before it: what it said of the team stays.
+    const [w, plain] = await Promise.all([ask("when did 30701 win inspire"), ask("30701 inspire awards")]);
+    expect(w.understood?.label).toBe(`When: ${plain.understood?.label}`);
     const tiles = s.blocks[0];
     expect(tiles.kind === "kpis" && tiles.items.map((i) => [i.label, i.value])).toEqual([["Bayside Qualifier", "Feb 14, 2026"], ["Harbor Qualifier", "Jan 10, 2026"]]);
   });
