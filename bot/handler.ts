@@ -149,6 +149,16 @@ export function shownName(
   return named(member?.displayName) ?? named(member?.nick) ?? named(user.globalName) ?? named(user.username);
 }
 
+/** What this server shows for them, or `null` when the payload didn't carry their membership (the guild isn't cached):
+ *  without it the only name known is Discord's global one, and writing that over a nickname already remembered would
+ *  make every later answer wrong. */
+function serverName(
+  user: { globalName?: string | null; username?: string | null },
+  member?: { displayName?: string | null; nick?: string | null } | null,
+): string | null {
+  return member ? shownName(user, member) : null;
+}
+
 /** Turns of a reply thread Bruno sees, at most (Control Point's cap), and the threads remembered. */
 export const THREAD_TURNS = 6;
 const THREADS_MAX = 2000;
@@ -295,14 +305,15 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   }
   /** The server's own lines for a chat: the teams it asks about and the name the asker goes by there (bot/memory.ts). */
   async function serverLines(guild: string | null | undefined, user: string | null | undefined, name?: string | null): Promise<string[]> {
-    if (!guild || !user || !lookups.memory) return [];
-    const m = await lookups.memory.recall(guild, user).catch(() => null);
-    if (!m) return [];
+    // A server is what makes these lines mean anything: "goes by … here" is about that server's members.
+    if (!guild || !user) return [];
+    const m = lookups.memory ? await lookups.memory.recall(guild, user).catch(() => null) : null;
     // The name Discord shows now, not the one first remembered: a nickname or a display name changes, and an answer to
-    // "what is my name?" has to be the name their friends see today.
-    const who = name ?? m.name;
+    // "what is my name?" has to be the name their friends see today. A failed read still has the name the message
+    // itself carried.
+    const who = name ?? m?.name ?? null;
     return [
-      m.teams.length ? `This server asks about teams ${m.teams.join(", ")} most: when a question doesn't name a team, it means one of these, and say which one you picked.` : "",
+      m?.teams.length ? `This server asks about teams ${m.teams.join(", ")} most: when a question doesn't name a team, it means one of these, and say which one you picked.` : "",
       who ? `The person asking goes by ${who} here.` : "",
     ].filter(Boolean);
   }
@@ -444,7 +455,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         return;
       }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this question adds.
-      const name = shownName(i.user, i.member);
+      const name = serverName(i.user, i.member);
       const lines = await serverLines(i.guildId, i.user.id, name);
       learnAsk(i.guildId, i.user.id, name, question);
       let post: AskPost;
@@ -531,7 +542,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const over = await mayChat(m.guildId);
       if (!over.ok) { await card(limitEmbed(over)); return; }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this message adds.
-      const name = shownName(m.author, m.member);
+      const name = serverName(m.author, m.member);
       const lines = await serverLines(m.guildId, m.author.id, name);
       learnAsk(m.guildId, m.author.id, name, q);
       // Typing lasts about 10 s and a model reply can take 45: keep it up while the chat is written.
@@ -576,7 +587,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const over = await mayChat(i.guildId);
     if (!over.ok) { await i.reply({ embeds: [pride(limitEmbed(over))], flags: MessageFlags.Ephemeral }); return; }
     await i.deferReply();
-    const name = shownName(i.user, i.member);
+    const name = serverName(i.user, i.member);
     const lines = await serverLines(i.guildId, i.user.id, name);
     learnAsk(i.guildId, i.user.id, name, question);
     let post: AskPost;
