@@ -60,7 +60,8 @@ describe("held out means held out", () => {
     const paths = [...scannedTexts().keys()];
     expect(paths.some((p) => p.endsWith(".test.ts"))).toBe(true);
     // A set's own file (scripts/heldout/) is an eval list too: read, every question in it would match itself.
-    expect(paths.some((p) => /search-heldout\.json|^scripts\/heldout\/|search-signoff\/sets\//.test(p))).toBe(false);
+    // So is the replay set (scripts/search-replay.json): the questions visitors asked, held to their issues' fixes.
+    expect(paths.some((p) => /search-heldout\.json|^scripts\/heldout\/|search-signoff\/sets\/|search-replay\.json/.test(p))).toBe(false);
   }, SCAN_MS);
 });
 
