@@ -37,7 +37,7 @@ export async function finishPageAnswer(ans: SearchAnswer, limit: number, viewer:
   const who = await viewer;
   const anyone = !who || (who.userId == null && !who.teams.length);
   const readVideo = () => answerVideo(full, Date.now(), who).then((v) => v ?? null, () => undefined);
-  const [hits, video] = await Promise.all([kept.hits, anyone ? (kept.video ??= readVideo()) : readVideo()]);
+  const [hits, video] = await Promise.all([kept.hits, anyone ? keptVideo(kept, readVideo) : readVideo()]);
   const contributor = !!video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"));
   // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
   // none (src/shared/api.ts): the page then says nothing about video.
@@ -65,4 +65,12 @@ function extrasOf(ans: SearchAnswer, limit: number, now = Date.now()): Extras {
   const map = byLimit;
   e.hits.catch(() => { if (map.get(limit) === e) map.delete(limit); });
   return e;
+}
+
+/** The video for anyone, kept with the rest; a read that failed (undefined) isn't kept, so the next ask reads again. */
+function keptVideo(e: Extras, read: () => Promise<SearchVideo | null | undefined>): Promise<SearchVideo | null | undefined> {
+  if (e.video) return e.video;
+  const v = (e.video = read());
+  void v.then((x) => { if (x === undefined && e.video === v) e.video = undefined; });
+  return v;
 }

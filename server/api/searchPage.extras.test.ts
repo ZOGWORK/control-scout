@@ -4,11 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer } from "../../src/shared/api";
 
 const calls = { highlights: 0, hits: 0, video: 0 };
+const fail = { video: false };
 vi.mock("./searchPageAnswer.js", () => ({
   withHighlights: async (a: SearchAnswer) => { calls.highlights++; return { ...a }; },
   answerHits: async (h: SearchAnswer["hits"]) => { calls.hits++; return [...h]; },
 }));
-vi.mock("./answers/video.js", () => ({ answerVideo: async () => { calls.video++; return undefined; } }));
+vi.mock("./answers/video.js", () => ({ answerVideo: async () => { calls.video++; if (fail.video) { fail.video = false; throw new Error("read failed"); } return undefined; } }));
 const { finishPageAnswer } = await import("./searchPage");
 const { clearClipCaches } = await import("../caches");
 
@@ -34,6 +35,15 @@ describe("an answer's extras", () => {
     await finishPageAnswer(a, 25, Promise.resolve({ userId: 7, teams: [] }));
     await finishPageAnswer(a, 25, Promise.resolve({ userId: 7, teams: [] }));
     expect(calls).toEqual({ highlights: 1, hits: 1, video: 3 });
+  });
+
+  it("read the video again after a read that failed", async () => {
+    const a = answer("z");
+    fail.video = true;
+    expect((await finishPageAnswer(a, 25, anyone)).body.video).toBeUndefined();
+    expect((await finishPageAnswer(a, 25, anyone)).body.video).toBeNull();
+    await finishPageAnswer(a, 25, anyone);
+    expect(calls).toEqual({ highlights: 1, hits: 1, video: 2 });
   });
 
   it("are worked out again past their minute, and after a clip-start change", async () => {
