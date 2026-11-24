@@ -9,7 +9,7 @@
 import "../server/env.js";
 import { Client, Events, GatewayIntentBits, Partials, REST, Routes, type APIApplicationCommand } from "discord.js";
 import { env } from "../server/env.js";
-import { configure, db, get } from "../server/db.js";
+import { configure, db, get, kvGet, kvSet } from "../server/db.js";
 import { CURRENT_SEASON } from "../server/data/seasons.js";
 import { liveForecaster, refreshForecasters } from "../server/predict/engine.js";
 import { COMMANDS, sameCommands } from "./commands.js";
@@ -18,7 +18,7 @@ import { notifyTick, type Send } from "./follows.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
 import { rememberGuild } from "./guilds.js";
-import { BAD, GOOD, downVote, serialVotes, vote } from "./reactions.js";
+import { BAD, DOWN_NOTE, GOOD, downNotes, downVote, serialVotes, vote, type DownNoteState } from "./reactions.js";
 import { flushSearchFailures } from "../server/searchFailures.js";
 import { site } from "./lookups.js";
 import { configEmbed, configLines, type Config } from "./config.js";
@@ -186,12 +186,52 @@ client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m 
 const serial = serialVotes();
 /** A 👍/👎 on one of the bot's answers, counted (bot/reactions.ts): never who clicked, and only messages it posted have
  *  a row, so a reaction anywhere else changes nothing. */
-type Counted = { emoji: { name: string | null }; message: { id: string } };
+type Counted = { emoji: { name: string | null }; message: { id: string; channelId?: string | null } };
 const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) => {
   if (user.bot) return;
   const emoji = reaction.emoji.name;
   if (emoji !== GOOD && emoji !== BAD) return;
   void serial(reaction.message.id, () => vote(reaction.message.id, emoji, delta)).catch(() => {});
+};
+/** Where the 👎 notes remember what they told and what they still owe (bot/reactions.ts `DownNoteState`), so a
+ *  restart or a deploy neither repeats one nor drops one. */
+const DOWN_NOTE_KEY = "bot:down-note-state";
+/** The answers whose channel has been told what a 👎 does: once per answer, for the vote that filed the question — or
+ *  for the next 👎 when that note couldn't be delivered (bot/reactions.ts `downNotes`). */
+// Saves run one after another, in the order the notes happened: two answers' notes can be marked at once, and the later
+// snapshot must not be overwritten by the earlier one's write.
+let savingNote: Promise<void> = Promise.resolve();
+const downNote = downNotes(500, (state) => {
+  savingNote = savingNote.then(() => kvSet(DOWN_NOTE_KEY, state))
+    .catch((e) => log(`down note state not saved: ${(e as Error)?.message ?? String(e)}`));
+});
+void kvGet<DownNoteState>(DOWN_NOTE_KEY)
+  .then((state) => { if (state) downNote.hydrate(state); })
+  .catch((e) => log(`down note state not loaded: ${(e as Error)?.message ?? String(e)}`));
+/** Say in the channel what a 👎 did, as a reply to the answer (bot/reactions.ts `DOWN_NOTE`): a 👎 files the question,
+ *  so it is a report rather than a dislike button, and the people using it should hear that where they used it. Awaited
+ *  inside that answer's vote chain (below). A note that can't be delivered is logged, stays owed for a later 👎, and
+ *  never touches the vote. */
+const sayDownNote = async (reaction: Counted): Promise<void> => {
+  const id = reaction.message.id;
+  const channelId = reaction.message.channelId ?? "";
+  try {
+    // Fetched when not cached (a restart forgets channels), as the follow posts do (the `send` helper above).
+    const channel = client.channels.cache.get(channelId)
+      ?? (channelId ? await client.channels.fetch(channelId).catch(() => null) : null);
+    const canSend = channel as unknown as { isSendable?: () => boolean } | null;
+    if (!channel || !("send" in channel) || canSend?.isSendable?.() === false) {
+      downNote.owe(id);
+      log(`down note failed: ${channelId || "no channel"} is not a channel I can post in`);
+      return;
+    }
+    await (channel as unknown as { send: (o: unknown) => Promise<unknown> })
+      .send({ content: DOWN_NOTE, allowedMentions: { parse: [], repliedUser: false }, reply: { messageReference: id, failIfNotExists: false } });
+    downNote.said(id);
+  } catch (e) {
+    downNote.owe(id);
+    log(`down note failed: ${(e as Error)?.message ?? String(e)}`);
+  }
 };
 /** A 👎 added: counted, and — on an answer's first one — the question it answered is filed in the site's failed-search
  *  queue (bot/reactions.ts `downVote`, written with the vote). A person saying the answer was wrong is the one failure
@@ -199,7 +239,16 @@ const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) =>
  *  again, and the queue counts a repeat as a repeat. */
 const disliked = (reaction: Counted, user: { bot?: boolean }) => {
   if (user.bot) return;
-  void serial(reaction.message.id, () => downVote(reaction.message.id)).catch(() => {});
+  void serial(reaction.message.id, async () => {
+    const { filed } = await downVote(reaction.message.id);
+    // Said when the vote filed the question — never later for an answer with nothing to file, and again for a note an
+    // earlier 👎 owed but couldn't deliver.
+    if (!downNote.due(reaction.message.id, filed)) return;
+    // Owed before it is sent: a restart between the filing and the send must still owe the note, since the count is
+    // already past 1 and no later vote would be told about it.
+    downNote.owe(reaction.message.id);
+    await sayDownNote(reaction);
+  }).catch((e) => log(`down vote failed: ${(e as Error)?.message ?? String(e)}`));
 };
 client.on(Events.MessageReactionAdd, (r, u) => {
   if (r.emoji.name === BAD) { disliked(r as Counted, u); return; }

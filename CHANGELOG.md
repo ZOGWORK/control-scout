@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.0.0 — 2026-11-23
+
+A 👎 on an answer now answers back, once: the bot says in the channel that a 👎 files the question so the answer can be fixed — people were using it as a dislike button.
+
+### Highlights
+- [scout] A 👎 says what it did: the question is filed, not disliked
+- [scout] `/help` explains the thumbs too
+- [fixes] One note per answer, and it pings nobody
+
+### Discord bot
+- **The thumbs explain themselves** (`bot/reactions.ts` `DOWN_NOTE`, `downNotes`, `downVote`; `bot/index.ts`; `bot/handler.ts` `helpEmbed`): the 👎 that files a question now draws one short reply in the channel — "📝 Noted — a 👎 files this question so we can fix the answer. It's not a dislike button." — sent as a reply to that answer and pinging nobody. Whether it filed is read from the write itself (`writeBatch` now returns each statement's own result), so an answer from before questions were kept, or one whose question is all personal, says nothing instead of promising a filing that never happened; that also means two 👎 arriving together file once and only one speaks. It says it once per answer (a second 👎, or the first taken off and added again, is silent), capped at the 500 most recent answers — past that the oldest can be told once more rather than a note being lost, and an owed note is bounded the same way, being a courtesy line while the vote and its filing stand — and a note that can't be delivered — no channel, no permission, Discord refusing — is logged as `down note failed`, stays owed for the next 👎, and never touches the vote; the channel is fetched when a restart has left it out of the cache, as the follow posts do, and what was told and what is owed is saved (a small `kv` row), so a restart or a deploy neither repeats a note nor drops one. `/help` carries the same line under the commands, so it is read before the button is used rather than after. (#2219)
+
 ## 7.9.9 — 2026-11-23
 
 Asked "what is my name?", Control Scout answers with the name Discord shows in that server — the nickname everyone sees — instead of the @handle.
