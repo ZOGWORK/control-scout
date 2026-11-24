@@ -19,10 +19,23 @@ import { RE_SEARCH_MS, SEARCH_SAMPLE, type SearchBeacon, type SearchEntry, type 
 const browser = typeof window !== "undefined" && typeof document !== "undefined";
 /** This page load's searches are counted (when consent allows): decided once, so a visit is in the sample or not. */
 let sampled = browser && Math.random() < SEARCH_SAMPLE;
-/** The first search on a page opened on /search started with the page load itself. */
-let coldPending = browser && location.pathname === "/search";
-/** When this tab was last hidden (performance.now()): a search waiting through it gets no time. */
-let hiddenAt = browser && document.visibilityState === "hidden" ? 0 : -1;
+/**
+ * The words the page was opened with on /search, still unclaimed: the first search for exactly those words started
+ * with the page load itself. Read from the page load's own navigation entry, never the address when this module
+ * loads (it loads lazily, after an in-app navigation has already changed the address). undefined: not read yet;
+ * null: the page wasn't opened on a search (or its first search was already counted).
+ */
+let coldQuery: string | null | undefined;
+function landedQuery(): string | null {
+  try {
+    const nav = performance.getEntriesByType?.("navigation")[0] as PerformanceNavigationTiming | undefined;
+    const u = new URL(nav?.name || location.href, location.href);
+    return u.pathname === "/search" ? norm(u.searchParams.get("q") ?? "") || null : null;
+  } catch { return null; }
+}
+/** When this tab was hidden (performance.now(), the latest few): a search whose wait spans one gets no time. */
+let hides: number[] = browser && document.visibilityState === "hidden" ? [0] : [];
+const hiddenBetween = (from: number, to: number) => hides.some((t) => t >= from && t <= to);
 /** The last answer drawn: when, and for which words (memory only). */
 let lastAnswer: { at: number; q: string } | null = null;
 /** The last tap on a follow-up link: when, which kind and its words (memory only). */
@@ -41,7 +54,7 @@ export function followUpOf(el: Element | null): Exclude<SearchVia, "typed"> | nu
 }
 
 if (browser) {
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") hiddenAt = performance.now(); });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") hides = [...hides.slice(-19), performance.now()]; });
   // One listener for every follow-up link on the page (capture: before the router navigates).
   document.addEventListener("click", (e) => {
     const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
@@ -84,7 +97,8 @@ export type SearchShown = {
 function finish(r: Run, outcome: SearchOutcome | null): void {
   if (r.sent || r.skip || !outcome) return;
   r.sent = true;
-  const ms = r.drawnAt != null && hiddenAt < r.start ? r.drawnAt - r.start : undefined;
+  // Hidden while waiting (between the start and the drawn answer): no time. A hide after it was drawn changes nothing.
+  const ms = r.drawnAt != null && !hiddenBetween(r.start, r.drawnAt) ? r.drawnAt - r.start : undefined;
   if (outcome !== "page") lastAnswer = { at: r.drawnAt ?? performance.now(), q: r.q };
   send({ screen: screenBucket(window.innerWidth), entry: r.entry, outcome, via: r.via, re: r.re, ...(ms != null && outcome !== "page" ? { ms } : {}) });
 }
@@ -94,11 +108,18 @@ export function useSearchScore(query: string, shown: SearchShown): void {
   const nav = useNavigationType();
   const run = useRef<Run | null>(null);
   const q = norm(query);
+  // No words (a bare /search): the last search is over, so the same words searched again later are a new search.
+  if (browser && !q && run.current) {
+    finish(run.current, run.current.drawnAt != null ? run.current.outcome : null);
+    run.current = null;
+  }
   // Started while rendering the new words, so the time includes this render.
   if (browser && q && run.current?.q !== q) {
     if (run.current) finish(run.current, run.current.drawnAt != null ? run.current.outcome : null);
-    const cold = coldPending;
-    coldPending = false;
+    if (coldQuery === undefined) coldQuery = landedQuery();
+    // Only the page load's own words, and only its first search: any later one started inside the app.
+    const cold = coldQuery === q;
+    coldQuery = null;
     const start = cold ? 0 : performance.now();
     const tap = lastTap && lastTap.q === q && start - lastTap.at <= TAP_MS ? lastTap : null;
     lastTap = null;
@@ -118,7 +139,7 @@ export function useSearchScore(query: string, shown: SearchShown): void {
       id = requestAnimationFrame(() => {
         if (cur.drawnAt != null) return;
         cur.drawnAt = performance.now();
-        try { if (hiddenAt < cur.start) performance.measure("search:answer", { start: cur.start, end: cur.drawnAt }); } catch { /* old browser */ }
+        try { if (!hiddenBetween(cur.start, cur.drawnAt)) performance.measure("search:answer", { start: cur.start, end: cur.drawnAt }); } catch { /* old browser */ }
         if (settled) finish(cur, cur.outcome);
       });
     });
@@ -139,11 +160,11 @@ export function useSearchScore(query: string, shown: SearchShown): void {
   }, []);
 }
 
-/** Tests: start this page load over (sampled or not, opened on /search or not). */
-export function resetSearchScore(o: { sampled?: boolean; cold?: boolean } = {}): void {
+/** Tests: start this page load over (sampled or not; `landed`: the words the page was opened with on /search). */
+export function resetSearchScore(o: { sampled?: boolean; landed?: string | null } = {}): void {
   sampled = o.sampled ?? true;
-  coldPending = o.cold ?? false;
-  hiddenAt = -1;
+  coldQuery = o.landed ? norm(o.landed) : null;
+  hides = [];
   lastAnswer = null;
   lastTap = null;
 }
