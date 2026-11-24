@@ -514,6 +514,8 @@ describe("not, without, except (search audit: general \"not\")", () => {
         const box = await searchAnswer(q, { limit: 12 });
         expect([box.step, box.stat, box.pages[0]?.href], q).toEqual(["deterministic", undefined, `/search?q=${encodeURIComponent(q)}`]);
       }
+      // Two teams' highlights with the filter: never answered without it.
+      expect((await ask("4215 and 6980 highlights with no penalties")).stat?.intent).not.toBe("team-highlights");
       // A state's highest-scoring matches in the box: its high-score card, as "highest score in <state>" has.
       expect((await searchAnswer("highest scoring matches in new jersey", { limit: 12 })).card?.kind).toBe("high-scores");
     } finally {
