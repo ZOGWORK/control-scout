@@ -164,11 +164,12 @@ describe("searchAnswer with spelling", () => {
     expect(a.hits.map((h) => h.ref)).toEqual(expect.arrayContaining(["16000", "16001"]));
     expect(a.didYouMean).toBeUndefined();
   });
-  it("a misspelled stat word answers the corrected question", async () => {
+  it("a misspelled stat word answers the corrected question: one of five letters or more silently, read in the parse (audit Q8)", async () => {
     for (const [q, fix] of [["4215 recrod", "4215 record"], ["4215 awrds", "4215 awards"], ["hypnotic oper", "hypnotic opr"]]) {
       const a = await searchAnswer(q, { learn: false, limit: 25 });
       const right = await searchAnswer(fix, { learn: false, limit: 25 });
-      expect(a, q).toMatchObject({ step: "did-you-mean", didYouMean: fix, q });
+      if (q === "hypnotic oper") expect(a, q).toMatchObject({ step: "did-you-mean", didYouMean: fix, q });
+      else expect([a.step, a.didYouMean, a.q], q).toEqual([right.step, undefined, q]);
       expect(a.understood, q).toEqual(right.understood);
       expect(a.hits.map((h) => h.ref), q).toEqual(right.hits.map((h) => h.ref));
       expect(!!a.stat || !!a.card, q).toBe(!!right.stat || !!right.card);
