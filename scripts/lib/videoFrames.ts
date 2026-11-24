@@ -140,6 +140,18 @@ export function beforeLead(before: { at: number; label: string | null; division?
   return before.division === "other" || onSwitch(before.label, label) ? "switch" : "kept";
 }
 
+/** Seconds into a match the bar is read at (lagConfirms), after every opening lead named another match: the match
+ *  before's final screen can stay up into this one's Auto (USTXNONUAMM1 2026 Q22: Q21's 0:00 card until 13 s in). */
+export const LAG_READS = [10, 20, 30];
+/**
+ * Whether a read `k` s into a placed match (LAG_READS) says the bar was only late onto it: the bar names the match (not
+ * a sibling division's) and its clock, running, gives the same start (within `same` s). The clip then opens at the
+ * start itself (a lead of 0), as it does where a results card stays up until the match's own overlay comes on.
+ */
+export function lagConfirms(r: { at: number; label: string | null; start: number | null; division?: "own" | "other" | null }, t: number, label: string, start: number, same: number): boolean {
+  return Math.abs(r.at - t) <= 1 && r.division !== "other" && !!r.label && sameMatch(r.label, label) && r.start != null && Math.abs(r.start - start) <= same;
+}
+
 /** A frame's match (overlayLabel) as the event names it, where that's one match: a semifinal's first match ("M2-1")
  *  is the event's M2; every other name is the event's own already ("M1-2", "Q4", "F1"; "M6" of 2025's overlay, whose
  *  replays it can't tell apart, stays "M6"). What a recording's edge stores (opensOn, endsOn), so outsideRecording
