@@ -176,6 +176,17 @@ describe("the sweep runs once per server", () => {
     expect(await kvGet<{ servers: string[] }>(SWEEP_KEY)).toMatchObject({ servers: ["g1"] });
   });
 
+  it("tries again only the server that missed, not the ones already done", async () => {
+    const reads = { n: 0 };
+    const said: string[] = [];
+    expect(await sweepOldThumbs(client([guild("g1", reads)]), (m) => said.push(m))).toMatchObject({ channels: 1 });
+    reads.n = 0;
+    // g2 can't be listed: g1 stays recorded, and its channel isn't read again on the retry.
+    expect(await sweepOldThumbs(client([guild("g1", reads), guild("g2", reads, { broken: true })]), (m) => said.push(m))).toMatchObject({ channels: 0, bad: new Set(["g2"]) });
+    expect(reads.n).toBe(0);
+    expect(await kvGet<{ servers: string[] }>(SWEEP_KEY)).toMatchObject({ servers: ["g1"] });
+  });
+
   it("leaves a server it couldn't read out of the row, and looks again next start", async () => {
     const reads = { n: 0 };
     const said: string[] = [];

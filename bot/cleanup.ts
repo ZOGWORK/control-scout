@@ -130,7 +130,7 @@ const pager = (ch: { id: string; messages: { fetch: unknown } }, guild: string):
 
 /** A page of a parent's archived threads. */
 interface ThreadPage {
-  threads: { values: () => Iterable<{ id: string; archiveTimestamp: number; isTextBased: () => boolean }> };
+  threads: { values: () => Iterable<{ id: string; archiveTimestamp: number; isTextBased: () => boolean; messages: { fetch: unknown } }> };
   hasMore: boolean;
 }
 
@@ -213,7 +213,8 @@ export async function sweepOldThumbs(client: Client, log: (m: string) => void, o
     return null;
   }
   log(`stale 👎: taking the old thumbs-down off its answers${only ? ` in server ${only}` : ""}`);
-  const result = await sweepStaleThumbs({ me, channels: () => places(client, log, only ? [only] : undefined) }, log);
+  // Only the servers this run is for: one that keeps failing doesn't make every start re-read the servers already done.
+  const result = await sweepStaleThumbs({ me, channels: () => places(client, log, wanted) }, log);
   // Which servers this run finished: everything it walked, less what it couldn't read or clear.
   for (const id of wanted) if (!result.bad.has(id)) swept.add(id);
   // Read again before writing: a server joined while this run was walking must keep the row it wrote, not lose it to
