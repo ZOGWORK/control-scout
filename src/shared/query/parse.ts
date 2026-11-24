@@ -1039,7 +1039,7 @@ export function describe(p: Parsed): string[] {
     p.nameHas ? `Name includes: ${p.nameHas.typed}` : "",
     p.event ? `Event: ${p.event.typed}` : "",
     p.worlds ? "FIRST Championship" : p.states ? "State championship" : "",
-    p.place ? `${p.place.kind === "city" ? "From" : "In"} ${p.place.name}` : "",
+    p.places ? `${p.places.join === "vs" ? "Comparing" : "In"} ${p.places.list.map((x) => x.name).join(` ${p.places.said} `)}` : p.place ? `${p.place.kind === "city" ? "From" : "In"} ${p.place.name}` : "",
     p.time ? `Time: ${p.time.label}` : "",
     p.finals ? "Finals" : p.level ? (p.level === "qual" ? "Qualification matches" : "Playoff matches") : "",
     p.alliance ? `${p.alliance === "red" ? "Red" : "Blue"} alliance` : "",
