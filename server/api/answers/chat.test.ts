@@ -118,6 +118,7 @@ describe("a question about something search holds nothing on (#2234, #2227, #222
     expect(chatKind("lol funny")).toBe("reaction");
     expect(chatKind("thanks that was helpful")).toBe("reaction");
     expect(chatKind("who made you so smart")).toBe("meta");
+    expect(chatKind("lol that match was funny")).not.toBe("off-topic");
   });
 });
 
