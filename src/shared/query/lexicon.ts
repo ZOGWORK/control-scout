@@ -399,6 +399,8 @@ export const CHAT_WORDS = {
   earlier: ["last", "previous", "earlier", "prior"],
   /** Never "results": "<team> previous results" asks for a team's past results. */
   answerWord: ["answer", "answers", "search", "reply", "response"],
+  /** Words that ask a question ("who made you"): with a reaction ("thanks bruno, who made you?"), it's the question. */
+  question: ["who", "whom", "whose", "what", "whats", "when", "where", "why", "how", "which"],
   /** Laughter, thanks and reactions: nothing asked. */
   reaction: ["lol", "lmao", "lmfao", "rofl", "haha", "hahaha", "hehe", "xd", "bruh", "lolol", "omg", "thanks", "thank you", "thx", "nice", "cool", "wow"],
   /** Getting hold of something ("where do i get", "where can we buy"): a question about buying, never FTC results. */
