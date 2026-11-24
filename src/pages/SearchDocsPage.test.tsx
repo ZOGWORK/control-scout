@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 // The FTC One Search explainer: its route, every example a /search link, and no AI wording.
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { pageModule, pageTitle } from "../shared/routes";
-import { SEARCH_FAMILIES, SEARCH_SHOWCASE, SEARCH_STEPS } from "../components/howitworks/searchDocs";
+import { SEARCH_COMPLEX, SEARCH_FAMILIES, SEARCH_SHOWCASE, SEARCH_STEPS, SEARCH_VIDEO } from "../components/howitworks/searchDocs";
 
 afterEach(cleanup);
 beforeAll(() => {
@@ -36,6 +36,21 @@ describe("FTC One Search page", () => {
     expect(text).toMatch(/No AI decides what you meant/);
   });
 
+  it("eases every hover move: Tailwind 4's translate and scale utilities are their own properties, not transform", async () => {
+    const { default: Docs } = await import("./SearchDocsPage");
+    const { container } = render(<MemoryRouter initialEntries={["/how-it-works/search"]}><Docs /></MemoryRouter>);
+    const bad = [...container.querySelectorAll<HTMLElement | SVGElement>("[class]")]
+      .map((el) => el.getAttribute("class") ?? "")
+      .filter((c) => /(?:^|\s)(?:group-)?hover:-?(?:translate|scale)-/.test(c))
+      .filter((c) => {
+        if (/(?:^|\s)transition-(?:transform|all)(?:\s|$)/.test(c)) return false;
+        const t = c.match(/transition-\[([^\]]+)\]/)?.[1].split(",") ?? [];
+        // Each property a hover moves must be in the list: an element that both nudges and grows needs both.
+        return (["translate", "scale"] as const).some((p) => new RegExp(`hover:-?${p}-`).test(c) && !t.includes(p));
+      });
+    expect(bad).toEqual([]);
+  });
+
   it("shows every plain-words example in its group, each a link that runs that exact search", async () => {
     const { default: Docs } = await import("./SearchDocsPage");
     const { container } = render(<MemoryRouter initialEntries={["/how-it-works/search"]}><Docs /></MemoryRouter>);
@@ -52,5 +67,32 @@ describe("FTC One Search page", () => {
       expect(links[i].className, it.q).toContain("min-h-11");
     });
     expect(section.querySelector('a[href="/search"]')).not.toBeNull();
+  });
+
+  it("lists the harder questions in their groups and the video searches, each a link that runs that exact search", async () => {
+    const { default: Docs } = await import("./SearchDocsPage");
+    const { container } = render(<MemoryRouter initialEntries={["/how-it-works/search"]}><Docs /></MemoryRouter>);
+    const harder = container.querySelector("section#harder");
+    expect(harder, "section#harder").not.toBeNull();
+    if (!harder) return;
+    expect([...harder.querySelectorAll("h3")].map((h) => h.textContent)).toEqual(SEARCH_COMPLEX.map((g) => g.title));
+    const hrefsIn = (el: Element) => [...el.querySelectorAll("li a")].map((a) => a.getAttribute("href"));
+    expect(hrefsIn(harder)).toEqual(SEARCH_COMPLEX.flatMap((g) => g.items).map((it) => `/search?q=${encodeURIComponent(it.q)}`));
+    const video = container.querySelector("section#video");
+    expect(video, "section#video").not.toBeNull();
+    if (!video) return;
+    expect(hrefsIn(video)).toEqual(SEARCH_VIDEO.map((v) => `/search?q=${encodeURIComponent(v.q)}`));
+    // The player figure: one button per match, the first picked.
+    const chapters = [...video.querySelectorAll('[aria-label="Matches in this recording"] button')];
+    expect(chapters.length).toBeGreaterThan(3);
+    expect(chapters[0].getAttribute("aria-pressed")).toBe("true");
+    // Silent while it steps by itself; announced once the reader picks a match.
+    const live = video.querySelector("figure [aria-live]");
+    expect(live, "the player figure's live line").not.toBeNull();
+    if (!live) return;
+    expect(live.getAttribute("aria-live")).toBe("off");
+    fireEvent.click(chapters[2]);
+    expect(live.getAttribute("aria-live")).toBe("polite");
+    expect(live.textContent).toContain(chapters[2].textContent!);
   });
 });
