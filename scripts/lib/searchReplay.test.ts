@@ -26,6 +26,7 @@ describe("search replay set", () => {
 
   it("leaves out issues closed as not planned or labelled dismissed", () => {
     expect(leftOut(issue(1, "", "NOT_PLANNED"))).toBe("not-planned");
+    expect(leftOut(issue(1, "", "DUPLICATE"))).toBe("not-planned");
     expect(leftOut(issue(1, "", "COMPLETED", ["failed-search", "dismissed"]))).toBe("dismissed");
     expect(leftOut(issue(1, ""))).toBeNull();
   });
@@ -41,6 +42,12 @@ describe("search replay set", () => {
       { issue: 12, q: "worlds winners 2025", filed: "team-fallback", source: "eval", kind: null },
     ]);
     expect(JSON.parse(serialize(set))).toEqual(set);
+  });
+
+  it("leaves a query out when its newest issue is left out, though an older one was closed as completed", () => {
+    const old = failureBody(row({ examples: JSON.stringify(["gibberish"]) }));
+    const set = buildSet([issue(5, old), issue(8, old, "COMPLETED", ["dismissed"]), issue(9, old, "DUPLICATE")], [], new Map(), "2026-11-24");
+    expect(set).toMatchObject({ notPlanned: 1, dismissed: 1, rows: [] });
   });
 
   it("rates in percent, 100 with nothing asked", () => {

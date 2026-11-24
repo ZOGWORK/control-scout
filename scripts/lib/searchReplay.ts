@@ -36,29 +36,32 @@ export const filedType = (body: string) => /\*\*Result type:\*\* *([\w-]+)/.exec
 /** Same words, same query: case, spacing and the ends ignored. */
 export const sameQuery = (q: string) => q.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
 
-/** Why a closed issue is left out of the set, or null when it's in: closed as not planned, or labelled `dismissed`
- *  (not worth fixing: it stays closed, so failing again says nothing). */
+/** Why a closed issue is left out of the set, or null when it's in: closed as not planned (or as a duplicate, which
+ *  says nothing about the query answering either; counted with them), or labelled `dismissed` (not worth fixing: it
+ *  stays closed, so failing again says nothing). Only closed as completed is in. */
 export function leftOut(i: ClosedIssue): "not-planned" | "dismissed" | null {
-  if (i.stateReason === "NOT_PLANNED") return "not-planned";
+  if (i.stateReason === "NOT_PLANNED" || i.stateReason === "DUPLICATE") return "not-planned";
   if (i.labels.some((l) => l.name === "dismissed")) return "dismissed";
   return null;
 }
 
-/** The set from the closed issues. A query held by two issues is one row, under the newest issue. `kinds`: the kind
- *  each query got when last recorded (kept across a rebuild). */
+/** The set from the closed issues. A query held by two issues is one row, under the newest issue; when the newest is
+ *  left out, so is the query (its latest word is "not worth fixing"). `kinds`: the kind each query got when last
+ *  recorded (kept across a rebuild). */
 export function buildSet(issues: ClosedIssue[], evalQuestions: Iterable<string>, kinds: Map<string, string | null>, built: string): ReplaySet {
   const ev = new Set([...evalQuestions].map(sameQuery));
   const rows = new Map<string, ReplayRow>();
+  const seen = new Set<string>();
   let notPlanned = 0, dismissed = 0;
   for (const i of [...issues].sort((a, b) => b.number - a.number)) {
     const out = leftOut(i);
     if (out === "not-planned") notPlanned++;
     if (out === "dismissed") dismissed++;
-    if (out) continue;
     for (const q of queriesOf(i.body)) {
       const k = sameQuery(q);
-      if (rows.has(k)) continue;
-      rows.set(k, { issue: i.number, q, filed: filedType(i.body), source: ev.has(k) ? "eval" : "visitor", kind: kinds.get(k) ?? null });
+      if (seen.has(k)) continue;
+      seen.add(k);
+      if (!out) rows.set(k, { issue: i.number, q, filed: filedType(i.body), source: ev.has(k) ? "eval" : "visitor", kind: kinds.get(k) ?? null });
     }
   }
   return { built, closed: issues.length, notPlanned, dismissed, rows: [...rows.values()].sort((a, b) => a.issue - b.issue || a.q.localeCompare(b.q)) };
