@@ -53,6 +53,7 @@ import { INFORMAL, informalQuery, spelledNumbers } from "./query/lexicon.js";
 import { numberQuery, spelled, strength } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
+import { clausesAnswer, isCard, readClauses } from "./query/clauses.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
 import { chatAnswer } from "./answers/chat.js";
@@ -85,6 +86,8 @@ export interface AnswerOptions {
   /** Set by searchAnswer for its own query: the query as typed (cleaned, its plurals kept: page words read it), and
    *  whether it ended in "?". */
   typed?: string;
+  /** A part of a compound question, asked on its own (./query/clauses.ts): never split again. */
+  clause?: boolean;
   /** The query held a quoted phrase: its words are read exactly as typed, never one fixed in the parse. */
   quoted?: boolean;
   asked?: boolean;
@@ -983,8 +986,22 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   if (conference) return conference;
   const league = opts.intents === false ? null : await leagueSearch(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q) });
   if (league) return league;
+  // A compound question ("<team> opr and <team> record", "<team> awards and highest score"): each part the pipeline reads
+  // on its own, answered one under another (./query/clauses.ts). Parts about subjects of their own are two questions,
+  // split first ("<team> last match and <team> next event" is never one compare); others only when the whole isn't read.
+  // Each part searched as any question is (its card needed, so always in full), one level deep.
+  const clauses = opts.intents === false || opts.clause ? null : await readClauses(opts.typed ?? q, opts.now);
+  const split = async () => {
+    if (!clauses) return null;
+    const answers = await Promise.all(clauses.parts.map((part) => searchAnswer(part, { ...opts, typed: undefined, full: true, learn: false, clause: true })));
+    return answers.every(isCard) ? clausesAnswer(q, clauses.parts, answers, { full: !!opts.full, pages: pagesFor(q) }) : null;
+  };
+  const first = clauses?.apart ? await split() : null;
+  if (first) return first;
   const piped = opts.intents === false ? null : await pipelineAnswer(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q), now: opts.now, prefer, ...(opts.quoted ? { asTyped: true } : {}), resolve: (core) => resolveCore(core, opts) });
   if (piped) return piped;
+  const later = clauses && !clauses.apart ? await split() : null;
+  if (later) return later;
 
   // A name several teams share, read before the readers below pick one of them by search's order: the one the shared
   // rules pick (./query/shared.ts), asked again with its number; still tied, which one (each with its place).
