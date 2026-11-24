@@ -669,9 +669,13 @@ export async function layeredAnswer(typed: string, reader: Run, prefer: Readonly
   const cands = x0.intents.length > 1 && clean(x0) ? x0.intents : xw.weak.length > 1 && clean(xw) ? xw.weak : [];
   if (cands.length > 1) {
     const u = fallback.understood ?? { kind: "team" as const, label: "" };
-    // Said as a question, never as the parser's own words (no "read as" on the page: the search results guide §7).
-    const line = `${x0.teams[0]}: ${cands.join(" or ")}? Say which`;
-    return done({ ...fallback, understood: { ...u, label: u.label ? `${u.label} · ${line}` : line } }, null, { ...x0, intents: cands }, "ambiguous");
+    // Said as a question, never with the parser's own words (no "read as" and no intent ids such as "league-rank" on
+    // the page: the search results guide §7): each reading is the plain question it is ("4215 league rank"), one tap
+    // each (SearchAnswer.suggest, drawn first among the follow-ups).
+    const found = cands === x0.intents ? x0.found : xw.found;
+    const choices = [...new Set(cands.map((id) => INTENTS.find((i) => i.id === id)?.canonical({ ...found, extra: new Set(found.extra) })).filter((c): c is string => !!c))];
+    const line = choices.length > 1 ? `Which did you mean for ${x0.teams[0]}: ${choices.join(" or ")}?` : `Which did you mean for ${x0.teams[0]}?`;
+    return done({ ...fallback, understood: { ...u, label: u.label ? `${u.label} · ${line}` : line }, ...(choices.length > 1 ? { suggest: choices } : {}) }, null, { ...x0, intents: cands }, "ambiguous");
   }
   return done(fallback, null, x0);
 }
