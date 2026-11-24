@@ -46,7 +46,7 @@ import { topTeamsNote, topTeamsSaid } from "./topTeams.js";
 import { asksSelfMatch, selfMatchAnswer } from "./selfMatch.js";
 import { PAIR_SPLIT, windowPairAnswer } from "./windowPair.js";
 import { rankReviewAnswer } from "./rankReview.js";
-import { CLEAN_MATCHES, type PipelineIntent } from "./intents.js";
+import { CLEAN_MATCHES, INTENTS, type PipelineIntent } from "./intents.js";
 import { place } from "../../../src/shared/format.js";
 import { readAsk } from "../searchAsks.js";
 import { teamListAnswer } from "../searchCoverage.js";
@@ -459,22 +459,60 @@ async function eventMatchesAnswer(p: Parsed, opts: PipelineOptions): Promise<Sea
     intent: { kind: `stat-${stat.intent}`, pattern: "event-matches", met: true, understood: describe(p) } };
 }
 
+/** An executor's no (the search audit's C5): why the pipeline left the question to search's other readers. A short
+ *  fixed phrase, never the query's own words: it names the soft failure logged (../../searchFailures.ts, declineOf). */
+export interface Declined { declined: string }
+type Outcome = SearchAnswer | Declined;
+const no = (declined: string): Declined => ({ declined });
+const isNo = (o: Outcome): o is Declined => "declined" in o;
+/** `a`, or why not when the reader asked had nothing. */
+const or = (a: SearchAnswer | null, why: string): Outcome => a ?? no(why);
+/** What an executor reads: the parse, its intent and scope, the options, and whether matches with no penalty points
+ *  are asked (cleanAsk). */
+interface Ask { p: Parsed; intent: PipelineIntent; scope: ReadScope; opts: PipelineOptions; cleanAsk: boolean }
+/** One intent's executor: its answer, its no with the reason, or undefined when the question isn't its own (the next
+ *  one's turn). */
+type Executor = (x: Ask) => Promise<Outcome | undefined>;
+
+/** The pipeline's last no for each query (its reason), for the soft-failure log: kept a minute, the latest few hundred. */
+const DECLINES = new Map<string, { why: string; at: number }>();
+const DECLINE_MS = 60_000, DECLINES_KEPT = 500;
+function noteDecline(q: string, why: string): void {
+  DECLINES.delete(q);
+  DECLINES.set(q, { why, at: Date.now() });
+  if (DECLINES.size > DECLINES_KEPT) DECLINES.delete(DECLINES.keys().next().value!);
+}
+/** Why the pipeline last said no to `q` (within the last minute), or null: an executor's own reason. */
+export function declineOf(q: string): string | null {
+  const d = DECLINES.get(q);
+  return d && Date.now() - d.at < DECLINE_MS ? d.why : null;
+}
+
+/** The pipeline's answer for a parse, or null when it says no (its reason noted for declineOf). */
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  const out = await executeOrDecline(p, opts);
+  if (!isNo(out)) return out;
+  noteDecline(p.q, out.declined);
+  return null;
+}
+
+/** The checks every reading passes, then its intent's executor (EXECUTORS). */
+async function executeOrDecline(p: Parsed, opts: PipelineOptions): Promise<Outcome> {
   // The best matches with no penalties ("best matches in <place> with no penalties"): highlights pick standout matches
   // by more than a score, so the filter is the match finder's: the highest-scoring board, a team's highest scores.
   // Two teams' highlights or more take no filter of a board, nor do the latest week's ("recent highlights": the board
   // has no week of its own) or none asked for ("top 0"): left to search, never answered without it.
-  if (p.intent === "highlights" && p.clean && (p.teams.length > 1 || p.symbols.includes("agg:last") || (p.n != null && p.n < 1))) return null;
+  if (p.intent === "highlights" && p.clean && (p.teams.length > 1 || p.symbols.includes("agg:last") || (p.n != null && p.n < 1))) return no("highlights with no penalty points take one team or a scope");
   if (p.intent === "highlights" && p.clean && p.teams.length <= 1) p = { ...p, intent: p.teams.length ? "highest-score" : "top-matches", symbols: [...p.symbols, "agg:max"] };
   const intent = p.intent!;
   // Rookie teams are listed only at an event (its board keeps its rookies); anywhere else the word is never dropped.
-  if (p.rookie && !(intent === "leaderboard" && (p.event || p.worlds || p.states))) return null;
-  if (intent === "teams-named") return teamsNamedSearch(p, opts);
+  if (p.rookie && !(intent === "leaderboard" && (p.event || p.worlds || p.states))) return no("rookies are listed only at an event");
+  if (intent === "teams-named") return or(await teamsNamedSearch(p, opts), "no teams named so");
   // A town's teams counted ("how many teams from <town>"): the town's list, its length the count. A region's or a
   // country's count is search's own (../searchCoverage.ts countAnswer).
-  if (intent === "count-teams") return townCount(p) ? boardSearch(p.q, { kind: "city", stat: "opr", n: 25, region: null, city: p.place!.city, season: null }, opts) : null;
+  if (intent === "count-teams") return townCount(p) ? or(await boardSearch(p.q, { kind: "city", stat: "opr", n: 25, region: null, city: p.place!.city, season: null }, opts), "no board for the town") : no("only a town's teams are counted here");
   const scope = readScopeOf(p);
-  if (!scope) return null;
+  if (!scope) return no("a slot no answer applies");
   // One team's question with a season or a year that has no events on record yet (a future one: "12345 opr 2027"),
   // whatever it asks: the card that says so, never another season's numbers. The stat readers below check this
   // themselves (after their own reading of a year, such as Worlds held that year); every other one-team intent is
@@ -486,10 +524,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   // The finals are a filter the match finder applies (and a scope's highlights, read with its filters), and a team's
   // answers from its own match rows (scopeFits): anything else would answer for every playoff match.
-  if (p.finals && !p.teams.length && !(FIND[intent] || intent === "top-matches" || intent === "highlights")) return null;
+  if (p.finals && !p.teams.length && !(FIND[intent] || intent === "top-matches" || intent === "highlights")) return no("the finals filter only matches");
   // So is a kind of event by its type words alone ("at a league meet"), and the teams unbeaten at one ("teams with a
   // perfect record at any championship event").
-  if (p.eventKind && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights" || (intent === "leaderboard" && p.undefeated)))) return null;
+  if (p.eventKind && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights" || (intent === "leaderboard" && p.undefeated)))) return no("a kind of event filters only matches");
   // A team's matches at Worlds or at its state championship are that event's results card (the division, its rank and
   // OPR there), which search's event readers give: the plain list is for a season, a window or a place.
   // A team's matches "without penalties" ("<team> matches without penalties at states"): the ones its alliance gave
@@ -498,53 +536,59 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // ("highest scoring matches with no penalties"), never "without penalties" on a best (its points without them).
   const cleanAsk = (p.teams.length === 1 && !!p.noPenalties && (intent === "season-matches" || intent === "results"))
     || (!!p.clean && p.teams.length <= 1 && CLEAN_MATCHES.has(intent));
-  if (intent === "season-matches" && (p.worlds || p.states) && !cleanAsk) return null;
+  if (intent === "season-matches" && (p.worlds || p.states) && !cleanAsk) return no("a team's Worlds or states matches are the event readers'");
+  return (await EXECUTORS[intent]?.({ p, intent, scope, opts, cleanAsk })) ?? no("no executor reads it");
+}
+
+const teamStat: Executor = async ({ p, intent, scope, opts, cleanAsk }) => {
   // A team's match by its score ("<team> 226 point match") is the match finder's, below.
   // With video, a team's matches or its best are the match finder's, below (it holds the filter).
-  if (p.teams.length === 1 && TEAM_INTENTS.has(intent) && !(intent === "season-matches" && p.scoreCond) && !p.withVideo && !cleanAsk) {
-    // An award with an answer of its own: Inspire (its places) and Finalist finishes. The first or latest Finalist
-    // award is the award list's, filtered to Finalist, which takes the pick (Finalist finishes only counts them).
-    const pickSaid = p.agg === "first" || p.agg === "last";
-    const id = (p.award === "Inspire" && (intent === "awards" || intent === "total-awards") ? "inspire-awards"
-      : p.award === "Finalist" && (intent === "awards" || intent === "total-awards") && !pickSaid ? "finalist-finishes" : intent) as IntentId;
-    const d = intentDefaults(id);
-    if (!d || !scopeFits(id, d.family, scope)) return null;
-    // A count said ("top 3 scores") applies only where the answer lists that many; elsewhere it's left to search
-    // rather than answered with a different number of rows.
-    if (p.n != null && !COUNTED.has(id)) return null;
-    // A season's penalty total is its own reader's ("12345 total penalties"); here only an event's.
-    if (id === "penalties" && (p.symbols.includes("agg:sum") || p.symbols.includes("agg:count")) && !p.symbols.includes("per:match") && !scope.at) return null;
-    const team = p.teams[0];
-    // "12345 at worlds in 2026", "12345 q6 at states 2026": the championship held that year (2025–26), as the readers
-    // take a year there.
-    const held = (id === "results" || id === "match-lookup") && (scope.championship || scope.states) && scope.year && scope.season != null;
-    if (held) { scope.season! -= 1; scope.year = false; }
-    // A season or a year with no events on record yet (a future year): said so, never the latest instead.
-    const future = held ? null : await noEventsYet(p, team.number, id, opts);
-    if (future) return future(opts);
-    const named = scope.season != null || scope.latest || scope.ever || scope.championship || scope.states || !!scope.at || !!scope.window;
-    const outcome = p.symbols.includes("outcome:L") || (p.symbols.includes("metric:loss") && intent !== "losses") ? "L" : p.symbols.includes("outcome:W") || (p.symbols.includes("metric:win") && OUTCOME_IDS.has(intent) && intent !== "average-margin") ? "W" : null;
-    const it: StatQuestion = {
-      id, family: d.family, defaultSeason: d.alone && !named ? d.alone : d.season, scope,
-      leadEvent: id === "highest-score" && p.symbols.includes("thing:event"),
-      n: id === "match-lookup" ? p.matchNumber : p.n ?? (id === "last-matches" ? 5 : null), outcome: OUTCOME_IDS.has(id) ? outcome : null,
-      count: p.agg === "count", noTeam: false, core: String(team.number),
-      ...(id === "last-matches" && p.symbols.includes("metric:auto") ? { phase: "auto" as const } : {}),
-      ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
-      ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
-      // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure; a trend
-      // with no measure said ("getting better or worse at penalties") is the per-event one.
-      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("per:match") ? null : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : p.symbols.includes("trend") ? "per-event" : null } : {}),
-      ...(id === "record" && p.symbols.includes("per:event") ? { variant: "per-event" as const } : {}),
-    };
-    const a = await statAnswerOf(p.q, it, opts.resolve, opts);
-    // Nothing in the window asked ("this week"): its season, then the season before, said on the card.
-    // A window with its year typed ("march 2026", a date) keeps that year: only a window said against today is relaxed.
-    if (!opts.full || opts.exact || !scope.window || scope.season == null || p.time?.year != null) return a;
-    // A yearless month moved to the team's latest season (scopeFor): widened from that season, the one answered from.
-    const moved = scope.window.month != null ? teamMonthWindow(scope.window, scope.season, (await teamSeason(team.number)) ?? scope.season, new Date(opts.now ?? Date.now()).toISOString().slice(0, 10)) : null;
-    return relaxed(a, windowSteps(moved?.window ?? scope.window, moved?.season ?? scope.season), (season) => statAnswerOf(p.q, { ...it, scope: { ...scope, window: undefined, season } }, opts.resolve, opts));
-  }
+  if (!(p.teams.length === 1 && TEAM_INTENTS.has(intent) && !(intent === "season-matches" && p.scoreCond) && !p.withVideo && !cleanAsk)) return undefined;
+  // An award with an answer of its own: Inspire (its places) and Finalist finishes. The first or latest Finalist
+  // award is the award list's, filtered to Finalist, which takes the pick (Finalist finishes only counts them).
+  const pickSaid = p.agg === "first" || p.agg === "last";
+  const id = (p.award === "Inspire" && (intent === "awards" || intent === "total-awards") ? "inspire-awards"
+    : p.award === "Finalist" && (intent === "awards" || intent === "total-awards") && !pickSaid ? "finalist-finishes" : intent) as IntentId;
+  const d = intentDefaults(id);
+  if (!d || !scopeFits(id, d.family, scope)) return no("the team's answer doesn't take this scope");
+  // A count said ("top 3 scores") applies only where the answer lists that many; elsewhere it's left to search
+  // rather than answered with a different number of rows.
+  if (p.n != null && !COUNTED.has(id)) return no("a count its answer doesn't list");
+  // A season's penalty total is its own reader's ("12345 total penalties"); here only an event's.
+  if (id === "penalties" && (p.symbols.includes("agg:sum") || p.symbols.includes("agg:count")) && !p.symbols.includes("per:match") && !scope.at) return no("a season's penalty total is its own reader's");
+  const team = p.teams[0];
+  // "12345 at worlds in 2026", "12345 q6 at states 2026": the championship held that year (2025–26), as the readers
+  // take a year there.
+  const held = (id === "results" || id === "match-lookup") && (scope.championship || scope.states) && scope.year && scope.season != null;
+  if (held) { scope.season! -= 1; scope.year = false; }
+  // A season or a year with no events on record yet (a future year): said so, never the latest instead.
+  const future = held ? null : await noEventsYet(p, team.number, id, opts);
+  if (future) return future(opts);
+  const named = scope.season != null || scope.latest || scope.ever || scope.championship || scope.states || !!scope.at || !!scope.window;
+  const outcome = p.symbols.includes("outcome:L") || (p.symbols.includes("metric:loss") && intent !== "losses") ? "L" : p.symbols.includes("outcome:W") || (p.symbols.includes("metric:win") && OUTCOME_IDS.has(intent) && intent !== "average-margin") ? "W" : null;
+  const it: StatQuestion = {
+    id, family: d.family, defaultSeason: d.alone && !named ? d.alone : d.season, scope,
+    leadEvent: id === "highest-score" && p.symbols.includes("thing:event"),
+    n: id === "match-lookup" ? p.matchNumber : p.n ?? (id === "last-matches" ? 5 : null), outcome: OUTCOME_IDS.has(id) ? outcome : null,
+    count: p.agg === "count", noTeam: false, core: String(team.number),
+    ...(id === "last-matches" && p.symbols.includes("metric:auto") ? { phase: "auto" as const } : {}),
+    ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
+    ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
+    // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure; a trend
+    // with no measure said ("getting better or worse at penalties") is the per-event one.
+    ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("per:match") ? null : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : p.symbols.includes("trend") ? "per-event" : null } : {}),
+    ...(id === "record" && p.symbols.includes("per:event") ? { variant: "per-event" as const } : {}),
+  };
+  const a = await statAnswerOf(p.q, it, opts.resolve, opts);
+  // Nothing in the window asked ("this week"): its season, then the season before, said on the card.
+  // A window with its year typed ("march 2026", a date) keeps that year: only a window said against today is relaxed.
+  if (!opts.full || opts.exact || !scope.window || scope.season == null || p.time?.year != null) return or(a, "no stat answer");
+  // A yearless month moved to the team's latest season (scopeFor): widened from that season, the one answered from.
+  const moved = scope.window.month != null ? teamMonthWindow(scope.window, scope.season, (await teamSeason(team.number)) ?? scope.season, new Date(opts.now ?? Date.now()).toISOString().slice(0, 10)) : null;
+  return or(await relaxed(a, windowSteps(moved?.window ?? scope.window, moved?.season ?? scope.season), (season) => statAnswerOf(p.q, { ...it, scope: { ...scope, window: undefined, season } }, opts.resolve, opts)), "no stat answer");
+};
+
+const rankReview: Executor = async ({ p, intent, scope, opts }) => {
   // A forecast at an event named: before and after, side by side (./forecast.ts). With no event, two teams' head-on
   // call (the engine's, with Predict open on it); one team's next match or event is left to the readers that know
   // which ("predicted score next match", "predicted wins at their next event").
@@ -555,178 +599,195 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // chances in 2026-27"): its advancement odds at its next advancing event (or, said so, its latest).
   // One team's predicted rank against its actual rank at every event of a season (./rankReview.ts): the season named,
   // "last season", else the team's latest season played (said so).
-  if (intent === "predict-rank-events") {
-    if (p.teams.length !== 1 || scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || scope.ever || p.event || p.worlds || p.states) return null;
-    const t = p.teams[0], team = { number: t.number, name: t.name };
-    const named = p.time?.kind === "season" && !p.time.relative ? p.time.season : null;
-    const own = named ?? (p.time?.relative === "last" ? lastSeason() : await teamSeason(t.number));
-    if (own == null) return null;
-    const why = named != null ? undefined : p.time?.relative === "last" ? seasonWhy("last", own) : seasonWhy(p.time?.relative === "this" ? "this" : "team", own, String(t.number));
-    const stat = await rankReviewAnswer(team, own, why);
-    const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
-    return {
-      q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], pages: opts.pages, step: "deterministic", weak: false,
-      understood: { kind: "question", label: stat.title, season: own }, ...(opts.full ? { stat } : {}),
-      intent: { kind: `stat-${stat.intent}`, pattern: "[team] predicted vs actual rank [per event]", met: !stat.none, understood: [] },
-    };
-  }
-  if (intent === "team-predict" && seasonOdds(p)) {
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at) return null;
-    // The season as the scope read it: named, or "last season" (the one before); "this season" is the current one.
-    return advancementResult(p, await seasonAdvancement({ number: p.teams[0].number, name: p.teams[0].name }, { season: scope.season ?? null, toward: null, now: opts.now ?? Date.now(), simulate: opts.full }), opts);
-  }
-  if (intent === "team-predict" && p.reach && !p.event && p.teams.length === 1) {
-    // The odds are the team's next event's on the way there: a place, a side or a day said asks for another answer.
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at) return null;
-    // A season named (or "last season") is the one looked in; "next year" and "this season" are the current one.
-    if (p.time && p.time.kind !== "season") return null;
-    const stat = await seasonAdvancement({ number: p.teams[0].number, name: p.teams[0].name }, { season: scope.season ?? null, toward: p.worlds ? "worlds" : "states", now: opts.now ?? Date.now(), simulate: opts.full });
-    return advancementResult(p, stat, opts);
-  }
+  if (!(intent === "predict-rank-events")) return undefined;
+  if (p.teams.length !== 1 || scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || scope.ever || p.event || p.worlds || p.states) return no("the rank review reads one team's season");
+  const t = p.teams[0], team = { number: t.number, name: t.name };
+  const named = p.time?.kind === "season" && !p.time.relative ? p.time.season : null;
+  const own = named ?? (p.time?.relative === "last" ? lastSeason() : await teamSeason(t.number));
+  if (own == null) return no("no season played");
+  const why = named != null ? undefined : p.time?.relative === "last" ? seasonWhy("last", own) : seasonWhy(p.time?.relative === "this" ? "this" : "team", own, String(t.number));
+  const stat = await rankReviewAnswer(team, own, why);
+  const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
+  return {
+    q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], pages: opts.pages, step: "deterministic", weak: false,
+    understood: { kind: "question", label: stat.title, season: own }, ...(opts.full ? { stat } : {}),
+    intent: { kind: `stat-${stat.intent}`, pattern: "[team] predicted vs actual rank [per event]", met: !stat.none, understood: [] },
+  };
+};
+
+const seasonOddsOf: Executor = async ({ p, intent, scope, opts }) => {
+  if (!(intent === "team-predict" && seasonOdds(p))) return undefined;
+  if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at) return no("a season's odds take no place, side or day");
+  // The season as the scope read it: named, or "last season" (the one before); "this season" is the current one.
+  return advancementResult(p, await seasonAdvancement({ number: p.teams[0].number, name: p.teams[0].name }, { season: scope.season ?? null, toward: null, now: opts.now ?? Date.now(), simulate: opts.full }), opts);
+};
+
+const reachOdds: Executor = async ({ p, intent, scope, opts }) => {
+  if (!(intent === "team-predict" && p.reach && !p.event && p.teams.length === 1)) return undefined;
+  // The odds are the team's next event's on the way there: a place, a side or a day said asks for another answer.
+  if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at) return no("the odds to advance take no place, side or day");
+  // A season named (or "last season") is the one looked in; "next year" and "this season" are the current one.
+  if (p.time && p.time.kind !== "season") return no("the odds to advance read a season only");
+  const stat = await seasonAdvancement({ number: p.teams[0].number, name: p.teams[0].name }, { season: scope.season ?? null, toward: p.worlds ? "worlds" : "states", now: opts.now ?? Date.now(), simulate: opts.full });
+  return advancementResult(p, stat, opts);
+};
+
+const eventForecast: Executor = async ({ p, intent, scope, opts }) => {
   const ownChampionship = intent === "team-predict" && !p.event && p.teams.length === 1 && (p.worlds || p.states);
-  if ((intent === "team-predict" || intent === "two-predict") && (p.event || ownChampionship)) {
-    // The card lists every forecast at the event: a count asked ("last 3 predictions") is left to the other readers.
-    // A place only narrows a state championship ("will 12345 advance at nj champs"), never anything else.
-    const region = p.states && !p.worlds && !p.event ? regionOf(p) : null;
-    if (scope.level || scope.alliance || (scope.place && !region) || scope.area || scope.window || (p.event && (p.worlds || p.states)) || p.n != null) return null;
-    // A calendar year ("2025") is the event held that year; a season or a game named ("2025-26", "decode") its season.
-    const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
-    const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;
-    if (p.time && year == null && season == null) return null;
-    const found = p.event ? await eventFor(p.event.words, p.teams.map((t) => t.number), year, season)
-      : await teamEventOfType(p.teams[0].number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year, region);
-    // Advancement odds at a championship the team never reached ("12345 odds to advance at nj champs 2025-26"): said so,
-    // with its odds of getting there, at its latest event that sends teams on to it.
-    if (!found && ownChampionship && p.symbols.includes("advance") && year == null) {
-      const t = p.teams[0], where = p.worlds ? "Worlds" : `${region ? `the ${region.name} ` : "a "}state championship`;
-      // Only events in the championship's own region lead there (any region's championship leads to Worlds).
-      return advancementResult(p, await seasonAdvancement({ number: t.number, name: t.name }, { season, toward: p.worlds ? "worlds" : "states", now: opts.now ?? Date.now(), simulate: opts.full, region: p.worlds ? null : region,
-        missing: `${t.name ? `${t.name} (${t.number})` : `Team ${t.number}`} isn't listed at ${where}${season != null ? ` in ${seasonLabel(season)}` : ""}` }), opts);
-    }
-    if (!found) return null;
-    // One team's advancement odds ("advancement odds at nj championship", "odds of advancing at worlds"): the chance to
-    // take a slot there (./answers/families/advancement.ts), never a match's win chance.
-    // Not listed there: at a championship, its odds of getting there; anywhere else, said so (never a match's chance).
-    if (p.teams.length === 1 && p.symbols.includes("advance")) {
-      const ev = await advancementEvent(Number(found.ev.season), found.ev.code), t = { number: p.teams[0].number, name: p.teams[0].name };
-      if (ev) return advancementResult(p, found.listed ? await advancementAt(t, ev, opts.now ?? Date.now(), undefined, opts.full) : await advancementNotListed(t, ev, opts.now ?? Date.now(), opts.full), opts);
-    }
-    const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now(), { advance: p.symbols.includes("advance") });
-    const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
-    // The search box's link to Predict; the page prints it once, as the card's own action, so not again under it.
-    const inCard = stat.blocks.some((b) => b.kind === "chance" && b.action);
-    const predictLink = stat.blocks.flatMap((b) => (b.kind === "links" ? b.items : b.kind === "chance" && b.action ? [b.action] : [])).find((l) => l.label.startsWith("Open in Predict"));
-    return {
-      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink && !(opts.full && inCard) ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
-      step: "deterministic", weak: false, understood: { kind: "question", label: p.event?.latest ? `${stat.title} · the latest event with "${p.event.typed}" in its name` : stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
-      intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict ${p.event ? "[event]" : p.worlds ? "[worlds]" : "[states]"}`, met: true, understood: [] },
-    };
+  if (!((intent === "team-predict" || intent === "two-predict") && (p.event || ownChampionship))) return undefined;
+  // The card lists every forecast at the event: a count asked ("last 3 predictions") is left to the other readers.
+  // A place only narrows a state championship ("will 12345 advance at nj champs"), never anything else.
+  const region = p.states && !p.worlds && !p.event ? regionOf(p) : null;
+  if (scope.level || scope.alliance || (scope.place && !region) || scope.area || scope.window || (p.event && (p.worlds || p.states)) || p.n != null) return no("a forecast at an event takes no other filter");
+  // A calendar year ("2025") is the event held that year; a season or a game named ("2025-26", "decode") its season.
+  const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
+  const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;
+  if (p.time && year == null && season == null) return no("a forecast reads a year or a season only");
+  const found = p.event ? await eventFor(p.event.words, p.teams.map((t) => t.number), year, season)
+    : await teamEventOfType(p.teams[0].number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year, region);
+  // Advancement odds at a championship the team never reached ("12345 odds to advance at nj champs 2025-26"): said so,
+  // with its odds of getting there, at its latest event that sends teams on to it.
+  if (!found && ownChampionship && p.symbols.includes("advance") && year == null) {
+    const t = p.teams[0], where = p.worlds ? "Worlds" : `${region ? `the ${region.name} ` : "a "}state championship`;
+    // Only events in the championship's own region lead there (any region's championship leads to Worlds).
+    return advancementResult(p, await seasonAdvancement({ number: t.number, name: t.name }, { season, toward: p.worlds ? "worlds" : "states", now: opts.now ?? Date.now(), simulate: opts.full, region: p.worlds ? null : region,
+      missing: `${t.name ? `${t.name} (${t.number})` : `Team ${t.number}`} isn't listed at ${where}${season != null ? ` in ${seasonLabel(season)}` : ""}` }), opts);
   }
+  if (!found) return no("no such event for the teams");
+  // One team's advancement odds ("advancement odds at nj championship", "odds of advancing at worlds"): the chance to
+  // take a slot there (./answers/families/advancement.ts), never a match's win chance.
+  // Not listed there: at a championship, its odds of getting there; anywhere else, said so (never a match's chance).
+  if (p.teams.length === 1 && p.symbols.includes("advance")) {
+    const ev = await advancementEvent(Number(found.ev.season), found.ev.code), t = { number: p.teams[0].number, name: p.teams[0].name };
+    if (ev) return advancementResult(p, found.listed ? await advancementAt(t, ev, opts.now ?? Date.now(), undefined, opts.full) : await advancementNotListed(t, ev, opts.now ?? Date.now(), opts.full), opts);
+  }
+  const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now(), { advance: p.symbols.includes("advance") });
+  const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
+  // The search box's link to Predict; the page prints it once, as the card's own action, so not again under it.
+  const inCard = stat.blocks.some((b) => b.kind === "chance" && b.action);
+  const predictLink = stat.blocks.flatMap((b) => (b.kind === "links" ? b.items : b.kind === "chance" && b.action ? [b.action] : [])).find((l) => l.label.startsWith("Open in Predict"));
+  return {
+    q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink && !(opts.full && inCard) ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
+    step: "deterministic", weak: false, understood: { kind: "question", label: p.event?.latest ? `${stat.title} · the latest event with "${p.event.typed}" in its name` : stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
+    intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict ${p.event ? "[event]" : p.worlds ? "[worlds]" : "[states]"}`, met: true, understood: [] },
+  };
+};
+
+const swapPredict: Executor = async ({ p, intent, scope, opts }) => {
   // One team swapped for another: on an alliance, the predicted score moves by the gap between the two teams' ratings
   // (a rating is the points a team adds a match), so the answer is those two side by side, the partner kept as is.
   // The first team after the swap word goes out and the next comes in ("swap A for B", "replace A with B"), the other
   // way round when the word says in ("sub in A for B"); any other team is the partner.
-  if (intent === "swap-predict") {
-    // The call is on one season's ratings: every season asked ("across all seasons") is left to search, never narrowed.
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || scope.championship || scope.states || scope.ever || p.matchNumber != null) return null;
-    // Each team where it was read, never its name searched for again (a name inside another's: "Robotics").
-    const after = p.swapAt == null ? [] : p.teams.filter((t) => t.at > p.swapAt!).sort((a, b) => a.at - b.at);
-    if (after.length < 2) return null;
-    const [out, inn] = p.symbols.includes("swap-in") ? [after[1], after[0]] : after;
-    const partner = p.teams.find((t) => t !== out && t !== inn) ?? null;
-    const a = await twoTeamSearch(p.q, { id: "predict", scope, a: String(out.number), b: String(inn.number) }, opts.resolve, opts);
-    if (!a?.understood) return a;
-    const who = (t: (typeof p.teams)[number]) => `${t.name ?? `Team ${t.number}`} (${t.number})`;
-    return { ...a, understood: { ...a.understood, label: `Swapping ${who(out)} for ${who(inn)}${partner ? ` beside ${who(partner)}` : ""}: the alliance's predicted score moves by the gap in their ratings` } };
-  }
+  if (!(intent === "swap-predict")) return undefined;
+  // The call is on one season's ratings: every season asked ("across all seasons") is left to search, never narrowed.
+  if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || scope.championship || scope.states || scope.ever || p.matchNumber != null) return no("a swap is called on one season's ratings");
+  // Each team where it was read, never its name searched for again (a name inside another's: "Robotics").
+  const after = p.swapAt == null ? [] : p.teams.filter((t) => t.at > p.swapAt!).sort((a, b) => a.at - b.at);
+  if (after.length < 2) return no("a swap needs a team out and a team in");
+  const [out, inn] = p.symbols.includes("swap-in") ? [after[1], after[0]] : after;
+  const partner = p.teams.find((t) => t !== out && t !== inn) ?? null;
+  const a = await twoTeamSearch(p.q, { id: "predict", scope, a: String(out.number), b: String(inn.number) }, opts.resolve, opts);
+  if (!a?.understood) return or(a, "no call for the swap");
+  const who = (t: (typeof p.teams)[number]) => `${t.name ?? `Team ${t.number}`} (${t.number})`;
+  return { ...a, understood: { ...a.understood, label: `Swapping ${who(out)} for ${who(inn)}${partner ? ` beside ${who(partner)}` : ""}: the alliance's predicted score moves by the gap in their ratings` } };
+};
+
+const alliancePredict: Executor = async ({ p, intent, scope, opts }) => {
   // Two alliances of two, one either side of the "vs": the engine's call for that match, in the season said (else the
   // latest every team has a rating in). A match has no event, place or window to filter by.
-  if (intent === "alliance-predict") {
-    const red = p.teams.filter((t) => p.vsAt != null && t.at < p.vsAt), blue = p.teams.filter((t) => p.vsAt != null && t.at > p.vsAt);
-    if (red.length !== 2 || blue.length !== 2 || p.event || p.worlds || p.states || scope.place || scope.area || scope.window || scope.level || scope.alliance) return null;
-    // A match number the matchup can't answer for ("… match 12") is left to search, never dropped.
-    if (scope.ever || p.matchNumber != null) return null;
-    // The season the scope read ("in 2024-25", "last season"); "this season" or none, the latest every team is rated in.
-    const pick = scope.season != null ? { season: scope.season, why: undefined } : await predictionSeasonOf(p.teams.map((t) => t.number));
-    const team = (t: (typeof red)[number]) => ({ number: t.number, name: t.name });
-    const stat = await allianceForecast(red.map(team), blue.map(team), pick.season, pick.why);
-    const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
-    return {
-      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), step: "deterministic", weak: false,
-      // Predict on this lineup, first among the pages: the dropdown (no card) opens it too.
-      pages: isLegacy(pick.season) ? opts.pages : [{ title: `Predict ${red.map((t) => t.number).join(" & ")} vs ${blue.map((t) => t.number).join(" & ")}`, href: predictHref({ mode: "match", season: pick.season, red: red.map((t) => t.number), blue: blue.map((t) => t.number) }) }, ...opts.pages],
-      understood: { kind: "question", label: stat.title, season: pick.season }, ...(opts.full ? { stat } : {}),
-      intent: { kind: `stat-${stat.intent}`, pattern: "[team] [team] vs [team] [team] predict", met: true, understood: [] },
-    };
-  }
+  if (!(intent === "alliance-predict")) return undefined;
+  const red = p.teams.filter((t) => p.vsAt != null && t.at < p.vsAt), blue = p.teams.filter((t) => p.vsAt != null && t.at > p.vsAt);
+  if (red.length !== 2 || blue.length !== 2 || p.event || p.worlds || p.states || scope.place || scope.area || scope.window || scope.level || scope.alliance) return no("a match's call needs two alliances of two");
+  // A match number the matchup can't answer for ("… match 12") is left to search, never dropped.
+  if (scope.ever || p.matchNumber != null) return no("a match's call takes no match number or every season");
+  // The season the scope read ("in 2024-25", "last season"); "this season" or none, the latest every team is rated in.
+  const pick = scope.season != null ? { season: scope.season, why: undefined } : await predictionSeasonOf(p.teams.map((t) => t.number));
+  const team = (t: (typeof red)[number]) => ({ number: t.number, name: t.name });
+  const stat = await allianceForecast(red.map(team), blue.map(team), pick.season, pick.why);
+  const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
+  return {
+    q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), step: "deterministic", weak: false,
+    // Predict on this lineup, first among the pages: the dropdown (no card) opens it too.
+    pages: isLegacy(pick.season) ? opts.pages : [{ title: `Predict ${red.map((t) => t.number).join(" & ")} vs ${blue.map((t) => t.number).join(" & ")}`, href: predictHref({ mode: "match", season: pick.season, red: red.map((t) => t.number), blue: blue.map((t) => t.number) }) }, ...opts.pages],
+    understood: { kind: "question", label: stat.title, season: pick.season }, ...(opts.full ? { stat } : {}),
+    intent: { kind: `stat-${stat.intent}`, pattern: "[team] [team] vs [team] [team] predict", met: true, understood: [] },
+  };
+};
+
+const pickPartners: Executor = async ({ p, intent, scope, opts }) => {
   // Who one team should pick at an event: the pick helper on that event's teams. The event named (its Worlds or state
   // championship division), else the team's next event, else its latest; a stat said is what the helper weighs.
-  if (intent === "pick-partners") {
-    // A place only narrows a state championship ("who should 12345 pick at nj states"), never anything else.
-    const region = p.states && !p.worlds && !p.event ? regionOf(p) : null;
-    if (p.teams.length !== 1 || scope.level || scope.alliance || (scope.place && !region) || scope.area || scope.window || p.n != null || (p.event && (p.worlds || p.states))) return null;
-    const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
-    const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;
-    if (p.time && year == null && season == null) return null;
-    const t = p.teams[0], team = { number: t.number, name: t.name };
-    const found = p.event ? await eventFor(p.event.words, [t.number], year, season)
-      : p.worlds || p.states ? await teamEventOfType(t.number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year, region)
-      : await teamPickEvent(t.number, opts.now ?? Date.now(), season, year);
-    if (!found) return null;
-    const why = p.event || p.worlds || p.states ? undefined : `No event was named: this is ${t.number}'s ${"next" in found && found.next ? "next" : "latest"} event.`;
-    const focus = (["auto", "teleop", "endgame"] as const).find((x) => p.symbols.includes(`metric:${x}`)) ?? null;
-    const stat = await pickAnswer(team, found.ev, why, focus, opts.now);
-    const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
-    return {
-      q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], pages: opts.pages, step: "deterministic", weak: false,
-      understood: { kind: "question", label: stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
-      intent: { kind: `stat-${stat.intent}`, pattern: `[team] pick ${p.event ? "[event]" : p.worlds ? "[worlds]" : p.states ? "[states]" : "[next event]"}`, met: true, understood: [] },
-    };
-  }
-  if (p.teams.length === 2 && TWO_TEAM[intent]) {
-    const id = TWO_TEAM[intent]!;
-    // A match still to come ("if 12345 played 23456 tomorrow", "… this week") is called on the ratings as they stand: a
-    // window with a day still to come filters nothing there, so the forecast reads the latest season both teams have a
-    // rating in, as with none said. A window wholly gone by ("last week") is left to the readers of what happened.
-    const upcoming = id === "predict" && scope.window && scope.window.to >= searchToday(opts.now) ? scope.window.label : null;
-    if (upcoming) { delete scope.window; scope.season = null; }
-    // Compared at an event (or their Worlds, their states): each team's numbers there. With no event, the season's
-    // numbers side by side ("12345 vs 67890", "who is better, 12345 or 67890"); a lone "or" is the boolean reader's.
-    if (id === "compare") {
-      if (scope.level || scope.alliance || scope.window || scope.place || scope.area) return null;
-      if (!(scope.at || scope.championship || scope.states)) {
-        if (!p.symbols.includes("vs") && !cue(p, "compare")) return null;
-        // A name several teams share is Compare's to ask about ("Which 'twins'?"), never settled here.
-        if (p.teams.some((t) => t.candidates)) return null;
-      }
-      return twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts);
+  if (!(intent === "pick-partners")) return undefined;
+  // A place only narrows a state championship ("who should 12345 pick at nj states"), never anything else.
+  const region = p.states && !p.worlds && !p.event ? regionOf(p) : null;
+  if (p.teams.length !== 1 || scope.level || scope.alliance || (scope.place && !region) || scope.area || scope.window || p.n != null || (p.event && (p.worlds || p.states))) return no("the pick helper reads one team at one event");
+  const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
+  const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;
+  if (p.time && year == null && season == null) return no("the pick helper reads a year or a season only");
+  const t = p.teams[0], team = { number: t.number, name: t.name };
+  const found = p.event ? await eventFor(p.event.words, [t.number], year, season)
+    : p.worlds || p.states ? await teamEventOfType(t.number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year, region)
+    : await teamPickEvent(t.number, opts.now ?? Date.now(), season, year);
+  if (!found) return no("no event to pick at");
+  const why = p.event || p.worlds || p.states ? undefined : `No event was named: this is ${t.number}'s ${"next" in found && found.next ? "next" : "latest"} event.`;
+  const focus = (["auto", "teleop", "endgame"] as const).find((x) => p.symbols.includes(`metric:${x}`)) ?? null;
+  const stat = await pickAnswer(team, found.ev, why, focus, opts.now);
+  const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
+  return {
+    q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], pages: opts.pages, step: "deterministic", weak: false,
+    understood: { kind: "question", label: stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
+    intent: { kind: `stat-${stat.intent}`, pattern: `[team] pick ${p.event ? "[event]" : p.worlds ? "[worlds]" : p.states ? "[states]" : "[next event]"}`, met: true, understood: [] },
+  };
+};
+
+const twoTeams: Executor = async ({ p, intent, scope, opts }) => {
+  if (!(p.teams.length === 2 && TWO_TEAM[intent])) return undefined;
+  const id = TWO_TEAM[intent]!;
+  // A match still to come ("if 12345 played 23456 tomorrow", "… this week") is called on the ratings as they stand: a
+  // window with a day still to come filters nothing there, so the forecast reads the latest season both teams have a
+  // rating in, as with none said. A window wholly gone by ("last week") is left to the readers of what happened.
+  const upcoming = id === "predict" && scope.window && scope.window.to >= searchToday(opts.now) ? scope.window.label : null;
+  if (upcoming) { delete scope.window; scope.season = null; }
+  // Compared at an event (or their Worlds, their states): each team's numbers there. With no event, the season's
+  // numbers side by side ("12345 vs 67890", "who is better, 12345 or 67890"); a lone "or" is the boolean reader's.
+  if (id === "compare") {
+    if (scope.level || scope.alliance || scope.window || scope.place || scope.area) return no("a side by side takes no place, side or day");
+    if (!(scope.at || scope.championship || scope.states)) {
+      if (!p.symbols.includes("vs") && !cue(p, "compare")) return no("two teams with no comparison said");
+      // A name several teams share is Compare's to ask about ("Which 'twins'?"), never settled here.
+      if (p.teams.some((t) => t.candidates)) return no("a name several teams share");
     }
-    // Season side-by-sides (OPR, rating, awards, a forecast) read whole seasons: only the meetings take an event, a
-    // place, a window, a match type or a side.
-    if (!MEETINGS.has(id) && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area)) return null;
-    const a = await twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts);
-    // The day said is said back as what it was read as, with the season whose ratings make the call.
-    if (!a || !upcoming || !a.understood) return a;
-    const used = (await predictionSeasonOf(p.teams.map((t) => t.number))).season;
-    return { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${upcoming}: an upcoming match, called on ${seasonLabel(used)} ratings` } };
+    return or(await twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts), "no side by side");
   }
+  // Season side-by-sides (OPR, rating, awards, a forecast) read whole seasons: only the meetings take an event, a
+  // place, a window, a match type or a side.
+  if (!MEETINGS.has(id) && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area)) return no("season side by sides take no event, place or day");
+  const a = await twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts);
+  // The day said is said back as what it was read as, with the season whose ratings make the call.
+  if (!a || !upcoming || !a.understood) return or(a, "no two-team answer");
+  const used = (await predictionSeasonOf(p.teams.map((t) => t.number))).season;
+  return { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${upcoming}: an upcoming match, called on ${seasonLabel(used)} ratings` } };
+};
+
+const trendCard: Executor = async ({ p, intent, scope, opts }) => {
   // A trend: the reader's own card for the team and the season (said, or the team's latest), whatever the words were.
   const trend = TREND_ASK[intent];
-  if (trend && p.teams.length === 1) {
-    // The reader draws the whole season: a count it can't apply ("last 2 events") is left to search.
-    if (p.n != null || scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area || scope.ever) return null;
-    const asked = `${p.teams[0].number} ${trend.ask}${scope.season != null ? ` in ${seasonLabel(scope.season)}` : ""}`;
-    const a = await statAnswer(asked, opts.resolve, { full: opts.full, pages: opts.pages });
-    if (!a || a.intent?.kind !== `stat-${trend.intent}`) return null;
-    return { ...a, q: p.q };
-  }
-  if (intent === "highlights") return highlights(p, scope, opts);
+  if (!(trend && p.teams.length === 1)) return undefined;
+  // The reader draws the whole season: a count it can't apply ("last 2 events") is left to search.
+  if (p.n != null || scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area || scope.ever) return no("a trend draws the whole season");
+  const asked = `${p.teams[0].number} ${trend.ask}${scope.season != null ? ` in ${seasonLabel(scope.season)}` : ""}`;
+  const a = await statAnswer(asked, opts.resolve, { full: opts.full, pages: opts.pages });
+  if (!a || a.intent?.kind !== `stat-${trend.intent}`) return no("no trend card");
+  return { ...a, q: p.q };
+};
+
+const matchFinder: Executor = async ({ p, intent, scope, opts, cleanAsk }) => {
   // Matches by a measure, or the best ones with a filter the season records don't take (a match type, a kind of
   // event): the match finder.
   // Matches with no measure said are a window's only ("matches from yesterday"), or those with a score to reach
   // ("matches at <event> where both alliances scored over 250"), listed best first; "matches" alone, a place's or a
   // match type's ("playoff matches in NJ") are left to search.
-  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond && !p.withVideo && !cleanAsk) return null;
+  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond && !p.withVideo && !cleanAsk) return no("matches with no measure said");
   const labelled = intent === "match-label" && p.matchNumber != null;
   // A match's number at Worlds ("q6 at worlds"): Worlds' matches with it, its divisions' and finals'.
   const kind = (labelled || cleanAsk) && p.worlds ? WORLDS_KIND : (labelled || cleanAsk) && p.states ? STATES_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
@@ -735,218 +796,260 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // One team's matches with video ("<team> matches with video", "<team> best match with video"): found the same way.
   const teamVideo = p.teams.length === 1 && !!p.withVideo && (intent === "season-matches" || intent === "highest-score");
   const teamFind = p.teams.length === 1 && (TEAM_FIND.has(FIND[intent]!) || scored || teamVideo || cleanAsk);
-  if ((!p.teams.length || teamFind) && (FIND[intent] || scored || teamVideo || cleanAsk || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond || p.withVideo || p.place?.kind === "city")))) {
-    // A match's number said to any other finder ("highest scoring M14 matches") is never dropped: left to search.
-    if (p.matchNumber != null && !labelled) return null;
-    // An event named with a score to reach ("matches at <event> where both alliances scored over 250"): its matches,
-    // its divisions' too. A calendar year said is the edition held that year; none said, its latest.
-    const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
-    // A measure asked of an event named by its name ("closest match in <event>") is that event's matches too.
-    const named = p.event && !kind && (p.scoreCond || labelled || p.withVideo || cleanAsk || (FIND[intent] && intent !== "match-label")) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
-    const events = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
-    if (events && !events.length) return null;
-    if (((p.event || p.eventKind) && !kind && !events) || (p.worlds && !labelled && !cleanAsk) || (p.states && !labelled && !cleanAsk) || p.alliance || (scope.ever && !p.withVideo) || (p.place?.kind === "city" && (p.teams.length || !p.place.city))) return null;
-    // A town ("closest matches in <town>"): the events held there, in its state (as a scope's highlights read one).
-    const town = p.place?.kind === "city" ? p.place : null;
-    // Its name as each season held it: the main event's, never a division's.
-    const mainFirst = events ? [...events].sort((x, y) => Number(x.division != null) - Number(y.division != null)) : [];
-    const eventKeys = events ? (await scopeEvents({ season: 0, region: null, level: null, finals: false, kind: null, events })) ?? [] : null;
-    // None said: the latest edition with a match played, its divisions' counted (one only scheduled has none yet).
-    const playedIn = eventKeys?.length && year == null && !p.time ? await get<{ s: number | null }>(
-      `SELECT MAX(m.season) s FROM matches m WHERE m.played = 1 AND (${eventKeys.map(() => "(m.season = ? AND m.code = ?)").join(" OR ")})`, eventKeys.flatMap((k) => [k.season, k.code])) : null;
-    const eventSeason = events && (year != null || !p.time) ? (playedIn?.s != null ? Number(playedIn.s) : Math.max(...events.map((e) => e.season))) : null;
-    const plural = cue(p, "matchList");
-    const f: MatchFind = {
-      // The current season is the one today is in.
-      // A match's number at Worlds or states in a year ("q6 at worlds 2026") is the championship held that year (2025–26).
-      measure: FIND[intent] ?? "high", season: eventSeason ?? ((labelled || cleanAsk) && (p.worlds || p.states) && year != null ? year - 1 : placeSeason(p, scope.season, opts)),
-      region: town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.city! } : regionOf(p), ...(town ? { city: town.city! } : {}), level: p.level, finals: p.finals, kind,
-      ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
-      // "Ever" with video ("highest score ever with video"): every season's matches with video, read as one.
-      ...(scope.ever && p.withVideo ? { ever: true } : {}),
-      ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
-      ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),
-      ...(p.scoreCond ? { cond: p.scoreCond } : {}), ...(labelled ? { label: { n: p.matchNumber!, level: p.finalNo ? "final" as const : p.level } } : {}), ...(p.withVideo ? { video: true } : {}), ...(cleanAsk ? { clean: true } : {}), ...(events && eventKeys ? {
-        events: eventKeys.map((k) => ({ ...k, name: mainFirst.find((e) => e.season === k.season)?.name })),
-        // An off-season event named ("MTI") is its own matches, though the finder otherwise reads official events only.
-        ...(events.some((e) => !(OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "")) ? { named: true } : {}),
-      } : {}),
-    };
-    // A team's match by its score (or its matches without penalties), no season said: the latest season, up to the
-    // current one, holding one the finder lists (its own filters: official events, the match type said, the place).
-    if ((scored || cleanAsk) && !p.time && !f.window) {
-      // With video: the keys of every season the search can reach, read first, so an older season's match counts.
-      if (f.video) f.videoKeys = await findVideoKeys(f, true);
-      const w = findWhere(f, true);
-      const latest = await get<{ s: number | null }>(`SELECT MAX(m.season) s ${FIND_FROM} WHERE ${w.sql}`, w.args);
-      if (latest?.s != null) f.season = Number(latest.s);
-    }
-    const card = async (g: MatchFind): Promise<SearchAnswer> => {
-      const stat = await matchFindAnswer(g);
-      // One match by its number at the event named ("USNJCMP Q12"): that match is the result too, so the box opens it
-      // and its video plays, as the match's own link does.
-      const at = g.label && g.events && /^From 1 played match\b/.test(stat.source ?? "") ? /^\/events\/(\d+)\/([^?&]+)\?match=(\w+):(\d+):(\d+)(?:&|$)/.exec(stat.headline?.href ?? "") : null;
-      const hits: SearchHit[] = at ? [{ kind: "match", ref: `${at[1]}:${decodeURIComponent(at[2])}:${at[3]}:${at[4]}:${at[5]}`, title: stat.headline!.label ?? stat.title, subtitle: `${decodeURIComponent(at[2])} · ${at[1]}`, season: Number(at[1]) }] : [];
-      // Said as the match it is ("Qualification match 12 at <event> (2025–26)"), as the event's own match link says it.
-      const one = at ? `${stat.headline!.label!.replace(/^Q(\d+) /, "Qualification match $1 ").replace(/^M(\d+) /, "Playoff match $1 ").replace(/^F(\d+) /, "Final $1 ")} (${seasonLabel(Number(at[1]))})` : null;
-      return { q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: one ?? stat.title, season: g.season }, ...(opts.full ? { stat } : {}),
-        intent: { kind: `stat-${stat.intent}`, pattern: `${stat.intent}${g.region ? " [place]" : ""}${g.window ? " [window]" : ""}`, met: true, understood: [] } };
-    };
-    // The search box: the board as the page reads it (its season fallen back to as the page's is), with no card, a link
-    // to its page first.
-    if (!opts.full) {
-      const whole = await execute(p, { ...opts, full: true });
-      if (!whole) return null;
-      const { stat: _stat, ...box } = whole;
-      return { ...box, pages: [{ title: box.understood?.label ?? p.q, href: `/search?q=${encodeURIComponent(p.q)}` }, ...box.pages] };
-    }
-    const a = await card(f);
-    // A match's number at an event named with no scored match by it: the names reader's (the event's match itself, its
-    // scores still to come, or the event's matches).
-    if (f.label && (f.events || p.event) && /^From 0 /.test(a.stat?.source ?? "")) return null;
-    const where = f.region ? ` in ${f.region.name}` : "";
-    if (scope.window && scope.season != null && p.time?.year == null) return relaxed(a, windowSteps(scope.window, scope.season), (season) => card({ ...f, window: undefined, season }));
-    // No season said, or "this season": the current one, then the one before when it has nothing yet.
-    // Its note says what there's none of: matches, when nothing is played there yet; else the matches asked for.
-    // A match's number: that match, where it was asked ("No 2026–27 Q6 at Worlds yet"), whatever else was played.
-    const played = !/^From 0 /.test(a.stat?.source ?? "");
-    const noun = f.label ? `${labelText(f.label)}${f.kind ? ` at ${f.kind === WORLDS_KIND ? "Worlds" : f.kind === STATES_KIND ? "states" : f.kind.label.toLowerCase()}` : ""}` : played ? MATCH_NOUN[f.measure] : "matches";
-    if (!events && !f.ever && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) return relaxed(a, defaultSteps(f.season, where, noun), (season) => card({ ...f, season }));
-    return a;
+  if (!((!p.teams.length || teamFind) && (FIND[intent] || scored || teamVideo || cleanAsk || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond || p.withVideo || p.place?.kind === "city"))))) return undefined;
+  // A match's number said to any other finder ("highest scoring M14 matches") is never dropped: left to search.
+  if (p.matchNumber != null && !labelled) return no("a match number this finder doesn't read");
+  // An event named with a score to reach ("matches at <event> where both alliances scored over 250"): its matches,
+  // its divisions' too. A calendar year said is the edition held that year; none said, its latest.
+  const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
+  // A measure asked of an event named by its name ("closest match in <event>") is that event's matches too.
+  const named = p.event && !kind && (p.scoreCond || labelled || p.withVideo || cleanAsk || (FIND[intent] && intent !== "match-label")) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
+  const events = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
+  if (events && !events.length) return no("no such event that year");
+  if (((p.event || p.eventKind) && !kind && !events) || (p.worlds && !labelled && !cleanAsk) || (p.states && !labelled && !cleanAsk) || p.alliance || (scope.ever && !p.withVideo) || (p.place?.kind === "city" && (p.teams.length || !p.place.city))) return no("a filter the match finder doesn't apply here");
+  // A town ("closest matches in <town>"): the events held there, in its state (as a scope's highlights read one).
+  const town = p.place?.kind === "city" ? p.place : null;
+  // Its name as each season held it: the main event's, never a division's.
+  const mainFirst = events ? [...events].sort((x, y) => Number(x.division != null) - Number(y.division != null)) : [];
+  const eventKeys = events ? (await scopeEvents({ season: 0, region: null, level: null, finals: false, kind: null, events })) ?? [] : null;
+  // None said: the latest edition with a match played, its divisions' counted (one only scheduled has none yet).
+  const playedIn = eventKeys?.length && year == null && !p.time ? await get<{ s: number | null }>(
+    `SELECT MAX(m.season) s FROM matches m WHERE m.played = 1 AND (${eventKeys.map(() => "(m.season = ? AND m.code = ?)").join(" OR ")})`, eventKeys.flatMap((k) => [k.season, k.code])) : null;
+  const eventSeason = events && (year != null || !p.time) ? (playedIn?.s != null ? Number(playedIn.s) : Math.max(...events.map((e) => e.season))) : null;
+  const plural = cue(p, "matchList");
+  const f: MatchFind = {
+    // The current season is the one today is in.
+    // A match's number at Worlds or states in a year ("q6 at worlds 2026") is the championship held that year (2025–26).
+    measure: FIND[intent] ?? "high", season: eventSeason ?? ((labelled || cleanAsk) && (p.worlds || p.states) && year != null ? year - 1 : placeSeason(p, scope.season, opts)),
+    region: town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.city! } : regionOf(p), ...(town ? { city: town.city! } : {}), level: p.level, finals: p.finals, kind,
+    ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
+    // "Ever" with video ("highest score ever with video"): every season's matches with video, read as one.
+    ...(scope.ever && p.withVideo ? { ever: true } : {}),
+    ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
+    ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),
+    ...(p.scoreCond ? { cond: p.scoreCond } : {}), ...(labelled ? { label: { n: p.matchNumber!, level: p.finalNo ? "final" as const : p.level } } : {}), ...(p.withVideo ? { video: true } : {}), ...(cleanAsk ? { clean: true } : {}), ...(events && eventKeys ? {
+      events: eventKeys.map((k) => ({ ...k, name: mainFirst.find((e) => e.season === k.season)?.name })),
+      // An off-season event named ("MTI") is its own matches, though the finder otherwise reads official events only.
+      ...(events.some((e) => !(OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "")) ? { named: true } : {}),
+    } : {}),
+  };
+  // A team's match by its score (or its matches without penalties), no season said: the latest season, up to the
+  // current one, holding one the finder lists (its own filters: official events, the match type said, the place).
+  if ((scored || cleanAsk) && !p.time && !f.window) {
+    // With video: the keys of every season the search can reach, read first, so an older season's match counts.
+    if (f.video) f.videoKeys = await findVideoKeys(f, true);
+    const w = findWhere(f, true);
+    const latest = await get<{ s: number | null }>(`SELECT MAX(m.season) s ${FIND_FROM} WHERE ${w.sql}`, w.args);
+    if (latest?.s != null) f.season = Number(latest.s);
   }
+  const card = async (g: MatchFind): Promise<SearchAnswer> => {
+    const stat = await matchFindAnswer(g);
+    // One match by its number at the event named ("USNJCMP Q12"): that match is the result too, so the box opens it
+    // and its video plays, as the match's own link does.
+    const at = g.label && g.events && /^From 1 played match\b/.test(stat.source ?? "") ? /^\/events\/(\d+)\/([^?&]+)\?match=(\w+):(\d+):(\d+)(?:&|$)/.exec(stat.headline?.href ?? "") : null;
+    const hits: SearchHit[] = at ? [{ kind: "match", ref: `${at[1]}:${decodeURIComponent(at[2])}:${at[3]}:${at[4]}:${at[5]}`, title: stat.headline!.label ?? stat.title, subtitle: `${decodeURIComponent(at[2])} · ${at[1]}`, season: Number(at[1]) }] : [];
+    // Said as the match it is ("Qualification match 12 at <event> (2025–26)"), as the event's own match link says it.
+    const one = at ? `${stat.headline!.label!.replace(/^Q(\d+) /, "Qualification match $1 ").replace(/^M(\d+) /, "Playoff match $1 ").replace(/^F(\d+) /, "Final $1 ")} (${seasonLabel(Number(at[1]))})` : null;
+    return { q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: one ?? stat.title, season: g.season }, ...(opts.full ? { stat } : {}),
+      intent: { kind: `stat-${stat.intent}`, pattern: `${stat.intent}${g.region ? " [place]" : ""}${g.window ? " [window]" : ""}`, met: true, understood: [] } };
+  };
+  // The search box: the board as the page reads it (its season fallen back to as the page's is), with no card, a link
+  // to its page first.
+  if (!opts.full) {
+    const whole = await execute(p, { ...opts, full: true });
+    if (!whole) return no("the page's answer had none");
+    const { stat: _stat, ...box } = whole;
+    return { ...box, pages: [{ title: box.understood?.label ?? p.q, href: `/search?q=${encodeURIComponent(p.q)}` }, ...box.pages] };
+  }
+  const a = await card(f);
+  // A match's number at an event named with no scored match by it: the names reader's (the event's match itself, its
+  // scores still to come, or the event's matches).
+  if (f.label && (f.events || p.event) && /^From 0 /.test(a.stat?.source ?? "")) return no("no scored match by that number at the event");
+  const where = f.region ? ` in ${f.region.name}` : "";
+  if (scope.window && scope.season != null && p.time?.year == null) return or(await relaxed(a, windowSteps(scope.window, scope.season), (season) => card({ ...f, window: undefined, season })), "no matches found");
+  // No season said, or "this season": the current one, then the one before when it has nothing yet.
+  // Its note says what there's none of: matches, when nothing is played there yet; else the matches asked for.
+  // A match's number: that match, where it was asked ("No 2026–27 Q6 at Worlds yet"), whatever else was played.
+  const played = !/^From 0 /.test(a.stat?.source ?? "");
+  const noun = f.label ? `${labelText(f.label)}${f.kind ? ` at ${f.kind === WORLDS_KIND ? "Worlds" : f.kind === STATES_KIND ? "states" : f.kind.label.toLowerCase()}` : ""}` : played ? MATCH_NOUN[f.measure] : "matches";
+  if (!events && !f.ever && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) return or(await relaxed(a, defaultSteps(f.season, where, noun), (season) => card({ ...f, season })), "no matches found");
+  return a;
+};
+
+const countBoard: Executor = async ({ p, intent, opts }) => {
   // A count's board ("the most matches played", "most awards in nj"): answered as the leaderboard reader reads it, never
   // the highest-scoring matches or the rating's board. Read here, as typed: the readers after this see "matches" as one.
-  if (!p.teams.length && (intent === "top-matches" || intent === "leaderboard")) {
-    const counted = readLeaderboard(p.q);
-    if (counted && BOARD_STATS[counted.stat]?.count) return boardSearch(p.q, counted, opts);
-  }
+  if (!(!p.teams.length && (intent === "top-matches" || intent === "leaderboard"))) return undefined;
+  const counted = readLeaderboard(p.q);
+  if (counted && BOARD_STATS[counted.stat]?.count) return or(await boardSearch(p.q, counted, opts), "no count board");
+};
+
+const bestMatches: Executor = async ({ p, intent, scope, opts }) => {
   // One period's best said of matches, no team ("highest teleop score in romania", "best auto videos in michigan",
   // "best teleop match decode"): the season's best matches by that period's points, never a board of teams. "OPR" or
   // "team" said keeps the board ("best teleop opr in romania").
   const phase = !p.teams.length && intent === "leaderboard" ? periodMatches(p) : null;
-  if (!p.teams.length && (intent === "top-matches" || phase)) {
-    // "With video" the finder didn't answer ("highest score ever with video"): never the best without it.
-    if (p.withVideo || p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return null;
-    // An event named by its name ("best match in <event>"): that event's matches, its divisions' too, in the season said,
-    // else its latest edition with a match played (the reader finds it). A place or a window beside it is left to search.
-    if (p.event && (p.place || scope.window)) return null;
-    // "The highest-scoring match": one match; "matches", "scores", "top 5", or no match said ("highest score in
-    // decode"): a list.
-    const one = cue(p, "match") && !cue(p, "matches");
-    const t: TopMatchesQuestion = {
-      // An event with no time said: its latest edition with a match played (null lets the reader find it).
-      season: scope.ever ? scope.season : p.event && !p.time ? null : placeSeason(p, scope.season, opts), game: null, ever: scope.ever, region: p.event ? null : regionOf(p), event: p.event ? p.event.words : null,
-      ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : one ? { n: 1 } : {}), ...(p.noPenalties ? { noPenalties: true } : {}), ...(phase ? { phase } : {}),
-      // "Official" said ("best official decode score"): official records only.
-      ...(cue(p, "official") ? { official: true as const } : {}),
-    };
-    const a = await topSearch(p.q, t, opts);
-    // No time said: the event's latest edition played, already found. "This season" falls back below, as for a season.
-    if (p.event && !p.time) return a;
-    // No season said: the current one, then the one before (as the match finder does).
-    if (!scope.ever && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) {
-      return relaxed(a, defaultSteps(t.season!, t.region ? ` in ${t.region.name}` : "", "scored matches"), (season) => topSearch(p.q, { ...t, season }, opts));
+  if (!(!p.teams.length && (intent === "top-matches" || phase))) return undefined;
+  // "With video" the finder didn't answer ("highest score ever with video"): never the best without it.
+  if (p.withVideo || p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return no("best matches take no video, championship, match type, side or town");
+  // An event named by its name ("best match in <event>"): that event's matches, its divisions' too, in the season said,
+  // else its latest edition with a match played (the reader finds it). A place or a window beside it is left to search.
+  if (p.event && (p.place || scope.window)) return no("an event beside a place or a day");
+  // "The highest-scoring match": one match; "matches", "scores", "top 5", or no match said ("highest score in
+  // decode"): a list.
+  const one = cue(p, "match") && !cue(p, "matches");
+  const t: TopMatchesQuestion = {
+    // An event with no time said: its latest edition with a match played (null lets the reader find it).
+    season: scope.ever ? scope.season : p.event && !p.time ? null : placeSeason(p, scope.season, opts), game: null, ever: scope.ever, region: p.event ? null : regionOf(p), event: p.event ? p.event.words : null,
+    ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : one ? { n: 1 } : {}), ...(p.noPenalties ? { noPenalties: true } : {}), ...(phase ? { phase } : {}),
+    // "Official" said ("best official decode score"): official records only.
+    ...(cue(p, "official") ? { official: true as const } : {}),
+  };
+  const a = await topSearch(p.q, t, opts);
+  // No time said: the event's latest edition played, already found. "This season" falls back below, as for a season.
+  if (p.event && !p.time) return or(a, "no best matches");
+  // No season said: the current one, then the one before (as the match finder does).
+  if (!scope.ever && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) {
+    return or(await relaxed(a, defaultSteps(t.season!, t.region ? ` in ${t.region.name}` : "", "scored matches"), (season) => topSearch(p.q, { ...t, season }, opts)), "no best matches");
+  }
+  if (!scope.window || scope.season == null || p.time?.year != null) return or(a, "no best matches");
+  return or(await relaxed(a, windowSteps(scope.window, scope.season), (season) => topSearch(p.q, { ...t, window: undefined, season }, opts)), "no best matches");
+};
+
+const streakBoardOf: Executor = async ({ p, intent, scope, opts }) => {
+  if (!(!p.teams.length && intent === "streak-board")) return undefined;
+  // A place's teams (a state or a country): the world's every match is too many to count here.
+  const region = regionOf(p);
+  // A match type or alliance said ("playoff win streak") is a streak this board doesn't count.
+  if (!region || p.place?.kind === "city" || p.event || p.worlds || p.states || p.level || p.finals || p.alliance || scope.window || scope.ever) return no("a streak board reads a state's or a country's teams");
+  const losing = p.symbols.includes("outcome:L") || p.symbols.includes("metric:loss");
+  const stat = await streakBoardAnswer({ region, season: placeSeason(p, scope.season, opts), now: cue(p, "now") || p.symbols.includes("agg:last"), losing, n: Math.min(25, p.n ?? 10) });
+  return { q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title }, ...(opts.full ? { stat } : {}),
+    intent: { kind: "stat-streak-board", pattern: "streak [place]", met: true, understood: [stat.title] } };
+};
+
+const teamBoard: Executor = async ({ p, intent, scope, opts }) => {
+  if (!(!p.teams.length && intent === "leaderboard")) return undefined;
+  // A board only this reader reads: the teams at Worlds, a filter on the teams (part of their name, no award ever won,
+  // unbeaten at a kind of event) or a number's gain over the season. An event named keeps the box's event results.
+  // Conferences as the place, or an event named ("best auto in east bergen conference"): no ask reads those, so the
+  // box gets its link to the page too.
+  const own = !!(p.worlds || p.nameHas || (p.undefeated && p.eventKind) || p.conference || p.event) || p.symbols.includes("no-award") || p.symbols.includes("gain");
+  // A board of teams the asks don't read ("nj teams ranked by opr"), with no event, Worlds or state championship said.
+  const teamsBoard = p.symbols.includes("thing:team") && !p.event && !p.worlds && !p.states && !readAsk(p.q);
+  // The search box keeps the asks' own short card; the page draws the list. A board only this reader reads, or a board
+  // of teams the asks don't, gives the box its link to the page (boardSearch), never nothing.
+  if (!opts.full && !own && !teamsBoard) return no("the box leaves this board to the asks' card");
+  // The teams at one event, Worlds or a state championship ("east bergen conference best teams", "top teams at nj
+  // states"): that event's board.
+  if ((p.event || p.worlds || p.states) && !p.level && !p.alliance && !p.finals && !p.eventKind && !scope.window && !scope.ever) return or(await eventBoard(p, scope, opts), "no board for the event");
+  if (p.event || p.worlds || p.states || p.level || p.alliance || scope.window || scope.ever) return no("a board takes no event, match type, side or day here");
+  // Unbeaten at a kind of event only ("a perfect record at any championship event"): its own board, below.
+  const atKind = p.eventKind ? championshipLevel(eventKindOf(p.eventKind)) : null;
+  if (p.eventKind && !atKind) return no("unbeaten at a kind of event that isn't a championship");
+  // A gain over the season ranks by OPR or the rating, each team's first event to its last.
+  const gain = p.symbols.includes("gain");
+  // A "leaderboard" the leaderboard reader reads (a state's, by a stat) is its own; a country's is answered here.
+  if (cue(p, "leaderboard") && readLeaderboard(p.q)) return no("the leaderboard reader's own board");
+  let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
+  // "Auto OPR" is the auto phase's OPR; a record beside another stat is the column every row shows.
+  if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
+  // Wins said with a record ("wins losses record") are the record itself; with another stat, the record is a column.
+  if (stats.length > 1) { const rest = stats.filter((s) => s !== "record" && s !== "wins"); stats = rest.length || !stats.includes("record") ? rest : ["record"]; }
+  if (stats.length > 1) return no("two stats asked of one board");
+  if (gain && stats[0] && stats[0] !== "opr" && stats[0] !== "rating") return no("a gain ranks by OPR or the rating only");
+  // A stat alone, no "best", "team" or count said, is everyone's board only for a season or a place said ("2027 opr").
+  if (!p.agg && !p.undefeated && !p.symbols.includes("thing:team") && stats[0] !== "record" && !p.time && !p.place) return no("a stat alone, with no season or place");
+  // Wins with no "team" said are a count only beside "most", "fewest" or "least": "biggest win in nj" is a match.
+  if (stats[0] === "wins" && !p.symbols.includes("thing:team") && !p.undefeated && !cue(p, "mostFewest")) return no("wins with no most or fewest are a match");
+  // "The best team in NJ by OPR": one team, the next few under it; with no place or stat named, or a sort asked
+  // for ("best team sorted by auto"), the top 10.
+  const one = cue(p, "team") && !cue(p, "teams") && !cue(p, "sorted") && p.n == null && (!!p.place || stats.length === 1);
+  const town = p.place?.kind === "city" ? p.place : null;
+  // A town's or a country's best teams with nothing else said (no filter, such as a name's words or never an award),
+  // the place after "in" ("best teams in romania", "in romania best teams", "top 3 teams in canada", "best team in
+  // Oradell"): the place readers' own cards, asked in their order from the parse, so the words' order never changes
+  // the answer. Said any other way ("best Romanian teams", "worst teams in romania", "best teams in romania this
+  // season", "best teams in romania that never won an award"): its teams by OPR here.
+  if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && !cue(p, "leaderboard") && !p.eventPlace && !p.places
+    && p.placePrep === "in" && p.agg === "max" && !p.time && !p.rookie && !p.nameHas && !p.conference && !p.notStats?.length && !p.notMetrics?.length
+    && p.symbols.every((s) => s === "agg:max" || s === "thing:team" || s.startsWith("prep:"))) {
+    const asked = `${p.n != null ? `top ${p.n}` : "best"} ${one ? "team" : "teams"} in ${p.place!.typed}`;
+    const a = town ? await statAnswer(asked, opts.resolve, { full: opts.full, pages: opts.pages }) : await teamListAnswer(asked);
+    if (a) return { ...a, q: p.q };
+  }
+  // Fewer is better for penalties: "best" and "cleanest" are the fewest, "worst" the most; "most" and "fewest" as said.
+  const goodWord = !!stats[0] && !!BOARD_STATS[stats[0]].fewerBetter && cue(p, "goodBad");
+  // Two places: the first typed is the board's place, the other beside it (the parse's `place` is the longer name).
+  const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : p.places ? placeRegion(p.places.list[0]) : regionOf(p);
+  const b: LeaderboardQuestion = {
+    kind: gain ? "gain" : "top", stat: stats[0] ?? (gain ? "opr" : p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
+    ...(one ? { best: true } : {}), ...((p.agg === "min") !== goodWord ? { asc: true } : {}),
+    ...(p.nameHas ? { nameHas: p.nameHas.typed } : {}), ...(p.symbols.includes("no-award") ? { noAward: true } : {}),
+    ...(atKind ? { atKind, ...(p.recordSaid ? { recordSaid: p.recordSaid } : {}) } : {}),
+    ...(p.conference ? { conference: p.conference } : {}),
+    // Two places joined ("teams from <place> or <place>"): one board over both.
+    ...(p.places ? { also: [placeRegion(p.places.list[1])], alsoWord: p.places.said === "and" ? "and" as const : "or" as const } : {}),
+    // The teams that played in another place ("texas teams at michigan events"): those only.
+    ...(p.eventPlace ? { playedIn: placeRegion(p.eventPlace) } : {}),
+  };
+  // A fewer-is-better board (penalties) is titled by its card on the page ("… with the most penalties"), never here.
+  if (!opts.full && !own && BOARD_STATS[b.stat]?.fewerBetter) return no("a fewer-is-better board is titled on the page");
+  // A stat said not to go by is never the one ranked by (a default included): with no other stat said, left unanswered.
+  if ((p.notMetrics ?? []).some((s) => BOARD_STAT[s] === b.stat)) return no("the only stat is one said not to go by");
+  // A stat said not to go by is named on the card, never silently dropped.
+  const board = async (q: LeaderboardQuestion) => {
+    const a = await boardSearch(p.q, q, opts);
+    return p.notStats?.length && a?.stat ? { ...a, stat: { ...a.stat, scope: [...a.stat.scope, ...p.notStats.map((w) => `Not by ${w}`)] } } : a;
+  };
+  // A record asked with no team and no "best" or "worst" ("win loss record decode"): the board, and a "which team?"
+  // row first, each a team's own record question.
+  const asked = b.stat === "record" && !p.agg && !p.undefeated ? whichTeam : (x: SearchAnswer | null) => x;
+  const a = await board(b);
+  // The search box's short card links to the page, which steps the season (as ../answers/index.ts statAnswer does).
+  if (!opts.full && !own) return or(a, "no board");
+  // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
+  if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return or(await asked(a), "no board");
+  return or(await asked(await relaxed(a, defaultSteps(b.season!, p.conference ? ` in New Jersey's “${p.conference.join(" ")}” conferences` : town ? ` in ${town.city}` : region ? boardWhere(b) : "", b.atKind ? `teams unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season }))), "no board");
+};
+const scopeHighlights: Executor = async ({ p, intent, scope, opts }) => (intent === "highlights" ? or(await highlights(p, scope, opts), "no highlights read") : undefined);
+const eventFieldOf: Executor = async ({ p, intent, scope, opts }) => (!p.teams.length && intent === "event-field" ? or(await eventField(p, scope, opts), "no field read for the event") : undefined);
+const eventScoresOf: Executor = async ({ p, intent, scope, opts }) => (!p.teams.length && intent === "event-scores" ? or(await eventScores(p, scope, opts), "no scores read for the event") : undefined);
+
+/** The executors in the order they're tried, each with the intents it can take: an intent's executor (EXECUTORS) tries
+ *  its takers in this order, the first whose question it is answering or saying no. */
+const TAKERS: [Executor, (i: PipelineIntent) => boolean][] = [
+  [teamStat, (i) => TEAM_INTENTS.has(i)],
+  [rankReview, (i) => i === "predict-rank-events"],
+  [seasonOddsOf, (i) => i === "team-predict"],
+  [reachOdds, (i) => i === "team-predict"],
+  [eventForecast, (i) => i === "team-predict" || i === "two-predict"],
+  [swapPredict, (i) => i === "swap-predict"],
+  [alliancePredict, (i) => i === "alliance-predict"],
+  [pickPartners, (i) => i === "pick-partners"],
+  [twoTeams, (i) => !!TWO_TEAM[i]],
+  [trendCard, (i) => !!TREND_ASK[i]],
+  [scopeHighlights, (i) => i === "highlights"],
+  [matchFinder, (i) => !!FIND[i] || CLEAN_MATCHES.has(i) || i === "season-matches" || i === "top-matches" || i === "highest-score" || i === "results"],
+  [countBoard, (i) => i === "top-matches" || i === "leaderboard"],
+  [bestMatches, (i) => i === "top-matches" || i === "leaderboard"],
+  [eventFieldOf, (i) => i === "event-field"],
+  [streakBoardOf, (i) => i === "streak-board"],
+  [eventScoresOf, (i) => i === "event-scores"],
+  [teamBoard, (i) => i === "leaderboard"],
+];
+/** One executor per intent (the search audit's C5): its takers tried in order. */
+const EXECUTORS = Object.fromEntries([...new Set(INTENTS.map((r) => r.id))].map((id) => {
+  const takers = TAKERS.filter(([, takes]) => takes(id)).map(([x]) => x);
+  const each: Executor = async (x) => {
+    for (const t of takers) {
+      const out = await t(x);
+      if (out) return out;
     }
-    if (!scope.window || scope.season == null || p.time?.year != null) return a;
-    return relaxed(a, windowSteps(scope.window, scope.season), (season) => topSearch(p.q, { ...t, window: undefined, season }, opts));
-  }
-  if (!p.teams.length && intent === "event-field") return eventField(p, scope, opts);
-  if (!p.teams.length && intent === "streak-board") {
-    // A place's teams (a state or a country): the world's every match is too many to count here.
-    const region = regionOf(p);
-    // A match type or alliance said ("playoff win streak") is a streak this board doesn't count.
-    if (!region || p.place?.kind === "city" || p.event || p.worlds || p.states || p.level || p.finals || p.alliance || scope.window || scope.ever) return null;
-    const losing = p.symbols.includes("outcome:L") || p.symbols.includes("metric:loss");
-    const stat = await streakBoardAnswer({ region, season: placeSeason(p, scope.season, opts), now: cue(p, "now") || p.symbols.includes("agg:last"), losing, n: Math.min(25, p.n ?? 10) });
-    return { q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title }, ...(opts.full ? { stat } : {}),
-      intent: { kind: "stat-streak-board", pattern: "streak [place]", met: true, understood: [stat.title] } };
-  }
-  if (!p.teams.length && intent === "event-scores") return eventScores(p, scope, opts);
-  if (!p.teams.length && intent === "leaderboard") {
-    // A board only this reader reads: the teams at Worlds, a filter on the teams (part of their name, no award ever won,
-    // unbeaten at a kind of event) or a number's gain over the season. An event named keeps the box's event results.
-    // Conferences as the place, or an event named ("best auto in east bergen conference"): no ask reads those, so the
-    // box gets its link to the page too.
-    const own = !!(p.worlds || p.nameHas || (p.undefeated && p.eventKind) || p.conference || p.event) || p.symbols.includes("no-award") || p.symbols.includes("gain");
-    // A board of teams the asks don't read ("nj teams ranked by opr"), with no event, Worlds or state championship said.
-    const teamsBoard = p.symbols.includes("thing:team") && !p.event && !p.worlds && !p.states && !readAsk(p.q);
-    // The search box keeps the asks' own short card; the page draws the list. A board only this reader reads, or a board
-    // of teams the asks don't, gives the box its link to the page (boardSearch), never nothing.
-    if (!opts.full && !own && !teamsBoard) return null;
-    // The teams at one event, Worlds or a state championship ("east bergen conference best teams", "top teams at nj
-    // states"): that event's board.
-    if ((p.event || p.worlds || p.states) && !p.level && !p.alliance && !p.finals && !p.eventKind && !scope.window && !scope.ever) return eventBoard(p, scope, opts);
-    if (p.event || p.worlds || p.states || p.level || p.alliance || scope.window || scope.ever) return null;
-    // Unbeaten at a kind of event only ("a perfect record at any championship event"): its own board, below.
-    const atKind = p.eventKind ? championshipLevel(eventKindOf(p.eventKind)) : null;
-    if (p.eventKind && !atKind) return null;
-    // A gain over the season ranks by OPR or the rating, each team's first event to its last.
-    const gain = p.symbols.includes("gain");
-    // A "leaderboard" the leaderboard reader reads (a state's, by a stat) is its own; a country's is answered here.
-    if (cue(p, "leaderboard") && readLeaderboard(p.q)) return null;
-    let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
-    // "Auto OPR" is the auto phase's OPR; a record beside another stat is the column every row shows.
-    if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
-    // Wins said with a record ("wins losses record") are the record itself; with another stat, the record is a column.
-    if (stats.length > 1) { const rest = stats.filter((s) => s !== "record" && s !== "wins"); stats = rest.length || !stats.includes("record") ? rest : ["record"]; }
-    if (stats.length > 1) return null;
-    if (gain && stats[0] && stats[0] !== "opr" && stats[0] !== "rating") return null;
-    // A stat alone, no "best", "team" or count said, is everyone's board only for a season or a place said ("2027 opr").
-    if (!p.agg && !p.undefeated && !p.symbols.includes("thing:team") && stats[0] !== "record" && !p.time && !p.place) return null;
-    // Wins with no "team" said are a count only beside "most", "fewest" or "least": "biggest win in nj" is a match.
-    if (stats[0] === "wins" && !p.symbols.includes("thing:team") && !p.undefeated && !cue(p, "mostFewest")) return null;
-    // "The best team in NJ by OPR": one team, the next few under it; with no place or stat named, or a sort asked
-    // for ("best team sorted by auto"), the top 10.
-    const one = cue(p, "team") && !cue(p, "teams") && !cue(p, "sorted") && p.n == null && (!!p.place || stats.length === 1);
-    const town = p.place?.kind === "city" ? p.place : null;
-    // A town's or a country's best teams with nothing else said (no filter, such as a name's words or never an award),
-    // the place after "in" ("best teams in romania", "in romania best teams", "top 3 teams in canada", "best team in
-    // Oradell"): the place readers' own cards, asked in their order from the parse, so the words' order never changes
-    // the answer. Said any other way ("best Romanian teams", "worst teams in romania", "best teams in romania this
-    // season", "best teams in romania that never won an award"): its teams by OPR here.
-    if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && !cue(p, "leaderboard") && !p.eventPlace && !p.places
-      && p.placePrep === "in" && p.agg === "max" && !p.time && !p.rookie && !p.nameHas && !p.conference && !p.notStats?.length && !p.notMetrics?.length
-      && p.symbols.every((s) => s === "agg:max" || s === "thing:team" || s.startsWith("prep:"))) {
-      const asked = `${p.n != null ? `top ${p.n}` : "best"} ${one ? "team" : "teams"} in ${p.place!.typed}`;
-      const a = town ? await statAnswer(asked, opts.resolve, { full: opts.full, pages: opts.pages }) : await teamListAnswer(asked);
-      if (a) return { ...a, q: p.q };
-    }
-    // Fewer is better for penalties: "best" and "cleanest" are the fewest, "worst" the most; "most" and "fewest" as said.
-    const goodWord = !!stats[0] && !!BOARD_STATS[stats[0]].fewerBetter && cue(p, "goodBad");
-    // Two places: the first typed is the board's place, the other beside it (the parse's `place` is the longer name).
-    const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : p.places ? placeRegion(p.places.list[0]) : regionOf(p);
-    const b: LeaderboardQuestion = {
-      kind: gain ? "gain" : "top", stat: stats[0] ?? (gain ? "opr" : p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
-      ...(one ? { best: true } : {}), ...((p.agg === "min") !== goodWord ? { asc: true } : {}),
-      ...(p.nameHas ? { nameHas: p.nameHas.typed } : {}), ...(p.symbols.includes("no-award") ? { noAward: true } : {}),
-      ...(atKind ? { atKind, ...(p.recordSaid ? { recordSaid: p.recordSaid } : {}) } : {}),
-      ...(p.conference ? { conference: p.conference } : {}),
-      // Two places joined ("teams from <place> or <place>"): one board over both.
-      ...(p.places ? { also: [placeRegion(p.places.list[1])], alsoWord: p.places.said === "and" ? "and" as const : "or" as const } : {}),
-      // The teams that played in another place ("texas teams at michigan events"): those only.
-      ...(p.eventPlace ? { playedIn: placeRegion(p.eventPlace) } : {}),
-    };
-    // A fewer-is-better board (penalties) is titled by its card on the page ("… with the most penalties"), never here.
-    if (!opts.full && !own && BOARD_STATS[b.stat]?.fewerBetter) return null;
-    // A stat said not to go by is never the one ranked by (a default included): with no other stat said, left unanswered.
-    if ((p.notMetrics ?? []).some((s) => BOARD_STAT[s] === b.stat)) return null;
-    // A stat said not to go by is named on the card, never silently dropped.
-    const board = async (q: LeaderboardQuestion) => {
-      const a = await boardSearch(p.q, q, opts);
-      return p.notStats?.length && a?.stat ? { ...a, stat: { ...a.stat, scope: [...a.stat.scope, ...p.notStats.map((w) => `Not by ${w}`)] } } : a;
-    };
-    // A record asked with no team and no "best" or "worst" ("win loss record decode"): the board, and a "which team?"
-    // row first, each a team's own record question.
-    const asked = b.stat === "record" && !p.agg && !p.undefeated ? whichTeam : (x: SearchAnswer | null) => x;
-    const a = await board(b);
-    // The search box's short card links to the page, which steps the season (as ../answers/index.ts statAnswer does).
-    if (!opts.full && !own) return a;
-    // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
-    if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return asked(a);
-    return asked(await relaxed(a, defaultSteps(b.season!, p.conference ? ` in New Jersey's “${p.conference.join(" ")}” conferences` : town ? ` in ${town.city}` : region ? boardWhere(b) : "", b.atKind ? `teams unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season })));
-  }
-  return null;
-}
+    return undefined;
+  };
+  return [id, each];
+})) as Record<PipelineIntent, Executor>;
 
 /** A team-less record question's board with a "which team?" row first: the top teams' own record questions for the
  *  season shown, one tap each, so a team's record is never picked for the visitor. */

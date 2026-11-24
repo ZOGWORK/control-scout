@@ -45,14 +45,15 @@ export const isSoft = (t: string): t is SoftType => (SOFT_TYPES as readonly stri
 export interface Soft { type: SoftType; reason: string; intent: string | null }
 
 /** The soft failure of an answer that answered (failureOf gave null), or null. `read`: the parser's reading of the
- *  query (patternFor's), which says whether the pipeline had the question's intent. */
-export function softFailureOf(a: SearchAnswer, read: { intent: string | null; complete: boolean } | null): Soft | null {
+ *  query (patternFor's), which says whether the pipeline had the question's intent. `why`: the pipeline's own reason
+ *  for its no (./api/query/execute.ts declineOf), when it gave one: the reason logged. */
+export function softFailureOf(a: SearchAnswer, read: { intent: string | null; complete: boolean } | null, why?: string | null): Soft | null {
   if (!a.stat && !a.card) return null;
   // The pipeline answered when its reading is on the answer ("Intent: …", ./api/query/execute.ts describe).
   const piped = !!a.intent?.understood?.some((u) => u.startsWith("Intent: "));
   const unread = a.understood?.unread ?? [];
   if (unread.length) return { type: "unread-words", reason: `${unread.length === 1 ? "1 word" : `${Math.min(unread.length, 3)}${unread.length > 3 ? "+" : ""} words`} read past`, intent: read?.intent ?? null };
-  if (!piped && read?.intent) return { type: "declined", reason: read.complete ? "read whole, not answered by it" : "words it couldn't read", intent: read.intent };
+  if (!piped && read?.intent) return { type: "declined", reason: read.complete ? why ?? "read whole, not answered by it" : "words it couldn't read", intent: read.intent };
   return null;
 }
 
