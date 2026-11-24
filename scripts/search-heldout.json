@@ -3058,5 +3058,25 @@
 "set": "runs1124",
 "n": 4,
 "q": "23268 awards since 2022"
+},
+{
+"set": "clean1124",
+"n": 1,
+"q": "highest scoring matches with no penalties in michigan"
+},
+{
+"set": "clean1124",
+"n": 2,
+"q": "penalty free matches at worlds"
+},
+{
+"set": "clean1124",
+"n": 3,
+"q": "lowest scoring matches with no penalties"
+},
+{
+"set": "clean1124",
+"n": 4,
+"q": "6980 matches with no penalties"
 }
 ]
