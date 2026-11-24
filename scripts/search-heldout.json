@@ -3078,5 +3078,25 @@
 "set": "clean1124",
 "n": 4,
 "q": "6980 matches with no penalties"
+},
+{
+"set": "clauses1124",
+"n": 1,
+"q": "6980 opr and 4215 awards"
+},
+{
+"set": "clauses1124",
+"n": 2,
+"q": "23268 record and 6980 next event"
+},
+{
+"set": "clauses1124",
+"n": 3,
+"q": "4215 highest score and awards"
+},
+{
+"set": "clauses1124",
+"n": 4,
+"q": "top teams in michigan and highest score in california"
 }
 ]
