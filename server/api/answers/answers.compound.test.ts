@@ -439,6 +439,62 @@ describe("a team list's filters, however they're said", () => {
   });
 });
 
+describe("not, without, except (search audit: general \"not\")", () => {
+  const rows = (a: Awaited<ReturnType<typeof ask>>) => (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any)?.rows.map((r: any) => r.team.label) ?? [];
+  it("reads rookies left out, and a stat said first as a list of teams", () => {
+    expect(readCompound("teams in nj not rookies")).toMatchObject({ kind: "list", region: { state: "NJ" }, notRookie: true });
+    expect(readCompound("teams in nj excluding rookies")).toMatchObject({ kind: "list", notRookie: true });
+    // The rookies named after the word are the ones left out, never the list.
+    for (const q of ["teams in nj excluding rookie teams", "teams that are not first-year teams with opr over 50"]) {
+      const c = readCompound(q);
+      expect([c?.kind === "list" && c.notRookie, c?.kind === "list" && c.rookie], q).toEqual([true, undefined]);
+    }
+    const non = readCompound("non-rookie teams in texas with opr over 60");
+    expect([non?.kind === "list" && non.rookie, non?.kind === "list" && non.notRookie, non?.kind === "list" && non.region?.state]).toEqual([undefined, true, "TX"]);
+    expect(readCompound("opr over 120 who did not make worlds")).toMatchObject({ kind: "list", noWorlds: true, thresholds: [{ stat: "opr", op: "gt", value: 120 }] });
+    // A stat with no number is no list ("opr of 4215"): left to the readers after this one.
+    expect(readCompound("opr of the best team")).toBeNull();
+  });
+  it("leaves rookies out of a place's teams", async () => {
+    try {
+      await run("UPDATE teams SET rookie_year = ? WHERE number = 6980", [S]);
+      const a = await ask("teams in nj not rookies");
+      expect(rows(a)).not.toContain("6980 Bad Wolf");
+      expect(rows(a)).toContain("4215 Hypnotic Robotics");
+      expect([a.stat?.title, a.understood?.unread ?? []]).toEqual([`Teams in New Jersey that are not rookies, by OPR · ${S}–${String(S + 1).slice(2)}`, []]);
+    } finally {
+      try { await run("UPDATE teams SET rookie_year = NULL WHERE number = 6980"); } finally { clearAllCaches(); }
+    }
+  });
+  it("did not make Worlds: the latest Worlds held when no season is said, though a newer season has matches", async () => {
+    // A season after the fixture's Worlds, already playing: its Worlds isn't held yet.
+    try {
+      await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (?, 23268, 200, 4, 4, 0, 0), (?, 1111, 10, 4, 0, 4, 0)", [S + 1, S + 1]);
+      resetSearchSeason(); await refreshSearchSeason(); clearAllCaches();
+      const a = await ask("opr over 120 who did not make worlds");
+      expect([a.stat?.title, rows(a)]).toEqual([`Teams worldwide that didn't go to Worlds ${S + 1} with OPR over 120, by OPR · ${S}–${String(S + 1).slice(2)}`, ["1111 Lone Star"]]);
+    } finally {
+      try { await run("DELETE FROM team_season_stats WHERE season = ?", [S + 1]); } finally { resetSearchSeason(); clearAllCaches(); await refreshSearchSeason(); }
+    }
+  });
+  it("a team's matches without penalties: those its alliance gave away no penalty points in", async () => {
+    // 4215 at the state championship: no fouls in Q5, 10 penalty points given away in Q6.
+    try {
+      await run("UPDATE matches SET red_pen = 0, blue_pen = 5 WHERE season = ? AND code = 'USNJCMPP' AND label = 'Q5'", [S]);
+      await run("UPDATE matches SET red_pen = 10, blue_pen = 0 WHERE season = ? AND code = 'USNJCMPP' AND label = 'Q6'", [S]);
+      const matchesOf = (x: Awaited<ReturnType<typeof ask>>) => { const t = x.stat?.blocks.find((b) => b.kind === "table"); return t?.kind === "table" ? t.rows.map((r) => r.cells.match) : null; };
+      const a = await ask("4215 matches without penalties at states");
+      expect(matchesOf(a)).toEqual(["Q5"]);
+      // The year the championship was held names its season, as for a team's results there.
+      expect(matchesOf(await ask(`4215 matches without penalties at states in ${S + 1}`))).toEqual(["Q5"]);
+      expect(a.stat?.scope).toEqual(expect.arrayContaining(["State championships", "No penalties given away"]));
+      expect(a.understood?.unread ?? []).toEqual([]);
+    } finally {
+      try { await run("UPDATE matches SET red_pen = NULL, blue_pen = NULL WHERE season = ? AND code = 'USNJCMPP'", [S]); } finally { clearAllCaches(); }
+    }
+  });
+});
+
 describe("a place's count, first paint", () => {
   // "Teams in Oradell, NJ" under "Teams in Oradell" said the place twice: the fuller card title is the heading, and the
   // card doesn't say it again (headingOver, as the app does).
