@@ -53,6 +53,7 @@ import { BOOT_HITS } from "../lib/searchBoot";
 import { handedAnswer, forgetHandoff } from "../components/search/handoff";
 import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta";
 import { useApi, qs } from "../lib/api";
+import { useSearchScore } from "../lib/searchScore";
 import { cn } from "../components/cn";
 import { Verdict } from "../components/search/page/Verdict";
 import { PeopleAlsoAsk, PeopleAlsoAskPending, RelatedSearches, TeamHighlights, useFollowUps } from "../components/search/page/FollowUps";
@@ -312,7 +313,10 @@ export default function SearchPage() {
   // first in both, so it's the same field when one replaces the other: what's being typed in it (and the keyboard)
   // stays put when a search's results arrive.
   const bar = phone ? <PhoneSearchBar query={query} /> : null;
-  if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving || gliding)) return <>{bar}<SearchSkeleton query={query} /></>;
+  const loading = !!query && !error && ((busy && ((stale && !reseason) || !found)) || leaving || gliding);
+  // Time to answer and how the search ended, anonymous and sampled (../lib/searchScore.ts).
+  useSearchScore(query, { drawn: !!query && !loading, settled: !busy && !stale, leaving, outcome: error ? "error" : !found || ax?.sorry ? "sorry" : answered ? "direct" : "results" });
+  if (loading) return <>{bar}<SearchSkeleton query={query} /></>;
   return (
     <>{bar}
     {/* One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
