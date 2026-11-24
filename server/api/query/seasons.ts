@@ -10,7 +10,7 @@ import { all, get } from "../../db.js";
 import { defaultSeason } from "../answers/season.js";
 import type { Parsed } from "./parse.js";
 
-/** The stats a season ranks teams by: the value and its rank in that season. */
+/** The stats a season ranks teams by, and the column holding each team's rank in that season. */
 const RANKED: Record<string, { label: string; rank: string }> = {
   opr: { label: "OPR", rank: "s.rank_np" },
   auto: { label: "Auto OPR", rank: "s.rank_auto" },
