@@ -13,7 +13,7 @@ import { latestStoredSeason, noEventsStat, withoutYear } from "./noEventsYet.js"
 import { edits, findRegions, regionLabel } from "../../../src/shared/regions.js";
 import { eventTypeLabel } from "../../../src/shared/labels.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../../data/seasons.js";
-import { completedSeason, currentSeason, defaultSeason, seasonWhy } from "./season.js";
+import { completedSeason, currentSeason, defaultSeason, seasonWhy, teamSeason, thisSeasonNote } from "./season.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { teamSetAnswer, twoTeamCompareAnswer } from "../../../src/shared/searchVersus.js";
 import { teamPageSql } from "../../../src/shared/teamPages.js";
@@ -41,7 +41,7 @@ import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, resolveChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, boardFilterWords, conferenceGroup, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
-import { readTime } from "../query/time.js";
+import { monthIn, readTime } from "../query/time.js";
 import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
 import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
 import { placeAverageAnswer, readPlaceAverage } from "./families/placeAverages.js";
@@ -244,6 +244,16 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
   if (s.area) scope.place = { country: s.area.country, state: s.area.state ?? "", name: s.area.name };
   if (s.window) scope.window = s.window;
+  // A month said without its year ("7149 events in june"): that month of the team's latest season (the one season
+  // rule), and never one still to come: a month not yet begun is the one a year before ("june" in November 2026 is
+  // June 2026, not June 2027).
+  if (s.window?.month != null && s.season != null) {
+    const own = (await teamSeason(team)) ?? s.season;
+    const slot = { kind: "window" as const, season: s.season, from: s.window.from, to: s.window.to, label: s.window.label, typed: "", month: s.window.month };
+    let moved = monthIn(slot, Math.min(own, s.season));
+    if (moved.from! > new Date().toISOString().slice(0, 10)) moved = monthIn(slot, moved.season! - 1);
+    if (moved.season !== s.season) { scope.season = moved.season; scope.window = { from: moved.from!, to: moved.to!, label: moved.label }; }
+  }
   if (s.outOfState) {
     // "Out-of-state events": outside the team's own state, as its team page lists it.
     const home = await get<{ state: string | null; country: string | null }>("SELECT state, country FROM teams WHERE number = ?", [team]);
@@ -308,6 +318,7 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     if (latest == null && it.id === "record" && !s.latest) return null;
     scope.season = latest?.season ?? null;
     if (latest) scope.seasonWhy = seasonWhy(s.latest ? "this" : "team", latest.season, String(team));
+    if (latest && s.latest) scope.seasonNote = thisSeasonNote(latest.season, String(team));
   }
   return scope;
 }
@@ -628,6 +639,7 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   // "… in their last meet", "… in first meet": the team's own latest or earliest event, said so beside its name.
   if (scope.event && (it.scope.at === THEIR_LAST || it.scope.at === THEIR_FIRST)) stat.scope = [it.scope.at === THEIR_LAST ? "Most recent event" : "First event", ...(stat.scope ?? [])];
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
+  if (scope.seasonNote) stat.scope = [scope.seasonNote, ...(stat.scope ?? [])];
   await noteNamedEvent(stat, scope);
   // A state championship read as one season's: the team's other seasons there, each its own question (by the year held).
   if (it.scope.states && scope.event && !scope.event.absent) {

@@ -1038,7 +1038,7 @@ async function windowPair(q: string, ctx: Awaited<ReturnType<typeof parseContext
 function readScopeOf(p: Parsed): ReadScope | null {
   const s: ReadScope = { season: null, latest: false, ever: false, championship: p.worlds, states: p.states, level: p.level, ...(p.finals ? { finals: true } : {}), alliance: p.alliance, at: p.event?.words ?? null };
   const t = p.time;
-  if (t?.kind === "window") { s.season = t.season; s.window = { from: t.from!, to: t.to!, label: t.label }; }
+  if (t?.kind === "window") { s.season = t.season; s.window = { from: t.from!, to: t.to!, label: t.label, ...(t.month != null && t.year == null ? { month: t.month } : {}) }; }
   else if (t?.kind === "season") {
     if (t.relative === "this") s.latest = true;
     // "Last season": the latest completed season (../answers/season.ts).

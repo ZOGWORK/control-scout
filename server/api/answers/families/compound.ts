@@ -18,7 +18,7 @@ import { CHAMPIONSHIP_TYPE, inScope, officialClause, scopeChips, scopePhrase, ty
 import type { CompoundQuestion, Threshold } from "../compound.js";
 import type { TeamEvent, TeamSeason } from "../eventSet.js";
 import { eventHref, matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
-import { currentSeason, defaultSeason, seasonWhy, searchSeasonWhy } from "../season.js";
+import { completedSeason, currentSeason, defaultSeason, seasonWhy, searchSeasonWhy } from "../season.js";
 import { BOARD_STATS, statWords, type BoardStat } from "./leaderboard.js";
 import { compareBlock, leadHeadline } from "../compareBlock.js";
 import { reliabilityRows } from "./twoTeam.js";
@@ -67,7 +67,7 @@ function listWords(c: ListQuestion, season: number) {
 /** The stat a list is sorted by: the one said, else a threshold's (a stat before a count), else what's shown, else OPR. */
 const sortOf = (c: ListQuestion) => c.stat ?? c.thresholds.find((t) => !COUNTS[t.stat])?.stat ?? c.thresholds[0]?.stat ?? c.outputs[0] ?? "opr";
 /** "Top 5 teams in New Jersey that won the Inspire Award, by Auto OPR · 2025–26": every filter, in words. */
-export function listTitle(c: ListQuestion, city: string | null, season = c.season ?? defaultSeason()): string {
+export function listTitle(c: ListQuestion, city: string | null, season = listSeason(c)): string {
   const st = listStat(sortOf(c));
   const w = listWords(c, season);
   const teams = c.rookie ? "rookie teams" : "teams";
@@ -75,8 +75,12 @@ export function listTitle(c: ListQuestion, city: string | null, season = c.seaso
 }
 type ListQuestion = Extract<CompoundQuestion, { kind: "list" }>;
 
+/** The season a list is about: the one named; with none named, a list by Worlds ("teams that did not make worlds")
+ *  is about the latest Worlds held (completedSeason), never one still to come; any other list the default season. */
+export const listSeason = (c: ListQuestion): number => c.season ?? (c.worlds || c.noWorlds ? completedSeason() : defaultSeason());
+
 export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
-  const season = c.season ?? defaultSeason();
+  const season = listSeason(c);
   const S = seasonLabel(season);
   const sortBy = sortOf(c);
   const st = listStat(sortBy), tsts = c.thresholds.map((t) => ({ t, x: listStat(t.stat) }));
@@ -147,7 +151,9 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   const chips = [c.region?.name ?? c.country?.name ?? city ?? "Worldwide", S, ...(c.rookie ? ["Rookie teams"] : []), ...(c.award ? [c.award.type === "Winner" ? "Winning alliance" : `Won the ${c.award.label}`] : []),
     ...(c.worlds ? [`Went to Worlds (FIRST Championship ${season + 1})`] : c.noWorlds ? [`Didn't go to Worlds (FIRST Championship ${season + 1})`] : []),
     ...c.thresholds.map((t) => thText(t).replace(/^./, (x) => x.toUpperCase())), `Sorted by ${st.label}`, ...(c.n ? [`Top ${c.n}`] : [])];
-  const why = c.season == null ? ` ${searchSeasonWhy(season)}` : (c.worlds || c.noWorlds) && /\d/.test(String(c.season)) ? ` Worlds ${season + 1} is the ${S} season's FIRST Championship, so every number is from ${S}.` : "";
+  // With no season named, a Worlds list is the latest Worlds held: when the default season's is still to come, said so.
+  const unheld = c.season == null && season !== defaultSeason() ? ` Worlds ${defaultSeason() + 1} hasn't been held yet, so this is the latest held, Worlds ${season + 1}: every number is from ${S}.` : "";
+  const why = unheld || (c.season == null ? ` ${searchSeasonWhy(season)}` : (c.worlds || c.noWorlds) && /\d/.test(String(c.season)) ? ` Worlds ${season + 1} is the ${S} season's FIRST Championship, so every number is from ${S}.` : "");
   const definition = [
     `Teams ${placeWords === "worldwide" ? "anywhere" : `whose home is ${c.region?.name ?? c.country?.name ?? city}, as FIRST lists it,`} with ${RANKED_MIN_MATCHES}+ matches in ${S}, from the season numbers each team page shows (OPR without penalties).`,
     c.award ? (c.award.type === "Winner" ? " On a winning alliance: a Winning Alliance award at any event that season." : ` Won the ${c.award.label}: its winner (1st place) at any event that season, from the events' published awards.`) : "",
