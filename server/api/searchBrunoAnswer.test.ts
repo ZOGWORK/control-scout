@@ -4,7 +4,7 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { migrate, openDb, run, setDb } from "../db";
+import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { invalidateFlags, setFlag } from "../flags";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
@@ -148,6 +148,19 @@ describe("grounding", () => {
     expect(grounded("4215's record is 10-0-0.", facts, "4215 league", teams)).toBe(false);
     expect(grounded("4215's record is 6-4-0.", facts, "4215 league", teams)).toBe(true);
   });
+  it("a line naming several teams gives each number to the team named before it (Loopy on #2263)", () => {
+    const teams = new Map<number, string | null>([[4215, "Hypnotic Robotics"], [6980, "Bad Wolf"]]);
+    const facts = ["Predicted scores:", "- Qualification match: 4215 100, 6980 120"];
+    expect(grounded("4215's predicted score is 120.", facts, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("4215's predicted score is 100 and Bad Wolf's is 120.", facts, "4215 vs 6980", teams)).toBe(true);
+  });
+  it("a card's and a headline's teams are the answer's (Loopy on #2263)", () => {
+    const a = { q: "x", hits: [], step: "deterministic",
+      card: { kind: "event-awards", title: "Awards", lines: [{ text: "Think Award", href: "/teams/333" }], awards: [{ type: "Inspire", placement: 1, team: 111, teamName: "Leaders", name: "Inspire Award" }], champions: [{ label: "Winners", href: "/x", teams: [{ label: "222 Champs", href: "/teams/222" }] }] },
+      stat: { title: "t", headline: { value: "1", label: "x", teams: [{ label: "444 Head", href: "/teams/444?season=2025" }] }, blocks: [] } } as unknown as SearchAnswer;
+    expect([...answerTeams(a).keys()].sort((x, y) => x - y)).toEqual([111, 222, 333, 444]);
+    expect(answerTeams(a).get(111)).toBe("Leaders");
+  });
   it("a streamed preview checks each piece on its own, as the answer is (Loopy on #2263)", () => {
     const facts = ["Team 4215 in 2025–26: OPR 142.3.", "Team 6980 in 2025–26: OPR 46.9."];
     // Joined, "6980's OPR is 142.3 4215 ..." would read as one sentence naming 4215 too.
@@ -236,6 +249,15 @@ describe("a follow-up to the tab's last search", () => {
     expect(asked[0].question).toBe(FOLLOW);
     expect(asked[0].facts[0]).toBe(`This question follows up the earlier search "4215 opr": the facts below are that search's answer.`);
     expect(asked[0].facts.slice(1)).toEqual(await answerFacts(await searchAnswer("4215 opr", { learn: false })));
+  });
+  it("is asked again once the data moves (a live result), never answered from before it (Loopy on #2263)", async () => {
+    reply = { text: "Yes." };
+    await brunoAnswer(FOLLOW, { after: "4215 opr" });
+    await brunoAnswer(FOLLOW, { after: "4215 opr" });
+    expect(asked).toHaveLength(1);
+    await kvSet("data:version", `live-${Date.now()}`);
+    await brunoAnswer(FOLLOW, { after: "4215 opr" });
+    expect(asked).toHaveLength(2);
   });
   it("each earlier search is cached apart", async () => {
     reply = { text: "Yes." };

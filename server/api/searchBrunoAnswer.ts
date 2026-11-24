@@ -12,7 +12,7 @@ import type { LeaderboardRow, StatAnswer, StatBlock, StatLink } from "../../src/
 import { seasonLabel } from "../../src/shared/format.js";
 import { SEARCH_PAGE_LIMIT, isBrunoQuestion } from "../../src/shared/search.js";
 import { brunoAvailable, brunoSearchAnswer, brunoSearchAnswerStream } from "../auth/controlPoint.js";
-import { all, get } from "../db.js";
+import { all, get, kvGet } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import { isEnabled } from "../flags.js";
 import { answerVideo } from "./answers/video.js";
@@ -167,6 +167,9 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
  *  every dash read as "-". */
 const numbers = (s: string) => (s.replace(/[–—]/g, "-").replace(/(\d),(?=\d{3}(?!\d))/g, "$1").match(/\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)*/g) ?? []).map((n) => n.replace(/^0+(?=\d)/, ""));
 
+/** The numbers in `s` as `numbers` reads them, each with where it starts. */
+const numberMarks = (s: string) => [...s.replace(/[–—]/g, "-").replace(/(\d),(?=\d{3}(?!\d))/g, "$1").matchAll(/\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)*/g)].map((m) => ({ n: m[0].replace(/^0+(?=\d)/, ""), i: m.index! }));
+
 /** Whether every number in `text` is one the facts or the question have (counting words like "three" don't count as
  *  numbers), each with its team (`teams`: the team numbers the answer is about; see ungrounded). */
 export function grounded(text: string, facts: string[], question: string, teams?: BrunoTeams): boolean {
@@ -209,6 +212,18 @@ export function ungrounded(text: string, facts: string[], question: string, team
     const row = item && !own.length && about.length > 1 ? /^\s*-\s[^:]*:\s*(.*?)\s*(?:\([^)]*\))?\s*$/.exec(f) : null;
     const parts = row ? row[1].split(/\s+vs\.?\s+/) : [];
     if (parts.length === about.length) parts.forEach((p, i) => { for (const n of numbers(p)) side.set(n, [...(side.get(n) ?? []), about[i]]); });
+    // A line naming several teams with a number for each ("- Qualification match: 4215 100, 6980 120"): each number the
+    // last team's named before it (else the first named), read in order, never every team's.
+    else if (own.length > 1) {
+      const said = numberMarks(f), low = f.toLowerCase();
+      const marks = [...said.filter((m) => isTeam(m.n)).map((m) => ({ i: m.i, t: Number(m.n) })),
+        ...byName.flatMap((b) => { const i = low.indexOf(b.f); return i >= 0 ? [{ i, t: b.n }] : []; })].sort((x, y) => x.i - y.i);
+      for (const m of said) {
+        if (isTeam(m.n) || !marks.length) continue;
+        const by = [...marks].reverse().find((x) => x.i < m.i) ?? marks[0];
+        if (!side.get(m.n)?.includes(by.t)) side.set(m.n, [...(side.get(m.n) ?? []), by.t]);
+      }
+    }
     return { nums: new Set(numbers(f)), about, side };
   });
   // The teams a number of a line is about: its side's on a compare row, else the line's.
@@ -237,7 +252,7 @@ export function answerTeams(a: SearchAnswer): Map<number, string | null> {
     const s = x.stat;
     if (s?.team) add(s.team.number, s.team.name);
     for (const t of s?.teams ?? []) add(t.number, t.name);
-    // Every team a block lists: by the link to its page ("/teams/4215": a board's rows, a match's alliances) or by its
+    // Every team listed: by the link to its page ("/teams/4215": a board's rows, a match's alliances) or by its
     // number beside its name (a league's rows: team 4215, name "Hypnotic Robotics").
     const walk = (v: unknown): void => {
       if (Array.isArray(v)) { for (const x of v) walk(x); return; }
@@ -245,10 +260,13 @@ export function answerTeams(a: SearchAnswer): Map<number, string | null> {
       const o = v as Record<string, unknown>;
       const n = typeof o.href === "string" ? /^\/teams\/(\d+)(?:[/?#]|$)/.exec(o.href)?.[1] : undefined;
       if (n) add(Number(n), typeof o.label === "string" ? o.label : null);
-      else if (typeof o.team === "number" && Number.isInteger(o.team) && o.team > 0) add(o.team, typeof o.name === "string" ? o.name : null);
+      // An award names its team as teamName (its `name` is the award's).
+      else if (typeof o.team === "number" && Number.isInteger(o.team) && o.team > 0) add(o.team, "teamName" in o ? (typeof o.teamName === "string" ? o.teamName : null) : typeof o.name === "string" ? o.name : null);
       for (const x of Object.values(o)) walk(x);
     };
-    walk(s?.blocks);
+    // The whole card (its awards' and champions' teams, its lines' links) and the whole stat (its headline's teams).
+    walk(x.card);
+    walk(s);
   }
   return out;
 }
@@ -278,7 +296,9 @@ export async function brunoAnswer(raw: string, opts: BrunoOptions = {}, now = Da
   const after = followUpOf(q, opts.after);
   // Keyed on the data's version too (search:version, moved by every stats run and live check): a meet under way never
   // gets facts from before its latest matches.
-  const k = `${await searchVersion()}|${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}${after ? `|after:${normalize(after)}${opts.afterSeason != null ? `|in:${opts.afterSeason}` : ""}${opts.afterMy != null && MINE.test(after) ? `|my:${opts.afterMy}` : ""}` : ""}`;
+  // Keyed by the data as well as the search index: a live result (a meet under way moves "data:version", not the
+  // index) is never answered from before it.
+  const k = `${await searchVersion()}|${(await kvGet<string>("data:version").catch(() => null)) ?? "0"}|${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}${after ? `|after:${normalize(after)}${opts.afterSeason != null ? `|in:${opts.afterSeason}` : ""}${opts.afterMy != null && MINE.test(after) ? `|my:${opts.afterMy}` : ""}` : ""}`;
   const hit = cache.get(k);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.answer;
   let flight = pending.get(k);
