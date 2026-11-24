@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { contrast, over, parseColor, toHex, type RGBA } from "../../../lib/contrast";
-import { MEANING_SOFT, V8_SOFT, type SoftColour } from "./v8tone";
+import { MEANING_SOFT, V8_SOFT, v8Stat, type SoftColour } from "./v8tone";
 
 const css = readFileSync("src/index.css", "utf8");
 const tw = readFileSync(createRequire(resolve("package.json")).resolve("tailwindcss/theme.css"), "utf8");
@@ -85,5 +85,16 @@ describe("v8's meanings", () => {
     // A phase's hue is never an award's or a status's (they share cards: a team's season).
     const phases = [MEANING_SOFT.auto, MEANING_SOFT.teleop, MEANING_SOFT.endgame, MEANING_SOFT.pen, MEANING_SOFT.rp];
     for (const c of [...status, ...awards]) expect(phases).not.toContain(c);
+  });
+});
+
+describe("v8Stat: the colour a one-team number's label names", () => {
+  it("ranking points are RP's yellow, never a rank's accent ('ranking' starts with 'rank')", () => {
+    expect(["Ranking points at NJ Championship", "Ranking points, event by event", "Avg RP", "OPR rank", "Ranked #3", "World OPR rank", "Global standing"].map(v8Stat))
+      .toEqual(["yellow", "yellow", "yellow", "accent", "accent", "accent", "accent"]);
+  });
+  it("phases, OPR and a record in their own colours", () => {
+    expect(["Auto OPR", "TeleOp points", "Endgame", "Penalties given", "OPR by event", "2025–26 record", "Win rate", "Events"].map(v8Stat))
+      .toEqual(["blue", "orange", "green", "red", "purple", "win", "win", "accent"]);
   });
 });

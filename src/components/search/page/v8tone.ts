@@ -108,12 +108,13 @@ export function v8TileColour(label: string, value: unknown): SoftColour | null {
  *  green, a rank or anything else the accent. */
 export function v8Stat(label: string): SoftColour {
   const l = label.toLowerCase();
-  if (/\brank|standing|place\b/.test(l)) return "accent";
+  // Ranking points before a rank: "ranking" starts with "rank".
+  if (/\brp\b|ranking points?/.test(l)) return "yellow";
+  if (/\brank(ed|s)?\b|standing|\bplace\b/.test(l)) return "accent";
   if (/\bauto(nomous)?\b/.test(l)) return "blue";
   if (/teleop|driver/.test(l)) return "orange";
   if (/endgame/.test(l)) return "green";
   if (/\bpen(alt(y|ies))?\b|fouls?/.test(l)) return "red";
-  if (/\brp\b|ranking points?/.test(l)) return "yellow";
   if (/\bopr\b|rating|score|points/.test(l)) return "purple";
   if (/record|\bwins?\b|win rate|won/.test(l)) return "win";
   return "accent";
