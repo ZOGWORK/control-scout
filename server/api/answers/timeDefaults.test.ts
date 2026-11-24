@@ -6,7 +6,7 @@ import { CURRENT_SEASON } from "../../data/seasons";
 import { lastMonthSeason } from "./families/facts";
 import { listSeason } from "./families/compound";
 import { completedSeason, defaultSeason, thisSeasonNote } from "./season";
-import { monthIn, readTime } from "../query/time";
+import { monthIn, readTime, teamMonth } from "../query/time";
 import { seasonLabel } from "../../../src/shared/format";
 
 const S = CURRENT_SEASON;
@@ -36,6 +36,17 @@ describe("a month said without its year", () => {
     const y = readTime(`events in june ${S + 1}`, `${S}-11-24`).time!;
     expect(y.month).toBeUndefined();
     expect(monthIn(y, S - 1)).toBe(y);
+  });
+  it("asked of a team: its latest season's, never one to come, unless the question looks ahead", () => {
+    const today = `${S}-11-24`;
+    // "<team> events in june": the June before, also for a team whose latest season is this one.
+    expect(teamMonth(readTime("events in june", today).time!, S, today)).toMatchObject({ from: `${S}-06-01`, season: S - 1 });
+    // A team last seen two seasons back: that season's June.
+    expect(teamMonth(readTime("events in june", today).time!, S - 2, today)).toMatchObject({ from: `${S - 1}-06-01`, season: S - 2 });
+    // "<team> upcoming events in june": the coming June the parser read, kept (Loopy on #2254).
+    const ahead = readTime("upcoming events in june", today).time!;
+    expect(ahead.ahead).toBe(true);
+    expect(teamMonth(ahead, S, today)).toBe(ahead);
   });
 });
 

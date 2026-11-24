@@ -41,7 +41,7 @@ import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, resolveChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, boardFilterWords, boardPlace, conferenceGroup, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
-import { monthIn, readTime } from "../query/time.js";
+import { readTime, teamMonth } from "../query/time.js";
 import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
 import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
 import { placeAverageAnswer, readPlaceAverage } from "./families/placeAverages.js";
@@ -244,14 +244,12 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
   if (s.area) scope.place = { country: s.area.country, state: s.area.state ?? "", name: s.area.name };
   if (s.window) scope.window = s.window;
-  // A month said without its year ("7149 events in june"): that month of the team's latest season (the one season
-  // rule), and never one still to come: a month not yet begun is the one a year before ("june" in November 2026 is
-  // June 2026, not June 2027).
-  if (s.window?.month != null && s.season != null) {
+  // A month said without its year ("<team> events in june"): that month of the team's latest season, never one still
+  // to come unless the question looks ahead (teamMonth).
+  if (s.window?.month != null && s.season != null && !s.window.ahead) {
     const own = (await teamSeason(team)) ?? s.season;
     const slot = { kind: "window" as const, season: s.season, from: s.window.from, to: s.window.to, label: s.window.label, typed: "", month: s.window.month };
-    let moved = monthIn(slot, Math.min(own, s.season));
-    if (moved.from! > new Date().toISOString().slice(0, 10)) moved = monthIn(slot, moved.season! - 1);
+    const moved = teamMonth(slot, own, new Date().toISOString().slice(0, 10));
     if (moved.season !== s.season) { scope.season = moved.season; scope.window = { from: moved.from!, to: moved.to!, label: moved.label }; }
   }
   if (s.outOfState) {
