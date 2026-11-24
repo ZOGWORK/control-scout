@@ -67,7 +67,7 @@ import { pickShared, whichLine } from "./query/shared.js";
 import { withPage } from "./answers/teamsNamed.js";
 import { asideWord, asksWhich, onlyOrdinary } from "./query/ordinary.js";
 import { LEXICON } from "./query/lexicon.js";
-import { SEARCH_MAX_QUERY as MAX_QUERY, cleanQuery } from "../../src/shared/search.js";
+import { SEARCH_MAX_QUERY as MAX_QUERY, cleanQuery, queryCut } from "../../src/shared/search.js";
 import { awardQuery, bottomAnswer, calledTeams, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, explainTeamAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 /** The longest query read, and the query as search reads it (src/shared/search.ts: the event pack reads a query the
@@ -98,6 +98,9 @@ export interface AnswerOptions {
   rewrites?: number;
   /** Set for every search searchAnswer makes inside a top-level one: the layers (./searchLayers.ts) run once, outside. */
   inner?: boolean;
+  /** Set once a question longer than search reads has had its cut said: the searches it makes again (a rewrite) don't
+   *  say it a second time. */
+  cutSaid?: boolean;
   /** False: no spelling correction (./spelling.ts), for the corrected query's own search. */
   spell?: boolean;
   /** A stat answer's blocks are worked out (/search and its first paint, never the dropdown): ./answers/index.ts.
@@ -276,18 +279,25 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     const meant = await respell(String(raw ?? ""), await parseContext(opts.now, opts.prefer));
     if (meant) return { ...(await searchAnswer(meant, { ...opts, respelled: true })), q: cleanQuery(raw) };
   }
-  const read = await answerOf(raw, opts);
-  if (opts.inner || opts.intents === false || opts.rewrites) return read;
+  // A question longer than search reads (a pasted paragraph): the words past the cut are said under the answer, as
+  // words it read past are, never dropped silently. Said once, here: a rewrite searched again inside says none.
+  const top = !(opts.inner || opts.intents === false || opts.rewrites);
+  const cut = top && !opts.cutSaid ? queryCut(String(raw ?? "")) : "";
+  const read = await answerOf(raw, cut ? { ...opts, cutSaid: true } : opts);
+  if (!top) return read;
   // "When is <event>": an event's editions with the date of the one meant leading (./answers/whenEvent.ts).
-  const a = carryOutcome(read, whenEventAnswer(String(raw ?? ""), read, opts.now ?? Date.now()));
+  const told = carryOutcome(read, whenEventAnswer(String(raw ?? ""), read, opts.now ?? Date.now()));
+  // The cut said on whichever answer is given: this one, or one said in its place (chat, which town).
+  const withCut = (x: SearchAnswer): SearchAnswer => (cut && x.understood && !x.understood.unread?.includes(cut) ? carryOutcome(x, { ...x, understood: { ...x.understood, unread: [...(x.understood.unread ?? []), cut] } }) : x);
+  const a = withCut(told);
   // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
   // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
   // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.
   const chat = opts.spell === false ? null : chatAnswer(String(raw ?? ""), a);
-  if (chat) return chat;
+  if (chat) return withCut(chat);
   // A town several regions share, said with none: a tap for each, or, with no direct answer, which one.
   const town = await sharedTown(String(raw ?? ""), a);
-  if (town) return town;
+  if (town) return withCut(town);
   // A place asked for, alone or with its rankings, leagues or conferences ("nj", "nj rankings"): its own pages first
   // (src/shared/placePages.ts), whatever answered it. Kept once by address, so an answer that recursed adds none twice.
   const pages = withPlacePages(String(raw ?? ""), a.pages);

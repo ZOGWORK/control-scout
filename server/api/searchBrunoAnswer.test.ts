@@ -4,11 +4,12 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { migrate, openDb, run, setDb } from "../db";
+import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { invalidateFlags, setFlag } from "../flags";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, brunoAnswer, followUpOf, grounded, partialAnswer, previewOf, resetBrunoAnswerCache, statFacts, type BrunoAnswer } from "./searchBrunoAnswer";
+import type { SearchAnswer } from "../../src/shared/api";
+import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, answerTeams, brunoAnswer, followUpOf, grounded, partialAnswer, previewOf, resetBrunoAnswerCache, statFacts, type BrunoAnswer } from "./searchBrunoAnswer";
 import { isBrunoQuestion } from "../../src/shared/search";
 
 let fake: Server;
@@ -101,6 +102,85 @@ describe("grounding", () => {
     expect(grounded("Its OPR was 120.", facts, Q)).toBe(false);
     expect(grounded("It went 5 times.", facts, Q)).toBe(false);
   });
+  it("with the answer's teams, each number must be its own sentence's team's (search audit Q6)", () => {
+    const two = ["Events in 2025–26: 9 events", "4215 Hypnotic Robotics vs 6980 Bad Wolf:", "Team 4215 in 2025–26: OPR 142.3, record 26-6-0.", "Team 6980 in 2025–26: OPR 46.9.", "Bad Wolf (6980) awards:", "- Think Award, 2025–26"];
+    const teams = new Set([4215, 6980]);
+    expect(grounded("4215's OPR is 142.3.", two, "4215 vs 6980", teams)).toBe(true);
+    // 142.3 is 4215's, never 6980's: the same number in another team's sentence fails.
+    expect(grounded("6980's OPR is 142.3.", two, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("4215 leads 6980, 142.3 to 46.9. 6980 has an OPR of 46.9.", two, "4215 vs 6980", teams)).toBe(true);
+    // A line under a team's heading is that team's; a line about no team is anyone's.
+    expect(grounded("6980 won the Think Award in 2025–26.", two, "4215 vs 6980", teams)).toBe(true);
+    expect(grounded("4215 played 9 events.", two, "4215 vs 6980", teams)).toBe(true);
+    // Without the teams, as before: any fact's number.
+    expect(grounded("6980's OPR is 142.3.", two, "4215 vs 6980")).toBe(true);
+  });
+  it("a card's heading names its lines' team, and a compare row gives each side to its team (Loopy on #2263)", () => {
+    const teams = new Set([4215, 6980]);
+    const card = ["Awards for team 6980 Bad Wolf: 1 found.", "- Inspire Award 2nd place, 2025–26", "Team 4215 in 2025–26: OPR 142.3."];
+    expect(grounded("6980 placed 2nd for the Inspire Award.", card, "4215 vs 6980", teams)).toBe(true);
+    expect(grounded("4215 placed 2nd for the Inspire Award.", card, "4215 vs 6980", teams)).toBe(false);
+    const cmp = ["Head to head:", "4215 Hypnotic Robotics, 6980 Bad Wolf:", "- OPR: 101.6 vs 46.9 (+54.7)"];
+    expect(grounded("4215's OPR is 101.6 and 6980's is 46.9.", cmp, "4215 vs 6980", teams)).toBe(true);
+    expect(grounded("6980's OPR is 101.6.", cmp, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("4215 leads by 54.7.", cmp, "4215 vs 6980", teams)).toBe(true);
+  });
+  it("a team named by its name alone is that team (Loopy on #2263)", () => {
+    const teams = new Map<number, string | null>([[4215, "Hypnotic Robotics"], [6980, "Bad Wolf"]]);
+    const facts = ["Team 4215 in 2025–26: OPR 142.3.", "Team 6980 in 2025–26: OPR 46.9."];
+    expect(grounded("Bad Wolf's OPR is 142.3.", facts, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("Bad Wolf's OPR is 46.9.", facts, "4215 vs 6980", teams)).toBe(true);
+    expect(grounded("Hypnotic Robotics has an OPR of 142.3.", facts, "4215 vs 6980", teams)).toBe(true);
+  });
+  it("a compound question's parts' teams are the answer's (Loopy on #2263)", () => {
+    const a = { q: "x", hits: [], step: "deterministic", clauses: [{ q: "y", hits: [], step: "deterministic", card: { kind: "info", title: "t", lines: [], team: { number: 6980, name: "Bad Wolf" } } }] } as unknown as SearchAnswer;
+    expect([...answerTeams(a)]).toEqual([[6980, "Bad Wolf"]]);
+  });
+  it("every team a block lists is the answer's: a league's rows too (Loopy on #2263)", () => {
+    const stat = { title: "League standing", team: { number: 4215, name: "Hypnotic Robotics" }, blocks: [
+      { kind: "league", title: "Standings", season: 2025, rows: [{ rank: 1, team: 111, name: "Leaders", wins: 10, losses: 0, ties: 0 }, { rank: 4, team: 4215, name: "Hypnotic Robotics", wins: 6, losses: 4, ties: 0 }], more: { label: "League", href: "/leagues/x" } },
+      { kind: "leaderboard", title: "Board", stat: { id: "opr", label: "OPR" }, rows: [{ rank: 1, team: { label: "222 Board Top", href: "/teams/222?season=2025" }, display: "150.0" }] },
+    ] };
+    const a = { q: "x", hits: [], step: "deterministic", stat } as unknown as SearchAnswer;
+    const teams = answerTeams(a);
+    expect([...teams.keys()].sort((x, y) => x - y)).toEqual([111, 222, 4215]);
+    const facts = statFacts(stat as unknown as Parameters<typeof statFacts>[0]);
+    expect(grounded("4215's record is 10-0-0.", facts, "4215 league", teams)).toBe(false);
+    expect(grounded("4215's record is 6-4-0.", facts, "4215 league", teams)).toBe(true);
+  });
+  it("an abbreviation's stop is no sentence's end (Loopy on #2263)", () => {
+    const teams = new Map<number, string | null>([[4215, "Hypnotic Robotics"], [6980, "Bad Wolf"]]);
+    const facts = ["Team 4215 in 2025–26: OPR 142.3.", "Team 6980 in 2025–26: OPR 46.9."];
+    expect(grounded("4215 vs. 6980 ended 142.3 to 46.9.", facts, "4215 vs 6980", teams)).toBe(true);
+    // A real sentence's end still splits: 142.3 is never 6980's.
+    expect(grounded("4215 leads. 6980 has 142.3.", facts, "4215 vs 6980", teams)).toBe(false);
+  });
+  it("a stat's lines naming no team are its team's (Loopy on #2263)", () => {
+    const teams = new Map<number, string | null>([[4215, "Hypnotic Robotics"], [6980, "Bad Wolf"]]);
+    const facts = statFacts({ family: "x", intent: "x", title: "OPR", scope: [], team: { number: 4215, name: "Hypnotic Robotics" }, headline: { value: "142.3", label: "OPR" }, blocks: [{ kind: "kpis", items: [{ label: "Auto OPR", value: "30.1" }] }] } as never);
+    expect(facts[0]).toBe("OPR (team 4215 Hypnotic Robotics):");
+    expect(grounded("6980's OPR is 142.3.", facts, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("6980's auto OPR is 30.1.", facts, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("4215's OPR is 142.3, auto 30.1.", facts, "4215 vs 6980", teams)).toBe(true);
+  });
+  it("a line naming several teams gives each number to the team named before it (Loopy on #2263)", () => {
+    const teams = new Map<number, string | null>([[4215, "Hypnotic Robotics"], [6980, "Bad Wolf"]]);
+    const facts = ["Predicted scores:", "- Qualification match: 4215 100, 6980 120"];
+    expect(grounded("4215's predicted score is 120.", facts, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("4215's predicted score is 100 and Bad Wolf's is 120.", facts, "4215 vs 6980", teams)).toBe(true);
+  });
+  it("a card's and a headline's teams are the answer's (Loopy on #2263)", () => {
+    const a = { q: "x", hits: [], step: "deterministic",
+      card: { kind: "event-awards", title: "Awards", lines: [{ text: "Think Award", href: "/teams/333" }], awards: [{ type: "Inspire", placement: 1, team: 111, teamName: "Leaders", name: "Inspire Award" }], champions: [{ label: "Winners", href: "/x", teams: [{ label: "222 Champs", href: "/teams/222" }] }] },
+      stat: { title: "t", headline: { value: "1", label: "x", teams: [{ label: "444 Head", href: "/teams/444?season=2025" }] }, blocks: [] } } as unknown as SearchAnswer;
+    expect([...answerTeams(a).keys()].sort((x, y) => x - y)).toEqual([111, 222, 333, 444]);
+    expect(answerTeams(a).get(111)).toBe("Leaders");
+  });
+  it("a streamed preview checks each piece on its own, as the answer is (Loopy on #2263)", () => {
+    const facts = ["Team 4215 in 2025–26: OPR 142.3.", "Team 6980 in 2025–26: OPR 46.9."];
+    // Joined, "6980's OPR is 142.3 4215 ..." would read as one sentence naming 4215 too.
+    expect(previewOf(JSON.stringify({ text: "6980's OPR is 142.3", points: ["4215 is ahead"] }), facts, "4215 vs 6980", new Set([4215, 6980]))).toBeUndefined();
+  });
 });
 
 /** What brunoAnswer gives for a reply: his points, or none. */
@@ -184,6 +264,15 @@ describe("a follow-up to the tab's last search", () => {
     expect(asked[0].question).toBe(FOLLOW);
     expect(asked[0].facts[0]).toBe(`This question follows up the earlier search "4215 opr": the facts below are that search's answer.`);
     expect(asked[0].facts.slice(1)).toEqual(await answerFacts(await searchAnswer("4215 opr", { learn: false })));
+  });
+  it("is asked again once the data moves (a live result), never answered from before it (Loopy on #2263)", async () => {
+    reply = { text: "Yes." };
+    await brunoAnswer(FOLLOW, { after: "4215 opr" });
+    await brunoAnswer(FOLLOW, { after: "4215 opr" });
+    expect(asked).toHaveLength(1);
+    await kvSet("data:version", `live-${Date.now()}`);
+    await brunoAnswer(FOLLOW, { after: "4215 opr" });
+    expect(asked).toHaveLength(2);
   });
   it("each earlier search is cached apart", async () => {
     reply = { text: "Yes." };
