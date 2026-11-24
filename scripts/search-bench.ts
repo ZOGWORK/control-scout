@@ -10,6 +10,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import type { SearchAnswer } from "../src/shared/api.js";
+import { TEST_HEADER } from "../server/testTraffic.js";
 
 const arg = (k: string) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : undefined; };
 const base = (arg("--base") ?? "http://127.0.0.1:3000").replace(/\/$/, "");
@@ -46,7 +47,7 @@ for (const { group, q } of qs) {
   const t = performance.now();
   let status = 0, body: SearchAnswer | null = null;
   try {
-    const res = await fetch(`${base}/api/search?q=${encodeURIComponent(q)}&limit=25&answer=1`);
+    const res = await fetch(`${base}/api/search?q=${encodeURIComponent(q)}&limit=25&answer=1`, { headers: { [TEST_HEADER]: "1" } });
     status = res.status;
     if (res.ok) body = (await res.json()) as SearchAnswer;
     else await res.arrayBuffer();

@@ -17,7 +17,7 @@ The sign-off brief's own test, run by us against the live site, signed out. It a
 npx tsx scripts/search-signoff/run.ts
 ```
 
-This runs every set against controlscout.org. It writes `report.md` and `results.jsonl` to the OS temp directory, or to `--out <dir>`. `--sets C,D` runs only those sets, `--base <url>` points it at another server, and `--regrade <results.jsonl>` grades a saved run again offline: its saved answers, number checks and release, with nothing fetched.
+This runs every set against a local server (`npm run dev:api`, which restores the shipped snapshot into an empty database), never production by default. `--base https://controlscout.org` runs it live, named outright. Every request carries the test header `X-CS-Test: 1` (`server/testTraffic.ts`), so the failed-search log never counts these questions as visitors'. It writes `report.md` and `results.jsonl` to the OS temp directory, or to `--out <dir>`. `--sets C,D` runs only those sets, `--base <url>` points it at another server, and `--regrade <results.jsonl>` grades a saved run again offline: its saved answers, number checks and release, with nothing fetched.
 
 ```bash
 npx tsx scripts/search-signoff/run.ts --local --sets C --min 90

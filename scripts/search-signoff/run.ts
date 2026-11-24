@@ -2,9 +2,11 @@
 // and the any-team pairs, asked of the live site signed out, graded, numbers checked against the team page, and
 // written up as tables by set, by family and by failure pattern.
 //
-//   npx tsx scripts/search-signoff/run.ts                       controlscout.org, every set
+//   npx tsx scripts/search-signoff/run.ts                       a local server (npm run dev:api), every set
 //   npx tsx scripts/search-signoff/run.ts --sets C --out C:/tmp/signoff
 //   npx tsx scripts/search-signoff/run.ts --base http://localhost:8787 --par 4
+// Never production by default: the live site only with --base named outright, and every request carries the test
+// header (X-CS-Test, server/testTraffic.ts), so the failure log never counts these questions as visitors'.
 //   npx tsx scripts/search-signoff/run.ts --regrade <out>/results.jsonl   grade a saved run again, asking nothing new
 //   npx tsx scripts/search-signoff/run.ts --local --sets C --min 90   the shipped snapshot, served in this process
 //                                                                   (../search-local.ts); exit 1 under 90% (CI)
@@ -13,13 +15,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { crosscheck, type Check } from "./crosscheck.js";
 import { fold, grade, sameAnswer, type Grade, type Live } from "./grade.js";
+import { TEST_HEADER } from "../../server/testTraffic.js";
 
 const arg = (f: string) => { const i = process.argv.indexOf(`--${f}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const LOCAL = process.argv.includes("--local"), MIN = arg("min");
 // A --min with no number after it would turn the floor off: refused instead.
 if (process.argv.includes("--min") && !Number.isFinite(Number(MIN ?? NaN))) { console.log(`FAIL: --min needs a number (got ${MIN ?? "nothing"})`); process.exit(1); }
 const local = LOCAL ? await (async () => { const l = await import("../search-local.js"); await l.bootSearch(); return l.localServer(); })() : null;
-const BASE = (local?.base ?? arg("base") ?? "https://controlscout.org").replace(/\/$/, "");
+const BASE = (local?.base ?? arg("base") ?? "http://127.0.0.1:3000").replace(/\/$/, "");
 const SETS = (arg("sets") ?? "A,B,C,D,P,T").split(",");
 const PAR = +(arg("par") ?? 6);
 const STAMP = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
@@ -71,7 +74,7 @@ async function ask(q: string): Promise<Saved> {
   for (let i = 0; i < 3; i++) {
     const t = performance.now();
     try {
-      const r = await fetch(`${BASE}/api/search?${new URLSearchParams({ q, limit: "40", answer: "1" })}`, { headers: { "user-agent": "cs-signoff" }, signal: AbortSignal.timeout(60_000) });
+      const r = await fetch(`${BASE}/api/search?${new URLSearchParams({ q, limit: "40", answer: "1" })}`, { headers: { "user-agent": "cs-signoff", [TEST_HEADER]: "1" }, signal: AbortSignal.timeout(60_000) });
       if (r.ok) return { res: (await r.json()) as Live, ms: Math.round(performance.now() - t) };
       err = `HTTP ${r.status}`;
     } catch (e) { err = String(e); }
@@ -82,7 +85,13 @@ async function ask(q: string): Promise<Saved> {
 type Health = { release?: string; engine?: string; at?: string };
 const health: Health = REGRADE
   ? (() => { try { return JSON.parse(readFileSync(join(dirname(REGRADE), "meta.json"), "utf8")) as Health; } catch { return {}; } })()
-  : { ...((await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(30_000) }).then((r) => r.json()).catch(() => ({}))) as Health), at: new Date().toISOString() };
+  : await (async () => {
+    // A server that doesn't answer (none running at the local default, say) fails here, before any query: never a
+    // report of every query failed, exiting 0.
+    const r = await fetch(`${BASE}/api/health`, { headers: { [TEST_HEADER]: "1" }, signal: AbortSignal.timeout(30_000) }).catch(() => null);
+    if (!r?.ok) { console.log(`FAIL: ${BASE} doesn't answer (${r ? `HTTP ${r.status}` : "no connection"}); start one (npm run dev:api) or pass --base or --local`); process.exit(1); }
+    return { ...((await r.json().catch(() => ({}))) as Health), at: new Date().toISOString() };
+  })();
 console.log(`${BASE} release ${health.release?.slice(0, 8)} · ${qs.length} queries → ${OUT}${REGRADE ? " (regrade, offline)" : ""}`);
 const done: Done[] = [];
 let next = 0;

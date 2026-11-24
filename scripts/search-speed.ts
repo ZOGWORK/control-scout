@@ -6,6 +6,9 @@
 //
 // Times are wall clock from this script (the request as a visitor waits for it) and, beside them, the server's own
 // Server-Timing figure.
+//
+// Our own traffic (server/testTraffic.ts): its deliberate misses are never logged as a visitor's failed search.
+import { TEST_HEADER } from "../server/testTraffic.js";
 const flag = (name: string, d: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : d; };
 const BASE = flag("base", "http://127.0.0.1:3411"), N = Number(flag("n", "12")), SEED = Number(flag("seed", "1")), DUMP = flag("dump", "");
 // --dump <file>: each "alone" query's whole follow-up set (asked again until it's no longer partial), to compare two
@@ -29,7 +32,7 @@ async function teams(): Promise<number[]> {
   const places = ["texas", "california", "michigan", "new jersey", "florida", "washington", "ohio", "georgia", "minnesota", "virginia", "new york", "illinois"];
   const out = new Set<number>();
   for (const p of places) {
-    const text = await fetch(`${BASE}/api/search?q=${encodeURIComponent(`top teams in ${p}`)}&answer=1&limit=25`).then((x) => x.text());
+    const text = await fetch(`${BASE}/api/search?q=${encodeURIComponent(`top teams in ${p}`)}&answer=1&limit=25`, { headers: { [TEST_HEADER]: "1" } }).then((x) => x.text());
     for (const m of text.matchAll(/\/teams\/(\d+)/g)) out.add(Number(m[1]));
   }
   return [...out];
@@ -44,7 +47,7 @@ const visitors = new Map<string, string>();
 const visitor = (q: string) => visitors.get(q) ?? (visitors.set(q, `10.${(visitors.size >> 16) & 255}.${(visitors.size >> 8) & 255}.${visitors.size & 255}`), visitors.get(q)!);
 async function timed(path: string, q: string): Promise<{ ms: number; server: string; body: unknown }> {
   const t = performance.now();
-  const r = await fetch(`${BASE}${path}`, { headers: { "x-forwarded-for": visitor(q) } });
+  const r = await fetch(`${BASE}${path}`, { headers: { "x-forwarded-for": visitor(q), [TEST_HEADER]: "1" } });
   if (r.status === 429) throw new Error(`rate-limited: ${path}`);
   const body = await r.json().catch(() => null);
   return { ms: performance.now() - t, server: r.headers.get("server-timing") ?? "", body };

@@ -2,6 +2,7 @@
 // Checks the headline of the answers the team page also shows: season OPR, rating, record, and a team's record at
 // one event. Anything else is left to the grade (kind, filters), and the check says it wasn't compared.
 import type { Live } from "./grade.js";
+import { TEST_HEADER } from "../../server/testTraffic.js";
 
 type TeamEvent = { season: number; code: string; wins: number | null; losses: number | null; ties: number | null; opr: { np: number | null } };
 type TeamPage = { stats: { opr?: { np?: { value: number } }; rating?: { np: number }; record?: { wins: number; losses: number; ties: number } } | null; events: TeamEvent[] };
@@ -12,7 +13,7 @@ const pages = new Map<string, Promise<TeamPage | null>>();
 export function teamPage(base: string, team: number, season: number): Promise<TeamPage | null> {
   const k = `${team}:${season}`;
   if (!pages.has(k)) {
-    const page = fetch(`${base}/api/teams/${team}?season=${season}`, { headers: { "user-agent": "cs-signoff" }, signal: AbortSignal.timeout(PAGE_MS) })
+    const page = fetch(`${base}/api/teams/${team}?season=${season}`, { headers: { "user-agent": "cs-signoff", [TEST_HEADER]: "1" }, signal: AbortSignal.timeout(PAGE_MS) })
       .then((r) => (r.ok ? (r.json() as Promise<TeamPage>) : null)).catch(() => null);
     // Only a page that came is kept: one that failed or timed out is fetched again by the next question that needs it.
     pages.set(k, page);

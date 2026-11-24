@@ -36,6 +36,24 @@ Code: `server/searchFailures.ts`. It files through the in-app error reporter's G
    stop it all: no counting, no GitHub writes (a sync running stops before its next issue), no re-checks. Issues
    already filed stay as they are.
 
+## Test traffic and who a visitor is
+
+Searches are keyed by the visitor's own address: `CF-Connecting-IP` when the request came from Cloudflare
+(`server/visitorIp.ts`), never Cloudflare's edge address, which many visitors share. That key is only used in memory
+(settling a visitor's typing, the hourly cap) and never stored.
+
+Our own traffic is left out of the log and only counted (`counters.test`, `server/testTraffic.ts`):
+
+- any request with the header `X-CS-Test: 1`. The sign-off runner and its number check
+  (`scripts/search-signoff/run.ts`, `crosscheck.ts`), the k6 staircase, `scripts/search-bench.ts` and
+  `scripts/check-suggestions.ts` send it, and agents send it on any request to a Control Scout server (AGENTS.md).
+  `scripts/search-signoff/visual.ts` (the headless page check) doesn't yet: it still opens pages with no header;
+- the query an issue's **Reproduce** link opens: the link carries `from=issue`, and the page's own search request
+  names that page in its Referer. What the visitor types next on that page counts as theirs.
+
+Eval scripts default to a local server restored from the shipped snapshot, never production; the live site only
+when `--base` names it.
+
 ## What counts as failed
 
 | Result type | When |
