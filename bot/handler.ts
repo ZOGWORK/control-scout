@@ -137,6 +137,28 @@ function canPost(i: ChatInputCommandInteraction, channelId: string): boolean {
   } catch { return true; }
 }
 
+/** The name Discord shows for a person in a server: their nickname there, else their global display name, else their
+ *  username (the @handle). `member.displayName` is discord.js's own answer — nickname first — and a raw member (an
+ *  interaction's, before the guild is cached) only carries `nick`, so both are read. The name is what an answer calls
+ *  them ("your name is …"), so it has to be the one their friends see, not the handle. */
+export function shownName(
+  user: { globalName?: string | null; username?: string | null },
+  member?: { displayName?: string | null; nick?: string | null } | null,
+): string | null {
+  const named = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
+  return named(member?.displayName) ?? named(member?.nick) ?? named(user.globalName) ?? named(user.username);
+}
+
+/** What this server shows for them, or `null` when the payload didn't carry their membership (the guild isn't cached):
+ *  without it the only name known is Discord's global one, and writing that over a nickname already remembered would
+ *  make every later answer wrong. */
+function serverName(
+  user: { globalName?: string | null; username?: string | null },
+  member?: { displayName?: string | null; nick?: string | null } | null,
+): string | null {
+  return member ? shownName(user, member) : null;
+}
+
 /** Turns of a reply thread Bruno sees, at most (Control Point's cap), and the threads remembered. */
 export const THREAD_TURNS = 6;
 const THREADS_MAX = 2000;
@@ -282,13 +304,17 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     void lookups.memory?.keep(id, turns, guild).catch(() => {});
   }
   /** The server's own lines for a chat: the teams it asks about and the name the asker goes by there (bot/memory.ts). */
-  async function serverLines(guild: string | null | undefined, user: string | null | undefined): Promise<string[]> {
-    if (!guild || !user || !lookups.memory) return [];
-    const m = await lookups.memory.recall(guild, user).catch(() => null);
-    if (!m) return [];
+  async function serverLines(guild: string | null | undefined, user: string | null | undefined, name?: string | null): Promise<string[]> {
+    // A server is what makes these lines mean anything: "goes by … here" is about that server's members.
+    if (!guild || !user) return [];
+    const m = lookups.memory ? await lookups.memory.recall(guild, user).catch(() => null) : null;
+    // The name Discord shows now, not the one first remembered: a nickname or a display name changes, and an answer to
+    // "what is my name?" has to be the name their friends see today. A failed read still has the name the message
+    // itself carried.
+    const who = name ?? m?.name ?? null;
     return [
-      m.teams.length ? `This server asks about teams ${m.teams.join(", ")} most: when a question doesn't name a team, it means one of these, and say which one you picked.` : "",
-      m.name ? `The person asking goes by ${m.name} here.` : "",
+      m?.teams.length ? `This server asks about teams ${m.teams.join(", ")} most: when a question doesn't name a team, it means one of these, and say which one you picked.` : "",
+      who ? `The person asking goes by ${who} here.` : "",
     ].filter(Boolean);
   }
   /**
@@ -424,13 +450,14 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // a report is not a chat, and a server at its cap should still be able to report a bug.
       if (lookups.report && wantsReport(question)) {
         const key = `${i.guildId ?? ""}|${i.channelId ?? ""}|${i.user.id}|${question.trim().toLowerCase()}`;
-        await reportIt(key, { guild: i.guildId, channel: i.channelId, user: i.user.id, name: i.user.globalName ?? i.user.username ?? null }, question, [],
+        await reportIt(key, { guild: i.guildId, channel: i.channelId, user: i.user.id, name: shownName(i.user, i.member) }, question, [],
           async (embed) => i.editReply({ embeds: [pride(embed)] }));
         return;
       }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this question adds.
-      const lines = await serverLines(i.guildId, i.user.id);
-      learnAsk(i.guildId, i.user.id, i.user.globalName ?? i.user.username ?? null, question);
+      const name = serverName(i.user, i.member);
+      const lines = await serverLines(i.guildId, i.user.id, name);
+      learnAsk(i.guildId, i.user.id, name, question);
       let post: AskPost;
       let r: AskReply | undefined;
       try {
@@ -507,7 +534,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       if (lookups.report && wantsReport(q)) {
         // Its key is the message itself in its channel: one report per message, never a merged one for two members.
         const key = `${m.guildId ?? ""}|${m.channelId ?? ""}|${m.id ?? ""}|${replyTo ?? ""}`;
-        await reportIt(key, { guild: m.guildId, channel: m.channelId ?? null, user: m.author.id, name: m.author.globalName ?? m.author.username ?? null }, q, history, card);
+        await reportIt(key, { guild: m.guildId, channel: m.channelId ?? null, user: m.author.id, name: shownName(m.author, m.member) }, q, history, card);
         return;
       }
       // The server's chat limit, if one is set (none is, today): said in the channel, before the typing indicator goes up.
@@ -515,8 +542,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const over = await mayChat(m.guildId);
       if (!over.ok) { await card(limitEmbed(over)); return; }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this message adds.
-      const lines = await serverLines(m.guildId, m.author.id);
-      learnAsk(m.guildId, m.author.id, m.author.globalName ?? m.author.username ?? null, q);
+      const name = serverName(m.author, m.member);
+      const lines = await serverLines(m.guildId, m.author.id, name);
+      learnAsk(m.guildId, m.author.id, name, q);
       // Typing lasts about 10 s and a model reply can take 45: keep it up while the chat is written.
       void m.channel.sendTyping?.().catch(() => {});
       const typing = setInterval(() => { void m.channel.sendTyping?.().catch(() => {}); }, 8_000);
@@ -559,8 +587,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const over = await mayChat(i.guildId);
     if (!over.ok) { await i.reply({ embeds: [pride(limitEmbed(over))], flags: MessageFlags.Ephemeral }); return; }
     await i.deferReply();
-    const lines = await serverLines(i.guildId, i.user.id);
-    learnAsk(i.guildId, i.user.id, i.user.globalName ?? i.user.username ?? null, question);
+    const name = serverName(i.user, i.member);
+    const lines = await serverLines(i.guildId, i.user.id, name);
+    learnAsk(i.guildId, i.user.id, name, question);
     let post: AskPost;
     let r: AskReply | undefined;
     try {
@@ -593,9 +622,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
 
 /** The parts of a discord.js Message a mention answer uses (a stand-in in tests). */
 export interface MentionMessage {
-  /** `globalName`/`username`: what Discord calls the person (the server's nickname is `displayName` there); remembered
-   *  by the server's memory so an answer can use it. */
+  /** `globalName`/`username`: what Discord calls the person; remembered by the server's memory so an answer can use it.
+   *  The name the answer says is `shownName(author, member)`, which prefers the server's nickname. */
   author: { id: string; bot: boolean; globalName?: string | null; username?: string };
+  /** The author's membership of this server, as the message carries it: its `displayName` (nickname first) is the name
+   *  Discord shows. Absent when the guild isn't cached. */
+  member?: { displayName?: string | null; nick?: string | null } | null;
   guildId: string | null;
   /** The channel's id: a report says where it happened (bot/report.ts). */
   channelId?: string | null;
