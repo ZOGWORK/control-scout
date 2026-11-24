@@ -70,7 +70,7 @@ own reaction goes: a member's 👎 is theirs, and a 👍 stays. The walk ends at
 answer could carry a 👎, so a channel's older history is never read and the two days the thumbs existed are all it
 covers. A sweep that met a channel it couldn't read — no Read Message History, a thread since deleted — or a 👎 that
 wouldn't come off is logged and not recorded, so the next start tries again; a 👎 that is already gone counts as done,
-which is what lets a server the bot is added back to run the pass again for its old answers. Archived threads are left
+which is what lets a server the bot is added back to be swept for its old answers as it joins — just that server, and a pass that misses something there clears the row so the next start walks everything again. Archived threads are left
 alone: a thread from those two days has to still be active to be read now, and paging every channel's archive for it
 isn't worth the calls. No row is written to `discord_answers`: the counts are what people clicked and stay readable;
 only the emoji nobody can use any more comes off.

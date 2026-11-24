@@ -1,6 +1,7 @@
 // The stale 👎 sweep (bot/cleanup.ts): its own 👎 off its own answers and nothing else, the walk back to the thumbs era,
-// pages read as Discord sends them (a Map, not an array), a channel it can't read, a page that won't move, a 👍 that is
-// already gone, and the whole thing once — and only once it finished.
+// pages read as Discord sends them (a Map, not an array), a channel it can't read, a page that won't move, a 👎 that is
+// already gone, the whole thing once — and only once it finished — one server's pass when it is added back, and one sweep
+// at a time.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Client } from "discord.js";
 import { kvGet, migrate, openDb, run, setDb } from "../server/db";
@@ -127,16 +128,16 @@ describe("the sweep runs once it finished", () => {
     await run("DELETE FROM kv WHERE key = ?", [SWEEP_KEY]);
   });
 
-  /** One server with one channel holding one stale 👎; `broken` makes listing its channels fail, and `reads` counts how
-   *  often the channel is read. */
-  function guild(reads: { n: number }, opts: { broken?: boolean } = {}) {
+  /** One server with one channel: each read is recorded in `reads`, `broken` makes listing its channels fail, and `gate`
+   *  holds the read until it is opened (so two sweeps' order can be seen). */
+  function guild(id: string, reads: string[], opts: { broken?: boolean; gate?: Promise<void> } = {}) {
     const ch = {
-      id: "c1",
+      id: `${id}-c`,
       isTextBased: () => true,
-      messages: { fetch: async () => { reads.n++; return new Map([["a1", msg("a1", IN_ERA)]]); } },
+      messages: { fetch: async () => { reads.push(id); if (opts.gate) await opts.gate; return new Map([["a1", msg("a1", IN_ERA)]]); } },
     };
     return {
-      id: "g1",
+      id,
       channels: {
         fetch: opts.broken ? async () => { throw new Error("Missing Access"); } : async () => new Map([[ch.id, ch]]),
         fetchActiveThreads: async () => ({ threads: new Map() }),
@@ -144,46 +145,79 @@ describe("the sweep runs once it finished", () => {
     };
   }
 
-  const client = (g: ReturnType<typeof guild>, anonymous = false): Client =>
-    ({ user: anonymous ? null : { id: BOT }, guilds: { cache: new Map([[g.id, g]]) } } as unknown as Client);
+  const client = (guilds: ReturnType<typeof guild>[], anonymous = false): Client =>
+    ({ user: anonymous ? null : { id: BOT }, guilds: { cache: new Map(guilds.map((g) => [g.id, g])) } } as unknown as Client);
 
   it("sweeps the first time, records it, and never reads a channel again", async () => {
-    const reads = { n: 0 };
+    const reads: string[] = [];
     const said: string[] = [];
-    const first = await sweepOldThumbs(client(guild(reads)), (m) => said.push(m));
+    const first = await sweepOldThumbs(client([guild("g1", reads)]), (m) => said.push(m));
     expect(first).toEqual({ channels: 1, messages: 1, removed: 1, failed: 0 });
     expect(await kvGet<{ done: boolean; removed: number }>(SWEEP_KEY)).toMatchObject({ done: true, removed: 1 });
-    expect(reads.n).toBe(1);
+    expect(reads).toEqual(["g1"]);
     // A restart: the row says it has run, so nothing is asked of Discord at all.
-    expect(await sweepOldThumbs(client(guild(reads)), (m) => said.push(m))).toBeNull();
-    expect(reads.n).toBe(1);
+    expect(await sweepOldThumbs(client([guild("g1", reads)]), (m) => said.push(m))).toBeNull();
+    expect(reads).toEqual(["g1"]);
   });
 
-  it("sweeps again for a server added back later, where a 👎 is already gone", async () => {
-    const reads = { n: 0 };
+  it("sweeps only the server added back, and leaves the row it was given", async () => {
+    const reads: string[] = [];
     const said: string[] = [];
-    expect(await sweepOldThumbs(client(guild(reads)), (m) => said.push(m))).toMatchObject({ channels: 1 });
-    expect(await sweepOldThumbs(client(guild(reads)), (m) => said.push(m), { force: true })).toMatchObject({ channels: 1 });
-    expect(reads.n).toBe(2);
+    expect(await sweepOldThumbs(client([guild("g1", reads)]), (m) => said.push(m))).toMatchObject({ channels: 1 });
+    const row = await kvGet(SWEEP_KEY);
+    reads.length = 0;
+    // Added back later: its own answers are still there, so that server is walked then — and no other.
+    expect(await sweepOldThumbs(client([guild("g1", reads), guild("g2", reads)]), (m) => said.push(m), { only: "g2" }))
+      .toMatchObject({ channels: 1, removed: 1, failed: 0 });
+    expect(reads).toEqual(["g2"]);
+    expect(await kvGet(SWEEP_KEY)).toEqual(row);
+  });
+
+  it("a pass that missed something in the added-back server asks for a full one next start", async () => {
+    const reads: string[] = [];
+    const said: string[] = [];
+    expect(await sweepOldThumbs(client([guild("g1", reads)]), (m) => said.push(m))).toMatchObject({ channels: 1 });
+    expect(await kvGet<{ done: boolean }>(SWEEP_KEY)).toMatchObject({ done: true });
+    const partial = await sweepOldThumbs(client([guild("g2", reads, { broken: true })]), (m) => said.push(m), { only: "g2" });
+    expect(partial).toMatchObject({ channels: 0, failed: 1 });
+    // The row says it is not done, so the next start walks every server again, this one included.
+    expect(await kvGet<{ done: boolean }>(SWEEP_KEY)).toMatchObject({ done: false });
+  });
+
+  it("runs one sweep at a time, so a join can't walk over a pass in flight", async () => {
+    const reads: string[] = [];
+    let open!: () => void;
+    const gate = new Promise<void>((r) => { open = r; });
+    const said: string[] = [];
+    const both = client([guild("g1", reads, { gate }), guild("g2", reads)]);
+    const startup = sweepOldThumbs(both, (m) => said.push(m));
+    // The join's pass queues behind the one already walking, rather than reading at the same time.
+    const join = sweepOldThumbs(both, (m) => said.push(m), { only: "g2" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(reads).toEqual(["g1"]);
+    open();
+    await Promise.all([startup, join]);
+    // The startup pass walks both servers, then the join's pass walks its own.
+    expect(reads).toEqual(["g1", "g2", "g2"]);
   });
 
   it("doesn't record a sweep that missed something, and the next start tries again", async () => {
-    const reads = { n: 0 };
+    const reads: string[] = [];
     const said: string[] = [];
-    const partial = await sweepOldThumbs(client(guild(reads, { broken: true })), (m) => said.push(m));
+    const partial = await sweepOldThumbs(client([guild("g1", reads, { broken: true })]), (m) => said.push(m));
     expect(partial).toMatchObject({ channels: 0, removed: 0, failed: 1 });
     expect(await kvGet(SWEEP_KEY)).toBeNull();
     expect(said.join("\n")).toContain("g1's channels");
     // The next start tries again, and this time it finishes and is recorded.
-    expect(await sweepOldThumbs(client(guild(reads)), (m) => said.push(m))).toMatchObject({ removed: 1, failed: 0 });
+    expect(await sweepOldThumbs(client([guild("g1", reads)]), (m) => said.push(m))).toMatchObject({ removed: 1, failed: 0 });
     expect(await kvGet<{ done: boolean }>(SWEEP_KEY)).toMatchObject({ done: true });
   });
 
   it("doesn't sweep without the bot's own id: nothing could match, so nothing is recorded", async () => {
-    const reads = { n: 0 };
+    const reads: string[] = [];
     const said: string[] = [];
-    expect(await sweepOldThumbs(client(guild(reads), true), (m) => said.push(m))).toBeNull();
-    expect(reads.n).toBe(0);
+    expect(await sweepOldThumbs(client([guild("g1", reads)], true), (m) => said.push(m))).toBeNull();
+    expect(reads).toEqual([]);
     expect(await kvGet(SWEEP_KEY)).toBeNull();
     expect(said.join("\n")).toContain("own id isn't known");
   });

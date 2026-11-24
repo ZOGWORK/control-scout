@@ -138,7 +138,7 @@ const pager = (ch: { id: string; messages: { fetch: unknown } }): SweptChannel =
  *  answer posted in a thread has its own message id). Archived threads are out of reach on purpose: listing the public
  *  ones needs Read Message History and the private ones need Manage Threads, and a thread from the two days the thumbs
  *  existed has to still be active to hold one now (bot/README.md says so). */
-async function places(client: Client, log: (m: string) => void): Promise<{ channels: SweptChannel[]; unreadable: number }> {
+async function places(client: Client, log: (m: string) => void, only?: string): Promise<{ channels: SweptChannel[]; unreadable: number }> {
   const out: SweptChannel[] = [];
   const seen = new Set<string>();
   const add = (ch: { id: string; messages: { fetch: unknown } }) => {
@@ -153,6 +153,7 @@ async function places(client: Client, log: (m: string) => void): Promise<{ chann
     return null;
   };
   for (const guild of client.guilds.cache.values()) {
+    if (only && guild.id !== only) continue;
     const channels = await guild.channels.fetch().catch((e) => missed(`${guild.id}'s channels`, e));
     for (const ch of channels?.values() ?? []) if (ch?.isTextBased()) add(ch);
     const active = await guild.channels.fetchActiveThreads().catch((e) => missed(`${guild.id}'s active threads`, e));
@@ -161,22 +162,44 @@ async function places(client: Client, log: (m: string) => void): Promise<{ chann
   return { channels: out, unreadable };
 }
 
+/** One sweep at a time: the startup pass and a server joining while it runs must not walk, and write, over each other. */
+let queue: Promise<unknown> = Promise.resolve();
+const oneAtATime = <T>(work: () => Promise<T>): Promise<T> => {
+  const next = queue.then(work, work);
+  queue = next.catch(() => {});
+  return next;
+};
+
 /** Take the stale 👎s off, once: the `kv` row says it has run, so a restart or a deploy doesn't scan again. Returns null
  *  when it had already run.
  *
- *  `force` is a server added back later (bot/index.ts): its answers are still in Discord, so the pass runs again, and
- *  taking off a 👎 that is already gone is not a failure. */
-export async function sweepOldThumbs(client: Client, log: (m: string) => void, opts: { force?: boolean } = {}): Promise<Swept | null> {
+ *  `only` is a server added back (bot/index.ts): its answers are still in Discord, so just that server is swept now, and a
+ *  pass that missed something there asks for a full one on the next start by clearing `done`. Taking off a 👎 that is
+ *  already gone is not a failure, which is what makes a server swept before it was removed safe to walk again. */
+export function sweepOldThumbs(client: Client, log: (m: string) => void, opts: { only?: string } = {}): Promise<Swept | null> {
+  return oneAtATime(() => sweep(client, log, opts.only));
+}
+
+async function sweep(client: Client, log: (m: string) => void, only?: string): Promise<Swept | null> {
   const state = await kvGet<{ done?: boolean }>(SWEEP_KEY).catch(() => null);
-  if (state?.done && !opts.force) return null;
+  if (!only && state?.done) return null;
+  if (only && !client.guilds.cache.has(only)) return null;
   const me = client.user?.id;
   if (!me) {
     // Sweeping as "" would match no answer and record a run that did nothing: left for the next start instead.
     log("stale 👎: the bot's own id isn't known yet; the old thumbs-down is left for the next start");
     return null;
   }
-  log("stale 👎: taking the old thumbs-down off its answers");
-  const swept = await sweepStaleThumbs({ me, channels: () => places(client, log) }, log);
+  log(`stale 👎: taking the old thumbs-down off its answers${only ? ` in server ${only}` : ""}`);
+  const swept = await sweepStaleThumbs({ me, channels: () => places(client, log, only) }, log);
+  if (only) {
+    // The server is swept on the way in; a pass that missed something there is left to a full one, so clear `done`.
+    if (swept.failed) {
+      await kvSet(SWEEP_KEY, { done: false }).catch((e) => log(`stale 👎: couldn't clear the sweep's row (${(e as Error)?.message ?? String(e)})`));
+    }
+    log(`stale 👎: server ${only}: took ${swept.removed} off ${swept.messages} messages in ${swept.channels} channels${swept.failed ? `; ${swept.failed} couldn't be read or cleared, and the next start tries everything again` : ""}`);
+    return swept;
+  }
   const done = swept.failed === 0;
   if (done) {
     await kvSet(SWEEP_KEY, { done: true, at: new Date().toISOString(), removed: swept.removed }).catch((e) => {
