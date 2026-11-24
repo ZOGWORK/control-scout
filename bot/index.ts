@@ -198,7 +198,12 @@ const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) =>
 const DOWN_NOTE_KEY = "bot:down-note-state";
 /** The answers whose channel has been told what a 👎 does: once per answer, for the vote that filed the question — or
  *  for the next 👎 when that note couldn't be delivered (bot/reactions.ts `downNotes`). */
-const downNote = downNotes(500, (state) => { void kvSet(DOWN_NOTE_KEY, state).catch(() => {}); });
+// Saves run one after another, in the order the notes happened: two answers' notes can be marked at once, and the later
+// snapshot must not be overwritten by the earlier one's write.
+let savingNote: Promise<void> = Promise.resolve();
+const downNote = downNotes(500, (state) => {
+  savingNote = savingNote.then(() => kvSet(DOWN_NOTE_KEY, state)).catch(() => {});
+});
 void kvGet<DownNoteState>(DOWN_NOTE_KEY)
   .then((state) => { if (state) downNote.hydrate(state); })
   .catch(() => {});
