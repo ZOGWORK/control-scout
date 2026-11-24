@@ -4,15 +4,15 @@
 // scripts/search-heldout.ts --split marks them.
 //
 // Looked through: every .ts/.tsx/.mts/.cts/.js/.mjs/.cjs/.json/.txt file, whatever its size, under server/, src/, scripts/, packages/ and bot/, the other
-// eval lists aside (they hold questions to ask, not code that answers them): the held-out file itself,
-// the sign-off sets (scripts/search-signoff/sets/, set A is the unique200 set) and the latency bench's query list.
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+// eval lists aside (they hold questions to ask, not code that answers them): the held-out file itself and
+// each set's own file (scripts/heldout/), the sign-off sets (scripts/search-signoff/sets/, set A is the unique200 set) and the latency bench's query list.
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 export const ROOT = join(import.meta.dirname, "..");
 export const SCANNED = ["server", "src", "scripts", "packages", "bot"];
 /** Eval lists: questions to ask, never read by search. */
-export const EVAL_LISTS = [/^scripts\/search-heldout\.json$/, /^scripts\/heldout\//,/^scripts\/search-signoff\/sets\//, /^scripts\/search-bench\//];
+export const EVAL_LISTS = [/^scripts\/search-heldout\.json$/, /^scripts\/heldout\//, /^scripts\/search-signoff\/sets\//, /^scripts\/search-bench\//];
 const EXT = /\.(?:ts|tsx|mts|cts|js|mjs|cjs|json|txt)$/;
 
 /** Every scanned file's text, lower case, every run of whitespace one space (a question split across lines in a test
@@ -30,7 +30,11 @@ export function scannedTexts(root = ROOT): Map<string, string> {
     }
   };
   // A folder this checkout lacks is skipped; any other read error fails loudly, never a silently smaller scan.
-  for (const d of SCANNED) if (existsSync(join(root, d))) walk(join(root, d));
+  for (const d of SCANNED) {
+    let there = true;
+    try { statSync(join(root, d)); } catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") there = false; else throw e; }
+    if (there) walk(join(root, d));
+  }
   return out;
 }
 

@@ -12,6 +12,8 @@ import { gradeWant, wantFacts } from "./search-heldout-grade";
 
 // Every set: the shared file and each set's own file in scripts/heldout/ (./heldoutSets.ts).
 const rows = heldoutSets();
+// Each scan reads every file in the repo: slow on a busy CI shard, so a minute, not the default 20 s.
+const SCAN_MS = 60_000;
 const held = rows.filter((x) => !x.train), train = rows.filter((x) => x.train);
 
 describe("held out means held out", () => {
@@ -19,7 +21,7 @@ describe("held out means held out", () => {
     const found = leaks(held.map((x) => x.q));
     const lines = [...found].map(([q, files]) => `"${q}" in ${files.slice(0, 3).join(", ")}`);
     expect(lines, `held-out questions in tests or code (move them: npm run search:heldout -- --split, or reword the test that has one from scripts/heldout/):\n${lines.join("\n")}`).toEqual([]);
-  });
+  }, SCAN_MS);
   it("each question once: no set and number twice in the file", () => {
     const ids = rows.map((x) => `${x.set}#${x.n}`);
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
@@ -43,12 +45,23 @@ describe("held out means held out", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+  it("skips only a folder the checkout lacks", () => {
+    const root = mkdtempSync(join(tmpdir(), "heldout-leaks-"));
+    try {
+      expect(scannedTexts(root).size).toBe(0);
+      // A file where a scanned folder should be can't be walked: it fails, never a smaller scan.
+      writeFileSync(join(root, "server"), "");
+      expect(() => scannedTexts(root)).toThrow();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
   it("looks through tests and code, never the eval lists themselves", () => {
     const paths = [...scannedTexts().keys()];
     expect(paths.some((p) => p.endsWith(".test.ts"))).toBe(true);
     // A set's own file (scripts/heldout/) is an eval list too: read, every question in it would match itself.
     expect(paths.some((p) => /search-heldout\.json|^scripts\/heldout\/|search-signoff\/sets\//.test(p))).toBe(false);
-  });
+  }, SCAN_MS);
 });
 
 describe("graded against the written answer", () => {
