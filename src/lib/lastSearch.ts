@@ -12,8 +12,11 @@ export const LAST_SEARCH_MAX_AGE_MS = 30 * 60 * 1000;
  *  "my"/"our" search was asked with (null otherwise), and when. */
 export interface LastSearch { q: string; season: number | null; my: number | null; at: number }
 
-/** What storage refused: the latest search, or "none" for a cleared one; null while storage holds the latest. */
-let memory: LastSearch | "none" | null = null;
+/** The latest search this page remembered (null: none, or cleared), kept whatever storage does; read when storage
+ *  refused the last write or refuses the read. */
+let latest: LastSearch | null = null;
+/** Whether storage took the last write: while it did, it's read (another page of this tab may have written since). */
+let stored = true;
 
 const tidy = (q: string) => q.trim().replace(/\s+/g, " ").slice(0, 200);
 const whole = (n: unknown) => (Number.isInteger(n) ? (n as number) : null);
@@ -29,10 +32,11 @@ function parse(raw: string | null): LastSearch | null {
 }
 
 function store(last: LastSearch | null): void {
+  latest = last;
   try {
     if (last) sessionStorage.setItem(KEY, JSON.stringify(last)); else sessionStorage.removeItem(KEY);
-    memory = null;
-  } catch { memory = last ?? "none"; /* refused: memory keeps it */ }
+    stored = true;
+  } catch { stored = false; /* refused: latest keeps it */ }
 }
 
 /** Remember `q` as this tab's last answered search: answered for `season` (the picked one, or null), and for `my`
@@ -47,9 +51,9 @@ export function forgetSearch(): void { store(null); }
 
 /** This tab's last answered search, unless it is `current` itself or too old; null when there is none. */
 export function lastSearch(current = "", now = Date.now()): LastSearch | null {
-  let last: LastSearch | null;
-  // A write refused while reads still work: storage has nothing (or an older one), memory has the latest.
-  try { last = memory === "none" ? null : memory ?? parse(sessionStorage.getItem(KEY)); } catch { last = memory === "none" ? null : memory; /* unreadable */ }
+  let last: LastSearch | null = latest;
+  // A write refused while reads still work: storage has nothing, or an older one; `latest` is the one.
+  if (stored) { try { last = parse(sessionStorage.getItem(KEY)); } catch { /* unreadable: latest has it */ } }
   if (!last || now - last.at > LAST_SEARCH_MAX_AGE_MS) return null;
   return last.q.toLowerCase() === tidy(current).toLowerCase() ? null : last;
 }

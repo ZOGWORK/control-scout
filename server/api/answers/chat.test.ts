@@ -58,6 +58,7 @@ describe("a reaction (#2215)", () => {
   });
   it("said to Bruno by name is still a reaction, never the About card", () => {
     expect(chatKind("thanks bruno")).toBe("reaction");
+    expect(chatKind("thanks a lot bruno")).toBe("reaction");
     expect(chatKind("who is your creator?")).toBe("meta");
   });
   it("a team named by it alone is still that team", async () => {

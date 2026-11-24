@@ -218,6 +218,17 @@ describe("a follow-up to the tab's last search", () => {
       // No season picked: the search as it was typed.
       expect((await fetch(base)).status).toBe(200);
       expect(asked[1].facts[0]).toContain('"4215 opr"');
+      // The records gone for a moment while reading it in its season: no answer (204), never an error.
+      resetBrunoAnswerCache();
+      // The search pipeline's names (read for the season pick) are built again from the database, which fails.
+      const { clearAllCaches } = await import("../caches");
+      clearAllCaches();
+      await run("ALTER TABLE events RENAME TO events_gone");
+      try {
+        expect((await fetch(`${base}&afterSeason=2024`)).status).toBe(204);
+      } finally {
+        await run("ALTER TABLE events_gone RENAME TO events");
+      }
     } finally { app.close(); }
   });
   it("a \"my\" earlier search is read for the My team it was asked with (?afterMy=), each team cached apart", async () => {

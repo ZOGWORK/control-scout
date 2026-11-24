@@ -20,6 +20,7 @@ import { normalize } from "./fuzzy.js";
 import { cleanQuery, searchAnswer, type AnswerOptions } from "./searchAnswer.js";
 import { chatWords, pointsBack } from "./query/chat.js";
 import { mineAnswer } from "./searchMine.js";
+import { pickedQuery, pickedSeasonOf } from "./searchPageAnswer.js";
 import { MINE } from "../../src/shared/searchMine.js";
 
 export const BRUNO_ANSWER_TIMEOUT_MS = 12_000;
@@ -176,7 +177,7 @@ export function ungrounded(text: string, facts: string[], question: string): str
 /** The page's search choices, and `after`: the search a follow-up points back at ("was that the same in all the
  *  matches you said": the tab's last search), whose answer gives his facts. Taken only for a follow-up
  *  (./query/chat.ts pointsBack), so every other question is answered from its own search as before. */
-export type BrunoOptions = Pick<AnswerOptions, "prefer" | "limit" | "learn"> & { after?: string; afterMy?: number | null };
+export type BrunoOptions = Pick<AnswerOptions, "prefer" | "limit" | "learn"> & { after?: string; afterSeason?: number | null; afterMy?: number | null };
 
 /** The earlier search a follow-up reads, or null: only for a question that points back, never the question itself. */
 export function followUpOf(q: string, after: string | undefined): string | null {
@@ -196,7 +197,7 @@ export async function brunoAnswer(raw: string, opts: BrunoOptions = {}, now = Da
   if (!(await isEnabled(flag).catch(() => false)) || !brunoAvailable()) return null;
   // `learn: false` (the Discord bot): his facts come from the same unlearned search the bot shows, kept apart.
   const after = followUpOf(q, opts.after);
-  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}${after ? `|after:${normalize(after)}${opts.afterMy != null && MINE.test(after) ? `|my:${opts.afterMy}` : ""}` : ""}`;
+  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}${after ? `|after:${normalize(after)}${opts.afterSeason != null ? `|in:${opts.afterSeason}` : ""}${opts.afterMy != null && MINE.test(after) ? `|my:${opts.afterMy}` : ""}` : ""}`;
   const hit = cache.get(k);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.answer;
   let flight = pending.get(k);
@@ -205,7 +206,7 @@ export async function brunoAnswer(raw: string, opts: BrunoOptions = {}, now = Da
     // Streamed only while a page watches it; the model call is the same either way.
     const show: BrunoPreview = (p) => { f.preview = p; for (const w of f.watchers) w(p); };
     // Only its own entry: a reset while it ran may have let a newer ask take the key.
-    f.answer = ask(q, { ...opts, after: after ?? undefined }, k, now, onPreview ? show : undefined).finally(() => { if (pending.get(k) === f) pending.delete(k); f.watchers.clear(); });
+    f.answer = ask(q, { ...opts, after: after ?? undefined, afterSeason: after ? pickedSeasonOf(opts.afterSeason) : null }, k, now, onPreview ? show : undefined).finally(() => { if (pending.get(k) === f) pending.delete(k); f.watchers.clear(); });
     pending.set(k, f);
     flight = f;
   } else if (onPreview && flight.preview) onPreview(flight.preview);
@@ -276,17 +277,19 @@ export function previewOf(raw: string, facts: string[], question: string): Bruno
 }
 
 async function ask(q: string, opts: BrunoOptions, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
-  const { after, afterMy, ...search } = opts;
+  const { after, afterSeason, afterMy, ...search } = opts;
   // A follow-up is answered from the search it points back at: that search's facts, said as its. A failed read of
   // them (a database error) is no answer, as a failed model call is, never an error to the page; not cached.
   let facts: string[];
   try {
     const read = (x: string) => searchAnswer(x, { ...search, learn: search.learn ?? true });
     if (after) {
-      // "My"/"our" read for the My team it was asked with, as /api/search reads it (./searchMine.ts).
-      const base = await read(after);
-      const mine = afterMy != null ? await mineAnswer(after, base, afterMy, read) : null;
-      facts = [`This question follows up the earlier search "${after}": the facts below are that search's answer.`, ...(await answerFacts(mine ?? base))];
+      // Read as the page read it: in the season picked on its answer (as /search's ?season=), and "my"/"our" for the
+      // My team it was asked with (./searchMine.ts).
+      const earlier = afterSeason != null ? await pickedQuery(after, afterSeason) : after;
+      const base = await read(earlier);
+      const mine = afterMy != null ? await mineAnswer(earlier, base, afterMy, read) : null;
+      facts = [`This question follows up the earlier search "${earlier}": the facts below are that search's answer.`, ...(await answerFacts(mine ?? base))];
     } else facts = await answerFacts(await read(q));
   } catch (e) {
     console.warn("[search] Bruno's facts unavailable:", (e as Error).message?.slice(0, 120));

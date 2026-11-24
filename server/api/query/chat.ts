@@ -49,7 +49,7 @@ export function pointsBack(ws: string[]): boolean {
   return ws.some((w, i) => EARLIER.has(w) && ANSWER.has(ws[i + 1]));
 }
 
-const ADDRESSEE = phrases(CHAT_WORDS.addressee), REACTION = phrases(CHAT_WORDS.reaction);
+const ADDRESSEE = phrases(CHAT_WORDS.addressee), REACTION = phrases(CHAT_WORDS.reaction), QUESTION = new Set(CHAT_WORDS.question);
 const ACQUIRE = new Set(CHAT_WORDS.acquire), ASKER = new Set(CHAT_WORDS.asker), MODAL = new Set(CHAT_WORDS.modal);
 
 /** "Where do i get", "where can we buy", "where to order": a question about getting hold of something. */
@@ -68,12 +68,11 @@ export function chatKind(q: string): ChatKind | null {
   if (pointsBack(ws)) return "follow-up";
   if (asksData(ws)) return null;
   if (asksWhereToGet(ws)) return "off-topic";
-  // Addressed to the site and asking something: a word beyond the reaction and who it's said to ("who made you").
-  // Thanks or laughter said to it ("thank you", "thanks bruno") is a reaction, not a question to it.
-  const spans = (ps: { i: number; end: number }[]) => ps.flatMap((r) => Array.from({ length: r.end - r.i }, (_, k) => r.i + k));
-  const reacted = new Set(spans(at(ws, REACTION))), addressed = new Set(spans(at(ws, ADDRESSEE)));
-  const asks = ws.some((_, i) => !reacted.has(i) && !addressed.has(i));
-  if (addressed.size && (asks || !reacted.size)) return "meta";
-  if (reacted.size) return "reaction";
+  // Addressed to the site ("who made you", "tell me about bruno"). With thanks or laughter in it, only when it asks a
+  // question ("thanks bruno, who made you?"): "thank you", "thanks a lot bruno" is a reaction, whatever words it adds.
+  const addressed = has(ws, ADDRESSEE), reacted = has(ws, REACTION);
+  const asked = /\?\s*$/.test(q) || ws.some((w) => QUESTION.has(w));
+  if (addressed && (!reacted || asked)) return "meta";
+  if (reacted) return "reaction";
   return null;
 }

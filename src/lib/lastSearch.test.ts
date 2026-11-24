@@ -30,6 +30,11 @@ describe("the tab's last search", () => {
     lib.rememberSearch("4215 auto points");
     expect(lib.lastSearch()?.q).toBe("4215 auto points");
   });
+  it("is kept in memory when storage takes the write but refuses the read", () => {
+    refuse("getItem");
+    lib.rememberSearch("4215 auto points");
+    expect(lib.lastSearch()?.q).toBe("4215 auto points");
+  });
   it("keeps the season picked on its answer, so a follow-up reads that season's records", () => {
     lib.rememberSearch("4215 auto points", 2024);
     expect(lib.lastSearch()).toMatchObject({ q: "4215 auto points", season: 2024 });
