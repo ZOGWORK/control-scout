@@ -120,7 +120,7 @@ export const SEARCH_COMPLEX: { title: string; body: string; items: { q: string; 
   { title: "Two places", body: "Side by side, together, or teams from one place at another's events.", items: [
     { q: "texas vs michigan opr", what: "Two states' average OPR, side by side" },
     { q: "top teams in california and washington", what: "One board across both states" },
-    { q: "oklahoma teams at texas events", what: "Teams from one state, at the other's events" },
+    { q: "louisiana teams at texas events", what: "Teams from one state, at the other's events" },
   ] },
   { title: "Two questions in one", body: "Joined with “and”, each part gets its own answer card.", items: [
     { q: "4215 opr and 6980 record", what: "One team's OPR, another team's record" },
