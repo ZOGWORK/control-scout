@@ -106,6 +106,8 @@ describe("Bruno leading the v8 page", () => {
     expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBe("label");
     await settle();
     expect(container.querySelector("[data-bruno-pending], [data-bruno-answer]")).toBeNull();
+    // The slot's frame goes too: no empty gap above the heading.
+    expect(container.querySelector("[data-bruno-lead]")).toBeNull();
     expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
   });
   it("keeps a failed search's heading at its size, with no card above it", () => {
