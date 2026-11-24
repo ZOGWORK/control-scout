@@ -95,7 +95,6 @@ import { matchReportRouter } from "./scout/matchReport.js";
 import { inboxRouter } from "./inbox/routes.js";
 import { pushRouter } from "./push/routes.js";
 import { digestRouter } from "./digest/routes.js";
-import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
 import { failureOf, keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, searchFailuresRouter } from "./searchFailures.js";
 import { supporters } from "./sponsors.js";
@@ -123,7 +122,7 @@ import { REGION_SORTS, isRegionSort, type LeaguesResponse } from "../src/shared/
 import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
 import { registerCache } from "./caches.js";
 import { normalizeRoute, requestMetrics } from "./metrics.js";
-import { allFlags, featureDisabled, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFlags } from "./flags.js";
+import { featureDisabled, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFlags } from "./flags.js";
 import type { FlagsAnswer } from "../src/shared/flags.js";
 import { currentUser } from "./auth/session.js";
 import { linkedAccountId } from "./auth/controlPoint.js";
@@ -135,7 +134,7 @@ import { photosRouter } from "./scout/photos.js";
 import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/match.js";
 import { CardQueueFull } from "./share/offThread.js";
 import { env } from "./env.js";
-import { r2 } from "./scout/r2.js";
+import { servedFlags } from "./publicFlags.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
 import { liteRouter, liteSwitch, pageVary } from "./lite/routes.js";
 import { openSearchRoute } from "./openSearch.js";
@@ -350,8 +349,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   // switch flipped in the owner portal reaches open pages within a minute.
   api.get("/flags", h(async (req, res): Promise<FlagsAnswer> => {
     // Photos also need R2 configured on this server: without it the app hides them as if switched off.
-    const g = await allFlags();
-    const flags = { ...g, photos: g.photos && !!r2(), push: g.push && vapidReady() };
+    const flags = await servedFlags();
     // No per-workspace overrides anywhere (the usual case): one answer for everyone, as before.
     if (!(await hasWorkspaceOverrides())) { res.setHeader("Cache-Control", "public, max-age=15"); return { flags }; }
     // Some workspace has its own setting: the answer depends on who asks, so it's private. A signed-in account gets
@@ -446,6 +444,13 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // (server/api/searchMine.ts). The event pack ships these same answers (server/api/searchPage.ts).
       const ans = await typedPageAnswer(q, limit, prefer, myTeamOf(req.query.my));
       const answered = performance.now();
+      // The results page (?bruno=1) asks Bruno AI next whenever this answer isn't a direct one (a card or stat answer,
+      // not a guess: src/pages/SearchPage.tsx `answered`): his answer starts now, so the page's own ask
+      // (/api/search/bruno, the same words and preferred teams) joins it instead of starting it. Never awaited;
+      // brunoAnswer itself asks only for a question, with his switch on.
+      if (req.query.bruno === "1" && req.query.season == null && !(!ans.weak && (ans.card || ans.stat))) {
+        void brunoAnswer(String(req.query.q ?? ""), { prefer, limit: SEARCH_PAGE_LIMIT }).catch(() => {});
+      }
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
       const at = Date.now();

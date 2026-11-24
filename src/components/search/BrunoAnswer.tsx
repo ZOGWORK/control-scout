@@ -15,8 +15,10 @@ import { useMediaQuery } from "../../lib/meta";
 import { isBrunoQuestion } from "../../shared/search";
 import { cn } from "../cn";
 
-/** How long the question must stay unchanged before Bruno is asked. */
-export const BRUNO_SETTLE_MS = 600;
+/** How long the question must stay unchanged before Bruno is asked. None: /search's question is the address's, which
+ *  changes only when a search is submitted (never letter by letter), so a fixed wait only made him 0.6 s late. A
+ *  question replaced at once (Back, Forward) still cancels its ask before it's sent. */
+export const BRUNO_SETTLE_MS = 0;
 /** How long a held slot waits for the server to confirm his switch (the flags may never load) before it's let go. */
 export const BRUNO_FLAG_WAIT_MS = 5000;
 
