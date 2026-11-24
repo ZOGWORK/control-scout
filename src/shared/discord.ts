@@ -8,7 +8,7 @@
 export const DISCORD_CLIENT_ID: string | null = "1562258217873047562";
 
 /** The bot's only permissions: Send Messages (2048) + Embed Links (16384) + Use Application Commands (2^31) + Add
- *  Reactions (64), for the 👍/👎 it puts on its answers. */
+ *  Reactions (64), for the 👍 it puts on its answers. */
 export const DISCORD_PERMISSIONS = 2048 + 16384 + 64 + 2 ** 31;
 
 /** The OAuth2 invite: scopes bot + applications.commands, the minimal permissions; null without a client ID. */
@@ -25,7 +25,7 @@ export const BOT_COMMANDS: { usage: string; what: string; admin?: true }[] = [
   { usage: "/event code:", what: "An event's status, matches played, top 5 by OPR and the winning alliance." },
   { usage: "/rankings", what: "The world top 10 by rating, with movement since last week." },
   { usage: "/ask question:", what: "Anything in plain words, answered as the website's search answers it. Its answer's buttons ask a follow-up or open the answer on the website." },
-  { usage: "@Control Scout question", what: "Chat with Bruno AI: mention the bot with anything, and reply to his answer to keep talking. 👍 or 👎 on an answer says how it went." },
+  { usage: "@Control Scout question", what: "Chat with Bruno AI: mention the bot with anything, and reply to his answer to keep talking. 👍 on an answer says it helped." },
   { usage: "/follow team: channel:", what: "Posts in a channel for a team: the evening before an event, its schedule, 15 minutes before each match and its result, and a recap each day.", admin: true },
   { usage: "/follow event: channel:", what: "Posts in a channel for a whole event instead: the evening before it starts, its schedule once posted, and a recap each day.", admin: true },
   { usage: "/unfollow team: event:", what: "Stop those posts for a team or an event.", admin: true },
