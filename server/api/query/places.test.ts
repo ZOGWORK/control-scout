@@ -103,6 +103,10 @@ describe("two places in one question", () => {
     for (const q of ["maryland vs delaware matches", "maryland vs delaware highlights", "maryland vs delaware opr gain", "which team has the most matches in maryland or delaware", "top 3 maryland vs delaware average opr", "maryland vs delaware average opr teams that never won an award", "how many teams from maryland or delaware", "teams from maryland or delaware not opr", "teams named crab from maryland or delaware", "the top maryland team vs the top delaware team"]) {
       expect(placesAsk(await parseQuery(q, ctx), null), q).toBeNull();
     }
+    // Each place's top team is two teams compared (search reads it again with their numbers once the pipeline leaves
+    // it): never the places' averages.
+    const tops = await full("the top maryland team vs the top delaware team");
+    expect([tops.intent?.kind.startsWith("stat-places"), tops.stat?.teams?.length]).toEqual([false, 2]);
     // The board ranks by its own stats, highest or lowest first: a score's average or a median over both is not it.
     expect(placesAsk(await parseQuery("teams from maryland or delaware by score", ctx), "avg-score")).toBeNull();
     for (const q of ["median opr teams from maryland or delaware", "median opr of teams from maryland or delaware"]) expect(placesAsk(await parseQuery(q, ctx), "opr"), q).toBeNull();
