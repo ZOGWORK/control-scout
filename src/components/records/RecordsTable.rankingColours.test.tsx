@@ -61,6 +61,13 @@ describe("event rankings colours", () => {
     expect(document.querySelector("thead")!.innerHTML).not.toContain("violet");
     expect(document.querySelector("tbody .font-mono")!.className).not.toContain("v8:text-accent");
   });
+  it("keeps phone team numbers plain too (the tap-for-name button)", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: /max-width/.test(query), media: query, addEventListener() {}, removeEventListener() {} }));
+    mount(true);
+    const btn = document.querySelector("tbody button[aria-label^='1 ']") as HTMLElement | null;
+    expect(btn, "phone layout renders the team number as a button").not.toBeNull();
+    expect(btn!.className).not.toContain("v8:text-accent");
+  });
   it("leaves other event tables (Insights) as they were", () => {
     mount(false);
     expect(cell(0, "rank").hasAttribute("data-shade")).toBe(false);
