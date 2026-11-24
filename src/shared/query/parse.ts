@@ -877,11 +877,16 @@ const FIX_WORDS = (() => {
 })();
 
 /** Words the steps after the lexicon read (reaching a place, an event's kind and name words, Worlds' names). */
-const LATER_WORDS = new Set([...REACH, ...ADVANCE_TO, ...WORLDS_WORDS, ...KIND_WORDS, ...EVENT_NAME_WORDS, "division", "divisions", "rookie", "rookies"]);
+const LATER_WORDS = new Set([...REACH, ...ADVANCE_TO, ...WORLDS_WORDS, ...KIND_WORDS, ...EVENT_NAME_WORDS, "division", "divisions", "rookie", "rookies",
+  // Dates the readers after the parse take as they are ("events in march": never "match").
+  "january", "february", "march", "april", "june", "july", "august", "september", "october", "november", "december",
+  "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "today", "tonight", "tomorrow", "yesterday", "weekend", "weekends"]);
 /** Two forms of one word: the same but for an ending ("-s", "-es", "-ed", "-d", "-ing", "-ies"/"-ied"). */
 const inflected = (a: string, b: string) => {
   const root = (w: string) => w.replace(/(?:ies|ied|ing|es|ed|s|d|y)$/, "");
-  return root(a) === root(b);
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  // One the other with an ending ("rankings", "ranking"), or both one root's ("ranked", "ranking").
+  return (long.startsWith(short) && /^(?:ies|ied|ing|es|ed|s|d|y)$/.test(long.slice(short.length))) || root(a) === root(b);
 };
 /** The words still unread after the lexicon that are one letter off one of its words (a change, a letter added or
  *  dropped, two letters swapped; the same first letter), read as that word in place: five letters or more, lower case
@@ -901,16 +906,39 @@ function fixSpelling(toks: Tok[], names: Names, typedWords: string[]): { typed: 
     if (said.length >= 5 && (names.nearTeam(said) || names.teamsCalled(said).length || names.place(said))) continue;
     for (const t of run) {
       const w = t.w;
-      if (w.length < 5 || !/^[a-z]+$/.test(w) || caps.has(w) || LATER_WORDS.has(w) || names.nameWord?.(w) || names.place(w) || names.nearEventWord?.(w)) continue;
-      const near: string[] = [];
-      for (let len = w.length - 1; len <= w.length + 1; len++) for (const k of FIX_WORDS.get(len) ?? []) if (k[0] === w[0] && editDistance(w, k, 1) === 1) near.push(k);
-      // Another form of the word ("championship" of "championships", "qualifies" of "qualified") is typed as meant.
-      if (near.length !== 1 || inflected(w, near[0])) continue;
-      out.push({ typed: t.typed, read: near[0] });
-      t.w = near[0];
+      if (caps.has(w) || names.nameWord?.(w) || names.place(w) || names.nearEventWord?.(w)) continue;
+      const near = nearSearchWord(w);
+      if (!near) continue;
+      out.push({ typed: t.typed, read: near });
+      t.w = near;
     }
   }
   return out;
+}
+
+/** The one search word `w` (lower case) is one letter off, or null: five letters or more, the same first letter, never
+ *  another form of the word ("championship" of "championships", "qualifies" of "qualified": typed as meant), never a
+ *  word the parse's later steps read. */
+function nearSearchWord(w: string): string | null {
+  if (w.length < 5 || !/^[a-z]+$/.test(w) || LATER_WORDS.has(w) || LEX_WORDS.has(w)) return null;
+  const near: string[] = [];
+  for (let len = w.length - 1; len <= w.length + 1; len++) for (const k of FIX_WORDS.get(len) ?? []) if (k[0] === w[0] && editDistance(w, k, 1) === 1) near.push(k);
+  return near.length === 1 && !inflected(w, near[0]) ? near[0] : null;
+}
+
+/** Whether a query may hold a search word one letter off (a word nearSearchWord fixes): a check on its words alone,
+ *  so search parses a query for its spelling (respell) only when it might need it. */
+export const mayRespell = (q: string): boolean => normalise(q).split(" ").some((w) => nearSearchWord(w) != null);
+
+/** `typed` with the search words the parse read one letter off written as meant ("4215 recrod" → "4215 record"), as
+ *  the parse fixes them (fixSpelling: never a name's word, a place, nor a team's name typed nearly right), or null. */
+export async function respell(typed: string, ctx: ParseContext): Promise<string | null> {
+  if (!mayRespell(typed)) return null;
+  const p = await parseQuery(typed, ctx);
+  if (!p.fixed?.length) return null;
+  const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const out = p.fixed.reduce((s, f) => s.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escape(f.typed)}(?![\\p{L}\\p{N}])`, "iu"), f.read), typed);
+  return out !== typed ? out : null;
 }
 
 /** Whether `inner` lies in `outer` (a town in its region or country, a region in its country). */
