@@ -148,7 +148,7 @@ describe("the thumbs on an answer", () => {
     expect(first.due("told", true)).toBe(true);
     first.said("told");
     expect(first.due("owed", true)).toBe(true);
-    first.unsent("owed");
+    first.owe("owed");
     // A new process (a deploy, a crash) picks both up: the note it said stays unsaid, the one it owes is still owed.
     const after = downNotes();
     after.hydrate(saved!);
@@ -171,15 +171,15 @@ describe("the thumbs on an answer", () => {
   it("keeps a note that couldn't be delivered owed until it arrives", () => {
     const note = downNotes();
     expect(note.due("m", true)).toBe(true);
-    note.unsent("m");
+    note.owe("m");
     // The next 👎 on that answer files nothing, but the note it owes is still owed.
     expect(note.due("m", false)).toBe(true);
     note.said("m");
     expect(note.due("m", false)).toBe(false);
     // Owed notes are bounded too: past the cap the oldest is forgotten (a courtesy line, not the vote).
     const owedCap = downNotes(1);
-    owedCap.unsent("first");
-    owedCap.unsent("second");
+    owedCap.owe("first");
+    owedCap.owe("second");
     expect(owedCap.due("first", false)).toBe(false);
     expect(owedCap.due("second", false)).toBe(true);
     // Past the cap the oldest answer told is forgotten: at worst a repeat note, never a missing one.
