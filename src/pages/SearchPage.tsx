@@ -153,9 +153,10 @@ export default function SearchPage() {
   const listed = useMemo(() => [...hits, ...closest], [hits, closest]);
   const asked = (h2h ? compareSeason(h2h) : null) ?? listed.find((h) => h.kind === "team" && h.linkSeason != null)?.linkSeason ?? null;
   const base = asked ?? season;
-  const sumPath = (s: number) => (teamNums.length ? `/api/teams-summary${qs({ season: s, teams: teamNums.join(",") })}` : null);
-  const now = useApi<{ teams: TeamSummary[] }>(sumPath(base));
-  const before = useApi<{ teams: TeamSummary[] }>(asked == null ? sumPath(season - 1) : null);
+  // One request: with no season asked for, the one before comes in the same answer (?before=1).
+  const sums = useApi<{ teams: TeamSummary[]; before?: { teams: TeamSummary[] } }>(teamNums.length ? `/api/teams-summary${qs({ season: base, teams: teamNums.join(","), before: asked == null ? 1 : undefined })}` : null);
+  const now = { data: sums.data };
+  const before = { data: sums.data?.before };
   // Phones: teams picked with VS Compare for the Compare (2) bar (this search's own: a new search starts empty), and
   // the Compare result whose head-to-head is open over the results.
   const [picks, setPicks] = useState<number[]>([]);
