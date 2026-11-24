@@ -27,8 +27,8 @@ export interface TimeSlot {
   month?: number;
 }
 
-/** A month said without its year (`t.month`) moved to the same month of `season` (September to August): "7149 events
- *  in june", 7149's latest season 2025–26, is June 2026. Any other time is returned as it is. */
+/** A month said without its year (`t.month`) moved to the same month of `season` (September to August): "<team> events
+ *  in june", the team's latest season 2025–26, is June 2026. Any other time is returned as it is. */
 export function monthIn(t: TimeSlot, season: number): TimeSlot {
   if (t.kind !== "window" || t.month == null || t.year != null || t.season === season) return t;
   const year = t.month >= 8 ? season : season + 1;
@@ -166,10 +166,12 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
   if (m && monthIndex(m[1]) >= 0 && (m[2] || /\b(?:in|during)\s/.test(m[0]) || (m[1].length > 3 && m[1] !== "may") || last)) {
     const mi = monthIndex(m[1]);
     // With no year, the latest such month that has begun ("june" asked in November 2026 is June 2026), unless the
-    // question looks ahead ("upcoming events in march", "next meet in june"): then the one to come.
+    // question looks ahead ("upcoming events in march", "next meet in june"): then the one not yet over.
     const ahead = /\b(?:upcoming|next|coming|future|will|schedul\w*|planned)\b/.test(rest);
+    const now = seasonOfDate(today);
     const begun = (s: number) => iso(mi >= 8 ? s : s + 1, mi, 1) <= today;
-    const season = m[2] ? (mi >= 8 ? Number(m[2]) : Number(m[2]) - 1) : ahead || begun(seasonOfDate(today)) ? seasonOfDate(today) : seasonOfDate(today) - 1;
+    const over = (s: number) => iso(mi >= 8 ? s : s + 1, mi + 1, 0) < today;
+    const season = m[2] ? (mi >= 8 ? Number(m[2]) : Number(m[2]) - 1) : ahead ? (over(now) ? now + 1 : now) : begun(now) ? now : now - 1;
     const year = mi >= 8 ? season : season + 1;
     const from = iso(year, mi, 1), to = iso(year, mi + 1, 0);
     cut(m); return out({ kind: "window", from, to, season, label: `in ${MONTHS[mi][0].toUpperCase()}${MONTHS[mi].slice(1)} ${year}`, typed: m[0].trim(), ...(m[2] ? { year } : { month: mi }) });
