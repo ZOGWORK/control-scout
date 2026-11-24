@@ -45,7 +45,8 @@ function channel(id: string, pages: (SweptMessage[] | Error)[], asked: { limit: 
 const page = (n: number, start = IN_ERA, reactions: SweptReaction[] = []) =>
   Array.from({ length: n }, (_, i) => msg(`m-${start + i}`, start - i, reactions));
 
-const sweep = (channels: SweptChannel[], failed = 0) => sweepStaleThumbs({ me: BOT, channels: async () => ({ channels, failed }) });
+const sweep = (channels: SweptChannel[], failed = 0, capped = 0) =>
+  sweepStaleThumbs({ me: BOT, channels: async () => ({ channels, failed, capped }) });
 
 describe("the stale 👎 sweep", () => {
   it("takes its own 👎 off its own answer, and leaves everything else", async () => {
@@ -87,6 +88,7 @@ describe("the stale 👎 sweep", () => {
     const s = await sweepStaleThumbs({ me: BOT, channels: async () => ({
       channels: [channel("closed", [new Error("Missing Permissions")]), channel("open", [[msg("a1", IN_ERA, [reacted(OLD_DOWN, true)])]])],
       failed: 0,
+      capped: 0,
     }) }, (m) => said.push(m));
     expect(s).toEqual({ channels: 2, messages: 1, removed: 1, failed: 1, capped: 0 });
     expect(said.join("\n")).toContain("closed");
@@ -108,12 +110,15 @@ describe("the sweep runs once it finished", () => {
     await run("DELETE FROM kv WHERE key = ?", [SWEEP_KEY]);
   });
 
-  /** A client with one server and one channel holding one stale 👎; `broken` makes listing the channels fail, and `reads`
+  /** A client with one server and one channel holding one stale 👎; `broken` makes listing the channels fail,
+   *  `archivedMore` makes the archived-thread listing full, `anonymous` leaves the bot's own id unknown, and `reads`
    *  counts how often the channel is read. */
-  function fake(reads: { n: number }, broken = false): Client {
+  function fake(reads: { n: number }, opts: { broken?: boolean; archivedMore?: boolean; anonymous?: boolean } = {}): Client {
+    const threads = () => ({ threads: new Map(), hasMore: !!opts.archivedMore });
     const ch = {
       id: "c1",
       isTextBased: () => true,
+      threads: { fetchArchived: async () => threads() },
       messages: {
         fetch: async () => { reads.n++; return new Map([["a1", msg("a1", IN_ERA, [reacted(OLD_DOWN, true)])]]); },
       },
@@ -122,11 +127,11 @@ describe("the sweep runs once it finished", () => {
     const guild = {
       id: "g1",
       channels: {
-        fetch: broken ? async () => { throw new Error("Missing Access"); } : async () => collection,
-        fetchActiveThreads: async () => ({ threads: new Map() }),
+        fetch: opts.broken ? async () => { throw new Error("Missing Access"); } : async () => collection,
+        fetchActiveThreads: async () => threads(),
       },
     };
-    return { user: { id: BOT }, guilds: { cache: new Map([["g1", guild]]) } } as unknown as Client;
+    return { user: opts.anonymous ? null : { id: BOT }, guilds: { cache: new Map([["g1", guild]]) } } as unknown as Client;
   }
 
   it("sweeps the first time, records it, and never reads a channel again", async () => {
@@ -141,10 +146,27 @@ describe("the sweep runs once it finished", () => {
     expect(reads.n).toBe(1);
   });
 
+  it("doesn't record a walk that couldn't list all the archived threads", async () => {
+    const reads = { n: 0 };
+    const said: string[] = [];
+    expect(await sweepOldThumbs(fake(reads, { archivedMore: true }), (m) => said.push(m))).toMatchObject({ removed: 1, capped: 1 });
+    expect(await kvGet(SWEEP_KEY)).toBeNull();
+    expect(said.join("\n")).toContain("more threads than this walk reads");
+  });
+
+  it("doesn't sweep without the bot's own id: nothing could match, so nothing is recorded", async () => {
+    const reads = { n: 0 };
+    const said: string[] = [];
+    expect(await sweepOldThumbs(fake(reads, { anonymous: true }), (m) => said.push(m))).toBeNull();
+    expect(reads.n).toBe(0);
+    expect(await kvGet(SWEEP_KEY)).toBeNull();
+    expect(said.join("\n")).toContain("own id isn't known");
+  });
+
   it("doesn't record a sweep whose channel list couldn't be read: the next start looks again", async () => {
     const reads = { n: 0 };
     const said: string[] = [];
-    const partial = await sweepOldThumbs(fake(reads, true), (m) => said.push(m));
+    const partial = await sweepOldThumbs(fake(reads, { broken: true }), (m) => said.push(m));
     expect(partial).toMatchObject({ channels: 0, removed: 0, failed: 1 });
     expect(await kvGet(SWEEP_KEY)).toBeNull();
     expect(said.join("\n")).toContain("g1's channels");

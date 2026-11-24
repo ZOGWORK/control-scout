@@ -57,8 +57,8 @@ export interface SweptChannel {
 export interface Sweep {
   /** The bot's own id: the only reactions it takes off are its own, on its own messages. */
   me: string;
-  /** Every channel to look in, with how many lists of them couldn't be read. */
-  channels: () => Promise<{ channels: SweptChannel[]; failed: number }>;
+  /** Every channel to look in, with how many lists of them couldn't be read, and how many were too long to list fully. */
+  channels: () => Promise<{ channels: SweptChannel[]; failed: number; capped: number }>;
 }
 
 export interface Swept {
@@ -78,7 +78,7 @@ export interface Swept {
  *  `THUMBS_FROM`, so a channel's older history is never requested. */
 export async function sweepStaleThumbs(sweep: Sweep, log: (m: string) => void = () => {}): Promise<Swept> {
   const listed = await sweep.channels();
-  const out: Swept = { channels: 0, messages: 0, removed: 0, failed: listed.failed, capped: 0 };
+  const out: Swept = { channels: 0, messages: 0, removed: 0, failed: listed.failed, capped: listed.capped };
   for (const channel of listed.channels) {
     out.channels++;
     let before: string | undefined;
@@ -91,7 +91,11 @@ export async function sweepStaleThumbs(sweep: Sweep, log: (m: string) => void = 
         // No Read Message History there, or the channel or thread is gone: counted, and the next channel goes on.
         out.failed++;
         ended = true;
-        log(`stale 👎: couldn't read ${channel.id} (${(e as Error)?.message ?? String(e)})`);
+        // A server that added the bot before 8.0.2 has no Read Message History: said plainly, since only a new invite
+        // (or the role's permissions) fixes it, and every start asks again until it does.
+        const code = (e as { code?: number })?.code;
+        const why = code === 50001 || code === 50013 ? " — Control Scout needs Read Message History there" : "";
+        log(`stale 👎: couldn't read ${channel.id}${why} (${(e as Error)?.message ?? String(e)})`);
         break;
       }
       if (!read.length) {
@@ -137,7 +141,7 @@ const pager = (ch: { id: string; messages: { fetch: unknown } }): SweptChannel =
 /** Every channel to look in: every text channel of every server the bot is in, and each server's active and recently
  *  archived threads (an answer posted in a thread has its own message id). A list that can't be read is logged and
  *  counted, and the sweep is then not recorded as done. */
-async function places(client: Client, log: (m: string) => void): Promise<{ channels: SweptChannel[]; failed: number }> {
+async function places(client: Client, log: (m: string) => void): Promise<{ channels: SweptChannel[]; failed: number; capped: number }> {
   const out: SweptChannel[] = [];
   const seen = new Set<string>();
   const add = (ch: { id: string; messages: { fetch: unknown } }) => {
@@ -146,6 +150,7 @@ async function places(client: Client, log: (m: string) => void): Promise<{ chann
     out.push(pager(ch));
   };
   let failed = 0;
+  let capped = 0;
   const missed = (what: string, e: unknown) => {
     failed++;
     log(`stale 👎: couldn't list ${what} (${(e as Error)?.message ?? String(e)})`);
@@ -154,20 +159,24 @@ async function places(client: Client, log: (m: string) => void): Promise<{ chann
   for (const guild of client.guilds.cache.values()) {
     const channels = await guild.channels.fetch().catch((e) => missed(`${guild.id}'s channels`, e));
     for (const ch of channels?.values() ?? []) {
-      if (ch?.isTextBased()) add(ch);
+      if (!ch) continue;
+      if (ch.isTextBased()) add(ch);
       // A thread archives a day after its last message, so an answer from the thumbs era can be in one that has: the
-      // most recently archived of each kind, which is where two days of answers would be. Forum and media parents hold
-      // threads too and aren't text channels themselves, so this is asked of every channel that has threads.
+      // most recently archived, which is where two days of answers would be. Forum and media parents hold threads too
+      // and aren't text channels themselves, so this is asked of every channel that has threads. Public threads only:
+      // listing a private archived thread needs Manage Threads, which nothing else here asks for.
       if (!("threads" in ch) || !ch.threads) continue;
-      for (const type of ["public", "private"] as const) {
-        const archived = await ch.threads.fetchArchived({ limit: ARCHIVED, type }).catch((e) => missed(`${ch.id}'s archived threads`, e));
-        for (const t of archived?.threads.values() ?? []) if (t?.isTextBased()) add(t);
+      const archived = await ch.threads.fetchArchived({ limit: ARCHIVED, type: "public" }).catch((e) => missed(`${ch.id}'s archived threads`, e));
+      if (archived?.hasMore) {
+        capped++;
+        log(`stale 👎: ${ch.id} has archived more threads than this walk reads; their older answers are left for the next start`);
       }
+      for (const t of archived?.threads.values() ?? []) if (t?.isTextBased()) add(t);
     }
     const active = await guild.channels.fetchActiveThreads().catch((e) => missed(`${guild.id}'s active threads`, e));
     for (const t of active?.threads.values() ?? []) if (t?.isTextBased()) add(t);
   }
-  return { channels: out, failed };
+  return { channels: out, failed, capped };
 }
 
 /** Take the stale 👎s off, once ever: the `kv` row says it has run, so a restart or a deploy doesn't scan again. Returns
@@ -176,8 +185,14 @@ async function places(client: Client, log: (m: string) => void): Promise<{ chann
 export async function sweepOldThumbs(client: Client, log: (m: string) => void): Promise<Swept | null> {
   const state = await kvGet<{ done?: boolean; removed?: number }>(SWEEP_KEY).catch(() => null);
   if (state?.done) return null;
+  const me = client.user?.id;
+  if (!me) {
+    // Sweeping as "" would match no answer and record a run that did nothing: left for the next start instead.
+    log("stale 👎: the bot's own id isn't known yet; the old thumbs-down is left for the next start");
+    return null;
+  }
   log("stale 👎: taking the old thumbs-down off its answers");
-  const swept = await sweepStaleThumbs({ me: client.user?.id ?? "", channels: () => places(client, log) }, log);
+  const swept = await sweepStaleThumbs({ me, channels: () => places(client, log) }, log);
   if (swept.failed || swept.capped) {
     log(`stale 👎: took ${swept.removed} off ${swept.messages} messages in ${swept.channels} channels, but ${swept.failed + swept.capped} couldn't be finished; the next start looks again`);
     return swept;
