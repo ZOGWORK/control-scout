@@ -88,6 +88,9 @@ console.log(`eval:     ${all.passed - vis.passed}/${all.of - vis.of} answered`);
 const slowest = [...results].sort((x, y) => y.ms - x.ms).slice(0, 5).map((x) => `"${x.q}" ${Math.round(x.ms)} ms`).join(", ");
 console.log(`${Math.round(asked / 1000)} s asking, ${Math.round((performance.now() - started) / 1000)} s in all · slowest ${slowest}`);
 
+// A set with no rows (or no visitors' rows) measures nothing: a bad rebuild, never a pass.
+const empty = !ONLY && (!all.of || !vis.of);
 const below = !ONLY && (rate(all.passed, all.of) < MIN.all || rate(vis.passed, vis.of) < MIN.visitor);
-if (below) console.log("\nBelow the floor: a query a closed issue says answers fails again. Each one is listed above.");
-process.exit(below ? 1 : 0);
+if (empty) console.log("\nThe set holds no queries (or no visitors' queries): rebuild it with npm run search:replay:build.");
+else if (below) console.log("\nBelow the floor: a query a closed issue says answers fails again. Each one is listed above.");
+process.exit(empty || below ? 1 : 0);
