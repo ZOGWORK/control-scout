@@ -13,7 +13,7 @@ import { pickShared as pickAmong } from "./shared.js";
 
 /** A name as typed or stored, compared whole: lower case, any run of punctuation and spaces one space. */
 const wholeName = (n: string | null) => (n ?? "").toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
-import { allowedEdits, joinThousands } from "../fuzzy.js";
+import { allowedEdits, editDistance, joinThousands } from "../fuzzy.js";
 import { edits } from "../regions.js";
 
 export interface TeamSlot {
@@ -52,6 +52,8 @@ export interface Parsed {
   n: number | null;
   /** "match 12", "q12": a match's number. */
   matchNumber: number | null;
+  /** The number is the finals' own ("final 2", "F2"): the second finals match, never the playoffs' M2. */
+  finalNo?: true;
   /** Penalty points left out of scores ("without penalties"): read, and an intent that can't apply it leaves the parse
    *  incomplete. */
   noPenalties: boolean;
@@ -94,6 +96,8 @@ export interface Parsed {
   /** Words left over that name New Jersey conferences as a board's place ("best auto in nj bergen"): set by the server's
    *  executor (server/api/query/execute.ts), never by the parser. */
   conference?: string[];
+  /** Search words typed one letter off and read as the word they nearly spell ("higest": "highest"), silently. */
+  fixed?: { typed: string; read: string }[];
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -158,7 +162,7 @@ const REACH_BETWEEN = new Set([
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
-const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
+const COUNT_BEFORE = /^(?:top|last|final|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
 const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
 /** The words before a number of teams that make it a size ("more than 40 teams", "over 40", "at least 40"). */
 const SIZE_BEFORE = /^(?:than|over|least|most|under|above|below|exceeding)$/;
@@ -443,8 +447,14 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];
     if (t.used) continue;
-    const qm = /^(?:q|qm|qual|m)(\d{1,3})$/.exec(t.w);
-    if (qm) { p.matchNumber = Number(qm[1]); if (/^q/.test(t.w)) p.level = "qual"; else if (/^m\d/.test(t.w)) p.level = "playoff"; t.used = true; symbols.add("thing:match"); continue; }
+    const qm = /^(?:q|qm|qual|m|f)(\d{1,3})$/.exec(t.w);
+    if (qm) {
+      p.matchNumber = Number(qm[1]); t.used = true; symbols.add("thing:match");
+      if (/^q/.test(t.w)) p.level = "qual"; else if (/^m\d/.test(t.w)) p.level = "playoff";
+      // "F2": the finals' second match.
+      else if (/^f\d/.test(t.w)) { p.level = "playoff"; p.finals = true; p.finalNo = true; symbols.add("finals"); }
+      continue;
+    }
     // A team's number with its possessive typed without the apostrophe ("4215s chances"): that team's number.
     const poss = /^(\d{1,5})s$/.exec(t.w);
     if (poss && ctx.names.team(Number(poss[1]))) t.w = poss[1];
@@ -458,6 +468,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     }
     if (!/^\d{1,5}$/.test(t.w)) continue;
     const n = Number(t.w), prev = toks[i - 1]?.w, next = toks[i + 1]?.w;
+    // "Final 2", "finals 1": the finals' match with that number, never a count of the last matches ("final 2 matches"
+    // is one, read below as the lexicon reads "final").
+    if (prev && /^finals?$/.test(prev) && n <= 9 && !toks[i - 1].used && !/^(?:matches|games|events|seasons|teams)$/.test(next ?? "")) {
+      p.matchNumber = n; p.level = "playoff"; p.finals = true; p.finalNo = true; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); symbols.add("finals"); continue;
+    }
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
     // "Top 5 teams", and "top 3" ending the query.
     if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; if (prev === "top") topAt = i - 1; continue; }
@@ -514,7 +529,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   }
 
   // 3. The lexicon, longest phrase first at each place.
-  for (let i = 0; i < toks.length; i++) {
+  const readLexicon = () => { for (let i = 0; i < toks.length; i++) {
     if (toks[i].used) continue;
     const e = lexAt(i);
     if (!e) continue;
@@ -548,7 +563,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
     }
-  }
+  } };
+  readLexicon();
+  // 3a. A search word typed one letter off ("higest", "penalites"), read as that word, silently, in this same parse,
+  // before the words left are read as names (a team's name typed nearly right beside it is then read on its own).
+  const fixed = fixSpelling(toks, ctx.names, typedWords);
+  if (fixed.length) { p.fixed = fixed; readLexicon(); }
   // "Top 10 closest matches": "top" before a count only says how many when another measure follows it, never the
   // highest as well. Its "max" is dropped, so the measure said is the one read.
   // Only the phrases actually read count: "most" in "most accurate" is that phrase's, never a highest of its own.
@@ -627,6 +647,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     runs.push({ from: i, to: j });
     i = j;
   }
+  // A meet's own number after an event's words ("Q16 <town> Meet 2"): in its name when the name with it is an event
+  // too, never a word left over. Only a number no team took (step 2 reads teams' numbers first). The span's new end.
+  const meetNumber = async (x: number, y: number): Promise<number> => {
+    const num = toks[y + 1];
+    return num && !num.used && /^\d{1,2}$/.test(num.w) && await ctx.isEvent(`${toks.slice(x, y + 1).map((t) => t.w).join(" ")} ${num.w}`) ? y + 1 : y;
+  };
   for (const run of runs) {
     const { from, to } = run;
     const words = () => toks.slice(from, to + 1).map((t) => t.w).join(" ");
@@ -672,8 +698,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (place?.kind === "city" && !p.event) {
       let b = to;
       while (b + 1 < toks.length && EVENT_NAME_WORDS.has(toks[b + 1].w)) b++;
-      const span = toks.slice(from, b + 1);
-      if (b > to && await ctx.isEvent(span.map((t) => t.w).join(" "))) {
+      if (b > to && await ctx.isEvent(toks.slice(from, b + 1).map((t) => t.w).join(" "))) {
+        b = await meetNumber(from, b);
+        const span = toks.slice(from, b + 1);
         p.event = { words: span.map((t) => t.w).join(" "), typed: span.map((t) => t.typed).join(" ") };
         span.forEach((t) => (t.used = true));
         if (!toks.some((t) => !span.includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
@@ -692,7 +719,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       while (a > 0 && EVENT_NAME_WORDS.has(toks[a - 1].w)) a--;
       const span = (x: number, y: number) => toks.slice(x, y + 1);
       const wide = (a !== from || b !== to) && await ctx.isEvent(span(a, b).map((t) => t.w).join(" "));
-      const [x, y] = wide ? [a, b] : [from, to];
+      const [x, y0] = wide ? [a, b] : [from, to];
+      const y = await meetNumber(x, y0);
       p.event = { words: span(x, y).map((t) => t.w).join(" "), typed: span(x, y).map((t) => t.typed).join(" ") };
       span(x, y).forEach((t) => (t.used = true));
       if (!toks.some((t) => !span(x, y).includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
@@ -836,6 +864,53 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);
   p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
   return p;
+}
+
+/** The search words a misspelling is fixed to (./lexicon.ts, the words of every phrase that says something, and the
+ *  one-word awards): five letters or more, by length. Never filler ("their", "performance"): fixing one changes no
+ *  answer, and search's older readers read those typos already. */
+const FIX_WORDS = (() => {
+  const by = new Map<number, string[]>();
+  const said = LEXICON.filter((e) => e.syms.some((x) => x.k !== "filler")).flatMap((e) => e.words).filter((w) => !FILLER_WORDS.has(w));
+  for (const w of new Set([...said, ...AWARD_ONE_WORD.keys()])) if (w.length >= 5 && /^[a-z]+$/.test(w)) (by.get(w.length) ?? by.set(w.length, []).get(w.length)!).push(w);
+  return by;
+})();
+
+/** Words the steps after the lexicon read (reaching a place, an event's kind and name words, Worlds' names). */
+const LATER_WORDS = new Set([...REACH, ...ADVANCE_TO, ...WORLDS_WORDS, ...KIND_WORDS, ...EVENT_NAME_WORDS, "division", "divisions", "rookie", "rookies"]);
+/** Two forms of one word: the same but for an ending ("-s", "-es", "-ed", "-d", "-ing", "-ies"/"-ied"). */
+const inflected = (a: string, b: string) => {
+  const root = (w: string) => w.replace(/(?:ies|ied|ing|es|ed|s|d|y)$/, "");
+  return root(a) === root(b);
+};
+/** The words still unread after the lexicon that are one letter off one of its words (a change, a letter added or
+ *  dropped, two letters swapped; the same first letter), read as that word in place: five letters or more, lower case
+ *  only, never two words equally close, never a word of a stored team's, event's or town's name, a place, a near miss
+ *  of an event's word, nor part of a run of words that nearly spells a team's name ("hypnotc robotcs" stays the team).
+ *  Search's spelling layer (server/api/spelling.ts) still reads names; this reads its own words, so no second search
+ *  runs for them. Returns what was fixed. */
+function fixSpelling(toks: Tok[], names: Names, typedWords: string[]): { typed: string; read: string }[] {
+  const out: { typed: string; read: string }[] = [];
+  const caps = new Set(typedWords.filter((w) => /^[A-Z0-9]{2,}$/.test(w)).map((w) => w.toLowerCase()));
+  for (let i = 0; i < toks.length; i++) {
+    if (toks[i].used) continue;
+    let j = i;
+    while (j + 1 < toks.length && !toks[j + 1].used) j++;
+    const run = toks.slice(i, j + 1), said = run.map((t) => t.w).join(" ");
+    i = j;
+    if (said.length >= 5 && (names.nearTeam(said) || names.teamsCalled(said).length || names.place(said))) continue;
+    for (const t of run) {
+      const w = t.w;
+      if (w.length < 5 || !/^[a-z]+$/.test(w) || caps.has(w) || LATER_WORDS.has(w) || names.nameWord?.(w) || names.place(w) || names.nearEventWord?.(w)) continue;
+      const near: string[] = [];
+      for (let len = w.length - 1; len <= w.length + 1; len++) for (const k of FIX_WORDS.get(len) ?? []) if (k[0] === w[0] && editDistance(w, k, 1) === 1) near.push(k);
+      // Another form of the word ("championship" of "championships", "qualifies" of "qualified") is typed as meant.
+      if (near.length !== 1 || inflected(w, near[0])) continue;
+      out.push({ typed: t.typed, read: near[0] });
+      t.w = near[0];
+    }
+  }
+  return out;
 }
 
 /** Whether `inner` lies in `outer` (a town in its region or country, a region in its country). */

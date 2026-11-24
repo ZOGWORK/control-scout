@@ -638,6 +638,16 @@ describe("a match by its number, with no event named (search video brief, point 
     expect(await parse("m11 into the deep finals")).toMatchObject({ intent: "match-label", complete: true, teams: [], level: "playoff", finals: true, matchNumber: 11 });
     expect(await parse("q9 at worlds")).toMatchObject({ intent: "match-label", complete: true, worlds: true, matchNumber: 9, level: "qual" });
   });
+  it("\"final 2\" and \"F1\" are the finals' match by its number; \"final 2 matches\" is still a count (search audit Q4)", async () => {
+    for (const q of ["final 2 at nj states", "nj states final 2", "f2 nj championship"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "match-label", complete: true, finals: true, level: "playoff", matchNumber: 2 });
+    }
+    expect(await parse("6980 final 2 matches")).toMatchObject({ intent: "last-matches", complete: true, n: 2, matchNumber: null, finals: false });
+  });
+  it("a meet's own number after its words is part of the event's name, never a word left over (search audit Q4)", async () => {
+    const meets: ParseContext = { ...ctx, isEvent: async (w) => ["laurel meet 2", "laurel meet", "laurel"].includes(w) };
+    expect(await parseQuery("q16 laurel meet 2", meets)).toMatchObject({ intent: "match-label", complete: true, event: { words: "laurel meet 2" }, matchNumber: 16 });
+  });
 });
 
 describe("with video (search video brief, point 5)", () => {
@@ -676,5 +686,23 @@ describe("who leads a stat (failed search #1012)", () => {
   it("'leads' and 'is leading' are the highest by that stat, everyone's board", async () => {
     expect(await parse("Who leads auto in Texas")).toMatchObject({ intent: "leaderboard", agg: "max", complete: true, leftover: [] });
     expect(await parse("who is leading in opr in nj")).toMatchObject({ intent: "leaderboard", agg: "max", complete: true });
+  });
+});
+
+describe("a search word typed one letter off, read in the parse (search audit Q8)", () => {
+  it("reads the word it nearly spells, silently, and says which it fixed", async () => {
+    expect(await parse("4215 higest score")).toMatchObject({ intent: "highest-score", complete: true, fixed: [{ typed: "higest", read: "highest" }] });
+    expect(await parse("6980 avrage score")).toMatchObject({ intent: "average-score", complete: true });
+    expect(await parse("4215 recrod")).toMatchObject({ intent: "record", complete: true });
+  });
+  it("never a short word, a word of a stored name, nor a word of a team's name typed nearly right", async () => {
+    expect((await parse("4215 scor")).fixed).toBeUndefined();
+    const named: ParseContext = { ...ctx, names: buildNames([...TEAMS, { number: 30020, name: "Recrod Bots", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }], []) };
+    const p = await parseQuery("4215 recrod", named);
+    expect(p.fixed).toBeUndefined();
+    expect(p.complete).toBe(false);
+    // A team's name typed nearly right is the team's, read before any word is fixed.
+    const near = await parseQuery("hypnotc robotics higest score", { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) });
+    expect([near.teams.map((t) => t.number), near.intent, near.fixed]).toEqual([[4215], "highest-score", [{ typed: "higest", read: "highest" }]]);
   });
 });
