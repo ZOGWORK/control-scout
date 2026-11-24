@@ -3,16 +3,18 @@
 //   - the question understood (an intent read, or a card answering it)
 //   - every filter it typed (a place, a time) applied and stated on the card
 //   - a card at all: a team card, a list of names or a fallback alone is a fail
-// and the pass rate printed by pattern. The sets live in scripts/search-heldout.json ({ set, n, q }); the expected
-// numbers are never in it, so the data decides.
+// and the pass rate printed by pattern. The sets live in scripts/search-heldout.json ({ set, n, q }) and, one file a
+// set, in scripts/heldout/<set>.json (its questions in order: a new set is a file of its own, ./heldoutSets.ts); the
+// expected numbers are never in them, so the data decides.
 //
 //   npm run search:heldout                    the shipped snapshot, every set
 //   npm run search:heldout -- --set q260 --out .data/heldout.jsonl
 //   npm run search:heldout -- --only "closest"   the questions with these words only
 //   DATABASE_URL=file:.data/scout.db npm run search:heldout
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { heldoutSets } from "./heldoutSets.js";
 
 const flag = (name: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const SET = flag("set"), OUT = flag("out"), ONLY = flag("only")?.toLowerCase();
@@ -42,7 +44,7 @@ const season = await refreshSearchSeason();
 await forecasterFor(CURRENT_SEASON);
 await forecasterFor(season);
 const FILLER = new Set(LEXICON.filter((e) => e.syms.every((x) => x.k === "filler")).flatMap((e) => e.words));
-const sets = (JSON.parse(readFileSync(join(import.meta.dirname, "search-heldout.json"), "utf8")) as { set: string; n: number; q: string }[])
+const sets = heldoutSets()
   .filter((x) => (!SET || x.set === SET) && (!ONLY || x.q.toLowerCase().includes(ONLY)));
 
 type Row = { set: string; n: number; q: string; ms: number; intent: string | null; filters: string[]; place: string | null; time: string | null; card: string; stated: boolean; pattern: string; unread: string[] };
