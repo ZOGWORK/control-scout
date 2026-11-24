@@ -154,6 +154,10 @@ describe("the thumbs on an answer", () => {
     expect(await owed.worth("x")).toBe(true);
     owed.said("x");
     expect(await owed.worth("x")).toBe(false);
+    // A read that fails says nothing and owes nothing: no message is claimed for a note it may not be due.
+    const broken = downNotes(async () => { throw new Error("database is locked"); });
+    expect(await broken.worth("y")).toBe(false);
+    expect(await broken.worth("y")).toBe(false);
     // Past the cap the oldest answer is forgotten: at worst a repeat note, never a missing one.
     const capped = downNotes(async () => true, 1);
     expect(await capped.worth("a")).toBe(true);
