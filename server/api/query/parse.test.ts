@@ -699,6 +699,8 @@ describe("a search word typed one letter off, read in the parse (search audit Q8
     expect((await parse("4215 scor")).fixed).toBeUndefined();
     // A month or a day is a word of its own, never the search word one letter from it ("march" isn't "match").
     expect((await parse("19564 events in march")).fixed).toBeUndefined();
+    // Nor a word of everyday English one letter from a search word ("words" isn't "worlds").
+    expect((await parse("4215 opr in other words")).fixed).toBeUndefined();
     // Nor a word that is a search word with an ending ("rankings" is read later as it is).
     expect((await parse("hypnotic rankings last season")).fixed).toBeUndefined();
     const named: ParseContext = { ...ctx, names: buildNames([...TEAMS, { number: 30020, name: "Recrod Bots", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }], []) };
