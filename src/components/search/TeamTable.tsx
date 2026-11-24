@@ -103,7 +103,7 @@ export function TeamTable({ table, label, limit }: { table: Table; label: string
               </th>
               <th scope="col" className={th}>Team</th>
               {table.asked && sortTh("asked", table.asked.label, "whitespace-normal leading-tight", table.asked.label)}
-              {sortTh("opr", "OPR", cn("@min-[44rem]/tt:w-28 v8:@min-[44rem]/tt:w-auto v8:font-semibold v8:text-violet-300", byPhase && "@max-[44rem]/tt:hidden"))}
+              {sortTh("opr", "OPR", cn("@min-[44rem]/tt:w-28 v8:@min-[44rem]/tt:w-auto v8:text-violet-300", byPhase && "@max-[44rem]/tt:hidden"))}
               {phases && <>
                 {sortTh("auto", "Auto", cn(onPhone("auto"), "font-semibold", P.auto.text, V8_HEAD))}
                 {sortTh("dc", withEndgame ? "TeleOp" : "DC", cn(onPhone("dc"), "font-semibold", P.teleop.text, V8_HEAD))}

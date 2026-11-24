@@ -73,7 +73,7 @@ export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: (h: SearchHit) 
         {e.status === "started"
           ? <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground/80" data-event-chip="status">Started</span>
           : <EventStatusChip status={e.status} className={cn("px-2 py-0.5", V8_STATUS[e.status === "upcoming" ? "upcoming" : e.status === "live" ? "live" : "finished"].chip)} />}
-        {e.type && <span className={cn("truncate font-semibold", tone?.text ?? "text-muted-foreground")}>{e.typeLabel ?? eventTypeLabel(e.type)}</span>}
+        {e.type && <span className={cn("truncate font-semibold v8:font-medium", tone?.text ?? "text-muted-foreground")}>{e.typeLabel ?? eventTypeLabel(e.type)}</span>}
         {e.teams != null && e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" aria-hidden /><span className="v8:text-accent">{e.teams}</span><span className="sr-only"> teams registered</span></span>}
       </div>
       <Link to={hitHref(h)} onClick={() => onOpen(h)} className="mt-2 line-clamp-2 font-medium leading-snug text-foreground outline-none group-hover:underline after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent">{title}</Link>
