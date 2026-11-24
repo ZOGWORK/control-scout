@@ -199,7 +199,6 @@ export async function asksOfTeams(q: string, now?: number, prefer?: ReadonlySet<
   return p.teams.length > 0 || (!!p.place && /\b(?:teams?|who|whose)\b/i.test(q));
 }
 
-/** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 /** The one stat said beside a run of seasons (null: none; "auto opr" is the auto phase's), or undefined when several are. */
 function seasonsStat(p: Parsed): string | null | undefined {
   let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s))];
@@ -207,6 +206,7 @@ function seasonsStat(p: Parsed): string | null | undefined {
   return stats.length > 1 ? undefined : stats[0] ?? null;
 }
 
+/** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
   // A run of seasons said with "and" ("between 2023 and 2025"): the pipeline's (./seasons.ts), never two searches.
