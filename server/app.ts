@@ -514,6 +514,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     await ensureSearchIndex(rebuildSearch);
     const r = await refine(String(req.query.q ?? ""), { limit: boundedCount(req.query.limit, "limit", 12, 1, 25) });
     if (!r) { res.status(204).end(); return undefined; }
+    // Its hits are clickable in the header box too: known to the click check (server/api/searchServed.ts).
+    noteServed(String(req.query.q ?? ""), r.intent, r.hits);
     return r;
   }));
 
@@ -551,9 +553,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   api.post("/search/click", limiter(30), h(async (req, res) => {
     const q = cleanQuery(String(req.body?.q ?? "")), kind = String(req.body?.kind ?? ""), ref = String(req.body?.ref ?? "");
     if (q && ref) {
-      // What /api/search sent for this query lately (server/api/searchServed.ts): no second search per click. Only a
-      // query it doesn't know (asked too long ago) is searched again.
-      const known = servedHit(q, kind, ref);
+      // What /api/search (or /refine) sent for this query lately (server/api/searchServed.ts): no second search per
+      // click. A query it doesn't know, or a result it didn't see sent (shown from the page's first paint, say), is
+      // searched again as before.
+      const seen = servedHit(q, kind, ref);
+      const known = seen?.hit ? seen : null;
       const a = known ? null : await searchAnswer(q, { learn: false, limit: 25 });
       const found = a ? a.hits.find((x) => x.kind === kind && x.ref === ref) : known!.hit;
       const hit = found ? { kind: found.kind, ref: found.ref, href: !!found.href } : null;
