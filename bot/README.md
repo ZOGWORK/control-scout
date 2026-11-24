@@ -6,6 +6,7 @@ an embed that links back to controlscout.org:
 | Command | What it shows |
 | --- | --- |
 | `/team number:` | Location, season record, OPR (total and auto / TeleOp / endgame), world ranking, next event (or the last one) |
+| `/next team:` | The team's next match: when it starts, its alliance and partner, and the call (win odds, predicted score, confidence). Says plainly when nothing is scheduled yet |
 | `/compare team: other:` | Two teams side by side: records and OPR, and who wins the head-to-head |
 | `/predict event: match:` | The lineup, the favourite's win chance (or "Even call"), the predicted score and its confidence for a qualification match. Once it's played: the score, and the call against it (called, upset, or an even call) |
 | `/event code:` | Dates, place, status, matches played, top 5 by OPR, and the winning alliance once it's over |
@@ -18,6 +19,15 @@ an embed that links back to controlscout.org:
 | `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👍 an answer |
 | `/config` | What the bot is and can do here, read live: the release it runs, the account it is and how many servers it is in, the season, the site it talks to, chat on (or why it isn't) and the chat limit this server has, report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
+
+## /next
+
+`/next` (`bot/next.ts`, `bot/lookups.ts`) answers the question people actually ask at an event: when does this team
+play next? It reads the team's events that aren't over, earliest first (three at most), and takes the first unplayed
+match the team is in, in schedule order: qualifications before playoffs, then series and number, so a match whose time
+FIRST hasn't posted yet still counts. The answer is the same pre-match card the follow reminders post: the lineup, the
+favourite's win chance, the predicted score and its confidence. No schedule with the team on it isn't a guess — it says
+so and links the event to watch, and a team with nothing scheduled this season gets a link to its page. It shows the same call `/predict` does, so the owner's `livePredictions` switch turns it off with `/predict` (`bot/handler.ts`).
 
 ## /ask
 
@@ -61,6 +71,19 @@ An answer's votes are applied in the order Discord sent them, so a 👍 taken ba
 site's failed-search list as a `downvoted` failure. People read it as a dislike button instead, so answers that were
 fine put questions in the queue, and a note had to explain what the button did. Both are gone: the `down` column and
 any `downvoted` rows stay readable (the owner console's total, the queue's own re-check) and nothing writes them.
+
+**The stale 👎s are taken off** (`bot/cleanup.ts`). The emoji the bot added between 7.9.2 and 8.0.1 is still on the
+answers it posted then, where it is a button that does nothing: on the first connection after 8.0.2 the bot walks back
+through the recent messages of every channel it can read — and each server's active threads — removes its own reaction
+from its own answers, and records that server's finished walk in a `kv` row of its own (`bot:down-sweep:<server>`), so a restart never scans it again. Only its
+own reaction goes: a member's 👎 is theirs, and a 👍 stays. The walk ends at a message older than 2026-11-21, before any
+answer could carry a 👎, so a channel's older history is never read and the two days the thumbs existed are all it
+covers. A sweep that met a channel it couldn't read — no Read Message History, a thread since deleted — or a 👎 that
+wouldn't come off is logged and that server is not recorded, so the next start walks it again — and only it; a 👎 that
+is already gone counts as done. A server with no row is walked when it is first seen: one the bot is added back to has its row deleted with its other data (`bot/forget.ts`) and is swept as it joins, and one added while the bot was down is walked on the next start, since no join event reaches it. Archived threads are left
+alone: a thread from those two days has to still be active to be read now, and paging every channel's archive for it
+isn't worth the calls. No row is written to `discord_answers`: the counts are what people clicked and stay readable;
+only the emoji nobody can use any more comes off.
 
 **What it was asked** (`bot/asks.ts`, migration 104). Every ask is recorded — the words as typed with personal data
 redacted, the step search answered it at, whether Bruno's chat answered it, and how long it took; never who asked,
@@ -298,14 +321,17 @@ code; you can also type a code yourself).
 ## Invite link
 
 ```
-https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=2147502144
+https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=2147567680
 ```
 
 - Scopes: `bot` and `applications.commands`.
-- Permissions `2147502144` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Use Application
-  Commands (2147483648). Nothing else: the bot never reads messages, manages anything or joins voice. A server that
-  invited the bot before 7.9.2 has no Add Reactions, so its answers get no 👍 until the bot is re-invited with this
-  link; nothing else changes for it.
+- Permissions `2147567680` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Read Message History
+  (65536) + Use Application Commands (2147483648). Nothing else: the bot manages nothing and joins voice. It reads a
+  channel's recent messages once, on the first start after 8.0.2, to take its own stale 👎s off its answers
+  (`bot/cleanup.ts`, above), and otherwise only the messages that @mention it. A server that invited the bot before
+  7.9.2 has no Add Reactions, so its answers get no 👍 until the bot is re-invited with this link; a server that
+  invited it before 8.0.2 has no Read Message History, so the stale 👎s stay until then (the bot logs which channels
+  it can't read and asks again on every start). Nothing else changes for either.
 
 `discordInviteUrl()` in `src/shared/discord.ts` builds exactly this link.
 

@@ -11,7 +11,7 @@ import { SEARCH_PALETTE } from "../../../lib/textTones";
 import { MatchBox } from "./MatchBox";
 
 /** A class list as v8 off reads it (v8 adds its own `v8:` classes after these: ./v8tone.ts). */
-const offV8 = (c: string) => c.split(" ").filter((t) => !t.startsWith("v8:")).join(" ");
+const offV8 = (c: string) => c.split(" ").filter((t) => !/^v8(light)?:/.test(t)).join(" ");
 import { StatAnswerCard } from "./StatAnswer";
 
 afterEach(cleanup);

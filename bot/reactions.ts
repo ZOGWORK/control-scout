@@ -8,7 +8,8 @@
 // There is no 👎. It was meant as "this answer is wrong, file it", and it filed the question the answer was written for
 // in the site's failed-search queue — but people read it as a dislike button, so answers that were fine put questions in
 // the queue and drew a note explaining what the button did. What it counted before stays: the `down` column and the
-// queue's `downvoted` rows are still read (reactionUsage, the queue's own re-check); nothing writes them any more.
+// queue's `downvoted` rows are still read (reactionUsage, the queue's own re-check); nothing writes them any more, and
+// the emoji itself is taken off the answers that still carry one, once, on the first start after 8.0.2 (bot/cleanup.ts).
 import { get, run } from "../server/db.js";
 import { askText } from "./asks.js";
 
@@ -25,7 +26,7 @@ export async function trackAnswer(messageId: string, guild: string | null, quest
 }
 
 /** One vote on an answer: `delta` 1 for a reaction added, -1 for one taken back. Never below zero. Only 👍 counts: any
- *  other emoji — a 👎 left on an answer from before it was removed, or anything else — changes nothing. */
+ *  other emoji — a 👎 still on an answer from before it was removed, or anything else — changes nothing. */
 export async function vote(messageId: string, emoji: string, delta: 1 | -1 = 1, now = Date.now()): Promise<number> {
   const column = emoji === GOOD ? "up" : null;
   if (!column || !messageId) return 0;

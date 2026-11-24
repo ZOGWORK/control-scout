@@ -12,7 +12,7 @@ import { dateRange, seasonLabel } from "../../../lib/format";
 import { EventStatusChip } from "../../EventChips";
 import { HitFacts } from "../SearchBox";
 import { cn } from "../../cn";
-import { V8_STATUS } from "./v8tone";
+import { V8_SOFT, V8_STATUS } from "./v8tone";
 import { RecordText, better } from "./answerCells";
 import { compareSides, compareTeams, eventFacts, teamParts } from "./results";
 import { eventName } from "./records";
@@ -67,12 +67,13 @@ export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: (h: SearchHit) 
   const [s, c] = h.ref.split(":");
   return (
     <div data-result="event" className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3 v8:border-line v8:p-5">
-      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1 v8:hidden", tone?.bar ?? "bg-text-base/25")} />
+      {/* v8: a thin bar in the event's status hue (Live, Upcoming, Finished each its own; a started event with no end date is live, as its section says). */}
+      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1 v8:w-0.5", tone?.bar ?? "bg-text-base/25", V8_STATUS[e.status === "upcoming" ? "upcoming" : e.status === "live" || e.status === "started" ? "live" : "finished"].dot)} data-status-bar />
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {e.status === "started"
           ? <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground/80" data-event-chip="status">Started</span>
           : <EventStatusChip status={e.status} className={cn("px-2 py-0.5", V8_STATUS[e.status === "upcoming" ? "upcoming" : e.status === "live" ? "live" : "finished"].chip)} />}
-        {e.type && <span className={cn("truncate font-semibold", tone?.text ?? "text-muted-foreground", "v8:font-normal v8:text-text-muted")}>{e.typeLabel ?? eventTypeLabel(e.type)}</span>}
+        {e.type && <span className={cn("truncate font-semibold v8:font-medium", tone?.text ?? "text-muted-foreground")}>{e.typeLabel ?? eventTypeLabel(e.type)}</span>}
         {e.teams != null && e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" aria-hidden /><span className="v8:text-accent">{e.teams}</span><span className="sr-only"> teams registered</span></span>}
       </div>
       <Link to={hitHref(h)} onClick={() => onOpen(h)} className="mt-2 line-clamp-2 font-medium leading-snug text-foreground outline-none group-hover:underline after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent">{title}</Link>
@@ -90,6 +91,9 @@ export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: (h: SearchHit) 
   );
 }
 
+/** v8: a team's season numbers in their colours (a record green, OPR purple, a rank the accent). */
+const BADGE_V8 = [V8_SOFT.win.text, V8_SOFT.purple.text, V8_SOFT.accent.text];
+
 /** A team's season numbers, each only when the data has it (never a placeholder). */
 export function TeamBadges({ summary, className }: { summary: SeasonSummary | undefined; className?: string }) {
   if (!summary) return null;
@@ -104,7 +108,7 @@ export function TeamBadges({ summary, className }: { summary: SeasonSummary | un
     <span className={cn("mt-1.5 flex flex-wrap gap-1", className)} data-badges>
       {badges.map((b) => (
         <span key={b.label} className="inline-flex max-w-full items-baseline gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] max-md:rounded-full max-md:bg-muted max-md:px-2 max-md:text-xs">
-          <span className="shrink-0 text-muted-foreground">{b.label}</span><span className="min-w-0 break-words font-semibold tabular-nums text-foreground">{b.value}</span>
+          <span className="shrink-0 text-muted-foreground">{b.label}</span><span className={cn("min-w-0 break-words font-semibold tabular-nums text-foreground", BADGE_V8[b.label === "OPR" ? 1 : b.label === "OPR rank" || b.label === "Last event" ? 2 : 0])}>{b.value}</span>
         </span>
       ))}
     </span>
@@ -120,7 +124,7 @@ export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?:
   const href = hitHref(h);
   return (
     <div data-result="team" className="lift group relative flex min-h-14 items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
-      <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Shield className="size-4" aria-hidden /></span>
+      <span className={cn("mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground", V8_SOFT.accent.fill)}><Shield className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <Link to={hitHref(h)} onClick={onOpen} className="block break-words text-sm font-medium text-foreground outline-none group-hover:text-accent-text v8:group-hover:text-foreground after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent max-md:text-base">{parts?.name ? <>{parts.number} | {parts.name}</> : teamTitle(h.title)}</Link>
         {h.subtitle && <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground max-md:text-sm"><MapPin className="size-3.5 shrink-0 md:hidden" aria-hidden /><span className="truncate">{h.subtitle}</span></span>}
