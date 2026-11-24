@@ -89,6 +89,68 @@ export const phraseAlternation = (phrases: readonly string[]): string =>
 /** The championship's names as a regex alternation (no group, no word edges: the reader adds its own). */
 export const championshipNames = (): string => phraseAlternation(CHAMPIONSHIP_NAMES);
 
+/** Every state championship said as all of them ("all of their states", "every state championship"). */
+const EVERY_STATES = ["all", "every", "each"].flatMap((w) => ["", "of "].flatMap((of) => ["", "their ", "its ", "the "].flatMap((whose) =>
+  ["states", "state champ", "state champs", "state champion", "state champions", "state championship", "state championships"].map((s) => `${w} ${of}${whose}${s}`))));
+
+/** How a question was said, beside what it asks (the parse's `cues`, server/api/query/execute.ts reads them): one match
+ *  or several, a comparison word, "official". Never a symbol, so never what an intent is picked by; read in any word
+ *  order from the parser's own words (its spelling fixes in), never the raw text again. */
+export const CUES = {
+  /** Words that ask for two teams side by side, beside "or" alone ("12345 or 67890" is a search for either). */
+  compare: ["compare", "comparison", "compared", "side by side", "better", "stronger"],
+  /** One match said ("the highest-scoring match"); `matches`, several ("matches", "scores"). */
+  match: ["match", "game"],
+  matches: ["matches", "games", "scores"],
+  /** A list of matches said by a word of its kind ("upsets", "close games"). */
+  matchList: ["matches", "games", "scores", "upsets", "comebacks", "blowouts", "routs", "mismatches", "underdogs", "wins", "losses", "predictions", "misses"],
+  /** One team said ("the best team", "who"); `teams`, several; `sorted`, a sort asked for. */
+  team: ["team", "who"],
+  teams: ["teams"],
+  whose: ["whose"],
+  sorted: ["sorted", "ranked", "order"],
+  leaderboard: ["leaderboard", "leaderboards", "leader board", "leader boards"],
+  /** A count's extreme ("most wins"), never "best". */
+  mostFewest: ["most", "fewest", "least"],
+  /** A judgement ("best", "worst"): for a stat where fewer is better, the fewest is the best. */
+  goodBad: ["best", "better", "cleanest", "worst", "weakest"],
+  official: ["official", "officially"],
+  /** A chance asked for in words: "predicted wins" or "prediction this season" ask for something else. */
+  chance: ["chance", "chances", "odds", "probability", "probabilities", "likelihood"],
+  /** Now said ("current win streaks", "active streaks"). */
+  now: ["now", "rn", "currently", "current", "ongoing", "active", "still", "at the moment"],
+  vs: ["vs", "versus"],
+  everyStates: EVERY_STATES,
+} as const satisfies Record<string, readonly string[]>;
+export type Cue = keyof typeof CUES;
+
+/** Each cue's phrases by their first word, the longest first. */
+const CUE_STARTS: Map<string, { cue: Cue; words: string[] }[]> = (() => {
+  const m = new Map<string, { cue: Cue; words: string[] }[]>();
+  for (const [cue, phrases] of Object.entries(CUES) as [Cue, readonly string[]][]) {
+    for (const ph of phrases) {
+      const words = ph.split(" ");
+      m.set(words[0], [...(m.get(words[0]) ?? []), { cue, words }]);
+    }
+  }
+  for (const list of m.values()) list.sort((a, b) => b.words.length - a.words.length);
+  return m;
+})();
+
+/** How many times each cue is said in `words` (a phrase counted once per place it starts, each cue once there). */
+export function cuesOf(words: readonly string[]): Partial<Record<Cue, number>> {
+  const out: Partial<Record<Cue, number>> = {};
+  for (let i = 0; i < words.length; i++) {
+    const seen = new Set<Cue>();
+    for (const { cue, words: ph } of CUE_STARTS.get(words[i]) ?? []) {
+      if (seen.has(cue) || !ph.every((w, j) => words[i + j] === w)) continue;
+      seen.add(cue);
+      out[cue] = (out[cue] ?? 0) + 1;
+    }
+  }
+  return out;
+}
+
 /** Each entry: the phrases (`|`-separated, words separated by spaces) and the symbol they mean (or several: "margin of
  *  victory" is a margin of wins only). Longer phrases win over shorter ones at the same place, so "win rate" is one
  *  metric, never "win" and "rate". */
