@@ -43,7 +43,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
-import { cornerBox, foundBox, zoomCss } from "./lib/frameZoom";
+import { cornerBox, foundBox, sampleFinds, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type RecheckRead, type RecheckVerdict } from "./lib/reviewRecheck";
 
@@ -471,8 +471,9 @@ async function shrunkBar(page: Page, t: number): Promise<{ x0: number; x1: numbe
  *  for a recording whose producer shrank FTC Live's screen into a corner over the camera (USTXNAM1 2024: the top-left
  *  42% of the frame) and that isn't in CORNER_BOXES. Null: no bar found in one place on enough frames. */
 async function findShrunk(page: Page, length: number): Promise<string | null> {
-  const found: ({ x0: number; x1: number; top: number; bottom: number } | null)[] = [];
-  for (const f of SPLIT_SAMPLES) found.push(await shrunkBar(page, Math.round(length * f)));
+  // The whole frame: a split check that found a side and still read nothing leaves its zoom on.
+  await zoomTo(page, "");
+  const found = await sampleFinds(SPLIT_SAMPLES.map((f) => Math.round(length * f)), (t) => shrunkBar(page, t), (e) => e instanceof EventOverTime);
   const box = foundBox(found);
   return box && zoomCss(box.box, box.shift);
 }

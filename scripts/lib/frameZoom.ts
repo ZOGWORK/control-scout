@@ -52,3 +52,17 @@ export function foundBox(found: readonly ({ x0: number; x1: number; top: number;
   const top = median(best.map((b) => b.top)), bottom = median(best.map((b) => b.bottom));
   return { box: [x0, top, x1 - x0, bottom - top], shift: BAR_FLOOR - height };
 }
+
+/**
+ * Each sampled frame's find (`read` at each of `times`, in turn), a frame whose read failed (a refused seek, a failed
+ * screenshot, a read over its limit) counted as finding nothing: one bad frame mustn't throw away the others' votes,
+ * where foundBox needs only FOUND_MIN of them. An error `stops` says ends the event (the reader's EventOverTime) is
+ * thrown on, as anywhere else.
+ */
+export async function sampleFinds<T>(times: readonly number[], read: (t: number) => Promise<T | null>, stops: (e: unknown) => boolean): Promise<(T | null)[]> {
+  const out: (T | null)[] = [];
+  for (const t of times) {
+    try { out.push(await read(t)); } catch (e) { if (stops(e)) throw e; out.push(null); }
+  }
+  return out;
+}
