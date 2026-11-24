@@ -1,7 +1,7 @@
 // The bug report dialog's attachment rules: what a paste or drop yields, which files are kept and why one is refused
 // (types, the 5 MB video cap, one video, six screenshots), and the short device name.
 import { describe, expect, it } from "vitest";
-import { addFiles, deviceOf, filesFrom } from "./BugReport";
+import { addFiles, deviceOf, filesFrom } from "./BugReportForm";
 import { BUG_LIMITS } from "../../shared/bugReport";
 
 const file = (type: string, bytes: number, name = "f") => new File([new Uint8Array(bytes)], name, { type });
