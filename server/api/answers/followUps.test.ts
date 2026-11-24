@@ -456,6 +456,12 @@ describe("one reading for every list, and a long question's cut said", () => {
     const asked = `/ask question:${q}`;
     const b = await searchAnswer(asked, { limit: 25, learn: false });
     expect((b.understood?.unread ?? []).filter((u) => u.includes("qualifier"))).toEqual([queryCut(asked)]);
+    // A long question answered as chat: its cut said on that answer too (Loopy on #2263).
+    const chat = "who made you? ".repeat(13).trim();
+    expect(chat.length).toBeGreaterThan(SEARCH_MAX_QUERY);
+    const c = await searchAnswer(chat, { limit: 25, learn: false });
+    expect(c.chat).toBe("meta");
+    expect(c.understood?.unread?.at(-1)).toBe(queryCut(chat));
   });
 });
 
