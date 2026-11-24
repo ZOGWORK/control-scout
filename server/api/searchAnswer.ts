@@ -98,6 +98,9 @@ export interface AnswerOptions {
   rewrites?: number;
   /** Set for every search searchAnswer makes inside a top-level one: the layers (./searchLayers.ts) run once, outside. */
   inner?: boolean;
+  /** Set once a question longer than search reads has had its cut said: the searches it makes again (a rewrite) don't
+   *  say it a second time. */
+  cutSaid?: boolean;
   /** False: no spelling correction (./spelling.ts), for the corrected query's own search. */
   spell?: boolean;
   /** A stat answer's blocks are worked out (/search and its first paint, never the dropdown): ./answers/index.ts.
@@ -276,13 +279,14 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     const meant = await respell(String(raw ?? ""), await parseContext(opts.now, opts.prefer));
     if (meant) return { ...(await searchAnswer(meant, { ...opts, respelled: true })), q: cleanQuery(raw) };
   }
-  const read = await answerOf(raw, opts);
-  if (opts.inner || opts.intents === false || opts.rewrites) return read;
+  // A question longer than search reads (a pasted paragraph): the words past the cut are said under the answer, as
+  // words it read past are, never dropped silently. Said once, here: a rewrite searched again inside says none.
+  const top = !(opts.inner || opts.intents === false || opts.rewrites);
+  const cut = top && !opts.cutSaid ? queryCut(String(raw ?? "")) : "";
+  const read = await answerOf(raw, cut ? { ...opts, cutSaid: true } : opts);
+  if (!top) return read;
   // "When is <event>": an event's editions with the date of the one meant leading (./answers/whenEvent.ts).
   const told = carryOutcome(read, whenEventAnswer(String(raw ?? ""), read, opts.now ?? Date.now()));
-  // A question longer than search reads (a pasted paragraph): the words past the cut are said under the answer, as
-  // words it read past are, never dropped silently.
-  const cut = queryCut(String(raw ?? ""));
   const a = cut && told.understood ? carryOutcome(told, { ...told, understood: { ...told.understood, unread: [...(told.understood.unread ?? []), cut] } }) : told;
   // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
   // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
