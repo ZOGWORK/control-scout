@@ -156,6 +156,24 @@ person. Before anything is stored, on the query as typed (before it's lowercased
    be sent, don't reopen it. One closed as not planned, or labelled `dismissed`, stays closed (its count still goes
    up in the table).
 
+## Replay
+
+A closed issue is a query search answers now, so a change that breaks one again should fail before it deploys,
+not reopen the issue in production. `scripts/search-replay.json` holds every query of every issue closed as
+completed (issues closed as not planned or as a duplicate, or labelled `dismissed`, are left out, and so is a
+query whose newest issue is), one row each: the newest issue
+holding it, the result type it was filed with, `source` (`eval` when it is word for word a question of
+`scripts/search-heldout.json` or `scripts/search-signoff/sets`, our own test traffic; `visitor` otherwise) and the
+`kind` of answer it got when last recorded.
+
+- `npm run search:replay` asks each one of the shipped snapshot in process (no server) and passes it when
+  `failureOf` finds no failure. It prints every query that fails and every one answered with another kind than
+  recorded (not a failure), the pass rate for all and for visitors' queries alone, and fails below the floor
+  (`MIN` in `scripts/search-replay.ts`). CI runs it in the `search-eval` job.
+- `npm run search:replay:build` rewrites the set from the closed issues (one read-only `gh issue list`), keeping
+  the kinds already recorded; then `npm run search:replay -- --write` records today's kinds. Raise `MIN` as the
+  rate goes up.
+
 ## Every automated GitHub action
 
 1. Create an issue, with its labels.

@@ -6,11 +6,15 @@ import { kvSet, migrate, openDb, setDb } from "../db";
 
 const made: string[] = [];
 let moves = 0;
-vi.mock("./searchReads.js", () => ({ keptGeneration: () => moves }));
+let index = "v1";
+const ahead: string[][] = [];
+let failing = 0;
+vi.mock("./searchReads.js", () => ({ keptGeneration: () => moves, searchVersion: async () => index }));
 vi.mock("./answers/followUps.js", () => ({
+  precomputeFollowUps: async (qs: string[]) => { ahead.push([...qs]); const n = Math.max(0, qs.length - failing); failing = 0; return n; },
   pageAnswer: async (q: string, limit: number) => { made.push(`${q}|${limit}`); return { q, hits: [], pages: [], step: "deterministic", weak: false }; },
 }));
-const { HOT_MAX, hotList, noteAsked, saveHot, warmHot } = await import("./searchWarm");
+const { HOT_MAX, hotList, noteAsked, precomputeHot, saveHot, warmHot } = await import("./searchWarm");
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -88,5 +92,56 @@ describe("most-asked searches", () => {
       delete (made as { push?: unknown }).push;
     }
     expect(made).toEqual(["moved|25", "moved|25"]);
+  });
+  it("makes the most-asked searches' follow-ups ahead once per search index, the page's own searches only", async () => {
+    await db.kvSet("search:hot:one", [["4215", 25], ["dropdown", 12], ["top teams", 25]]);
+    ahead.length = 0;
+    expect(await precomputeHot()).toBe(2);
+    expect(ahead).toEqual([["4215", "top teams"]]);
+    // The same index: nothing again. Two asks at once: one run.
+    expect(await precomputeHot()).toBe(0);
+    index = "v2";
+    const [x, y] = await Promise.all([precomputeHot(), precomputeHot()]);
+    expect([x, y]).toEqual([2, 2]);
+    expect(ahead.length).toBe(2);
+  });
+
+  it("tries the index again when one of its follow-up sets wasn't made", async () => {
+    await db.kvSet("search:hot:one", [["4215", 25], ["top teams", 25]]);
+    index = "v3";
+    ahead.length = 0;
+    failing = 1;
+    expect(await precomputeHot()).toBe(1);
+    expect(await precomputeHot()).toBe(2);
+    expect(await precomputeHot()).toBe(0);
+    expect(ahead.length).toBe(2);
+  });
+
+  it("tries the index again when the list was empty (a lane that couldn't be read)", async () => {
+    await db.kvSet("search:hot:one", []);
+    index = "v4";
+    ahead.length = 0;
+    expect(await precomputeHot()).toBe(0);
+    await db.kvSet("search:hot:one", [["4215", 25]]);
+    expect(await precomputeHot()).toBe(1);
+    expect(ahead).toEqual([[], ["4215"]]);
+  });
+
+  it("tries the index again when one lane's list couldn't be read", async () => {
+    await db.kvSet("search:hot:one", [["4215", 25]]);
+    await db.kvSet("search:hot:a", [["lane a only", 25]]);
+    await db.kvSet("search:hot:b", []);
+    index = "v5";
+    ahead.length = 0;
+    // The first read is lane a's (LANES order): it fails once.
+    const spy = vi.spyOn(db, "kvGet").mockRejectedValueOnce(new Error("busy"));
+    try {
+      expect(await precomputeHot()).toBe(1);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await precomputeHot()).toBe(2);
+    expect(await precomputeHot()).toBe(0);
+    expect(ahead).toEqual([["4215"], ["lane a only", "4215"]]);
   });
 });

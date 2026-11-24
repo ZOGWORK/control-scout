@@ -37,7 +37,7 @@ describe("v8 Light", () => {
   });
 
   it("the deeper steps v8's light-on-dark colours map to read as text on white and on their own 10% tint", () => {
-    const steps = Object.keys(light).filter((k) => /^--color-(emerald|sky|blue|rose|red|violet|purple|orange|yellow|amber|green|slate|pink)-\d+$/.test(k));
+    const steps = Object.keys(light).filter((k) => /^--color-(emerald|sky|blue|rose|red|violet|purple|orange|yellow|amber|green|slate|pink|fuchsia|indigo|cyan|lime)-\d+$/.test(k));
     expect(steps.length).toBeGreaterThan(15);
     const white = c("--sh-card");
     for (const k of steps) {
