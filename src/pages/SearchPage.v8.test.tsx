@@ -131,6 +131,13 @@ describe("search page, v8 on", () => {
     expect(cards[1].textContent).not.toContain("USNJQ2");
   });
 
+  it("a started event (begun, no last day stored) wears live's colour, as its section does", () => {
+    state.answer = answer([ev("USNJQ3", "NJ Qualifier Three", iso(today)), ev("USNJQ4", "NJ Qualifier Four", iso(new Date(today.getTime() + 20 * 864e5)))]);
+    const { container } = show("/search?q=nj%20qualifier");
+    const card = [...container.querySelectorAll('[data-result="event"]')].find((c) => c.textContent!.includes("Three"))!;
+    expect(card.querySelector("[data-status-bar]")!.className).toContain("v8:bg-live");
+  });
+
   it("an event with divisions is one card with its divisions inside (never a row each that reads as duplicates)", () => {
     const parent = ev("USNJCMP", "New Jersey Championship", "2026-03-15");
     const divs = ["Parkway", "Turnpike"].map((d) => ({ ...ev(`USNJCMP${d[0]}`, `New Jersey Championship - ${d} Division`, "2026-03-15"), parent: "USNJCMP" }));

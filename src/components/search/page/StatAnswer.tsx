@@ -16,7 +16,7 @@ import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
 import { Badge } from "../../ui/basic";
 import { OPR_CARDS, oprRankHint } from "../../oprCards";
 import { meaningOf } from "../../../lib/textTones";
-import { TONE, V8_SOFT, v8Stat, v8Tile, v8TileColour, type SoftColour } from "./v8tone";
+import { TONE, V8_SOFT, softOfFill, v8Stat, v8Tile, v8TileColour, type SoftColour } from "./v8tone";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
 import { AnswerVideo, NoVideoLine, RowPlay, useRowPlays } from "./AnswerVideo";
@@ -34,8 +34,8 @@ import { LeagueTable } from "../../LeagueTable";
 const H3 = "mb-1.5 text-xs font-semibold text-team-a v8:font-medium v8:text-accent"; // v8: section labels in the accent
 /** A tile in search's palette: a thick left bar in its colour over a wash of it (StatTile's border, its left widened). */
 const PAINT = "border-l-[6px] border-y-transparent border-r-transparent";
-/** v8: the soft colour a swatch's words are in (to colour its tile's icon and bracket the same), if any. */
-const softOf = (s: Swatch): SoftColour | null => (Object.keys(V8_SOFT) as SoftColour[]).find((k) => k !== "neutral" && s.text.split(" ").includes(V8_SOFT[k].text)) ?? null;
+/** v8: the colour a swatch is in (to colour its tile's bar, wash and icon the same), if any. */
+const softOf = (s: Swatch): SoftColour | null => softOfFill(s.fill);
 /** A phase's swatch; the total (no phase) in the team hue. */
 const sw = (k: string): Swatch => (k in TONE ? TONE[k as keyof typeof TONE] : TEAM_SWATCH[0]);
 
