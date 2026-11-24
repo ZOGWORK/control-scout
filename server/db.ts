@@ -2815,6 +2815,39 @@ CREATE INDEX IF NOT EXISTS discord_follows_event ON discord_follows (event);
 ALTER TABLE discord_answers ADD COLUMN question TEXT;
 `,
   },
+  {
+    version: 106,
+    name: "search speed and score (daily totals only)",
+    sql: `
+-- Search's time to answer and how searches end (server/searchScore.ts), from a sample of the page loads of visitors who
+-- allowed usage statistics (SEARCH_SAMPLE, src/shared/searchScore.ts): one row per UTC day x screen bucket x entry
+-- (load: opened on /search; app: searched inside the open app). No raw events, queries, IPs, user agents or IDs.
+-- searches: sampled searches; direct/results/page/sorry/error: how they ended; re_search: typed again within 30 s of
+-- an answer; via_related/via_ask: started from a Related searches or People also ask tap. timed: searches with a time
+-- to answer, total_ms/max_ms over those; b0..b11: timed searches per bucket (ANSWER_BUCKETS_MS, the last open-ended).
+CREATE TABLE search_score_daily (
+  day TEXT NOT NULL,
+  screen TEXT NOT NULL,
+  entry TEXT NOT NULL,
+  searches INTEGER NOT NULL DEFAULT 0,
+  direct INTEGER NOT NULL DEFAULT 0,
+  results INTEGER NOT NULL DEFAULT 0,
+  page INTEGER NOT NULL DEFAULT 0,
+  sorry INTEGER NOT NULL DEFAULT 0,
+  error INTEGER NOT NULL DEFAULT 0,
+  re_search INTEGER NOT NULL DEFAULT 0,
+  via_related INTEGER NOT NULL DEFAULT 0,
+  via_ask INTEGER NOT NULL DEFAULT 0,
+  timed INTEGER NOT NULL DEFAULT 0,
+  total_ms REAL NOT NULL DEFAULT 0,
+  max_ms REAL NOT NULL DEFAULT 0,
+  b0 INTEGER NOT NULL DEFAULT 0, b1 INTEGER NOT NULL DEFAULT 0, b2 INTEGER NOT NULL DEFAULT 0, b3 INTEGER NOT NULL DEFAULT 0,
+  b4 INTEGER NOT NULL DEFAULT 0, b5 INTEGER NOT NULL DEFAULT 0, b6 INTEGER NOT NULL DEFAULT 0, b7 INTEGER NOT NULL DEFAULT 0,
+  b8 INTEGER NOT NULL DEFAULT 0, b9 INTEGER NOT NULL DEFAULT 0, b10 INTEGER NOT NULL DEFAULT 0, b11 INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, screen, entry)
+) WITHOUT ROWID;
+`,
+  },
 ];
 
 export type Db = Client;

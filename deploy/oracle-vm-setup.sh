@@ -275,10 +275,16 @@ done
 # Keep the working site so a certificate failure can put it back.
 [ -f "$SITE_CONF" ] && cp -p "$SITE_CONF" "$SITE_CONF.last-good"
 cat > "$SITE_CONF" <<EOF
+# Each request's time too (\$request_time: first byte in to last byte out; \$upstream_response_time: the app's
+# part), in a log of its own beside the usual access.log, which keeps its format for whatever reads it. Rotated
+# with the rest of /var/log/nginx/*.log. A second or slower: grep ' rt=[1-9]' /var/log/nginx/control-scout-timing.log
+log_format cs_timed '\$remote_addr [\$time_local] "\$request" \$status \$body_bytes_sent "\$http_user_agent" rt=\$request_time urt=\$upstream_response_time';
 server {
   listen 80;
   server_name $ALL_DOMAINS;
   client_max_body_size 4m;
+  access_log /var/log/nginx/access.log;
+  access_log /var/log/nginx/control-scout-timing.log cs_timed;
   location /.well-known/acme-challenge/ { root /var/www/certbot; }
   # Live streams (server-sent events): scout entries and the notification inbox.
   # Unbuffered, and held open for up to an hour between bytes (the server sends

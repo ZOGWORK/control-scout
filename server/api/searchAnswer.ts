@@ -57,6 +57,7 @@ import { clausesAnswer, isCard, readClauses } from "./query/clauses.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
 import { chatAnswer } from "./answers/chat.js";
+import { whenEventAnswer } from "./answers/whenEvent.js";
 import { fold, names } from "./query/names.js";
 import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
@@ -275,8 +276,10 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     const meant = await respell(String(raw ?? ""), await parseContext(opts.now, opts.prefer));
     if (meant) return { ...(await searchAnswer(meant, { ...opts, respelled: true })), q: cleanQuery(raw) };
   }
-  const a = await answerOf(raw, opts);
-  if (opts.inner || opts.intents === false || opts.rewrites) return a;
+  const read = await answerOf(raw, opts);
+  if (opts.inner || opts.intents === false || opts.rewrites) return read;
+  // "When is <event>": an event's editions with the date of the one meant leading (./answers/whenEvent.ts).
+  const a = carryOutcome(read, whenEventAnswer(String(raw ?? ""), read, opts.now ?? Date.now()));
   // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
   // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
   // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.
@@ -1266,7 +1269,24 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
       const named = kindless.join(" ");
       const evs = (await search(named, limit, prefer, undefined, season)).filter((h) => h.kind === "event");
       const kind = said.find((w) => !kindless.includes(w))!.toLowerCase();
-      if (evs.length) return answer(q, { hits: evs, step: "deterministic", understood: { kind: "names", label: `No ${singularize(kind)} named "${named}": events matching "${named}"` } });
+      // Events whose own name fits the words typed ("willow" for the Willow Conference's events). Found only by a near
+      // spelling, or by the place they're in rather than their name ("romania finas": Meet the Final Depths, held in
+      // Romania), no event is guessed: the page asks which event, with the events of that kind each word typed right
+      // names first (Romania Championship), one tap each.
+      const fit = evs.filter((h) => fuzzyScore(named, h.title) >= 0.9);
+      if (fit.length) return answer(q, { hits: fit, step: "deterministic", understood: { kind: "names", label: `No ${singularize(kind)} named "${named}": events matching "${named}"` } });
+      if (evs.length) {
+        const typedRight = kindless.filter((w) => /^\p{L}{3,}$/u.test(w));
+        const ofKind = (await Promise.all(typedRight.map(async (w) => (await search(`${w} ${kind}`, limit, prefer, undefined, season))
+          .filter((h) => h.kind === "event" && words(h.title).includes(normalize(w)))))).flat();
+        const seen = new Set<string>();
+        const choices = [...ofKind, ...evs].filter((h) => !seen.has(key(h)) && !!seen.add(key(h))).slice(0, limit);
+        return answer(q, {
+          hits: choices, step: "did-you-mean",
+          understood: { kind: "names", label: `Which event? No ${singularize(kind)} named "${named}"` },
+          suggest: [...new Set(choices.map((h) => h.title))].slice(0, 4),
+        });
+      }
     }
     // A team the query names after all (a number in it, or a name with trailing words): the team, never "no results".
     const kept = opts.intents === false ? null : await teamFallback(rest, prefer);

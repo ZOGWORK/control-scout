@@ -55,8 +55,10 @@ import { BOOT_HITS } from "../lib/searchBoot";
 import { handedAnswer, forgetHandoff } from "../components/search/handoff";
 import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta";
 import { useApi, qs } from "../lib/api";
+import { useSearchScore } from "../lib/searchScore";
 import { cn } from "../components/cn";
 import { Verdict } from "../components/search/page/Verdict";
+import { ConsentDock } from "../components/layout/ConsentBanner";
 import { PeopleAlsoAsk, PeopleAlsoAskPending, RelatedSearches, TeamHighlights, useFollowUps } from "../components/search/page/FollowUps";
 
 const RESULT_KINDS = new Set(["place", "team", "event", "match"]);
@@ -121,7 +123,7 @@ export default function SearchPage() {
   const askedTime = askedWhen(ax);
   const filters = readFilters(params, askedTime);
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
-  const leaving = useSubmittedSearch(query, { answer, live, error, searchNow, seeded });
+  const { waiting: leaving, going } = useSubmittedSearch(query, { answer, live, error, searchNow, seeded });
   // Home's glide on its way in (search/glide.ts): the loading shapes until the box lands, then the answer.
   const gliding = useGliding();
   const phone = useMediaQuery("(max-width: 767px)");
@@ -171,9 +173,10 @@ export default function SearchPage() {
   const listed = useMemo(() => [...hits, ...closest], [hits, closest]);
   const asked = (h2h ? compareSeason(h2h) : null) ?? listed.find((h) => h.kind === "team" && h.linkSeason != null)?.linkSeason ?? null;
   const base = asked ?? season;
-  const sumPath = (s: number) => (teamNums.length ? `/api/teams-summary${qs({ season: s, teams: teamNums.join(",") })}` : null);
-  const now = useApi<{ teams: TeamSummary[] }>(sumPath(base));
-  const before = useApi<{ teams: TeamSummary[] }>(asked == null ? sumPath(season - 1) : null);
+  // One request: with no season asked for, the one before comes in the same answer (?before=1).
+  const sums = useApi<{ teams: TeamSummary[]; before?: { teams: TeamSummary[] } }>(teamNums.length ? `/api/teams-summary${qs({ season: base, teams: teamNums.join(","), before: asked == null ? 1 : undefined })}` : null);
+  const now = { data: sums.data, error: sums.error };
+  const before = { data: sums.data?.before };
   // Phones: teams picked with VS Compare for the Compare (2) bar (this search's own: a new search starts empty), and
   // the Compare result whose head-to-head is open over the results.
   const [picks, setPicks] = useState<number[]>([]);
@@ -321,9 +324,12 @@ export default function SearchPage() {
   // v8 on a wide screen: the places go beside the results too (with People also ask), as the classic look had them.
   const placesAside = v8 && wide ? view.find((x) => x.id === "place") : undefined;
   // A card or stat answer's one match, to watch under People also ask (./search/page/AnswerVideo.tsx clipLabel).
-  const clipFor = clipLabel(answer);
+  const clipAbout = clipLabel(answer);
   // v8: the side column holds People also ask and the places only (a summary or head-to-head stays in the results).
   const side = v8 ? askAside || !!placesAside : !!panel || askAside;
+  // Its "Watch this match" shows once: in the side column when there is one on a wide screen, else in the results.
+  const clipAside = wide && side ? clipAbout : null;
+  const clipFor = clipAside ? null : clipAbout;
   // The right-hand column: the panel, kept in view while scrolling (beside the results, or beside "nothing found").
   const sideColumn = side ? (
     <div className="space-y-5 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-side>
@@ -337,7 +343,7 @@ export default function SearchPage() {
       {askAside && (follow.ask.length ? <PeopleAlsoAsk ask={follow.ask} /> : follow.pending ? <PeopleAlsoAskPending /> : null)}
       {placesAside && <V8Group s={placesAside} statuses={statuses} summaries={summaries} skip={null} picks={picks} onPick={pick} phone={false} twoCol={false} onOpen={open} />}
       {/* The match a card or stat answer is about, to watch: under People also ask (./search/page/AnswerVideo.tsx). */}
-      {wide && clipFor && <AnswerClip about={clipFor} />}
+      {clipAside && <AnswerClip about={clipAside} />}
     </div>
   ) : null;
   // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
@@ -346,7 +352,10 @@ export default function SearchPage() {
   // first in both, so it's the same field when one replaces the other: what's being typed in it (and the keyboard)
   // stays put when a search's results arrive.
   const bar = phone ? <PhoneSearchBar query={query} /> : null;
-  if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving || gliding)) return <>{bar}<SearchSkeleton query={query} /></>;
+  const loading = !!query && !error && ((busy && ((stale && !reseason) || !found)) || leaving || gliding);
+  // Time to answer and how the search ended, anonymous and sampled (../lib/searchScore.ts).
+  useSearchScore(query, { drawn: !!query && !loading, settled: !busy && !stale, leaving: going, outcome: error ? "error" : !found || ax?.sorry ? "sorry" : answered ? "direct" : "results" });
+  if (loading) return <>{bar}<SearchSkeleton query={query} /></>;
   return (
     <>{bar}
     {/* One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
@@ -372,9 +381,11 @@ export default function SearchPage() {
         {!query ? "Search" : ax?.notInPack && !busy && !error ? "Not in your downloaded pack" : ax?.sorry && !busy && !error ? SORRY_SENTENCE : found ? (!error && namesLine) || <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : SORRY_SENTENCE}
       </h1>
       {/* Not when the heading already says the reading (a shared name's line). */}
-      {v8 && query && found && !busy && !error && !namesLine && <UnderstoodLine query={query} understood={ax?.understood} className="mt-2" />}
+      {/* With the answer already in hand (the first paint's, or the box's), from the first frame: it used to wait for
+          the page's refresh of that same answer, and pushed everything under it down when it came (phones: 42px). */}
+      {v8 && query && found && (!busy || seeded) && !error && !namesLine && <UnderstoodLine query={query} understood={ax?.understood} className="mt-2" />}
       {/* A follow-up: the tab's last search, which Bruno reads it with, as a tap back to it. */}
-      {followFrom && found && !busy && !error && (
+      {followFrom && found && (!busy || seeded) && !error && (
         <p className="mt-1.5 break-words text-xs text-muted-foreground" data-follow-from>
           Your last search: <Link to={`/search?q=${encodeURIComponent(followFrom.q)}${followFrom.season != null ? `&in=${followFrom.season}` : ""}`} className="font-medium text-foreground underline-offset-2 hover:underline">{followFrom.q}{followFrom.season != null && ` (${seasonLabel(followFrom.season)})`}</Link>
         </p>
@@ -436,7 +447,7 @@ export default function SearchPage() {
                 {/* A highlights search leads with the team's videos (./search/page/HighlightReel.tsx); a team searched alone
                     shows its standout matches' clips under its card. */}
                 {reel === "lead" && <HighlightReel stat={answer!.stat!} className="mb-5" />}
-                {teamAnswer ? <V8TeamAnswer team={teamAnswer.number} name={teamAnswer.name} place={teamAnswer.place} summary={summaries.get(teamAnswer.number)} stat={answer?.stat} />
+                {teamAnswer ? <V8TeamAnswer team={teamAnswer.number} name={teamAnswer.name} place={teamAnswer.place} summary={summaries.get(teamAnswer.number)} pending={!now.data && !now.error} stat={answer?.stat} />
                   : answer?.stat ? <StatAnswerCard stat={answer.stat} heading={title ?? undefined} explain={inStat ? answer.card : undefined} />
                   : apps.length ? <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} headline={answer!.card!.headline} trip={answer!.card!.trip} apps={apps} />
                   : answer?.card?.kind === "event-awards" ? <EventAwardsAnswer card={answer.card} heading={title ?? undefined} />
@@ -445,8 +456,10 @@ export default function SearchPage() {
                 {/* A compound question's other parts, each its own card, in the order asked. */}
                 <ClauseCards clauses={answer?.clauses} />
                 {!answer?.stat && !answer?.card && !teamAnswer && <AnswerVideo className="mt-0 max-sm:mx-0" />}
+                {/* The privacy question, until it's answered: here under the answer, never floating over it. */}
+                <ConsentDock className="mt-4" />
                 {reel === "under" && <HighlightReel stat={answer!.stat!} className="mt-5" />}
-                <FollowChips lead={ax?.sorry ? [] : ax?.suggest} ask={askAside ? [] : follow.ask} related={follow.related} seeAll={follow.asked ?? query} className={answer?.stat || answer?.card || teamAnswer ? "mt-4" : "mb-1"} />
+                <FollowChips lead={ax?.sorry ? [] : ax?.suggest} ask={askAside || !wide ? [] : follow.ask} related={follow.related} seeAll={follow.asked ?? query} className={answer?.stat || answer?.card || teamAnswer ? "mt-4" : "mb-1"} />
                 {/* Going deeper: plain rows, grouped, five each. */}
                 {standout && <RowGroup key={standout.rows.map((r) => r.href).join("|")} id="standout" title={standout.title} count={standout.rows.length}>{[<MatchRows key="m" rows={standout.rows} />]}</RowGroup>}
                 {!!compares.length && (
@@ -466,6 +479,10 @@ export default function SearchPage() {
                     </div>
                   </div>
                 )}
+                {/* Phones (no side column): People also ask as its own block after the results, each question opening to its
+                    answer, as the wide page has it beside them. Here, not under the answer: it may come after the first
+                    frame, and below the results it moves nothing on screen. Its questions leave the chips above. */}
+                {!wide && <PeopleAlsoAsk ask={follow.ask} className="mt-8" />}
                 {(apps.length > 0 || !!quality) && <div className="mt-6">{summary}</div>}
                 {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mt-6" />}
                 {clipFor && <AnswerClip about={clipFor} className="mt-6" />}
