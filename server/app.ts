@@ -524,7 +524,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     await ensureSearchIndex(rebuildSearch);
     // The page's own search choices (its preferred teams), so he reads the results the page shows.
     const q = String(req.query.q ?? "");
-    const opts = { prefer: preferOf(req.query.prefer), limit: SEARCH_PAGE_LIMIT };
+    // `after`: the tab's last search, for a question pointing back at it (searchBrunoAnswer.ts followUpOf), read in the
+    // season picked on its answer (?afterSeason=, as /search's ?season=) so he reads the records that were on screen.
+    // ?afterMy=: the My team a "my"/"our" earlier search was asked with (?my= on /api/search), read the same way. Both
+    // are applied inside the ask, where a failed read is no answer (204), never an error.
+    const opts = { prefer: preferOf(req.query.prefer), limit: SEARCH_PAGE_LIMIT, after: typeof req.query.after === "string" ? req.query.after : undefined, afterSeason: pickedSeasonOf(req.query.afterSeason), afterMy: myTeamOf(req.query.afterMy) };
     if (req.query.stream !== "1") {
       const r = await brunoAnswer(q, opts);
       if (!r) { res.status(204).end(); return undefined; }
