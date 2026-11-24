@@ -33,7 +33,7 @@ import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { advancementAt, advancementEvent, advancementNotListed, seasonAdvancement } from "../answers/families/advancement.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { eventFieldAnswer, saysOtherThanOpr } from "../answers/families/eventVersus.js";
-import { placesAnswer } from "./places.js";
+import { placesAnswer, placesAsk } from "./places.js";
 import { asksNow, streakBoardAnswer } from "./streakBoard.js";
 import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
@@ -76,8 +76,8 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   // Two places joined ("nj vs texas average opr", "teams from nj or ny"): side by side, or one board over both; any
   // other question of two places is left to search's other readers, never answered for the first place alone.
   if (p.places) {
-    const stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
-    return stats.length > 1 ? null : placesAnswer(p, stats[0] ?? null, opts);
+    const stat = placesStat(p);
+    return stat === undefined ? null : placesAnswer(p, stat, opts);
   }
   // An event's matches and nothing else asked ("<event> matches", "matches at <event>"): its matches in the order played,
   // each row playing its clip, as a team's matches do.
@@ -200,8 +200,16 @@ export async function asksOfTeams(q: string, now?: number, prefer?: ReadonlySet<
 }
 
 /** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
+/** The one board stat said beside two places (null: none), or undefined when several are. */
+function placesStat(p: Parsed): string | null | undefined {
+  const stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
+  return stats.length > 1 ? undefined : stats[0] ?? null;
+}
+
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
+  // Two places joined ("teams from nj or ny"): the pipeline's (./places.ts), never two searches joined by "or".
+  if (p.places) { const stat = placesStat(p); return stat !== undefined && !!placesAsk(p, stat); }
   // A comparison is the pipeline's only at an event (or Worlds, or states): "12345 or 67890" stays the boolean reader's.
   return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event || p.worlds || p.states || seasonOdds(p)) && (p.intent !== "count-teams" || townCount(p))
     && (p.intent !== "compare" || !!p.event || p.worlds || p.states);

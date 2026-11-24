@@ -540,6 +540,8 @@ export interface LeaderboardQuestion {
   region: Region | null;
   /** More places beside `region` ("teams from nj or ny"): the teams of any of them, on one board. */
   also?: Region[];
+  /** The word joining them as typed ("or", "and"): the board names them with it. */
+  alsoWord?: "or" | "and";
   city: string | null;
   season: number | null;
   /** "best team in New Jersey by OPR": one team asked for. */

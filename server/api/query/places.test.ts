@@ -67,6 +67,8 @@ describe("two places in one question", () => {
     const s = a.stat as StatAnswer;
     const board = s.blocks.find((b) => b.kind === "leaderboard");
     expect(board?.kind === "leaderboard" && board.rows.map((r) => r.team.label.split(" ")[0])).toEqual(["30311", "30312", "30301", "30302", "30303", "30304"]);
-    expect(a.understood?.label).toMatch(/in Maryland and Delaware/);
+    expect(a.understood?.label).toMatch(/in Maryland or Delaware/);
+    // "or" joins the places, never two searches ("teams from maryland" or "delaware"): every word read.
+    for (const q of ["teams from maryland or delaware", "teams from delaware or maryland"]) expect((await full(q)).understood?.unread ?? [], q).toEqual([]);
   });
 });
