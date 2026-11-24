@@ -188,23 +188,30 @@ export function ungrounded(text: string, facts: string[], question: string, team
     return numbers(text).filter((n) => !known(n, all));
   }
   const isTeam = (n: string) => /^\d+$/.test(n) && teams.has(Number(n));
-  // Each fact line with the teams it is about: its own, else, for a list item ("- …"), those of the heading line it is
-  // listed under ("Bad Wolf (6980) awards:").
+  // Each fact line with the teams it is about: its own, else, for a list item ("- …"), those of the line it is listed
+  // under, the last one that isn't an item ("Bad Wolf (6980) awards:", "Awards for team 4215: 3 found."). A compare
+  // row under two teams ("- OPR: 142.3 vs 46.9 (+95.4)") gives each side's numbers to its own team, in order.
   let heading: number[] = [];
   const lines = facts.map((f) => {
     const own = [...new Set(numbers(f).filter(isTeam).map(Number))];
     const item = /^\s*-\s/.test(f);
     const about = own.length || !item ? own : heading;
-    if (!item) heading = /:\s*$/.test(f) ? own : [];
-    return { nums: new Set(numbers(f)), about };
+    if (!item) heading = own;
+    const side = new Map<string, number[]>();
+    const row = item && !own.length && about.length > 1 ? /^\s*-\s[^:]*:\s*(.*?)\s*(?:\([^)]*\))?\s*$/.exec(f) : null;
+    const parts = row ? row[1].split(/\s+vs\.?\s+/) : [];
+    if (parts.length === about.length) parts.forEach((p, i) => { for (const n of numbers(p)) side.set(n, [...(side.get(n) ?? []), about[i]]); });
+    return { nums: new Set(numbers(f)), about, side };
   });
+  // The teams a number of a line is about: its side's on a compare row, else the line's.
+  const whose = (l: (typeof lines)[number], n: string) => l.side.get(n) ?? l.side.get(n.replace(/\.0+$/, "")) ?? [...l.side].find(([k]) => k.replace(/\.0+$/, "") === n)?.[1] ?? l.about;
   const bad: string[] = [];
   for (const s of sentences(text)) {
     const named = new Set(numbers(s).filter(isTeam).map(Number));
     for (const n of numbers(s)) {
       if (named.has(Number(n)) && isTeam(n)) continue;
       if (known(n, asked)) continue;
-      const ok = lines.some((l) => known(n, l.nums) && (!named.size || !l.about.length || l.about.some((t) => named.has(t))));
+      const ok = lines.some((l) => { if (!known(n, l.nums)) return false; const of = whose(l, n); return !named.size || !of.length || of.some((t) => named.has(t)); });
       if (!ok) bad.push(n);
     }
   }
@@ -325,7 +332,8 @@ export function previewOf(raw: string, facts: string[], question: string, teams?
   const [text, ...points] = pieces.map((s, i) => tidy(s, i ? 200 : 600));
   if (!text) return null;
   const shown = { text, points: points.filter(Boolean).slice(0, 6) };
-  return grounded([shown.text, ...shown.points].join(" "), facts, question, teams) ? shown : undefined;
+  // Each piece checked on its own, as the answer is (ask): joined, two pieces could read as one sentence.
+  return [shown.text, ...shown.points].every((x) => grounded(x, facts, question, teams)) ? shown : undefined;
 }
 
 /** `asked`: the words as the page asked /api/search for them (its kept answer is keyed by them, untouched). */
