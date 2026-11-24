@@ -439,10 +439,18 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
 // Events, matches, awards, scouting
 // ---------------------------------------------------------------------------
 
+/** A place's colour (the owner's call, #2240): 1st gold, 2nd silver, 3rd copper, every other place a light blue-grey.
+ *  Text and a matching hairline, in both looks; deeper shades on a light theme so each stays readable. */
+export function placeTone(rank: number): string {
+  return rank === 1 ? "border-amber-600/50 text-amber-700 dark:border-[#fcd34d]/50 dark:text-[#fcd34d]"
+    : rank === 2 ? "border-zinc-400/70 text-zinc-500 dark:border-zinc-300/50 dark:text-zinc-300"
+    : rank === 3 ? "border-[#a4532a]/50 text-[#a4532a] dark:border-[#d9895b]/50 dark:text-[#d9895b]"
+    : "border-slate-400/50 text-slate-500 dark:border-[#a9bbd3]/30 dark:text-[#a9bbd3]";
+}
+
 function RankMedal({ rank }: { rank: number | null }) {
   if (!rank) return <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border text-xs text-muted-foreground v8:rounded-lg v8:border-line">—</span>;
-  // v8: the #1 rank is mint text on a hairline (mint marks "best", never as a fill behind text).
-  return <span className={cn("flex size-10 shrink-0 flex-col items-center justify-center rounded-xl border font-display text-sm font-bold tabular-nums v8:rounded-lg v8:font-semibold", rank === 1 ? "border-accent/50 bg-accent/15 text-accent-text v8:border-accent/40 v8:bg-transparent" : rank <= 4 ? "border-border bg-muted v8:border-line v8:bg-ink/[0.04]" : "border-border v8:border-line")}>
+  return <span className={cn("flex size-10 shrink-0 flex-col items-center justify-center rounded-xl border bg-transparent font-display text-sm font-bold tabular-nums v8:rounded-lg v8:font-semibold", placeTone(rank))} data-place={rank <= 3 ? rank : "other"}>
     <span className="text-[10px] font-medium uppercase leading-none text-muted-foreground v8:text-[0.625rem] v8:normal-case v8:text-text-faint">rank</span>{rank}
   </span>;
 }

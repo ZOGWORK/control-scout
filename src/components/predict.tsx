@@ -496,9 +496,11 @@ const LEVEL_TITLE: Record<MatchView["level"], string> = { qual: "Qualifications"
 const scheduleOrder = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 : a.level === "qual" ? -1 : 1) || a.series - b.series || a.number - b.number;
 
 type Group = { key: string; title: string; date?: string; href?: string; ms: MatchView[] };
-type ListItem = { kind: "head"; gi: number; key: string } | { kind: "match"; gi: number; m: MatchView; key: string };
+type ListItem = { kind: "head"; gi: number; key: string } | { kind: "match"; gi: number; m: MatchView; key: string } | { kind: "break"; gi: number; key: string };
 /** Heights for rows not measured yet (desktop / phone, measured on real rows): a match, a level heading, an event's heading. */
 const ROW_H = 71, ROW_H_PHONE = 105, HEAD_H = 29, EVENT_HEAD_H = 41, EVENT_HEAD_H_PHONE = 57;
+/** The gap between an event's qualification matches and its playoffs, in a list across events (h-3 + its two borders). */
+const BREAK_H = 14;
 /** A touch screen's match row is taller: its team chips and status row are 44 px (measured: 142 px a row at 390 px). */
 const ROW_TOUCH_EXTRA = 38;
 /** A heading that links its event is a 44 px line on a touch screen (measured: 56 px with its padding and border). */
@@ -564,12 +566,17 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   // season) renders only the rows on screen (src/components/ui/windowing.tsx).
   const flat = useMemo(() => groups.flatMap((g, gi): ListItem[] => [
     ...(groups.length > 1 || g.href ? [{ kind: "head" as const, gi, key: `head:${g.key}:${gi}` }] : []),
-    ...g.ms.map((m) => ({ kind: "match" as const, gi, m, key: id(m) })),
+    // Across events (no Qualifications / Playoffs headings): a gap where an event's matches change level.
+    ...g.ms.flatMap((m, i): ListItem[] => [
+      ...(i > 0 && g.ms[i - 1].level !== m.level ? [{ kind: "break" as const, gi, key: `break:${id(m)}` }] : []),
+      { kind: "match" as const, gi, m, key: id(m) },
+    ]),
   ]), [groups]);
   const [phone] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(PHONE).matches);
   const [touch] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches);
   const estimate = (i: number) => {
     const x = flat[i];
+    if (x.kind === "break") return BREAK_H;
     return x.kind === "match" ? (phone ? ROW_H_PHONE : ROW_H) + (touch ? ROW_TOUCH_EXTRA : 0) : groups[x.gi].date ? (phone ? EVENT_HEAD_H_PHONE : EVENT_HEAD_H) : touch && groups[x.gi].href ? HEAD_TOUCH_H : HEAD_H;
   };
   const loc = useLocation();
@@ -630,6 +637,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
       parts.push(part);
     } else if (gap) part.kids.push(gap);
     if (item.kind === "head") part.kids.push(<GroupHeading key={item.key} g={groups[item.gi]} rowProps={rowProps} />);
+    else if (item.kind === "break") part.kids.push(<div key={item.key} {...rowProps} aria-hidden className="h-3 border-y border-border bg-background" data-level-break />);
     else {
       const m = item.m;
       part.kids.push(<ListRow key={item.key} k={item.key} index={index} measure={rowProps.ref} toggle={toggle} m={m} highlight={highlight} outcomeAccent={outcomeAccent} eventName={eventNames?.[m.code]} open={open.has(item.key)} live={!!live && m.key === live} />);
