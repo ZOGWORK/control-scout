@@ -500,9 +500,13 @@ describe("the match finder: matches by a measure, every filter applied and state
 
 describe("a win or a loss said with a team's match question is a filter", () => {
   it("the most recent loss, the first win, the last losses and the longest losing streak", async () => {
-    const lost = await stat("when did 4215 last lose a match");
+    const lost = await stat("4215 last lost match");
     expect(lost.title).toMatch(/^Most recent loss/);
     expect(lost.headline?.value).toMatch(/^Lost /);
+    // Asked "when": the same loss, its day the headline (src/shared/query/whenWhere.ts).
+    const when = await stat("when did 4215 last lose a match");
+    expect([when.title, when.headline?.label]).toEqual([`When: ${lost.title}`, expect.stringMatching(/^Lost /)]);
+    expect(when.headline?.value).toMatch(/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/);
     const won = await stat("4215 first win");
     expect(won.title).toMatch(/^First win/);
     expect(won.headline?.value).toMatch(/^Won /);
