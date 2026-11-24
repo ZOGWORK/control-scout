@@ -20,7 +20,7 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   // A team whose name is a reaction ("lol"), and teams whose names start like one: a reaction never lists them.
-  for (const [n, name] of [[36403, "lol"], [38378, "Lollipop"], [4215, "Hypnotic Robotics"]] as const) {
+  for (const [n, name] of [[36403, "lol"], [38378, "Lollipop"], [4215, "Hypnotic Robotics"], [23702, "Weatherford Eagles"]] as const) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Oradell', 'NJ', 'USA')", [n, name]);
     await run("INSERT INTO team_seasons (season, team) VALUES (2026, ?)", [n]);
     await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2026, ?, 80, 10, 6, 4, 0)", [n]);
@@ -75,6 +75,33 @@ describe("a question about getting something (#2213)", () => {
     expect(r.card?.title).toBe("Not in FTC results data");
     expect(r.hits).toEqual([]);
     expect(r.understood?.kind).toBe("question");
+  });
+});
+
+describe("a question about something search holds nothing on (#2234, #2227, #2228)", () => {
+  it("says it isn't in FTC results, whatever place, time or ranking is said with it", async () => {
+    for (const q of ["whats the weather like in seattle tonight", "is it going to rain in denver tomorrow", "best burger in boston"]) {
+      const r = await full(q);
+      expect(r.chat, q).toBe("off-topic");
+      expect(r.card?.title, q).toBe("Not in FTC results data");
+      // What search covers, and what to ask instead: never the parts lines of "where do i get".
+      expect(r.card?.lines.map((l) => l.detail), q).toContain("Anything outside FTC robotics isn't in those records");
+      expect(r.hits, q).toEqual([]);
+      expect(failureOf(q, r), q).toBeNull();
+    }
+  });
+  it("is never a team found from its words, nor a spelling's guess at its other words", async () => {
+    // "weather" begins a team's name: the question is still about the weather.
+    const r = await full("what will the weather be in seattle this weekend");
+    expect(r.chat).toBe("off-topic");
+    expect(r.didYouMean).toBeUndefined();
+  });
+  it("leaves a question about FTC data to search, with a place, a time or a ranking", async () => {
+    expect(chatKind("best team in boston")).toBeNull();
+    expect(chatKind("who has the best auto in texas")).toBeNull();
+    expect(chatKind("4215 events this weekend")).toBeNull();
+    expect(chatKind("teams in seattle")).toBeNull();
+    expect((await full("hypnotic robotics")).chat).toBeUndefined();
   });
 });
 
