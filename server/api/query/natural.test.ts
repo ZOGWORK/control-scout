@@ -155,13 +155,19 @@ describe("when: the last, the first and the next time (3b)", () => {
       "when was the last time hypnotic robotics played a match", "4215 last played when", "the last time 4215 played?"];
     const first = card(await ask(SAID[0]));
     expect(first).toMatchObject({ kind: "recent-match", title: "Most recent match" });
-    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
+    // Asked "when": the same match, its day the headline (src/shared/query/whenWhere.ts).
+    const day = (await ask(SAID[0])).stat?.headline?.sub?.match(/[A-Z][a-z]{2} \d{1,2}, \d{4}/)?.[0];
+    expect(day).toBeTruthy();
+    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(/^when\b/i.test(q) ? { ...first, title: `When: ${first.title}`, headline: day } : first);
   });
   it("the first time: its first match", async () => {
     const SAID = ["when was 4215's first match", "when did 4215 first play", "4215 first ever match", "the first time 4215 played a match", "when did hypnotic robotics first play"];
-    const first = card(await ask(SAID[0]));
+    const first = card(await ask(SAID[2]));
     expect(first).toMatchObject({ kind: "first-match", title: "First match" });
-    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
+    // Asked "when": the same match, its day the headline.
+    const day = (await ask(SAID[2])).stat?.headline?.sub?.match(/[A-Z][a-z]{2} \d{1,2}, \d{4}/)?.[0];
+    expect(day).toBeTruthy();
+    for (const q of SAID) expect(card(await ask(q)), q).toEqual(/^when\b/i.test(q) ? { ...first, title: `When: ${first.title}`, headline: day } : first);
   });
   it("when a team started: its rookie year", async () => {
     for (const q of ["4215 rookie year", "what year did 4215 start", "when did 4215 begin competing", "when did 4215 join ftc", "when was 4215 founded", "which year did hypnotic robotics start", "which season was 4215 founded", "what season did 4215 start"]) {
