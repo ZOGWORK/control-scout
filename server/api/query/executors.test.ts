@@ -47,10 +47,42 @@ describe("the executors' no", () => {
     expect(to).toBeGreaterThan(from);
     const body = src.slice(from, to).replace(/^\s*\/\/.*$/gm, "");
     expect(body).not.toMatch(/return null\b/);
+    // Each call's own last argument, found by its own closing bracket (never a neighbour's).
+    let calls = 0;
     for (const m of body.matchAll(/\b(?:no|or)\(/g)) {
-      const call = body.slice(m.index!, m.index! + 400);
-      const why = m[0] === "no(" ? /^no\(("[^"`$]*")\)/.exec(call) : /, ("[^"`$]*")\)/.exec(call);
-      expect(why, call.slice(0, 120)).toBeTruthy();
+      const open = m.index! + m[0].length;
+      let depth = 1, i = open, quote: string | null = null;
+      for (; i < body.length && depth; i++) {
+        const c = body[i];
+        if (quote) { if (c === "\\") i++; else if (c === quote) quote = null; continue; }
+        if (c === '"' || c === "'" || c === "`") quote = c;
+        else if ("([{".includes(c)) depth++;
+        else if (")]}".includes(c)) depth--;
+      }
+      const args = body.slice(open, i - 1);
+      // The reason is the last argument: after the last comma outside any bracket or string.
+      let cut = 0, d = 0, q: string | null = null;
+      for (let j = 0; j < args.length; j++) {
+        const c = args[j];
+        if (q) { if (c === "\\") j++; else if (c === q) q = null; continue; }
+        if (c === '"' || c === "'" || c === "`") q = c;
+        else if ("([{".includes(c)) d++;
+        else if (")]}".includes(c)) d--;
+        else if (c === "," && d === 0) cut = j + 1;
+      }
+      expect(args.slice(cut).trim(), body.slice(m.index!, m.index! + 120)).toMatch(/^"[^"`$\\]+"$/);
+      calls++;
     }
+    expect(calls).toBeGreaterThan(40);
+  });
+
+  it("is each call's own, and read as search reads the query", async () => {
+    // Asked at once: each question keeps its own reason, never the other's.
+    await Promise.all([pipelineAnswer("4215 top 3 wins", opts), pipelineAnswer("best finals teams", opts), pipelineAnswer("4215 or 23268", opts)]);
+    expect(declineOf("4215 top 3 wins")).toBe("a count its answer doesn't list");
+    expect(declineOf("best finals teams")).toBe("the finals filter only matches");
+    expect(declineOf("4215 or 23268")).toBe("two teams with no comparison said");
+    // A question mark, spaces and case aside, as the route's query and the pipeline's differ.
+    expect(declineOf("  Best finals TEAMS?")).toBe("the finals filter only matches");
   });
 });

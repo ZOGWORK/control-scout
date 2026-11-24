@@ -76,7 +76,7 @@ only): totals by type and the most counted patterns with their latest examples.
 | Soft type | When |
 |---|---|
 | `unread-words` | The answer read past words the visitor typed (its `understood.unread`, the "Not used in this answer" note) |
-| `declined` | The pipeline read the question's intent, and another reader answered instead: the executor's own reason for its no ("a count its answer doesn't list", "a trend draws the whole season": `server/api/query/execute.ts` `declineOf`), else "read whole, not answered by it", or "words it couldn't read" |
+| `declined` | The pipeline read the question's intent, and another reader answered instead. Read whole: the executor's own reason for its no ("a count its answer doesn't list", "a trend draws the whole season": `server/api/query/execute.ts` `declineOf`), else "read whole, not answered by it". Not read whole: "words it couldn't read", whatever reason was noted |
 
 Both are classified on structured fields only (the answer's unread list, the pipeline's reading on the answer, the
 parser's intent and completeness), never on label text. Working them out reads the query's pattern for answered
