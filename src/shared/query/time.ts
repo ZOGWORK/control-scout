@@ -195,7 +195,7 @@ function seasonRange(rest: string, yearOk: (y: number) => boolean): { t: TimeSlo
   let m = new RegExp(String.raw`\b(?:from\s+|between\s+)?(?:the\s+)?${SEASON_WORD}(?:\s+seasons?)?\s+(?:to|through|thru|until|and|-|–)\s+(?:the\s+)?${SEASON_WORD}(?:\s+seasons?)?\b`).exec(rest);
   if (m && (!/\band\b/.test(m[0]) || /\bbetween\b/.test(m[0]))) {
     const a = ok(m[1], m[2]), b = ok(m[3], m[4]);
-    if (a != null && b != null && a < b) return { m, t: { kind: "seasons", season: null, range: { from: a, to: b }, label: `${seasonText(a)} to ${seasonText(b)}`, typed: m[0].trim() } };
+    if (a != null && b != null && a < b) return { m, t: { kind: "seasons", season: null, range: { from: a, to: b }, label: /^between/.test(m[0].trim()) ? `between ${seasonText(a)} and ${seasonText(b)}` : `${seasonText(a)} to ${seasonText(b)}`, typed: m[0].trim() } };
   }
   // "since 2023", "since the 2023-24 season": that season to the latest.
   m = new RegExp(String.raw`\b(?:since|from)\s+(?:the\s+)?${SEASON_WORD}(?:\s+seasons?)?(?:\s+(?:on|onwards?))?\b`).exec(rest);
