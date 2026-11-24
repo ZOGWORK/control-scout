@@ -723,7 +723,7 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
     // Rank, RS and TBP shade green (best here) to red (worst) by value; W-L-T in its status tones (lib/rankShade.ts).
     { key: "rank", label: "Rank", value: rank, asc: true, align: "right", shade: true, render: (r) => <span className={cn((rank(r) ?? 9) <= 3 && "v8:font-semibold")} data-rank={rank(r) ?? undefined}>{rank(r) ?? "—"}</span> },
     { key: "team", label: "Team", value: (r) => r.team, render: (r) => phone && hasTeamPage(r.team, r.name)
-      ? <TeamNumber team={r.team} name={r.name ?? ""} href={`/teams/${r.team}?season=${season}`} />
+      ? <TeamNumber team={r.team} name={r.name ?? ""} href={`/teams/${r.team}?season=${season}`} plain />
       : <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
     { key: "rs", label: "RS", title: meet ? "Ranking score at this meet (average ranking points per match)" : "Ranking score (average ranking points)", value: rs, align: "right", render: (r) => num(rs(r), 2), shade: true },
     { key: "wlt", label: "W-L-T", value: (r) => { const [w, l] = rec(r); return w == null ? null : w - (l ?? 0); }, align: "right", render: (r) => <WLT rec={rec(r)} /> },

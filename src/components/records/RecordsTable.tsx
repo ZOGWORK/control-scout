@@ -616,10 +616,11 @@ function SortHead({ k, label, title, state, sortBy, className, tone, v8Tone, ali
 
 /** A phone's Team cell: just the number (the column stays narrow, so more stats fit), and a tap shows the
  *  team's name with a link to its page. */
-export function TeamNumber({ team, name, href }: { team: number; name: string; href: string }) {
+/** `plain`: the body text colour, not v8's slate number (the event Rankings table, which keeps its colours for rank, RS and TBP). */
+export function TeamNumber({ team, name, href, plain }: { team: number; name: string; href: string; plain?: boolean }) {
   return (
     <Popover>
-      <PopoverTrigger className={cn("tap-44 rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text v8:font-sans", V8_NUM)}
+      <PopoverTrigger className={cn("tap-44 rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text v8:font-sans", !plain && V8_NUM)}
         aria-label={name ? `${team} ${name}` : `Team ${team}`}>
         {team}
       </PopoverTrigger>
@@ -798,7 +799,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                           </label>
                         )}
                         {phone
-                          ? <TeamNumber team={team!} name={String(r.stats.teamName ?? "")} href={`/teams/${team}?season=${r.season}`} />
+                          ? <TeamNumber team={team!} name={String(r.stats.teamName ?? "")} href={`/teams/${team}?season=${r.season}`} plain={rankingColours} />
                           : (
                             <Link to={`/teams/${team}?season=${r.season}`} className="flex min-w-0 items-baseline gap-2 still-hover:text-accent-text">
                               <span className={cn("font-mono font-semibold tabular-nums", !hl && !rankingColours && V8_NUM)}>{team}</span>
