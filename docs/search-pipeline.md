@@ -290,15 +290,29 @@ a `data-understood` attribute only, never page text (§7).
 ## Held-out sets
 
 `npm run search:heldout` (`scripts/search-heldout.ts`) asks the questions people wrote for search and that search was
-never built from: the 200 unique queries, the 260-query list and the complex queries (`scripts/search-heldout.json`,
-533 in all, the invalid and excluded ones left out). They hold no expected numbers: the answer is judged by what it
-shows, and its numbers are the data's. Each is sorted into a pattern, never fixed one by one:
+never built from: the 200 unique queries, the 260-query list, the complex queries and the natural questions.
 
-- **pass**: a card (or an events list) that answers it, every place and time typed stated on it
+**Held out means held out** (audit M2, 24 Nov). A question that appears word for word in the repo's tests or code
+was seen while building search, so it is in the training set (`scripts/search-train.json`, 339 questions), not the
+held-out set (`scripts/search-heldout.json`, 252). `scripts/search-heldout.test.ts` fails when a held-out question
+gets into a test or code (`scripts/search-heldout-leaks.ts` says where it looks); `--split` moves such questions.
+`--train` runs the training set.
+
+**Graded, not just answered.** The 260-query list's questions carry the answer a person wrote for them (`want`). Its
+facts that stay true (a record, a decimal, a short want's names; never a rank or a rating, which move) must be in the
+answer, asked in 2025–26 (the season they were written for) when the default has moved on
+(`scripts/search-heldout-grade.ts`): otherwise **wrong answer**. Every answer's headline number is also compared with
+the team page's own API over a local server on the same snapshot (`scripts/search-signoff/crosscheck.ts`): otherwise
+**numbers differ from the team page**. CI runs the held-out set and sign-off set C (`--local`) with a floor each
+(`--min`, the `search-heldout` job in `.github/workflows/ci.yml`). Each is sorted into a pattern, never fixed one by one:
+
+- **pass**: a card (or an events list) that answers it, every place and time typed stated on it, and graded right
 - **fallback only**, **team card only**, **names only**: no answer, only a list or a team to open
 - **not answered**: the card says it isn't answered directly yet
 - **place not stated**, **time not stated**: a filter typed that the card doesn't show (or shows relaxed)
 - **words not read**: the pipeline answered with a word it didn't read, or a reader said it left one out
+- **wrong answer**, **numbers differ from the team page**: answered, but not with the written answer's facts or the
+  team page's number
 
 It prints the pass rate per set and per pattern, each failing question with its card, and the slowest answer; with
 `--out` it writes one line per question (the intent read, the filters, the place and time resolved, whether the card
