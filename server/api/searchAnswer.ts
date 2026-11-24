@@ -1042,7 +1042,14 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const clauses = opts.intents === false || opts.clause ? null : await readClauses(opts.typed ?? q, opts.now, prefer);
   const split = async () => {
     if (!clauses) return null;
-    const answers = await Promise.all(clauses.parts.map((part) => searchAnswer(part, { ...opts, typed: undefined, full: true, learn: false, clause: true })));
+    const ask = (part: string) => searchAnswer(part, { ...opts, typed: undefined, full: true, learn: false, clause: true });
+    // A part given the first part's team that has nothing there ("<team> awards and highest score in <place>", the team
+    // never played there): the part as typed, the place's own answer, its card saying so.
+    const answers = await Promise.all(clauses.parts.map(async (part, i) => {
+      const a = await ask(part);
+      const alone = clauses.alone[i];
+      return isCard(a) || !alone ? a : ask(alone);
+    }));
     return answers.every(isCard) ? clausesAnswer(q, clauses.parts, answers, { full: !!opts.full, pages: pagesFor(q) }) : null;
   };
   const first = clauses?.apart ? await split() : null;

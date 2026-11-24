@@ -28,6 +28,14 @@ beforeAll(async () => {
     for (const [t, a] of [[30801, "red"], [30802, "blue"]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'USVARIV', 'qual', 0, ?, ?, ?, 1)", [S, k, t, a]);
   }
   await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties, opr_np) VALUES (?, 30801, 2, 1, 1, 0, 55), (?, 30802, 2, 1, 1, 0, 35)", [S, S]);
+  // Maryland: an event neither team above played, its best match 200 points.
+  for (const [n, name] of [[30803, "Crab Claws"], [30804, "Bay Runners"]] as const) {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Bayside', 'MD', 'USA')", [n, name]);
+    await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [S, n]);
+  }
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USMDBAY', 'Bay Qualifier', 'Qualifier', 'Bayside', 'MD', 'USA', '2026-01-17', '2026-01-17', 't')", [S]);
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, 'USMDBAY', 'qual', 0, 1, 'Q1', '2026-01-17T10:00:00Z', 1, 200, 200, 80, 80, 't')", [S]);
+  for (const [t, a] of [[30803, "red"], [30804, "blue"]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'USMDBAY', 'qual', 0, 1, ?, ?, 1)", [S, t, a]);
   await rebuildSearch();
   resetSearchSeason();
   clearAllCaches();
@@ -63,6 +71,12 @@ describe("compound questions", () => {
     // 30802's best in the state is 110; the state's best is 140 (30801's).
     const a = await ask("30802 record and highest score in virginia");
     expect([a.intent?.kind, a.clauses?.[0].stat?.intent, a.clauses?.[0].stat?.headline?.value]).toEqual(["stat-clauses", "highest-score", "110 points"]);
+  });
+  it("a part given the first part's team that has nothing there is asked as typed: the place's own answer", async () => {
+    // 30801 never played in Maryland: Maryland's best match, never a Sorry for the whole question.
+    const a = await ask("30801 awards and highest score in maryland");
+    expect([a.intent?.kind, a.stat?.intent, a.clauses?.[0].stat?.headline?.value]).toEqual(["stat-clauses", "awards", "200 points"]);
+    expect(a.understood?.label).toMatch(/Maryland/);
   });
   it("a word neither part reads is still said unread, the joining \"and\" never", async () => {
     const a = await ask("30801 opr today and 30802 record");

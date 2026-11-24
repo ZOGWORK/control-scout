@@ -303,9 +303,12 @@ export default function SearchPage() {
   // Not on a failed search: no answer or names list shows there, so its heading keeps its size.
   // His slot at the top, until he's known to have nothing to add to this question (then it stays let go).
   const brunoTop = brunoLeads && brunoSilent !== askKey;
+  // Bruno is asked once the answer he reads is on screen: the page's own search, or the one the first paint (or the
+  // search box) handed over, which the server reads the same way. He needn't wait for the page's refresh of it.
+  const brunoReady = !stale && (!busy || (seeded && !!answer));
   const smallHeading = !!(brunoTop || namesLine) && found && !error;
   const summary = (
-    <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mb-4 lg:mb-0">
+    <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={brunoReady} answered={answered} memo={brunoMemo} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
@@ -371,7 +374,7 @@ export default function SearchPage() {
           results column's width, beside where People also ask starts). */}
       {brunoTop && query && found && !error && (
         <div className={cn("mb-5", side && "lg:pr-[24rem]")} data-bruno-lead>
-          <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={!busy && !stale} answered={answered} lead memo={brunoMemo} onOutcome={onBruno} />
+          <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={brunoReady} answered={answered} lead memo={brunoMemo} onOutcome={onBruno} />
         </div>
       )}
       <h1 className={cn("mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl v8:font-sans v8:text-[1.375rem] v8:leading-7 v8:md:text-[1.375rem] v8:lg:text-[1.375rem]",
@@ -484,7 +487,7 @@ export default function SearchPage() {
                     frame, and below the results it moves nothing on screen. Its questions leave the chips above. */}
                 {!wide && <PeopleAlsoAsk ask={follow.ask} className="mt-8" />}
                 {(apps.length > 0 || !!quality) && <div className="mt-6">{summary}</div>}
-                {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mt-6" />}
+                {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={brunoReady} answered={answered} memo={brunoMemo} className="mt-6" />}
                 {clipFor && <AnswerClip about={clipFor} className="mt-6" />}
               </div>
               </div>

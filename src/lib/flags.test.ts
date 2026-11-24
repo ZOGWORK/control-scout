@@ -3,7 +3,8 @@
 // can only fail, and logs a console error on the venue/offline flows), and asks
 // again once back online.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { flagOn, flagsAccountChanged, refreshFlags, workspaceFlagOn } from "./flags";
+import { flagOn, flagsAccountChanged, readInlineFlags, refreshFlags, workspaceFlagOn } from "./flags";
+import { FLAGS_FRESH_MS, FLAGS_ID } from "../shared/boot";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
@@ -65,5 +66,20 @@ describe("refreshFlags", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ flags: { workspaceScouting: true } }), { status: 200 })));
     await refreshFlags();
     expect(workspaceFlagOn("workspaceScouting", "a")).toBe(true);
+  });
+});
+
+describe("the flags in the page's HTML", () => {
+  const page = (body: string) => { const d = document.implementation.createHTMLDocument(""); d.head.innerHTML = `<script type="application/json" id="${FLAGS_ID}">${body}</script>`; return d; };
+  it("starts from the server's own switches when the copy is fresh", () => {
+    const f = readInlineFlags(page(JSON.stringify({ at: 1000, flags: { brunoAnswers: false, photos: true } })), 2000);
+    expect(f?.brunoAnswers).toBe(false);
+    expect(f?.photos).toBe(true);
+    expect(f?.livePredictions).toBe(true); // a flag the copy doesn't name: its default
+  });
+  it("an old copy (a page the service worker kept) or a broken one waits for the server", () => {
+    expect(readInlineFlags(page(JSON.stringify({ at: 1000, flags: { photos: false } })), 1000 + FLAGS_FRESH_MS + 1)).toBeNull();
+    expect(readInlineFlags(page("{not json"), 1000)).toBeNull();
+    expect(readInlineFlags(document.implementation.createHTMLDocument(""), 1000)).toBeNull();
   });
 });

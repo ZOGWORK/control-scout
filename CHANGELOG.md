@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.0.4 — 2026-11-24
+
+/team now says when the team plays next, not only which event is next.
+
+### Highlights
+- [teams] /team shows the team's next match, under its next event
+- [scout] A countdown to the start, or the posted time before FIRST gives one
+- [predict] The match line links its page; the call is still /next's
+
+### Discord bot
+- **/team's next match** (`bot/views.ts`, `bot/lookups.ts`): the card's "Next event" field is followed by "Next match" when FIRST has posted one — the match and its event, linked to the match's page, then a countdown to its start (or the posted clock time, before FIRST gives one). It is the same read `/next` makes (`nextPlaying`, `bot/next.ts`): the team's events that aren't over, earliest first, and the first unplayed match the team is in, so a match whose time isn't posted yet still counts. No prediction is read, so the line carries no call and `/team` keeps answering while the owner's `livePredictions` switch is off. A team whose next event has no schedule yet, whose schedule can't be read, or that isn't in it simply has no line — the card is the team's, where `/next` is the match and says why there is none. `/predict`'s pre-match line and `/next` now share one wording for a start (`startsText`), so the same match reads the same everywhere. The card's own next/last event is read on the venue's calendar too (`eventDay.ts`), the clock the match line uses: a match tonight no longer drops off after UTC's midnight, an event whose own day has ended isn't called next, and the event holding the match is the next event even before its dates are posted (so the two fields never name different events). `bot/views.test.ts` and `bot/lookups.test.ts` cover the wording (countdown, posted time, nothing posted, a played match), the card's field (present with a scheduled match, absent without one), and both sides of that midnight. (#2304)
+
 ## 8.0.3 — 2026-11-24
 
 Ask the bot when a team plays next and it answers with the match, its alliance and the call.
