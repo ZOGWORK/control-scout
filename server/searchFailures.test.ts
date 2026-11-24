@@ -15,7 +15,7 @@ import {
   counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteBotSearch, noteSearch, outcomeTrace, recheck, redact, reportKey,
   PER_IP_HOUR,
   NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_KEEP, mergeMissed, patternFor,
-  softFailureOf, softKey, softSummary } from "./searchFailures";
+  preSplitPattern, softFailureOf, softKey, softSummary } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
 import { FALLBACK_NOTE } from "./api/searchLayers";
 
@@ -322,6 +322,35 @@ describe("pattern keys split on unread words: old issues kept (audit M8)", () =>
   });
   it("is a pattern of its own once the old issue was closed as fixed", async () => {
     expect(await note("closed")).toEqual([[old, 1], [split, 1]]);
+  });
+  it("lands on its old pattern's row while that one isn't filed yet: one gap, one issue", async () => {
+    await run("DELETE FROM search_failures");
+    await run("INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen, reported_count) VALUES (?, 'h', 'team-fallback', 'opr', '{}', '', '[]', 1, 'a', 'a', 0)", [old]);
+    clock += 1000;
+    noteSearch("4215 opr scorecard", fallback("4215 opr scorecard", "opr scorecard"), "198.51.100.92", null, clock, split, ["scorecard"], null, old);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    expect((await rows()).map((r) => [r.key, r.count])).toEqual([[old, 2]]);
+  });
+  it("an old issue closed as fixed since the last sync is never reopened: the split pattern files its own next time", async () => {
+    // Synced as open, then closed on GitHub: here it still says open, so the split pattern lands on it once.
+    issues[900] = { state: "closed", state_reason: "completed", closed_at: new Date(clock).toISOString() };
+    expect(await note("open")).toEqual([[old, 2]]);
+    calls = [];
+    await syncSearchFailures();
+    expect(writes()).toHaveLength(0);
+    expect(issues[900].state).toBe("closed");
+    expect((await rows())[0]).toMatchObject({ key: old, issue_state: "closed", reported_count: 2 });
+    // Its next failure is a gap of its own.
+    clock += 1000;
+    noteSearch("4215 opr scorecard", fallback("4215 opr scorecard", "opr scorecard"), "198.51.100.93", null, clock, split, ["scorecard"], null, old);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    expect((await rows()).map((r) => [r.key, r.count])).toEqual([[old, 2], [split, 1]]);
+  });
+  it("knows a pre-split pattern key by its word count", () => {
+    expect([old, "pattern: intent: x · not read: 3+ words", "pattern: x · not read: 2 words"].every(preSplitPattern)).toBe(true);
+    expect([split, "pattern: intent: x · not read: scorecard, 2", "4215 opr · not read: 1 word", "pattern: intent: x"].some(preSplitPattern)).toBe(false);
   });
 });
 

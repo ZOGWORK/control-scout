@@ -449,9 +449,10 @@ async function writeBatch(batch: Buffered[]) {
     const had = new Map(rows.map((r) => [String(r.key), JSON.parse(String(r.examples)) as string[]]));
     const hadMissed = new Map(rows.map((r) => [String(r.key), JSON.parse(String(r.missed || "{}")) as Record<string, number>]));
     // A query's pre-2.8.1 row is always taken over. A pattern's pre-split row (audit M8: unread words now in the key)
-    // only while its issue is open (the work stays in one place) or dismissed (the owner's no stands): a split pattern
-    // whose old issue was closed as fixed is a gap of its own.
-    const adoptable = new Set(rows.filter((r) => !String(r.key).startsWith("pattern: ") || r.issue_state === "open" || r.issue_state === "dismissed").map((r) => String(r.key)));
+    // only while its issue is open (the work stays in one place), dismissed (the owner's no stands) or not filed yet
+    // (one row, one issue, never two for one gap): a split pattern whose old issue was closed as fixed is a gap of its
+    // own. The state is the one last synced; an issue closed since is found by the next sync (syncOne, preSplitPattern).
+    const adoptable = new Set(rows.filter((r) => !String(r.key).startsWith("pattern: ") || r.issue_state == null || r.issue_state === "open" || r.issue_state === "dismissed").map((r) => String(r.key)));
     const items = onRows(batch, new Set(had.keys()), adoptable);
     await tx.batch(items.map((b) => {
       const examples = [...b.examples, ...(had.get(b.key) ?? []).filter((e) => !b.examples.includes(e))].slice(0, EXAMPLES_MAX);
@@ -573,6 +574,10 @@ export interface Budget { left: number }
 
 /** Brings one key's issue up to date: opens it, or updates its body (reopening it if it was closed as fixed and has
  *  failed since). `budget`: the sync's writes (one at most, by default). */
+/** A pattern key from before unread words were named in it (audit M8): "… · not read: 2 words". No failure is keyed so
+ *  any more: such a row grows only by a split pattern landing on it (writeBatch), while its issue looked open. */
+export const preSplitPattern = (key: string) => key.startsWith("pattern: ") && /· not read: (?:1 word|\d\+? words)$/.test(key);
+
 export async function syncOne(key: string, now = new Date(), budget: Budget = { left: 3 }): Promise<SyncOutcome> {
   const token = env.githubReportToken;
   if (!token) return "no-token";
@@ -614,7 +619,9 @@ export async function syncOne(key: string, now = new Date(), budget: Budget = { 
     if (issue.state === "closed") {
       // Closed as fixed: a regression only if the query failed after the owner closed it. Failures from before (still
       // waiting to be sent when it was closed) are counted, and the issue is left as the owner left it.
-      if (!(issue.closed_at && row.last_seen > issue.closed_at)) {
+      // A pre-split pattern's row is never a regression: what landed on it since was a split pattern, adopted while the
+      // issue still looked open here. Recorded closed, so that pattern's next failure files an issue of its own.
+      if (!(issue.closed_at && row.last_seen > issue.closed_at) || preSplitPattern(row.key)) {
         await run("UPDATE search_failures SET issue_number = ?, issue_state = 'closed', reported_count = ?, filing_at = NULL WHERE key = ?", [issue.number, count, key]);
         return "closed";
       }
