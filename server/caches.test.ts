@@ -37,4 +37,13 @@ describe("caches", () => {
     expect(cleared).not.toContain("Track record");
     expect(cleared).toEqual(expect.arrayContaining(["Event recordings", "Match clip keys"]));
   });
+  it("a cache with its own clip-start step takes that instead of its clear; Clear caches still empties it", () => {
+    const clear = vi.fn(), onClip = vi.fn();
+    registerCache("t: carried", clear, { onClip });
+    expect(clearClipCaches()).toContain("t: carried");
+    expect(onClip).toHaveBeenCalledTimes(1);
+    expect(clear).not.toHaveBeenCalled();
+    clearAllCaches();
+    expect(clear).toHaveBeenCalledTimes(1);
+  });
 });
