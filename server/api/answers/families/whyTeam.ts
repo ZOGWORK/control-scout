@@ -22,12 +22,12 @@ const TOPICS: [Exclude<WhyTopic, null>, RegExp][] = [
   ["auto", /\b(?:auto|autonomous|autos)\b/],
   ["teleop", /\b(?:tele-?op|driver(?:\s+|-)?controlled|driving|drivers?)\b/],
   ["endgame", /\bend\s?-?games?\b/],
-  ["partner", /\b(?:alliance\s+)?(?:partners?|picks?)\b/],
+  ["partner", /\b(?:alliance\s+)?(?:partners?|picks?|picking|picked)\b/],
 ];
 /** Saying it isn't strong ("why is <team> not so good"): another question, never this card. */
 const NEGATED = /\b(?:not|never|no|isn['’]?t|aren['’]?t|wasn['’]?t|weren['’]?t|doesn['’]?t|don['’]?t)\b/;
-/** The frame's own words, said around the team. */
-const FRAME = /\b(?:so|really|very|such|that|this|the|a|an|at|in|on|of|for|with|team|teams|robot|robots|alliance|period|phase|part|be|they|them|their|it|its|good|great|strong|dominant|consistent|reliable|successful|effective|fast|solid|elite|amazing|awesome)\b/g;
+/** The frame's own words, said around the team ("how come <team> is so good", "worth picking as a partner"). */
+const FRAME = /\b(?:is|are|was|were|worth|as|so|really|very|such|that|this|the|a|an|at|in|on|of|for|with|team|teams|robot|robots|alliance|period|phase|part|be|they|them|their|it|its|good|great|strong|dominant|consistent|reliable|successful|effective|fast|solid|elite|amazing|awesome)\b/g;
 
 /** A question asking why a team is strong, or null. */
 export function readWhy(q: string): WhyQuestion | null {
