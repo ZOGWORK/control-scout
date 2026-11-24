@@ -24,7 +24,10 @@ const ASKS = /^(?:metric|agg|thing):/;
 /** A compound question's parts. `apart`: each part names a subject of its own and asks something of its own, no two the
  *  same ("<team> last match and <team> next event"): two questions, never one about both teams, so they're split
  *  before the whole is read. Parts asking the same of two teams ("<team> opr and <team> opr") are one compare. */
-export interface Clauses { parts: string[]; apart: boolean }
+export interface Clauses { parts: string[]; apart: boolean;
+  /** Each part as typed, for a part given the first part's team that names a scope of its own ("… and highest score in
+   *  <place>"): asked as typed when that team has nothing there. Null for the others. */
+  alone: (string | null)[] }
 
 /** The parts of `q` to ask one by one, each as asked (the first part's team put before a part with no subject of its
  *  own), or null: fewer than two parts, more than MAX_CLAUSES, two the same, or a part that asks nothing. */
@@ -45,7 +48,8 @@ export async function readClauses(q: string, now?: number, prefer?: ReadonlySet<
   const subject = parsed.map((p) => [p.teams.map((t) => t.number).join(","), p.event?.words ?? "", p.place?.name ?? ""].join("|"));
   const asks = parsed.map((p) => p.symbols.filter((s) => ASKS.test(s)).sort().join(" "));
   const apart = parsed.every((p) => p.teams.length || p.event || p.place) && new Set(subject).size === subject.length && new Set(asks).size === asks.length;
-  return { parts: asked, apart };
+  const alone = parts.map((s, i) => (asked[i] !== s && (parsed[i].event || parsed[i].place || parsed[i].worlds || parsed[i].states) ? s : null));
+  return { parts: asked, apart, alone };
 }
 
 /** Whether a part's answer is a card of its own, answered as asked: a stat's card (one that found something), or a
