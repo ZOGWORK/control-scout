@@ -591,7 +591,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
         const span = toks.slice(i, i + len);
         if (span.some((t) => t.used)) continue;
         const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
-        if (!pl || pl.kind === "city" || pl.name === p.place.name || within(pl, p.place) || within(p.place, pl)) continue;
+        // A place inside the other is still another place here ("usa teams at texas events"): the words around each say
+        // which is the teams' home and which the events'.
+        if (!pl || pl.kind === "city" || pl.name === p.place.name) continue;
         const words = first ? (frame(i, len) ? null : first) : frame(i, len);
         if (!words) continue;
         const other = { ...pl, typed: span.map((t) => t.typed).join(" ") };
