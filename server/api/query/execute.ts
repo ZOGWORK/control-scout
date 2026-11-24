@@ -47,11 +47,14 @@ import { readAsk } from "../searchAsks.js";
 
 export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resolve: Resolve; now?: number; prefer?: ReadonlySet<string>;
   /** A window read exactly as asked: one with nothing in it says so, never relaxed to its season (two windows side by side). */
-  exact?: boolean }
+  exact?: boolean;
+  /** The query held a quoted phrase: no word fixed in the parse (ParseContext.asTyped). */
+  asTyped?: boolean }
 
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  const ctx = await parseContext(opts.now, opts.prefer);
+  const ctx0 = await parseContext(opts.now, opts.prefer);
+  const ctx = opts.asTyped ? { ...ctx0, asTyped: true } : ctx0;
   let p = await parseQuery(q, ctx);
   // A team's highlights asked by part of its name ("hypnotic highlights") or by a name teams share, with its place
   // ("ultraviolet nj highlights"): the parser takes only a whole name that is one team's, so search's own team lookup
@@ -591,8 +594,6 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // ("matches at <event> where both alliances scored over 250"), listed best first; "matches" alone, a place's or a
   // match type's ("playoff matches in NJ") are left to search.
   if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond && !p.withVideo) return null;
-  // A match's number with an event named by name is the names reader's (its exact event and match, search.ts).
-  if (intent === "match-label" && p.event) return null;
   const labelled = intent === "match-label" && p.matchNumber != null;
   // A match's number at Worlds ("q6 at worlds"): Worlds' matches with it, its divisions' and finals'.
   const kind = labelled && p.worlds ? WORLDS_KIND : labelled && p.states ? STATES_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
@@ -629,7 +630,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       ...(scope.ever && p.withVideo ? { ever: true } : {}),
       ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
       ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),
-      ...(p.scoreCond ? { cond: p.scoreCond } : {}), ...(labelled ? { label: { n: p.matchNumber!, level: p.level } } : {}), ...(p.withVideo ? { video: true } : {}), ...(events && eventKeys ? {
+      ...(p.scoreCond ? { cond: p.scoreCond } : {}), ...(labelled ? { label: { n: p.matchNumber!, level: p.finalNo ? "final" as const : p.level } } : {}), ...(p.withVideo ? { video: true } : {}), ...(events && eventKeys ? {
         events: eventKeys.map((k) => ({ ...k, name: mainFirst.find((e) => e.season === k.season)?.name })),
         // An off-season event named ("MTI") is its own matches, though the finder otherwise reads official events only.
         ...(events.some((e) => !(OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "")) ? { named: true } : {}),
@@ -646,12 +647,21 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     }
     const card = async (g: MatchFind): Promise<SearchAnswer> => {
       const stat = await matchFindAnswer(g);
-      return { q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: g.season }, ...(opts.full ? { stat } : {}),
+      // One match by its number at the event named ("USNJCMP Q12"): that match is the result too, so the box opens it
+      // and its video plays, as the match's own link does.
+      const at = g.label && g.events && /^From 1 played match\b/.test(stat.source ?? "") ? /^\/events\/(\d+)\/([^?&]+)\?match=(\w+):(\d+):(\d+)(?:&|$)/.exec(stat.headline?.href ?? "") : null;
+      const hits: SearchHit[] = at ? [{ kind: "match", ref: `${at[1]}:${decodeURIComponent(at[2])}:${at[3]}:${at[4]}:${at[5]}`, title: stat.headline!.label ?? stat.title, subtitle: `${decodeURIComponent(at[2])} · ${at[1]}`, season: Number(at[1]) }] : [];
+      // Said as the match it is ("Qualification match 12 at <event> (2025–26)"), as the event's own match link says it.
+      const one = at ? `${stat.headline!.label!.replace(/^Q(\d+) /, "Qualification match $1 ").replace(/^M(\d+) /, "Playoff match $1 ").replace(/^F(\d+) /, "Final $1 ")} (${seasonLabel(Number(at[1]))})` : null;
+      return { q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: one ?? stat.title, season: g.season }, ...(opts.full ? { stat } : {}),
         intent: { kind: `stat-${stat.intent}`, pattern: `${stat.intent}${g.region ? " [place]" : ""}${g.window ? " [window]" : ""}`, met: true, understood: [] } };
     };
     // The search box keeps a link to the answer page.
     if (!opts.full) return null;
     const a = await card(f);
+    // A match's number at an event named with no scored match by it: the names reader's (the event's match itself, its
+    // scores still to come, or the event's matches).
+    if (f.label && (f.events || p.event) && /^From 0 /.test(a.stat?.source ?? "")) return null;
     const where = f.region ? ` in ${f.region.name}` : "";
     if (scope.window && scope.season != null && p.time?.year == null) return relaxed(a, windowSteps(scope.window, scope.season), (season) => card({ ...f, window: undefined, season }));
     // No season said, or "this season": the current one, then the one before when it has nothing yet.
