@@ -706,7 +706,8 @@ export function overlayBand(px: ArrayLike<number>, width: number, height: number
  * timer sits at the bar's centre). Each half is followed in steps of 0.6 timer widths, a step at least a quarter its
  * colour; one step short of that (a white score badge in the half) is stepped over, two end the half. Steps scale with
  * the timer, so a bar of any size is followed the same way. The tallest run of rows found so (gaps of up to 3 rows
- * bridged), all within 3% of the frame's width of its first row's ends, is the bar: its ends and rows, or null where
+ * bridged), their timer box's centre within a quarter of its width (4 px at least) of its first row's, is the bar: the
+ * furthest ends at least 3 of its rows reach, and its rows; or null where
  * none is at least 2% of the frame tall or the bar spans most of the width (a full-size bar: overlayBand's). Self-
  * contained (no imports, no outer names): the reader runs it in the page.
  */
