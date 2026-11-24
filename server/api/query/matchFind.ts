@@ -174,11 +174,11 @@ const FINAL_NO = (() => {
 
 interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; red_total: number; blue_total: number; v: number }
 
-/** The filters the match finder and a scope's highlights (./highlights.ts) take. `events`: these events only (a
- *  division is an event of its own: ./highlights.ts scopeEvents lists them). */
 /** Which penalty points a match with none had, in words: the team's alliance gave none away, or neither did. */
 const cleanWords = (f: Pick<MatchFind, "team">) => (f.team ? "without penalties given away" : "with no penalties either side");
 
+/** The filters the match finder and a scope's highlights (./highlights.ts) take. `events`: these events only (a
+ *  division is an event of its own: ./highlights.ts scopeEvents lists them). */
 export type MatchScope = Pick<MatchFind, "season" | "ever" | "window" | "region" | "level" | "finals" | "decided" | "kind" | "cond" | "team" | "label" | "video" | "videoKeys" | "clean"> & { events?: { season: number; code: string }[];
   /** `events` were named by the query and one isn't official (an off-season event): theirs are the matches all the same. */
   named?: boolean;
