@@ -3,7 +3,7 @@
 // latest Worlds held, and "this season" asked of a team that hasn't played the current one says so on the card.
 import { describe, expect, it } from "vitest";
 import { CURRENT_SEASON } from "../../data/seasons";
-import { lastMonthSeason } from "./families/facts";
+import { lastMonthSeason, readTeamFact } from "./families/facts";
 import { listSeason } from "./families/compound";
 import { completedSeason, defaultSeason, thisSeasonNote } from "./season";
 import { monthIn, readTime, teamMonth, teamMonthWindow } from "../query/time";
@@ -22,6 +22,9 @@ describe("a month said without its year", () => {
     // As of an earlier day: that day's own season, never today's (Loopy on #2254).
     expect(lastMonthSeason(5, `${S - 2}-11-24`)).toBe(S - 3);
     expect(lastMonthSeason(9, `${S - 2}-11-24`)).toBe(S - 2);
+    // A bare year read as the team ("2024 events in march"): its month the latest begun too (Loopy on #2254).
+    expect(readTeamFact("2024 events in march")).toMatchObject({ core: "2024", month: 2, season: lastMonthSeason(2) });
+    expect(readTeamFact("2024 events in june")).toMatchObject({ core: "2024", month: 5, season: lastMonthSeason(5) });
   });
   it("is read by the parser as the latest such month begun, unless the question looks ahead", () => {
     expect(readTime("7149 events in june", `${S}-11-24`).time).toMatchObject({ from: `${S}-06-01`, season: S - 1, label: `in June ${S}` });
