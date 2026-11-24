@@ -113,7 +113,9 @@ export function chatKind(q: string): ChatKind | null {
     if (reacted) return "reaction";
   }
   // About something search holds nothing on ("what is the weather in <city> today", "best pizza in <place>"): its
-  // place, its time and a ranking said with it are no FTC question.
+  // place, its time and a ranking said with it are no FTC question. A reaction or words to the site said beside data
+  // ("lol that match was funny") is neither: it stays what it was before this card.
+  if (has(ws, REACTION) || has(ws, ADDRESSEE)) return null;
   if (otherSubject(q).length) return "off-topic";
   return null;
 }
