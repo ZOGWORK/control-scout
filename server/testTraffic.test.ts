@@ -28,6 +28,8 @@ describe("isTestTraffic", () => {
     expect(isTestTraffic(req({ referer: ref }), "4215 record")).toBe(false);
     expect(isTestTraffic(req({ referer: "https://controlscout.org/search?q=4215%20opr" }), "4215 opr")).toBe(false);
     expect(isTestTraffic(req({ referer: "not a url" }), "4215 opr")).toBe(false);
+    // The same parameters on another page (the header search box asks from every page) are a visitor's search.
+    expect(isTestTraffic(req({ referer: "https://controlscout.org/teams/4215?q=4215%20opr&from=issue" }), "4215 opr")).toBe(false);
   });
 
   it("is sent by every eval script the header comment names, at each request it makes", () => {
