@@ -275,10 +275,17 @@ export function previewOf(raw: string, facts: string[], question: string): Bruno
 
 async function ask(q: string, opts: BrunoOptions, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
   const { after, ...search } = opts;
-  // A follow-up is answered from the search it points back at: that search's facts, said as its.
-  const facts = after
-    ? [`This question follows up the earlier search "${after}": the facts below are that search's answer.`, ...(await answerFacts(await searchAnswer(after, { ...search, learn: search.learn ?? true })))]
-    : await answerFacts(await searchAnswer(q, { ...search, learn: search.learn ?? true }));
+  // A follow-up is answered from the search it points back at: that search's facts, said as its. A failed read of
+  // them (a database error) is no answer, as a failed model call is, never an error to the page; not cached.
+  let facts: string[];
+  try {
+    facts = after
+      ? [`This question follows up the earlier search "${after}": the facts below are that search's answer.`, ...(await answerFacts(await searchAnswer(after, { ...search, learn: search.learn ?? true })))]
+      : await answerFacts(await searchAnswer(q, { ...search, learn: search.learn ?? true }));
+  } catch (e) {
+    console.warn("[search] Bruno's facts unavailable:", (e as Error).message?.slice(0, 120));
+    return null;
+  }
   let answer: BrunoAnswer | null = null;
   try {
     // Streamed for a page that watches: each new checked part goes to it; once a part fails the check, the page is
