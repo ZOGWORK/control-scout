@@ -124,6 +124,11 @@ export function rowProblems(next: FrameTiming, live?: FrameTiming, order?: strin
   return out;
 }
 
+/** Whether the owner approved a start over the review reason `why` (its `approvedWhy`): that reason, or that reason with
+ *  a note after it ("its clip's first frame shows Q21, not Q22; start found by eye at 6403 s (…)", a start placed by
+ *  hand over the review: its frame shows the match before because the bar lagged into this one, USTXNONUAMM1 2026 Q22). */
+export const approvedOver = (approvedWhy: string | undefined, why: string): boolean => approvedWhy === why || !!approvedWhy?.startsWith(`${why}; `);
+
 /** `next` (a re-read) with the starts the owner approved on the live row kept: a re-read that has one where it was
  *  (a read's slack) keeps it approved, with the live opening where it has none; one that dropped it, or left it for
  *  review again, gets it back as live, unless a frame at its opening names another match (the one way any live clip
@@ -140,7 +145,7 @@ export function carryApproved(next: FrameTiming, live: FrameTiming | null | unde
     if (now != null && Math.abs(now - t) > SAME_S) continue; // moved: judged as any moved live clip
     const pull = out.review?.[l];
     // Pulled by its frame, unless that's the very frame the owner approved it over.
-    if (now == null && pull && Math.abs(pull.t - t) <= SAME_S && namesAnother(l, pull.why) && pull.why !== live!.approvedWhy?.[l]) continue;
+    if (now == null && pull && Math.abs(pull.t - t) <= SAME_S && namesAnother(l, pull.why) && !approvedOver(live!.approvedWhy?.[l], pull.why)) continue;
     if (now == null) out.starts[l] = t;
     if (out.opens && out.opens[l] == null && live!.opens?.[l] != null) out.opens[l] = live!.opens[l];
     if (out.review) { delete out.review[l]; if (!Object.keys(out.review).length) delete out.review; }
