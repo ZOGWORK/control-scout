@@ -11,13 +11,14 @@ import type { CompoundQuestion, SeasonWords } from "./compound.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { teamMatches } from "./matchSet.js";
-import { currentSeason, defaultSeason, seasonWhy, teamSeason } from "./season.js";
+import { currentSeason, seasonWhy, teamSeason } from "./season.js";
 import { awardsAnswer } from "./families/awards.js";
-import { beatTopAnswer, combinedAnswer, eventPairAnswer, eventPicksAnswer, listAnswer, listPairAnswer, listTitle, marginAnswer, oprExcludingAnswer, reliabilitySetAnswer, sideThresholdAnswer, winLossAverageAnswer } from "./families/compound.js";
+import { beatTopAnswer, combinedAnswer, eventPairAnswer, eventPicksAnswer, listAnswer, listPairAnswer, listSeason, listTitle, marginAnswer, oprExcludingAnswer, reliabilitySetAnswer, sideThresholdAnswer, winLossAverageAnswer } from "./families/compound.js";
 import { matchAnswer, whoOf, type AnswerTeam } from "./families/matches.js";
 import { compareAnswer } from "./families/twoTeam.js";
 import { predictTopAnswer } from "./families/predict.js";
 import type { Resolve } from "./index.js";
+import { teamNumberHits } from "../search.js";
 
 /** What index.ts already decides for every stat answer, passed in so both read the same rule. */
 export interface CompoundDeps {
@@ -83,7 +84,7 @@ function noEventAnswer(q: string, words: string, team: AnswerTeam, top: SearchHi
 export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Resolve, opts: Opts, deps: CompoundDeps): Promise<SearchAnswer | null> {
   if (c.kind === "list") return listSearch(q, c, opts);
   if (c.kind === "list-pair") return listPairSearch(q, c, opts);
-  if (c.kind === "set-best") return setSearch(q, c, resolve, opts);
+  if (c.kind === "set-best") return setSearch(q, c, opts);
   const base = await resolve(c.core);
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
@@ -190,8 +191,8 @@ async function listSearch(q: string, c: Extract<CompoundQuestion, { kind: "list"
   const label = listTitle(c, c.city ? c.city.replace(/\b\w/g, (x) => x.toUpperCase()) : null);
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
-    understood: { kind: "question", label, season: c.season ?? defaultSeason(), ...(c.region ? { place: { key: c.region.key, name: c.region.name } } : {}) },
-    intent: { kind: "stat-compound-list", pattern: `teams${c.region ? " [place]" : c.city ? " [city]" : ""}${c.award ? " [award]" : ""}${c.worlds ? " [worlds]" : ""}${c.thresholds.length ? " [threshold]" : ""}${c.noWorlds ? " [not worlds]" : ""}${c.rookie ? " [rookie]" : ""}`, met: true, understood: [label] },
+    understood: { kind: "question", label, season: listSeason(c), ...(c.region ? { place: { key: c.region.key, name: c.region.name } } : {}) },
+    intent: { kind: "stat-compound-list", pattern: `teams${c.region ? " [place]" : c.city ? " [city]" : ""}${c.award ? " [award]" : ""}${c.worlds ? " [worlds]" : ""}${c.thresholds.length ? " [threshold]" : ""}${c.noWorlds ? " [not worlds]" : ""}${c.rookie ? " [rookie]" : ""}${c.notRookie ? " [not rookie]" : ""}`, met: true, understood: [label] },
   };
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };
   const stat = await listAnswer(c);
@@ -214,8 +215,10 @@ async function listPairSearch(q: string, c: Extract<CompoundQuestion, { kind: "l
 }
 
 /** "12345 vs 67890 vs 33950 which has highest reliability": each team found by its number. */
-async function setSearch(q: string, c: Extract<CompoundQuestion, { kind: "set-best" }>, resolve: Resolve, opts: Opts): Promise<SearchAnswer | null> {
-  const hits = await Promise.all(c.teams.map(async (n) => (await resolve(String(n))).hits.find((h) => h.kind === "team" && h.ref === String(n) && !h.href)));
+async function setSearch(q: string, c: Extract<CompoundQuestion, { kind: "set-best" }>, opts: Opts): Promise<SearchAnswer | null> {
+  // Each team's hit as a search for its number gives it, all in one read (../search.ts teamNumberHits).
+  const byNumber = await teamNumberHits(c.teams);
+  const hits = c.teams.map((n) => byNumber.get(n));
   if (hits.some((h) => !h)) return null;
   const found = hits as SearchHit[];
   const teams = found.map((h) => ({ number: Number(h.ref), name: teamNameOf(h.title) || null }));
