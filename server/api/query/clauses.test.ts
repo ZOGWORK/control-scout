@@ -38,6 +38,8 @@ describe("compound questions", () => {
     const a = await ask("30801 opr and 30802 record");
     expect([a.intent?.kind, a.stat?.intent, a.clauses?.map((c) => c.stat?.intent)]).toEqual(["stat-clauses", "opr", ["record"]]);
     expect(a.understood?.label).toMatch(/OPR.*; .*Record/);
+    // Every word read, "and" too: each part answered as asked.
+    expect(a.understood?.unread).toBeUndefined();
   });
   it("every surface that shows an answer shows every part: Control Scout Lite's page, Bruno's facts", async () => {
     const a = await ask("30801 opr and 30802 record");
@@ -54,6 +56,8 @@ describe("compound questions", () => {
   it("a part with no subject of its own asks of the first part's team", async () => {
     const a = await ask("30801 awards and highest score");
     expect([a.stat?.intent, a.clauses?.[0].stat?.intent, a.clauses?.[0].stat?.headline?.value]).toEqual(["awards", "highest-score", "140 points"]);
+    // Every word read, "and" too: each part answered as asked.
+    expect(a.understood?.unread).toBeUndefined();
   });
   it("two teams asked different things are two questions, never one compare of both", async () => {
     const a = await ask("30801 last match and 30802 next event");
