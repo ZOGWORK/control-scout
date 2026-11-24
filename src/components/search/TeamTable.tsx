@@ -103,7 +103,7 @@ export function TeamTable({ table, label, limit }: { table: Table; label: string
               </th>
               <th scope="col" className={th}>Team</th>
               {table.asked && sortTh("asked", table.asked.label, "whitespace-normal leading-tight", table.asked.label)}
-              {sortTh("opr", "OPR", cn("@min-[44rem]/tt:w-28 v8:@min-[44rem]/tt:w-auto", byPhase && "@max-[44rem]/tt:hidden"))}
+              {sortTh("opr", "OPR", cn("@min-[44rem]/tt:w-28 v8:@min-[44rem]/tt:w-auto v8:font-semibold v8:text-violet-300", byPhase && "@max-[44rem]/tt:hidden"))}
               {phases && <>
                 {sortTh("auto", "Auto", cn(onPhone("auto"), "font-semibold", P.auto.text, V8_HEAD))}
                 {sortTh("dc", withEndgame ? "TeleOp" : "DC", cn(onPhone("dc"), "font-semibold", P.teleop.text, V8_HEAD))}
@@ -136,7 +136,7 @@ export function TeamTable({ table, label, limit }: { table: Table; label: string
                     <td className={cn("relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground v8:text-violet-300", CELL, byPhase && "@max-[44rem]/tt:hidden")} data-opr>
                       {/* The bar inset in its own track, so its length is exactly OPR / max of the track. */}
                       {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute inset-x-1 bottom-1 h-1 v8:hidden"><span className={cn("block h-full rounded-full", INK_BAR)} style={{ width: `${(r.opr / oprMax) * 100}%` }} data-opr-bar data-bar data-value={r.opr} data-scale={oprMax} /></span>}
-                      <span className={cn("relative", V8_NUM)}>{oneDp(r.opr)}</span>
+                      <span className="relative">{oneDp(r.opr)}</span>
                     </td>
                     {phases && <>
                       <td className={cn("px-2 py-1.5 text-right font-medium tabular-nums", CELL, P.auto.text, onPhone("auto"))} data-phase="auto">{oneDp(r.auto)}</td>

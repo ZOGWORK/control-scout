@@ -166,11 +166,11 @@ export function standoutRows(stat: StatAnswer | undefined): { title: string; row
 /** A standout match's colour, by what its note says it is (best Auto blue, a win green, a best score purple). */
 export function noteColour(note: string | undefined): SoftColour {
   const n = (note ?? "").toLowerCase();
-  if (/auto/.test(n)) return "blue";
+  if (/\bauto/.test(n)) return "blue";
   if (/teleop|driver/.test(n)) return "orange";
   if (/endgame/.test(n)) return "green";
-  if (/(loss|lost)/.test(n)) return "red";
-  if (/win|won/.test(n)) return "win";
+  if (/\b(loss|lost)\b/.test(n)) return "red";
+  if (/\b(win|won)\b/.test(n)) return "win";
   return "purple";
 }
 
@@ -229,14 +229,14 @@ export function TeamRow({ h, summary, onOpen }: { h: SearchHit; summary?: Season
   const { onClick: morphTap, ...morph } = useMorphCard(link ? teamMorphKey(link.team) : "", href, () => { if (link) warmTeam(link.team, link.season); });
   return (
     <Link to={href} {...morph} onClick={(ev) => { onOpen(); morphTap?.(ev); }} className={ROW} data-row="team">
-      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", V8_SOFT.accent.tint, V8_SOFT.accent.text)}><Shield className="size-4" aria-hidden /></span>
+      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", V8_SOFT.accent.fill)}><Shield className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-foreground"><span data-morph-title className="font-medium tabular-nums text-accent">{p?.number ?? h.ref}</span>{p?.name && <span> {p.name}</span>}</span>
         {h.subtitle && <span className="block truncate text-xs text-text-muted">{h.subtitle}</span>}
       </span>
       {s && (s.record || s.opr != null) && (
         <span className="shrink-0 text-right text-xs tabular-nums text-text-muted">
-          {s.record && <RecordText text={s.record} className="block" />}
+          {s.record && <RecordText text={s.record} className="block" win={V8_SOFT.win.text} />}
           {s.opr != null && <span className="block">OPR <span className={cn("font-semibold", V8_SOFT.purple.text)}>{s.opr.toFixed(1)}</span></span>}
         </span>
       )}
@@ -249,7 +249,7 @@ export function EventRow({ h, onOpen }: { h: SearchHit; onOpen: () => void }) {
   const e = eventFacts(h);
   return (
     <Link to={hitHref(h)} onClick={onOpen} className={ROW} data-row="event">
-      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", e.status === "live" ? V8_SOFT.live.fill : e.status === "finished" ? cn(V8_SOFT.lime.tint, V8_SOFT.lime.text) : cn(V8_SOFT.accent.tint, V8_SOFT.accent.text))} data-status={e.status}><CalendarDays className="size-4" aria-hidden /></span>
+      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", e.status === "live" ? V8_SOFT.live.fill : e.status === "finished" ? V8_SOFT.lime.fill : V8_SOFT.accent.fill)} data-status={e.status}><CalendarDays className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-foreground">{h.title}</span>
         <span className="flex min-w-0 items-center gap-1.5 text-xs text-text-muted">
@@ -268,7 +268,7 @@ export function PlainRow({ h, onOpen, icon }: { h: SearchHit; onOpen: () => void
   const Icon = icon === "match" ? Swords : icon === "place" ? MapPin : FileText;
   return (
     <Link to={hitHref(h)} onClick={onOpen} className={ROW} data-row={icon}>
-      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", V8_SOFT[icon === "match" ? "orange" : icon === "place" ? "cyan" : "accent"].tint, V8_SOFT[icon === "match" ? "orange" : icon === "place" ? "cyan" : "accent"].text)}><Icon className="size-4" aria-hidden /></span>
+      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", V8_SOFT[icon === "match" ? "orange" : icon === "place" ? "cyan" : "indigo"].fill)}><Icon className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-foreground">{h.title}</span>
         {h.subtitle && <span className="block truncate text-xs text-text-muted">{h.subtitle}</span>}
