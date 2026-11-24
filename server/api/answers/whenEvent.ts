@@ -1,4 +1,4 @@
-// "When is <event>" (search audit, "when/where asks"): "when is the new jersey championship", "when is worlds". An
+// "When is <event>" (search audit, "when/where asks"): "when is <state> championship", "when is worlds". An
 // answer that lists an event's editions, one a season, leads with the date of the one the question means: the edition
 // on now or next, else the most recent; the other seasons' under it. Read from the answer's own event rows: nothing
 // here names an event, a place or a season.
