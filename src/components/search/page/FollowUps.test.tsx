@@ -81,6 +81,22 @@ describe("useFollowUps", () => {
     }
   });
 
+  it("a re-ask that fails still leaves the next ones to come", async () => {
+    vi.useFakeTimers();
+    try {
+      prime(followApiPath("4215 auto"), { q: "4215 auto", ask: f.ask.slice(0, 1), related: [], partial: true });
+      let calls = 0;
+      vi.stubGlobal("fetch", vi.fn(async () => { calls++; if (calls === 1) return new Response("{}", { status: 503 }); return new Response(JSON.stringify({ q: "4215 auto", ...f }), { status: 200, headers: { "content-type": "application/json" } }); }));
+      const { result } = renderHook(() => useFollowUps("4215 auto", undefined, true));
+      for (let i = 0; i < 4; i++) await act(async () => { await vi.advanceTimersByTimeAsync(FOLLOW_REASK_MS); });
+      expect(calls).toBe(2);
+      expect(result.current.related).toEqual(f.related);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("the whole set, once back, replaces the part and stops the asking", async () => {
     vi.useFakeTimers();
     try {

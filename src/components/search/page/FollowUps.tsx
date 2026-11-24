@@ -4,7 +4,7 @@
 // that answer's card colours them (search's palette). Plain rows and chips in the page's card style, nothing when
 // there's nothing to offer. At every
 // width, People also ask goes under the answer and Related searches at the end of the page.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, Clapperboard, Search } from "lucide-react";
 import { useApi } from "../../../lib/api";
@@ -65,11 +65,14 @@ export function useFollowUps(q: string, prefer: string | undefined, ready: boole
   if (reask.current.key !== key) reask.current = { key, n: 0 };
   const partial = !!own?.partial;
   const { reload } = ownCall;
+  // Each re-ask settling (answered, or failed and kept the part on screen) arms the next.
+  const [settled, setSettled] = useState(0);
   useEffect(() => {
     if (!partial || reask.current.n >= FOLLOW_REASKS) return;
-    const t = setTimeout(() => { reask.current.n++; void reload(); }, FOLLOW_REASK_MS);
-    return () => clearTimeout(t);
-  }, [partial, own, reload]);
+    let live = true;
+    const t = setTimeout(() => { reask.current.n++; void reload().catch(() => {}).finally(() => { if (live) setSettled((n) => n + 1); }); }, FOLLOW_REASK_MS);
+    return () => { live = false; clearTimeout(t); };
+  }, [partial, own, reload, settled]);
   if (own) return { ...own, pending: false };
   const failed = !!ownCall.error;
   // The questions the page was served with stand in while the visitor's own are on their way; served with none, the
