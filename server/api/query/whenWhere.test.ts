@@ -64,6 +64,16 @@ describe("when and where asks", () => {
     expect([aw.headline?.value, aw.headline?.sub]).toEqual(["Bayside Qualifier · Harbor Qualifier · Old Harbor Qualifier", "Feb 14, 2026 · Jan 10, 2026 · Jan 11, 2025"]);
     const hi = await card("where did 30701 score their highest");
     expect([hi.title.startsWith("Where: "), hi.headline?.value, hi.headline?.sub]).toEqual([true, "Bayside Qualifier", "Feb 14, 2026"]);
+    // The alliance's team chips the headline drew stay.
+    const top = await card("where was the highest score");
+    expect([top.headline?.value, top.headline?.alliance, top.headline?.teams?.map((x) => x.label)]).toEqual(["Bayside Qualifier", "red", ["30701 Crab Bots"]]);
+  });
+  it("when: a score split by season reads its matches' dates (its table has events only)", async () => {
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2024, 'USMDOLD', 'qual', 0, 1, 'Q1', '2025-01-11T10:00:00Z', 1, 100, 100, 40, 40, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2024, 'USMDOLD', 'qual', 0, 1, 30701, 'red', 1)");
+    clearAllCaches();
+    const hi = await card("when did 30701 score their highest ever");
+    expect([hi.title.startsWith("When: "), hi.headline?.value, hi.headline?.sub]).toEqual([true, "Feb 14, 2026", "Bayside Qualifier"]);
   });
   it("asked without the word, the answer is as before", async () => {
     const s = await card("30701 inspire awards");
