@@ -1,5 +1,6 @@
 // HTTP API. Browsing, search and predictions need no account, ever; only
 // /api/me/* (personal data) does.
+import type { ServerResponse } from "node:http";
 import express, { type NextFunction, type Request, type Response } from "express";
 import compression from "compression";
 import { existsSync } from "node:fs";
@@ -12,6 +13,7 @@ import { siteMeta } from "./api/meta.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { MAX_QUERY, cleanQuery, learnQuery, plainSearch, searchAnswer } from "./api/searchAnswer.js";
+import { noteServed, servedHit } from "./api/searchServed.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
 import { pickedQuery, pickedSeasonOf } from "./api/searchPageAnswer.js";
 import { followUpsWithin, holdChecks, pageAnswer } from "./api/answers/followUps.js";
@@ -23,7 +25,7 @@ import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { chatWords, pointsBack } from "./api/query/chat.js";
 import { SEARCH_PAGE_LIMIT, isBrunoQuestion, preferOf } from "../src/shared/search.js";
-import { searchTiming } from "./api/searchTiming.js";
+import { searchTiming, slowSearchLine } from "./api/searchTiming.js";
 
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
 // ?prefer= (src/shared/search.ts preferOf): read the same way by the event pack with no signal.
@@ -146,6 +148,18 @@ import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, Sear
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const bad = (msg: string) => new HttpError(400, msg);
+/** An error answer is never kept, by the browser or the edge: its Cache-Control becomes no-store as it's sent, and a
+ *  Cloudflare-CDN-Cache-Control a route set before failing is dropped. */
+export function errorsNeverKept(res: ServerResponse): void {
+  const writeHead = res.writeHead;
+  res.writeHead = function (this: ServerResponse, ...a: Parameters<typeof writeHead>) {
+    if (this.statusCode >= 400 || (typeof a[0] === "number" && a[0] >= 400)) { this.setHeader("Cache-Control", "no-store"); this.removeHeader("Cloudflare-CDN-Cache-Control"); }
+    return writeHead.apply(this, a);
+  } as typeof writeHead;
+}
+/** Follow-ups and related searches: the same for everyone asking the same address, kept a minute (as the server keeps
+ *  them), then served stale for up to 5 minutes while a fresh copy is asked for. */
+const FOLLOW_CACHE = "public, max-age=60, stale-while-revalidate=300";
 
 /** Wrap an async handler: errors become JSON responses. */
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
@@ -345,11 +359,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   api.use((req, res, next) => {
     const personal = /^\/(me|auth|health|stats|reports|scout|owner|inbox|digest|videos)(\/|$)/i.test(req.path);
     res.setHeader("Cache-Control", req.method === "GET" && !personal ? "public, max-age=60, stale-while-revalidate=300" : "no-store");
-    const writeHead = res.writeHead;
-    res.writeHead = function (this: typeof res, ...a: Parameters<typeof writeHead>) {
-      if (this.statusCode >= 400 || (typeof a[0] === "number" && a[0] >= 400)) this.setHeader("Cache-Control", "no-store");
-      return writeHead.apply(this, a);
-    } as typeof writeHead;
+    errorsNeverKept(res);
     next();
   });
 
@@ -493,6 +503,10 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       if (!prefer.size && my == null) noteAsked(q, limit);
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
+      // What was sent, for a result opened from it (POST /search/click) to be checked without searching again.
+      // Only the plain answer (no preferred teams, My team or picked season): the one the old re-search gave, so a
+      // personal answer never vouches for a click on someone else's.
+      if (!prefer.size && req.query.my == null && req.query.season == null) noteServed(String(req.query.q ?? ""), ans.intent, ans.hits);
       const at = Date.now();
       // Failed searches → GitHub issues (server/searchFailures.ts): after the answer, in memory only, never awaited.
       // The key is the failure's pattern (patternFor, worked out only for an answer that failed), else search's own
@@ -517,7 +531,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // Checked for this viewer (a video they added may be what plays): questions offered to one viewer are never cached.
       if (viewer?.userId != null && offered !== body) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
-      res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
+      const parts = { answer: answered - started, extras: performance.now() - answered };
+      res.setHeader("Server-Timing", searchTiming(parts));
+      // Over a second in all: one journal line with its parts (searchTiming.ts slowSearchLine).
+      const slow = slowSearchLine("answer", parts, q);
+      if (slow) console.log(slow);
       // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
       // none (src/shared/api.ts): the page then says nothing about video.
       return { ...offered, hits: body.hits, ...(body.video !== undefined ? { video: body.video } : {}) };
@@ -537,9 +555,16 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     // waited for past FOLLOW_BUDGET_MS: what's checked by then, marked partial, and the page asks again.
     const started = performance.now();
     const follow = await followUpsWithin(asked, prefer);
-    res.setHeader("Server-Timing", searchTiming({ follow: performance.now() - started }));
-    // A partial set is never cached: the next ask gets the whole one.
-    res.setHeader("Cache-Control", follow.partial ? "no-store" : "public, max-age=60");
+    const took = { follow: performance.now() - started };
+    res.setHeader("Server-Timing", searchTiming(took));
+    const slow = slowSearchLine("follow", took, asked);
+    if (slow) console.log(slow);
+    // The same for everyone who asks these words (no account, no cookie: the preferred teams are in the address), so
+    // Cloudflare may keep it as the browser does, and serve a stale copy for a few minutes while it asks again. Its
+    // edge only stores /api/ answers a Cache Rule makes eligible (docs/cloudflare-cache.md). A partial set is never
+    // kept, by either: the next ask gets the whole one.
+    if (follow.partial) res.setHeader("Cache-Control", "no-store");
+    else { res.setHeader("Cache-Control", FOLLOW_CACHE); res.setHeader("Cloudflare-CDN-Cache-Control", FOLLOW_CACHE); }
     // Every valid pick is echoed (the app matches it), with the query as asked for the related searches page.
     const season = q.trim() ? pickedSeasonOf(req.query.season) : null;
     return { q, ...(season != null ? { season, asked } : {}), ...follow };
@@ -548,8 +573,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   // The related searches page (/related-searches, server/api/answers/relatedPage.ts): the same follow-ups, grouped.
   api.get("/search/related", limiter(30), h(async (req, res) => {
     await ensureSearchIndex(rebuildSearch);
-    res.setHeader("Cache-Control", "public, max-age=60");
-    return relatedPage(String(req.query.q ?? ""), preferOf(req.query.prefer));
+    const page = await relatedPage(String(req.query.q ?? ""), preferOf(req.query.prefer));
+    // Only once it's made: a failure never carries the edge's cache headers.
+    res.setHeader("Cache-Control", FOLLOW_CACHE);
+    res.setHeader("Cloudflare-CDN-Cache-Control", FOLLOW_CACHE);
+    return page;
   }));
 
   // Step 3 of search's chain (server/api/searchBruno.ts): asked by the app after the first answer is on screen,
@@ -558,6 +586,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     await ensureSearchIndex(rebuildSearch);
     const r = await refine(String(req.query.q ?? ""), { limit: boundedCount(req.query.limit, "limit", 12, 1, 25) });
     if (!r) { res.status(204).end(); return undefined; }
+    // Its hits are clickable in the header box too: known to the click check (server/api/searchServed.ts).
+    noteServed(String(req.query.q ?? ""), r.intent, r.hits);
     return r;
   }));
 
@@ -599,10 +629,15 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   api.post("/search/click", limiter(30), h(async (req, res) => {
     const q = cleanQuery(String(req.body?.q ?? "")), kind = String(req.body?.kind ?? ""), ref = String(req.body?.ref ?? "");
     if (q && ref) {
-      const a = await searchAnswer(q, { learn: false, limit: 25 });
-      const hit = a.hits.find((x) => x.kind === kind && x.ref === ref);
+      // What /api/search (or /refine) sent for this query lately (server/api/searchServed.ts): no second search per
+      // click. A query it doesn't know, or a result it didn't see sent (shown from the page's first paint, say), is
+      // searched again as before.
+      const known = servedHit(q, kind, ref);
+      const a = known ? null : await searchAnswer(q, { learn: false, limit: 25 });
+      const found = a ? a.hits.find((x) => x.kind === kind && x.ref === ref) : known!.hit;
+      const hit = found ? { kind: found.kind, ref: found.ref, href: !!found.href } : null;
       // What the query asked for, counted from search's own reading of it (server/api/searchIntents.ts).
-      if (hit) await recordIntent(a.intent);
+      if (hit) await recordIntent(a ? a.intent : known!.intent);
       if (hit && !hit.href && (await isEnabled("searchLearning").catch(() => false))) await recordClick(learnQuery(q), hit);
     }
     res.status(204).end();
@@ -855,7 +890,15 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   api.get("/compare", h(async (req) => compareAnswer(teamList(req.query.teams, "teams", 4), req.query.season ? season(req.query.season) : undefined)));
 
   /** Many teams at once (shortlist, tracked teams): name, place, season stats, latest event. */
-  api.get("/teams-summary", h(async (req) => ({ season: season(req.query.season), teams: await teamSummaries(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
+  // ?before=1: the season before's too, in the same answer (/search's cards fall back to it for a team with no numbers
+  // yet this season): one request, where the page used to send a second for it.
+  api.get("/teams-summary", h(async (req) => {
+    const s = season(req.query.season), teams = teamList(req.query.teams, "teams", 100);
+    // The first covered season has no season before it to send (a direct ?season= for it is a 404).
+    if (req.query.before !== "1" || !SEASON_NUMBERS.includes(s - 1)) return { season: s, teams: await teamSummaries(teams, s) };
+    const [now, before] = await Promise.all([teamSummaries(teams, s), teamSummaries(teams, s - 1)]);
+    return { season: s, teams: now, before: { season: s - 1, teams: before } };
+  }));
 
   /** The shortlist page in one request: summaries plus each team's OPR split and event-by-event trend. */
   // Reliability index (src/shared/reliability.ts): public match data only, also read by Control Point.

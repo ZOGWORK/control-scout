@@ -147,6 +147,9 @@ export interface SearchPageLink { title: string; href: string }
  *                  `intent.gap` says plainly what doesn't exist yet
  *   recovery       nothing matched: `recovery` says what was understood, the closest matches if any, and where to browse
  */
+/** One part of a compound question, as its own answer would draw: a stat's card (with its explainer), else a fact's. */
+export interface SearchClause { stat?: StatAnswer; card?: SearchCard }
+
 export interface SearchAnswer {
   q: string;
   hits: SearchHit[];
@@ -167,6 +170,9 @@ export interface SearchAnswer {
   card?: SearchCard;
   /** A stat question's answer ("4215 highest score in worlds"), as blocks /search draws: src/shared/searchStat.ts. */
   stat?: StatAnswer;
+  /** A compound question's other parts ("<team> opr and <team> record"): each part's own card, drawn under the first
+   *  part's in the order asked (server/api/query/clauses.ts). */
+  clauses?: SearchClause[];
   /** A yes-or-no question's answer ("has 12345 ever been to worlds"): drawn first, above the card that proves it
    *  (server/api/answers/yesNo.ts). */
   verdict?: { answer: "Yes" | "No"; label: string };
@@ -179,7 +185,8 @@ export interface SearchAnswer {
    *  from what its records hold ("4215 worlds appearances", "4215 record 2025–26"), shown as taps. */
   suggest?: string[];
   /** The video the site has for what the answer is about (server/api/answers/video.ts); null: read, and none; absent: not
-   *  read yet (a page's first paint carries the answer without it), so nothing may say there is none. */
+   *  read (a read that failed; /search's first paint carries it as a signed-out visitor sees it), so nothing may say
+   *  there is none. */
   video?: SearchVideo | null;
   /** Made on the device with no signal (src/lib/offline/search.ts), never by the server: the query needs data the
    *  downloaded event packs don't hold. The page says so, with what is in them. */

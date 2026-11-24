@@ -7,11 +7,13 @@ import type { Server } from "node:http";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { kvSet, migrate, openDb, run, setDb } from "../db";
+import { all, kvSet, migrate, openDb, run, setDb } from "../db";
+import { noteServed, resetServed } from "./searchServed";
 import { clearAllCaches } from "../caches";
 // Bruno, without a model: an answer for "101" questions, nothing for any other.
 vi.mock("./searchBrunoAnswer", async (orig) => ({ ...(await orig<typeof import("./searchBrunoAnswer")>()), brunoAnswer: vi.fn(async (q: string) => (q.includes("101") ? { text: "Strong auto.", points: [] } : null)) }));
 import { createApp } from "../app";
+import { SEASON_NUMBERS } from "../data/seasons";
 
 // Pinned (not CURRENT_SEASON): the snapshot's routes and bodies name it, so a new season must not move it.
 const S = 2026;
@@ -170,5 +172,31 @@ describe("hot-path API responses", () => {
     for (let i = 0; i < 17; i++) codes.push(await ask(B));
     expect(codes.slice(0, 16).every((c) => c !== 429)).toBe(true);
     expect(codes[16]).toBe(429);
+  });
+  it("teams-summary with ?before=1: the same teams and, in the same answer, the season before's", async () => {
+    const one = await (await fetch(`${base}/api/teams-summary?season=${S}&teams=101,102`)).json();
+    const last = await (await fetch(`${base}/api/teams-summary?season=${S - 1}&teams=101,102`)).json();
+    const both = await (await fetch(`${base}/api/teams-summary?season=${S}&teams=101,102&before=1`)).json();
+    expect(both).toEqual({ ...one, before: last });
+  });
+  it("teams-summary with ?before=1 for the first season covered: no season before it is sent", async () => {
+    const first = Math.min(...SEASON_NUMBERS);
+    const r = await (await fetch(`${base}/api/teams-summary?season=${first}&teams=101&before=1`)).json();
+    expect(r.season).toBe(first);
+    expect(r.before).toBeUndefined();
+  });
+  it("a result click on a query search sent without that result is still checked by searching again", async () => {
+    const Q = "101 vs 102";
+    resetServed();
+    const search = await (await fetch(`${base}/api/search?q=${encodeURIComponent(Q)}&limit=25`)).json();
+    const hit = search.hits.find((x: { kind: string }) => x.kind === "team");
+    expect(hit).toBeTruthy();
+    // Known to have been answered, but not with this result (the page showed it from its first paint, say).
+    resetServed();
+    noteServed(Q, search.intent, []);
+    await run("DELETE FROM search_intents");
+    const r = await fetch(`${base}/api/search/click`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ q: Q, kind: hit.kind, ref: hit.ref }) });
+    expect(r.status).toBe(204);
+    expect((await all<{ count: number }>("SELECT count FROM search_intents")).length).toBe(1);
   });
 });

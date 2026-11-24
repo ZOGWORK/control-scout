@@ -152,7 +152,8 @@ describe("typos the spelling layer missed", () => {
       expect(a.intent?.understood[0], q).toBe("East Bergen Conference Northern League Tournament · Winning alliance");
       expect(a.understood?.unread ?? [], q).toEqual([]);
     }
-    expect((await full("east bergen conference winnng")).didYouMean).toBe("east bergen conference winning");
+    // Read in the parse (search audit Q8): answered as typed, no "Did you mean".
+    expect((await full("east bergen conference winnng")).didYouMean).toBeUndefined();
     // A winner word beside a team's name is never an event's ("bad wolf winner").
     expect((await full("bad wolf winner")).intent?.kind ?? "").not.toBe("stat-winning-alliance");
   });

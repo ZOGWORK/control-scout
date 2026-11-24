@@ -9,6 +9,7 @@ import { readTime } from "../query/time.js";
 import { searchToday } from "../searchEvents.js";
 import { findRegions, nearRegion, type Region } from "../../../src/shared/regions.js";
 import { countryOf } from "../../../src/shared/countries.js";
+import { championshipNames } from "../../../src/shared/query/lexicon.js";
 
 export type IntentId =
   // Family 3: one best (or worst) of a filtered set.
@@ -140,7 +141,7 @@ const RULES: IntentRule[] = [
   { id: "first-place-events", family: "superlative", season: "all", re: /\b(?:events?|tournaments?|competitions?|meets?)\s+(?<team>.+?)\s+(?:won\s+outright|(?:placed|ranked|finished)\s+(?:first|1st|#1|number\s+one)(?:\s+(?:in|at))?)(?=\s|$)|\b(?:placed|ranked|finished)\s+(?:first|1st|#1)\s+(?:in|at)\s+(?:events?|tournaments?)\b|\bwon\s+(?:events?\s+)?outright\b/ },
   // The team's Worlds divisions (one per championship it went to): "12345 worlds divisions", "championship divisions
   // 12345 played in", "12345 championship appearances count".
-  { id: "worlds-divisions", family: "aggregate", season: "all", re: /\b(?:(?:world|first|houston)\s+)?(?:championship|worlds?)\s+divisions?\b|\bchampionship\s+appearances?\b|\bdivisions?\s+(?:at|in)\s+(?:the\s+)?(?:worlds?|(?:first\s+)?championship)\b/ },
+  { id: "worlds-divisions", family: "aggregate", season: "all", re: /\b(?:(?:world|first)\s+)?(?:championship|worlds?)\s+divisions?\b|\bchampionship\s+appearances?\b|\bdivisions?\s+(?:at|in)\s+(?:the\s+)?(?:worlds?|(?:first\s+)?championship)\b/ },
   { id: "event-wins", family: "awards", season: "all", re: /\bhow\s+many\s+(?:events?|tournaments?|competitions?)\s+(?:has|have|did)\s+(?<team>.+?)\s+won?\b|\b(?:ever\s+)?won\s+(?:an?\s+|any\s+)?(?:events?|tournaments?|competitions?)\b|\bevent\s+wins?\b|\b(?:events?|tournaments?)\s+won\b|\btitles?\s*$/ },
   { id: "inspire-awards", family: "awards", season: "all", re: /\binspire(?:\s+awards?)?\b/ },
   { id: "finalist-finishes", family: "awards", season: "all", re: /\bfinalists?(?:\s+(?:finish(?:es)?|alliances?|awards?))?\b/ },
@@ -284,7 +285,7 @@ export interface StatQuestion {
 }
 
 // The longer names first: "world championship" is one name, never "world" and an event called "championship".
-const WORLDS = /\b(?:(?:at|in|during|from)\s+)?(?:the\s+)?(?:world\s+champ(?:ionships?|s)?|first\s+champ(?:ionships?|s)?|houston\s+champ(?:ionships?|s)?|championship\s+divisions?|worlds?)\b/;
+const WORLDS = new RegExp(String.raw`\b(?:(?:at|in|during|from)\s+)?(?:the\s+)?(?:${championshipNames()}|championship\s+divisions?)\b`);
 const STATES = /\b(?:(?:at|in|during)\s+)?(?:the\s+)?(?:states|state\s+champ(?:ionships?|s)?|state\s+finals?)\b/;
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 // The question's own words: never part of a team's name here.
@@ -512,7 +513,7 @@ const MEETING_IDS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matc
  *  names are Compare's. */
 /** The most teams Compare shows side by side. */
 const COMPARE_MAX = 4;
-export interface TeamSetQuestion { teams: number[]; season: number | null }
+export interface TeamSetQuestion { teams: number[]; season: number | null; /** The board stat they're compared by (BOARD_STATS), its card's headline row. */ stat?: string }
 export function readTeamSet(raw: string): TeamSetQuestion | null {
   // A bare year in a list of numbers is a team ("12345 67890 2024 compare"); a season is written as one ("2024-25") or
   // named as one ("in 2024", "during 2024").
@@ -538,6 +539,10 @@ export interface LeaderboardQuestion {
   stat: string;
   n: number;
   region: Region | null;
+  /** More places beside `region` ("teams from nj or ny"): the teams of any of them, on one board. */
+  also?: Region[];
+  /** The word joining them as typed ("or", "and"): the board names them with it. */
+  alsoWord?: "or" | "and";
   city: string | null;
   season: number | null;
   /** "best team in New Jersey by OPR": one team asked for. */
