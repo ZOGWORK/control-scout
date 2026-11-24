@@ -16,6 +16,9 @@ import { cn } from "../cn";
 /** How long the question must stay unchanged before Bruno is asked. */
 export const BRUNO_SETTLE_MS = 600;
 
+/** One answer's key: the question and the preferred teams it was read with (either changing asks again). */
+export const brunoKey = (q: string, prefer = "") => `${q.trim()}\n${prefer}`;
+
 /** Whether the page asks Bruno for this query at all (his flag on, a question, search's own answer not a direct one):
  *  the page lays itself out from this before he answers, so his card's slot is there from the first frame. */
 export function useBrunoAsks(q: string, answered: boolean): boolean {
@@ -41,14 +44,13 @@ export function brunoVerdict(text: string): { answer: "Yes" | "No"; rest: string
  *  question (isBrunoQuestion) asks him, whatever summary the page also shows (SearchPage.bruno.test.tsx), unless
  *  `answered`: search's own answer card (a card or stat answer, not a guess) already says it, and his card beside it
  *  would say the same thing twice. */
-export function BrunoAnswer({ q, prefer = "", ready, answered = false, lead = false, onOutcome, className, children }: { q: string; prefer?: string; ready: boolean; answered?: boolean; lead?: boolean; onOutcome?: (q: string, said: boolean) => void; className?: string; children?: ReactNode }) {
+export function BrunoAnswer({ q, prefer = "", ready, answered = false, lead = false, onOutcome, className, children }: { q: string; prefer?: string; ready: boolean; answered?: boolean; lead?: boolean; onOutcome?: (key: string, said: boolean) => void; className?: string; children?: ReactNode }) {
   const query = q.trim();
   // `answered`: search's own answer card already says it; his card would say the same thing twice.
   const willAsk = useBrunoAsks(query, answered);
   const asks = willAsk && ready;
   // An answer belongs to its question and the preferred teams it was read with: either changing hides it.
-  const key = `${query}
-${prefer}`;
+  const key = brunoKey(query, prefer);
   const [state, setState] = useState<{ key: string; text: string | null; points: string[] }>({ key: "", text: null, points: [] });
   useEffect(() => {
     if (!asks) return undefined;
@@ -67,9 +69,10 @@ ${prefer}`;
     }, BRUNO_SETTLE_MS);
     return () => { live = false; clearTimeout(t); stop.abort(); };
   }, [asks, query, prefer, key]);
-  // The page hears whether he answered this question (a leading card's page lays its heading out by it).
+  // The page hears whether he answered this question, by its key (brunoKey: the question and the preferred teams), so
+  // a leading card's page lays its heading out by it.
   const outcome = state.key === key ? !!state.text : null;
-  useEffect(() => { if (outcome != null) onOutcome?.(query, outcome); }, [outcome, query, onOutcome]);
+  useEffect(() => { if (outcome != null) onOutcome?.(key, outcome); }, [outcome, key, onOutcome]);
   const phone = useMediaQuery("(max-width: 767px)");
   // Leading the page: his slot is held while he writes (the same card's frame, so his answer fills it in place).
   if (lead && willAsk && state.key !== key && !children) {
