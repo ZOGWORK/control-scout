@@ -41,14 +41,16 @@ export function noteAsked(q: string, limit: number): void {
 }
 
 const valid = (x: unknown): x is Asked => Array.isArray(x) && typeof x[0] === "string" && typeof x[1] === "number";
+/** The list under `key`; a failed read throws (a save then writes nothing, never a short list over the kept one). */
 const listAt = async (key: string): Promise<Asked[]> => {
-  const v = await kvGet<unknown>(key).catch(() => null);
+  const v = await kvGet<unknown>(key);
   return Array.isArray(v) ? v.filter(valid).slice(0, HOT_MAX) : [];
 };
 
 /** Every lane's list, merged: each list's first, then each one's second, and so on, each search once, HOT_MAX in all. */
 export async function hotList(): Promise<Asked[]> {
-  const lists = await Promise.all(LANES.map((l) => listAt(keyOf(l))));
+  // A lane's list that can't be read is left out (the others still warm).
+  const lists = await Promise.all(LANES.map((l) => listAt(keyOf(l)).catch(() => [] as Asked[])));
   const out: Asked[] = [], seen = new Set<string>();
   for (let i = 0; out.length < HOT_MAX && lists.some((l) => i < l.length); i++) {
     for (const l of lists) {

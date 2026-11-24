@@ -1,6 +1,7 @@
 // The most-asked searches (./searchWarm.ts): counted, written most-asked first over the last list, and made by the
 // next process within its time.
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import * as db from "../db";
 import { kvSet, migrate, openDb, setDb } from "../db";
 
 const made: string[] = [];
@@ -57,5 +58,13 @@ describe("most-asked searches", () => {
     } finally {
       if (was === undefined) delete process.env.CS_LANE; else process.env.CS_LANE = was;
     }
+  });
+  it("writes nothing when its lane's list can't be read, so a kept list is never cut short", async () => {
+    await kvSet("search:hot:one", [["kept", 25]]);
+    noteAsked("new one", 25);
+    const spy = vi.spyOn(db, "kvGet").mockRejectedValueOnce(new Error("busy"));
+    await expect(saveHot()).rejects.toThrow("busy");
+    spy.mockRestore();
+    expect(await db.kvGet("search:hot:one")).toEqual([["kept", 25]]);
   });
 });
