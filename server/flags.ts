@@ -19,6 +19,7 @@ import { threadId } from "node:worker_threads";
 import type { NextFunction, Request, Response } from "express";
 import { db, primaryDb } from "./db.js";
 import { registerCache } from "./caches.js";
+import { dropKeptPages } from "./api/searchReads.js";
 import { env } from "./env.js";
 import { DEFAULT_FLAGS, FEATURE_DISABLED, FLAGS, featureOffMessage, isFlag, isWorkspaceFlag, type FeatureDisabledBody, type Flag, type FlagSet } from "../src/shared/flags.js";
 
@@ -150,7 +151,7 @@ export async function setFlag(flag: Flag, enabled: boolean, by: string): Promise
       args: [flag, enabled ? 1 : 0, new Date().toISOString(), by],
     },
   ], "write");
-  invalidateFlags();
+  flagsWritten();
   const row = before.rows[0] as unknown as { enabled: number } | undefined;
   return row ? Number(row.enabled) === 1 : DEFAULT_FLAGS[flag];
 }
@@ -172,7 +173,7 @@ export async function setWorkspaceOverride(flag: Flag, workspaceId: string, enab
     { sql: "SELECT enabled FROM workspace_flag_overrides WHERE cp_workspace_id = ? AND name = ?", args: [workspaceId, flag] },
     write,
   ], "write");
-  invalidateFlags();
+  flagsWritten();
   const row = before.rows[0] as unknown as { enabled: number } | undefined;
   return row ? Number(row.enabled) === 1 : null;
 }
@@ -210,6 +211,14 @@ export function requireFeature(flag: Flag) {
     isEnabledFor(flag, null).then((on) => { if (on) next(); else featureDisabled(res, flag); }, next);
   };
 }
+
+/** How many flag writes this server has made: a page drawn with the flags (server/publicFlags.ts sharedFlags) checks it
+ *  didn't change while it read them. */
+let writes = 0;
+export const flagWrites = (): number => writes;
+/** A switch changed: the cached values go, and so does every kept page (each carries the flags in its head, marked
+ *  fresh: server/seo.ts flagsBlock), so the next visitor gets them as they are now. */
+function flagsWritten(): void { writes++; invalidateFlags(); dropKeptPages(); }
 
 /** Forget the cached values (a write here, the portal's "clear caches", tests). */
 export function invalidateFlags(): void { cached = null; loading = null; }

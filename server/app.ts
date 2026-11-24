@@ -20,7 +20,7 @@ import { withVideoAlternatives } from "./api/answers/videoSuggest.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
-import { SEARCH_PAGE_LIMIT, preferOf } from "../src/shared/search.js";
+import { SEARCH_PAGE_LIMIT, isBrunoQuestion, preferOf } from "../src/shared/search.js";
 import { searchTiming } from "./api/searchTiming.js";
 
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
@@ -215,23 +215,31 @@ export function searchLimit(max = SEARCHES_PER_MINUTE, windowMs = SEARCH_WINDOW_
 /** Tiny per-visitor token bucket (heavy endpoints only). */
 function limiter(perMinute: number) {
   const buckets = new Map<string, { tokens: number; at: number }>();
-  return (req: Request, res: Response, next: NextFunction) => {
+  /** One request's worth from this visitor's budget: the seconds until there's one again when there isn't (0: taken). */
+  const spend = (req: Request): number => {
     const ip = visitorIp(req);
     const now = Date.now();
     const b = buckets.get(ip) ?? { tokens: perMinute, at: now };
     b.tokens = Math.min(perMinute, b.tokens + ((now - b.at) / 60000) * perMinute);
     b.at = now;
-    if (b.tokens < 1) {
-      // When the next request will get through, so a client that waits (an event pack being prepared) can.
-      res.setHeader("Retry-After", String(Math.max(1, Math.ceil(((1 - b.tokens) / perMinute) * 60))));
-      res.status(429).json({ error: "Too many requests — try again in a minute." });
-      return;
-    }
+    if (b.tokens < 1) return Math.max(1, Math.ceil(((1 - b.tokens) / perMinute) * 60));
     b.tokens -= 1;
     buckets.set(ip, b);
     if (buckets.size > 10000) buckets.clear();
+    return 0;
+  };
+  const middleware = (req: Request, res: Response, next: NextFunction) => {
+    const wait = spend(req);
+    if (wait) {
+      // When the next request will get through, so a client that waits (an event pack being prepared) can.
+      res.setHeader("Retry-After", String(wait));
+      res.status(429).json({ error: "Too many requests — try again in a minute." });
+      return;
+    }
     next();
   };
+  /** Spend from the same budget outside the route (true: there was one). */
+  return Object.assign(middleware, { take: (req: Request) => spend(req) === 0 });
 }
 
 /** Short-lived cache for expensive results, keyed by data version. */
@@ -427,6 +435,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     return statusNow();
   }));
 
+  // Bruno's model calls, per visitor: his own route (/search/bruno) and the early start /search gives him share it.
+  const brunoBudget = limiter(20);
   api.get("/search", searches, h(async (req, res) => {
     const started = performance.now();
     await ensureSearchIndex(rebuildSearch);
@@ -452,7 +462,9 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // brunoAnswer itself asks only for a question, with his switch on. A follow-up question (chat "follow-up") is
       // asked by the page with the search it points back at, which this request doesn't know: left to the page.
       if (req.query.bruno === "1" && req.query.season == null && ans.chat !== "follow-up" && !(!ans.weak && (ans.card || ans.stat))) {
-        void brunoAnswer(String(req.query.q ?? ""), { prefer, limit: SEARCH_PAGE_LIMIT }).catch(() => {});
+        // Only a question he'd answer, and only within the visitor's Bruno budget (the same one his route spends).
+        const raw = String(req.query.q ?? "");
+        if (isBrunoQuestion(raw.trim().slice(0, 200)) && brunoBudget.take(req)) void brunoAnswer(raw, { prefer, limit: SEARCH_PAGE_LIMIT }).catch(() => {});
       }
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
@@ -526,7 +538,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
 
   // Bruno's written answer to a question on /search (server/api/searchBrunoAnswer.ts): asked by the page after its
   // results are on screen. 204: no answer (not a question, off, unconfigured, failed, or nothing he could say from the facts).
-  api.get("/search/bruno", limiter(20), h(async (req, res) => {
+  api.get("/search/bruno", brunoBudget, h(async (req, res) => {
     await ensureSearchIndex(rebuildSearch);
     // The page's own search choices (its preferred teams), so he reads the results the page shows.
     const q = String(req.query.q ?? "");
