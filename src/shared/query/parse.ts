@@ -3,7 +3,7 @@
 // word accounted for. Names come from the data (./names.ts), words from the lexicon (./lexicon.ts), times from
 // ./time.ts, the intent from ./intents.ts. Nothing here names a team, an event or a place.
 import { AWARD_ONE_WORD, EVENT_NAME_WORDS, LEXICON, type Agg, type Sym } from "./lexicon.js";
-import { WITH_VIDEO, pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
+import { CLEAN_MATCHES, WITH_VIDEO, pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
 import { readTime, type TimeRead, type TimeSlot } from "./time.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../searchEventQuery.js";
@@ -14,8 +14,9 @@ import { pickShared as pickAmong } from "./shared.js";
 
 /** A name as typed or stored, compared whole: lower case, any run of punctuation and spaces one space. */
 const wholeName = (n: string | null) => (n ?? "").toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
-import { allowedEdits, joinThousands } from "../fuzzy.js";
+import { allowedEdits, editDistance, joinThousands } from "../fuzzy.js";
 import { edits } from "../regions.js";
+import { everydayWord } from "./everyday.js";
 
 export interface TeamSlot {
   number: number; name: string | null; typed: string; via: "number" | "name" | "near";
@@ -37,6 +38,9 @@ export interface Parsed {
   teams: TeamSlot[];
   event: EventSlot | null;
   place: (Place & { typed: string }) | null;
+  /** Two regions or countries joined ("nj vs texas", "nj or ny"), in the order typed; `place` is the one read first.
+   *  `join`: "vs" for a comparison ("vs", "versus", "against", "compared to"), "or" for both together ("or", "and"). */
+  places?: { list: (Place & { typed: string })[]; join: "vs" | "or"; said: string };
   time: TimeSlot | null;
   level: "qual" | "playoff" | null;
   /** The finals only ("closest finals match"), a playoff level too. */
@@ -53,12 +57,17 @@ export interface Parsed {
   n: number | null;
   /** "match 12", "q12": a match's number. */
   matchNumber: number | null;
+  /** The number is the finals' own ("final 2", "F2"): the second finals match, never the playoffs' M2. */
+  finalNo?: true;
   /** Penalty points left out of scores ("without penalties"): read, and an intent that can't apply it leaves the parse
    *  incomplete. */
   noPenalties: boolean;
   /** Only matches with video ("with video"): a filter only the match finder applies; anywhere else the parse is left
    *  incomplete (./intents.ts WITH_VIDEO). */
   withVideo?: boolean;
+  /** No penalty points at all asked as a filter ("matches with no penalties", "penalty-free matches"), not the points
+   *  without penalties: the match finder's matches with none (./intents.ts CLEAN_MATCHES). */
+  clean?: true;
   /** A floor in points ("more than 50 points", "at least 30 pts", that number counting): only a rule that takes "over"
    *  applies it. */
   over?: { n: number; atLeast: boolean };
@@ -95,6 +104,9 @@ export interface Parsed {
   /** Words left over that name New Jersey conferences as a board's place ("best auto in nj bergen"): set by the server's
    *  executor (server/api/query/execute.ts), never by the parser. */
   conference?: string[];
+  /** Search words typed one letter off and read as the word they nearly spell ("higest": "highest"), silently. `nth`:
+   *  which of the words typed the same way it is (0 the first), so only that one is rewritten. */
+  fixed?: { typed: string; read: string; nth: number }[];
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -104,6 +116,8 @@ export interface ScoreCond { side: "losing" | "winning" | "both" | "either"; op:
 
 export interface ParseContext {
   names: Names;
+  /** The words are read exactly as typed (a quoted phrase was in the query): no search word one letter off is fixed. */
+  asTyped?: boolean;
   /** Today, YYYY-MM-DD (UTC). */
   today: string;
   /** Whether these words name a stored event (any season), and the team numbers' event when one is given. */
@@ -159,7 +173,7 @@ const REACH_BETWEEN = new Set([
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
-const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
+const COUNT_BEFORE = /^(?:top|last|final|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
 const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
 /** The words before a number of teams that make it a size ("more than 40 teams", "over 40", "at least 40"). */
 const SIZE_BEFORE = /^(?:than|over|least|most|under|above|below|exceeding)$/;
@@ -175,7 +189,7 @@ const LEX_ONE_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1).flatMa
 const symKey = (s: Sym): string | null => {
   switch (s.k) {
     case "agg": case "metric": case "thing": case "level": case "alliance": case "outcome": case "prep": case "award": case "per": return `${s.k}:${s.v}`;
-    case "filler": return null;
+    case "filler": case "clean": return null;
     default: return s.k;
   }
 };
@@ -322,7 +336,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     ...(fl ? { over: { n: Number(fl[2]), atLeast: fl[1] === "at least" } } : {}),
   };
   // Where the place read starts, in the parser's words: a place typed right after a shared name picks the team.
-  let placeFrom = -1;
+  let placeFrom = -1, placeLen = 0;
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
 
@@ -444,8 +458,14 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];
     if (t.used) continue;
-    const qm = /^(?:q|qm|qual|m)(\d{1,3})$/.exec(t.w);
-    if (qm) { p.matchNumber = Number(qm[1]); if (/^q/.test(t.w)) p.level = "qual"; else if (/^m\d/.test(t.w)) p.level = "playoff"; t.used = true; symbols.add("thing:match"); continue; }
+    const qm = /^(?:q|qm|qual|m|f)(\d{1,3})$/.exec(t.w);
+    if (qm) {
+      p.matchNumber = Number(qm[1]); t.used = true; symbols.add("thing:match");
+      if (/^q/.test(t.w)) p.level = "qual"; else if (/^m\d/.test(t.w)) p.level = "playoff";
+      // "F2": the finals' second match.
+      else if (/^f\d/.test(t.w)) { p.level = "playoff"; p.finals = true; p.finalNo = true; symbols.add("finals"); }
+      continue;
+    }
     // A team's number with its possessive typed without the apostrophe ("4215s chances"): that team's number.
     const poss = /^(\d{1,5})s$/.exec(t.w);
     if (poss && ctx.names.team(Number(poss[1]))) t.w = poss[1];
@@ -459,6 +479,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     }
     if (!/^\d{1,5}$/.test(t.w)) continue;
     const n = Number(t.w), prev = toks[i - 1]?.w, next = toks[i + 1]?.w;
+    // "Final 2", "finals 1": the finals' match with that number, never a count of the last matches ("final 2 matches"
+    // is one, read below as the lexicon reads "final").
+    if (prev && /^finals?$/.test(prev) && n <= 999 && !toks[i - 1].used && !/^(?:matches|games|events|seasons|teams)$/.test(next ?? "")) {
+      p.matchNumber = n; p.level = "playoff"; p.finals = true; p.finalNo = true; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); symbols.add("finals"); continue;
+    }
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
     // "Top 5 teams", and "top 3" ending the query.
     if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; if (prev === "top") topAt = i - 1; continue; }
@@ -500,7 +525,41 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (!code && lexOnly && !theCountry) continue;
       const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
       if (pl && theCountry && pl.kind !== "country") continue;
-      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = i; span.forEach((t) => (t.used = true)); }
+      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = i; placeLen = len; span.forEach((t) => (t.used = true)); }
+    }
+  }
+  // 2c. A second region or country joined to the first by a word between them ("nj vs texas", "teams from nj or ny",
+  // "texas compared to new jersey"): both places, never one inside the other ("Cluj, Romania") nor a town.
+  if (p.place && p.place.kind !== "city") {
+    const at = (a: number, b: number) => {
+      if (a < 0 || b > toks.length || a >= b) return null;
+      const span = toks.slice(a, b);
+      if (span.some((t) => t.used) || span.every((t) => isLex(t.w) && t.w !== "the") || EVENT_NAME_WORDS.has(toks[b]?.w ?? "")) return null;
+      const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
+      return pl && pl.kind !== "city" && pl.name !== p.place!.name && !within(pl, p.place!) && !within(p.place!, pl) ? { ...pl, typed: span.map((t) => t.typed).join(" ") } : null;
+    };
+    const joinAt = (j: number): [number, "vs" | "or", string] | null => {
+      const w = toks[j]?.w, w2 = toks[j + 1]?.w;
+      if (!w || toks[j].used) return null;
+      if (/^(?:vs|versus|v|against)$/.test(w)) return [1, "vs", w];
+      if (/^(?:or|and)$/.test(w)) return [1, "or", w];
+      if (/^(?:compared|comparing)$/.test(w) && /^(?:to|with)$/.test(w2 ?? "") && !toks[j + 1].used) return [2, "vs", `${w} ${w2}`];
+      return null;
+    };
+    const end = placeFrom + placeLen;
+    // After the first place, or before it ("texas vs new jersey": the longer name is read first).
+    const after = joinAt(end);
+    for (let len = 4; len >= 1 && !p.places; len--) {
+      if (after) {
+        const pl = at(end + after[0], end + after[0] + len);
+        if (pl) { p.places = { list: [p.place, pl], join: after[1], said: after[2] }; toks.slice(end, end + after[0] + len).forEach((t) => (t.used = true)); break; }
+      }
+      for (const k of [1, 2]) {
+        const j = placeFrom - k, before = joinAt(j);
+        if (!before || before[0] !== k) continue;
+        const pl = at(j - len, j);
+        if (pl) { p.places = { list: [pl, p.place], join: before[1], said: before[2] }; toks.slice(j - len, placeFrom).forEach((t) => (t.used = true)); placeFrom = j - len; break; }
+      }
     }
   }
 
@@ -515,7 +574,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   }
 
   // 3. The lexicon, longest phrase first at each place.
-  for (let i = 0; i < toks.length; i++) {
+  const readLexicon = () => { for (let i = 0; i < toks.length; i++) {
     if (toks[i].used) continue;
     const e = lexAt(i);
     if (!e) continue;
@@ -539,6 +598,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "states") p.states = true;
       else if (s.k === "award") { p.award = s.v; symbols.add("metric:award"); }
       else if (s.k === "nopen") p.noPenalties = true;
+      else if (s.k === "clean") p.clean = true;
       else if (s.k === "withvideo") p.withVideo = true;
       else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
@@ -549,7 +609,13 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
     }
-  }
+  } };
+  readLexicon();
+  // 3a. A search word typed one letter off ("higest", "penalites"), read as that word, silently, in this same parse,
+  // before the words left are read as names (a team's name typed nearly right beside it is then read on its own).
+  // Never in a query with a quoted phrase, which asks for exactly the words typed.
+  const fixed = ctx.asTyped || raw.includes('"') ? [] : fixSpelling(toks, ctx.names, typedWords);
+  if (fixed.length) { p.fixed = fixed; readLexicon(); }
   // "Top 10 closest matches": "top" before a count only says how many when another measure follows it, never the
   // highest as well. Its "max" is dropped, so the measure said is the one read.
   // Only the phrases actually read count: "most" in "most accurate" is that phrase's, never a highest of its own.
@@ -628,8 +694,19 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     runs.push({ from: i, to: j });
     i = j;
   }
+  // A meet's own number after an event's words ("Q16 <town> Meet 2"): in its name when the name with it is an event
+  // too, never a word left over. Only a number no team took (step 2 reads teams' numbers first). The span's new end.
+  const meetNumber = async (x: number, y: number): Promise<number> => {
+    const num = toks[y + 1];
+    return num && !num.used && /^\d{1,2}$/.test(num.w) && await ctx.isEvent(`${toks.slice(x, y + 1).map((t) => t.w).join(" ")} ${num.w}`) ? y + 1 : y;
+  };
   for (const run of runs) {
-    const { from, to } = run;
+    // Words an earlier run took (a meet's number, read into the event before: "<town> meet 2 <team>") are no part of
+    // this one.
+    let from = run.from;
+    const to = run.to;
+    while (from <= to && toks[from].used) from++;
+    if (from > to) continue;
     const words = () => toks.slice(from, to + 1).map((t) => t.w).join(" ");
     const typed = () => toks.slice(from, to + 1).map((t) => t.typed).join(" ");
     // A team read by part of its name ("girls in" of Girls in Robotics), with the words right after it nearly spelling a
@@ -678,8 +755,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (place?.kind === "city" && !p.event) {
       let b = to;
       while (b + 1 < toks.length && EVENT_NAME_WORDS.has(toks[b + 1].w)) b++;
-      const span = toks.slice(from, b + 1);
-      if (b > to && await ctx.isEvent(span.map((t) => t.w).join(" "))) {
+      if (b > to && await ctx.isEvent(toks.slice(from, b + 1).map((t) => t.w).join(" "))) {
+        b = await meetNumber(from, b);
+        const span = toks.slice(from, b + 1);
         p.event = { words: span.map((t) => t.w).join(" "), typed: span.map((t) => t.typed).join(" ") };
         span.forEach((t) => (t.used = true));
         if (!toks.some((t) => !span.includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
@@ -698,7 +776,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       while (a > 0 && EVENT_NAME_WORDS.has(toks[a - 1].w)) a--;
       const span = (x: number, y: number) => toks.slice(x, y + 1);
       const wide = (a !== from || b !== to) && await ctx.isEvent(span(a, b).map((t) => t.w).join(" "));
-      const [x, y] = wide ? [a, b] : [from, to];
+      const [x, y0] = wide ? [a, b] : [from, to];
+      const y = await meetNumber(x, y0);
       p.event = { words: span(x, y).map((t) => t.w).join(" "), typed: span(x, y).map((t) => t.typed).join(" ") };
       span(x, y).forEach((t) => (t.used = true));
       if (!toks.some((t) => !span(x, y).includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
@@ -837,7 +916,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   if (pick) { p.intent = pick.rule.id; p.rule = pick.rule; p.unexplained = pick.unexplained; }
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.
-  if (pick && p.noPenalties && !(pick.rule.opt ?? []).includes("nopen")) pick.unexplained.push("nopen");
+  // "With no penalties" (a filter, ./intents.ts CLEAN_MATCHES) is every match question's, whatever its rule lists.
+  if (pick && p.clean && CLEAN_MATCHES.has(pick.rule.id)) p.unexplained = pick.unexplained = pick.unexplained.filter((s) => s !== "nopen");
+  if (pick && p.noPenalties && !(p.clean ? CLEAN_MATCHES.has(pick.rule.id) : (pick.rule.opt ?? []).includes("nopen"))) pick.unexplained.push("nopen");
   if (pick && p.over != null && !(pick.rule.opt ?? []).includes("over")) pick.unexplained.push("over");
   if (pick && p.withVideo && !WITH_VIDEO.has(pick.rule.id)) pick.unexplained.push("withvideo");
   // The awards side-by-side counts every award: one award named ("12345 vs 67890 inspire awards") is left to the
@@ -845,6 +926,88 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);
   p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
   return p;
+}
+
+/** The search words a misspelling is fixed to (./lexicon.ts, the words of every phrase that says something, and the
+ *  one-word awards): five letters or more, by length. Never filler ("their", "performance"): fixing one changes no
+ *  answer, and search's older readers read those typos already. */
+const FIX_WORDS = (() => {
+  const by = new Map<number, string[]>();
+  const said = LEXICON.filter((e) => e.syms.some((x) => x.k !== "filler")).flatMap((e) => e.words).filter((w) => !FILLER_WORDS.has(w));
+  for (const w of new Set([...said, ...AWARD_ONE_WORD.keys()])) if (w.length >= 5 && /^[a-z]+$/.test(w)) (by.get(w.length) ?? by.set(w.length, []).get(w.length)!).push(w);
+  return by;
+})();
+
+/** Words the steps after the lexicon read (reaching a place, an event's kind and name words, Worlds' names). */
+const LATER_WORDS = new Set([...REACH, ...ADVANCE_TO, ...WORLDS_WORDS, ...KIND_WORDS, ...EVENT_NAME_WORDS, "division", "divisions", "rookie", "rookies",
+  // Dates the readers after the parse take as they are ("events in march": never "match").
+  "january", "february", "march", "april", "june", "july", "august", "september", "october", "november", "december",
+  "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "today", "tonight", "tomorrow", "yesterday", "weekend", "weekends"]);
+/** Two forms of one word: the same but for an ending ("-s", "-es", "-ed", "-d", "-ing", "-ies"/"-ied"). */
+const inflected = (a: string, b: string) => {
+  const root = (w: string) => w.replace(/(?:ies|ied|ing|es|ed|s|d|y)$/, "");
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  // One the other with an ending ("rankings", "ranking"), or both one root's ("ranked", "ranking").
+  return (long.startsWith(short) && /^(?:ies|ied|ing|es|ed|s|d|y)$/.test(long.slice(short.length))) || root(a) === root(b);
+};
+/** The words still unread after the lexicon that are one letter off one of its words (a change, a letter added or
+ *  dropped, two letters swapped; the same first letter), read as that word in place: five letters or more, lower case
+ *  only, never two words equally close, never a word of a stored team's, event's or town's name, a place, a near miss
+ *  of an event's word, nor part of a run of words that nearly spells a team's name ("hypnotc robotcs" stays the team).
+ *  Search's spelling layer (server/api/spelling.ts) still reads names; this reads its own words, so no second search
+ *  runs for them. Returns what was fixed. */
+function fixSpelling(toks: Tok[], names: Names, typedWords: string[]): NonNullable<Parsed["fixed"]> {
+  const out: NonNullable<Parsed["fixed"]> = [];
+  const caps = new Set(typedWords.filter((w) => /^[A-Z0-9]{2,}$/.test(w)).map((w) => w.toLowerCase()));
+  for (let i = 0; i < toks.length; i++) {
+    if (toks[i].used) continue;
+    let j = i;
+    while (j + 1 < toks.length && !toks[j + 1].used) j++;
+    const run = toks.slice(i, j + 1), said = run.map((t) => t.w).join(" ");
+    i = j;
+    if (said.length >= 5 && (names.nearTeam(said) || names.teamsCalled(said).length || names.place(said))) continue;
+    for (const t of run) {
+      const w = t.w;
+      if (caps.has(w) || names.nameWord?.(w) || names.place(w) || names.nearEventWord?.(w)) continue;
+      const near = nearSearchWord(w);
+      if (!near) continue;
+      // Which of the words spelled the same it is, so respell rewrites this one ("Recrod Bots recrod").
+      const nth = toks.slice(0, toks.indexOf(t)).filter((x) => x.typed.toLowerCase() === t.typed.toLowerCase()).length;
+      out.push({ typed: t.typed, read: near, nth });
+      t.w = near;
+    }
+  }
+  return out;
+}
+
+/** The one search word `w` (lower case) is one letter off, or null: five letters or more, the same first letter, never
+ *  another form of the word ("championship" of "championships", "qualifies" of "qualified": typed as meant), never a
+ *  word the parse's later steps read. */
+function nearSearchWord(w: string): string | null {
+  if (w.length < 5 || !/^[a-z]+$/.test(w) || LATER_WORDS.has(w) || LEX_WORDS.has(w) || everydayWord(w)) return null;
+  const near: string[] = [];
+  for (let len = w.length - 1; len <= w.length + 1; len++) for (const k of FIX_WORDS.get(len) ?? []) if (k[0] === w[0] && editDistance(w, k, 1) === 1) near.push(k);
+  return near.length === 1 && !inflected(w, near[0]) ? near[0] : null;
+}
+
+/** Whether a query may hold a search word one letter off (a word nearSearchWord fixes): a check on its words alone,
+ *  so search parses a query for its spelling (respell) only when it might need it. */
+export const mayRespell = (q: string): boolean => normalise(q).split(" ").some((w) => nearSearchWord(w) != null);
+
+/** `typed` with the search words the parse read one letter off written as meant ("<team> recrod" → "<team> record"), as
+ *  the parse fixes them (fixSpelling: never a name's word, a place, nor a team's name typed nearly right), or null. */
+export async function respell(typed: string, ctx: ParseContext): Promise<string | null> {
+  if (!mayRespell(typed)) return null;
+  const p = await parseQuery(typed, ctx);
+  if (!p.fixed?.length) return null;
+  const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // The word fixed is rewritten where it was typed: the nth of the words spelled the same ("Recrod Bots recrod"). The
+  // last first, so rewriting one never moves the count of another spelled the same.
+  const out = [...p.fixed].sort((a, b) => b.nth - a.nth).reduce((s, f) => {
+    let k = 0;
+    return s.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escape(f.typed)}(?![\\p{L}\\p{N}])`, "giu"), (m) => (k++ === f.nth ? f.read : m));
+  }, typed);
+  return out !== typed ? out : null;
 }
 
 /** Whether `inner` lies in `outer` (a town in its region or country, a region in its country). */
@@ -891,7 +1054,7 @@ export function describe(p: Parsed): string[] {
     p.nameHas ? `Name includes: ${p.nameHas.typed}` : "",
     p.event ? `Event: ${p.event.typed}` : "",
     p.worlds ? "FIRST Championship" : p.states ? "State championship" : "",
-    p.place ? `${p.place.kind === "city" ? "From" : "In"} ${p.place.name}` : "",
+    p.places ? `${p.places.join === "vs" ? "Comparing" : "In"} ${p.places.list.map((x) => x.name).join(` ${p.places.said} `)}` : p.place ? `${p.place.kind === "city" ? "From" : "In"} ${p.place.name}` : "",
     p.time ? `Time: ${p.time.label}` : "",
     p.finals ? "Finals" : p.level ? (p.level === "qual" ? "Qualification matches" : "Playoff matches") : "",
     p.alliance ? `${p.alliance === "red" ? "Red" : "Blue"} alliance` : "",
