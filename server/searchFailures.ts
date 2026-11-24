@@ -579,12 +579,12 @@ export type SyncOutcome = "no-token" | "paused" | "off" | "claimed-elsewhere" | 
  *  is lost) counts too. */
 export interface Budget { left: number }
 
-/** Brings one key's issue up to date: opens it, or updates its body (reopening it if it was closed as fixed and has
- *  failed since). `budget`: the sync's writes (one at most, by default). */
 /** A pattern key from before unread words were named in it (audit M8): "… · not read: 2 words". No failure is keyed so
  *  any more: such a row grows only by a split pattern landing on it (writeBatch), while its issue looked open. */
 export const preSplitPattern = (key: string) => key.startsWith("pattern: ") && /· not read: (?:1 word|\d\+? words)$/.test(key);
 
+/** Brings one key's issue up to date: opens it, or updates its body (reopening it if it was closed as fixed and has
+ *  failed since, unless it is a pre-split pattern's). `budget`: the sync's writes (one at most, by default). */
 export async function syncOne(key: string, now = new Date(), budget: Budget = { left: 3 }): Promise<SyncOutcome> {
   const token = env.githubReportToken;
   if (!token) return "no-token";
