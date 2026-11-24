@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.0.2 — 2026-11-24
+
+Control Scout takes the old 👎 off the answers that still carry it: a button that does nothing isn't left under an answer.
+
+### Highlights
+- [scout] Old answers lose the 👎 that no longer does anything
+- [fixes] The bot tidies its own messages once, on the next deploy
+- [scout] A member's own 👎 and every 👍 stay where they are
+
+### Discord bot
+- **The stale 👎s are taken off** (`bot/cleanup.ts`, `bot/index.ts`): the 👎 was removed in 8.0.1, but the answers the bot posted between 7.9.2 and there still carry it, and clicking it does nothing. On the first connection after this ships the bot walks back through the recent messages of every channel it can read — and each server's active and recently archived threads — and removes its own reaction from its own answers, then records that it has in a `kv` row (`bot:down-sweep`), so a restart or a deploy never scans again. Only its own reaction goes: a member's 👎 on the same answer is theirs and stays, and a 👍 stays; no row of `discord_answers` is written, since the `down` counts are what people clicked and stay readable in the owner console and the queue's own re-check. The walk ends at a message from before 2026-11-21, before any answer could have a 👎, so a channel's older history is never requested (2,000 messages a channel is the backstop under that), and a channel it can't read — no Read Message History, a thread since deleted — is logged and skipped rather than stopping the sweep; a run that fails part-way isn't recorded, so the next start tries again. `bot/cleanup.test.ts` covers its own 👎 coming off, a member's and a 👍 staying, the walk back to the thumbs era, the page cap, an unreadable channel, and the once-only row. (#2244)
+
 ## 8.0.1 — 2026-11-24
 
 Control Scout's answers carry only a 👍: the 👎 is gone, and with it the note that explained it.
