@@ -534,6 +534,9 @@ function showing(a: SearchAnswer, typed: string, as: string): SearchAnswer {
 /** One layer's try: Layer 1 (`run`) on a query, then Layer 2 on it. */
 type Run = (q: string) => Promise<SearchAnswer>;
 
+/** The words that join a compound question's parts (./query/clauses.ts JOIN): read by its answer. */
+const CLAUSE_JOINS = new Set(["and", "&", "also"]);
+
 /** The answer for a top-level query, through the layers. `run` is the existing reader path (Layer 1). */
 export async function layeredAnswer(typed: string, reader: Run, prefer: ReadonlySet<string> = new Set()): Promise<SearchAnswer> {
   // A phrasing two layers reach ("what is endgame" is its own canonical form) is read once.
@@ -552,9 +555,11 @@ export async function layeredAnswer(typed: string, reader: Run, prefer: Readonly
     const own = `${(a.understood?.label ?? "").split(" · read as ")[0]} ${a.stat?.title ?? ""} ${(a.stat?.scope ?? []).join(" ")} ${a.card?.headline ?? ""} ${a.card?.none ?? ""}`.toLowerCase();
     // An answer can name the word its own way: "when did hypnotic last play" is its "Most recent match". A long
     // question's rule reads its words itself ("when was the last time 12345 went worlds": the appearances, newest first).
-    // A compound answer (./answers/compound.ts) reads every clause it joins ("… and their opr"), or isn't given.
+    // A compound answer (./answers/compound.ts) reads every clause it joins ("… and their opr"), or isn't given. A
+    // compound question's (./query/clauses.ts) reads the words joining its parts; any other word is its parts' to read.
     const consumed = won === "longform" ? x0.forbidden.filter((w) => !tokens(a.understood?.showing ?? "").includes(w)) : [];
-    const unread = won && !a.intent?.kind.startsWith("stat-compound-") ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own) && !consumed.includes(w)) : [];
+    const joined = a.intent?.kind === "stat-clauses" ? CLAUSE_JOINS : null;
+    const unread = won && !a.intent?.kind.startsWith("stat-compound-") ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own) && !consumed.includes(w) && !joined?.has(w)) : [];
     // Said apart from the label (it titles the page): a note of its own under the answer (src/shared/searchPage.ts unreadNote).
     if (unread.length && a.understood) a = { ...a, understood: { ...a.understood, unread } };
     const out = { ...a, q: typed };
@@ -669,9 +674,15 @@ export async function layeredAnswer(typed: string, reader: Run, prefer: Readonly
   const cands = x0.intents.length > 1 && clean(x0) ? x0.intents : xw.weak.length > 1 && clean(xw) ? xw.weak : [];
   if (cands.length > 1) {
     const u = fallback.understood ?? { kind: "team" as const, label: "" };
-    // Said as a question, never as the parser's own words (no "read as" on the page: the search results guide §7).
-    const line = `${x0.teams[0]}: ${cands.join(" or ")}? Say which`;
-    return done({ ...fallback, understood: { ...u, label: u.label ? `${u.label} · ${line}` : line } }, null, { ...x0, intents: cands }, "ambiguous");
+    // Said as a question, never with the parser's own words (no "read as" and no intent ids such as "league-rank" on
+    // the page: the search results guide §7): each reading is the plain question it is ("4215 league rank"), one tap
+    // each (SearchAnswer.suggest, drawn first among the follow-ups).
+    const found = cands === x0.intents ? x0.found : xw.found;
+    // A reading with no canonical question for what was found (an events question with no season) is still named, in
+    // plain words: the team and the reading ("4215 events"), never dropped to leave a question with no choices.
+    const choices = [...new Set(cands.map((id) => INTENTS.find((i) => i.id === id)?.canonical({ ...found, extra: new Set(found.extra) }) ?? `${x0.teams[0]} ${id.replace(/-/g, " ")}`))];
+    const line = `Which did you mean for ${x0.teams[0]}: ${choices.join(" or ")}?`;
+    return done({ ...fallback, understood: { ...u, label: u.label ? `${u.label} · ${line}` : line }, suggest: choices }, null, { ...x0, intents: cands }, "ambiguous");
   }
   return done(fallback, null, x0);
 }

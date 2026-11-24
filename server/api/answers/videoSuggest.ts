@@ -8,7 +8,7 @@ import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import { all } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { OFFICIAL_TYPES } from "./clauses.js";
-import { CURRENT_SEASON } from "../../data/seasons.js";
+import { currentSeason } from "./season.js";
 import { seasonClipKeys, seasonVideoKinds } from "../../videos/recordings.js";
 import { hasWatchWord } from "../searchAnswer.js";
 import { teamMatches } from "./matchSet.js";
@@ -62,11 +62,13 @@ export const hasVideo = (v: SearchVideo | null | undefined) => !!(v?.main || v?.
 export async function videoCandidates(a: SearchAnswer, now = Date.now(), typosOf: () => Promise<ReadonlySet<string>> = nameTypos): Promise<string[]> {
   const out: string[] = [];
   const teams = answerTeams(a);
+  // The current season read once for the whole list (a search may refresh it meanwhile).
+  const current = currentSeason();
   for (const team of teams) {
     // Each read on its own: one that fails drops its own questions, never the others'.
     const ms = await teamMatches(team).catch(() => []);
     let mine = 0;
-    for (let s = CURRENT_SEASON; s > CURRENT_SEASON - SEASONS_BACK && mine < 2; s--) {
+    for (let s = current; s > current - SEASONS_BACK && mine < 2; s--) {
       const theirs = ms.filter((m) => m.season === s);
       if (!theirs.length) continue;
       const keys = await seasonClipKeys(s, now).catch(() => new Set<string>());
@@ -83,7 +85,7 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now(), typosOf
   const at = refs[0] ?? null;
   type Ref = NonNullable<typeof at>;
   const near: [number, Ref][] = at ? [[at.season, at], [at.season - 1, at]] : [];
-  const tries: [number, Ref | null][] = [...near, [CURRENT_SEASON, null], [CURRENT_SEASON - 1, null]];
+  const tries: [number, Ref | null][] = [...near, [current, null], [current - 1, null]];
   for (const [s, from] of tries) {
     // The latest seasons' only to make three when fewer were found near the answer's own.
     if (out.length >= TRY_MAX || (!from && at && out.length >= own + OFFER_MAX)) break;
@@ -252,10 +254,12 @@ export function warmVideoQuestions(o: WarmReads = {}): Promise<void> {
         if (qs.length >= OFFER_MAX || gen !== knownGen) break;
         // In the process's one queue, as a search's own checks are: other requests run between them. Bounded inside
         // its turn, so one that never settles frees the queue too. A check that timed out or failed is unknown, never
-        // "doesn't play": the set is then kept unsure, and built again after the wait.
+        // "doesn't play": the set is then kept unsure, and built again after the wait. A lane of its own, `later`:
+        // background work, so it waits while an answer is made (followUps.ts holdChecks) and behind live searches'
+        // questions, as a search's related searches do.
         const ok = await inTurns(() => within((async (): Promise<boolean | null> => {
           try { const b = await ask(c); if (!b?.stat || b.stat.none) return false; return hasVideo(await video(b)); } catch { return null; }
-        })(), o.checkMs ?? CHECK_MS, null)).catch(() => null);
+        })(), o.checkMs ?? CHECK_MS, null), "video-questions", true).catch(() => null);
         if (ok === null) sure = false; else if (ok) qs.push(c);
       }
       if (gen !== knownGen) return;

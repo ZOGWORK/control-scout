@@ -13,6 +13,7 @@
 //      "upcoming", "this weekend", …) and a question's own words (QUESTION_WORDS: "can", "will", …) when the query
 //      is a question. Those words say what kind of answer is wanted, never which team or event.
 import { REGION_NAMES, REGION_PHRASES, isRegionCode } from "./regions.js";
+import { seasonRunAt } from "./query/seasonRun.js";
 import { SEARCH_TOPICS, type SearchTopic } from "./search.js";
 
 /** The plurals read as their singular (lower case). Every pair has its own test (server/api/search.test.ts). */
@@ -171,7 +172,8 @@ function placeWords(ws: string[]): Set<number> {
 /**
  * The words of `q` that can name a team or event, as one string: plurals singular, stopwords, time words and (in a
  * question) question words out. When taking them out would leave nothing ("the", "upcoming"), the query as typed
- * (plurals singular) is kept, so a name made only of such words still searches. A conversational opening goes first
+ * (plurals singular) is kept, so a name made only of such words still searches; but when a run of seasons was all
+ * that named anything ("since 2023"), "" (its years are never looked up, and callers look nothing up for ""). A conversational opening goes first
  * ("show me 4215" → "4215"). `asked`: the query as typed ended in "?" (which search's cleaning takes off).
  */
 export function nameWords(q: string, asked = false): string {
@@ -180,6 +182,10 @@ export function nameWords(q: string, asked = false): string {
   let rest = one;
   // Every time phrase goes ("upcoming qualifiers this weekend"): each pass takes one out, so this ends.
   for (let time = timePhrase(rest); time; time = timePhrase(rest)) rest = time.rest;
+  // Every run of seasons goes too ("from 2022 to 2024", "since 2023"): its years are seasons, never a team number to
+  // look up. Each pass takes one out, so this ends.
+  let runs = 0;
+  for (let run = seasonRunAt(rest); run; run = seasonRunAt(rest), runs++) rest = `${rest.slice(0, run.index)} ${rest.slice(run.index + run.length)}`.replace(/\s+/g, " ").trim();
   const question = asked || isQuestionForm(q);
   const all = rest.split(" ").filter(Boolean);
   const place = placeWords(all);
@@ -192,5 +198,6 @@ export function nameWords(q: string, asked = false): string {
     if (l === "from" && i > 0 && isPlaceName(all.slice(i + 1).join(" "))) return false;
     return !STOPWORDS.has(l) && !(question && QUESTION_WORDS.has(l));
   });
-  return ws.length ? ws.join(" ") : one;
+  // Only a run said ("since 2023"): nothing names a team or event (its years are never looked up).
+  return ws.length ? ws.join(" ") : runs ? "" : one;
 }

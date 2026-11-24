@@ -227,3 +227,11 @@ describe("the program's own name is never a place", () => {
     expect(readEventQuery("events at FTC San Luis Potosi")?.where).toMatch(/ftc san luis potosi/i);
   });
 });
+
+describe("the next event, said of one (search audit 2026-11-24, Q7)", () => {
+  it("is the next one; a plural, or no kind word, is not", () => {
+    expect(readEventQuery("next event in Texas")).toMatchObject({ time: "upcoming", next: true });
+    expect(readEventQuery("when is the next ftc meet in NJ")).toMatchObject({ time: "upcoming", next: true });
+    expect(readEventQuery("next events in Texas")?.next).toBeUndefined();
+  });
+});
