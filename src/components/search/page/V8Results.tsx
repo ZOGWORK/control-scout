@@ -93,14 +93,14 @@ function when(m: MatchView): string | null {
 /** Each fact tile's soft colour on the team card (issue #2014: the classic KPI tiles were coloured, each its own;
  *  v8 had drawn them all plain): the record's wins green, OPR in its purple (as on every answer), the rank in the
  *  slate-blue accent, the best score orange, so no two tiles share one. Text, a thin bracket and nothing else. */
-export const TEAM_FACT_COLOUR: Record<string, SoftColour> = { Record: "green", OPR: "purple", "OPR rank": "accent", "Best score": "orange" };
+export const TEAM_FACT_COLOUR: Record<string, SoftColour> = { Record: "win", OPR: "purple", "OPR rank": "accent", "Best score": "orange" };
 
 /** A team asked for by itself: its summary in one compact card, its next match (else its last) in it, the team page a tap away. */
 export function V8TeamAnswer({ team, name, place, summary, stat }: { team: number; name: string; place?: string; summary?: SeasonSummary; stat?: StatAnswer }) {
   const s = summary?.s;
   const next = useNextMatch(team, summary?.season ?? null);
   const facts: { label: string; value: ReactNode }[] = [];
-  if (s?.record) facts.push({ label: "Record", value: <RecordText text={s.record} win={V8_SOFT.green.text} /> });
+  if (s?.record) facts.push({ label: "Record", value: <RecordText text={s.record} win={V8_SOFT.win.text} /> });
   if (s?.opr != null) facts.push({ label: "OPR", value: s.opr.toFixed(1) });
   if (s?.oprRank != null) facts.push({ label: "OPR rank", value: <>#{s.oprRank.toLocaleString()}{s.of != null && <span className="text-text-faint"> of {s.of.toLocaleString()}</span>}</> });
   if (stat?.intent === "team-highlights" && stat.headline) facts.push({ label: "Best score", value: stat.headline.value.replace(/\s*points?$/i, "") });
@@ -108,7 +108,7 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
   // The match's event by name (the summary knows the team's last and next events), never its code alone.
   const at = next?.m ? ([s?.nextEvent, s?.lastEvent].find((e) => e?.code === next.m.code)?.name ?? next.m.code) : null;
   return (
-    <section aria-label={`Team ${team}`} className="rounded-xl border border-line bg-card p-5" data-v8-answer="team">
+    <section aria-label={`Team ${team}`} className="rounded-xl border border-l-4 border-line border-l-accent bg-card p-5" data-v8-answer="team">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="font-display text-[2.5rem] font-semibold leading-none tracking-tight tabular-nums text-accent" data-team-number>{team}</p>
@@ -122,7 +122,7 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
       {facts.length > 0 && (
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line pt-4 sm:grid-cols-4" data-team-facts>
           {facts.map((f) => (
-            <div key={f.label} className={cn("min-w-0 pl-3", v8Tile(TEAM_FACT_COLOUR[f.label] ?? "neutral").tile)} data-fact={f.label} data-colour={TEAM_FACT_COLOUR[f.label] ?? "neutral"}>
+            <div key={f.label} className={cn("min-w-0 rounded-r-lg py-1.5 pl-3", v8Tile(TEAM_FACT_COLOUR[f.label] ?? "neutral").tile)} data-fact={f.label} data-colour={TEAM_FACT_COLOUR[f.label] ?? "neutral"}>
               <dt className="text-xs text-text-faint">{f.label}{f.label === "Record" && summary ? `, ${seasonLabel(summary.season)}` : ""}</dt>
               <dd className={cn("mt-0.5 text-lg font-semibold tabular-nums text-foreground", v8Tile(TEAM_FACT_COLOUR[f.label] ?? "neutral").value)}>{f.value}</dd>
             </div>
@@ -148,9 +148,9 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
 
 /** The last match's score in its result's soft tint: won green, lost red, tied plain. */
 export function LastScore({ own, opp }: { own: number; opp: number }) {
-  const c = own > opp ? "green" : own < opp ? "red" : null;
+  const c = own > opp ? "win" : own < opp ? "red" : null;
   return (
-    <span className="shrink-0 tabular-nums text-foreground" data-last-result={c === "green" ? "won" : c === "red" ? "lost" : "tied"}>
+    <span className="shrink-0 tabular-nums text-foreground" data-last-result={c === "win" ? "won" : c === "red" ? "lost" : "tied"}>
       <span className={cn("font-semibold", c && V8_SOFT[c].text)}>{own}</span><span className="text-text-muted">–{opp}</span>
     </span>
   );
@@ -163,18 +163,29 @@ export function standoutRows(stat: StatAnswer | undefined): { title: string; row
   return b && b.kind === "matches" && b.rows.length ? { title: "Standout matches", rows: b.rows } : null;
 }
 
+/** A standout match's colour, by what its note says it is (best Auto blue, a win green, a best score purple). */
+export function noteColour(note: string | undefined): SoftColour {
+  const n = (note ?? "").toLowerCase();
+  if (/auto/.test(n)) return "blue";
+  if (/teleop|driver/.test(n)) return "orange";
+  if (/endgame/.test(n)) return "green";
+  if (/(loss|lost)/.test(n)) return "red";
+  if (/win|won/.test(n)) return "win";
+  return "purple";
+}
+
 export function MatchRows({ rows }: { rows: StatMatchRow[] }) {
   return (
     <ul className="divide-y divide-line">
       {rows.map((r) => (
         <li key={`${r.href}-${r.label}`} className="flex items-center">
           <Link to={r.href} className="flex min-h-[44px] min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-sm hover:bg-ink/[0.04]" data-match-row>
-            <Swords className="size-4 shrink-0 text-text-muted" aria-hidden />
+            <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", V8_SOFT[noteColour(r.note)].fill)} data-line-icon><Swords className="size-4" aria-hidden /></span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-foreground">{r.note && <span className="text-text-muted">{r.note}: </span>}{r.label} at {r.event.label}</span>
+              <span className="block truncate text-foreground">{r.note && <span className={cn("font-semibold", V8_SOFT[noteColour(r.note)].text)}>{r.note}: </span>}{r.label} at {r.event.label}</span>
               {r.date && <span className="block text-xs text-text-muted">{/^\d{4}-\d{2}-\d{2}/.test(r.date) ? dateRange(r.date.slice(0, 10)) : r.date}</span>}
             </span>
-            <span className="shrink-0 tabular-nums"><span className={cn("font-semibold", r.result === "W" ? "text-foreground" : "text-text-muted")}>{r.own}</span><span className="text-text-faint">–{r.opp}</span></span>
+            <span className="shrink-0 tabular-nums"><span className={cn("font-semibold", r.result === "W" ? V8_SOFT.win.text : r.result === "L" ? V8_SOFT.red.text : "text-foreground")} data-kpi>{r.own}</span><span className="text-text-faint">–{r.opp}</span></span>
           </Link>
           {/* Its clip, beside the row (a button can't sit inside the link): the same one its card in the videos plays. */}
           <RowPlay href={r.href} label={`${r.label} · ${r.event.label}`} className="mr-1.5" withMain />
@@ -218,7 +229,7 @@ export function TeamRow({ h, summary, onOpen }: { h: SearchHit; summary?: Season
   const { onClick: morphTap, ...morph } = useMorphCard(link ? teamMorphKey(link.team) : "", href, () => { if (link) warmTeam(link.team, link.season); });
   return (
     <Link to={href} {...morph} onClick={(ev) => { onOpen(); morphTap?.(ev); }} className={ROW} data-row="team">
-      <Shield className="size-4 shrink-0 text-text-muted" aria-hidden />
+      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", V8_SOFT.accent.tint, V8_SOFT.accent.text)}><Shield className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-foreground"><span data-morph-title className="font-medium tabular-nums text-accent">{p?.number ?? h.ref}</span>{p?.name && <span> {p.name}</span>}</span>
         {h.subtitle && <span className="block truncate text-xs text-text-muted">{h.subtitle}</span>}
@@ -226,7 +237,7 @@ export function TeamRow({ h, summary, onOpen }: { h: SearchHit; summary?: Season
       {s && (s.record || s.opr != null) && (
         <span className="shrink-0 text-right text-xs tabular-nums text-text-muted">
           {s.record && <RecordText text={s.record} className="block" />}
-          {s.opr != null && <span className="block">OPR <span className="text-foreground">{s.opr.toFixed(1)}</span></span>}
+          {s.opr != null && <span className="block">OPR <span className={cn("font-semibold", V8_SOFT.purple.text)}>{s.opr.toFixed(1)}</span></span>}
         </span>
       )}
     </Link>
@@ -238,11 +249,11 @@ export function EventRow({ h, onOpen }: { h: SearchHit; onOpen: () => void }) {
   const e = eventFacts(h);
   return (
     <Link to={hitHref(h)} onClick={onOpen} className={ROW} data-row="event">
-      <CalendarDays className="size-4 shrink-0 text-text-muted" aria-hidden />
+      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", e.status === "live" ? V8_SOFT.live.fill : e.status === "finished" ? cn(V8_SOFT.lime.tint, V8_SOFT.lime.text) : cn(V8_SOFT.accent.tint, V8_SOFT.accent.text))} data-status={e.status}><CalendarDays className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-foreground">{h.title}</span>
         <span className="flex min-w-0 items-center gap-1.5 text-xs text-text-muted">
-          {e.status === "live" && <span className="inline-flex shrink-0 items-center gap-1 text-foreground" data-live><span aria-hidden className="size-1.5 rounded-full bg-live" />Live</span>}
+          {e.status === "live" && <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 font-semibold", V8_SOFT.live.fill)} data-live>Live</span>}
           <span className="shrink-0 tabular-nums">{e.start ? dateRange(e.start, e.end) : "Date to be announced"}</span>
           {e.place && <span className="truncate">· {e.place}</span>}
           {h.season != null && <span className="shrink-0 text-text-faint">· {seasonLabel(h.season)}</span>}
@@ -257,7 +268,7 @@ export function PlainRow({ h, onOpen, icon }: { h: SearchHit; onOpen: () => void
   const Icon = icon === "match" ? Swords : icon === "place" ? MapPin : FileText;
   return (
     <Link to={hitHref(h)} onClick={onOpen} className={ROW} data-row={icon}>
-      <Icon className="size-4 shrink-0 text-text-muted" aria-hidden />
+      <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", V8_SOFT[icon === "match" ? "orange" : icon === "place" ? "cyan" : "accent"].tint, V8_SOFT[icon === "match" ? "orange" : icon === "place" ? "cyan" : "accent"].text)}><Icon className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-foreground">{h.title}</span>
         {h.subtitle && <span className="block truncate text-xs text-text-muted">{h.subtitle}</span>}

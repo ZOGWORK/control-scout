@@ -12,7 +12,7 @@ import type { StatAnswer, StatBlock, StatMatchRow } from "../../../shared/search
 import { SEARCH_PALETTE } from "../../../lib/textTones";
 import type { Appearance } from "./records";
 /** A class list as v8 off reads it (v8 adds its own `v8:` classes after these: ./v8tone.ts). */
-const offV8 = (c: string) => c.split(" ").filter((t) => !t.startsWith("v8:")).join(" ");
+const offV8 = (c: string) => c.split(" ").filter((t) => !/^v8(light)?:/.test(t)).join(" ");
 
 
 // A team's page data, loaded (the card's team header, season tiles and events draw with it).
@@ -33,7 +33,10 @@ const { EventAwardsAnswer } = await import("./EventAwards");
 const { CARD_MEANING, FactCard } = await import("./FactCard");
 const { AppearancesAnswer, QualityBanner, StatBanner, Timeline } = await import("./Summary");
 const { AnswerVideoProvider } = await import("./AnswerVideo");
-const { auditAnswer } = await import("./answerAudit.testkit");
+const { auditAnswer, auditV8Colour } = await import("./answerAudit.testkit");
+const { Verdict } = await import("./Verdict");
+const { NoResults } = await import("./NoResults");
+const { V8TeamAnswer } = await import("./V8Results");
 
 afterEach(cleanup);
 const draw = (node: ReactNode) => render(<MemoryRouter>{node}</MemoryRouter>).container.firstElementChild as HTMLElement;
@@ -273,6 +276,27 @@ describe("every card kind and block kind has its colour", () => {
     const d = document.createElement("article");
     d.innerHTML = `<ul data-lines><li><span data-line-icon class="bg-muted text-muted-foreground"></span><span data-line-text class="text-foreground">578 teams registered</span></li></ul>`;
     expect(auditAnswer(d, { contrast: false })).toEqual(['grey data visual: span ""', 'grey data visual: span "578 teams registered"', "grey card: no palette or team colour anywhere"]);
+  });
+});
+
+// v8 is the default look and draws its own classes over the classic ones, so a card can pass the checks above and
+// still be grey on the page (search audit 11-24, U2: the rules, off-topic and shared-name cards 1–6% saturated).
+describe("v8: every answer card shows colour (the owner's rule: exaggerate the colour)", () => {
+  const all: [string, () => HTMLElement][] = [
+    ...Object.entries(CARDS),
+    ...Object.entries(KIND_CARDS).map(([k, c]): [string, () => HTMLElement] => [`card ${k}`, () => drawKind(c)]),
+    ...Object.entries(BLOCK_CARDS).map(([k, make]): [string, () => HTMLElement] => [`block ${k}`, make]),
+    ["yes", () => draw(<Verdict v={{ answer: "Yes", label: "4215 went to Worlds in 2023–24" }} />)],
+    ["no", () => draw(<Verdict v={{ answer: "No", label: "4215 hasn't won Worlds" }} />)],
+    ["sorry (off-topic)", () => draw(<NoResults query="weather in paris" understood={[]} closest={[]} onOpen={() => {}} sorry={{ understood: ["weather", "Paris"], suggest: ["events in France"] }} />)],
+    ["nothing matched", () => draw(<NoResults query="zzqx" understood={[]} closest={[]} onOpen={() => {}} />)],
+    ["team answer (v8 page)", () => draw(<V8TeamAnswer team={4215} name="Hypnotic Robotics" place="Oradell, NJ" summary={{ season: 2025, s: { team: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ", opr: 142.5, oprRank: 12, of: 8308, rating: 140, ratingSd: 6, record: "32-6-1", lastEvent: null, nextEvent: null } }} />)],
+  ];
+  for (const [name, make] of all) it(name, () => expect(auditV8Colour(make()).join("\n")).toBe(""));
+  it("fails a card that v8 paints grey", () => {
+    const d = document.createElement("article");
+    d.innerHTML = `<p class="text-sky-700 v8:text-foreground" data-kpi>578</p><span class="bg-sky-700 v8:bg-ink/[0.08]"></span>`;
+    expect(auditV8Colour(d)).toEqual(["v8 grey card: no saturated colour anywhere", "v8 grey number: 578 (foreground)"]);
   });
 });
 

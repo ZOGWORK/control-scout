@@ -417,6 +417,16 @@ html[data-v8].light {
   --color-amber-600: #92400e;
   --color-slate-300: #64748b;
   --color-pink-300: #be185d;
+  /* Search answers' meanings (components/search/page/v8tone.ts): each hue's 300 and 400 steps, the same way. */
+  --color-pink-400: #be185d;
+  --color-fuchsia-300: #a21caf;
+  --color-fuchsia-400: #a21caf;
+  --color-indigo-300: #4338ca;
+  --color-indigo-400: #4338ca;
+  --color-cyan-300: #0e7490;
+  --color-cyan-400: #0e7490;
+  --color-lime-300: #4d7c0f;
+  --color-lime-400: #4d7c0f;
 }
 /* Dim: v8's dark colours on Dim's softer grey, the text a step down from white, and the wash a little quieter. */
 html[data-v8].dim {

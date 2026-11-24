@@ -78,9 +78,9 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
             const won = winner === s, lost = winner != null && !won;
             const sc = score[s];
             return (
-              // v8: the shared match row's look (brief §5): no tinted box, the side a 2px edge in its colour; the winner's
-              // score bold in its colour with the W mark (owner 11-19), the loser's quieter.
-              <div key={s} className={cn("flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 v8:rounded-none v8:border-l-2 v8:bg-transparent v8:py-1", s === "red" ? "bg-red-alliance/[0.08] v8:border-red-alliance" : "bg-blue-alliance/[0.08] v8:border-blue-alliance")} data-alliance={s} data-won={won ? "" : undefined}>
+              // v8: each side a thick bar in its alliance's colour on its tint (alliances bright, never faded: owner
+              // 11-19; "exaggerate the colour": search audit U2); the winner's score bold with the W mark, the loser's quieter.
+              <div key={s} className={cn("flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 v8:rounded-l-none v8:border-l-4 v8:py-1", s === "red" ? "bg-red-alliance/[0.08] v8:border-red-alliance" : "bg-blue-alliance/[0.08] v8:border-blue-alliance")} data-alliance={s} data-won={won ? "" : undefined}>
                 <span className="sr-only">{s === "red" ? "Red" : "Blue"} alliance{won ? ", won" : lost ? ", lost" : ""}: </span>
                 <span className="flex min-w-0 flex-1 flex-wrap gap-1">
                   {sides[s].length ? sides[s].map((t) => <TeamChip key={t.href} t={t} side={s} self={!!self.length && path(t) === path(self[0])} />) : <span className="text-xs text-muted-foreground">Teams not listed</span>}
