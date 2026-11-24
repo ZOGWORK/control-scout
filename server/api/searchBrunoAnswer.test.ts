@@ -103,7 +103,7 @@ describe("grounding", () => {
     expect(grounded("It went 5 times.", facts, Q)).toBe(false);
   });
   it("with the answer's teams, each number must be its own sentence's team's (search audit Q6)", () => {
-    const two = ["4215 Hypnotic Robotics vs 6980 Bad Wolf:", "Team 4215 in 2025–26: OPR 142.3, record 26-6-0.", "Team 6980 in 2025–26: OPR 46.9.", "Bad Wolf (6980) awards:", "- Think Award, 2025–26", "Events in 2025–26: 9 events"];
+    const two = ["Events in 2025–26: 9 events", "4215 Hypnotic Robotics vs 6980 Bad Wolf:", "Team 4215 in 2025–26: OPR 142.3, record 26-6-0.", "Team 6980 in 2025–26: OPR 46.9.", "Bad Wolf (6980) awards:", "- Think Award, 2025–26"];
     const teams = new Set([4215, 6980]);
     expect(grounded("4215's OPR is 142.3.", two, "4215 vs 6980", teams)).toBe(true);
     // 142.3 is 4215's, never 6980's: the same number in another team's sentence fails.
@@ -147,6 +147,14 @@ describe("grounding", () => {
     const facts = statFacts(stat as unknown as Parameters<typeof statFacts>[0]);
     expect(grounded("4215's record is 10-0-0.", facts, "4215 league", teams)).toBe(false);
     expect(grounded("4215's record is 6-4-0.", facts, "4215 league", teams)).toBe(true);
+  });
+  it("a stat's lines naming no team are its team's (Loopy on #2263)", () => {
+    const teams = new Map<number, string | null>([[4215, "Hypnotic Robotics"], [6980, "Bad Wolf"]]);
+    const facts = statFacts({ family: "x", intent: "x", title: "OPR", scope: [], team: { number: 4215, name: "Hypnotic Robotics" }, headline: { value: "142.3", label: "OPR" }, blocks: [{ kind: "kpis", items: [{ label: "Auto OPR", value: "30.1" }] }] } as never);
+    expect(facts[0]).toBe("OPR (team 4215 Hypnotic Robotics):");
+    expect(grounded("6980's OPR is 142.3.", facts, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("6980's auto OPR is 30.1.", facts, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("4215's OPR is 142.3, auto 30.1.", facts, "4215 vs 6980", teams)).toBe(true);
   });
   it("a line naming several teams gives each number to the team named before it (Loopy on #2263)", () => {
     const teams = new Map<number, string | null>([[4215, "Hypnotic Robotics"], [6980, "Bad Wolf"]]);

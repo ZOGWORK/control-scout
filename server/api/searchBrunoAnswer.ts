@@ -103,7 +103,10 @@ function blockFacts(b: StatBlock): string[] {
 
 /** A stat answer (who won, records, head-to-heads, highlights …) as plain lines: its headline first, then its blocks. */
 export function statFacts(s: StatAnswer): string[] {
-  const out: string[] = [`${s.heading ?? s.title}:`];
+  // A stat about one team says which, so its lines that name none (its headline, its numbers) are read as that team's.
+  const title = s.heading ?? s.title;
+  const who = s.team && !numbers(title).includes(String(s.team.number)) ? ` (team ${`${s.team.number} ${s.team.name ?? ""}`.trim()})` : "";
+  const out: string[] = [`${title}${who}:`];
   const h = s.headline;
   if (h) out.push(`${h.value} ${h.label}${h.sub ? ` (${h.sub})` : ""}${h.teams?.length ? `: ${names(h.teams)}` : ""}`);
   if (s.none) out.push(s.none);
@@ -199,15 +202,16 @@ export function ungrounded(text: string, facts: string[], question: string, team
   const fold = (x: string) => x.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
   const byName = teams instanceof Map ? [...teams].flatMap(([n, name]) => { const f = fold(name ?? ""); return f.length >= 4 && !/^\d+$/.test(f) ? [{ n, f }] : []; }) : [];
   const teamsIn = (x: string) => { const t = new Set(numbers(x).filter(isTeam).map(Number)); if (byName.length) { const fx = ` ${fold(x)} `; for (const b of byName) if (fx.includes(` ${b.f} `)) t.add(b.n); } return t; };
-  // Each fact line with the teams it is about: its own, else, for a list item ("- …"), those of the line it is listed
-  // under, the last one that isn't an item ("Bad Wolf (6980) awards:", "Awards for team 4215: 3 found."). A compare
+  // Each fact line with the teams it is about: its own, else those of the last line before it that named any ("Bad Wolf
+  // (6980) awards:", "Awards for team 4215: 3 found.", "OPR (team 4215):"), its list items and its other lines alike;
+  // a line before any team is named is about no team (anyone's). A compare
   // row under two teams ("- OPR: 142.3 vs 46.9 (+95.4)") gives each side's numbers to its own team, in order.
   let heading: number[] = [];
   const lines = facts.map((f) => {
     const own = [...teamsIn(f)];
     const item = /^\s*-\s/.test(f);
-    const about = own.length || !item ? own : heading;
-    if (!item) heading = own;
+    const about = own.length ? own : heading;
+    if (own.length) heading = own;
     const side = new Map<string, number[]>();
     const row = item && !own.length && about.length > 1 ? /^\s*-\s[^:]*:\s*(.*?)\s*(?:\([^)]*\))?\s*$/.exec(f) : null;
     const parts = row ? row[1].split(/\s+vs\.?\s+/) : [];
@@ -294,11 +298,9 @@ export async function brunoAnswer(raw: string, opts: BrunoOptions = {}, now = Da
   if (!(await isEnabled(flag).catch(() => false)) || !brunoAvailable()) return null;
   // `learn: false` (the Discord bot): his facts come from the same unlearned search the bot shows, kept apart.
   const after = followUpOf(q, opts.after);
-  // Keyed on the data's version too (search:version, moved by every stats run and live check): a meet under way never
-  // gets facts from before its latest matches.
-  // Keyed by the data as well as the search index: a live result (a meet under way moves "data:version", not the
-  // index) is never answered from before it.
-  const k = `${await searchVersion()}|${(await kvGet<string>("data:version").catch(() => null)) ?? "0"}|${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}${after ? `|after:${normalize(after)}${opts.afterSeason != null ? `|in:${opts.afterSeason}` : ""}${opts.afterMy != null && MINE.test(after) ? `|my:${opts.afterMy}` : ""}` : ""}`;
+  // Keyed by the search index and the data (a live result at a meet under way moves "data:version", not the index): a
+  // question is never answered from before its latest matches. A failed read of either is "0", never an error.
+  const k = `${await searchVersion().catch(() => "0")}|${(await kvGet<string>("data:version").catch(() => null)) ?? "0"}|${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}${after ? `|after:${normalize(after)}${opts.afterSeason != null ? `|in:${opts.afterSeason}` : ""}${opts.afterMy != null && MINE.test(after) ? `|my:${opts.afterMy}` : ""}` : ""}`;
   const hit = cache.get(k);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.answer;
   let flight = pending.get(k);
