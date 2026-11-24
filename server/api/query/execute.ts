@@ -57,18 +57,21 @@ export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resol
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
   // "When …" or "where …" ("when did <team> win inspire", "where did <team> play last"): the question as asked, its
-  // rows' dates or events the headline (src/shared/query/whenWhere.ts). Read in full either way: the dropdown's
-  // answer (no card) says the ask only when the page's card does.
+  // rows' dates or events the headline (src/shared/query/whenWhere.ts). Only an answer re-headlined says the ask: its
+  // reading as said, the ask before it (what the reading added, which of the teams with a name or a part of a region,
+  // stays). Any other is as asked without it.
   const ask = askOf(q);
-  if (!ask) return pipelineRead(q, opts);
-  const a = await pipelineRead(q, { ...opts, full: true });
-  if (!a) return a;
-  const drop = (x: SearchAnswer): SearchAnswer => { if (opts.full) return x; const { stat: _s, ...rest } = x; return rest; };
-  // Only an answer re-headlined says the ask: its reading as said, the ask before it (what the reading added, which of
-  // the teams with a name or a part of a region, stays). Any other is as asked without it.
+  const a = await pipelineRead(q, opts);
+  if (!a || !ask) return a;
+  const said = (x: SearchAnswer): SearchAnswer => (x.understood ? { ...x, understood: { ...x.understood, label: `${ask === "when" ? "When" : "Where"}: ${x.understood.label}` } } : x);
+  // The dropdown's answer (no card) is its own, as without the ask; it says the ask only when the page's card would
+  // be re-headlined, read in full to know.
+  if (!opts.full) {
+    const full = await pipelineRead(q, { ...opts, full: true });
+    return full?.stat && whenWhere(full.stat, ask) !== full.stat ? said(a) : a;
+  }
   const stat = a.stat && whenWhere(a.stat, ask);
-  if (!stat || stat === a.stat) return drop(a);
-  return drop({ ...a, stat, ...(a.understood ? { understood: { ...a.understood, label: `${ask === "when" ? "When" : "Where"}: ${a.understood.label}` } } : {}) });
+  return !stat || stat === a.stat ? a : said({ ...a, stat });
 }
 
 async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
