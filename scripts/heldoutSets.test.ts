@@ -39,6 +39,7 @@ describe("held-out sets", () => {
     // A file that isn't JSON is named; a set file named any other way, or no folder at all, never passes as no sets.
     expect(() => heldoutSets(dirWith([], { "d.json": "[\"cut off" }))).toThrow("scripts/heldout/d.json: not valid JSON");
     expect(() => heldoutSets(dirWith([], { "e.JSON": ["x"] }))).toThrow("e.JSON");
+    expect(() => heldoutSets(dirWith([], { ".json": ["x"] }))).toThrow("holds .json");
     const bare = mkdtempSync(join(tmpdir(), "heldout-"));
     writeFileSync(join(bare, "search-heldout.json"), "[]");
     expect(() => heldoutSets(bare)).toThrow("scripts/heldout/ is missing");
