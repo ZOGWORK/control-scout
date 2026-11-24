@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The FTC One Search explainer: its route, every example a /search link, and no AI wording.
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { pageModule, pageTitle } from "../shared/routes";
@@ -67,5 +67,11 @@ describe("FTC One Search page", () => {
     const chapters = [...video.querySelectorAll('[aria-label="Matches in this recording"] button')];
     expect(chapters.length).toBeGreaterThan(3);
     expect(chapters[0].getAttribute("aria-pressed")).toBe("true");
+    // Silent while it steps by itself; announced once the reader picks a match.
+    const live = video.querySelector("figure [aria-live]")!;
+    expect(live.getAttribute("aria-live")).toBe("off");
+    fireEvent.click(chapters[2]);
+    expect(live.getAttribute("aria-live")).toBe("polite");
+    expect(live.textContent).toContain(chapters[2].textContent!);
   });
 });
