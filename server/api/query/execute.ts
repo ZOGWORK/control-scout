@@ -43,7 +43,7 @@ import { topTeamsNote, topTeamsSaid } from "./topTeams.js";
 import { asksSelfMatch, selfMatchAnswer } from "./selfMatch.js";
 import { PAIR_SPLIT, windowPairAnswer } from "./windowPair.js";
 import { rankReviewAnswer } from "./rankReview.js";
-import type { PipelineIntent } from "./intents.js";
+import { CLEAN_MATCHES, type PipelineIntent } from "./intents.js";
 import { place } from "../../../src/shared/format.js";
 import { readAsk } from "../searchAsks.js";
 
@@ -427,7 +427,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // OPR there), which search's event readers give: the plain list is for a season, a window or a place.
   // A team's matches "without penalties" ("<team> matches without penalties at states"): the ones its alliance gave
   // away no penalty points in, listed by the match finder (below), wherever they were played.
-  const cleanAsk = p.teams.length === 1 && !!p.noPenalties && (intent === "season-matches" || intent === "results");
+  // Matches with no penalty points: a team's ("<team> matches without penalties"), or any finder's said as a filter
+  // ("highest scoring matches with no penalties"), never "without penalties" on a best (its points without them).
+  const cleanAsk = (p.teams.length === 1 && !!p.noPenalties && (intent === "season-matches" || intent === "results"))
+    || (!!p.clean && p.teams.length <= 1 && CLEAN_MATCHES.has(intent));
   if (intent === "season-matches" && (p.worlds || p.states) && !cleanAsk) return null;
   // A team's match by its score ("<team> 226 point match") is the match finder's, below.
   // With video, a team's matches or its best are the match finder's, below (it holds the filter).
@@ -654,7 +657,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // Matches with no measure said are a window's only ("matches from yesterday"), or those with a score to reach
   // ("matches at <event> where both alliances scored over 250"), listed best first; "matches" alone, a place's or a
   // match type's ("playoff matches in NJ") are left to search.
-  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond && !p.withVideo) return null;
+  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond && !p.withVideo && !cleanAsk) return null;
   const labelled = intent === "match-label" && p.matchNumber != null;
   // A match's number at Worlds ("q6 at worlds"): Worlds' matches with it, its divisions' and finals'.
   const kind = (labelled || cleanAsk) && p.worlds ? WORLDS_KIND : (labelled || cleanAsk) && p.states ? STATES_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
