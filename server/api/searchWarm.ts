@@ -12,10 +12,11 @@
 // right after it's ready on a cold start.
 import { kvGet, kvSet } from "../db.js";
 import { pageAnswer } from "./answers/followUps.js";
+import { keptGeneration } from "./searchReads.js";
 
 /** How many of the most-asked searches are kept in the list, and so made by the next process. */
 export const HOT_MAX = 500;
-/** How long the next process spends making them at most. */
+/** How long the next process spends making them at most (none is started after it). */
 export const HOT_WARM_MS = 45_000;
 /** How many different searches are counted before the least-asked are dropped. */
 const COUNTED_MAX = 20_000;
@@ -79,14 +80,21 @@ export function saveHot(): Promise<number> {
 }
 
 /** Make each answer on the list (kept a minute, then served stale while remade: ./searchReads.ts), one at a time with
- *  a turn of the loop between them, for up to `ms`. Returns how many were made. */
+ *  a turn of the loop between them, starting none after `ms` (a soft bound: the one started last is finished, a whole
+ *  answer at most, 30–1,600 ms). One the kept store moved under while it was made (a clip-start change or a data move:
+ *  only made answers are carried) is made again once. Returns how many were made. */
 export async function warmHot(ms = HOT_WARM_MS, now = () => Date.now()): Promise<number> {
   const end = now() + ms;
   let made = 0;
   for (const [q, limit] of await hotList()) {
     if (now() >= end) break;
     await new Promise<void>((go) => setImmediate(go));
-    try { await pageAnswer(q, limit, new Set()); made++; } catch { /* the next one */ }
+    try {
+      const at = keptGeneration();
+      await pageAnswer(q, limit, new Set());
+      if (keptGeneration() !== at && now() < end) await pageAnswer(q, limit, new Set());
+      made++;
+    } catch { /* the next one */ }
   }
   return made;
 }

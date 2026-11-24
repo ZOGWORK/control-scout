@@ -5,6 +5,8 @@ import * as db from "../db";
 import { kvSet, migrate, openDb, setDb } from "../db";
 
 const made: string[] = [];
+let moves = 0;
+vi.mock("./searchReads.js", () => ({ keptGeneration: () => moves }));
 vi.mock("./answers/followUps.js", () => ({
   pageAnswer: async (q: string, limit: number) => { made.push(`${q}|${limit}`); return { q, hits: [], pages: [], step: "deterministic", weak: false }; },
 }));
@@ -54,6 +56,10 @@ describe("most-asked searches", () => {
       // Two saves at once (the interval and SIGTERM): one after the other, the same list.
       const [x, y] = await Promise.all([saveHot(), saveHot()]);
       expect(x).toBe(y);
+      // Written under its own lane's key only.
+      expect((await db.kvGet<[string, number][]>("search:hot:b"))!.map(([q]) => q)).toEqual(expect.arrayContaining(["b-new", "b1", "shared"]));
+      expect(await db.kvGet("search:hot:one")).toBeNull();
+      expect(await db.kvGet("search:hot:a")).toEqual([["a1", 25], ["shared", 25], ["a2", 25]]);
       expect(((await hotList()).map(([q]) => q))).toEqual(expect.arrayContaining(["a1", "a2", "b-new", "b1", "shared"]));
     } finally {
       if (was === undefined) delete process.env.CS_LANE; else process.env.CS_LANE = was;
@@ -66,5 +72,21 @@ describe("most-asked searches", () => {
     await expect(saveHot()).rejects.toThrow("busy");
     spy.mockRestore();
     expect(await db.kvGet("search:hot:one")).toEqual([["kept", 25]]);
+  });
+  it("makes an answer again once when the kept store moved while it was made", async () => {
+    await db.kvSet("search:hot:a", null);
+    await db.kvSet("search:hot:b", null);
+    await db.kvSet("search:hot:one", [["moved", 25]]);
+    made.length = 0;
+    const was = moves;
+    // The store moves during the first draw (the mock's pageAnswer runs, then a clip change).
+    const orig = Array.prototype.push.bind(made);
+    made.push = (...xs: string[]) => { if (moves === was) moves++; return orig(...xs); };
+    try {
+      expect(await warmHot()).toBe(1);
+    } finally {
+      delete (made as { push?: unknown }).push;
+    }
+    expect(made).toEqual(["moved|25", "moved|25"]);
   });
 });
