@@ -118,8 +118,8 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
   };
 
   // A run of seasons: "2023-24 to 2025-26", "from 2023 to 2025", "between 2023 and 2025", "since 2023", "last 3
-  // seasons". A bare year in one only where a year may stand (yearOk), as for one season.
-  const range = seasonRange(rest, yearOk);
+  // seasons". A bare year in one is a season by the run's words, even a number a team has ("since 2023").
+  const range = seasonRange(rest);
   if (range) { cut(range.m); return out(range.t); }
   // A date: "on mar 15 2026", "march 15, 2026", "3/15/2026", "2026-03-15".
   let m = /\b(?:on\s+)?([a-z]{3,9}\.?)\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+(20\d\d)\b/.exec(rest);
@@ -189,13 +189,19 @@ const seasonText = (s: number) => `${s}–${String((s + 1) % 100).padStart(2, "0
 const COUNT_WORDS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
 
 /** The run of seasons `rest` names, and its match, or null. */
-function seasonRange(rest: string, yearOk: (y: number) => boolean): { t: TimeSlot; m: RegExpExecArray } | null {
-  const ok = (y: string, end: string | undefined) => { const s = seasonOf(y, end); return s != null && (end !== undefined || yearOk(Number(y))) ? s : null; };
+function seasonRange(rest: string): { t: TimeSlot; m: RegExpExecArray } | null {
+  // A bare year in a run is a season by the run's own words ("since", "between", "to"), even one a team has.
+  const ok = seasonOf;
   // "2023-24 to 2025-26", "from 2023 to 2025", "between 2023 and 2025", "2023 through 2025".
   let m = new RegExp(String.raw`\b(?:from\s+|between\s+)?(?:the\s+)?${SEASON_WORD}(?:\s+seasons?)?\s+(?:to|through|thru|until|and|-|–)\s+(?:the\s+)?${SEASON_WORD}(?:\s+seasons?)?\b`).exec(rest);
   if (m && (!/\band\b/.test(m[0]) || /\bbetween\b/.test(m[0]))) {
     const a = ok(m[1], m[2]), b = ok(m[3], m[4]);
-    if (a != null && b != null && a < b) return { m, t: { kind: "seasons", season: null, range: { from: a, to: b }, label: /^between/.test(m[0].trim()) ? `between ${seasonText(a)} and ${seasonText(b)}` : `${seasonText(a)} to ${seasonText(b)}`, typed: m[0].trim() } };
+    // Said either way round, the run is the same seasons; one season said twice is that season.
+    if (a != null && b != null && a === b) return { m, t: { kind: "season", season: a, label: `in ${seasonText(a)}`, typed: m[0].trim() } };
+    if (a != null && b != null) {
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      return { m, t: { kind: "seasons", season: null, range: { from: lo, to: hi }, label: /^between/.test(m[0].trim()) ? `between ${seasonText(lo)} and ${seasonText(hi)}` : `${seasonText(lo)} to ${seasonText(hi)}`, typed: m[0].trim() } };
+    }
   }
   // "since 2023", "since the 2023-24 season": that season to the latest.
   m = new RegExp(String.raw`\b(?:since|from)\s+(?:the\s+)?${SEASON_WORD}(?:\s+seasons?)?(?:\s+(?:on|onwards?))?\b`).exec(rest);
