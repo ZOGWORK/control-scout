@@ -241,8 +241,10 @@ describe("people also ask", () => {
       expect(many.length).toBeGreaterThan(0);
       // Never two of them ("4215 or 6980?"): the question names every team, and its answer ranks them all.
       for (const x of many) expect(x.q.endsWith(`, ${named}?`)).toBe(true);
-      const qs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set())).map((x) => x.q);
-      for (const t of named.split(/, | or /)) expect(qs).toContain(`What is ${t}'s OPR?`);
+      // Each team's own questions are among those offered (People also ask or Related searches), never only built.
+      const { related } = await both(q);
+      const offered = [...ask, ...related];
+      for (const t of named.split(/, | or /)) expect(offered.some((x) => x.q.includes(`${t}'s `) || (x.q.startsWith(`${t} `) && !x.q.includes(" vs "))), t).toBe(true);
     }
     // Asked as offered, the question compares every team it names.
     const a = await searchAnswer("Who has the best record, 4215, 6980 or 7149?", { limit: 25, full: true });

@@ -242,9 +242,10 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
     ...(event ? fill(EVENT, s) : []),
     ...(award1 ? [award1] : []),
     ...(s.place ? fill(PLACE, s) : []),
-    ...(s.t != null ? fill(TEAM, s) : []),
-    // Each other team's own, after the first's, in the order named; an event's other awards after its winner's questions.
-    ...(many ?? (s.u != null ? [s.t, s.u] : [])).slice(1).flatMap((t) => fill(TEAM, { ...s, t })),
+    // Each team's own questions, one question at a time for every team named, in the order named ("What is A's OPR?",
+    // "What is B's OPR?", then each one's record …): only the first few candidates are checked, so a later team's
+    // never all come after the first's twenty. An event's other awards after its winner's questions.
+    ...(s.t != null ? TEAM.flatMap((x) => (many ?? (s.u != null ? [s.t, s.u] : [s.t])).flatMap((t) => fill([x], { ...s, t }))) : []),
     ...awards,
     ...(s.t == null && !event && !s.place && p.intent !== "leaderboard" ? fill(START, s) : []),
   ];
@@ -320,7 +321,10 @@ export const answerKey = (a: SearchAnswer) => {
     const words = a.stat.title.toLowerCase().split(/[^\p{L}\p{N}–-]+/u).filter((w) => w && !BOARD_WORDING.has(w) && !/^\d+$/.test(w));
     return `${a.stat.intent}|${[...new Set(words)].sort().join(" ")}`;
   }
-  return `${a.stat?.intent ?? a.card?.kind ?? a.understood?.kind}|${a.stat?.title ?? a.card?.title ?? a.understood?.label}`;
+  // A team's own card is titled by what it shows ("OPR", "Record"): its team tells two teams' apart, so one team's
+  // question never hides another's.
+  const team = a.stat?.team?.number ?? a.card?.team?.number;
+  return `${a.stat?.intent ?? a.card?.kind ?? a.understood?.kind}|${a.stat?.title ?? a.card?.title ?? a.understood?.label}${team != null ? `|${team}` : ""}`;
 };
 
 /** An event named by its initials typed in lower case ("mti") is said in capitals ("Who won MTI?"), never title case. */
