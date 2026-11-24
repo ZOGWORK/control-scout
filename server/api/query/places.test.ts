@@ -7,6 +7,7 @@ import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
 import { parseQuery } from "./parse";
+import { placesAsk } from "./places";
 import { parseContext } from "./context";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
@@ -23,12 +24,14 @@ beforeAll(async () => {
     [30303, "Old Line Bots", "MD", [[2024, 20], [2025, 40]]], [30304, "Terrapin Bots", "MD", [[2024, 10], [2025, 30]]],
     [30311, "First State Bots", "DE", [[2024, 50], [2025, 90]]], [30312, "Blue Hen Bots", "DE", [[2024, 40], [2025, 80]]],
     [30313, "Diamond Bots", "DE", [[2024, 30]]],
+    // Virginia: three teams in 2024–25, none in 2025–26.
+    [30321, "Old Dominion Bots", "VA", [[2024, 20]]], [30322, "Cardinal Bots", "VA", [[2024, 20]]], [30323, "Dogwood Bots", "VA", [[2024, 20]]],
   ];
   for (const [n, name, state, seasons] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', ?, 'USA')", [n, name, state]);
     for (const [season, opr] of seasons) {
       await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [season, n]);
-      await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties, opr_np, opr_auto) VALUES (?, ?, 6, 3, 3, 0, ?, ?)", [season, n, opr, opr / 4]);
+      await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties, opr_np, opr_auto, rating_pen) VALUES (?, ?, 6, 3, 3, 0, ?, ?, ?)", [season, n, opr, opr / 4, opr / 10]);
     }
   }
   await rebuildSearch();
@@ -70,5 +73,13 @@ describe("two places in one question", () => {
     expect(a.understood?.label).toMatch(/in Maryland or Delaware/);
     // "or" joins the places, never two searches ("teams from maryland" or "delaware"): every word read.
     for (const q of ["teams from maryland or delaware", "teams from delaware or maryland"]) expect((await full(q)).understood?.unread ?? [], q).toEqual([]);
+  });
+  it("a place with no teams in the season said is never level; fewer is better reads as lower; rookies are never dropped", async () => {
+    const s = (await full("maryland vs virginia average opr 2025-26")).stat as StatAnswer;
+    expect([s.headline, s.none]).toEqual([undefined, "Virginia had no teams with OPR in 2025–26."]);
+    const pen = (await full("maryland vs delaware average penalties")).stat as StatAnswer;
+    expect(pen.headline).toMatchObject({ value: "Maryland", label: "Lower average Penalties a match: 2.5 to 4.0" });
+    // "Rookie teams" asks of the places something this answer can't keep: left to search's other readers.
+    expect(placesAsk(await parseQuery("rookie teams from maryland or delaware", await parseContext(NOW)), null)).toBeNull();
   });
 });

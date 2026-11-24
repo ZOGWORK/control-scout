@@ -199,13 +199,13 @@ export async function asksOfTeams(q: string, now?: number, prefer?: ReadonlySet<
   return p.teams.length > 0 || (!!p.place && /\b(?:teams?|who|whose)\b/i.test(q));
 }
 
-/** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 /** The one board stat said beside two places (null: none), or undefined when several are. */
 function placesStat(p: Parsed): string | null | undefined {
   const stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
   return stats.length > 1 ? undefined : stats[0] ?? null;
 }
 
+/** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
   // Two places joined ("teams from nj or ny"): the pipeline's (./places.ts), never two searches joined by "or".
