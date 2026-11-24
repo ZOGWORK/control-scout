@@ -13,7 +13,7 @@ import { intentDefaults, readLeaderboard, scopeFits, type IntentId, type Leaderb
 import { allianceForecast, predictionSeasonOf } from "../answers/families/predict.js";
 import { CURRENT_SEASON, isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
-import { boardSearch, statAnswer, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
+import { boardSearch, statAnswer, statAnswerOf, teamSetSearch, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { currentSeason, defaultSeason, lastSeason, seasonWhy, teamSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
 import { conferencesNamed } from "../answers/families/conference.js";
@@ -78,6 +78,13 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   if (p.time?.kind === "seasons") {
     const stat = seasonsStat(p);
     return stat === undefined ? null : seasonsAnswer(p, stat, opts);
+  }
+  // Two to four teams set side by side by one stat ("4215 vs 6980 vs 23268 teleop", "compare 4215 and 6980 average
+  // score"): their season numbers in one card, that stat its headline row.
+  const by = comparedStat(p);
+  if (by) {
+    const season = p.time?.kind === "season" ? (p.time.relative === "last" ? lastSeason() : p.time.season ?? null) : null;
+    return teamSetSearch(p.q, { teams: p.teams.map((t) => t.number), season, stat: by }, opts.resolve, opts);
   }
   // An event's matches and nothing else asked ("<event> matches", "matches at <event>"): its matches in the order played,
   // each row playing its clip, as a team's matches do.
@@ -293,6 +300,31 @@ const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
   "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:reliability": "reliability", "metric:penalty": "penalties",
 };
+
+/** The words a comparison by one stat may hold beside its teams, the stat and a season. */
+const COMPARE_BY_WORDS = new Set(["vs", "compare", "and", "thing:team", "agg:mean"]);
+/** The board stats two teams' own side-by-side cards answer ("12345 vs 67890 penalties", "… record" is head to head). */
+const TWO_TEAM_STATS = new Set(["opr", "rating", "penalties", "record", "wins"]);
+/** The one board stat (BOARD_STATS) two to four teams are compared by ("4215 vs 6980 vs 23268 teleop"), or null: the
+ *  teams said once each, "vs" or "compare", one stat (a phase is that phase's OPR; "average score" the average score)
+ *  and a season at most. Anything else said (an event, a place, a count, a filter) is another question's. */
+function comparedStat(p: Parsed): string | null {
+  const n = p.teams.length;
+  if (n < 2 || n > 4 || new Set(p.teams.map((t) => t.number)).size !== n || p.teams.some((t) => t.candidates)) return null;
+  if (!p.symbols.includes("vs") && !p.symbols.includes("compare")) return null;
+  // Four teams with "vs" between every two are four sides, never two alliances ("12345 23456 vs 34567 45678").
+  const sides = (p.q.match(/\b(?:vs|versus)\b/gi) ?? []).length >= n - 1;
+  if ((p.intent && p.intent !== "compare" && !(p.intent === "alliance-predict" && sides)) || p.leftover.length || (p.time && p.time.kind !== "season")) return null;
+  if (p.event || p.place || p.worlds || p.states || p.level || p.alliance || p.finals || p.matchNumber != null || p.eventKind || p.award || p.n != null || p.over
+    || p.undefeated || p.rookie || p.named || p.nameHas || p.withVideo || p.noPenalties || p.notStats?.length || p.notMetrics?.length) return null;
+  if (!p.symbols.every((s) => COMPARE_BY_WORDS.has(s) || s.startsWith("prep:") || s.startsWith("metric:"))) return null;
+  const mean = p.symbols.includes("agg:mean");
+  let stats = [...new Set(p.symbols.filter((s) => s.startsWith("metric:")).map((s) => (s === "metric:score" && mean ? "avg-score" : BOARD_STAT[s] ?? "")))];
+  if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
+  const stat = stats.length === 1 ? stats[0] : "";
+  if (!stat || !BOARD_STATS[stat] || BOARD_STATS[stat].count || (mean && stat !== "avg-score")) return null;
+  return n === 2 && TWO_TEAM_STATS.has(stat) ? null : stat;
+}
 
 /** The season an advancement card is for: its scope's season chip, else the current one. */
 const scope0 = (stat: StatAnswer) => {
