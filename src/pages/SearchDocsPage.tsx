@@ -126,7 +126,7 @@ export default function SearchDocsPage() {
           <div className="mx-auto my-8 grid max-w-5xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {SEARCH_FAMILIES.map((f, i) => (
               <Reveal key={f.q} delay={(i % 4) * 0.06}>
-                <Link to={searchHref(f.q)} className="hiw-panel lift group grid h-full content-start gap-2 rounded-xl border border-border bg-card p-3.5 transition-[transform,border-color] duration-500 ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-1 hover:border-accent motion-reduce:hover:translate-y-0">
+                <Link to={searchHref(f.q)} className="hiw-panel lift group grid h-full content-start gap-2 rounded-xl border border-border bg-card p-3.5 transition-[translate,border-color] duration-500 ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-1 hover:border-accent motion-reduce:hover:translate-y-0">
                   <span className="hiw-gold-text text-[11px] font-bold uppercase tracking-[0.14em]">{f.title}</span>
                   <span className="flex items-start gap-2 rounded-lg border border-border bg-muted/50 px-2.5 py-2 font-mono text-sm text-foreground">
                     <Search aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
@@ -173,7 +173,7 @@ export default function SearchDocsPage() {
           <div className="mx-auto my-8 grid max-w-5xl grid-cols-1 gap-3 md:grid-cols-2">
             {SEARCH_COMPLEX.map((g, i) => (
               <Reveal key={g.title} delay={(i % 2) * 0.06} className="min-w-0">
-                <div className="hiw-panel grid h-full content-start gap-1 rounded-xl border border-border bg-card p-3.5 transition-[transform,border-color] duration-500 ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-1 hover:border-accent motion-reduce:hover:translate-y-0">
+                <div className="hiw-panel grid h-full content-start gap-1 rounded-xl border border-border bg-card p-3.5 transition-[translate,border-color] duration-500 ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-1 hover:border-accent motion-reduce:hover:translate-y-0">
                   <h3 className="px-1 text-base font-semibold text-foreground">{g.title}</h3>
                   <p className="px-1 pb-1 text-sm leading-snug text-muted-foreground">{g.body}</p>
                   <ul className="grid gap-1">
@@ -304,9 +304,9 @@ function QueryLink({ q, what }: { q: string; what: string }) {
     <li>
       <Link to={searchHref(q)} className="group grid min-h-11 gap-0.5 rounded-lg px-1 py-2 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <span className="flex items-start gap-2 font-mono text-sm text-foreground">
-          <Search aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-[color,transform] duration-300 group-hover:scale-110 group-hover:text-foreground motion-reduce:group-hover:scale-100" />
+          <Search aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-[color,scale] duration-300 group-hover:scale-110 group-hover:text-foreground motion-reduce:group-hover:scale-100" />
           <span className="min-w-0 flex-1 break-words">{q}</span>
-          <ArrowUpRight aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-[color,transform] duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground motion-reduce:group-hover:translate-x-0 motion-reduce:group-hover:translate-y-0" />
+          <ArrowUpRight aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-[color,translate] duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground motion-reduce:group-hover:translate-x-0 motion-reduce:group-hover:translate-y-0" />
         </span>
         <span className="pl-[1.375rem] text-sm leading-snug text-muted-foreground">{what}</span>
       </Link>
@@ -439,7 +439,7 @@ function StepsFigure() {
           <button
             key={st.title} type="button" aria-expanded={open === i} aria-controls="hiw-search-step" onClick={() => toggle(i)}
             className={cn(
-              "hiw-stage pop relative grid min-w-0 content-start gap-1.5 rounded-xl border p-3.5 text-left transition-[transform,border-color,background-color] duration-500 ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-1 hover:border-accent motion-reduce:hover:translate-y-0",
+              "hiw-stage pop relative grid min-w-0 content-start gap-1.5 rounded-xl border p-3.5 text-left transition-[translate,border-color,background-color] duration-500 ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-1 hover:border-accent motion-reduce:hover:translate-y-0",
               open === i ? "-translate-y-1 border-accent bg-card motion-reduce:translate-y-0" : "border-border bg-muted/50",
             )}
             style={{ ["--i" as string]: i }}
