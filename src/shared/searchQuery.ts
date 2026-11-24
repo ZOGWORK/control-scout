@@ -13,6 +13,7 @@
 //      "upcoming", "this weekend", …) and a question's own words (QUESTION_WORDS: "can", "will", …) when the query
 //      is a question. Those words say what kind of answer is wanted, never which team or event.
 import { REGION_NAMES, REGION_PHRASES, isRegionCode } from "./regions.js";
+import { seasonRunAt } from "./query/seasonRun.js";
 import { SEARCH_TOPICS, type SearchTopic } from "./search.js";
 
 /** The plurals read as their singular (lower case). Every pair has its own test (server/api/search.test.ts). */
@@ -180,6 +181,9 @@ export function nameWords(q: string, asked = false): string {
   let rest = one;
   // Every time phrase goes ("upcoming qualifiers this weekend"): each pass takes one out, so this ends.
   for (let time = timePhrase(rest); time; time = timePhrase(rest)) rest = time.rest;
+  // A run of seasons goes too ("from 2022 to 2024", "since 2023"): its years are seasons, never a team number to look up.
+  const run = seasonRunAt(rest);
+  if (run) rest = `${rest.slice(0, run.index)} ${rest.slice(run.index + run.length)}`.replace(/\s+/g, " ").trim();
   const question = asked || isQuestionForm(q);
   const all = rest.split(" ").filter(Boolean);
   const place = placeWords(all);
