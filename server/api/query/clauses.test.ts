@@ -6,6 +6,8 @@ import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { resetSearchSeason } from "../answers/season";
 import { searchAnswer } from "../searchAnswer";
+import { searchPage } from "../../lite/pages";
+import { answerFacts } from "../searchBrunoAnswer";
 
 const NOW = Date.parse("2026-03-18T12:00:00Z");
 const S = 2025;
@@ -36,6 +38,18 @@ describe("compound questions", () => {
     const a = await ask("30801 opr and 30802 record");
     expect([a.intent?.kind, a.stat?.intent, a.clauses?.map((c) => c.stat?.intent)]).toEqual(["stat-clauses", "opr", ["record"]]);
     expect(a.understood?.label).toMatch(/OPR.*; .*Record/);
+  });
+  it("every surface that shows an answer shows every part: Control Scout Lite's page, Bruno's facts", async () => {
+    const a = await ask("30801 opr and 30802 record");
+    const lite = searchPage("30801 opr and 30802 record", S, a).body;
+    // Each part's card, beyond the reading that names both: its title as a card heading.
+    const heads = (t: string) => lite.split(t).length - 1;
+    expect([heads(a.stat!.title) > 1, heads(a.clauses![0].stat!.title) > 1]).toEqual([true, true]);
+    const facts = await answerFacts(a);
+    expect(facts.some((f) => f.includes(a.clauses![0].stat!.title))).toBe(true);
+  });
+  it("\";\" is never a joiner (search reads the query with its punctuation gone)", async () => {
+    expect((await ask("30801 opr; 30802 record")).intent?.kind).not.toBe("stat-clauses");
   });
   it("a part with no subject of its own asks of the first part's team", async () => {
     const a = await ask("30801 awards and highest score");
