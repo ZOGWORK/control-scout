@@ -25,7 +25,7 @@ A 👎 on an answer now answers back, once: the bot says in the channel that a �
 - [fixes] One note per answer, no pings, never twice
 
 ### Discord bot
-- **The thumbs explain themselves** (`bot/reactions.ts` `DOWN_NOTE`, `downNotes`, `firstDown`; `bot/index.ts`; `bot/handler.ts` `helpEmbed`): the first 👎 an answer gets now draws one short reply in the channel — "📝 Noted — a 👎 files this question so we can fix the answer. It's not a dislike button." — sent as a reply to that answer and pinging nobody. It says it at most once per answer per process (a second 👎, or the first taken off and added again, says nothing; two arriving together say it once), only for an answer the bot posted, and only in a channel it can post in. A note that can't be sent is logged as `down note failed` and never touches the vote. `/help` carries the same line under the commands, so it is read before the button is used rather than after.
+- **The thumbs explain themselves** (`bot/reactions.ts` `DOWN_NOTE`, `downNotes`, `firstDown`; `bot/index.ts`; `bot/handler.ts` `helpEmbed`): the first 👎 an answer gets now draws one short reply in the channel — "📝 Noted — a 👎 files this question so we can fix the answer. It's not a dislike button." — sent as a reply to that answer and pinging nobody. It says it at most once per answer per process (a second 👎, or the first taken off and added again, says nothing; two arriving together say it once), only for an answer the bot posted, and only in a channel it can post in. A note that can't be sent is logged as `down note failed` and never touches the vote. `/help` carries the same line under the commands, so it is read before the button is used rather than after. (#2219)
 
 ## 7.9.9 — 2026-11-23
 
