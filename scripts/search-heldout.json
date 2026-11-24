@@ -3018,5 +3018,48 @@
 "set": "places1124",
 "n": 4,
 "q": "virginia versus maryland average teleop"
+},
+{
+"set": "places1124",
+"n": 4,
+"q": "virginia versus maryland average teleop",
+"set": "seasons1124",
+"n": 1,
+"q": "6980 opr since 2022"
+},
+{
+"set": "seasons1124",
+"n": 2,
+"q": "23268 last three seasons"
+},
+{
+"set": "seasons1124",
+"n": 3,
+"q": "best teams from 2022-23 to 2024-25"
+},
+{
+"set": "seasons1124",
+"n": 4,
+"q": "7149 auto opr between 2023 and 2025"
+},
+{
+"set": "not1124",
+"n": 1,
+"q": "teams in ohio that are not rookies"
+},
+{
+"set": "not1124",
+"n": 2,
+"q": "non-rookie teams in michigan"
+},
+{
+"set": "not1124",
+"n": 3,
+"q": "auto opr over 50 who did not make worlds"
+},
+{
+"set": "not1124",
+"n": 4,
+"q": "23268 matches without penalties at worlds"
 }
 ]
