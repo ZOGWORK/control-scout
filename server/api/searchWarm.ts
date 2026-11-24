@@ -11,8 +11,9 @@
 // answer, a turn of the loop between them, before it takes over from the lane still serving (server/index.ts), or
 // right after it's ready on a cold start.
 import { kvGet, kvSet } from "../db.js";
-import { pageAnswer } from "./answers/followUps.js";
-import { keptGeneration } from "./searchReads.js";
+import { pageAnswer, precomputeFollowUps } from "./answers/followUps.js";
+import { SEARCH_PAGE_LIMIT } from "../../src/shared/search.js";
+import { keptGeneration, searchVersion } from "./searchReads.js";
 
 /** How many of the most-asked searches are kept in the list, and so made by the next process. */
 export const HOT_MAX = 500;
@@ -97,4 +98,24 @@ export async function warmHot(ms = HOT_WARM_MS, now = () => Date.now()): Promise
     } catch { /* the next one */ }
   }
   return made;
+}
+
+/** How many of the most-asked searches get their follow-ups made ahead (the search audit's S9): each set is up to 41
+ *  searches, mostly answers other sets share, so a hundred is a few CPU-minutes per stats run, all of it `later` work
+ *  behind live searches. */
+export const HOT_FOLLOW_MAX = 100;
+let aheadFor: string | null = null, aheadRunning: Promise<number> | null = null;
+
+/** The most-asked searches' follow-ups made ahead once per search index (after start, and after each stats run moves
+ *  "search:version"): People also ask for them is there at once (./answers/followUps.ts followUpsWithin). Only the
+ *  page's own searches (its limit). Never two runs at once; nothing when the index hasn't moved since the last. */
+export function precomputeHot(): Promise<number> {
+  return (aheadRunning ??= (async () => {
+    const version = await searchVersion();
+    if (version === aheadFor) return 0;
+    const qs = (await hotList()).filter(([, limit]) => limit === SEARCH_PAGE_LIMIT).map(([q]) => q).slice(0, HOT_FOLLOW_MAX);
+    const made = await precomputeFollowUps(qs);
+    if ((await searchVersion()) === version) aheadFor = version;
+    return made;
+  })().finally(() => { aheadRunning = null; }));
 }
