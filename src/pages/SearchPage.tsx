@@ -10,7 +10,7 @@
 // narrow the results here, in the address (./search/page/results.ts). A question also gets Bruno AI's short
 // written answer on top, from those same records (./search/BrunoAnswer.tsx). Nothing found is never a dead end
 // (./search/page/NoResults.tsx).
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -245,6 +245,10 @@ export default function SearchPage() {
   // a "videos" block), else under the team's card.
   const reel = v8 && answer?.stat?.intent === "team-highlights" ? (answer.stat.blocks.some((b) => b.kind === "videos") ? "lead" : "under") : null;
   const brunoLeads = v8 && brunoAsks && !(apps.length > 0 || !!quality);
+  // The question he had nothing to add to: its heading is full size again (his slot is let go).
+  const [brunoSilent, setBrunoSilent] = useState<string | null>(null);
+  const onBruno = useCallback((asked: string, said: boolean) => setBrunoSilent((s) => (said ? (s === asked ? null : s) : asked)), []);
+  const smallHeading = !!((brunoLeads && brunoSilent !== q.trim()) || namesLine) && found;
   const summary = (
     <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
@@ -306,12 +310,12 @@ export default function SearchPage() {
           results column's width, beside where People also ask starts). */}
       {brunoLeads && query && found && !error && (
         <div className={cn("mb-5", side && "lg:pr-[24rem]")} data-bruno-lead>
-          <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} lead />
+          <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} lead onOutcome={onBruno} />
         </div>
       )}
       <h1 className={cn("mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl v8:font-sans v8:text-[1.375rem] v8:leading-7 v8:md:text-[1.375rem] v8:lg:text-[1.375rem]",
         // Under his answer, or a names list's own line: a plain label, never the page's biggest words.
-        (brunoLeads || namesLine) && found && "v8:mt-0 v8:text-base v8:font-medium v8:leading-6 v8:tracking-normal v8:md:text-base v8:lg:text-base")} data-page-title data-heading-size={(brunoLeads || namesLine) && found ? "label" : undefined}>
+        smallHeading && "v8:mt-0 v8:text-base v8:font-medium v8:leading-6 v8:tracking-normal v8:md:text-base v8:lg:text-base")} data-page-title data-heading-size={smallHeading ? "label" : undefined}>
         {/* Nothing answered (a question search can't answer yet, or nothing found): the page says sorry, once, here. */}
         {!query ? "Search" : ax?.notInPack && !busy && !error ? "Not in your downloaded pack" : ax?.sorry && !busy && !error ? SORRY_SENTENCE : found ? namesLine ?? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : SORRY_SENTENCE}
       </h1>
