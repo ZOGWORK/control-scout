@@ -425,3 +425,25 @@ describe("what answered before answers the same (§5)", () => {
     expect((await ask("bad wolf")).hits[0]).toMatchObject({ kind: "team", ref: "6980" });
   });
 });
+
+// Search audit 2026-11-24, Q3: a yes-or-no question about winning an event leads with Yes or No, and a No says how far
+// the team got. A championship's division won is a finish there, never the championship won.
+describe("did a team win Worlds: yes or no first, and its best finish", () => {
+  beforeAll(async () => {
+    await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'FTCCMP1EDIS', 30001, 'Winner', 'Winning Alliance - Captain', 1), (2025, 'FTCCMP1', 30002, 'Finalist', 'Finalist Alliance - 1st Team Selected', 1)");
+    clearAllCaches();
+  });
+  it("a division won is no Worlds won: No, best finish the division", async () => {
+    const a = await ask("did 30001 win worlds");
+    expect(a.verdict?.answer).toBe("No");
+    expect(a.verdict?.label).toMatch(/^Best finish: Winning Alliance \(.*Edison Division, 2025–26\) · .* has never won Worlds$/);
+  });
+  it("a finals finalist place, without the alliance slot", async () => {
+    const a = await ask("did 30002 win worlds");
+    expect(a.verdict?.answer).toBe("No");
+    expect(a.verdict?.label).toMatch(/^Best finish: Finalist Alliance \(/);
+  });
+  it("no win and no finish: No, never won", async () => {
+    expect((await ask("has 7149 ever won worlds")).verdict).toMatchObject({ answer: "No", label: expect.stringMatching(/has never won Worlds$/) });
+  });
+});

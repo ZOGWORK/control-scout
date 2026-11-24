@@ -54,7 +54,6 @@ import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
-import { chatAnswer } from "./answers/chat.js";
 import { fold, names } from "./query/names.js";
 import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
@@ -262,11 +261,6 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
   const a = await answerOf(raw, opts);
   if (opts.inner || opts.intents === false || opts.rewrites) return a;
-  // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
-  // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
-  // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.
-  const chat = opts.spell === false ? null : chatAnswer(String(raw ?? ""), a);
-  if (chat) return chat;
   // A place asked for, alone or with its rankings, leagues or conferences ("nj", "nj rankings"): its own pages first
   // (src/shared/placePages.ts), whatever answered it. Kept once by address, so an answer that recursed adds none twice.
   const pages = withPlacePages(String(raw ?? ""), a.pages);
@@ -1077,6 +1071,8 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // "2024 Houston Championship Edison Division"), or a region alone ("New Jersey", "NJ"): the events themselves,
   // filtered on their stored fields and listed by date (./searchEvents.ts). Never a did-you-mean.
   const evq = opts.intents === false ? null : readEventQuery(q);
+  // "The next event" is one, said singular as typed: "next meets in NJ" (read here as "next meet") asks for the list.
+  if (evq?.next && opts.typed && !readEventQuery(opts.typed)?.next) delete evq.next;
   // A team at one of its events ("hypnotic at New Jersey Championship") is the team's answer, not a set of events.
   const teamAt = evq?.words.length && /\sat\s/i.test(q) ? await teamAtEventAnswer(q, limit, prefer) : null;
   if (evq && !teamAt) return eventSetAnswer(q, evq, { now: opts.now });
