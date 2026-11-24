@@ -9,6 +9,7 @@ import { teamProfile } from "../server/api/teams.js";
 import { cachedEventDetail, NO_MATCH_TYPES } from "../server/api/events.js";
 import { rankings } from "../server/api/rankings.js";
 import { RANKED_MIN_MATCHES } from "../src/shared/rankings.js";
+import type { EventDetail } from "../src/shared/api.js";
 import { Friendly, dates, eventEmbed, predictEmbed, preMatchEmbed, rankingsEmbed, teamEmbed, teamLink } from "./views.js";
 import { inEvent, nextPlaying } from "./next.js";
 
