@@ -8,7 +8,7 @@ import { EVENT_NAME_WORDS } from "./lexicon.js";
 import { fold, names } from "./names.js";
 import { ROSTER } from "../../data/registrations.js";
 import { all } from "../../db.js";
-import type { ParseContext } from "./parse.js";
+import { CONTEXT_KEY, type ParseContext } from "./parse.js";
 
 const EVENT = new Set(["event"] as const);
 const KINDS = /^(?:meets?|tournaments?|events?|competitions?)$/;
@@ -25,9 +25,12 @@ const KNOWN_MAX = 5000;
 export async function parseContext(now = Date.now(), prefer: ReadonlySet<string> = new Set()): Promise<ParseContext> {
   const idx = await names();
   const seen = known.get(idx) ?? known.set(idx, new Map()).get(idx)!;
-  return {
+  const today = searchToday(now);
+  const ctx: ParseContext & { [CONTEXT_KEY]: string } = {
+    // What the parser's readings are remembered by (./parse.ts parseQuery), besides this names index.
+    [CONTEXT_KEY]: `${today}|${[...prefer].sort().join(",")}`,
     names: idx,
-    today: searchToday(now),
+    today,
     prefer,
     nearTeam: async (words) => idx.nearTeam(words),
     isEvent(words) {
@@ -51,6 +54,7 @@ export async function parseContext(now = Date.now(), prefer: ReadonlySet<string>
       return name ?? null;
     },
   };
+  return ctx;
 
   async function isEvent(words: string): Promise<boolean> {
     // One word an event's initialism is (two letters too: "fr"), when no team is named so.
