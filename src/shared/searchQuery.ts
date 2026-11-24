@@ -172,7 +172,8 @@ function placeWords(ws: string[]): Set<number> {
 /**
  * The words of `q` that can name a team or event, as one string: plurals singular, stopwords, time words and (in a
  * question) question words out. When taking them out would leave nothing ("the", "upcoming"), the query as typed
- * (plurals singular) is kept, so a name made only of such words still searches. A conversational opening goes first
+ * (plurals singular) is kept, so a name made only of such words still searches; but when a run of seasons was all
+ * that named anything ("since 2023"), "" (its years are never looked up, and callers look nothing up for ""). A conversational opening goes first
  * ("show me 4215" → "4215"). `asked`: the query as typed ended in "?" (which search's cleaning takes off).
  */
 export function nameWords(q: string, asked = false): string {
