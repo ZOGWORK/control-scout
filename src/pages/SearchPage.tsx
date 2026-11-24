@@ -257,7 +257,9 @@ export default function SearchPage() {
   if (silentFor !== askKey) { setSilentFor(askKey); setBrunoSilent(null); }
   const onBruno = useCallback((k: string, said: boolean) => setBrunoSilent((s) => (said ? (s === k ? null : s) : k)), []);
   // Not on a failed search: no answer or names list shows there, so its heading keeps its size.
-  const smallHeading = !!((brunoLeads && brunoSilent !== askKey) || namesLine) && found && !error;
+  // His slot at the top, until he's known to have nothing to add to this question (then it stays let go).
+  const brunoTop = brunoLeads && brunoSilent !== askKey;
+  const smallHeading = !!(brunoTop || namesLine) && found && !error;
   const summary = (
     <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
@@ -317,7 +319,7 @@ export default function SearchPage() {
       <p className="text-xs font-semibold text-muted-foreground v8:hidden max-md:hidden" data-eyebrow>FTC One Search</p>
       {/* v8: a question search can't answer directly leads with Bruno's answer, under the search box (desktop: the
           results column's width, beside where People also ask starts). */}
-      {brunoLeads && query && found && !error && (
+      {brunoTop && query && found && !error && (
         <div className={cn("mb-5", side && "lg:pr-[24rem]")} data-bruno-lead>
           <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} lead onOutcome={onBruno} />
         </div>
