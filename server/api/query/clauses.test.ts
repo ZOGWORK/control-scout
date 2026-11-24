@@ -59,6 +59,10 @@ describe("compound questions", () => {
     // Every word read, "and" too: each part answered as asked.
     expect(a.understood?.unread).toBeUndefined();
   });
+  it("a word neither part reads is still said unread, the joining \"and\" never", async () => {
+    const a = await ask("30801 opr today and 30802 record");
+    expect([a.intent?.kind, a.understood?.unread]).toEqual(["stat-clauses", ["today"]]);
+  });
   it("two teams asked different things are two questions, never one compare of both", async () => {
     const a = await ask("30801 last match and 30802 next event");
     expect([a.intent?.kind, a.stat?.intent, a.clauses?.[0].card?.kind]).toEqual(["stat-clauses", "recent-match", "next-event"]);
