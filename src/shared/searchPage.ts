@@ -156,3 +156,17 @@ export function answerDescription(a: AnswerExtra): string | null {
   const cut = text.slice(0, DESCRIPTION_MAX - 1);
   return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), DESCRIPTION_MAX / 2)).replace(/[\s,.:;·–-]+$/, "")}…`;
 }
+
+/** A shared name's reading ('Which "absolute zero"? 5 teams have that name; 3 of them still play: 12096 (…), …',
+ *  ./query/shared.ts whichLine) said as a plain line for the names list it heads: "5 teams are named Absolute Zero;
+ *  3 still play". The teams themselves are the list under it, so their numbers aren't said again. `names`: the found
+ *  teams' own spellings, to write the name as they do. Null: not such a reading. */
+export function namesSaid(label: string | null | undefined, names: string[] = []): string | null {
+  if (!label || !/^Which "/.test(label)) return null;
+  const spelled = (typed: string) => names.find((n) => n.toLowerCase() === typed.toLowerCase()) ?? `"${typed}"`;
+  const parts = label.split(" · ").map((seg) => {
+    const m = /^Which "([^"]+)"\? (\d+) teams have that name(?:; (\d+) of them still play)?/.exec(seg);
+    return m ? `${m[2]} teams are named ${spelled(m[1])}${m[3] ? `; ${m[3]} still ${m[3] === "1" ? "plays" : "play"}` : ""}` : null;
+  });
+  return parts.every((p) => p) ? parts.join(" · ") : null;
+}

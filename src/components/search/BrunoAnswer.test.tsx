@@ -17,13 +17,13 @@ vi.mock("../../lib/brunoStream", () => ({
     ? Promise.reject(new Error("no stream"))
     : new Promise((resolve, reject) => streams.push({ url, part, resolve, reject })),
 }));
-const flags = { brunoAnswers: true };
-vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useServerFlag: (n: keyof typeof flags) => flags[n] }));
+const flags = { brunoAnswers: true, confirmed: true };
+vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useServerFlag: (n: keyof typeof flags) => flags.confirmed && flags[n], useFlag: (n: keyof typeof flags) => flags[n] }));
 
-const { BrunoAnswer, BRUNO_SETTLE_MS } = await import("./BrunoAnswer");
+const { BrunoAnswer, BRUNO_SETTLE_MS, BRUNO_FLAG_WAIT_MS, brunoKey } = await import("./BrunoAnswer");
 
 const Q = "how many times did 4215 go to states";
-beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); flags.brunoAnswers = true; });
+beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); flags.brunoAnswers = true; flags.confirmed = true; });
 afterEach(() => { cleanup(); pending.length = 0; streams.length = 0; streamMode = "fail"; vi.useRealTimers(); });
 const settle = () => act(async () => { vi.advanceTimersByTime(BRUNO_SETTLE_MS + 5); });
 const answer = (text: string | null, points?: string[]) => act(async () => { pending.shift()!.resolve(text ? { text, points } : null); });
@@ -168,5 +168,85 @@ describe("read as a stream, shown only once he's done", () => {
     await act(async () => { first.part({ text: "Old part", points: [] }); first.resolve({ text: "Old answer." }); });
     expect(screen.queryByText("Old part")).toBeNull();
     expect(screen.queryByText("Old answer.")).toBeNull();
+  });
+});
+
+describe("Bruno's answer leading the page", () => {
+  it("holds his slot while he writes, then fills it; a yes-or-no answer leads with the word", async () => {
+    render(<BrunoAnswer q="is absolute zero a real team" ready lead />);
+    expect(screen.getByRole("status", { name: "Bruno AI is writing an answer" })).toBeTruthy();
+    await settle();
+    await answer("Yes, Absolute Zero consists of multiple teams, including 12096, 13048, and 19656.");
+    expect(screen.queryByRole("status")).toBeNull();
+    const note = screen.getByRole("note", { name: "Bruno AI's answer" });
+    const v = note.querySelector("[data-bruno-verdict]")!;
+    expect(v.getAttribute("data-bruno-verdict")).toBe("Yes");
+    expect(v.textContent).toBe("YesAbsolute Zero consists of multiple teams, including 12096, 13048, and 19656.");
+  });
+  it("lets the slot go when he has nothing to add", async () => {
+    render(<BrunoAnswer q="is absolute zero a real team" ready lead />);
+    await settle();
+    await answer(null);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+  it("tells the page whether he answered, so its heading can grow back", async () => {
+    const heard: [string, boolean][] = [];
+    render(<BrunoAnswer q="is absolute zero a real team" ready lead onOutcome={(q, said) => heard.push([q, said])} />);
+    expect(heard).toEqual([]);
+    await settle();
+    await answer(null);
+    expect(heard).toEqual([[brunoKey("is absolute zero a real team"), false]]);
+  });
+  it("moves with the page's memo: a card in the other place shows what he said, never asking again", async () => {
+    const memo = new Map();
+    const first = render(<BrunoAnswer q="is absolute zero a real team" ready lead memo={memo} />);
+    await settle();
+    await answer("Yes, it is several real teams.");
+    first.unmount();
+    render(<BrunoAnswer q="is absolute zero a real team" ready memo={memo} />);
+    expect(screen.getByRole("note", { name: "Bruno AI's answer" }).textContent).toContain("It is several real teams.");
+    await settle();
+    expect(pending).toHaveLength(0);
+  });
+  it("keeps no failed ask in the memo: the other card asks him again", async () => {
+    const memo = new Map();
+    const first = render(<BrunoAnswer q="is absolute zero a real team" ready lead memo={memo} />);
+    await settle();
+    await act(async () => { pending.shift()!.resolve(Promise.reject(new Error("offline"))); });
+    expect(memo.size).toBe(0);
+    first.unmount();
+    render(<BrunoAnswer q="is absolute zero a real team" ready memo={memo} />);
+    await settle();
+    expect(pending).toHaveLength(1);
+  });
+  it("lets the slot go when the server never confirms his switch", async () => {
+    flags.confirmed = false;
+    const heard: boolean[] = [];
+    render(<BrunoAnswer q="is absolute zero a real team" ready lead onOutcome={(_, said) => heard.push(said)} />);
+    expect(screen.getByRole("status")).toBeTruthy();
+    await act(async () => { vi.advanceTimersByTime(BRUNO_FLAG_WAIT_MS + 5); });
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(heard).toEqual([false]);
+    expect(pending).toHaveLength(0);
+  });
+  it("holds no slot with his switch off", () => {
+    flags.brunoAnswers = false;
+    render(<BrunoAnswer q="is absolute zero a real team" ready lead />);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("brunoVerdict", () => {
+  it("reads a leading yes or no, and nothing else", async () => {
+    const { brunoVerdict } = await import("./BrunoAnswer");
+    expect(brunoVerdict("No - 4215 has not been to worlds.")).toEqual({ answer: "No", rest: "4215 has not been to worlds." });
+    expect(brunoVerdict("Yes.")).toBeNull();
+    expect(brunoVerdict("Nobody has scored more.")).toBeNull();
+    // A sentence that starts with the word "no" is not a verdict.
+    expect(brunoVerdict("No team from Ohio has won worlds.")).toBeNull();
+    expect(brunoVerdict("No-one has scored more.")).toBeNull();
+    expect(brunoVerdict("No, 4215 has not been to worlds.")).toEqual({ answer: "No", rest: "4215 has not been to worlds." });
+    expect(brunoVerdict("Hypnotic Robotics went to states 3 times.")).toBeNull();
   });
 });
