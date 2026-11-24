@@ -125,18 +125,31 @@ describe("the thumbs on an answer", () => {
     expect(await firstDown("n1")).toBe(false);
     await downVote("n1");
     expect(await firstDown("n1")).toBe(true);
-    const say = downNotes();
-    expect(await say("n1")).toBe(true);
+    const note = downNotes();
+    expect(await note.worth("n1")).toBe(true);
+    note.said("n1");
     // A second 👎 — or the first one taken off and added again — is the same answer: it has been told.
     await downVote("n1");
     expect(await firstDown("n1")).toBe(false);
-    expect(await say("n1")).toBe(false);
+    expect(await note.worth("n1")).toBe(false);
     // A message that isn't one of the bot's answers has no count, so nothing is said about it.
     expect(await firstDown("someone-elses")).toBe(false);
   });
 
-  it("two 👎 arriving together say it once", async () => {
-    const say = downNotes(async () => true);
-    expect(await Promise.all([say("same"), say("same")])).toEqual([true, false]);
+  it("two 👎 arriving together say it once, and a note that couldn't be sent is owed, not spent", async () => {
+    const note = downNotes(async () => true);
+    expect(await Promise.all([note.worth("same"), note.worth("same")])).toEqual([true, false]);
+    // The send failed, or the channel wasn't there: the claim is released, so a later 👎 can say it.
+    note.unsent("same");
+    expect(await note.worth("same")).toBe(true);
+    note.said("same");
+    expect(await note.worth("same")).toBe(false);
+    // Past the cap the oldest answer is forgotten: at worst a repeat note, never a missing one.
+    const capped = downNotes(async () => true, 1);
+    expect(await capped.worth("a")).toBe(true);
+    capped.said("a");
+    expect(await capped.worth("b")).toBe(true);
+    capped.said("b");
+    expect(await capped.worth("a")).toBe(true);
   });
 });
