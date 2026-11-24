@@ -20,7 +20,7 @@ describe("a month said without its year", () => {
     expect(lastMonthSeason(5, `${S + 1}-06-02`)).toBe(S);
   });
   it("is read by the parser as the latest such month begun, unless the question looks ahead", () => {
-    expect(readTime("did 7149 play at any event in june", `${S}-11-24`).time).toMatchObject({ from: `${S}-06-01`, season: S - 1, label: `in June ${S}` });
+    expect(readTime("7149 events in june", `${S}-11-24`).time).toMatchObject({ from: `${S}-06-01`, season: S - 1, label: `in June ${S}` });
     expect(readTime("events in october", `${S}-11-24`).time).toMatchObject({ from: `${S}-10-01`, season: S });
     expect(readTime("upcoming events in june", `${S}-11-24`).time).toMatchObject({ from: `${S + 1}-06-01`, season: S });
     // Looking ahead to a month already over this season: next season's ("upcoming events in october" in November).

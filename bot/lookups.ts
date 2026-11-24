@@ -9,18 +9,36 @@ import { teamProfile } from "../server/api/teams.js";
 import { cachedEventDetail, NO_MATCH_TYPES } from "../server/api/events.js";
 import { rankings } from "../server/api/rankings.js";
 import { RANKED_MIN_MATCHES } from "../src/shared/rankings.js";
-import type { EventDetail } from "../src/shared/api.js";
-import { Friendly, dates, eventEmbed, predictEmbed, preMatchEmbed, rankingsEmbed, teamEmbed, teamLink } from "./views.js";
+import type { EventDetail, TeamProfile } from "../src/shared/api.js";
+import { Friendly, dates, eventEmbed, predictEmbed, preMatchEmbed, rankingsEmbed, startsText, teamEmbed, teamLink } from "./views.js";
 import { aheadEvents, inEvent, nextPlaying } from "./next.js";
 
 /** The site's public address, for every link in an embed (controlscout.org in production). */
 export const site = () => env.canonicalUrl.replace(/\/+$/, "");
 const today = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
 
-export async function teamLookup(number: number): Promise<APIEmbed> {
+export async function teamLookup(number: number, now = Date.now()): Promise<APIEmbed> {
   const profile = await teamProfile(number);
   if (!profile) throw new Friendly("Team not found", `There's no FTC team ${number} in Control Scout's data.`);
-  return teamEmbed({ profile, seasonLabel: seasonInfo(profile.season).label, today: today() }, site());
+  return teamEmbed({ profile, seasonLabel: seasonInfo(profile.season).label, now, next: await nextFor(profile.events, number, now) }, site());
+}
+
+/**
+ * The team's next unplayed match for its card: the read /next makes (bot/next.ts), one event at a time, earliest first.
+ * A card is worth showing without it — /next's question is the match, but /team's is the team — so a schedule that
+ * can't be read leaves the line off instead of failing the answer, and a failed read ends the walk rather than letting
+ * a later event's match stand in for the one that couldn't be read. No prediction is read: the line carries no call, so
+ * /team still answers while live predictions are switched off.
+ */
+async function nextFor(events: TeamProfile["events"], number: number, now: number) {
+  const ahead = aheadEvents(events.filter((e) => e.season === CURRENT_SEASON), now);
+  for (const e of ahead) {
+    const detail = await cachedEventDetail(e.season, e.code).catch(() => null);
+    if (!detail) return null;
+    const found = nextPlaying([detail], number);
+    if (found) return found;
+  }
+  return null;
 }
 
 /** An event of the current season by its code (any case), or by its exact name. */
@@ -71,9 +89,8 @@ export async function nextLookup(number: number, now = Date.now()): Promise<APIE
     read.push(detail);
     const found = nextPlaying([detail], number);
     if (!found) continue;
-    const m = found.match, at = m.startsAt ? Date.parse(m.startsAt) : NaN;
-    const when = Number.isFinite(at) ? `Starts <t:${Math.floor(at / 1000)}:R> (<t:${Math.floor(at / 1000)}:t>)` : m.time ? `Scheduled ${m.time.slice(11, 16)}` : "No time posted yet";
-    return preMatchEmbed(found.event.event.name, m, site(), `${when} · next for ${teamLink(number, site())}.`);
+    const when = startsText(found.match) ?? "No time posted yet";
+    return preMatchEmbed(found.event.event.name, found.match, site(), `${when} · next for ${teamLink(number, site())}.`);
   }
   // Nothing unplayed. Say which of the two it is: its matches at the current event are all played, or no schedule has
   // it yet — never that a published schedule is missing.

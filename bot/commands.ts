@@ -11,7 +11,7 @@ export type CommandDef = RESTPostAPIChatInputApplicationCommandsJSONBody;
 export const COMMANDS: CommandDef[] = [
   {
     name: "team",
-    description: "A team's season: record, OPR, world ranking and next event",
+    description: "A team's season: record, OPR, world ranking, its next event and next match",
     options: [{ type: ApplicationCommandOptionType.Integer, name: "number", description: "FTC team number", required: true, min_value: 1, max_value: 999999 }],
   },
   {
