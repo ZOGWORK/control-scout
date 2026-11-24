@@ -26,8 +26,10 @@ vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../l
   // The phone's search bar is a real SearchBox, which ranks the visitor's own teams first: none here.
   usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
 const asked = vi.hoisted(() => [] as string[]);
+// What he writes back (null: nothing to add).
+const says = vi.hoisted(() => ({ text: "Bruno's overview of the records." as string | null }));
 vi.mock("../lib/brunoStream", () => ({
-  streamBrunoAnswer: (url: string) => { asked.push(url); return Promise.resolve({ text: "Bruno's overview of the records.", points: [] }); },
+  streamBrunoAnswer: (url: string) => { asked.push(url); return Promise.resolve(says.text ? { text: says.text, points: [] } : null); },
 }));
 
 const { default: SearchPage } = await import("./SearchPage");
@@ -63,7 +65,57 @@ const show = (q: string) => render(<MemoryRouter initialEntries={[`/search?q=${e
 const settle = () => act(async () => { vi.advanceTimersByTime(BRUNO_SETTLE_MS + 5); });
 
 beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); asked.length = 0; });
-afterEach(() => { cleanup(); state.answer = undefined; vi.useRealTimers(); });
+afterEach(() => { cleanup(); state.answer = undefined; says.text = "Bruno's overview of the records."; vi.useRealTimers(); });
+
+// v8 (owner, 2026-11-23): a question search has no direct answer to leads with his answer, under the search box; a
+// shared name's reading is a plain line heading its list, never the page's biggest words.
+describe("Bruno leading the v8 page", () => {
+  beforeEach(() => document.documentElement.setAttribute("data-v8", ""));
+  afterEach(() => document.documentElement.removeAttribute("data-v8"));
+  const NAMES = "is absolute zero a real team";
+  const names = () => answer(NAMES, [team(12096, "Absolute Zero"), team(13048, "Absolute Zero")], {
+    understood: { kind: "names", label: 'Which "absolute zero"? 5 teams have that name; 2 of them still play: 12096 (Sterling, VA), 13048 (Englewood, NJ)' },
+    suggest: ["is 12096 a real team", "is 13048 a real team"],
+  } as Partial<SearchAnswer>);
+
+  it("puts his answer first, a yes as the headline, the names as a plain line and one Related searches row", async () => {
+    says.text = "Yes, Absolute Zero is several real teams.";
+    state.answer = names();
+    const { container } = show(NAMES);
+    const lead = container.querySelector("[data-bruno-lead]")!;
+    // Held from the first frame, before he answers.
+    expect(lead.querySelector("[data-bruno-pending]")).not.toBeNull();
+    await settle();
+    expect(lead.querySelector("[data-bruno-verdict]")!.getAttribute("data-bruno-verdict")).toBe("Yes");
+    const h1 = container.querySelector("h1")!;
+    expect(lead.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(h1.textContent).toBe("5 teams are named Absolute Zero; 2 still play");
+    expect(h1.getAttribute("data-heading-size")).toBe("label");
+    // The reading isn't said twice, and his card shows once.
+    expect(container.querySelector("[data-understood]")).toBeNull();
+    expect(container.querySelectorAll("[data-bruno-answer]")).toHaveLength(1);
+    expect(container.textContent).not.toContain("Search can answer these");
+    const related = container.querySelector("[data-related-lead]")!;
+    expect(related.querySelector("h2")!.textContent).toBe("Related searches");
+    expect([...related.querySelectorAll("[data-follow-chip]")].slice(0, 2).map((c) => c.textContent)).toEqual(["is 12096 a real team", "is 13048 a real team"]);
+  });
+  it("lets his slot go and gives the heading its size back when he has nothing to add", async () => {
+    says.text = null;
+    state.answer = answer("where are the nj workshops", [ev("NJW1", "FTC NJ Multi-Track Workshops (North)")], { understood: { kind: "names", label: 'Teams, events and matches matching "nj workshops"' } } as Partial<SearchAnswer>);
+    const { container } = show("where are the nj workshops");
+    expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBe("label");
+    await settle();
+    expect(container.querySelector("[data-bruno-pending], [data-bruno-answer]")).toBeNull();
+    expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
+  });
+  it("never leads a standing question, whose summary comes with the team's numbers", async () => {
+    state.answer = answer("how good is simply complex", [team(18061, "Simply Complex")]);
+    const { container } = show("how good is simply complex");
+    await settle();
+    expect(container.querySelector("[data-bruno-lead]")).toBeNull();
+    expect(container.querySelectorAll("[data-bruno-answer]")).toHaveLength(1);
+  });
+});
 
 describe.each([
   ["desktop", false],

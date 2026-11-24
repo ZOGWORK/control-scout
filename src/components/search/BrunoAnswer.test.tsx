@@ -20,7 +20,7 @@ vi.mock("../../lib/brunoStream", () => ({
 const flags = { brunoAnswers: true };
 vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useServerFlag: (n: keyof typeof flags) => flags[n] }));
 
-const { BrunoAnswer, BRUNO_SETTLE_MS } = await import("./BrunoAnswer");
+const { BrunoAnswer, BRUNO_SETTLE_MS, brunoKey } = await import("./BrunoAnswer");
 
 const Q = "how many times did 4215 go to states";
 beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); flags.brunoAnswers = true; });
@@ -196,7 +196,7 @@ describe("Bruno's answer leading the page", () => {
     expect(heard).toEqual([]);
     await settle();
     await answer(null);
-    expect(heard).toEqual([["is absolute zero a real team", false]]);
+    expect(heard).toEqual([[brunoKey("is absolute zero a real team"), false]]);
   });
   it("holds no slot with his switch off", () => {
     flags.brunoAnswers = false;

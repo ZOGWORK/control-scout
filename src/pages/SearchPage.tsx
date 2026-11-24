@@ -15,7 +15,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
-import { BrunoAnswer, useBrunoAsks } from "../components/search/BrunoAnswer";
+import { BrunoAnswer, brunoKey, useBrunoAsks } from "../components/search/BrunoAnswer";
 import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
@@ -244,11 +244,19 @@ export default function SearchPage() {
   // v8: a team's highlights as video cards, first when the search asked for highlights (its answer lists every match:
   // a "videos" block), else under the team's card.
   const reel = v8 && answer?.stat?.intent === "team-highlights" ? (answer.stat.blocks.some((b) => b.kind === "videos") ? "lead" : "under") : null;
-  const brunoLeads = v8 && brunoAsks && !(apps.length > 0 || !!quality);
-  // The question he had nothing to add to: its heading is full size again (his slot is let go).
+  // Decided from what's known at first paint: a standing question about a found team may get its computed summary
+  // once the team's numbers load, and that summary keeps his card lower down, so his card never leads it (it would
+  // move when they arrived).
+  const mayStand = !!topTeam && isQualityQuestion(query) && !answer?.card;
+  const brunoLeads = v8 && brunoAsks && !apps.length && !quality && !mayStand;
+  // He had nothing to add to this question (with these preferred teams): its heading is full size again, as his slot
+  // is let go. A new question or preference is pending again until he answers it.
+  const askKey = brunoKey(q, prefer);
   const [brunoSilent, setBrunoSilent] = useState<string | null>(null);
-  const onBruno = useCallback((asked: string, said: boolean) => setBrunoSilent((s) => (said ? (s === asked ? null : s) : asked)), []);
-  const smallHeading = !!((brunoLeads && brunoSilent !== q.trim()) || namesLine) && found;
+  const [silentFor, setSilentFor] = useState(askKey);
+  if (silentFor !== askKey) { setSilentFor(askKey); setBrunoSilent(null); }
+  const onBruno = useCallback((k: string, said: boolean) => setBrunoSilent((s) => (said ? (s === k ? null : s) : k)), []);
+  const smallHeading = !!((brunoLeads && brunoSilent !== askKey) || namesLine) && found;
   const summary = (
     <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
