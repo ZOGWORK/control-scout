@@ -42,7 +42,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, foundBox, sampleFinds, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type RecheckRead, type RecheckVerdict } from "./lib/reviewRecheck";
@@ -376,7 +376,10 @@ async function labelRow(page: Page, ctx: { own: string; others: string[] } | und
  *  the match says whose it is (overlayEvent). Another event's is never this one's; on a split screen the match half may
  *  be the other event's, so the match beside this event's name in the row is taken. */
 async function readRow(page: Page, row: { x: number; y: number; width: number; height: number }, ctx: { own: string; others: string[] } | undefined, event?: PageEvent): Promise<string | null> {
-  const half = (await rowOcr.recognize(await page.screenshot({ clip: { ...row, x: row.width / 2, width: row.width / 2 } }))).data.text as string;
+  const right = (await rowOcr.recognize(await page.screenshot({ clip: { ...row, x: row.width / 2, width: row.width / 2 } }))).data.text as string;
+  // The left half only where the right names no match (leftHalf): one more read, on rows that would read nothing.
+  const half = overlayLabel(right, SEMIFINALS) ? right
+    : leftHalf(right, (await rowOcr.recognize(await page.screenshot({ clip: { ...row, width: row.width / 2 } }))).data.text as string, SEMIFINALS);
   if (!overlayLabel(half, SEMIFINALS) || (!ctx && !event)) return rowLabel(half, null, undefined, SEMIFINALS);
   const whole = (await rowOcr.recognize(await page.screenshot({ clip: row }))).data.text as string;
   const seen = event ? overlayEvent(whole, event.name, event.quals, SEMIFINALS) : null;
