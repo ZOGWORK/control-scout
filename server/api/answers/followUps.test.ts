@@ -452,6 +452,10 @@ describe("one reading for every list, and a long question's cut said", () => {
     expect(a.understood?.unread?.at(-1)).toBe(queryCut(q));
     expect(queryCut(q).endsWith("qualifier")).toBe(true);
     expect((await searchAnswer("4215 record", { limit: 25, learn: false })).understood?.unread ?? []).toEqual([]);
+    // A long question searched again as rewritten (a chat command pasted whole): its cut said once (Loopy on #2263).
+    const asked = `/ask question:${q}`;
+    const b = await searchAnswer(asked, { limit: 25, learn: false });
+    expect((b.understood?.unread ?? []).filter((u) => u.includes("qualifier"))).toEqual([queryCut(asked)]);
   });
 });
 
