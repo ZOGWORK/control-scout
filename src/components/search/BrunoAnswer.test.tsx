@@ -190,6 +190,14 @@ describe("Bruno's answer leading the page", () => {
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryByRole("note")).toBeNull();
   });
+  it("tells the page whether he answered, so its heading can grow back", async () => {
+    const heard: [string, boolean][] = [];
+    render(<BrunoAnswer q="is absolute zero a real team" ready lead onOutcome={(q, said) => heard.push([q, said])} />);
+    expect(heard).toEqual([]);
+    await settle();
+    await answer(null);
+    expect(heard).toEqual([["is absolute zero a real team", false]]);
+  });
   it("holds no slot with his switch off", () => {
     flags.brunoAnswers = false;
     render(<BrunoAnswer q="is absolute zero a real team" ready lead />);
@@ -203,6 +211,10 @@ describe("brunoVerdict", () => {
     expect(brunoVerdict("No - 4215 has not been to worlds.")).toEqual({ answer: "No", rest: "4215 has not been to worlds." });
     expect(brunoVerdict("Yes.")).toBeNull();
     expect(brunoVerdict("Nobody has scored more.")).toBeNull();
+    // A sentence that starts with the word "no" is not a verdict.
+    expect(brunoVerdict("No team from Ohio has won worlds.")).toBeNull();
+    expect(brunoVerdict("No-one has scored more.")).toBeNull();
+    expect(brunoVerdict("No, 4215 has not been to worlds.")).toEqual({ answer: "No", rest: "4215 has not been to worlds." });
     expect(brunoVerdict("Hypnotic Robotics went to states 3 times.")).toBeNull();
   });
 });

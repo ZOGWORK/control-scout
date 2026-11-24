@@ -23,9 +23,10 @@ export function useBrunoAsks(q: string, answered: boolean): boolean {
   return on && !answered && isBrunoQuestion(q.trim());
 }
 
-/** A yes-or-no answer's verdict, read off his first word ("Yes, Absolute Zero is …" → Yes + "Absolute Zero is …"). */
+/** A yes-or-no answer's verdict, read off his first word ("Yes, Absolute Zero is …" → Yes + "Absolute Zero is …"). Only
+ *  a word set off by its own punctuation: "No team has …" and "No-one …" answer with a sentence, not a verdict. */
 export function brunoVerdict(text: string): { answer: "Yes" | "No"; rest: string } | null {
-  const m = /^\s*(yes|no)\b[\s,.:;!\u2013\u2014-]*/i.exec(text);
+  const m = /^\s*(yes|no)\s*[,.:;!\u2013\u2014-]+\s+/i.exec(text);
   if (!m) return null;
   const rest = text.slice(m[0].length).trim();
   if (!rest) return null;
@@ -40,7 +41,7 @@ export function brunoVerdict(text: string): { answer: "Yes" | "No"; rest: string
  *  question (isBrunoQuestion) asks him, whatever summary the page also shows (SearchPage.bruno.test.tsx), unless
  *  `answered`: search's own answer card (a card or stat answer, not a guess) already says it, and his card beside it
  *  would say the same thing twice. */
-export function BrunoAnswer({ q, prefer = "", ready, answered = false, lead = false, className, children }: { q: string; prefer?: string; ready: boolean; answered?: boolean; lead?: boolean; className?: string; children?: ReactNode }) {
+export function BrunoAnswer({ q, prefer = "", ready, answered = false, lead = false, onOutcome, className, children }: { q: string; prefer?: string; ready: boolean; answered?: boolean; lead?: boolean; onOutcome?: (q: string, said: boolean) => void; className?: string; children?: ReactNode }) {
   const query = q.trim();
   // `answered`: search's own answer card already says it; his card would say the same thing twice.
   const willAsk = useBrunoAsks(query, answered);
@@ -66,6 +67,9 @@ ${prefer}`;
     }, BRUNO_SETTLE_MS);
     return () => { live = false; clearTimeout(t); stop.abort(); };
   }, [asks, query, prefer, key]);
+  // The page hears whether he answered this question (a leading card's page lays its heading out by it).
+  const outcome = state.key === key ? !!state.text : null;
+  useEffect(() => { if (outcome != null) onOutcome?.(query, outcome); }, [outcome, query, onOutcome]);
   const phone = useMediaQuery("(max-width: 767px)");
   // Leading the page: his slot is held while he writes (the same card's frame, so his answer fills it in place).
   if (lead && willAsk && state.key !== key && !children) {
