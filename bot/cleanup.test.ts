@@ -70,13 +70,17 @@ describe("the stale 👎 sweep", () => {
 
   it("walks back to the thumbs era and no further", async () => {
     const asked: { limit: number; before?: string }[] = [];
+    const gone: string[] = [];
     const first = page(PAGE, IN_ERA, []);
-    // The second page holds the answer that still has one, and a message from before the thumbs: the walk ends there.
-    const second = [msg("a-old", IN_ERA - PAGE), msg("ancient", BEFORE, [])];
-    // A third page exists and must never be read.
+    // A full page: the answer that still has one, then messages in the era, and a message from before the thumbs at the
+    // end. The page is full, so a short page can't be what ends the walk — the era cutoff is.
+    const second = [msg("a-old", IN_ERA - PAGE, [reacted(OLD_DOWN, true, gone)]), ...page(PAGE - 2, IN_ERA - PAGE - 100, []), msg("ancient", BEFORE, [])];
+    expect(second).toHaveLength(PAGE);
+    // A third page exists and must never be read: without the cutoff the walk would ask for it.
     const never = [msg("a-never", BEFORE - 1)];
     const s = await sweep([channel("c1", [first, second, never], asked)]);
-    expect(s).toEqual({ channels: 1, messages: PAGE + 2, removed: 1, failed: 0 });
+    expect(gone).toEqual([OLD_DOWN]);
+    expect(s).toEqual({ channels: 1, messages: PAGE * 2, removed: 1, failed: 0 });
     expect(asked.map((a) => a.limit)).toEqual([PAGE, PAGE]);
     // The walk continues from the oldest message of the page before it.
     expect(asked[1].before).toBe(first[first.length - 1].id);
