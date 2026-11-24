@@ -78,7 +78,9 @@ const card = (now: number, event: Partial<TeamProfile["events"][number]>, next: 
   seasonLabel: "2025–26", now, next,
 }, SITE);
 
-const at = (iso: string) => ({ event: { event: { name: "Evening Qualifier" } } as Pick<EventDetail, "event">, match: m({ startsAt: iso }) });
+const nextAt = (code: string, name: string, startsAt?: string) =>
+  ({ event: { event: { season: 2025, code, name } } as Pick<EventDetail, "event">, match: m(startsAt ? { startsAt } : {}) });
+const at = (iso: string) => nextAt("USNYX", "Evening Qualifier", iso);
 
  describe("teamEmbed", () => {
   it("keeps tonight's match on the card after UTC's midnight: the event is read on the venue's calendar", () => {
@@ -86,6 +88,23 @@ const at = (iso: string) => ({ event: { event: { name: "Evening Qualifier" } } a
     const e = card(Date.parse("2026-10-25T00:30:00Z"), { timezone: "America/New_York" }, at("2026-10-25T01:00:00Z"));
     expect(e.fields?.map((f) => f.name).slice(-2)).toEqual(["Next event", "Next match"]);
     expect(e.fields?.at(-1)?.value).toMatch(/^\[Qual 12 · Evening Qualifier\]\(.*\) · Starts <t:\d+:R>/);
+  });
+
+  it("a dateless event holding the next match is the next event too, not a later dated one", () => {
+    const e = teamEmbed({
+      profile: {
+        team: { number: 4215, name: "Alpha", city: null, state: null, country: null },
+        stats: null,
+        events: [
+          { season: 2025, code: "NODATE", name: "Dates Not Posted Meet", start: null, end: null, qualPlayed: 0, rank: null },
+          { season: 2025, code: "LATER", name: "Later Qualifier", start: "2026-11-08", end: "2026-11-08", qualPlayed: 0, rank: null },
+        ],
+      } as unknown as TeamProfile,
+      seasonLabel: "2025–26", now: Date.parse("2026-10-24T15:00:00Z"), next: nextAt("NODATE", "Dates Not Posted Meet"),
+    }, SITE);
+    expect(e.fields?.map((f) => f.name).slice(-2)).toEqual(["Next event", "Next match"]);
+    expect(e.fields?.at(-2)?.value).toContain("Dates Not Posted Meet");
+    expect(e.fields?.at(-2)?.value).toContain("Dates not posted");
   });
 
   it("a venue's day that has ended is not next, even while UTC's date still says it is", () => {

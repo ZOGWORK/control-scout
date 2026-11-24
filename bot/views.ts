@@ -80,7 +80,12 @@ export function teamEmbed(c: TeamCard, site: string): APIEmbed {
   } else {
     fields.push({ name: `Season ${c.seasonLabel}`, value: "No matches played yet this season.", inline: true });
   }
-  const next = events.filter((e) => e.start && !eventOver(e, c.now)).sort((a, b) => a.start!.localeCompare(b.start!))[0];
+  // The event the next match is at is the next event, dates or not: FIRST can post a schedule before an event's dates,
+  // and a card that named a later dated event beside a match at the dateless one would disagree with itself. Otherwise
+  // it is the earliest dated event whose own day hasn't ended.
+  const held = c.next;
+  const at = held && events.find((e) => e.season === held.event.event.season && e.code === held.event.event.code);
+  const next = at || events.filter((e) => e.start && !eventOver(e, c.now)).sort((a, b) => a.start!.localeCompare(b.start!))[0];
   const last = [...events].reverse().find((e) => (e.qualPlayed ?? 0) > 0 || e.rank != null);
   if (next) {
     fields.push({ name: "Next event", value: `[${next.name}](${site}/events/${next.season}/${encodeURIComponent(next.code)}) · ${dates(next.start, next.end)}` });
