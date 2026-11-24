@@ -32,6 +32,7 @@ const ok = (title: string): APIEmbed => ({ title });
 function lookups(over: Partial<Lookups> = {}): Lookups {
   return {
     team: vi.fn(async (n: number) => ok(`team ${n}`)),
+    next: vi.fn(async (n: number) => ok(`next ${n}`)),
     predict: vi.fn(async (e: string, n: number) => ok(`${e} ${n}`)),
     event: vi.fn(async (c: string) => ok(c)),
     rankings: vi.fn(async () => ok("rankings")),
@@ -104,13 +105,18 @@ describe("commands", () => {
     expect(l.choices).not.toHaveBeenCalled();
   });
 
-  it("live predictions switched off: /predict says so, the other commands still answer", async () => {
+  it("live predictions switched off: /predict and /next say so, the other commands still answer", async () => {
     const l = lookups({ enabled: async (f) => f !== "livePredictions" });
     const h = createHandler(() => {}, l);
     const p = command("predict", { event: "X", match: 1 });
     await h(p.i);
     expect(p.calls[1].payload.embeds[0].title).toBe("Predictions are off");
     expect(l.predict).not.toHaveBeenCalled();
+    // /next shows the same call, so it is off with the same switch.
+    const n = command("next", { team: 1 });
+    await h(n.i);
+    expect(n.calls[1].payload.embeds[0].title).toBe("Predictions are off");
+    expect(l.next).not.toHaveBeenCalled();
     const t = command("team", { number: 1 });
     await h(t.i);
     expect(t.calls[1].payload.embeds[0].title).toBe("team 1");
@@ -199,7 +205,7 @@ describe("AnswerCache", () => {
 
 describe("registration", () => {
   it("the commands, each one on the site's list; follow, unfollow and config need Manage Server, in servers only", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "compare", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "config", "help"]);
+    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "next", "compare", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "config", "help"]);
     for (const c of COMMANDS) expect(BOT_COMMANDS.some((b) => b.usage.startsWith(`/${c.name}`)), c.name).toBe(true);
     for (const name of ["follow", "unfollow", "config"]) {
       const c = COMMANDS.find((x) => x.name === name)!;

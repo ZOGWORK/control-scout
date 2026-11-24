@@ -63,7 +63,8 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(c.querySelector("[data-opr-tiles]")).toBeNull();
     expect(c.querySelector("[data-headline]")!.className).not.toMatch(/bg-accent/);
     expect(c.querySelector("[data-kpi] > div")!.className).toContain(TONES.neutral.box.split(" ")[0]);
-    expect(c.innerHTML).not.toMatch(/(border|bg)-accent/);
+    // Classic's gold accent nowhere (v8's own accent is its slate blue, a team's colour: allowed).
+    expect(c.innerHTML).not.toMatch(/(?<!v8:)(border|bg)-accent/);
   });
   it("the team's header up top: its number, name and the season it states", () => {
     const c = draw(opr);

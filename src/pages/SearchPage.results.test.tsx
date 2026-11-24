@@ -530,7 +530,7 @@ describe("search results page, Phase 2 cards", () => {
     expect(families[0].querySelector("[data-family-type]")).toBeNull();
     // The accent is the selected control's alone: none in the tree.
     // (v8 off: its v8: classes, the slate-blue team counts, don't apply.)
-    const classic = (el: Element) => (el.getAttribute("class") ?? "").split(" ").filter((t) => !t.startsWith("v8:")).join(" ");
+    const classic = (el: Element) => (el.getAttribute("class") ?? "").split(" ").filter((t) => !/^v8(light)?:/.test(t)).join(" ");
     expect([...container.querySelectorAll("[data-event-family] [class]")].filter((el) => classic(el).includes("accent"))).toHaveLength(0);
     expect(families[0].querySelector("[data-family-link]")!.getAttribute("href")).toBe("/events?season=2025&q=FTCCMP1");
     expect(families[0].querySelector("[data-family-count]")!.textContent).toBe("3 divisions and finals · 120 teams");

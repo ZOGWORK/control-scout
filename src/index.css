@@ -349,8 +349,8 @@ html[data-v8] {
 /* v8 Light and Dim (2026-11-19). `html[data-v8].light` outranks both `html.light` and `html[data-v8]`, so classic
    Light's status, chart and team colours still come through and only what v8 itself sets is restated here.
    Light: a near-white page, white cards, hairline lines, ink text; the accent a deeper slate blue that reads on white
-   (#3f5a96, 6.6:1), the alliances rose 600 and sky 600 as fills with a step deeper for small text, and the wash a pale
-   dawn tint of the same colours. Every text pairing is measured at 4.5:1 (v8Light.contrast.test.ts). */
+   (#3f5a96, 6.6:1), the alliances rose 600 and sky 600 as fills with a step deeper for small text, and the wash the
+   same colours as Dark, as strong. Every text pairing is measured at 4.5:1 (v8Light.contrast.test.ts). */
 html[data-v8].light {
   color-scheme: light;
   --sh-background: #fafafa;
@@ -384,9 +384,9 @@ html[data-v8].light {
   --color-team-c: #7c5cb0;
   --color-team-c-text: #6b4a9f;
   --grid-rgb: 63 90 150;
-  /* The wash: the same three colours, mixed this far into the page colour (pale, like a dawn tint), and the grain
-     a step quieter, so nothing over it muddies. The owner's colours are mixed the same way. */
-  --wash-mix: 42%;
+  /* The wash: the same three colours at the same strength as Dark (WASH_MIX, src/shared/wash.ts: mixed further into
+     the near-white page it went nearly white), and the grain a step quieter, so nothing over it muddies. */
+  --wash-mix: 100%;
   --wash-grain: 0.05;
   /* The colours v8 draws with Tailwind's light-on-dark steps (wins in emerald 400, the stat categories in 300/400, gold
      in yellow 400): on white each one is the deeper step of the same hue that reaches 4.5:1 as text. */
@@ -417,6 +417,16 @@ html[data-v8].light {
   --color-amber-600: #92400e;
   --color-slate-300: #64748b;
   --color-pink-300: #be185d;
+  /* Search answers' meanings (components/search/page/v8tone.ts): each hue's 300 and 400 steps, the same way. */
+  --color-pink-400: #be185d;
+  --color-fuchsia-300: #a21caf;
+  --color-fuchsia-400: #a21caf;
+  --color-indigo-300: #4338ca;
+  --color-indigo-400: #4338ca;
+  --color-cyan-300: #0e7490;
+  --color-cyan-400: #0e7490;
+  --color-lime-300: #4d7c0f;
+  --color-lime-400: #4d7c0f;
 }
 /* Dim: v8's dark colours on Dim's softer grey, the text a step down from white, and the wash a little quieter. */
 html[data-v8].dim {

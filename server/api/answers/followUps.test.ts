@@ -17,7 +17,7 @@ import { canonicalQuery } from "../../../src/lib/meta";
 import { RELATED_QUERY_MAX, SEARCH_MAX_QUERY, SEARCH_PAGE_LIMIT, firstCards, followApiPath, queryCut, relatedApiPath } from "../../../src/shared/search";
 import { MAX_QUERY } from "../searchAnswer";
 import type { SearchAnswer, SearchFollowUp } from "../../../src/shared/api";
-import { answerKey, candidates, followUps, followUpsWithin, keptFollowUps, lineOf, type Progress, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
+import { aheadCount, answerKey, candidates, followUps, followUpsWithin, keptFollowUps, lineOf, precomputeFollowUps, type Progress, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -234,6 +234,24 @@ describe("people also ask", () => {
     expect(qs).toContain("Who has the better record in 2024-25, 4215 or 6980?");
     expect(qs).toContain("How has 4215 done against 6980?");
   });
+  it("three or four teams compared: every question names them all, each team's own after", async () => {
+    for (const [q, named] of [["4215 vs 6980 vs 7149 opr", "4215, 6980 or 7149"], ["compare 4215, 6980, 7149 and 207", "4215, 6980, 7149 or 207"]] as const) {
+      const ask = await asked(q);
+      const many = ask.filter((x) => / or \d+\?$/.test(x.q));
+      expect(many.length).toBeGreaterThan(0);
+      // Never two of them ("4215 or 6980?"): the question names every team, and its answer ranks them all.
+      for (const x of many) expect(x.q.endsWith(`, ${named}?`)).toBe(true);
+      // Each team's own questions are among those offered (People also ask or Related searches), never only built.
+      const { related } = await both(q);
+      const offered = [...ask, ...related];
+      for (const t of named.split(/, | or /)) expect(offered.some((x) => x.q.includes(`${t}'s `) || (x.q.startsWith(`${t} `) && !x.q.includes(" vs "))), t).toBe(true);
+    }
+    // Asked as offered, the question compares every team it names.
+    const a = await searchAnswer("Who has the best record, 4215, 6980 or 7149?", { limit: 25, full: true });
+    expect([a.intent?.kind, a.stat?.teams?.map((t) => t.number)]).toEqual(["stat-compare-by", [4215, 6980, 7149]]);
+    const which = await searchAnswer("which of 6980, 7149 and 207 has the best record", { limit: 25, full: true });
+    expect([which.intent?.kind, which.stat?.teams?.map((t) => t.number)]).toEqual(["stat-compare-by", [6980, 7149, 207]]);
+  });
 
   it("asks the same questions of any team", async () => {
     const shape = async (t: number) => {
@@ -435,4 +453,46 @@ describe("one reading for every list, and a long question's cut said", () => {
     expect(queryCut(q).endsWith("qualifier")).toBe(true);
     expect((await searchAnswer("4215 record", { limit: 25, learn: false })).understood?.unread ?? []).toEqual([]);
   });
+});
+
+describe("follow-ups made ahead (precomputeFollowUps)", () => {
+  /** Asked until what's served is no longer `old` (a set made again behind it), at most `ms`. */
+  const until = async (q: string, old: unknown, ms = 30_000) => {
+    const end = Date.now() + ms;
+    for (;;) {
+      const now = await followUpsWithin(q, new Set(), 0);
+      if (now !== old || Date.now() > end) return now;
+      await new Promise((ok) => setTimeout(ok, 50));
+    }
+  };
+
+  it("are served at once, the same set followUps makes; stale after a data move, and made again behind it", async () => {
+    clearAllCaches();
+    const { kvSet } = await import("../../db");
+    await kvSet("search:version", "ahead-1");
+    await new Promise((ok) => setTimeout(ok, 2_100));
+    expect(await precomputeFollowUps(["4215", "6980"])).toBe(2);
+    expect(aheadCount()).toBe(2);
+    // Ready with no time at all: made ahead.
+    const served = await followUpsWithin("4215", new Set(), 0);
+    expect(served).toEqual(await followUps("4215", await pageAnswer("4215", 25, new Set())));
+    // Run again on the same index (a retry after one failed): what was made is kept, not made again.
+    expect(await precomputeFollowUps(["4215", "6980"])).toBe(2);
+    expect(await followUpsWithin("4215", new Set(), 0)).toBe(served);
+    // Preferred teams: never the set made for anyone.
+    expect(await followUpsWithin("4215", new Set(["team:6980"]), 0)).not.toBe(served);
+    // New data (the kept answers' generation moves): the old set is served once more, and made again behind it.
+    clearAllCaches();
+    expect(await followUpsWithin("4215", new Set(), 0)).toBe(served);
+    const again = await until("4215", served);
+    expect(again).not.toBe(served);
+    expect(again).toEqual(served);
+    // A stats run moves the index: no longer served (made again as any search's).
+    await kvSet("search:version", "ahead-2");
+    await new Promise((ok) => setTimeout(ok, 2_100));
+    expect((await followUpsWithin("4215", new Set(), 0)).partial).toBe(true);
+    // Made again for the new index, the old ones dropped.
+    expect(await precomputeFollowUps(["6980"])).toBe(1);
+    expect(aheadCount()).toBe(1);
+  }, 90_000);
 });
