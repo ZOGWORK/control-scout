@@ -27,7 +27,7 @@ Control Scout's answers carry only a 👍: the 👎 is gone, and with it the not
 ### Discord bot
 - **The 👎 is removed** (`bot/reactions.ts`, `bot/index.ts`, `bot/handler.ts`): every answer gets a single 👍, and a reaction that isn't it — including a 👎 left on an answer from before this release — changes nothing. The button was added as "this answer is wrong, file it" (7.9.8, 8.0.0), but it reads as a dislike button: people used it on answers that were fine, so questions that weren't failures went into the site's failed-search list and the bot had to explain itself in the channel after the fact. A wrong answer is what "Report this to ControlScout" is for.
 - **The note that explained it is gone too** (`bot/index.ts`): the "📝 Noted — a 👎 files this question…" reply, its 500-answer bookkeeping and its `kv` row are removed. No command, follow or chat behaviour changes.
-- **What it collected stays readable** (`bot/reactions.ts`, `server/searchFailures.ts`): the `down` counts and the `downvoted` rows are still read — the owner console's totals, and the queue's own re-check of an issue an old vote opened — and nothing writes them any more. `DOWN_NOTE`, `downNotes` and `downvoteFailure` are gone; `trackAnswer` still records the question an answer was given for.
+- **What it collected stays readable** (`bot/reactions.ts`, `server/searchFailures.ts`): the `down` counts and the `downvoted` rows are still read — the owner console's totals, and the queue's own re-check of an issue an old vote opened — and nothing writes them any more. `DOWN_NOTE`, `downNotes` and `downvoteFailure` are gone; `trackAnswer` still records the question an answer was given for. (#2236)
 
 ## 8.0.0 — 2026-11-23
 
