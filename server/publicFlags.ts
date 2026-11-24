@@ -1,7 +1,7 @@
 // The flags everyone gets (GET /api/flags without workspace overrides), also put in each page's HTML (server/seo.ts),
 // so the app starts with the server's own switches instead of waiting a round trip for them (src/lib/flags.ts).
 import type { FlagSet } from "../src/shared/flags.js";
-import { allFlags, flagWrites, hasWorkspaceOverrides } from "./flags.js";
+import { allFlags, flagWrites, flagsKnown, hasWorkspaceOverrides } from "./flags.js";
 import { vapidReady } from "./push/push.js";
 import { r2 } from "./scout/r2.js";
 
@@ -18,5 +18,7 @@ export async function sharedFlags(): Promise<FlagSet | null> {
   const w = flagWrites();
   if (await hasWorkspaceOverrides()) return null;
   const flags = await servedFlags();
+  // Guessed (the database couldn't be read: the defaults stand in) is never handed out as the server's own.
+  if (!(await flagsKnown())) return null;
   return flagWrites() === w ? flags : null;
 }
