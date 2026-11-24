@@ -238,7 +238,7 @@ export interface ReadScope {
   own?: boolean;
   /** "this week", "on Mar 15, 2026": a date window (the search pipeline's time slot, server/api/query/time.ts).
    *  `month`: a month said without its year ("in june"), moved to the team's own season when it asks about one. */
-  window?: { from: string; to: string; label: string; month?: number };
+  window?: { from: string; to: string; label: string; month?: number; ahead?: boolean };
   /** A place that's a whole country or a region, read by the search pipeline (the regex readers name regions only). */
   area?: { country: string; state: string | null; name: string };
 }
