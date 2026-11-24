@@ -32,6 +32,7 @@ const ok = (title: string): APIEmbed => ({ title });
 function lookups(over: Partial<Lookups> = {}): Lookups {
   return {
     team: vi.fn(async (n: number) => ok(`team ${n}`)),
+    next: vi.fn(async (n: number) => ok(`next ${n}`)),
     predict: vi.fn(async (e: string, n: number) => ok(`${e} ${n}`)),
     event: vi.fn(async (c: string) => ok(c)),
     rankings: vi.fn(async () => ok("rankings")),
