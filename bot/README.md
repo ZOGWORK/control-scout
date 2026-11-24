@@ -15,7 +15,7 @@ an embed that links back to controlscout.org:
 | `/unfollow team: event: channel:` | Stop them (every channel if none is given). Manage Server only |
 | `/following` | What the server follows — teams and events — and where each posts (up to 10 in all) |
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below), with buttons for what to ask next |
-| `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👍/👎 an answer |
+| `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👍 an answer |
 | `/config` | What the bot is and can do here, read live: the release it runs, the account it is and how many servers it is in, the season, the site it talks to, chat on (or why it isn't) and the chat limit this server has, report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
 
@@ -52,15 +52,15 @@ is not a question), so a button clicked within the hour asks it as `/ask` would 
 server memory — and one clicked later, or after a restart, says it has expired and names `/ask`. Follows are
 deliberately not buttons: a button would let anyone follow without Manage Server.
 
-**👍 and 👎** (`bot/reactions.ts`, migration 105). The bot adds both to every answer it posts; a click is counted on
-that one answer and nowhere else, with no record of who clicked. The owner console shows the totals beside the bot's
-other numbers. The row also keeps the **question the answer was given for**, so the first 👎 on an answer files that
-question in the site's failed-search list as a `downvoted` failure (`server/searchFailures.ts` `downvoteFailure`) —
-the one failure search can't read for itself, having called that answer answered. The filing is written in the same
-batch as the vote, so a restart can't spend it without making it and two 👎 can't make it twice; a second 👎 on the
-same answer is counted and files nothing, one question downvoted in two servers is one entry counted twice, and a
-question already on the list keeps its own type and examples (the vote only adds to its count). An answer's votes are
-applied in the order Discord sent them, so a 👎 taken back within a moment leaves nothing behind.
+**👍** (`bot/reactions.ts`, migration 105). The bot adds one to every answer it posts; a click is counted on that one
+answer and nowhere else, with no record of who clicked. The owner console shows the total beside the bot's other
+numbers. The row also keeps the **question the answer was given for**, which is the record of what the answer was for.
+An answer's votes are applied in the order Discord sent them, so a 👍 taken back within a moment leaves nothing behind.
+
+**No 👎.** It was meant as "this answer is wrong — file it", and the answer's first 👎 filed the question in the
+site's failed-search list as a `downvoted` failure. People read it as a dislike button instead, so answers that were
+fine put questions in the queue, and a note had to explain what the button did. Both are gone: the `down` column and
+any `downvoted` rows stay readable (the owner console's total, the queue's own re-check) and nothing writes them.
 
 **What it was asked** (`bot/asks.ts`, migration 104). Every ask is recorded — the words as typed with personal data
 redacted, the step search answered it at, whether Bruno's chat answered it, and how long it took; never who asked,
@@ -291,7 +291,7 @@ code; you can also type a code yourself).
    never paste it anywhere else). Leave **Public Bot** on so any team can add it. No privileged intents
    are needed and none is switched on in the portal: the bot asks for `Guilds`, `GuildMessages`,
    `GuildMessageReactions` and `DirectMessageReactions`, all of them non-privileged. The reaction intents are
-   what deliver a 👍/👎 on an answer; without them the bot adds the emoji and never hears the click.
+   what deliver a 👍 on an answer; without them the bot adds the emoji and never hears the click.
 4. **Installation:** set the install link to "None" (the site's invite link is used instead), or to the
    same scopes and permissions as below.
 
@@ -304,7 +304,7 @@ https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applic
 - Scopes: `bot` and `applications.commands`.
 - Permissions `2147502144` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Use Application
   Commands (2147483648). Nothing else: the bot never reads messages, manages anything or joins voice. A server that
-  invited the bot before 7.9.2 has no Add Reactions, so its answers get no 👍/👎 until the bot is re-invited with this
+  invited the bot before 7.9.2 has no Add Reactions, so its answers get no 👍 until the bot is re-invited with this
   link; nothing else changes for it.
 
 `discordInviteUrl()` in `src/shared/discord.ts` builds exactly this link.
