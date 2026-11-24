@@ -67,8 +67,13 @@ export async function teamHighlights(team: { number: number; name: string | null
   const gallery = page ? videoPage(xs, team.number, page === "highlights" ? null : `No match videos of ${team.number}${where} in ${S} yet.`) : null;
   // A highlights page (no event named) whose season has no match clip: the newest other season that has, as its own
   // list, or one line when no season has any (the owner's "highlights itkan solar": video is what people come for).
-  const other = page === "highlights" && !at && gallery?.kind === "videos" ? await clipsElsewhere(team.number, xs, season) : null;
+  // A season the search named ("astra machina highlights biobuzz") stays that season (#2238): never another season's
+  // clips, only its own events' recordings, else one line saying it has no match video yet.
+  const other = page === "highlights" && !at && asked == null && gallery?.kind === "videos" ? await clipsElsewhere(team.number, xs, season) : null;
   if (other === "none" && gallery?.kind === "videos") gallery.empty = { text: `No match video of ${team.number} in any season yet.`, href: `/teams/${team.number}` };
+  if (page === "highlights" && !at && asked != null && gallery?.kind === "videos" && await seasonHasNoClip(xs, season)) {
+    gallery.empty = { text: `No match video of ${team.number} in ${S} yet.`, href: `/teams/${team.number}?season=${season}` };
+  }
   return {
     // The event is said once, in the title: its first match's (a Worlds division before the finals it feeds).
     family: "superlative", intent: "team-highlights", title: `${page === "videos" ? "Match videos" : "Highlights"}${where}, ${S}`, team, scope: [S],
@@ -86,8 +91,7 @@ const clipKey = (m: TeamMatch) => `${m.code}|${m.level}|${m.series}|${m.number}`
  *  shown season has one, or a season's clips couldn't be read (then nothing is said either way). FIRST's own match
  *  video or the match's place in its event's recording (seasonClipKeys, the same check as each Play button). */
 export async function clipsElsewhere(team: number, xs: TeamMatch[], season: number): Promise<Extract<StatBlock, { kind: "videos" }> | "none" | null> {
-  const here = await seasonClipKeys(season).catch(() => null);
-  if (!here || xs.some((m) => here.has(clipKey(m)))) return null;
+  if (!(await seasonHasNoClip(xs, season))) return null;
   const mine = (await teamMatches(team)).filter((m) => m.onField && m.season !== season);
   for (const s of [...new Set(mine.map((m) => m.season))].sort((a, b) => b - a)) {
     const keys = await seasonClipKeys(s).catch(() => null);
@@ -100,6 +104,12 @@ export async function clipsElsewhere(team: number, xs: TeamMatch[], season: numb
     }
   }
   return "none";
+}
+
+/** Whether none of the season's matches `xs` has a clip (false too when the season's clips couldn't be read). */
+async function seasonHasNoClip(xs: TeamMatch[], season: number): Promise<boolean> {
+  const here = await seasonClipKeys(season).catch(() => null);
+  return !!here && !xs.some((m) => here.has(clipKey(m)));
 }
 
 /** A team's matches as a video page's list, in order, and each of their events' own stream. */
