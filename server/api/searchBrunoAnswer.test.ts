@@ -148,6 +148,13 @@ describe("grounding", () => {
     expect(grounded("4215's record is 10-0-0.", facts, "4215 league", teams)).toBe(false);
     expect(grounded("4215's record is 6-4-0.", facts, "4215 league", teams)).toBe(true);
   });
+  it("an abbreviation's stop is no sentence's end (Loopy on #2263)", () => {
+    const teams = new Map<number, string | null>([[4215, "Hypnotic Robotics"], [6980, "Bad Wolf"]]);
+    const facts = ["Team 4215 in 2025–26: OPR 142.3.", "Team 6980 in 2025–26: OPR 46.9."];
+    expect(grounded("4215 vs. 6980 ended 142.3 to 46.9.", facts, "4215 vs 6980", teams)).toBe(true);
+    // A real sentence's end still splits: 142.3 is never 6980's.
+    expect(grounded("4215 leads. 6980 has 142.3.", facts, "4215 vs 6980", teams)).toBe(false);
+  });
   it("a stat's lines naming no team are its team's (Loopy on #2263)", () => {
     const teams = new Map<number, string | null>([[4215, "Hypnotic Robotics"], [6980, "Bad Wolf"]]);
     const facts = statFacts({ family: "x", intent: "x", title: "OPR", scope: [], team: { number: 4215, name: "Hypnotic Robotics" }, headline: { value: "142.3", label: "OPR" }, blocks: [{ kind: "kpis", items: [{ label: "Auto OPR", value: "30.1" }] }] } as never);
