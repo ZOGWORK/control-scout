@@ -27,6 +27,14 @@ beforeAll(async () => {
     await run(`INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams, matches, wins, losses, ties)
       VALUES (2025, ?, ?, ?, ?, ?, ?, ?, ?, ?, 100, ?, ?, ?, 0)`, [n, opr, a, t, e, rk, ra, rt, re, w + l, w, l]);
   }
+  // Gear Owls the season before, weaker in auto; Iron Hares with no auto numbers stored.
+  await run("INSERT INTO team_seasons (season, team) VALUES (2024, 31301)");
+  await run(`INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams, matches, wins, losses, ties)
+    VALUES (2024, 31301, 70.0, 20.5, 40.0, 9.5, 20, 30, 15, 25, 80, 12, 7, 5, 0)`);
+  await run("INSERT INTO teams (number, name, city, state, country) VALUES (31303, 'Iron Hares', 'Town', 'NJ', 'USA')");
+  await run("INSERT INTO team_seasons (season, team) VALUES (2025, 31303)");
+  await run(`INSERT INTO team_season_stats (season, team, opr_np, opr_teleop, opr_endgame, rank_np, rank_teleop, rank_endgame, ranked_teams, matches, wins, losses, ties)
+    VALUES (2025, 31303, 40.0, 30.0, 10.0, 60, 58, 40, 100, 10, 5, 5, 0)`);
   // How dependable: the field's reliability and Bolt Foxes' (Gear Owls has none stored, so its card has no such line).
   const rel = (team: number, idx: number, noShows: number) => run(`INSERT INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows,
     recent_near_zero, no_show_rate, dq_rate, near_zero_rate, swing, penalty_ratio, predictability_ratio, idx, computed_at) VALUES (2025, '', ?, 16, ?, 0, 1, 16, 6, 0, 0, 0, 0, 0, 0.3, 1, 1, ?, 'now')`, [team, noShows, idx]);
@@ -47,6 +55,8 @@ describe("reading a why question", () => {
     expect(readWhy("why did 31301's rating go down")).toBeNull();
     expect(readWhy("why is 31301 ranked so low")).toBeNull();
     expect(readWhy("31301 auto opr")).toBeNull();
+    expect(readWhy("why is 31301 not so good at auto")).toBeNull();
+    expect(readWhy("why isn't 31301 good at auto")).toBeNull();
   });
 });
 
@@ -68,6 +78,18 @@ describe("the answer", () => {
     expect(a.card?.lines[1].text).toBe("Reliability 88 out of 100 (field average 61)");
     expect(a.card?.lines.map((l) => l.text)).toContain("Strongest phase against the field: Endgame (top 5%)");
     expect(failureOf("what makes bolt foxes a good alliance partner", a)).toBeNull();
+  });
+  it("reads a season said with it, and is nothing for another scope", async () => {
+    const a = await ask("why was 31301 so good at auto in 2024-25");
+    expect(a.card?.lines[0].text).toBe("Auto OPR 20.5: #30 of 80 (top 38%)");
+    expect(a.understood?.label).toMatch(/2024–25/);
+    expect((await ask("why was 31301 so good at auto at worlds")).card?.title ?? "").not.toMatch(/against the field/);
+    expect((await ask("why was 31301 so good at auto this weekend")).card?.title ?? "").not.toMatch(/against the field/);
+  });
+  it("is nothing when the phase asked about has no numbers, or the team is said not to be strong", async () => {
+    expect((await ask("why is 31303 so good at auto")).card?.title ?? "").not.toMatch(/against the field/);
+    expect((await ask("why is 31303 so strong")).card?.title).toBe("31303 Iron Hares against the field");
+    expect((await ask("why is 31301 not so good at auto")).card?.title ?? "").not.toMatch(/against the field/);
   });
   it("is nothing for a why question about no team", async () => {
     expect((await ask("why is the sky so blue")).card?.title ?? "").not.toMatch(/against the field|alliance partner/);

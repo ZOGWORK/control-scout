@@ -8,6 +8,7 @@ import { get } from "../../../db.js";
 import { teamReliability } from "../../teams.js";
 import { defaultSeason, teamSeason } from "../season.js";
 import { teamHref } from "../matchSet.js";
+import { readTime } from "../../query/time.js";
 
 export type WhyTopic = "auto" | "teleop" | "endgame" | "partner" | null;
 export interface WhyQuestion { core: string; topic: WhyTopic }
@@ -23,6 +24,8 @@ const TOPICS: [Exclude<WhyTopic, null>, RegExp][] = [
   ["endgame", /\bend\s?-?games?\b/],
   ["partner", /\b(?:alliance\s+)?(?:partners?|picks?)\b/],
 ];
+/** Saying it isn't strong ("why is <team> not so good"): another question, never this card. */
+const NEGATED = /\b(?:not|never|no|isn['’]?t|aren['’]?t|wasn['’]?t|weren['’]?t|doesn['’]?t|don['’]?t)\b/;
 /** The frame's own words, said around the team. */
 const FRAME = /\b(?:so|really|very|such|that|this|the|a|an|at|in|on|of|for|with|team|teams|robot|robots|alliance|period|phase|part|be|they|them|their|it|its|good|great|strong|dominant|consistent|reliable|successful|effective|fast|solid|elite|amazing|awesome)\b/g;
 
@@ -34,7 +37,7 @@ export function readWhy(q: string): WhyQuestion | null {
   let rest = t.slice(lead[0].length);
   const topic = TOPICS.find(([, re]) => re.test(rest))?.[0] ?? null;
   // Asked why it is strong, or what makes it a partner ("what makes <team> worth picking as a partner").
-  if (!STRONG.test(rest) && topic !== "partner") return null;
+  if ((!STRONG.test(rest) && topic !== "partner") || NEGATED.test(rest)) return null;
   for (const [, re] of TOPICS) rest = rest.replace(new RegExp(re.source, "g"), " ");
   const core = rest.replace(FRAME, " ").replace(/\s+/g, " ").trim();
   return core ? { core, topic } : null;
@@ -56,11 +59,22 @@ const top = (rank: number, of: number) => `top ${Math.max(1, Math.ceil((rank * 1
 export async function whyTeamAnswer(q: string, resolve: (core: string) => Promise<SearchAnswer>): Promise<SearchAnswer | null> {
   const w = readWhy(q);
   if (!w) return null;
-  const base = await resolve(w.core);
+  // A season said with it ("last season", "in 2024-25", the season picker's): that season's numbers. Any other time
+  // (a weekend, a date) is a question about those matches, never a season's card.
+  const said = readTime(w.core, new Date().toISOString().slice(0, 10));
+  if (said.time && said.time.kind !== "season") return null;
+  const core = said.rest.trim();
+  const base = await resolve(core);
   const hit = base.hits[0];
   if (base.step === "recovery" || hit?.kind !== "team" || !/^\d+$/.test(hit.ref)) return null;
   const team = Number(hit.ref);
-  const season = (await teamSeason(team)) ?? defaultSeason();
+  // Only the team is left beside the frame: anything else ("at worlds", "in the finals") scopes the question to
+  // something this card doesn't read, so it is left to the readers that do.
+  const named = new Set(`${hit.ref} ${hit.title}`.toLowerCase().split(/[^\p{L}\p{N}]+/u));
+  if (!core.split(/\s+/).every((x) => named.has(x))) return null;
+  const relative = said.time?.relative === "last" ? defaultSeason() - 1 : said.time?.relative ? defaultSeason() : null;
+  const season = said.time ? (said.time.season ?? relative) : ((await teamSeason(team)) ?? defaultSeason());
+  if (season == null) return null;
   const r = await get<Row>(
     `SELECT opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams, matches, wins, losses, ties
      FROM team_season_stats WHERE season = ? AND team = ?`, [season, team]);
@@ -77,6 +91,8 @@ export async function whyTeamAnswer(q: string, resolve: (core: string) => Promis
   const lines: SearchCardLine[] = [];
   const phaseLine = (p: (typeof phases)[number]): SearchCardLine => ({ text: `${p.label} OPR ${one(p.v)}: #${p.rank} of ${of.toLocaleString("en-US")} (${top(p.rank, of)})`, detail: `${S} · the points it adds in ${p.label}, against every ranked team`, href: teamHref(team, season) });
   const asked = w.topic && w.topic !== "partner" ? phases.find((p) => p.id === w.topic) : undefined;
+  // The phase asked about has no numbers stored: no card that answers another question in its place.
+  if (w.topic && w.topic !== "partner" && !asked) return null;
   const opr: SearchCardLine = { text: `OPR ${one(r.opr_np)}: #${r.rank_np} of ${of.toLocaleString("en-US")} (${top(r.rank_np, of)})`, detail: `${S} · the points it adds to an alliance per match, without penalties`, href: teamHref(team, season) };
   const won = r.wins + r.losses + r.ties ? Math.round((r.wins * 100) / (r.wins + r.losses + r.ties)) : null;
   const record: SearchCardLine = { text: `Record ${r.wins}-${r.losses}-${r.ties}${won != null ? ` (${won}% won)` : ""}`, detail: `${S} · ${r.matches} matches at official events`, href: teamHref(team, season) };
