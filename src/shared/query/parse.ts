@@ -714,9 +714,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     // in Robotics", two teams) is no reason to stop: the longer name is one team's.
     const before = p.teams.find((t) => t.via === "name" && t.at + t.typed.split(" ").length === from);
     // Words of everyday English ("pizza" is no typo of team PITZZA) are never a name typed nearly right, unless "team"
-    // just before says they name one there ("team pizza").
-    const plainWords = (a: number, b: number) => toks.slice(a, b + 1).every((t) => everydayWord(t.w))
-      && !toks.slice(Math.max(0, a - 3), a).some((t) => /^teams?$/.test(t.w));
+    // right before them says they name one there ("team pizza"); a "team" that introduced an earlier name ("team
+    // hypnotic robotics minor") says nothing of the words after that name.
+    const plainWords = (a: number, b: number) => toks.slice(a, b + 1).every((t) => everydayWord(t.w)) && !/^teams?$/.test(toks[a - 1]?.w ?? "");
     if (before && ctx.nearTeam) {
       const own = toks.slice(before.at, from);
       let longer: { team: TeamName; upTo: number } | null = null;

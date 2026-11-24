@@ -50,3 +50,12 @@ describe("everyday words in the parser's near names", () => {
     expect((await parseQuery("hypnotic robotics minr record", ctx)).teams.map((t) => t.number)).toEqual([30005]);
   });
 });
+
+describe("\"team\" says only the words right after it name a team", () => {
+  const names = buildNames(TEAMS.map((t, i) => ({ number: 30001 + i, ...t, country: "USA", lastPlayed: 2026 })), []);
+  const ctx: ParseContext = { names, today: "2026-11-24", isEvent: async () => false, nearTeam: async (w) => names.nearTeam(w) };
+  it("never lengthens the name it introduces with everyday words after it (Loopy on #2249)", async () => {
+    expect((await parseQuery("team hypnotic robotics minor penalties", ctx)).teams.map((t) => t.number)).toEqual([30003]);
+    expect((await parseQuery("team pizza record", ctx)).teams.map((t) => t.number)).toEqual([30002]);
+  });
+});

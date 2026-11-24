@@ -622,6 +622,8 @@ export async function cutOff(typed: string): Promise<string | null> {
   if (!m) return null;
   const w = m[2].toLowerCase(), v = await vocab();
   if (v.keep.has(w) || v.count.has(w) || v.own.has(w)) return null;
+  // A word of everyday English ("june") is a word typed whole, never one cut off.
+  if (everydayWord(w)) return null;
   // A four-letter word that is a known word mistyped ("oper" for "opr") is corrected, never dropped.
   if (w.length === 4 && correctWord(w, v, true)) return null;
   const rest = m[1];
