@@ -97,7 +97,8 @@ export function otherSubject(q: string): string[] {
   const subject = head.filter((w) => !searchWord(w));
   // Any word of search's data ("match", "award", "opr", "local championship") makes it an FTC question, but the few
   // English shares far more widely ("weather forecast", "pizza place").
-  if (head.some((w) => DATA_WORDS.has(w) && !SHARED_WORDS.has(w))) return [];
+  const dataWord = (w: string) => DATA_WORDS.has(w) || (w.length > 4 && w.endsWith("s") && DATA_WORDS.has(w.slice(0, -1)));
+  if (head.some((w) => dataWord(w) && !SHARED_WORDS.has(w))) return [];
   return subject;
 }
 

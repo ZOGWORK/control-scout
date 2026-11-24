@@ -116,6 +116,8 @@ describe("a question about something search holds nothing on (#2234, #2227, #222
     expect(chatKind("local award in denver")).toBeNull();
     expect(chatKind("local winners in denver")).toBeNull();
     expect(chatKind("local championship in denver")).toBeNull();
+    expect(chatKind("local rankings in denver")).toBeNull();
+    expect(chatKind("local ratings in denver")).toBeNull();
     expect(chatKind("qzv stuff in denver")).toBeNull();
     expect(chatKind("qzv nothing at all")).toBeNull();
   });
