@@ -30,7 +30,8 @@ import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
-import { searchRead } from "./searchReads.js";
+import { keptAnswer, searchRead } from "./searchReads.js";
+import { forecasterBuilds } from "../predict/engine.js";
 import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
 import { ftsQuery, search, searchIntent, teamAtEventAnswer } from "./search.js";
 import { rerank } from "./searchLearn.js";
@@ -54,6 +55,7 @@ import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
+import { chatAnswer } from "./answers/chat.js";
 import { fold, names } from "./query/names.js";
 import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
@@ -261,6 +263,11 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
   const a = await answerOf(raw, opts);
   if (opts.inner || opts.intents === false || opts.rewrites) return a;
+  // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
+  // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
+  // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.
+  const chat = opts.spell === false ? null : chatAnswer(String(raw ?? ""), a);
+  if (chat) return chat;
   // A place asked for, alone or with its rankings, leagues or conferences ("nj", "nj rankings"): its own pages first
   // (src/shared/placePages.ts), whatever answered it. Kept once by address, so an answer that recursed adds none twice.
   const pages = withPlacePages(String(raw ?? ""), a.pages);
@@ -619,11 +626,15 @@ async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): P
  *  (./answers/sorry.ts). */
 async function withSorry(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer> {
   // Each suggestion run as the page runs it (with no sorry of its own, so never in a loop), kept only if it answers.
-  const answers = async (s: string) => {
+  const check = async (s: string) => {
     const b = await searchAnswer(s, { ...opts, full: true, limit: SEARCH_PAGE_LIMIT, learn: false, sorry: false });
     const empty = (b.card?.none && !b.card.lines.length) || (b.stat?.none && !b.stat.headline);
     return b.step !== "recovery" && !(b.understood?.label ?? "").includes(FALLBACK_NOTE) && (!!b.hits.length || !!b.stat || !!b.card) && !empty;
   };
+  // Kept as answers are (./searchReads.ts keptAnswer): the same suggestions follow many questions ("teams in Paris"
+  // under every question about Paris), each a whole search (the search audit's S5). Not with a clock of its own (tests).
+  const key = (s: string) => JSON.stringify(["sorry-check", s, [...(opts.prefer ?? [])].sort(), opts.season ?? null, opts.intents ?? null, opts.rewrites ?? 0, opts.spell ?? null, opts.initialisms ?? null, forecasterBuilds()]);
+  const answers = (s: string) => (opts.now != null ? check(s) : keptAnswer(key(s), () => check(s)));
   const sorry = await sorryFor(cleanQuery(raw), a, { ...opts, answers });
   // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
   return sorry ? carryOutcome(a, { ...a, sorry }) : a;
