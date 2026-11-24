@@ -12,6 +12,7 @@ import { siteMeta } from "./api/meta.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { MAX_QUERY, cleanQuery, learnQuery, plainSearch, searchAnswer } from "./api/searchAnswer.js";
+import { noteServed, servedHit } from "./api/searchServed.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
 import { pickedQuery, pickedSeasonOf } from "./api/searchPageAnswer.js";
 import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
@@ -448,6 +449,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       const answered = performance.now();
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
+      // What was sent, for a result opened from it (POST /search/click) to be checked without searching again.
+      noteServed(String(req.query.q ?? ""), ans.intent, ans.hits);
       const at = Date.now();
       // Failed searches → GitHub issues (server/searchFailures.ts): after the answer, in memory only, never awaited.
       // The key is the failure's pattern (patternFor, worked out only for an answer that failed), else search's own
@@ -548,10 +551,14 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   api.post("/search/click", limiter(30), h(async (req, res) => {
     const q = cleanQuery(String(req.body?.q ?? "")), kind = String(req.body?.kind ?? ""), ref = String(req.body?.ref ?? "");
     if (q && ref) {
-      const a = await searchAnswer(q, { learn: false, limit: 25 });
-      const hit = a.hits.find((x) => x.kind === kind && x.ref === ref);
+      // What /api/search sent for this query lately (server/api/searchServed.ts): no second search per click. Only a
+      // query it doesn't know (asked too long ago) is searched again.
+      const known = servedHit(q, kind, ref);
+      const a = known ? null : await searchAnswer(q, { learn: false, limit: 25 });
+      const found = a ? a.hits.find((x) => x.kind === kind && x.ref === ref) : known!.hit;
+      const hit = found ? { kind: found.kind, ref: found.ref, href: !!found.href } : null;
       // What the query asked for, counted from search's own reading of it (server/api/searchIntents.ts).
-      if (hit) await recordIntent(a.intent);
+      if (hit) await recordIntent(a ? a.intent : known!.intent);
       if (hit && !hit.href && (await isEnabled("searchLearning").catch(() => false))) await recordClick(learnQuery(q), hit);
     }
     res.status(204).end();
@@ -804,7 +811,14 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   api.get("/compare", h(async (req) => compareAnswer(teamList(req.query.teams, "teams", 4), req.query.season ? season(req.query.season) : undefined)));
 
   /** Many teams at once (shortlist, tracked teams): name, place, season stats, latest event. */
-  api.get("/teams-summary", h(async (req) => ({ season: season(req.query.season), teams: await teamSummaries(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
+  // ?before=1: the season before's too, in the same answer (/search's cards fall back to it for a team with no numbers
+  // yet this season): one request, where the page used to send a second for it.
+  api.get("/teams-summary", h(async (req) => {
+    const s = season(req.query.season), teams = teamList(req.query.teams, "teams", 100);
+    if (req.query.before !== "1") return { season: s, teams: await teamSummaries(teams, s) };
+    const [now, before] = await Promise.all([teamSummaries(teams, s), teamSummaries(teams, s - 1)]);
+    return { season: s, teams: now, before: { season: s - 1, teams: before } };
+  }));
 
   /** The shortlist page in one request: summaries plus each team's OPR split and event-by-event trend. */
   // Reliability index (src/shared/reliability.ts): public match data only, also read by Control Point.
