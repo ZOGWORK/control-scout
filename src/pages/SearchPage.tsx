@@ -15,7 +15,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
-import { BrunoAnswer, brunoKey, useBrunoAsks, type BrunoMemo } from "../components/search/BrunoAnswer";
+import { BrunoAnswer, afterKey, brunoKey, useBrunoAsks, type BrunoMemo } from "../components/search/BrunoAnswer";
 import { lastSearch, rememberSearch } from "../lib/lastSearch";
 import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
@@ -225,7 +225,8 @@ export default function SearchPage() {
   const followFrom = useMemo(() => (answer?.chat === "follow-up" ? lastSearch(query) : null), [answer?.chat, query]);
   // Every other search the tab answered is the one a follow-up after it reads.
   const settled = !!query && !busy && !stale && !error && !!answer && !answer.chat && found;
-  useEffect(() => { if (settled) rememberSearch(query); }, [settled, query]);
+  // With the season picked on its answer (?in=), so the follow-up reads the records that were on screen.
+  useEffect(() => { if (settled) rememberSearch(query, picked); }, [settled, query, picked]);
   const answered = !!answer && !answer.weak && !!(answer.card || answer.stat) && !followFrom;
   // v8: a question search has no direct answer to (a names reading, a list, a fallback) is Bruno's to answer: his card
   // leads the page, its slot held from the first frame (the owner, 11-23). A computed summary keeps his card where it was.
@@ -260,7 +261,7 @@ export default function SearchPage() {
   const brunoLeads = v8 && brunoAsks && !apps.length && !quality && !mayStand;
   // He had nothing to add to this question (with these preferred teams): its heading is full size again, as his slot
   // is let go. A new question or preference is pending again until he answers it.
-  const askKey = brunoKey(q, prefer, followFrom ?? ""); // trimmed, as his card keys it
+  const askKey = brunoKey(q, prefer, afterKey(followFrom)); // trimmed, as his card keys it
   // His answers for this page's cards: one moving between the top and below the results (a late card or summary
   // changes where he goes) keeps what he said instead of asking him again.
   const [brunoMemo] = useState<BrunoMemo>(() => new Map());
@@ -276,7 +277,7 @@ export default function SearchPage() {
   const brunoTop = brunoLeads && brunoSilent !== askKey;
   const smallHeading = !!(brunoTop || namesLine) && found && !error;
   const summary = (
-    <BrunoAnswer q={q} prefer={prefer} after={followFrom ?? undefined} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mb-4 lg:mb-0">
+    <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
@@ -336,7 +337,7 @@ export default function SearchPage() {
           results column's width, beside where People also ask starts). */}
       {brunoTop && query && found && !error && (
         <div className={cn("mb-5", side && "lg:pr-[24rem]")} data-bruno-lead>
-          <BrunoAnswer q={q} prefer={prefer} after={followFrom ?? undefined} ready={!busy && !stale} answered={answered} lead memo={brunoMemo} onOutcome={onBruno} />
+          <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={!busy && !stale} answered={answered} lead memo={brunoMemo} onOutcome={onBruno} />
         </div>
       )}
       <h1 className={cn("mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl v8:font-sans v8:text-[1.375rem] v8:leading-7 v8:md:text-[1.375rem] v8:lg:text-[1.375rem]",
@@ -350,7 +351,7 @@ export default function SearchPage() {
       {/* A follow-up: the tab's last search, which Bruno reads it with, as a tap back to it. */}
       {followFrom && found && !busy && !error && (
         <p className="mt-1.5 break-words text-xs text-muted-foreground" data-follow-from>
-          Your last search: <Link to={`/search?q=${encodeURIComponent(followFrom)}`} className="font-medium text-foreground underline-offset-2 hover:underline">{followFrom}</Link>
+          Your last search: <Link to={`/search?q=${encodeURIComponent(followFrom.q)}${followFrom.season != null ? `&in=${followFrom.season}` : ""}`} className="font-medium text-foreground underline-offset-2 hover:underline">{followFrom.q}{followFrom.season != null && ` (${seasonLabel(followFrom.season)})`}</Link>
         </p>
       )}
       {badge && !v8 && (
@@ -439,7 +440,7 @@ export default function SearchPage() {
                   </div>
                 )}
                 {(apps.length > 0 || !!quality) && <div className="mt-6">{summary}</div>}
-                {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} after={followFrom ?? undefined} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mt-6" />}
+                {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} after={followFrom} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mt-6" />}
                 {clipFor && <AnswerClip about={clipFor} className="mt-6" />}
               </div>
               </div>

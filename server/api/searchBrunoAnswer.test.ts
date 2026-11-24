@@ -203,6 +203,23 @@ describe("a follow-up to the tab's last search", () => {
     expect(asked).toHaveLength(0);
     expect(await brunoAnswer(FOLLOW, { after: "4215 opr" })).toEqual(withPoints(reply));
   });
+  it("over the route, is read in the season picked on the earlier search's answer (?afterSeason=)", async () => {
+    reply = { text: "Yes." };
+    const { createApp } = await import("../app");
+    const { pickedQuery } = await import("./searchPageAnswer");
+    const app = createApp().listen(0);
+    await new Promise((r) => app.once("listening", r));
+    try {
+      const base = `http://127.0.0.1:${(app.address() as AddressInfo).port}/api/search/bruno?q=${encodeURIComponent(FOLLOW)}&after=${encodeURIComponent("4215 opr")}`;
+      expect((await fetch(`${base}&afterSeason=2024`)).status).toBe(200);
+      const picked = await pickedQuery("4215 opr", 2024);
+      expect(picked).not.toBe("4215 opr");
+      expect(asked[0].facts[0]).toBe(`This question follows up the earlier search "${picked}": the facts below are that search's answer.`);
+      // No season picked: the search as it was typed.
+      expect((await fetch(base)).status).toBe(200);
+      expect(asked[1].facts[0]).toContain('"4215 opr"');
+    } finally { app.close(); }
+  });
   it("an earlier search is never read with a question that doesn't point back", async () => {
     reply = { text: "4215 went to states 2 times." };
     await brunoAnswer(Q, { after: "4215 opr" });
