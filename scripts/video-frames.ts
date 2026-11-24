@@ -456,6 +456,9 @@ async function findSplit(page: Page, length: number): Promise<SplitSide | null> 
 
 /** Where a shrunk score bar (overlayBar) is on the frame at second t, paused; null where there is none, or a full-size
  *  bar is on screen (overlayBand's: the crops read those as they are). Bounded as a split check's read is (splitRow). */
+/** A shrunk-bar sample that hung: its seek or screenshot may still finish later and move the player or rewrite the
+ *  frame under the next sample, so the check stops there (findShrunk) instead of sampling on. */
+class ShrunkHung extends Error {}
 async function shrunkBar(page: Page, t: number): Promise<{ x0: number; x1: number; top: number; bottom: number } | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
@@ -464,16 +467,17 @@ async function shrunkBar(page: Page, t: number): Promise<{ x0: number; x1: numbe
       if (await barBand(page)) return null;
       return page.evaluate(`(${overlayBar.toString()})(window.__frame.data, window.__frame.width, window.__frame.height)`) as Promise<{ x0: number; x1: number; top: number; bottom: number } | null>;
     })().finally(() => clearTimeout(timer)),
-    new Promise<never>((_, no) => { timer = setTimeout(() => no(new Error(`a shrunk-bar check at ${t} s hung over ${READ_LIMIT_S} s`)), READ_LIMIT_S * 1000); }),
+    new Promise<never>((_, no) => { timer = setTimeout(() => no(new ShrunkHung(`a shrunk-bar check at ${t} s hung over ${READ_LIMIT_S} s`)), READ_LIMIT_S * 1000); }),
   ]);
 }
 /** The zoom that fills the frame with a score bar drawn small in it (foundBox over overlayBar at each of SPLIT_SAMPLES),
  *  for a recording whose producer shrank FTC Live's screen into a corner over the camera (USTXNAM1 2024: the top-left
- *  42% of the frame) and that isn't in CORNER_BOXES. Null: no bar found in one place on enough frames. */
+ *  42% of the frame) and that isn't in CORNER_BOXES. Null: no bar found in one place on enough frames. A sample that
+ *  fails counts as finding nothing (sampleFinds); one that hangs (ShrunkHung) fails the check, as does the event's limit. */
 async function findShrunk(page: Page, length: number): Promise<string | null> {
   // The whole frame: a split check that found a side and still read nothing leaves its zoom on.
   await zoomTo(page, "");
-  const found = await sampleFinds(SPLIT_SAMPLES.map((f) => Math.round(length * f)), (t) => shrunkBar(page, t), (e) => e instanceof EventOverTime);
+  const found = await sampleFinds(SPLIT_SAMPLES.map((f) => Math.round(length * f)), (t) => shrunkBar(page, t), (e) => e instanceof EventOverTime || e instanceof ShrunkHung);
   const box = foundBox(found);
   return box && zoomCss(box.box, box.shift);
 }
@@ -1582,12 +1586,16 @@ async function doCode(code: string): Promise<void> {
       // event's half, every crop reading its bar where a full-size one would be.
       // A split check that fails (a hung read, a seek or zoom the page refuses) keeps the read as it was, nothing read:
       // the video played, so it isn't one that couldn't be (PLAY_FAILED, read again every run).
+      // This event's half of a split stream, where the split check found one: its zoom stays on for the edges' reads
+      // unless the shrunk-bar check below reads the video instead.
+      let splitHalf: SplitSide | null = null;
       if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
         // The page as it is here (non-null), for the check's callbacks.
         const pg = page;
         await splitChecked(async () => {
           const side = await findSplit(pg, m.length!);
           if (side) {
+            splitHalf = side;
             log(`    a split stream: this event's on its ${side} half, read zoomed to it`);
             await zoom(pg, side);
             const zoomedUnread = new Set<string>();
@@ -1607,19 +1615,22 @@ async function doCode(code: string): Promise<void> {
       // zoomed so the bar fills the frame's width where a bottom bar sits. A recording with a measured box (CORNER_BOXES)
       // is zoomed already. A check that fails keeps the read as it was, as the split check's does.
       if (!cornerBox(v.videoId) && !j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
-        const pg = page;
+        const pg = page, half = splitHalf;
+        // Back to the split check's zoom (its half, else the whole frame) where this check doesn't read the video.
+        const restore = () => zoom(pg, half);
         await splitChecked(async () => {
           const css = await findShrunk(pg, m.length!);
-          if (css) {
-            log("    a score bar drawn small in the frame: read zoomed to it");
-            await zoomTo(pg, css);
-            const zoomedUnread = new Set<string>();
-            j = await placeVideo(pg, mine, from == null ? null : -from, m.length!, log, zoomedUnread, live, liveMedium);
-            unread.clear();
-            for (const l of zoomedUnread) unread.add(l);
-          }
+          if (!css) { await restore(); return; }
+          log("    a score bar drawn small in the frame: read zoomed to it");
+          await zoomTo(pg, css);
+          const zoomedUnread = new Set<string>();
+          const zoomed = await placeVideo(pg, mine, from == null ? null : -from, m.length!, log, zoomedUnread, live, liveMedium);
+          if (!zoomed.placed.size && !zoomed.review.size && [...zoomed.missing.values()].every((w) => w === NOTHING_READ)) { await restore(); return; }
+          j = zoomed;
+          unread.clear();
+          for (const l of zoomedUnread) unread.add(l);
         }, {
-          cleanup: () => zoomTo(pg, ""),
+          cleanup: restore,
           stops: (e) => e instanceof EventOverTime,
           failed: (e) => log(`    couldn't check for a score bar drawn small: ${e.message.split("\n")[0]} (kept as nothing read)`),
         });
