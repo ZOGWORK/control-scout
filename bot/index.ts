@@ -193,8 +193,8 @@ const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) =>
   if (emoji !== GOOD && emoji !== BAD) return;
   void serial(reaction.message.id, () => vote(reaction.message.id, emoji, delta)).catch(() => {});
 };
-/** The answers whose channel has been told what a 👎 does: once per answer, and only for the vote that made its count
- *  1 (bot/reactions.ts `downNotes`). */
+/** The answers whose channel has been told what a 👎 does: once per answer, for the vote that made its count 1 — or
+ *  for the next 👎 when that note couldn't be sent (bot/reactions.ts `downNotes`). */
 const downNote = downNotes();
 /** Say in the channel what a 👎 did, as a reply to the answer (bot/reactions.ts `DOWN_NOTE`): a 👎 files the question,
  *  so it is a report rather than a dislike button, and the people using it should hear that where they used it. Awaited
@@ -202,8 +202,10 @@ const downNote = downNotes();
  *  a note that can't be sent is logged, frees the answer for a later try, and never touches the vote. */
 const sayDownNote = async (reaction: Counted): Promise<void> => {
   const id = reaction.message.id;
-  if (!(await downNote.worth(id))) return;
+  // The whole note — its own read included — is inside the try: a failure here is the note's, never the vote's, which
+  // has already been written.
   try {
+    if (!(await downNote.worth(id))) return;
     const channel = client.channels.cache.get(reaction.message.channelId ?? "");
     // A channel the bot can't post in (or isn't cached): the vote stands, the note is owed to a later vote.
     if (!channel || !("send" in channel)) { downNote.unsent(id); return; }

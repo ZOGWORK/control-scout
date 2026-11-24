@@ -144,6 +144,16 @@ describe("the thumbs on an answer", () => {
     expect(await note.worth("same")).toBe(true);
     note.said("same");
     expect(await note.worth("same")).toBe(false);
+    // An owed note is retried by the next 👎 even though that vote took the count past 1: the count alone can't say
+    // whether the answer has been told.
+    let count = 1;
+    const owed = downNotes(async () => count === 1);
+    expect(await owed.worth("x")).toBe(true);
+    owed.unsent("x");
+    count = 2;
+    expect(await owed.worth("x")).toBe(true);
+    owed.said("x");
+    expect(await owed.worth("x")).toBe(false);
     // Past the cap the oldest answer is forgotten: at worst a repeat note, never a missing one.
     const capped = downNotes(async () => true, 1);
     expect(await capped.worth("a")).toBe(true);

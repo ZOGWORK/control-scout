@@ -63,18 +63,22 @@ export async function firstDown(messageId: string): Promise<boolean> {
  *  answer, and only for the vote that made its count 1 (bot/index.ts).
  *
  *  `worth` claims the answer while the note is being sent, so two 👎 arriving together say it once; `said` keeps it, and
- *  `unsent` frees it — a channel that couldn't be posted in, or a send Discord refused, leaves the note owed rather than
- *  spent. At most `max` answers are remembered: past that the oldest is forgotten, so a vote taken off and added again on
- *  one of them can say it once more — a repeat, never a missing one. */
+ *  `unsent` owes it — a channel that couldn't be posted in, or a send Discord refused, leaves the note owed rather than
+ *  spent, and the next 👎 on that answer tries again whatever its count is by then (the second person's 👎 takes the
+ *  count past 1, so the count alone can't be what decides a retry). At most `max` answers are remembered: past that the
+ *  oldest is forgotten, so a vote taken off and added again on one of them can say it once more — a repeat, never a
+ *  missing one. */
 export function downNotes(isFirst: (messageId: string) => Promise<boolean> = firstDown, max = 500) {
   const told = new Set<string>();
   const claimed = new Set<string>();
+  const owed = new Set<string>();
   return {
-    /** Whether this vote is the one to say it for: not said before, not being said, and the count is 1 now. */
+    /** Whether this vote is the one to say it for: not said before, not being said, and either the note is owed or this
+     *  vote is the one that made the count 1. */
     async worth(messageId: string): Promise<boolean> {
       if (told.has(messageId) || claimed.has(messageId)) return false;
-      if (!(await isFirst(messageId))) return false;
-      // Two votes at once can both read 1: only the first to get here claims it.
+      if (!owed.has(messageId) && !(await isFirst(messageId))) return false;
+      // Two votes at once can both get here: only the first claims it.
       if (told.has(messageId) || claimed.has(messageId)) return false;
       claimed.add(messageId);
       return true;
@@ -82,12 +86,15 @@ export function downNotes(isFirst: (messageId: string) => Promise<boolean> = fir
     /** It was said: never again for this answer in this process. */
     said(messageId: string): void {
       claimed.delete(messageId);
+      owed.delete(messageId);
       told.add(messageId);
       if (told.size > max) told.delete(told.values().next().value!);
     },
-    /** It couldn't be said: a later 👎 on the same answer may try again. */
+    /** It couldn't be said: the next 👎 on this answer tries again, whatever its count is by then. */
     unsent(messageId: string): void {
       claimed.delete(messageId);
+      owed.add(messageId);
+      if (owed.size > max) owed.delete(owed.values().next().value!);
     },
   };
 }
