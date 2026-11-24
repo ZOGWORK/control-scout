@@ -51,6 +51,8 @@ describe("reading a why question", () => {
     expect(readWhy("why are gear owls so dominant in teleop?")).toEqual({ core: "gear owls", topic: "teleop" });
     expect(readWhy("what makes 31302 such a good partner")).toEqual({ core: "31302", topic: "partner" });
     expect(readWhy("why is 31301 so strong")).toEqual({ core: "31301", topic: null });
+    expect(readWhy("how come 31301 is so good at auto")).toEqual({ core: "31301", topic: "auto" });
+    expect(readWhy("what makes 31302 worth picking as a partner")).toEqual({ core: "31302", topic: "partner" });
   });
   it("leaves a why question that isn't why a team is strong", () => {
     expect(readWhy("why did 31301's rating go down")).toBeNull();
