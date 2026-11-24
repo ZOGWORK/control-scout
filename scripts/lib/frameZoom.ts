@@ -23,3 +23,46 @@ export function zoomCss(box: [number, number, number, number], shift: number, wi
   const dx = -x * s, dy = height - (y + h) * s + shift;
   return `video { transform-origin: 0 0 !important; transform: translate(${+dx.toFixed(2)}px, ${+dy.toFixed(2)}px) scale(${+s.toFixed(5)}) !important; }`;
 }
+
+/** The fewest sampled frames that must find a shrunk bar in the same place (foundBox) before the player is zoomed to it. */
+export const FOUND_MIN = 3;
+/** A bottom bar's lowest row, where a found bar's is zoomed to (foundBox): 4 px up, as FTC Live draws its own. */
+export const BAR_FLOOR = 716;
+
+/**
+ * A box for zoomCss from where overlayBar found a shrunk score bar on several sampled frames (null: none found on that
+ * frame), for a recording not in CORNER_BOXES. Taken where at least FOUND_MIN frames agree, its ends and bottom row
+ * each within 2% of the frame of the first such frame's: a results screen's halves (blue, the QR code's white, red) or
+ * a stray patch of crowd can give a bar too, but not in the same place as the bar of most frames. The box is the bar's
+ * ends and rows (their medians over those frames); `shift` puts the bar's bottom row at BAR_FLOOR, so zoomed it sits
+ * where a full-size bottom bar does: the row over it (the event and the match) at the label row's place, the timer in
+ * the bottom crops'. Null: no FOUND_MIN frames agree.
+ */
+export function foundBox(found: readonly ({ x0: number; x1: number; top: number; bottom: number } | null)[], width = 1280, height = 720): { box: [number, number, number, number]; shift: number } | null {
+  const bars = found.filter((b): b is { x0: number; x1: number; top: number; bottom: number } => b != null);
+  const nearX = width * 0.02, nearY = height * 0.02;
+  let best: typeof bars = [];
+  for (const a of bars) {
+    const like = bars.filter((b) => Math.abs(b.x0 - a.x0) <= nearX && Math.abs(b.x1 - a.x1) <= nearX && Math.abs(b.bottom - a.bottom) <= nearY);
+    if (like.length > best.length) best = like;
+  }
+  if (best.length < FOUND_MIN) return null;
+  const median = (xs: number[]) => xs.sort((a, b) => a - b)[xs.length >> 1];
+  const x0 = median(best.map((b) => b.x0)), x1 = median(best.map((b) => b.x1));
+  const top = median(best.map((b) => b.top)), bottom = median(best.map((b) => b.bottom));
+  return { box: [x0, top, x1 - x0, bottom - top], shift: BAR_FLOOR - height };
+}
+
+/**
+ * Each sampled frame's find (`read` at each of `times`, in turn), a frame whose read failed (a refused seek, a failed
+ * screenshot, a read over its limit) counted as finding nothing: one bad frame mustn't throw away the others' votes,
+ * where foundBox needs only FOUND_MIN of them. An error `stops` says ends the event (the reader's EventOverTime) is
+ * thrown on, as anywhere else.
+ */
+export async function sampleFinds<T>(times: readonly number[], read: (t: number) => Promise<T | null>, stops: (e: unknown) => boolean): Promise<(T | null)[]> {
+  const out: (T | null)[] = [];
+  for (const t of times) {
+    try { out.push(await read(t)); } catch (e) { if (stops(e)) throw e; out.push(null); }
+  }
+  return out;
+}
