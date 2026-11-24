@@ -1,14 +1,16 @@
 // The 👎 the bot used to put on every answer (7.9.2 until 8.0.1) is still on the answers it posted in between: a button
 // that does nothing now. This takes it off, once — the first connection after this ships walks back through every text
-// channel it can read (and each server's active threads), removes its own reaction from its own answers, and records the
-// sweep in a `kv` row, so a restart or a deploy doesn't scan again.
+// channel it can read (and each server's active threads), removes its own reaction from its own answers, and records that
+// server's finished walk in a `kv` row of its own, so a restart or a deploy doesn't scan it again.
 //
 // Only its own reaction, only on its own message: a member's 👎 is theirs, and a 👍 stays. The counts are untouched — the
 // `down` column is what people clicked, and it stays readable (bot/reactions.ts); nothing here writes a row.
 //
-// The row is written only when the whole walk finished. A server that added the bot before 8.0.2 has no Read Message
-// History, so its channels can't be read: the sweep says which and what is missing, isn't recorded, and tries again on the
-// next start (the walk is bounded by the days the thumbs existed, so a retry is a handful of pages a channel).
+// A server's row is written only when its whole walk finished. A server that added the bot before 8.0.2 has no Read
+// Message History, so its channels can't be read: the sweep says which and what is missing, isn't recorded, and tries
+// again on the next start (the walk is bounded by the days the thumbs existed, so a retry is a handful of pages a
+// channel). One server's row never stands in for another's: a server added back, or added while the bot was down, has
+// none and is walked when it is first seen.
 import type { Client } from "discord.js";
 import { kvGet, kvSet } from "../server/db.js";
 
@@ -19,8 +21,9 @@ export const OLD_DOWN = "👎";
 export const THUMBS_FROM = Date.parse("2026-11-21T00:00:00Z");
 /** Messages a request asks for (Discord's cap). */
 export const PAGE = 100;
-/** The `kv` row that says the sweep has run. */
-export const SWEEP_KEY = "bot:down-sweep";
+/** One server's `kv` row, saying its walk finished; deleted with the server's other data when the bot is removed
+ *  (bot/forget.ts), so a server added back is walked again. */
+export const sweepKey = (guild: string) => `bot:down-sweep:${guild}`;
 
 /** One reaction as the sweep reads it: the emoji, whether this bot is the one who added it, and how to take it off. */
 export interface SweptReaction {
@@ -176,43 +179,44 @@ const oneAtATime = <T>(work: () => Promise<T>): Promise<T> => {
   return next;
 };
 
-/** Take the stale 👎s off, once: the `kv` row says it has run, so a restart or a deploy doesn't scan again. Returns null
- *  when it had already run.
+/** Take the stale 👎s off, once per server: its own row says its walk has run, so a restart or a deploy doesn't scan it
+ *  again. Returns null when every server had already been walked (or there are none).
  *
- *  `only` is a server added back (bot/index.ts): its answers are still in Discord, so just that server is swept now, and a
- *  pass that missed something there asks for a full one on the next start by clearing `done`. Taking off a 👎 that is
- *  already gone is not a failure, which is what makes a server swept before it was removed safe to walk again. */
+ *  `only` is a server added back (bot/index.ts): its answers are still in Discord, so just that server is swept now.
+ *  Taking off a 👎 that is already gone is not a failure, which is what makes a server swept before it was removed safe
+ *  to walk again. */
 export function sweepOldThumbs(client: Client, log: (m: string) => void, opts: { only?: string } = {}): Promise<Swept | null> {
   return oneAtATime(() => sweep(client, log, opts.only));
 }
 
 async function sweep(client: Client, log: (m: string) => void, only?: string): Promise<Swept | null> {
-  const state = await kvGet<{ done?: boolean }>(SWEEP_KEY).catch(() => null);
-  if (!only && state?.done) return null;
-  if (only && !client.guilds.cache.has(only)) return null;
   const me = client.user?.id;
   if (!me) {
     // Sweeping as "" would match no answer and record a run that did nothing: left for the next start instead.
     log("stale 👎: the bot's own id isn't known yet; the old thumbs-down is left for the next start");
     return null;
   }
-  log(`stale 👎: taking the old thumbs-down off its answers${only ? ` in server ${only}` : ""}`);
-  const swept = await sweepStaleThumbs({ me, channels: () => places(client, log, only) }, log);
-  if (only) {
-    // The server is swept on the way in; a pass that missed something there is left to a full one, so clear `done`.
-    if (swept.failed) {
-      await kvSet(SWEEP_KEY, { done: false }).catch((e) => log(`stale 👎: couldn't clear the sweep's row (${(e as Error)?.message ?? String(e)})`));
+  // Only the servers with no row of their own: one added while the bot was down has none, so it is walked on this start
+  // rather than waiting for an event that already happened.
+  const todo: string[] = [];
+  for (const id of client.guilds.cache.keys()) {
+    if (only) { if (id === only) todo.push(id); continue; }
+    if (!(await kvGet<{ at?: string }>(sweepKey(id)).catch(() => null))) todo.push(id);
+  }
+  if (!todo.length) return null;
+  const total: Swept = { channels: 0, messages: 0, removed: 0, failed: 0 };
+  for (const id of todo) {
+    log(`stale 👎: taking the old thumbs-down off its answers in server ${id}`);
+    const swept = await sweepStaleThumbs({ me, channels: () => places(client, log, id) }, log);
+    total.channels += swept.channels; total.messages += swept.messages; total.removed += swept.removed; total.failed += swept.failed;
+    // A row only for a walk that finished: a server that couldn't be read has none, so the next start asks again. A failed
+    // write is said and never thrown — the reactions are off already, and the cost is one more walk.
+    if (!swept.failed) {
+      await kvSet(sweepKey(id), { at: new Date().toISOString(), removed: swept.removed }).catch((e) => {
+        log(`stale 👎: couldn't record the sweep of ${id} (${(e as Error)?.message ?? String(e)}); it will run again next start`);
+      });
     }
-    log(`stale 👎: server ${only}: took ${swept.removed} off ${swept.messages} messages in ${swept.channels} channels${swept.failed ? `; ${swept.failed} couldn't be read or cleared, and the next start tries everything again` : ""}`);
-    return swept;
+    log(`stale 👎: server ${id}: took ${swept.removed} off ${swept.messages} messages in ${swept.channels} channels${swept.failed ? `; ${swept.failed} couldn't be read or cleared, left for the next start` : ""}`);
   }
-  const done = swept.failed === 0;
-  if (done) {
-    await kvSet(SWEEP_KEY, { done: true, at: new Date().toISOString(), removed: swept.removed }).catch((e) => {
-      // Said, not thrown: the reactions are off already, and saying it ran again next time is worse than a second pass.
-      log(`stale 👎: couldn't record the sweep (${(e as Error)?.message ?? String(e)}); it will run again next start`);
-    });
-  }
-  log(`stale 👎: took ${swept.removed} off ${swept.messages} messages in ${swept.channels} channels${done ? "" : `; ${swept.failed} couldn't be read or cleared, so the next start tries again`}`);
-  return swept;
+  return total;
 }

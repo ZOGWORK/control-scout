@@ -65,12 +65,12 @@ any `downvoted` rows stay readable (the owner console's total, the queue's own r
 **The stale 👎s are taken off** (`bot/cleanup.ts`). The emoji the bot added between 7.9.2 and 8.0.1 is still on the
 answers it posted then, where it is a button that does nothing: on the first connection after 8.0.2 the bot walks back
 through the recent messages of every channel it can read — and each server's active threads — removes its own reaction
-from its own answers, and records that it has in a `kv` row (`bot:down-sweep`), so a restart never scans again. Only its
+from its own answers, and records that server's finished walk in a `kv` row of its own (`bot:down-sweep:<server>`), so a restart never scans it again. Only its
 own reaction goes: a member's 👎 is theirs, and a 👍 stays. The walk ends at a message older than 2026-11-21, before any
 answer could carry a 👎, so a channel's older history is never read and the two days the thumbs existed are all it
 covers. A sweep that met a channel it couldn't read — no Read Message History, a thread since deleted — or a 👎 that
-wouldn't come off is logged and not recorded, so the next start tries again; a 👎 that is already gone counts as done,
-which is what lets a server the bot is added back to be swept for its old answers as it joins — just that server, and a pass that misses something there clears the row so the next start walks everything again. Archived threads are left
+wouldn't come off is logged and that server is not recorded, so the next start walks it again — and only it; a 👎 that
+is already gone counts as done. A server with no row is walked when it is first seen: one the bot is added back to has its row deleted with its other data (`bot/forget.ts`) and is swept as it joins, and one added while the bot was down is walked on the next start, since no join event reaches it. Archived threads are left
 alone: a thread from those two days has to still be active to be read now, and paging every channel's archive for it
 isn't worth the calls. No row is written to `discord_answers`: the counts are what people clicked and stay readable;
 only the emoji nobody can use any more comes off.
