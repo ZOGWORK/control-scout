@@ -3,56 +3,94 @@
 //   - the question understood (an intent read, or a card answering it)
 //   - every filter it typed (a place, a time) applied and stated on the card
 //   - a card at all: a team card, a list of names or a fallback alone is a fail
-// and the pass rate printed by pattern. The sets live in scripts/search-heldout.json ({ set, n, q }) and, one file a
-// set, in scripts/heldout/<set>.json (its questions in order: a new set is a file of its own, ./heldoutSets.ts); the
-// expected numbers are never in them, so the data decides.
+// and the pass rate printed by pattern. A card is not yet a pass (audit M2, 24 Nov): the answer is also graded
+//   - against the answer a person wrote for it, where there is one (`want`, the q260 set's): every checkable fact in
+//     it that stays true, a record, a decimal or a short want's names (never a rank or a rating, which move), is in
+//     the answer (./search-heldout-grade.ts);
+//   - its headline number against the team page's own API (./search-signoff/crosscheck.ts), over a local server on
+//     the same snapshot.
+// A wrong fact is "wrong answer", a number unlike the team page's "numbers differ from the team page".
 //
-//   npm run search:heldout                    the shipped snapshot, every set
+// The sets live in scripts/search-heldout.json ({ set, n, q, want?, train? }). A question that appears word for word
+// in the repo's tests or code isn't held out: it is marked "train": true (the training set), and the guard test
+// (./search-heldout.test.ts) fails when a held-out one gets in. --split marks them; one file, so one rename.
+//
+//   npm run search:heldout                    the shipped snapshot, every held-out set
 //   npm run search:heldout -- --set q260 --out .data/heldout.jsonl
 //   npm run search:heldout -- --only "closest"   the questions with these words only
+//   npm run search:heldout -- --train         the training set instead
+//   npm run search:heldout -- --min 80        exit 1 below an 80% pass rate (CI, .github/workflows/ci.yml)
+//   npm run search:heldout -- --split         move held-out questions found in tests or code to the training set
 //   DATABASE_URL=file:.data/scout.db npm run search:heldout
-import { mkdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { heldoutSets } from "./heldoutSets.js";
+import { heldoutSets, type HeldOut } from "./heldoutSets.js";
+import { bootSearch, localServer } from "./search-local.js";
+import { gradeWant, wantSeason } from "./search-heldout-grade.js";
+import { leaks } from "./search-heldout-leaks.js";
+import { answerSeason, crosscheck } from "./search-signoff/crosscheck.js";
+import { answerText, type Live } from "./search-signoff/grade.js";
 
 const flag = (name: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
-const SET = flag("set"), OUT = flag("out"), ONLY = flag("only")?.toLowerCase();
-// The questions first, before any database is touched: a set file that's wrong, or a set or filter that matches
-// nothing (a run that asks nothing never passes), fails at once.
-const sets = heldoutSets()
-  .filter((x) => (!SET || x.set === SET) && (!ONLY || x.q.toLowerCase().includes(ONLY)));
-// A set or a filter that matches nothing asks nothing: never a pass.
-if (!sets.length) { console.error(`no held-out questions match${SET ? ` set ${SET}` : ""}${ONLY ? ` "${ONLY}"` : ""}`); process.exit(1); }
-if (!process.env.DATABASE_URL) {
-  const dir = join(tmpdir(), "control-scout-search-eval");
-  mkdirSync(dir, { recursive: true });
-  process.env.DATABASE_URL = `file:${join(dir, "scout.db").replace(/\\/g, "/")}`;
+const SET = flag("set"), OUT = flag("out"), ONLY = flag("only")?.toLowerCase(), MIN = flag("min"), JSON_OUT = flag("json");
+const TRAIN = process.argv.includes("--train");
+// A --min with no number after it would turn the floor off: refused instead.
+if (process.argv.includes("--min") && !Number.isFinite(Number(MIN ?? NaN))) { console.log(`FAIL: --min needs a number (got ${MIN ?? "nothing"})`); process.exit(1); }
+type Q = HeldOut;
+const FILE = join(import.meta.dirname, "search-heldout.json");
+// Every set, the shared file's and each scripts/heldout/<set>.json, checked whole before any database is touched.
+const all = heldoutSets();
+
+if (process.argv.includes("--split")) {
+  // "train" lives in the shared file only: a set's own file (scripts/heldout/) is its questions alone, so one of those
+  // found in tests or code is named, to reword the test, never left held out with no word said.
+  const found = leaks(all.filter((x) => !x.train).map((x) => x.q));
+  const shared = JSON.parse(readFileSync(FILE, "utf8")) as Q[];
+  const out = shared.map((x) => (!x.train && found.has(x.q) ? { ...x, train: true } : x));
+  // Written whole beside it, then renamed over it: the file is the old one or the new one, never half of either.
+  // One that fails part way (disk full, a locked file) leaves no .tmp behind.
+  try {
+    writeFileSync(`${FILE}.tmp`, `[\n${out.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`);
+    renameSync(`${FILE}.tmp`, FILE);
+  } finally {
+    rmSync(`${FILE}.tmp`, { force: true });
+  }
+  const trained = out.filter((x) => x.train).length;
+  console.log(`moved ${out.filter((x, i) => x.train && !shared[i].train).length} to the training set (now ${trained}); held out: ${all.length - trained}`);
+  const own = all.filter((x) => found.has(x.q) && !shared.some((y) => y.set === x.set && y.n === x.n));
+  if (own.length) {
+    console.log(`in a set's own file, so reword the test or code that has it:\n${own.map((x) => `  scripts/heldout/${x.set}.json #${x.n}: ${x.q}`).join("\n")}`);
+    process.exit(1);
+  }
+  process.exit(0);
 }
-const { restoreSnapshotIfEmpty } = await import("../server/data/snapshot.js");
-console.log(`data: ${await restoreSnapshotIfEmpty()}`);
-const { migrate } = await import("../server/db.js");
-await migrate();
-const { ensureSearchIndex } = await import("../server/api/search.js");
-const { rebuildSearch } = await import("../server/stats/job.js");
-await ensureSearchIndex(rebuildSearch);
+const sets = all.filter((x) => !!x.train === TRAIN).filter((x) => (!SET || x.set === SET) && (!ONLY || x.q.toLowerCase().includes(ONLY)));
+// A set or a filter that matches nothing asks nothing: never a pass.
+if (!sets.length) { console.error(`no ${TRAIN ? "training" : "held-out"} questions match${SET ? ` set ${SET}` : ""}${ONLY ? ` "${ONLY}"` : ""}`); process.exit(1); }
+
+const { season, data } = await bootSearch();
+console.log(`data: ${data}`);
+const local = await localServer();
+// The team-page check needs this server: one that doesn't answer would make every comparison "not compared", a pass.
+if (!(await fetch(`${local.base}/api/health`, { signal: AbortSignal.timeout(30_000) }).then((x) => x.ok).catch(() => false))) { console.log("FAIL: the local server doesn't answer"); process.exit(1); }
 const { fold } = await import("../server/api/query/names.js");
 const { parseQuery } = await import("../server/api/query/parse.js");
 const { parseContext } = await import("../server/api/query/context.js");
-const { forecasterFor } = await import("../server/predict/engine.js");
 const { CURRENT_SEASON } = await import("../server/data/seasons.js");
-const { refreshSearchSeason } = await import("../server/api/answers/season.js");
 const { searchAnswer } = await import("../server/api/searchAnswer.js");
+const { pickedQuery } = await import("../server/api/searchPageAnswer.js");
 const { seasonLabel } = await import("../src/shared/format.js");
 const { LEXICON } = await import("../server/api/query/lexicon.js");
 
-const season = await refreshSearchSeason();
-await forecasterFor(CURRENT_SEASON);
-await forecasterFor(season);
 const FILLER = new Set(LEXICON.filter((e) => e.syms.every((x) => x.k === "filler")).flatMap((e) => e.words));
 
-type Row = { set: string; n: number; q: string; ms: number; intent: string | null; filters: string[]; place: string | null; time: string | null; card: string; stated: boolean; pattern: string; unread: string[] };
+type Row = Q & { ms: number; intent: string | null; filters: string[]; place: string | null; time: string | null; card: string; stated: boolean; pattern: string; unread: string[];
+  graded: "correct" | "wrong" | "unchecked"; wrong: string; numbers: "same" | "differ" | "not compared";
+  /** A team page the local server couldn't give, for this answer or its re-asked one: recorded whatever the verdict. */
+  pageMissing: boolean };
 const rows: Row[] = [];
+/** crosscheck's note when the team page couldn't be fetched. */
+const UNAVAILABLE = "team page unavailable";
 for (const x of sets) {
   const t = performance.now();
   const a = await searchAnswer(x.q, { learn: false, limit: 12, full: true });
@@ -94,8 +132,30 @@ for (const x of sets) {
     : leftOut || (piped && unread.length) ? "words not read"
     : "pass";
   const card = s ? `${s.title} = ${s.headline?.value ?? s.none ?? "–"}` : a.card ? `${a.card.title}${a.card.none ? ` = ${a.card.none}` : ""}` : `(${a.understood?.kind ?? "none"}) ${a.understood?.label ?? ""}`;
-  if (ONLY) console.log(JSON.stringify({ q: x.q, time: p.time, text, placeStated, timeStated }));
-  rows.push({ ...x, ms: Math.round(ms), intent: p.intent ?? s?.intent ?? null, filters: [...(s?.scope ?? [])], place, time, card, stated: placeStated && timeStated, pattern, unread });
+  // Graded once it reads as an answer: the facts a person wrote for it, and its number against the team page.
+  const live = a as unknown as Live;
+  const isAnswer = pattern === "pass";
+  const graded = (r: Live) => gradeWant(x.want, `${answerText(r)} ${JSON.stringify({ stat: r.stat, card: r.card })}`, answerSeason(r));
+  let want = isAnswer ? graded(live) : null;
+  // About another season than the one the want was written for (the default moved on): asked again in that season,
+  // as the page's season picker asks it (server/api/searchPageAnswer.ts pickedQuery), and that answer graded.
+  // Its number is checked against the team page too, as the first answer's is. The first answer's check still stands:
+  // it is the one a visitor gets, so a number on it unlike the team page's fails the question whatever the re-ask
+  // says. The re-ask stands in only for the written-answer grade.
+  let check = isAnswer ? await crosscheck(local.base, live) : { compared: false, ok: true, note: "" };
+  let pageMissing = check.note === UNAVAILABLE;
+  if (want && x.want && /answer is about/.test(want.note ?? "")) {
+    const again = (await searchAnswer(await pickedQuery(x.q, wantSeason(x.want)), { learn: false, limit: 12, full: true })) as unknown as Live;
+    want = graded(again);
+    const second = await crosscheck(local.base, again);
+    if (second.note === UNAVAILABLE) pageMissing = true;
+    if (!second.ok || (second.compared && check.ok && !check.compared)) check = second;
+  }
+  const verdict = want?.verdict === "wrong" ? "wrong answer" : !check.ok ? "numbers differ from the team page" : pattern;
+  if (ONLY) console.log(JSON.stringify({ q: x.q, time: p.time, text, placeStated, timeStated, want }));
+  rows.push({ ...x, ms: Math.round(ms), intent: p.intent ?? s?.intent ?? null, filters: [...(s?.scope ?? [])], place, time, card, stated: placeStated && timeStated, pattern: verdict, unread,
+    graded: want?.verdict ?? "unchecked", wrong: want?.verdict === "wrong" ? `missing ${want.missing.join(", ")}` : check.note,
+    numbers: check.compared ? (check.ok ? "same" : "differ") : "not compared", pageMissing });
 }
 
 if (OUT) writeFileSync(OUT, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
@@ -106,11 +166,23 @@ for (const set of [...new Set(rows.map((r) => r.set))]) {
   const of = rows.filter((r) => r.set === set);
   console.log(`${set}: ${of.filter((r) => r.pattern === "pass").length}/${of.length} pass`);
 }
-console.log(`all: ${passed}/${rows.length} pass (${((100 * passed) / Math.max(1, rows.length)).toFixed(1)}%) · season ${seasonLabel(season)}`);
+const rate = (100 * passed) / Math.max(1, rows.length);
+const wanted = rows.filter((r) => r.want), correct = wanted.filter((r) => r.graded === "correct").length, wrong = wanted.filter((r) => r.graded === "wrong").length;
+const compared = rows.filter((r) => r.numbers !== "not compared"), differ = compared.filter((r) => r.numbers === "differ").length;
+console.log(`all: ${passed}/${rows.length} pass (${rate.toFixed(1)}%) · season ${seasonLabel(season)} · ${TRAIN ? "training set" : "held out"}`);
+console.log(`graded against the written answer: ${correct} correct, ${wrong} wrong, ${wanted.length - correct - wrong} unchecked (of ${wanted.length} with one)`);
+console.log(`numbers against the team page: ${compared.length - differ} same, ${differ} differ (of ${compared.length} compared)`);
 for (const [k, rs] of [...by].sort((a, b) => b[1].length - a[1].length)) {
   console.log(`\n${k}: ${rs.length}`);
-  if (k !== "pass") for (const r of rs) console.log(`  ${r.set}#${r.n} "${r.q}" → ${r.card}${r.unread.length ? ` · unread ${r.unread.join(" ")}` : ""}`);
+  if (k !== "pass") for (const r of rs) console.log(`  ${r.set}#${r.n} "${r.q}" → ${r.card}${r.unread.length ? ` · unread ${r.unread.join(" ")}` : ""}${r.wrong ? ` · ${r.wrong}` : ""}`);
 }
 const slowest = Math.max(0, ...rows.map((r) => r.ms));
 console.log(`\nslowest answer ${slowest} ms`);
+if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify({ pass: passed, total: rows.length, rate: +rate.toFixed(1), correct, wrong, wanted: wanted.length, compared: compared.length, differ, slowest }));
+local.close();
+// A team page the local server couldn't give is a broken run, never a silent "not compared".
+const unavailable = rows.filter((r) => r.pageMissing);
+if (unavailable.length) { console.log(`\nFAIL: the team page was unavailable for ${unavailable.length} answers (${unavailable.slice(0, 3).map((r) => `"${r.q}"`).join(", ")})`); process.exit(1); }
+// The CI floor (--min): a pass rate under it fails the run.
+if (MIN != null && rate < Number(MIN)) { console.log(`\nFAIL: ${rate.toFixed(1)}% is under the ${MIN}% minimum`); process.exit(1); }
 process.exit(0);
