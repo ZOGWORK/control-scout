@@ -35,6 +35,7 @@ export async function bootSearch(): Promise<{ season: number; data: string }> {
 export async function localServer(): Promise<{ base: string; close: () => void }> {
   const { createApp } = await import("../server/app.js");
   const server = createApp({ searchesPerMinute: 1_000_000 }).listen(0, "127.0.0.1");
-  await new Promise((r) => server.once("listening", r));
+  // A port that can't be taken rejects, never leaves the run waiting.
+  await new Promise<void>((ok, fail) => { server.once("listening", () => ok()); server.once("error", fail); });
   return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, close: () => server.close() };
 }

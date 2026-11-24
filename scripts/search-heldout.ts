@@ -37,8 +37,18 @@ type Q = { set: string; n: number; q: string; want?: string };
 const HELD = join(import.meta.dirname, "search-heldout.json"), TRAINING = join(import.meta.dirname, "search-train.json");
 const read = (f: string): Q[] => JSON.parse(readFileSync(f, "utf8"));
 const text = (xs: Q[]) => `[\n${xs.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`;
-/** Both files written in full first, then each moved into place: a failed write never loses a question. */
-const writeBoth = (sets: [string, Q[]][]) => { for (const [f, xs] of sets) writeFileSync(`${f}.tmp`, text(xs)); for (const [f] of sets) renameSync(`${f}.tmp`, f); };
+/** Both files written in full first, then each moved into place; if any step fails, both are put back as they were,
+ *  so a question is never lost and never left in both sets. */
+const writeBoth = (sets: [string, Q[]][]) => {
+  const before = sets.map(([f]) => [f, readFileSync(f, "utf8")] as const);
+  try {
+    for (const [f, xs] of sets) writeFileSync(`${f}.tmp`, text(xs));
+    for (const [f] of sets) renameSync(`${f}.tmp`, f);
+  } catch (e) {
+    for (const [f, was] of before) writeFileSync(f, was);
+    throw e;
+  }
+};
 /** A --min that isn't a number would turn the floor off: refused instead. */
 if (MIN != null && !Number.isFinite(Number(MIN))) { console.log(`FAIL: --min ${MIN} is not a number`); process.exit(1); }
 
@@ -69,8 +79,12 @@ const FILLER = new Set(LEXICON.filter((e) => e.syms.every((x) => x.k === "filler
 const sets = read(TRAIN ? TRAINING : HELD).filter((x) => (!SET || x.set === SET) && (!ONLY || x.q.toLowerCase().includes(ONLY)));
 
 type Row = Q & { ms: number; intent: string | null; filters: string[]; place: string | null; time: string | null; card: string; stated: boolean; pattern: string; unread: string[];
-  graded: "correct" | "wrong" | "unchecked"; wrong: string; numbers: "same" | "differ" | "not compared" };
+  graded: "correct" | "wrong" | "unchecked"; wrong: string; numbers: "same" | "differ" | "not compared";
+  /** A team page the local server couldn't give, for this answer or its re-asked one: recorded whatever the verdict. */
+  pageMissing: boolean };
 const rows: Row[] = [];
+/** crosscheck's note when the team page couldn't be fetched. */
+const UNAVAILABLE = "team page unavailable";
 for (const x of sets) {
   const t = performance.now();
   const a = await searchAnswer(x.q, { learn: false, limit: 12, full: true });
@@ -121,17 +135,19 @@ for (const x of sets) {
   // as the page's season picker asks it (server/api/searchPageAnswer.ts pickedQuery), and that answer graded.
   // Its number is checked against the team page too, as the first answer's is.
   let check = isAnswer ? await crosscheck(local.base, live) : { compared: false, ok: true, note: "" };
+  let pageMissing = check.note === UNAVAILABLE;
   if (want && x.want && /answer is about/.test(want.note ?? "")) {
     const again = (await searchAnswer(await pickedQuery(x.q, wantSeason(x.want)), { learn: false, limit: 12, full: true })) as unknown as Live;
     want = graded(again);
     const second = await crosscheck(local.base, again);
+    if (second.note === UNAVAILABLE) pageMissing = true;
     if (!second.ok || (second.compared && check.ok && !check.compared)) check = second;
   }
   const verdict = want?.verdict === "wrong" ? "wrong answer" : !check.ok ? "numbers differ from the team page" : pattern;
   if (ONLY) console.log(JSON.stringify({ q: x.q, time: p.time, text, placeStated, timeStated, want }));
   rows.push({ ...x, ms: Math.round(ms), intent: p.intent ?? s?.intent ?? null, filters: [...(s?.scope ?? [])], place, time, card, stated: placeStated && timeStated, pattern: verdict, unread,
     graded: want?.verdict ?? "unchecked", wrong: want?.verdict === "wrong" ? `missing ${want.missing.join(", ")}` : check.note,
-    numbers: check.compared ? (check.ok ? "same" : "differ") : "not compared" });
+    numbers: check.compared ? (check.ok ? "same" : "differ") : "not compared", pageMissing });
 }
 
 if (OUT) writeFileSync(OUT, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
@@ -157,7 +173,7 @@ console.log(`\nslowest answer ${slowest} ms`);
 if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify({ pass: passed, total: rows.length, rate: +rate.toFixed(1), correct, wrong, wanted: wanted.length, compared: compared.length, differ, slowest }));
 local.close();
 // A team page the local server couldn't give is a broken run, never a silent "not compared".
-const unavailable = rows.filter((r) => r.wrong === "team page unavailable");
+const unavailable = rows.filter((r) => r.pageMissing);
 if (unavailable.length) { console.log(`\nFAIL: the team page was unavailable for ${unavailable.length} answers (${unavailable.slice(0, 3).map((r) => `"${r.q}"`).join(", ")})`); process.exit(1); }
 // The CI floor (--min): a pass rate under it fails the run.
 if (MIN != null && rate < Number(MIN)) { console.log(`\nFAIL: ${rate.toFixed(1)}% is under the ${MIN}% minimum`); process.exit(1); }
