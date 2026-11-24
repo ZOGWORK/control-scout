@@ -391,10 +391,12 @@ const TOP_TEAMS_SAID = /\b(?:top|best|strongest)\s+(?:\d{1,2}\s+)?teams?\b/i;
 export async function leagueSearch(q: string, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const la = readLeagueAsk(q);
   if (!la) return null;
-  const season = la.last ? lastSeason() : la.season ?? currentSeason();
+  // The current season read once: a search refreshing it during the read never moves the gate below.
+  const current = currentSeason();
+  const season = la.last ? lastSeason() : la.season ?? current;
   const stat = await leagueAskAnswer(la, season, la.season != null || la.last);
   // No league by those words: the pipeline reads it. A season with nothing yet ("… in 2027") says so.
-  if (stat.none && season <= currentSeason()) return null;
+  if (stat.none && season <= current) return null;
   return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
     intent: { kind: "stat-league-standings", pattern: `[league] standings${la.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
 }
@@ -406,10 +408,11 @@ export async function conferenceSearch(q: string, opts: { full: boolean; pages: 
   // A conference's whole name alone ("East Bergen") is its table too, unless a team goes by those very words.
   const ca = readConferenceAsk(q) ?? await bareConference(q);
   if (!ca) return null;
-  const got = await conferenceAskAnswer(ca, currentSeason());
+  const current = currentSeason();
+  const got = await conferenceAskAnswer(ca, current);
   if (!got) return null;
   const { events, ...answered } = got;
-  const season = Number(/^(\d{4})/.exec(answered.scope[0] ?? "")?.[1]) || currentSeason();
+  const season = Number(/^(\d{4})/.exec(answered.scope[0] ?? "")?.[1]) || current;
   // What the answer is about, as cards under it: its tournament, then the team asked about.
   const rows = events?.length ? await all<any>(`SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE ${events.map(() => "(season = ? AND code = ?)").join(" OR ")}`, events.flatMap((e) => [e.season, e.code])) : [];
   const team = answered.team ? (await search(String(answered.team.number), 5)).find((h) => h.kind === "team" && h.ref === String(answered.team!.number)) : undefined;
