@@ -309,6 +309,9 @@ export interface SearchBoxProps {
   onPick: (h: SearchHit) => unknown;
   /** v8: this is one of the boxes Home's search glides between (search/glide.ts). */
   glide?: boolean;
+  /** Lets the page put a query in the field without searching it (Home's example chips, the moment before they glide
+   *  to /search with it, so the box that glides shows the words the results are for). */
+  fillRef?: RefObject<((text: string) => void) | null>;
   kinds?: HitKind[];
   placeholder: string;
   label: string;
@@ -434,9 +437,18 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   );
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, fieldClassName, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, initialQuery, seeAll = true, discover, examples, syncQuery, glide, wrap = false }: SearchBoxProps) {
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, fieldClassName, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, initialQuery, seeAll = true, discover, examples, syncQuery, glide, fillRef, wrap = false }: SearchBoxProps) {
   const [q, setQ] = useState(initialQuery ?? syncQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
+  // Text the page put in (fillRef): shown, not searched, until it's edited (the page is leaving with it).
+  const [filled, setFilled] = useState<string | null>(null);
+  useLayoutEffect(() => {
+    if (!fillRef) return;
+    fillRef.current = (text) => { const t = wrap ? oneLine(text) : text; setFilled(t); setQ(t); setOpen(false); };
+    return () => { fillRef.current = null; };
+  }, [fillRef, wrap]);
+  // Any other change to the text (typing, clearing, a synced query) ends it: the same words typed back later search.
+  useEffect(() => { if (filled !== null && q !== filled) setFilled(null); }, [q, filled]);
   const synced = useRef(syncQuery);
   useEffect(() => {
     if (synced.current === syncQuery) return;
@@ -445,7 +457,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     setOpen(false);
   }, [syncQuery]);
   // The page's own query, unedited: its results are on the page, so the box doesn't ask for them again.
-  const idle = syncQuery !== undefined && q === syncQuery;
+  const idle = (syncQuery !== undefined && q === syncQuery) || (filled !== null && q === filled);
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
   // v8 (the page plan): the top hit is highlighted as soon as current results arrive, so Enter goes straight to it.
   const [active, setActive] = useState(-1);

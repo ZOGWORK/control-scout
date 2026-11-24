@@ -56,6 +56,8 @@ export type Sym =
   | { k: "list" }
   | { k: "per"; v: "match" | "event" | "rate" }
   | { k: "nopen" }
+  /** No penalty points at all, a filter on matches: "matches with no penalties", "penalty-free matches". */
+  | { k: "clean" }
   /** Only matches with video to play: "with video", "that have clips" (./matchFind.ts video). */
   | { k: "withvideo" }
   /** No losses: "undefeated", "a perfect record". */
@@ -72,6 +74,20 @@ export type Sym =
   | { k: "no-award" }
   /** A number's rise over a season, from a team's first event to its last ("fastest growing team by rating gain"). */
   | { k: "gain" };
+
+/** The FIRST Championship by its names, as every reader takes it: the lexicon's Worlds phrases below, and the regex
+ *  readers' alternation (championshipNames). No place is one of them: a city is a place to search in. */
+export const CHAMPIONSHIP_NAMES = [
+  "worlds", "world", "world champ", "world champs", "world championship", "world championships",
+  "first champ", "first champs", "first championship", "first championships",
+];
+
+/** Phrases as a regex alternation, the longest first, words apart by any spaces ("world  championship"). */
+export const phraseAlternation = (phrases: readonly string[]): string =>
+  [...phrases].sort((a, b) => b.length - a.length).map((p) => p.split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+")).join("|");
+
+/** The championship's names as a regex alternation (no group, no word edges: the reader adds its own). */
+export const championshipNames = (): string => phraseAlternation(CHAMPIONSHIP_NAMES);
 
 /** Each entry: the phrases (`|`-separated, words separated by spaces) and the symbol they mean (or several: "margin of
  *  victory" is a margin of wins only). Longer phrases win over shorter ones at the same place, so "win rate" is one
@@ -184,7 +200,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["in the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally|anywhere|in ftc", { k: "filler" }],
   // Asides and slang around a question: never part of it, nor a team's name ("just curious" is no team called Curious).
   ["only|just|just curious|curious|out of curiosity|wondering|i wonder|i was wondering|honestly|be honest|lol|lmao|bruh|da|ur|ya|yall|kinda|sorta|gonna|wanna|nah|or nah|right now|based on now|as of now|as things stand|as it stands|these days|lately|by now|if any|if there is one|if there are any|often|frequently", { k: "filler" }],
-  ["worlds|world|world championship|world championships|world champs|first championship|first champs|championship of the world|cmp|houston championship|houston", { k: "worlds" }],
+  [[...CHAMPIONSHIP_NAMES, "championship of the world", "cmp", "houston championship", "houston"].join("|"), { k: "worlds" }],
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.
   ["prediction|predictions|predicted|predict|forecast|forecasts|projected|projection|expected|expect|chance|chances|odds|chances before|chance before|odds before|probability|likely|likelihood|favourite|favorite|favored|favoured|who wins|who will win|who would win|matchup|matchups|match up|custom matchup|custom match|hypothetical matchup|hypothetical match", { k: "predict" }],
@@ -193,6 +209,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["pick|picks|pick first|first pick|second pick|third pick|draft|choose|select|choose as|select as|invite|ally with|team up with|take as|complement|complements|complementing|complementary|would be best|would be the best|would fit best|best fit|fits best|fill the gap|fills the gap|fill their gap|fill its gap", { k: "pick" }],
   ["weak|weakness|weaknesses|weaker|lacking|lacks", { k: "gap" }],
   ["should|shall", { k: "filler" }],
+  // The catalog's filler (../../../server/api/searchCatalog.ts FILLER): what no reader takes for a team, stat or place.
+  ["at this moment|quick|kindly|or what|on this site|on the site|on this website|on the website|on this app|on the app|on here", { k: "filler" }],
   ["based on|based off", { k: "prep", v: "by" }],
   // "Can 12345 make it to states": a question about what is still to come.
   ["will|would|going to|can|could", { k: "future" }],
@@ -236,7 +254,9 @@ const TABLE: [string, Sym | Sym[]][] = [
   // A number's rise over the season: "the fastest growing team by rating gain".
   ["fastest growing|gain|gained|gains|growth", { k: "gain" }],
   // Penalty points left out.
-  ["without penalties|no penalties|excluding penalties|minus penalties|penalty free|np|non penalty", { k: "nopen" }],
+  ["without penalties|no penalties|excluding penalties|minus penalties|np|non penalty", { k: "nopen" }],
+  // Matches with no penalty points at all, a filter (never the points without penalties): read before "no penalties".
+  ["with no penalties|with zero penalties|with no penalty points|with no fouls|without any penalties|without a penalty|that had no penalties|that have no penalties|that has no penalties|having no penalties|penalty free|no penalty", [{ k: "nopen" }, { k: "clean" }]],
   ["with video|with videos|with a video|with match video|with match videos|with clips|with a clip|with clip|with recording|with recordings|with a recording|with footage|that have video|that have videos|that have a video|that has video|that has a video|that have clips|that have a clip|that has a clip|having video|on video", { k: "withvideo" }],
   // Prepositions that say which slot follows.
   ["in|inside|within|during", { k: "prep", v: "in" }],
@@ -294,6 +314,8 @@ export const INFORMAL: [string, string][] = [
   ["wknd", "weekend"],
   ["nxt wk", "next week"], ["nxt week", "next week"], ["next wk", "next week"], ["lst wk", "last week"], ["last wk", "last week"], ["nxt", "next"],
   ["szn", "season"],
+  // "This" with a letter dropped or swapped ("events ths season"): three letters or fewer are never spell-checked.
+  ["ths", "this"], ["thsi", "this"], ["tis", "this"],
   // "NJ champs", "Romania champs", "world champs": the championship, as every reader reads it.
   ["champs", "championship"],
   ["ur", "your"], ["u", "you"],
