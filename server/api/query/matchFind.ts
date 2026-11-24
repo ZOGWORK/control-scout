@@ -44,6 +44,9 @@ export interface MatchFind {
   ever?: boolean;
   window?: { from: string; to: string; label: string };
   region: Region | null;
+  /** A town said ("closest matches in <town>"): events held there only, in `region` (the town's state, named as the
+   *  town). */
+  city?: string;
   level: "qual" | "playoff" | null;
   /** The finals only: a classic bracket's "F" series, a double-elimination bracket's grand final and its replay. */
   finals: boolean;
