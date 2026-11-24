@@ -35,9 +35,10 @@ export async function readClauses(q: string, now?: number, prefer?: ReadonlySet<
   const ctx = await parseContext(now, prefer);
   const parsed = await Promise.all(parts.map((s) => parseQuery(s, ctx)));
   if (!parsed.every((p) => p.symbols.some((s) => ASKS.test(s)))) return null;
-  // The first part's one team, for a part that names nothing it asks about ("… and highest score").
+  // The first part's one team, for a part that names no team of its own ("… and highest score", "… and highest score
+  // at worlds": a scope, an event or a place, narrows what's asked of that team, never a subject of its own).
   const team = parsed[0].teams.length === 1 ? parsed[0].teams[0].number : null;
-  const own = parsed.map((p) => !!(p.teams.length || p.event || p.place || p.worlds || p.states || p.leftover.length));
+  const own = parsed.map((p) => !!(p.teams.length || p.leftover.length));
   const asked = parts.map((s, i) => (i > 0 && !own[i] && team != null ? `${team} ${s}` : s));
   if (new Set(asked.map((s) => s.toLowerCase())).size !== asked.length) return null;
   // Each part's own subject: its teams, event and place.
