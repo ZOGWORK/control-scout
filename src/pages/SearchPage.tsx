@@ -15,7 +15,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
-import { BrunoAnswer, brunoKey, useBrunoAsks } from "../components/search/BrunoAnswer";
+import { BrunoAnswer, brunoKey, useBrunoAsks, type BrunoMemo } from "../components/search/BrunoAnswer";
 import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
@@ -253,6 +253,9 @@ export default function SearchPage() {
   // He had nothing to add to this question (with these preferred teams): its heading is full size again, as his slot
   // is let go. A new question or preference is pending again until he answers it.
   const askKey = brunoKey(q, prefer); // trimmed, as his card keys it
+  // His answers for this page's cards: one moving between the top and below the results (a late card or summary
+  // changes where he goes) keeps what he said instead of asking him again.
+  const [brunoMemo] = useState<BrunoMemo>(() => new Map());
   const [brunoSilent, setBrunoSilent] = useState<string | null>(null);
   const [silentFor, setSilentFor] = useState(askKey);
   if (silentFor !== askKey) { setSilentFor(askKey); setBrunoSilent(null); }
@@ -262,7 +265,7 @@ export default function SearchPage() {
   const brunoTop = brunoLeads && brunoSilent !== askKey;
   const smallHeading = !!(brunoTop || namesLine) && found && !error;
   const summary = (
-    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mb-4 lg:mb-0">
+    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
@@ -322,14 +325,14 @@ export default function SearchPage() {
           results column's width, beside where People also ask starts). */}
       {brunoTop && query && found && !error && (
         <div className={cn("mb-5", side && "lg:pr-[24rem]")} data-bruno-lead>
-          <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} lead onOutcome={onBruno} />
+          <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} lead memo={brunoMemo} onOutcome={onBruno} />
         </div>
       )}
       <h1 className={cn("mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl v8:font-sans v8:text-[1.375rem] v8:leading-7 v8:md:text-[1.375rem] v8:lg:text-[1.375rem]",
         // Under his answer, or a names list's own line: a plain label, never the page's biggest words.
         smallHeading && "v8:mt-0 v8:text-base v8:font-medium v8:leading-6 v8:tracking-normal v8:md:text-base v8:lg:text-base")} data-page-title data-heading-size={smallHeading ? "label" : undefined}>
         {/* Nothing answered (a question search can't answer yet, or nothing found): the page says sorry, once, here. */}
-        {!query ? "Search" : ax?.notInPack && !busy && !error ? "Not in your downloaded pack" : ax?.sorry && !busy && !error ? SORRY_SENTENCE : found ? namesLine ?? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : SORRY_SENTENCE}
+        {!query ? "Search" : ax?.notInPack && !busy && !error ? "Not in your downloaded pack" : ax?.sorry && !busy && !error ? SORRY_SENTENCE : found ? (!error && namesLine) || <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : SORRY_SENTENCE}
       </h1>
       {/* Not when the heading already says the reading (a shared name's line). */}
       {v8 && query && found && !busy && !error && !namesLine && <UnderstoodLine query={query} understood={ax?.understood} className="mt-2" />}
@@ -419,7 +422,7 @@ export default function SearchPage() {
                   </div>
                 )}
                 {(apps.length > 0 || !!quality) && <div className="mt-6">{summary}</div>}
-                {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mt-6" />}
+                {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mt-6" />}
                 {clipFor && <AnswerClip about={clipFor} className="mt-6" />}
               </div>
               </div>
