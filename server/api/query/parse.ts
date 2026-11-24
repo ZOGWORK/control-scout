@@ -10,16 +10,35 @@ import { parseQuery as parseFresh, type ParseContext, type Parsed } from "../../
 
 export * from "../../../src/shared/query/parse.js";
 
-/** On a context parseContext made: the day and preferred teams it reads with (its names index is the context's own). */
+/** On a context parseContext made (stampContext): its key (the day and preferred teams it reads with; its names
+ *  index is the context's own) and the very fields that key was made for. */
 export const CONTEXT_KEY: unique symbol = Symbol("parse context key");
-type Keyed = ParseContext & { [CONTEXT_KEY]?: string };
+type Stamp = { key: string } & Pick<ParseContext, "today" | "prefer" | "isEvent" | "teamEvent" | "nearTeam">;
+type Keyed = ParseContext & { [CONTEXT_KEY]?: Stamp };
+
+/** `ctx`'s readings remembered by `key` from now on (./context.ts parseContext, once it's whole). */
+export function stampContext<C extends ParseContext>(ctx: C, key: string): C {
+  const { today, prefer, isEvent, teamEvent, nearTeam } = ctx;
+  (ctx as Keyed)[CONTEXT_KEY] = { key, today, prefer, isEvent, teamEvent, nearTeam };
+  return ctx;
+}
+
+/** The key `ctx`'s readings are remembered by: none for a context parseContext didn't make, or a copy of one with
+ *  any of those fields replaced (`{ ...ctx, prefer }`, `{ ...ctx, isEvent }`), which then reads fresh. */
+function keyOf(ctx: ParseContext): string | null {
+  const st = (ctx as Keyed)[CONTEXT_KEY];
+  if (!st) return null;
+  const same = st.today === ctx.today && st.prefer === ctx.prefer && st.isEvent === ctx.isEvent
+    && st.teamEvent === ctx.teamEvent && st.nearTeam === ctx.nearTeam;
+  return same ? st.key : null;
+}
 
 const MEMO_MS = 5_000, MEMO_MAX = 2_000;
 const memo = new WeakMap<object, Map<string, { at: number; p: Promise<Parsed> }>>();
 
 /** `raw` as the parser reads it with `ctx`: remembered MEMO_MS for a parseContext context, else read fresh. */
 export function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
-  const k = (ctx as Keyed)[CONTEXT_KEY];
+  const k = keyOf(ctx);
   if (k == null) return parseFresh(raw, ctx);
   let kept = memo.get(ctx.names);
   if (!kept) memo.set(ctx.names, (kept = new Map()));

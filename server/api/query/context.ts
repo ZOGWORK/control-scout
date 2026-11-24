@@ -8,7 +8,7 @@ import { EVENT_NAME_WORDS } from "./lexicon.js";
 import { fold, names } from "./names.js";
 import { ROSTER } from "../../data/registrations.js";
 import { all } from "../../db.js";
-import { CONTEXT_KEY, type ParseContext } from "./parse.js";
+import { stampContext, type ParseContext } from "./parse.js";
 
 const EVENT = new Set(["event"] as const);
 const KINDS = /^(?:meets?|tournaments?|events?|competitions?)$/;
@@ -26,9 +26,7 @@ export async function parseContext(now = Date.now(), prefer: ReadonlySet<string>
   const idx = await names();
   const seen = known.get(idx) ?? known.set(idx, new Map()).get(idx)!;
   const today = searchToday(now);
-  const ctx: ParseContext & { [CONTEXT_KEY]: string } = {
-    // What the parser's readings are remembered by (./parse.ts parseQuery), besides this names index.
-    [CONTEXT_KEY]: `${today}|${[...prefer].sort().join(",")}`,
+  const ctx: ParseContext = {
     names: idx,
     today,
     prefer,
@@ -54,7 +52,8 @@ export async function parseContext(now = Date.now(), prefer: ReadonlySet<string>
       return name ?? null;
     },
   };
-  return ctx;
+  // What the parser's readings are remembered by (./parse.ts parseQuery), besides this names index.
+  return stampContext(ctx, `${today}|${[...prefer].sort().join(",")}`);
 
   async function isEvent(words: string): Promise<boolean> {
     // One word an event's initialism is (two letters too: "fr"), when no team is named so.
