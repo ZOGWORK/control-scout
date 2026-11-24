@@ -447,6 +447,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     fillRef.current = (text) => { const t = wrap ? oneLine(text) : text; setFilled(t); setQ(t); setOpen(false); };
     return () => { fillRef.current = null; };
   }, [fillRef, wrap]);
+  // Any other change to the text (typing, clearing, a synced query) ends it: the same words typed back later search.
+  useEffect(() => { if (filled !== null && q !== filled) setFilled(null); }, [q, filled]);
   const synced = useRef(syncQuery);
   useEffect(() => {
     if (synced.current === syncQuery) return;

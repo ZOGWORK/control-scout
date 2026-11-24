@@ -20,7 +20,7 @@ vi.mock("../../lib/api", async (orig) => ({
 vi.mock("../ui/sonner", () => ({ toast: { success: (m: string) => toasts.push(m), error: (m: string) => toasts.push(m) } }));
 // jsdom has no ResizeObserver; Radix's Slider measures its thumbs with one.
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
-const { WashPanel } = await import("./WashPanel");
+const { WashPanel, presetSwatchImage } = await import("./WashPanel");
 
 beforeEach(() => { sent.length = 0; toasts.length = 0; document.getElementById(WASH_STYLE_ID)?.remove(); });
 afterEach(cleanup);
@@ -111,5 +111,12 @@ describe("WashPanel", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Light" }));
     expect(preview().dataset.mode).toBe("light");
     expect(preview().style.getPropertyValue("--wash-mix")).toBe(WASH_MIX.light);
+  });
+
+  it("draws the preset cards at the mix the site uses in each theme", () => {
+    for (const p of WASH_PRESETS) {
+      expect(presetSwatchImage(p.wash, "light")).toContain(`${p.wash.a} ${WASH_MIX.light}`);
+      expect(presetSwatchImage(p.wash, "dark")).toContain(`${p.wash.a} 100%`);
+    }
   });
 });
