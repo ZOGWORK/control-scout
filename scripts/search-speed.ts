@@ -13,7 +13,9 @@ const BASE = flag("base", "http://127.0.0.1:3411"), N = Number(flag("n", "12")),
 const dumped: unknown[] = [];
 type Follow = { ask: { q: string; preview: string }[]; related: { q: string; preview: string }[]; highlights?: { q: string; preview: string }; partial?: true };
 async function whole(q: string): Promise<Follow> {
+  const end = Date.now() + 120_000;
   for (;;) {
+    if (Date.now() > end) throw new Error(`follow-ups for "${q}" still partial or failing after 120 s`);
     const f = (await follow(q).catch(() => null))?.body as Follow | null;
     if (f?.ask && !f.partial) return f;
     await new Promise((ok) => setTimeout(ok, 2_000));
@@ -55,7 +57,8 @@ const pool = await teams();
 console.log(`teams: ${pool.length}`);
 const order = pool.map((t) => [rnd(), t] as const).sort((a, b) => a[0] - b[0]).map(([, t]) => t);
 let next = 0;
-const fresh = () => order[next++ % order.length];
+// Each team once: past the pool, a query could repeat one the server already made, measured as cold.
+const fresh = () => { if (next >= order.length) throw new Error(`only ${order.length} teams to ask about: use a smaller --n`); return order[next++]; };
 const shapes = [(t: number) => `${t}`, (t: number) => `${t} record`, (t: number) => `has ${t} been to worlds?`, (t: number) => `${t} last match`];
 const q = (i: number) => shapes[i % shapes.length](fresh());
 

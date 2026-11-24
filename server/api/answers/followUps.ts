@@ -346,9 +346,11 @@ export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<
   // Each check's answer as it comes (undefined: still to run), for what's been checked so far (progress).
   const askDone: (SearchAnswer | null | undefined)[] = askC.map(() => undefined);
   const offDone: (SearchAnswer | null | undefined)[] = shown.map(() => undefined);
-  // The questions first, then the page's own searches (read only to leave out questions that repeat them).
-  const askP = askC.map((c, i) => run(c.run).then((x) => (askDone[i] = x)));
+  // The page's own searches first (read only to leave out questions that repeat them), then the questions: in one
+  // lane they run in this order, so any question checked so far is checked against all of them, and what's sent
+  // partial is always the first of the whole set's questions.
   const offP = shown.map((x, i) => run(x).then((y) => (offDone[i] = y)));
+  const askP = askC.map((c, i) => run(c.run).then((x) => (askDone[i] = x)));
   const seenOf = (offered: (SearchAnswer | null | undefined)[]) => new Set([a, ...offered].flatMap((x) => (x ? [answerKey(x).toLowerCase()] : [])));
   const view = (x: Omit<SearchFollowUp, "q"> & { run: string }): SearchFollowUp => ({ q: x.run, family: x.family, preview: x.preview, value: x.value, rest: x.rest, tone: x.tone });
   // The team's standout matches, beside the answer on a wide screen: the team asked about, else the one its answer is
@@ -357,8 +359,8 @@ export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<
   const about = p.teams[0]?.number ?? answerTeam(a);
   const lone = loneTeamHit(a);
   const lights = about != null && !(lone && Number(lone.ref) === about);
-  // What's been checked so far: the questions up to the first still running (they run in order, so these are the
-  // first of the whole set's), less those that repeat a page's own search checked so far.
+  // What's been checked so far: the questions up to the first still running (they run in order, after the page's
+  // own searches, so these are the first of the whole set's).
   if (progress) progress.now = () => {
     const upto = askDone.indexOf(undefined);
     const done = upto < 0 ? askDone.length : upto;
