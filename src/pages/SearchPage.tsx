@@ -50,7 +50,7 @@ import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, w
 import { headingOver, namesSaid, unreadNote } from "../shared/searchPage";
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
-import type { SearchHit, TeamSummary } from "../shared/api";
+import type { SearchClause, SearchHit, TeamSummary } from "../shared/api";
 import { BOOT_HITS } from "../lib/searchBoot";
 import { handedAnswer, forgetHandoff } from "../components/search/handoff";
 import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta";
@@ -60,6 +60,22 @@ import { Verdict } from "../components/search/page/Verdict";
 import { PeopleAlsoAsk, PeopleAlsoAskPending, RelatedSearches, TeamHighlights, useFollowUps } from "../components/search/page/FollowUps";
 
 const RESULT_KINDS = new Set(["place", "team", "event", "match"]);
+
+/** A compound question's other parts ("<team> opr and <team> record"), each drawn as its own answer would be, one
+ *  under another in the order asked (server/api/query/clauses.ts). */
+function ClauseCards({ clauses }: { clauses?: SearchClause[] }) {
+  return (
+    <>
+      {clauses?.map((c, i) => (
+        <div key={`clause-${i}`} className="mt-5" data-clause={i + 2}>
+          {c.stat ? <StatAnswerCard stat={c.stat} explain={c.card} />
+            : c.card?.kind === "event-awards" ? <EventAwardsAnswer card={c.card} />
+            : c.card ? <FactCard card={c.card} /> : null}
+        </div>
+      ))}
+    </>
+  );
+}
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams();
@@ -426,6 +442,8 @@ export default function SearchPage() {
                   : answer?.card?.kind === "event-awards" ? <EventAwardsAnswer card={answer.card} heading={title ?? undefined} />
                   : answer?.card && !inStat ? <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />
                   : null}
+                {/* A compound question's other parts, each its own card, in the order asked. */}
+                <ClauseCards clauses={answer?.clauses} />
                 {!answer?.stat && !answer?.card && !teamAnswer && <AnswerVideo className="mt-0 max-sm:mx-0" />}
                 {reel === "under" && <HighlightReel stat={answer!.stat!} className="mt-5" />}
                 <FollowChips lead={ax?.sorry ? [] : ax?.suggest} ask={askAside ? [] : follow.ask} related={follow.related} seeAll={follow.asked ?? query} className={answer?.stat || answer?.card || teamAnswer ? "mt-4" : "mb-1"} />
@@ -491,6 +509,8 @@ export default function SearchPage() {
                     <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} headline={answer!.card!.headline} trip={answer!.card!.trip} apps={apps} />
                   ) : answer?.card?.kind === "event-awards" ? <EventAwardsAnswer card={answer.card} heading={title ?? undefined} />
                     : answer?.card && !inStat && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
+                  {/* A compound question's other parts, each its own card, in the order asked. */}
+                  <ClauseCards clauses={answer?.clauses} />
                   {/* A match or event searched by name (no answer card): its video above the results (./search/page/AnswerVideo.tsx). */}
                   {!answer?.stat && !answer?.card && <AnswerVideo className="mb-5 mt-0 max-sm:mx-0" />}
                   {!!compares.length && (

@@ -8,6 +8,7 @@ import { findRegions, nearRegion } from "../../../src/shared/regions.js";
 import { countryOf } from "../../../src/shared/countries.js";
 import { SEASONS } from "../../data/seasons.js";
 import { currentSeason, lastSeason } from "./season.js";
+import { championshipNames } from "../../../src/shared/query/lexicon.js";
 
 /** "over 100", "less than 10", "at least 3": a comparison with a number. */
 export interface Threshold { op: "gt" | "ge" | "lt" | "le"; value: number }
@@ -128,7 +129,7 @@ function readList(said: string): CompoundQuestion | null {
   // Gone to Worlds, or not ("did not make worlds", "never went to worlds").
   const NOT = String.raw`(?:did\s*n[o']?t|didnt|never|not|have\s*n[o']?t|has\s*n[o']?t|failed\s+to)\s+`;
   const WENT = String.raw`(?:(?:went|go|gone|been|qualified|qualify|advanced|advance|made\s+it|make\s+it|competed|compete|played|play|were|was)\s+(?:to|at|for|in)|made|make|makes|reached|reach)`;
-  const WORLDS = String.raw`\s+(?:the\s+)?(?:worlds?|world championships?|first championship|houston)(?:\s+(?:in|during)?\s*(20\d\d)(?:\s*[-–/]\s*(\d\d))?)?\b`;
+  const WORLDS = String.raw`\s+(?:the\s+)?(?:${championshipNames()})(?:\s+(?:in|during)?\s*(20\d\d)(?:\s*[-–/]\s*(\d\d))?)?\b`;
   const nwd = take(new RegExp(String.raw`\b${WHO}${NOT}${WENT}${WORLDS}`));
   const wd = nwd ? null : take(new RegExp(String.raw`\b${WHO}${WENT}${WORLDS}`))
     ?? take(/\b(?:worlds?|first championship)\s+(?:teams?|qualifiers?|attendees?)(?:\s+(?:in|during)?\s*(20\d\d)(?:\s*[-–/]\s*(\d\d))?)?\b/);
