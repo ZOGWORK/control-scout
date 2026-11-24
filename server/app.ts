@@ -450,7 +450,9 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
       // What was sent, for a result opened from it (POST /search/click) to be checked without searching again.
-      noteServed(String(req.query.q ?? ""), ans.intent, ans.hits);
+      // Only the plain answer (no preferred teams, My team or picked season): the one the old re-search gave, so a
+      // personal answer never vouches for a click on someone else's.
+      if (!prefer.size && req.query.my == null && req.query.season == null) noteServed(String(req.query.q ?? ""), ans.intent, ans.hits);
       const at = Date.now();
       // Failed searches → GitHub issues (server/searchFailures.ts): after the answer, in memory only, never awaited.
       // The key is the failure's pattern (patternFor, worked out only for an answer that failed), else search's own
@@ -556,8 +558,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // What /api/search (or /refine) sent for this query lately (server/api/searchServed.ts): no second search per
       // click. A query it doesn't know, or a result it didn't see sent (shown from the page's first paint, say), is
       // searched again as before.
-      const seen = servedHit(q, kind, ref);
-      const known = seen?.hit ? seen : null;
+      const known = servedHit(q, kind, ref);
       const a = known ? null : await searchAnswer(q, { learn: false, limit: 25 });
       const found = a ? a.hits.find((x) => x.kind === kind && x.ref === ref) : known!.hit;
       const hit = found ? { kind: found.kind, ref: found.ref, href: !!found.href } : null;
@@ -819,7 +820,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   // yet this season): one request, where the page used to send a second for it.
   api.get("/teams-summary", h(async (req) => {
     const s = season(req.query.season), teams = teamList(req.query.teams, "teams", 100);
-    if (req.query.before !== "1") return { season: s, teams: await teamSummaries(teams, s) };
+    // The first covered season has no season before it to send (a direct ?season= for it is a 404).
+    if (req.query.before !== "1" || !SEASON_NUMBERS.includes(s - 1)) return { season: s, teams: await teamSummaries(teams, s) };
     const [now, before] = await Promise.all([teamSummaries(teams, s), teamSummaries(teams, s - 1)]);
     return { season: s, teams: now, before: { season: s - 1, teams: before } };
   }));
