@@ -59,7 +59,7 @@ import { chatAnswer } from "./answers/chat.js";
 import { fold, names } from "./query/names.js";
 import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
-import { eventPlace, normalise, parseQuery, respell } from "./query/parse.js";
+import { eventPlace, normalise, mayRespell, parseQuery, respell } from "./query/parse.js";
 import { EVENT_FIT, parseContext } from "./query/context.js";
 import { pickShared, whichLine } from "./query/shared.js";
 import { withPage } from "./answers/teamsNamed.js";
@@ -266,7 +266,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // Search words typed one letter off ("4215 recrod"), as the query parser fixes them: every reader reads them as meant
   // from the start, silently (no "Did you mean"), the answer keeping the query as typed. A check on the words alone
   // first, so a query with none is never parsed for it.
-  if (!opts.respelled && opts.intents !== false && !opts.rewrites) {
+  if (!opts.respelled && opts.intents !== false && !opts.rewrites && mayRespell(String(raw ?? ""))) {
     const meant = await respell(String(raw ?? ""), await parseContext(opts.now, opts.prefer));
     if (meant) return { ...(await searchAnswer(meant, { ...opts, respelled: true })), q: cleanQuery(raw) };
   }
