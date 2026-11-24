@@ -5,7 +5,8 @@
 //   - a card at all: a team card, a list of names or a fallback alone is a fail
 // and the pass rate printed by pattern. A card is not yet a pass (audit M2, 24 Nov): the answer is also graded
 //   - against the answer a person wrote for it, where there is one (`want`, the q260 set's): every checkable fact in
-//     it, a record, a decimal, a rank or a short want's names, is in the answer (./search-heldout-grade.ts);
+//     it that stays true, a record, a decimal or a short want's names (never a rank or a rating, which move), is in
+//     the answer (./search-heldout-grade.ts);
 //   - its headline number against the team page's own API (./search-signoff/crosscheck.ts), over a local server on
 //     the same snapshot.
 // A wrong fact is "wrong answer", a number unlike the team page's "numbers differ from the team page".
@@ -50,6 +51,8 @@ if (process.argv.includes("--split")) {
 const { season, data } = await bootSearch();
 console.log(`data: ${data}`);
 const local = await localServer();
+// The team-page check needs this server: one that doesn't answer would make every comparison "not compared", a pass.
+if (!(await fetch(`${local.base}/api/health`).then((x) => x.ok).catch(() => false))) { console.log("FAIL: the local server doesn't answer"); process.exit(1); }
 const { fold } = await import("../server/api/query/names.js");
 const { parseQuery } = await import("../server/api/query/parse.js");
 const { parseContext } = await import("../server/api/query/context.js");
@@ -147,6 +150,9 @@ const slowest = Math.max(0, ...rows.map((r) => r.ms));
 console.log(`\nslowest answer ${slowest} ms`);
 if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify({ pass: passed, total: rows.length, rate: +rate.toFixed(1), correct, wrong, wanted: wanted.length, compared: compared.length, differ, slowest }));
 local.close();
+// A team page the local server couldn't give is a broken run, never a silent "not compared".
+const unavailable = rows.filter((r) => r.wrong === "team page unavailable");
+if (unavailable.length) { console.log(`\nFAIL: the team page was unavailable for ${unavailable.length} answers (${unavailable.slice(0, 3).map((r) => `"${r.q}"`).join(", ")})`); process.exit(1); }
 // The CI floor (--min): a pass rate under it fails the run.
 if (MIN != null && rate < Number(MIN)) { console.log(`\nFAIL: ${rate.toFixed(1)}% is under the ${MIN}% minimum`); process.exit(1); }
 process.exit(0);
