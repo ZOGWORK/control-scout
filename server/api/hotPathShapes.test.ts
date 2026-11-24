@@ -151,4 +151,13 @@ describe("hot-path API responses", () => {
       expect(now[p].body, p).toEqual(before[p].body);
     }
   });
+  it("Bruno's budget: a question the search started him on costs the visitor one ask, not two", async () => {
+    const q = encodeURIComponent("why is 101 good at auto");
+    await fetch(`${base}/api/search?q=${q}&limit=25&answer=1&bruno=1`);
+    // The page's own asks for it: the first joins the early start's, then the visitor's 20 a minute.
+    const codes: number[] = [];
+    for (let i = 0; i < 21; i++) codes.push((await fetch(`${base}/api/search/bruno?q=${q}`)).status);
+    expect(codes.slice(0, 20).every((c) => c !== 429)).toBe(true);
+    expect(codes[20]).toBe(429);
+  });
 });

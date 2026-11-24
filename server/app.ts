@@ -437,7 +437,16 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   }));
 
   // Bruno's model calls, per visitor: his own route (/search/bruno) and the early start /search gives him share it.
+  // An early start pays for its question once: the page's own ask for it (same visitor, words and preferred teams)
+  // joins that answer and spends nothing more (`prepaid`, kept two minutes).
   const brunoBudget = limiter(20);
+  const prepaid = new Map<string, number>();
+  const brunoAsk = (req: Request) => `${visitorIp(req)}|${String(req.query.q ?? "").trim().toLowerCase()}|${String(req.query.prefer ?? "")}`;
+  const brunoSpend = (req: Request, res: Response, next: NextFunction) => {
+    const k = brunoAsk(req), at = prepaid.get(k);
+    if (at != null && Date.now() - at < 120_000) { prepaid.delete(k); next(); return; }
+    brunoBudget(req, res, next);
+  };
   api.get("/search", searches, h(async (req, res) => {
     const started = performance.now();
     await ensureSearchIndex(rebuildSearch);
@@ -466,7 +475,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       if (req.query.bruno === "1" && req.query.season == null && ans.chat !== "follow-up" && !(!ans.weak && (ans.card || ans.stat))) {
         // Only a question he'd answer, and only within the visitor's Bruno budget (the same one his route spends).
         const raw = String(req.query.q ?? "");
-        if (isBrunoQuestion(raw.trim().slice(0, 200)) && brunoBudget.take(req)) void brunoAnswer(raw, { prefer, limit: SEARCH_PAGE_LIMIT }).catch(() => {});
+        if (isBrunoQuestion(raw.trim().slice(0, 200)) && brunoBudget.take(req)) {
+          if (prepaid.size > 5000) prepaid.clear();
+          prepaid.set(brunoAsk(req), Date.now());
+          void brunoAnswer(raw, { prefer, limit: SEARCH_PAGE_LIMIT }).catch(() => {});
+        }
       }
       // An answer any visitor shares: counted, so the next process makes it before it answers (./api/searchWarm.ts).
       if (!prefer.size && my == null) noteAsked(q, limit);
@@ -542,7 +555,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
 
   // Bruno's written answer to a question on /search (server/api/searchBrunoAnswer.ts): asked by the page after its
   // results are on screen. 204: no answer (not a question, off, unconfigured, failed, or nothing he could say from the facts).
-  api.get("/search/bruno", brunoBudget, h(async (req, res) => {
+  api.get("/search/bruno", brunoSpend, h(async (req, res) => {
     await ensureSearchIndex(rebuildSearch);
     // The page's own search choices (its preferred teams), so he reads the results the page shows.
     const q = String(req.query.q ?? "");
