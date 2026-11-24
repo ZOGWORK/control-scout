@@ -18,6 +18,7 @@ import { isEnabled } from "../flags.js";
 import { answerVideo } from "./answers/video.js";
 import { normalize } from "./fuzzy.js";
 import { cleanQuery, searchAnswer, type AnswerOptions } from "./searchAnswer.js";
+import { chatWords, pointsBack } from "./query/chat.js";
 
 export const BRUNO_ANSWER_TIMEOUT_MS = 12_000;
 /** At most this many facts, and this much text in all: a small, fast prompt. */
@@ -170,17 +171,30 @@ export function ungrounded(text: string, facts: string[], question: string): str
   return numbers(text).filter((n) => !known.has(n) && !known.has(n.replace(/\.0+$/, "")));
 }
 
+/** The page's search choices, and `after`: the search a follow-up points back at ("was that the same in all the
+ *  matches you said": the tab's last search), whose answer gives his facts. Taken only for a follow-up
+ *  (./query/chat.ts pointsBack), so every other question is answered from its own search as before. */
+export type BrunoOptions = Pick<AnswerOptions, "prefer" | "limit" | "learn"> & { after?: string };
+
+/** The earlier search a follow-up reads, or null: only for a question that points back, never the question itself. */
+export function followUpOf(q: string, after: string | undefined): string | null {
+  const a = cleanQuery(String(after ?? "").slice(0, 200));
+  if (!a || normalize(a) === normalize(q) || !pointsBack(chatWords(q))) return null;
+  return a;
+}
+
 /**
  * Bruno's answer to the question `raw`, or null (not a question, off, unconfigured, nothing to say, failed the
  * check). `flag`: the switch that allows him here (the website's brunoAnswers; the Discord bot's own discordBruno). `opts`: the page's own search choices (its preferred teams, its limit), so he reads the results it shows.
  */
-export async function brunoAnswer(raw: string, opts: Pick<AnswerOptions, "prefer" | "limit" | "learn"> = {}, now = Date.now(), onPreview?: BrunoPreview, flag: "brunoAnswers" | "discordBruno" = "brunoAnswers"): Promise<BrunoAnswer | null> {
+export async function brunoAnswer(raw: string, opts: BrunoOptions = {}, now = Date.now(), onPreview?: BrunoPreview, flag: "brunoAnswers" | "discordBruno" = "brunoAnswers"): Promise<BrunoAnswer | null> {
   // A question by its "?" too ("hypnotic opr?"): read before cleaning, which drops it.
   const q = cleanQuery(raw);
   if (!q || !isBrunoQuestion(raw.trim().slice(0, 200))) return null;
   if (!(await isEnabled(flag).catch(() => false)) || !brunoAvailable()) return null;
   // `learn: false` (the Discord bot): his facts come from the same unlearned search the bot shows, kept apart.
-  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}`;
+  const after = followUpOf(q, opts.after);
+  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}${after ? `|after:${normalize(after)}` : ""}`;
   const hit = cache.get(k);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.answer;
   let flight = pending.get(k);
@@ -189,7 +203,7 @@ export async function brunoAnswer(raw: string, opts: Pick<AnswerOptions, "prefer
     // Streamed only while a page watches it; the model call is the same either way.
     const show: BrunoPreview = (p) => { f.preview = p; for (const w of f.watchers) w(p); };
     // Only its own entry: a reset while it ran may have let a newer ask take the key.
-    f.answer = ask(q, opts, k, now, onPreview ? show : undefined).finally(() => { if (pending.get(k) === f) pending.delete(k); f.watchers.clear(); });
+    f.answer = ask(q, { ...opts, after: after ?? undefined }, k, now, onPreview ? show : undefined).finally(() => { if (pending.get(k) === f) pending.delete(k); f.watchers.clear(); });
     pending.set(k, f);
     flight = f;
   } else if (onPreview && flight.preview) onPreview(flight.preview);
@@ -259,8 +273,12 @@ export function previewOf(raw: string, facts: string[], question: string): Bruno
   return grounded([shown.text, ...shown.points].join(" "), facts, question) ? shown : undefined;
 }
 
-async function ask(q: string, opts: Pick<AnswerOptions, "prefer" | "limit" | "learn">, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
-  const facts = await answerFacts(await searchAnswer(q, { ...opts, learn: opts.learn ?? true }));
+async function ask(q: string, opts: BrunoOptions, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
+  const { after, ...search } = opts;
+  // A follow-up is answered from the search it points back at: that search's facts, said as its.
+  const facts = after
+    ? [`This question follows up the earlier search "${after}": the facts below are that search's answer.`, ...(await answerFacts(await searchAnswer(after, { ...search, learn: search.learn ?? true })))]
+    : await answerFacts(await searchAnswer(q, { ...search, learn: search.learn ?? true }));
   let answer: BrunoAnswer | null = null;
   try {
     // Streamed for a page that watches: each new checked part goes to it; once a part fails the check, the page is

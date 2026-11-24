@@ -287,6 +287,24 @@ A search nothing answers (`NoResults.tsx`) says what's missing in one sentence, 
 as full cards, and offers searches that answer about them, plus the browse links. What the query was understood as is
 a `data-understood` attribute only, never page text (§7).
 
+## Chat and off-topic
+
+A query search finds nothing in may not be a search of FTC data at all (`server/api/query/chat.ts`, words in
+`CHAT_WORDS` in the lexicon). Read only when the readers found no answer, so an answered query never changes:
+
+- **follow-up**: it points back at an earlier answer ("… the matches you said here", "your last answer"). Its card
+  says search reads each search on its own and needs the team or event. /search keeps the tab's last answered search
+  (`src/lib/lastSearch.ts`, sessionStorage) and asks Bruno with it (`after`): he answers from that search's records.
+  A spelling's guess never stands in for it ("said" read as another word).
+- **meta**: addressed to the site or Bruno ("who made you"), with no data word: what Control Scout and Bruno are,
+  in the FAQ's words.
+- **off-topic**: where to get something ("where do i get a <part>"), with no data word: not in FTC results, and where
+  FIRST's rules for robot parts are.
+- **reaction**: laughter or thanks with no data word ("lol"): nothing to look up, never teams sharing a word with it.
+
+A data word is a number or any lexicon phrase that isn't filler. Each answer is a card (`SearchAnswer.chat`), so it
+isn't filed as a failed search again.
+
 ## Held-out sets
 
 `npm run search:heldout` (`scripts/search-heldout.ts`) asks the questions people wrote for search and that search was

@@ -16,6 +16,7 @@ import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
 import { BrunoAnswer, brunoKey, useBrunoAsks, type BrunoMemo } from "../components/search/BrunoAnswer";
+import { lastSearch, rememberSearch } from "../lib/lastSearch";
 import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
@@ -218,7 +219,14 @@ export default function SearchPage() {
   const aboutTeam = answer?.card?.team?.number ?? (quality && topTeam ? Number(topTeam.ref) : null);
   // Search answered it directly (a card or a stat answer, not a guess): Bruno isn't asked, so the page never shows his
   // card and the answer saying the same thing twice.
-  const answered = !!answer && !answer.weak && !!(answer.card || answer.stat);
+  // A question pointing back at an earlier answer ("… the matches you said", server/api/query/chat.ts): read with this
+  // tab's last search, Bruno answers it from that search's records, above the card saying search reads each search
+  // alone. With no last search, the card says it needs the team or event, and he isn't asked.
+  const followFrom = useMemo(() => (answer?.chat === "follow-up" ? lastSearch(query) : null), [answer?.chat, query]);
+  // Every other search the tab answered is the one a follow-up after it reads.
+  const settled = !!query && !busy && !stale && !error && !!answer && !answer.chat && found;
+  useEffect(() => { if (settled) rememberSearch(query); }, [settled, query]);
+  const answered = !!answer && !answer.weak && !!(answer.card || answer.stat) && !followFrom;
   // v8: a question search has no direct answer to (a names reading, a list, a fallback) is Bruno's to answer: his card
   // leads the page, its slot held from the first frame (the owner, 11-23). A computed summary keeps his card where it was.
   const brunoAsks = useBrunoAsks(q, answered);
@@ -252,7 +260,7 @@ export default function SearchPage() {
   const brunoLeads = v8 && brunoAsks && !apps.length && !quality && !mayStand;
   // He had nothing to add to this question (with these preferred teams): its heading is full size again, as his slot
   // is let go. A new question or preference is pending again until he answers it.
-  const askKey = brunoKey(q, prefer); // trimmed, as his card keys it
+  const askKey = brunoKey(q, prefer, followFrom ?? ""); // trimmed, as his card keys it
   // His answers for this page's cards: one moving between the top and below the results (a late card or summary
   // changes where he goes) keeps what he said instead of asking him again.
   const [brunoMemo] = useState<BrunoMemo>(() => new Map());
@@ -268,7 +276,7 @@ export default function SearchPage() {
   const brunoTop = brunoLeads && brunoSilent !== askKey;
   const smallHeading = !!(brunoTop || namesLine) && found && !error;
   const summary = (
-    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mb-4 lg:mb-0">
+    <BrunoAnswer q={q} prefer={prefer} after={followFrom ?? undefined} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
@@ -328,7 +336,7 @@ export default function SearchPage() {
           results column's width, beside where People also ask starts). */}
       {brunoTop && query && found && !error && (
         <div className={cn("mb-5", side && "lg:pr-[24rem]")} data-bruno-lead>
-          <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} lead memo={brunoMemo} onOutcome={onBruno} />
+          <BrunoAnswer q={q} prefer={prefer} after={followFrom ?? undefined} ready={!busy && !stale} answered={answered} lead memo={brunoMemo} onOutcome={onBruno} />
         </div>
       )}
       <h1 className={cn("mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl v8:font-sans v8:text-[1.375rem] v8:leading-7 v8:md:text-[1.375rem] v8:lg:text-[1.375rem]",
@@ -339,6 +347,12 @@ export default function SearchPage() {
       </h1>
       {/* Not when the heading already says the reading (a shared name's line). */}
       {v8 && query && found && !busy && !error && !namesLine && <UnderstoodLine query={query} understood={ax?.understood} className="mt-2" />}
+      {/* A follow-up: the search it was read with, a tap back to it. */}
+      {followFrom && found && !busy && !error && (
+        <p className="mt-1.5 break-words text-xs text-muted-foreground" data-follow-from>
+          Read with your last search: <Link to={`/search?q=${encodeURIComponent(followFrom)}`} className="font-medium text-foreground underline-offset-2 hover:underline">{followFrom}</Link>
+        </p>
+      )}
       {badge && !v8 && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground v8:bg-transparent v8:text-muted-foreground" data-context-badge>
           <ScanSearch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span className="min-w-0 break-words">{badge}</span>
@@ -425,7 +439,7 @@ export default function SearchPage() {
                   </div>
                 )}
                 {(apps.length > 0 || !!quality) && <div className="mt-6">{summary}</div>}
-                {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mt-6" />}
+                {!(apps.length > 0 || !!quality) && !brunoLeads && <BrunoAnswer q={q} prefer={prefer} after={followFrom ?? undefined} ready={!busy && !stale} answered={answered} memo={brunoMemo} className="mt-6" />}
                 {clipFor && <AnswerClip about={clipFor} className="mt-6" />}
               </div>
               </div>

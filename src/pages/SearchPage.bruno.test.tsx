@@ -99,6 +99,29 @@ describe("Bruno leading the v8 page", () => {
     expect(related.querySelector("h2")!.textContent).toBe("Related searches");
     expect([...related.querySelectorAll("[data-follow-chip]")].slice(0, 2).map((c) => c.textContent)).toEqual(["is 12096 a real team", "is 13048 a real team"]);
   });
+  // Logged #2214/#2210: a question pointing back at an earlier answer ("… the matches u said here").
+  const FOLLOW = "was that the same auto points in all the matches u said here";
+  const follow = () => answer(FOLLOW, [], { chat: "follow-up", card: card("info", "A question about an earlier answer", undefined, [{ text: "Search reads each search on its own, so it can't see what it answered before", detail: "Ask again with the team or event in it" }]), understood: { kind: "question", label: "A question about an earlier answer" } });
+  it("a follow-up asks him with the tab's last search, said under the heading", async () => {
+    sessionStorage.setItem("cs-last-search", "4215 auto points");
+    says.text = "Yes, 4215 scored the same auto points in each match.";
+    state.answer = follow();
+    const { container } = show(FOLLOW);
+    await settle();
+    expect(asked.at(-1)).toContain(`&after=${encodeURIComponent("4215 auto points")}`);
+    expect(container.querySelector("[data-bruno-lead] [data-bruno-verdict]")).not.toBeNull();
+    expect(container.querySelector("[data-follow-from]")!.textContent).toBe("Read with your last search: 4215 auto points");
+    sessionStorage.clear();
+  });
+  it("a follow-up with no last search is the card alone, saying it needs the team or event", async () => {
+    sessionStorage.clear();
+    state.answer = follow();
+    const { container } = show(FOLLOW);
+    await settle();
+    expect(asked).toHaveLength(0);
+    expect(container.querySelector("[data-follow-from]")).toBeNull();
+    expect(container.textContent).toContain("Ask again with the team or event in it");
+  });
   it("lets his slot go and gives the heading its size back when he has nothing to add", async () => {
     says.text = null;
     state.answer = answer("where are the nj workshops", [ev("NJW1", "FTC NJ Multi-Track Workshops (North)")], { understood: { kind: "names", label: 'Teams, events and matches matching "nj workshops"' } } as Partial<SearchAnswer>);
