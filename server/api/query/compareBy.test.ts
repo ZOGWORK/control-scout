@@ -51,6 +51,8 @@ describe("two to four teams compared by one stat", () => {
     expect([s.title, s.headline?.value, rowsOf(s)[0]?.label, rowsOf(s).length]).toEqual(["Win rate: 30601 vs 30602 vs 30603 vs 30604, 2025–26", "30603 leads 90% – 80% – 50% – 20%", "Win rate", 6]);
     // Four teams with "vs" between every two are four sides, never two alliances.
     expect((await card("30601 vs 30602 vs 30603 vs 30604 win rate")).headline?.value).toBe("30603 leads 90% – 80% – 50% – 20%");
+    // A record reads as one, the best win share leading.
+    expect((await card("30601 vs 30602 vs 30603 record")).headline?.value).toBe("30603 leads 9-1-0 – 8-2-0 – 5-5-0");
   });
   it("fewer is better for penalties; two teams by the average score are compared the same way", async () => {
     const pen = await card("30601 vs 30602 vs 30603 penalties");

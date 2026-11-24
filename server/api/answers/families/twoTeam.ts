@@ -399,16 +399,18 @@ async function focusOf(stat: string, teams: AnswerTeam[], season: number): Promi
   if (key) return { label: b.label, key };
   const from = `FROM team_season_stats s ${b.join ?? ""} WHERE s.season = ?`;
   const [vals, top] = await Promise.all([
-    all<{ team: number; v: number | null }>(`SELECT s.team, ${b.sql} AS v ${from} AND s.team IN (${teams.map(() => "?").join(",")})`, [season, ...teams.map((t) => t.number)]),
+    all<{ team: number; v: number | null; w: number; l: number; t: number }>(`SELECT s.team, ${b.sql} AS v, s.wins AS w, s.losses AS l, s.ties AS t ${from} AND s.team IN (${teams.map(() => "?").join(",")})`, [season, ...teams.map((t) => t.number)]),
     b.unit === "%" ? null : get<{ v: number | null }>(`SELECT MAX(${b.sql}) AS v ${from} AND s.matches > 0`, [season]),
   ]);
-  const values = teams.map((t) => { const r = vals.find((x) => Number(x.team) === t.number); return r?.v == null ? null : Number(r.v); });
+  const own = teams.map((t) => vals.find((x) => Number(x.team) === t.number));
+  const values = own.map((r) => (r?.v == null ? null : Number(r.v)));
   const pct = b.unit === "%";
   const fixed = (v: number) => (b.digits ? v.toFixed(b.digits) : Math.round(v).toLocaleString("en-US"));
   const row: CompareInput = {
     label: b.label, values, better: b.fewerBetter ? "lower" : "higher",
     max: pct ? 1 : top?.v != null && Number(top.v) > 0 ? niceMax(Number(top.v)) : null,
-    show: (v) => (v == null ? "–" : pct ? `${Math.round(100 * v)}%` : fixed(v)),
+    // A record reads as one (W-L-T), ranked by its win share; any other share as a percentage.
+    show: (v, i) => (v == null ? "–" : stat === "record" && own[i] ? `${own[i]!.w}-${own[i]!.l}-${own[i]!.t}` : pct ? `${Math.round(100 * v)}%` : fixed(v)),
     gap: (g) => (pct ? `+${Math.round(100 * g)}%` : b.fewerBetter ? `${fixed(g)} fewer` : `+${fixed(g)}`),
   };
   return { label: b.label, row };
