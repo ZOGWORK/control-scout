@@ -19,6 +19,10 @@ describe("held out means held out", () => {
     const lines = [...found].map(([q, files]) => `"${q}" in ${files.slice(0, 3).join(", ")}`);
     expect(lines, `held-out questions in tests or code (move them: npm run search:heldout -- --split):\n${lines.join("\n")}`).toEqual([]);
   });
+  it("each question once: no set and number twice in the file", () => {
+    const ids = rows.map((x) => `${x.set}#${x.n}`);
+    expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
+  });
   it("a question is in one set or the other, never both", () => {
     // By its set and number, and by its words: the same question under another id is still in both.
     const key = (q: string) => q.trim().toLowerCase().replace(/\s+/g, " ");

@@ -3,7 +3,7 @@
 // scripts/search-heldout.json). The guard test (scripts/search-heldout.test.ts) fails when one does;
 // scripts/search-heldout.ts --split marks them.
 //
-// Looked through: every .ts/.tsx/.js/.mjs/.json/.txt file under server/, src/, scripts/, packages/ and bot/, the other
+// Looked through: every .ts/.tsx/.mts/.cts/.js/.mjs/.cjs/.json/.txt file, whatever its size, under server/, src/, scripts/, packages/ and bot/, the other
 // eval lists aside (they hold questions to ask, not code that answers them): the held-out file itself,
 // the sign-off sets (scripts/search-signoff/sets/, set A is the unique200 set) and the latency bench's query list.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -13,9 +13,7 @@ export const ROOT = join(import.meta.dirname, "..");
 export const SCANNED = ["server", "src", "scripts", "packages", "bot"];
 /** Eval lists: questions to ask, never read by search. */
 export const EVAL_LISTS = [/^scripts\/search-heldout\.json$/, /^scripts\/search-signoff\/sets\//, /^scripts\/search-bench\//];
-const EXT = /\.(?:ts|tsx|js|mjs|json|txt)$/;
-/** Bigger files are data (seasons' frame timings, packs), not tests or code that reads a question. */
-const MAX_BYTES = 3_000_000;
+const EXT = /\.(?:ts|tsx|mts|cts|js|mjs|cjs|json|txt)$/;
 
 /** Every scanned file's text, lower case, every run of whitespace one space (a question split across lines in a test
  *  is still that question), by its path from the repo root (forward slashes). */
@@ -23,11 +21,11 @@ export function scannedTexts(root = ROOT): Map<string, string> {
   const out = new Map<string, string>();
   const walk = (dir: string) => {
     for (const name of readdirSync(dir)) {
-      if (name === "node_modules" || name.startsWith(".")) continue;
+      if (name === "node_modules") continue;
       const p = join(dir, name), st = statSync(p);
       if (st.isDirectory()) { walk(p); continue; }
       const rel = relative(root, p).replace(/\\/g, "/");
-      if (!EXT.test(name) || st.size > MAX_BYTES || EVAL_LISTS.some((r) => r.test(rel))) continue;
+      if (!EXT.test(name) || EVAL_LISTS.some((r) => r.test(rel))) continue;
       out.set(rel, readFileSync(p, "utf8").toLowerCase().replace(/\s+/g, " "));
     }
   };
