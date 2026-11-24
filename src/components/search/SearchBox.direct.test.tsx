@@ -71,10 +71,13 @@ describe("Enter and the magnifier on a search box", () => {
   // /search's side, as src/pages/SearchPage.tsx wires it.
   // `boot`: the hits a first paint brought (they outlive the visit, as BOOT_HITS does).
   let boot: { q: string; hits: SearchHit[] } | null = null;
+  // What /search said on each render: waiting on the answer, and going on to the one page it names.
+  let states: [boolean, boolean][] = [];
   function Results() {
     const q = (useSearchParams()[0].get("q") ?? "").trim();
     const s = useSearchHits(q, undefined, 15, boot, false);
-    useSubmittedSearch(q, s);
+    const st = useSubmittedSearch(q, s);
+    states.push([st.waiting, st.going]);
     return <p data-testid="results">{s.busy ? "loading" : s.answer ? "answer" : "none"}</p>;
   }
   const routes = <Routes><Route path="/search" element={<><Results /><Where /><Back /></>} /><Route path="*" element={<><Where /><Back /></>} /></Routes>;
@@ -115,6 +118,27 @@ describe("Enter and the magnifier on a search box", () => {
     fireEvent.change(input, { target: { value: "6980" } });
     fireEvent.keyDown(input, { key: "Enter" });
     await answerWith(one("6980", BAD_WOLF, { stat: { family: "superlative", intent: "team-highlights", title: "Highlights", team: { number: 6980, name: "Bad Wolf" }, scope: [], headline: { value: "1", label: "x" }, blocks: [], definition: "", source: "" } }));
+    expect(at()).toBe("/teams/6980");
+  });
+  it("going on to a page only once the answer named it: a pending wait that ends in results never says going", async () => {
+    states = [];
+    const input = mount();
+    fireEvent.change(input, { target: { value: "ultraviolet" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(states.some(([w]) => w)).toBe(true); // waiting on the answer: the loading screen
+    expect(states.some(([, g]) => g)).toBe(false);
+    await answerWith({ q: "ultraviolet", hits: [team("20245", "Ultraviolet"), team("23268", "Ultraviolet")], pages: [], step: "deterministic", weak: false, understood: { kind: "names", label: "x" } });
+    expect(at()).toBe("/search?q=ultraviolet");
+    expect(states.some(([, g]) => g)).toBe(false); // never counted as gone on to a page (searchScore's "page")
+    expect(states.at(-1)).toEqual([false, false]);
+    cleanup();
+    states = [];
+    const again = mount();
+    fireEvent.change(again, { target: { value: "6980" } });
+    fireEvent.keyDown(again, { key: "Enter" });
+    expect(states.some(([, g]) => g)).toBe(false); // still pending
+    await answerWith(one("6980", BAD_WOLF));
+    expect(states.some(([, g]) => g)).toBe(true);
     expect(at()).toBe("/teams/6980");
   });
   it("\"6980 highlights\": the results page, which shows them", async () => {
