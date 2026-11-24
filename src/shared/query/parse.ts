@@ -986,12 +986,14 @@ const cueWords = (s: string) => normalise(s).split(/[^\p{L}\p{N}_]+/u).filter(Bo
 
 function saidWords(raw: string, fixed: NonNullable<Parsed["fixed"]>): string[] {
   const words = cueWords(raw);
-  for (const f of fixed) {
+  // Each fix's place found among the words as typed, before any is written: a word typed twice and fixed twice
+  // ("versu … versu") keeps its count.
+  const at = fixed.map((f) => {
     const typed = cueWords(f.typed).join(" ");
-    let k = -1;
-    for (let i = 0, n = 0; i < words.length; i++) if (words[i] === typed && n++ === f.nth) { k = i; break; }
-    if (k >= 0) words[k] = f.read;
-  }
+    for (let i = 0, n = 0; i < words.length; i++) if (words[i] === typed && n++ === f.nth) return i;
+    return -1;
+  });
+  fixed.forEach((f, j) => { if (at[j] >= 0) words[at[j]] = f.read; });
   return words;
 }
 
