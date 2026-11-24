@@ -499,6 +499,19 @@ describe("not, without, except (search audit: general \"not\")", () => {
       }
       // "Without penalties" on a best is its points without them, every match ranked: never a filter.
       expect((await ask("highest score without penalties at states")).stat?.title).not.toContain("either side");
+      // A place, a state or a town, as team boards take one (the events held there), with the filter or without; "best
+      // matches" with it is the highest-scoring board, as highlights can't filter.
+      for (const [q, place] of [["highest scoring matches in new jersey with no penalties", "New Jersey"], ["best matches in new jersey with no penalties", "New Jersey"], ["closest matches in hillsborough with no penalties", "Hillsborough"]]) {
+        const b = await ask(q);
+        expect([matchesOf(b), b.stat?.title], q).toEqual([["Q5"], expect.stringContaining(`in ${place} with no penalties either side`)]);
+      }
+      const town = await ask("closest matches in hillsborough");
+      expect([town.step, town.stat?.title, town.stat?.scope]).toEqual(["deterministic", expect.stringContaining("in Hillsborough"), expect.arrayContaining(["Hillsborough"])]);
+      // The search box (no card): the board's reading and a link to its page, never a recovery.
+      for (const q of ["closest matches in new jersey", "best matches in new jersey with no penalties", "closest matches in hillsborough"]) {
+        const box = await searchAnswer(q, { limit: 12 });
+        expect([box.step, box.stat, box.pages[0]?.href], q).toEqual(["deterministic", undefined, `/search?q=${encodeURIComponent(q)}`]);
+      }
     } finally {
       try { await run("UPDATE matches SET red_pen = NULL, blue_pen = NULL WHERE season = ? AND code = 'USNJCMPP'", [S]); } finally { clearAllCaches(); }
     }
