@@ -287,15 +287,17 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   if (!top) return read;
   // "When is <event>": an event's editions with the date of the one meant leading (./answers/whenEvent.ts).
   const told = carryOutcome(read, whenEventAnswer(String(raw ?? ""), read, opts.now ?? Date.now()));
-  const a = cut && told.understood ? carryOutcome(told, { ...told, understood: { ...told.understood, unread: [...(told.understood.unread ?? []), cut] } }) : told;
+  // The cut said on whichever answer is given: this one, or one said in its place (chat, which town).
+  const withCut = (x: SearchAnswer): SearchAnswer => (cut && x.understood ? carryOutcome(x, { ...x, understood: { ...x.understood, unread: [...(x.understood.unread ?? []), cut] } }) : x);
+  const a = withCut(told);
   // Nothing found, and the words aren't a search of FTC data ("who made you", "… the matches you said", "where do i
   // get a <part>", "lol"): said plainly, never a guess from its words (./answers/chat.ts). Not in a spelling's own
   // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.
   const chat = opts.spell === false ? null : chatAnswer(String(raw ?? ""), a);
-  if (chat) return chat;
+  if (chat) return withCut(chat);
   // A town several regions share, said with none: a tap for each, or, with no direct answer, which one.
   const town = await sharedTown(String(raw ?? ""), a);
-  if (town) return town;
+  if (town) return withCut(town);
   // A place asked for, alone or with its rankings, leagues or conferences ("nj", "nj rankings"): its own pages first
   // (src/shared/placePages.ts), whatever answered it. Kept once by address, so an answer that recursed adds none twice.
   const pages = withPlacePages(String(raw ?? ""), a.pages);
