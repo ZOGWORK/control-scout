@@ -124,7 +124,9 @@ describe("two places in one question", () => {
     try {
       const t = ((await full("maryland vs delaware average penalties 2025-26")).stat as StatAnswer).blocks.find((b) => b.kind === "table");
       expect(t?.kind === "table" && t.rows[0].cells.best).toBe("30302 · 0.0");
-    } finally { await run("UPDATE team_season_stats SET rating_pen = opr_np / 10, avg_pen = NULL WHERE season = 2025 AND team IN (30301, 30302)"); clearAllCaches(); }
+    } finally {
+      try { await run("UPDATE team_season_stats SET rating_pen = opr_np / 10, avg_pen = NULL WHERE season = 2025 AND team IN (30301, 30302)"); } finally { clearAllCaches(); }
+    }
     // The longer name is read first; the place typed before "compared to" is still the first.
     expect(((await full("virginia compared to pennsylvania average opr 2024-25")).stat as StatAnswer).title).toBe("Virginia vs Pennsylvania · average OPR, 2024–25");
     // Averages that read the same to a decimal are level: no leader named by a difference the card doesn't show.
