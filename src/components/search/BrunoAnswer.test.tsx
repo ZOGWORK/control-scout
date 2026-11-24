@@ -198,6 +198,17 @@ describe("Bruno's answer leading the page", () => {
     await answer(null);
     expect(heard).toEqual([[brunoKey("is absolute zero a real team"), false]]);
   });
+  it("moves with the page's memo: a card in the other place shows what he said, never asking again", async () => {
+    const memo = new Map();
+    const first = render(<BrunoAnswer q="is absolute zero a real team" ready lead memo={memo} />);
+    await settle();
+    await answer("Yes, it is several real teams.");
+    first.unmount();
+    render(<BrunoAnswer q="is absolute zero a real team" ready memo={memo} />);
+    expect(screen.getByRole("note", { name: "Bruno AI's answer" }).textContent).toContain("It is several real teams.");
+    await settle();
+    expect(pending).toHaveLength(0);
+  });
   it("holds no slot with his switch off", () => {
     flags.brunoAnswers = false;
     render(<BrunoAnswer q="is absolute zero a real team" ready lead />);

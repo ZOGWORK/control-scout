@@ -135,6 +135,8 @@ describe("Bruno leading the v8 page", () => {
     const { container } = show(NAMES);
     expect(container.querySelector("[data-bruno-lead]")).toBeNull();
     expect(container.querySelector("h1")!.getAttribute("data-heading-size")).toBeNull();
+    // Nor its words: no names list shows under it.
+    expect(container.querySelector("h1")!.textContent).not.toContain("teams are named");
   });
   it("never leads a standing question, whose summary comes with the team's numbers", async () => {
     state.answer = answer("how good is simply complex", [team(18061, "Simply Complex")]);

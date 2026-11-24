@@ -38,7 +38,12 @@ export function brunoVerdict(text: string): { answer: "Yes" | "No"; rest: string
   return { answer: m[1].toLowerCase() === "yes" ? "Yes" : "No", rest: rest[0].toUpperCase() + rest.slice(1) };
 }
 
-/** `lead`: his card is the page's answer, at the top: its slot is held (a quiet skeleton) while he writes, and let go
+/** His settled answers (null: nothing to add) by brunoKey, kept by the page so his card can move (leading the page,
+ *  or below the results) without asking him again. */
+export type BrunoMemo = Map<string, { text: string | null; points: string[] }>;
+
+/** `memo`: the page's BrunoMemo, shared by its cards.
+ *  `lead`: his card is the page's answer, at the top: its slot is held (a quiet skeleton) while he writes, and let go
  *  when he has nothing to add.
  *  `prefer`: the visitor's preferred teams and events, as the page's own search sent them, so Bruno reads the same results.
  *  `children`: a summary computed from the records (timeline, stat banner), shown at the top of the card, and on its
@@ -46,22 +51,32 @@ export function brunoVerdict(text: string): { answer: "Yes" | "No"; rest: string
  *  question (isBrunoQuestion) asks him, whatever summary the page also shows (SearchPage.bruno.test.tsx), unless
  *  `answered`: search's own answer card (a card or stat answer, not a guess) already says it, and his card beside it
  *  would say the same thing twice. */
-export function BrunoAnswer({ q, prefer = "", ready, answered = false, lead = false, onOutcome, className, children }: { q: string; prefer?: string; ready: boolean; answered?: boolean; lead?: boolean; onOutcome?: (key: string, said: boolean) => void; className?: string; children?: ReactNode }) {
+export function BrunoAnswer({ q, prefer = "", ready, answered = false, lead = false, memo, onOutcome, className, children }: { q: string; prefer?: string; ready: boolean; answered?: boolean; lead?: boolean; memo?: BrunoMemo; onOutcome?: (key: string, said: boolean) => void; className?: string; children?: ReactNode }) {
   const query = q.trim();
   // `answered`: search's own answer card already says it; his card would say the same thing twice.
   const willAsk = useBrunoAsks(query, answered);
   const asks = willAsk && ready;
   // An answer belongs to its question and the preferred teams it was read with: either changing hides it.
   const key = brunoKey(query, prefer);
-  const [state, setState] = useState<{ key: string; text: string | null; points: string[] }>({ key: "", text: null, points: [] });
+  const [state, setState] = useState<{ key: string; text: string | null; points: string[] }>(() => {
+    const known = memo?.get(key);
+    return known ? { key, ...known } : { key: "", text: null, points: [] };
+  });
   useEffect(() => {
     if (!asks) return undefined;
+    // Settled already (by this page's other card): shown as it was, never asked again.
+    const known = memo?.get(key);
+    if (known) { setState((s) => (s.key === key ? s : { key, ...known })); return undefined; }
     let live = true;
     const stop = new AbortController();
     const t = setTimeout(() => {
       const url = `/api/search/bruno?q=${encodeURIComponent(query)}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`;
-      const show = (r: BrunoAnswerBody | null) => { if (live) setState({ key, text: r?.text?.trim() ? r.text : null, points: r?.points ?? [] }); };
-      const none = () => { if (live) setState({ key, text: null, points: [] }); };
+      const settle = (v: { text: string | null; points: string[] }) => {
+        if (memo) { memo.set(key, v); if (memo.size > 50) memo.delete(memo.keys().next().value!); }
+        if (live) setState({ key, ...v });
+      };
+      const show = (r: BrunoAnswerBody | null) => settle({ text: r?.text?.trim() ? r.text : null, points: r?.points ?? [] });
+      const none = () => settle({ text: null, points: [] });
       // Only his finished answer shows: a part still being written can be withdrawn, or the answer dropped by the
       // number check, and a card that shows and then vanishes is worse than none. A stream that breaks asks the plain
       // way, which shares the same model call on the server (or its cached answer).
@@ -70,7 +85,7 @@ export function BrunoAnswer({ q, prefer = "", ready, answered = false, lead = fa
         .catch(() => { if (live) apiFetch<BrunoAnswerBody | null>(url).then(show).catch(none); });
     }, BRUNO_SETTLE_MS);
     return () => { live = false; clearTimeout(t); stop.abort(); };
-  }, [asks, query, prefer, key]);
+  }, [asks, query, prefer, key, memo]);
   // The page hears whether he answered this question, by its key (brunoKey: the question and the preferred teams), so
   // a leading card's page lays its heading out by it.
   const outcome = state.key === key ? !!state.text : null;
