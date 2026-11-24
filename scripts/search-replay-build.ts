@@ -35,6 +35,6 @@ const kinds = new Map(before.map((r) => [sameQuery(r.q), r.kind]));
 const set = buildSet(issues, evalQuestions, kinds, new Date().toISOString().slice(0, 10));
 writeFileSync(FILE, serialize(set));
 const ev = set.rows.filter((r) => r.source === "eval").length;
-console.log(`${set.closed} closed issues: ${set.notPlanned} not planned, ${set.dismissed} dismissed, left out`);
+console.log(`${set.closed} closed issues: ${set.notPlanned} not planned or duplicate, ${set.dismissed} dismissed, left out`);
 console.log(`${set.rows.length} queries (${set.rows.length - ev} visitor, ${ev} eval) → ${FILE}`);
 process.exit(0);

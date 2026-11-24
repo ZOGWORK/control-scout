@@ -81,7 +81,7 @@ const pct = (n: number) => `${n.toFixed(1)}%`;
 
 if (failing.length) console.log(`\nfails today: ${failing.length}\n${failing.map(line).join("\n")}`);
 if (moved.length) console.log(`\nanswered with another kind than recorded (not a failure): ${moved.length}\n${moved.map((x) => `${line(x)} (was ${x.was})`).join("\n")}`);
-console.log(`\n${set.closed} closed issues (${set.notPlanned} not planned, ${set.dismissed} dismissed, left out), set built ${set.built} · season ${seasonLabel(season)}`);
+console.log(`\n${set.closed} closed issues (${set.notPlanned} not planned or duplicate, ${set.dismissed} dismissed, left out), set built ${set.built} · season ${seasonLabel(season)}`);
 console.log(`all:      ${all.passed}/${all.of} answered (${pct(rate(all.passed, all.of))}), floor ${MIN.all}%`);
 console.log(`visitors: ${vis.passed}/${vis.of} answered (${pct(rate(vis.passed, vis.of))}), floor ${MIN.visitor}%`);
 console.log(`eval:     ${all.passed - vis.passed}/${all.of - vis.of} answered`);
