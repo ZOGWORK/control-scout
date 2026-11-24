@@ -126,10 +126,10 @@ const NO_AWARD_SQL = " AND s.team NOT IN (SELECT team FROM awards)";
 export const statWords = (st: BoardStat) => (/OPR/.test(st.label) ? st.label : st.label.toLowerCase());
 const fmt = (v: number | null, st: BoardStat) => (v == null ? "–" : st.unit === "%" ? `${Math.round(v * 100)}%` : st.digits ? (Math.round(v * 10) / 10).toFixed(1) : String(Math.round(v)));
 
-/** The Teams page's season table, filtered and sorted as this list (src/lib/records/urlState.ts reads these). */
 /** The board's place in words: the region, and any said beside it ("New Jersey and New York"). */
 export const boardPlace = (b: Pick<BoardQuestion, "region" | "also" | "alsoWord">) => (b.region ? [b.region, ...(b.also ?? [])].map((r) => r.name).join(` ${b.alsoWord ?? "and"} `) : null);
 
+/** The Teams page's season table, filtered and sorted as this list (src/lib/records/urlState.ts reads these). */
 export function teamsHref(season: number, st: BoardStat, region: Region | null, rookie = false, lowest = false): string | null {
   if (!st.teamsSort) return null;
   const p = new URLSearchParams({ view: "season", season: String(season) });

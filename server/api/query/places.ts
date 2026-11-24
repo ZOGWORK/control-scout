@@ -22,7 +22,7 @@ const placeArgs = (r: Region) => [r.country, ...(r.state ? [r.state] : [])];
 
 /** Whether the parse holds only two places, a stat or "teams", and a season: nothing this answer would drop. */
 function onlyPlaces(p: Parsed): boolean {
-  return !p.teams.length && !p.event && !p.eventKind && !p.worlds && !p.states && !p.award && !p.alliance && p.matchNumber == null && !p.level
+  return !p.teams.length && !p.rookie && !p.event && !p.eventKind && !p.worlds && !p.states && !p.award && !p.alliance && p.matchNumber == null && !p.level
     && !p.finals && !p.leftover.length && !p.scoreCond && !p.withVideo && !p.undefeated && !p.nameHas && !p.conference && (!p.time || p.time.kind === "season");
 }
 
@@ -93,6 +93,9 @@ async function sideBySide(q: string, places: Region[], st: BoardStat, said: numb
      FROM x WHERE at IS NOT NULL GROUP BY at ORDER BY at`,
     [...whichArgs, season, ...places.flatMap(placeArgs)]);
   const of = places.map((_, i) => rows.find((r) => Number(r.at) === i) ?? null);
+  // A place with no teams in the season said: nothing to set beside the other place, never "level".
+  const missing = names.filter((_, i) => !of[i]);
+  if (missing.length) return { ...read, understood: { ...read.understood!, season }, stat: { ...base, blocks: [], none: `${missing.join(" and ")} had no teams with ${st.label} in ${seasonLabel(season)}.` } };
   const vals = of.map((r) => (r ? Number(r.avg) : null));
   const known = vals.filter((v): v is number => v != null);
   const top = known.length ? (st.fewerBetter ? Math.min(...known) : Math.max(...known)) : null;
@@ -100,7 +103,7 @@ async function sideBySide(q: string, places: Region[], st: BoardStat, said: numb
   const stat: StatAnswer = {
     ...base,
     headline: lead >= 0 && known.length === 2 && vals[0] !== vals[1]
-      ? { value: names[lead], label: `Higher average ${st.label}: ${fmt(st, vals[lead]!)} to ${fmt(st, vals[1 - lead]!)}`, sub: seasonLabel(season) }
+      ? { value: names[lead], label: `${st.fewerBetter ? "Lower" : "Higher"} average ${st.label}: ${fmt(st, vals[lead]!)} to ${fmt(st, vals[1 - lead]!)}`, sub: seasonLabel(season) }
       : { value: "Level", label: `Average ${st.label} ${known.length ? fmt(st, known[0]) : "—"} in both`, sub: seasonLabel(season) },
     blocks: [
       { kind: "kpis", items: places.map((r, i) => ({ label: r.name, value: vals[i] != null ? fmt(st, vals[i]!) : "—", sub: `Average of ${of[i]?.teams ?? 0} teams`, ...(i === lead ? { tone: "accent" as const } : {}) })) },
