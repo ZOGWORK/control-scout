@@ -198,6 +198,21 @@ export async function teamAtEventAnswer(q: string, limit: number, prefer: Readon
   return [{ ...team, section: "history", ...(season != null ? { linkSeason: season } : {}), facts: [{ label: "Which event?", value: note }], ...(events.length ? { events } : {}) }, ...others];
 }
 
+/** Each team number's hit as a search for the number alone gives it (searchWords' exact row: its title, place and this
+ *  season), for many numbers in one indexed read. Compound, boolean and yes-or-no answers each ran a whole search per
+ *  team for this one hit (up to 25: the search audit's S12). A number with no team page has none. */
+export async function teamNumberHits(nums: readonly number[]): Promise<Map<number, SearchHit>> {
+  const ns = [...new Set(nums)].filter((n) => Number.isInteger(n) && n >= 1 && n <= 999_999);
+  if (!ns.length) return new Map();
+  const rows = await searchRead<{ number: number; name: string | null; city: string | null; state: string | null; country: string | null; last: number | null }>(
+    `SELECT t.number, t.name, t.city, t.state, t.country, cs.season last
+     FROM teams t LEFT JOIN team_seasons cs ON cs.team = t.number AND cs.season = ?
+     WHERE t.number IN (${ns.map(() => "?").join(",")}) AND ${teamPageSql("+t.number", "t.name")}`,
+    [CURRENT_SEASON, ...ns],
+  );
+  return new Map(rows.map((t) => [Number(t.number), { kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: place(t.city, t.state, t.country), season: t.last == null ? null : Number(t.last) }]));
+}
+
 async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>, asked = false): Promise<SearchHit[]> {
   // The words that can name something (src/shared/searchQuery.ts): plurals singular, no stopwords, time words or a
   // question's own words, so "meets in New Jersey" matches what "meet New Jersey" does and "upcoming" never names a team.

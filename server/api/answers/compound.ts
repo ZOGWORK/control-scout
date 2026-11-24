@@ -24,7 +24,9 @@ export type CompoundQuestion =
   /** Teams by place, filtered by an award won, a Worlds season (gone to, or not), rookies or stat thresholds (each one
    *  applied), sorted by a stat, top N. */
   | { kind: "list"; n: number | null; stat: ListStat | null; region: Region | null; country: { code: string; name: string } | null; city: string | null; season: number | null;
-      award: { type: string; label: string } | null; worlds: boolean; noWorlds?: boolean; rookie?: boolean; thresholds: (Threshold & { stat: ListStat })[]; outputs: ListStat[] }
+      award: { type: string; label: string } | null; worlds: boolean; noWorlds?: boolean; rookie?: boolean;
+      /** Rookies left out ("not rookies", "excluding rookies", "non-rookie teams"). */
+      notRookie?: boolean; thresholds: (Threshold & { stat: ListStat })[]; outputs: ListStat[] }
   /** How many teams one list holds in each of two seasons ("how many NJ teams went to worlds in 2024 versus 2025"). */
   | { kind: "list-pair"; lists: [Extract<CompoundQuestion, { kind: "list" }>, Extract<CompoundQuestion, { kind: "list" }>] }
   /** One team's OPR at its first (or last) event of two seasons, side by side. */
@@ -112,9 +114,11 @@ const regionOf = (s: string): Region | null => { const rs = findRegions(s); retu
 function readList(said: string): CompoundQuestion | null {
   // "How many NJ teams went to worlds in 2024": the list, whose answer leads with how many there are.
   const q = said.replace(/^(?:how many|the number of|number of)\s+(?=(?:\S+\s+){0,3}?(?:ftc\s+)?(?:teams?|robots?)\b)/, "");
-  if (!/\b(?:teams?|robots?)\b/.test(q)) return null;
+  // A threshold said first, with no teams ("opr over 120 who did not make worlds"), is about teams: the list of them.
+  const subject = /\b(?:teams?|robots?)\b/.test(q) ? q : new RegExp(String.raw`^${STAT}\s+${OP}\s+${NUM}\b`).test(q) ? `teams with ${q}` : null;
+  if (!subject) return null;
   // Each clause read is cut out with a mark, so the words joining it to the rest ("and", "who") go with it.
-  let rest = ` ${q} `;
+  let rest = ` ${subject} `;
   const take = (re: RegExp) => { const m = re.exec(rest); if (m) rest = rest.replace(m[0], " ¦ "); return m; };
   const WHO = String.raw`(?:(?:who|that|which)\s+)?(?:(?:also|have|has|had|already|still)\s+)*`;
   const aw = take(new RegExp(String.raw`\b${WHO}(?:won|win|received|earned|got)\s+(?:an?\s+|the\s+)?${AWARD}(?:\s+awards?)?\b`))
@@ -133,8 +137,12 @@ function readList(said: string): CompoundQuestion | null {
   // "Worlds in 2025" is the championship held in 2025 (the 2024–25 season); "worlds 2025-26" names its season.
   const worldsSeason = ws?.[1] ? (ws[2] ? Number(ws[1]) : Number(ws[1]) - 1) : null;
   // Rookies: "rookie teams", "a team that started as a rookie this year".
-  const rookie = !!(take(/\b(?:(?:who|that)\s+)?(?:started|start|starting|began|begun)\s+(?:out\s+)?as\s+(?:an?\s+)?rookies?(?:\s+teams?)?\b/)
-    ?? take(/\b(?:rookie|first[\s-]year)(?=\s+(?:ftc\s+)?(?:teams?|robots?)\b)/));
+  // Rookies left out, read first so the rookies named after the word are never the list: "not rookies", "that are not
+  // first-year teams", "excluding rookie teams", "non-rookie teams".
+  const notRookie = !!(take(/\b(?:(?:who|that|which)\s+(?:are|is|were|was)\s+|but\s+)?(?:not|never|excluding|except|without|no)\s+(?:the\s+|any\s+)?(?:rookies?|first[\s-]year)(?:\s+(?:ftc\s+)?(?:teams?|robots?))?\b/)
+    ?? take(/\bnon[\s-]?(?:rookies?|first[\s-]year)(?=\s+(?:ftc\s+)?(?:teams?|robots?)\b)/));
+  const rookie = !notRookie && !!(take(/\b(?:(?:who|that)\s+)?(?:started|start|starting|began|begun)\s+(?:out\s+)?as\s+(?:an?\s+)?rookies?(?:\s+teams?)?\b/)
+    ?? take(/\b(?<!\bnon[\s-]?)(?:rookie|first[\s-]year)(?=\s+(?:ftc\s+)?(?:teams?|robots?)\b)/));
   // Thresholds, each applied: a stat against a number ("with OPR over 100", ", OPR 90+", "a win rate over 70 percent"),
   // or a count of matches or wins ("with at least 30 matches", "that played 20+ matches"). A stat with a bare number
   // and no comparison is at least that number; a year is never one ("by opr 2025").
@@ -171,7 +179,7 @@ function readList(said: string): CompoundQuestion | null {
   }
   const out = take(new RegExp(String.raw`\b(?:and|with|plus|showing)\s+(?:their|its|the)\s+${STAT}(?:\s+(?:and|&)\s+${STAT})?(?:\s*¦)*\s*$`));
   // Rookies alone are the rookie leaderboard's ("best rookie team in new jersey"): a list here needs another filter.
-  if (!award && !ws && !thresholds.length) return null;
+  if (!award && !ws && !thresholds.length && !notRookie) return null;
   // The words that joined a clause go with it; "list them all" and "worldwide" add nothing.
   rest = rest.replace(/(?:\b(?:and|but|who|that|which|also|already)\s+)*¦(?:\s+(?:and|but)\b)*/g, " ")
     .replace(/\b(?:list|show)\s+(?:them|all\s+of\s+them)(?:\s+all)?\s*$|\b(?:worldwide|world\s+wide|globally|in\s+the\s+world)\b/g, " ");
@@ -196,7 +204,7 @@ function readList(said: string): CompoundQuestion | null {
     kind: "list", n: m[1] ? Number(m[1]) : null, stat, region, country, city,
     // A Worlds season named wins; the season words otherwise (else the default season, said on the card).
     season: worldsSeason ?? sw.season,
-    award: award ? { type: award[1], label: award[2] } : null, worlds: !!wd, ...(nwd ? { noWorlds: true } : {}), ...(rookie ? { rookie: true } : {}),
+    award: award ? { type: award[1], label: award[2] } : null, worlds: !!wd, ...(nwd ? { noWorlds: true } : {}), ...(rookie ? { rookie: true } : {}), ...(notRookie ? { notRookie: true } : {}),
     thresholds, outputs,
   };
 }
