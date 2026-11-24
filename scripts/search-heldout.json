@@ -3000,29 +3000,6 @@
 "q": "how many ranking points is a tie"
 },
 {
-"set": "places1124",
-"n": 1,
-"q": "pennsylvania vs ohio average opr"
-},
-{
-"set": "places1124",
-"n": 2,
-"q": "teams from michigan or ohio"
-},
-{
-"set": "places1124",
-"n": 3,
-"q": "georgia compared to florida auto"
-},
-{
-"set": "places1124",
-"n": 4,
-"q": "virginia versus maryland average teleop"
-},
-{
-"set": "places1124",
-"n": 4,
-"q": "virginia versus maryland average teleop",
 "set": "seasons1124",
 "n": 1,
 "q": "6980 opr since 2022"
@@ -3061,5 +3038,25 @@
 "set": "not1124",
 "n": 4,
 "q": "23268 matches without penalties at worlds"
+},
+{
+"set": "places1124",
+"n": 1,
+"q": "pennsylvania vs ohio average opr"
+},
+{
+"set": "places1124",
+"n": 2,
+"q": "teams from michigan or ohio"
+},
+{
+"set": "places1124",
+"n": 3,
+"q": "georgia compared to florida auto"
+},
+{
+"set": "places1124",
+"n": 4,
+"q": "virginia versus maryland average teleop"
 }
 ]

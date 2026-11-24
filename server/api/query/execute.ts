@@ -80,7 +80,7 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   if (p.places) {
     const stat = placesStat(p);
     const ask = stat === undefined ? null : placesAsk(p, stat);
-    if (ask === "side") return placesAnswer(p, stat!, opts);
+    if (ask === "side") { const a = await placesAnswer(p, stat!, opts); return a && partNotes(a, p); }
     if (ask !== "board") return null;
     // "Teams from <place> or <place>": no intent of its own, as one place's teams aren't; read as the board of them.
     if (!p.intent) p = { ...p, intent: "leaderboard", complete: true };
@@ -155,7 +155,7 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     if (t.candidates && t.rule && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${t.typed}: ${t.number}, ${t.rule} of ${t.candidates.length} teams with the name` } };
   }
   // Part of a region ("north jersey") is read as all of it, and the card says so.
-  if (p.place?.part && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${p.place.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${p.place.name}` } };
+  a = partNotes(a, p);
   // A team's name typed nearly right: answered for that team, with the spelling to search for.
   const near = p.teams.filter((t) => t.via === "near" && t.name);
   if (near.length) {
@@ -226,6 +226,15 @@ function seasonsStat(p: Parsed): string | null | undefined {
   let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s))];
   if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
   return stats.length > 1 ? undefined : stats[0] ?? null;
+}
+
+/** Each place said as part of a region ("north jersey"), the one place or both of two, read as all of it: the card
+ *  says so. */
+function partNotes(a: SearchAnswer, p: Parsed): SearchAnswer {
+  const parts = (p.places?.list ?? (p.place ? [p.place] : [])).filter((pl) => pl.part);
+  if (!parts.length || !a.understood) return a;
+  const notes = parts.map((pl) => `${pl.part!.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${pl.name}`);
+  return { ...a, understood: { ...a.understood, label: [a.understood.label, ...notes].join(" · ") } };
 }
 
 /** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */

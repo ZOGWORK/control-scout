@@ -107,6 +107,8 @@ describe("two places in one question", () => {
     // it): never the places' averages.
     const tops = await full("the top maryland team vs the top delaware team");
     expect([tops.intent?.kind.startsWith("stat-places"), tops.stat?.teams?.length]).toEqual([false, 2]);
+    // Part of a region is read as all of it, and the card says so, for either place, side by side or on the board.
+    for (const q of ["western maryland vs delaware average opr", "teams from delaware or western maryland"]) expect((await full(q)).understood?.label, q).toContain("Western Maryland isn't a separate region: all of Maryland");
     // The board ranks by its own stats, highest or lowest first: a score's average or a median over both is not it.
     expect(placesAsk(await parseQuery("teams from maryland or delaware by score", ctx), "avg-score")).toBeNull();
     for (const q of ["median opr teams from maryland or delaware", "median opr of teams from maryland or delaware"]) expect(placesAsk(await parseQuery(q, ctx), "opr"), q).toBeNull();
