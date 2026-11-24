@@ -324,14 +324,17 @@ function QueryCard() {
   const onScreen = useInView(card);
   const r = READINGS[idx];
   // Type the query out, then let its words light up (all at once under reduced motion).
-  const [typed, setTyped] = useState(reduced ? r.q.length : 0);
+  // The count is kept with the query it belongs to: on the first render of a new example the old count is
+  // for the old query, so the new one reads as untyped (not briefly "read" in full) until the effect resets it.
+  const [progress, setProgress] = useState({ q: r.q, n: reduced ? r.q.length : 0 });
   useEffect(() => {
-    if (reduced) { setTyped(r.q.length); return; }
-    setTyped(0);
+    if (reduced) { setProgress({ q: r.q, n: r.q.length }); return; }
+    setProgress({ q: r.q, n: 0 });
     let n = 0;
-    const t = setInterval(() => { n += 1; setTyped(n); if (n >= r.q.length) clearInterval(t); }, 45);
+    const t = setInterval(() => { n += 1; setProgress({ q: r.q, n }); if (n >= r.q.length) clearInterval(t); }, 45);
     return () => clearInterval(t);
   }, [r.q, reduced]);
+  const typed = progress.q === r.q ? progress.n : reduced ? r.q.length : 0;
   useEffect(() => {
     if (reduced || paused || !onScreen) return;
     const t = setInterval(() => setIdx((i) => (i + 1) % READINGS.length), 5600);
@@ -605,7 +608,8 @@ function VideoFigure() {
         <div className="relative grid h-36 place-items-center overflow-hidden rounded-xl border border-border bg-muted/60 sm:h-48">
           <div className="grid justify-items-center gap-1.5 text-center">
             <PlayCircle aria-hidden className="size-10 text-foreground/80 sm:size-12" />
-            <p className="font-mono text-xs text-muted-foreground" aria-live="polite">Event recording · playing <b className="text-foreground">{c.label}</b></p>
+            {/* Announced only once the reader picks a match, never on every automatic step. */}
+            <p className="font-mono text-xs text-muted-foreground" aria-live={picked ? "polite" : "off"}>Event recording · playing <b className="text-foreground">{c.label}</b></p>
           </div>
         </div>
         {/* The recording's timeline: chapter ticks, the played part and the playhead move by transform alone. */}
