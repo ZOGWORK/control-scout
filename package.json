@@ -15,6 +15,7 @@
   "scripts": {
     "search:eval": "tsx scripts/search-eval.ts",
     "search:heldout": "tsx scripts/search-heldout.ts",
+    "search:followups": "tsx scripts/search-followups.ts",
     "search:replay": "tsx scripts/search-replay.ts",
     "search:replay:build": "tsx scripts/search-replay-build.ts",
     "postinstall": "npm run build -w @control-scout/predict-engine",
