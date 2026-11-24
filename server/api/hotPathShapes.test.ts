@@ -11,6 +11,7 @@ import { all, kvSet, migrate, openDb, run, setDb } from "../db";
 import { noteServed, resetServed } from "./searchServed";
 import { clearAllCaches } from "../caches";
 import { createApp } from "../app";
+import { SEASON_NUMBERS } from "../data/seasons";
 
 // Pinned (not CURRENT_SEASON): the snapshot's routes and bodies name it, so a new season must not move it.
 const S = 2026;
@@ -157,6 +158,12 @@ describe("hot-path API responses", () => {
     const last = await (await fetch(`${base}/api/teams-summary?season=${S - 1}&teams=101,102`)).json();
     const both = await (await fetch(`${base}/api/teams-summary?season=${S}&teams=101,102&before=1`)).json();
     expect(both).toEqual({ ...one, before: last });
+  });
+  it("teams-summary with ?before=1 for the first season covered: no season before it is sent", async () => {
+    const first = Math.min(...SEASON_NUMBERS);
+    const r = await (await fetch(`${base}/api/teams-summary?season=${first}&teams=101&before=1`)).json();
+    expect(r.season).toBe(first);
+    expect(r.before).toBeUndefined();
   });
   it("a result click on a query search sent without that result is still checked by searching again", async () => {
     const Q = "101 vs 102";

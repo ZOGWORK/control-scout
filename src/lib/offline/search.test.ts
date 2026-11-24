@@ -38,6 +38,8 @@ function pack(): EventBundle {
   api.answers[packPath(searchPackPath("1111"))!] = { ...lone, q: "1111", hits: [hit(1111, NAMES[1111])], understood: { kind: "team", label: "Thousand Gears (1111)" } };
   api.answers[packPath(`/api/teams-summary?season=${S}&teams=12`)!] = { season: S, teams: [summary(12)] };
   api.answers[packPath(`/api/teams-summary?season=${S}&teams=11`)!] = { season: S, teams: [summary(11)] };
+  // Last season's card for a team with none yet this season (/search's ?before=1).
+  api.answers[packPath(`/api/teams-summary?season=${S - 1}&teams=13`)!] = { season: S - 1, teams: [summary(13)] };
   const search: PackSearch = {
     teams: Object.fromEntries([11, 12, 13].map((n, i) => [String(n), { facts: { number: n, name: NAMES[n], city: "Midland", state: "MI", country: "USA" }, hit: hit(n, NAMES[n]), rows: [row(n, 60 - i * 10)], together: {} }])),
     scales: { [S]: { opr_np: 100, opr_auto: 30, opr_teleop: 60, opr_endgame: 30, rating_np: 100 } }, current: S, legacy: [2019, 2020, 2021, 2022],
@@ -86,6 +88,8 @@ describe("search with no signal, from a saved event pack", () => {
 
   it("the team cards' numbers, in the order asked, without teams the pack doesn't hold", async () => {
     expect(await offlineAnswer(`/api/teams-summary?season=${S}&teams=12,4215,11`)).toEqual({ season: S, teams: [summary(12), summary(11)] });
+    // ?before=1: the season before's from the packs too, in the server's shape.
+    expect(await offlineAnswer(`/api/teams-summary?season=${S}&teams=12,13&before=1`)).toEqual({ season: S, teams: [summary(12)], before: { season: S - 1, teams: [summary(13)] } });
   });
 
   it("lib/api.ts: with no network, the pack answers at once (no 10-second slow-search wait)", async () => {

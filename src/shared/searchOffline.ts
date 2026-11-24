@@ -123,21 +123,26 @@ export function notInPackAnswer(q: string, p: Parsed | null, packs: SearchPack[]
 }
 
 /** /api/teams-summary from the packs: each team's summary as the server gave it for the season (the pack keeps one
- *  team a path), in the order asked; teams no pack holds are left out (their cards show no numbers). Null when no
- *  pack holds any of them. */
-export function teamSummariesFromPacks(path: string, packs: SearchPack[]): FromPack<{ season: number; teams: TeamSummary[] }> | null {
+ *  team a path), in the order asked; teams no pack holds are left out (their cards show no numbers). With ?before=1,
+ *  the season before's from the packs too, as the server sends it (`before`). Null when no pack holds any of them. */
+export function teamSummariesFromPacks(path: string, packs: SearchPack[]): FromPack<{ season: number; teams: TeamSummary[]; before?: { season: number; teams: TeamSummary[] } }> | null {
   const url = new URL(path, "http://offline.invalid");
   const season = Number(url.searchParams.get("season"));
   const teams = (url.searchParams.get("teams") ?? "").split(",").filter((t) => /^\d{1,6}$/.test(t));
   if (!season || !teams.length) return null;
-  const out: TeamSummary[] = [];
   let from = -1;
-  for (const t of teams) {
-    for (const [i, pack] of packs.entries()) {
-      const got = packLookup(pack.api, `/api/teams-summary?season=${season}&teams=${t}`);
-      const one = got && "body" in got ? (got.body as { teams?: TeamSummary[] }).teams?.[0] : undefined;
-      if (one) { out.push(structuredClone(one)); if (from < 0) from = i; break; }
+  const read = (s: number) => {
+    const out: TeamSummary[] = [];
+    for (const t of teams) {
+      for (const [i, pack] of packs.entries()) {
+        const got = packLookup(pack.api, `/api/teams-summary?season=${s}&teams=${t}`);
+        const one = got && "body" in got ? (got.body as { teams?: TeamSummary[] }).teams?.[0] : undefined;
+        if (one) { out.push(structuredClone(one)); if (from < 0) from = i; break; }
+      }
     }
-  }
-  return from >= 0 ? { body: { season, teams: out }, from } : null;
+    return out;
+  };
+  const now = read(season);
+  const before = url.searchParams.get("before") === "1" ? { season: season - 1, teams: read(season - 1) } : undefined;
+  return from >= 0 ? { body: { season, teams: now, ...(before ? { before } : {}) }, from } : null;
 }
