@@ -14,7 +14,7 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { MAX_QUERY, cleanQuery, learnQuery, plainSearch, searchAnswer } from "./api/searchAnswer.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
 import { pickedQuery, pickedSeasonOf } from "./api/searchPageAnswer.js";
-import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
+import { followUpsWithin, holdChecks, pageAnswer } from "./api/answers/followUps.js";
 import { finishPageAnswer, typedPageAnswer } from "./api/searchPage.js";
 import { withVideoAlternatives } from "./api/answers/videoSuggest.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
@@ -438,6 +438,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     // (server/api/searchAnswer.ts). Pickers ask for plain hits.
     // Team rows carry their season numbers (server/api/searchTeamStats.ts), added once, on the answer that's sent.
     if (req.query.answer === "1" && !kinds.size) {
+      // Other searches' follow-up checks wait while this answer is made (followUps.ts holdChecks).
+      res.once("close", holdChecks());
       const q = await pickedQuery(req.query.q, req.query.season);
       // The same query asked again within a minute (a retry, another visitor) is the answer already worked out
       // (server/api/searchReads.ts); "my" and "our" with no team named: the visitor's My team, sent as ?my=
@@ -447,8 +449,9 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // The results page (?bruno=1) asks Bruno AI next whenever this answer isn't a direct one (a card or stat answer,
       // not a guess: src/pages/SearchPage.tsx `answered`): his answer starts now, so the page's own ask
       // (/api/search/bruno, the same words and preferred teams) joins it instead of starting it. Never awaited;
-      // brunoAnswer itself asks only for a question, with his switch on.
-      if (req.query.bruno === "1" && req.query.season == null && !(!ans.weak && (ans.card || ans.stat))) {
+      // brunoAnswer itself asks only for a question, with his switch on. A follow-up question (chat "follow-up") is
+      // asked by the page with the search it points back at, which this request doesn't know: left to the page.
+      if (req.query.bruno === "1" && req.query.season == null && ans.chat !== "follow-up" && !(!ans.weak && (ans.card || ans.stat))) {
         void brunoAnswer(String(req.query.q ?? ""), { prefer, limit: SEARCH_PAGE_LIMIT }).catch(() => {});
       }
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
@@ -493,11 +496,13 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     const prefer = preferOf(req.query.prefer);
     // The answer's picked season (?season=), as /search asks it: the follow-ups are about the answer shown.
     const asked = await pickedQuery(q, req.query.season);
-    // Kept (keptFollowUps): the /search page's first paint drew the same ones (server/seoMeta.ts searchMeta).
+    // Kept (keptFollowUps): the /search page's first paint drew the same ones (server/seoMeta.ts searchMeta). Never
+    // waited for past FOLLOW_BUDGET_MS: what's checked by then, marked partial, and the page asks again.
     const started = performance.now();
-    const follow = await keptFollowUps(asked, prefer);
+    const follow = await followUpsWithin(asked, prefer);
     res.setHeader("Server-Timing", searchTiming({ follow: performance.now() - started }));
-    res.setHeader("Cache-Control", "public, max-age=60");
+    // A partial set is never cached: the next ask gets the whole one.
+    res.setHeader("Cache-Control", follow.partial ? "no-store" : "public, max-age=60");
     // Every valid pick is echoed (the app matches it), with the query as asked for the related searches page.
     const season = q.trim() ? pickedSeasonOf(req.query.season) : null;
     return { q, ...(season != null ? { season, asked } : {}), ...follow };
@@ -525,7 +530,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     await ensureSearchIndex(rebuildSearch);
     // The page's own search choices (its preferred teams), so he reads the results the page shows.
     const q = String(req.query.q ?? "");
-    const opts = { prefer: preferOf(req.query.prefer), limit: SEARCH_PAGE_LIMIT };
+    // `after`: the tab's last search, for a question pointing back at it (searchBrunoAnswer.ts followUpOf), read in the
+    // season picked on its answer (?afterSeason=, as /search's ?season=) so he reads the records that were on screen.
+    // ?afterMy=: the My team a "my"/"our" earlier search was asked with (?my= on /api/search), read the same way. Both
+    // are applied inside the ask, where a failed read is no answer (204), never an error.
+    const opts = { prefer: preferOf(req.query.prefer), limit: SEARCH_PAGE_LIMIT, after: typeof req.query.after === "string" ? req.query.after : undefined, afterSeason: pickedSeasonOf(req.query.afterSeason), afterMy: myTeamOf(req.query.afterMy) };
     if (req.query.stream !== "1") {
       const r = await brunoAnswer(q, opts);
       if (!r) { res.status(204).end(); return undefined; }
