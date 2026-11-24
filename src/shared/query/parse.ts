@@ -97,8 +97,9 @@ export interface Parsed {
   /** Words left over that name New Jersey conferences as a board's place ("best auto in nj bergen"): set by the server's
    *  executor (server/api/query/execute.ts), never by the parser. */
   conference?: string[];
-  /** Search words typed one letter off and read as the word they nearly spell ("higest": "highest"), silently. */
-  fixed?: { typed: string; read: string }[];
+  /** Search words typed one letter off and read as the word they nearly spell ("higest": "highest"), silently. `nth`:
+   *  which of the words typed the same way it is (0 the first), so only that one is rewritten. */
+  fixed?: { typed: string; read: string; nth: number }[];
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -108,6 +109,8 @@ export interface ScoreCond { side: "losing" | "winning" | "both" | "either"; op:
 
 export interface ParseContext {
   names: Names;
+  /** The words are read exactly as typed (a quoted phrase was in the query): no search word one letter off is fixed. */
+  asTyped?: boolean;
   /** Today, YYYY-MM-DD (UTC). */
   today: string;
   /** Whether these words name a stored event (any season), and the team numbers' event when one is given. */
@@ -471,7 +474,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const n = Number(t.w), prev = toks[i - 1]?.w, next = toks[i + 1]?.w;
     // "Final 2", "finals 1": the finals' match with that number, never a count of the last matches ("final 2 matches"
     // is one, read below as the lexicon reads "final").
-    if (prev && /^finals?$/.test(prev) && n <= 9 && !toks[i - 1].used && !/^(?:matches|games|events|seasons|teams)$/.test(next ?? "")) {
+    if (prev && /^finals?$/.test(prev) && n <= 999 && !toks[i - 1].used && !/^(?:matches|games|events|seasons|teams)$/.test(next ?? "")) {
       p.matchNumber = n; p.level = "playoff"; p.finals = true; p.finalNo = true; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); symbols.add("finals"); continue;
     }
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
@@ -568,7 +571,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   readLexicon();
   // 3a. A search word typed one letter off ("higest", "penalites"), read as that word, silently, in this same parse,
   // before the words left are read as names (a team's name typed nearly right beside it is then read on its own).
-  const fixed = fixSpelling(toks, ctx.names, typedWords);
+  // Never in a query with a quoted phrase, which asks for exactly the words typed.
+  const fixed = ctx.asTyped || raw.includes('"') ? [] : fixSpelling(toks, ctx.names, typedWords);
   if (fixed.length) { p.fixed = fixed; readLexicon(); }
   // "Top 10 closest matches": "top" before a count only says how many when another measure follows it, never the
   // highest as well. Its "max" is dropped, so the measure said is the one read.
@@ -655,7 +659,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     return num && !num.used && /^\d{1,2}$/.test(num.w) && await ctx.isEvent(`${toks.slice(x, y + 1).map((t) => t.w).join(" ")} ${num.w}`) ? y + 1 : y;
   };
   for (const run of runs) {
-    const { from, to } = run;
+    // Words an earlier run took (a meet's number, read into the event before: "<town> meet 2 <team>") are no part of
+    // this one.
+    let from = run.from;
+    const to = run.to;
+    while (from <= to && toks[from].used) from++;
+    if (from > to) continue;
     const words = () => toks.slice(from, to + 1).map((t) => t.w).join(" ");
     const typed = () => toks.slice(from, to + 1).map((t) => t.typed).join(" ");
     // A team read by part of its name ("girls in" of Girls in Robotics), with the words right after it nearly spelling a
@@ -895,8 +904,8 @@ const inflected = (a: string, b: string) => {
  *  of an event's word, nor part of a run of words that nearly spells a team's name ("hypnotc robotcs" stays the team).
  *  Search's spelling layer (server/api/spelling.ts) still reads names; this reads its own words, so no second search
  *  runs for them. Returns what was fixed. */
-function fixSpelling(toks: Tok[], names: Names, typedWords: string[]): { typed: string; read: string }[] {
-  const out: { typed: string; read: string }[] = [];
+function fixSpelling(toks: Tok[], names: Names, typedWords: string[]): NonNullable<Parsed["fixed"]> {
+  const out: NonNullable<Parsed["fixed"]> = [];
   const caps = new Set(typedWords.filter((w) => /^[A-Z0-9]{2,}$/.test(w)).map((w) => w.toLowerCase()));
   for (let i = 0; i < toks.length; i++) {
     if (toks[i].used) continue;
@@ -910,7 +919,9 @@ function fixSpelling(toks: Tok[], names: Names, typedWords: string[]): { typed: 
       if (caps.has(w) || names.nameWord?.(w) || names.place(w) || names.nearEventWord?.(w)) continue;
       const near = nearSearchWord(w);
       if (!near) continue;
-      out.push({ typed: t.typed, read: near });
+      // Which of the words spelled the same it is, so respell rewrites this one ("Recrod Bots recrod").
+      const nth = toks.slice(0, toks.indexOf(t)).filter((x) => x.typed.toLowerCase() === t.typed.toLowerCase()).length;
+      out.push({ typed: t.typed, read: near, nth });
       t.w = near;
     }
   }
@@ -938,7 +949,12 @@ export async function respell(typed: string, ctx: ParseContext): Promise<string 
   const p = await parseQuery(typed, ctx);
   if (!p.fixed?.length) return null;
   const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const out = p.fixed.reduce((s, f) => s.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escape(f.typed)}(?![\\p{L}\\p{N}])`, "iu"), f.read), typed);
+  // The word fixed is rewritten where it was typed: the nth of the words spelled the same ("Recrod Bots recrod"). The
+  // last first, so rewriting one never moves the count of another spelled the same.
+  const out = [...p.fixed].sort((a, b) => b.nth - a.nth).reduce((s, f) => {
+    let k = 0;
+    return s.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escape(f.typed)}(?![\\p{L}\\p{N}])`, "giu"), (m) => (k++ === f.nth ? f.read : m));
+  }, typed);
   return out !== typed ? out : null;
 }
 

@@ -2,7 +2,7 @@
 // database: the same parse for every team, every place, every phrasing of one intent.
 import { describe, expect, it } from "vitest";
 import { buildNames } from "./names";
-import { normalise, parseQuery, type ParseContext } from "./parse";
+import { normalise, parseQuery, respell, type ParseContext } from "./parse";
 import { tokens } from "../searchLayers";
 import { readTime, seasonOfDate } from "./time";
 
@@ -643,10 +643,15 @@ describe("a match by its number, with no event named (search video brief, point 
       expect(await parse(q), q).toMatchObject({ intent: "match-label", complete: true, finals: true, level: "playoff", matchNumber: 2 });
     }
     expect(await parse("6980 final 2 matches")).toMatchObject({ intent: "last-matches", complete: true, n: 2, matchNumber: null, finals: false });
+    // A final's number past 9 reads as "F12" reads, never a count of the last matches.
+    for (const q of ["final 12 at nj states", "f12 at nj states"]) expect(await parse(q), q).toMatchObject({ intent: "match-label", finals: true, matchNumber: 12 });
   });
   it("a meet's own number after its words is part of the event's name, never a word left over (search audit Q4)", async () => {
     const meets: ParseContext = { ...ctx, isEvent: async (w) => ["laurel meet 2", "laurel meet", "laurel"].includes(w) };
     expect(await parseQuery("q16 laurel meet 2", meets)).toMatchObject({ intent: "match-label", complete: true, event: { words: "laurel meet 2" }, matchNumber: 16 });
+    // The number taken into the event is no part of the words after it: a team's name typed nearly right still is one.
+    const near = await parseQuery("laurel meet 2 hypnotc robotics", { ...meets, nearTeam: async (w: string) => ctx.names.nearTeam(w) });
+    expect([near.event?.words, near.teams.map((t) => t.number)]).toEqual(["laurel meet 2", [4215]]);
   });
 });
 
@@ -709,6 +714,8 @@ describe("a search word typed one letter off, read in the parse (search audit Q8
     expect(p.complete).toBe(false);
     // A team's name typed nearly right is the team's, read before any word is fixed.
     const near = await parseQuery("hypnotc robotics higest score", { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) });
-    expect([near.teams.map((t) => t.number), near.intent, near.fixed]).toEqual([[4215], "highest-score", [{ typed: "higest", read: "highest" }]]);
+    // The same misspelling twice: each rewritten where it was typed.
+    expect(await respell("4215 higest score vs 6980 higest score", ctx)).toBe("4215 highest score vs 6980 highest score");
+    expect([near.teams.map((t) => t.number), near.intent, near.fixed]).toEqual([[4215], "highest-score", [{ typed: "higest", read: "highest", nth: 0 }]]);
   });
 });

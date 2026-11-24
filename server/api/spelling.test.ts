@@ -175,6 +175,11 @@ describe("searchAnswer with spelling", () => {
       expect(!!a.stat || !!a.card, q).toBe(!!right.stat || !!right.card);
     }
   });
+  it("a quoted phrase is never respelled: it asks for exactly those words", async () => {
+    const quoted = await searchAnswer('"4215 higest score"', { learn: false, limit: 25 });
+    const right = await searchAnswer("4215 highest score", { learn: false, limit: 25 });
+    expect(quoted.understood?.label).not.toBe(right.understood?.label);
+  });
   it("a team whose page had the rest is improved on by the corrected question (\"4215 oper\")", async () => {
     const a = await searchAnswer("4215 oper", { learn: false, limit: 25 });
     expect(a).toMatchObject({ step: "did-you-mean", didYouMean: "4215 opr" });

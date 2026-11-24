@@ -36,8 +36,14 @@ beforeAll(async () => {
   await match("USMDLM21", "qual", 0, 3, "Q3", 121, 80);
   await match("USMDLM12", "qual", 0, 3, "Q3", 99, 98);
   await match("USMDCMPA", "qual", 0, 12, "Q12", 150, 140);
-  // The division's bracket ends in its own final; the championship's finals are F1 and F2.
-  await match("USMDCMPA", "playoff", 1, 1, "M1", 160, 150);
+  // The division's double-elimination bracket (four alliances, six matches) ends in its own grand final, M6; the
+  // championship's finals are F1 and F2.
+  await ev("USDECMP", "Delaware Championship", "Championship");
+  for (const code of ["USMDCMPA", "USDECMP"]) {
+    for (let a = 1; a <= 4; a++) await run("INSERT INTO alliances (season, code, number, captain) VALUES (2025, ?, ?, ?)", [code, a, 30200 + a]);
+    // The division's scores top the championship's finals: only the guard keeps its grand final out of "final 1".
+    for (let n = 1; n <= 6; n++) await match(code, "playoff", n, 1, `M${n}`, (code === "USMDCMPA" ? 240 : 160) + n, 150);
+  }
   await match("USMDCMP", "playoff", 0, 1, "F1", 201, 190);
   await match("USMDCMP", "playoff", 0, 2, "F2", 230, 210);
   await rebuildSearch();
@@ -64,5 +70,10 @@ describe("a match by its event and number", () => {
       expect(s?.headline?.label, q).toMatch(/^F\d at Maryland Championship$/);
       expect(s?.headline?.sub, q).toContain(red);
     }
+  });
+  it("a double-elimination bracket's final 1 is its grand final, its last match but the replay", async () => {
+    const s = await stat("final 1 at delaware championship");
+    expect(s?.headline?.label).toMatch(/^M6 at Delaware Championship$/);
+    expect(s?.headline?.sub).toContain("Red 166");
   });
 });
