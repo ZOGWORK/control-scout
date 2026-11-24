@@ -20,7 +20,7 @@ beforeAll(async () => {
     // number, name, opr, auto, teleop, endgame, rank, rank auto, rank teleop, rank endgame, wins, losses
     [31301, "Gear Owls", 120.5, 48.2, 60.1, 12.2, 3, 1, 9, 30, 20, 2],
     [31302, "Bolt Foxes", 55.0, 12.0, 30.0, 13.0, 40, 55, 50, 5, 9, 7],
-    [2024, "Year Bots", 60.0, 22.0, 30.0, 8.0, 30, 20, 45, 70, 8, 8],
+    [2024, "2024 Year Bots", 60.0, 22.0, 30.0, 8.0, 30, 20, 45, 70, 8, 8],
   ];
   for (const [n, name, opr, a, t, e, rk, ra, rt, re, w, l] of rows) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', 'NJ', 'USA')", [n, name]);
@@ -94,6 +94,8 @@ describe("the answer", () => {
   });
   it("reads a team numbered like a year as the team, unless the year is said as a season", async () => {
     expect((await ask("why is 2024 so good at auto")).card?.title).toBe("2024 Year Bots in Auto, against the field");
+    expect((await ask("why were gear owls so good at auto 2024")).card?.lines[0].text).toBe("Auto OPR 20.5: #30 of 80 (top 38%)");
+    expect((await ask("why was 31301 so good at auto 2024")).card?.lines[0].text).toBe("Auto OPR 20.5: #30 of 80 (top 38%)");
   });
   it("is nothing when the phase asked about has no numbers, or the team is said not to be strong", async () => {
     expect((await ask("why is 31303 so good at auto")).card?.title ?? "").not.toMatch(/against the field/);
