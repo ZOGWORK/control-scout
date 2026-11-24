@@ -16,6 +16,7 @@ import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, teamSetSearch, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { currentSeason, defaultSeason, lastSeason, seasonWhy, teamSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
+import { askOf, whenWhere } from "../../../src/shared/query/whenWhere.js";
 import { conferencesNamed } from "../answers/families/conference.js";
 import { allConferences } from "../conferences.js";
 import { CONFERENCE_REGION } from "../../../src/shared/conferences.js";
@@ -55,6 +56,25 @@ export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resol
 
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  // "When …" or "where …" ("when did <team> win inspire", "where did <team> play last"): the question as asked, its
+  // rows' dates or events the headline (src/shared/query/whenWhere.ts). Only an answer re-headlined says the ask: its
+  // reading as said, the ask before it (what the reading added, which of the teams with a name or a part of a region,
+  // stays). Any other is as asked without it.
+  const ask = askOf(q);
+  const a = await pipelineRead(q, opts);
+  if (!a || !ask) return a;
+  const said = (x: SearchAnswer): SearchAnswer => (x.understood ? { ...x, understood: { ...x.understood, label: `${ask === "when" ? "When" : "Where"}: ${x.understood.label}` } } : x);
+  // The dropdown's answer (no card) is its own, as without the ask; it says the ask only when the page's card would
+  // be re-headlined, read in full to know.
+  if (!opts.full) {
+    const full = await pipelineRead(q, { ...opts, full: true });
+    return full?.stat && whenWhere(full.stat, ask) !== full.stat ? said(a) : a;
+  }
+  const stat = a.stat && whenWhere(a.stat, ask);
+  return !stat || stat === a.stat ? a : said({ ...a, stat });
+}
+
+async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const ctx0 = await parseContext(opts.now, opts.prefer);
   const ctx = opts.asTyped ? { ...ctx0, asTyped: true } : ctx0;
   let p = await parseQuery(q, ctx);
