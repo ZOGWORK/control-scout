@@ -44,6 +44,9 @@ export interface MatchFind {
   ever?: boolean;
   window?: { from: string; to: string; label: string };
   region: Region | null;
+  /** A town said ("closest matches in <town>"): events held there only, in `region` (the town's state, named as the
+   *  town). */
+  city?: string;
   level: "qual" | "playoff" | null;
   /** The finals only: a classic bracket's "F" series, a double-elimination bracket's grand final and its replay. */
   finals: boolean;
@@ -65,6 +68,9 @@ export interface MatchFind {
   videoKeys?: string[];
   /** A score an alliance had to reach. */
   cond?: ScoreCond;
+  /** Matches without penalties: with `team`, those its alliance gave away no penalty points in; else those neither
+   *  alliance did. */
+  clean?: boolean;
   /** One team's matches only (the prediction measures: "<team>'s most unpredictable match"). */
   team?: { number: number; name: string | null };
   /** Only matches whose value is over this ("missed by more than 50 points"), or this or more ("at least 50 points"). */
@@ -75,9 +81,9 @@ export interface MatchFind {
 }
 
 /** A match's number as typed: Q6 (qual), M14 (playoff), match 6 (either). */
-export interface MatchLabel { n: number; level: "qual" | "playoff" | null }
+export interface MatchLabel { n: number; level: "qual" | "playoff" | "final" | null }
 /** The number as the card says it. */
-export const labelText = (l: MatchLabel) => (l.level === "qual" ? `Q${l.n}` : l.level === "playoff" ? `M${l.n}` : `Match ${l.n}`);
+export const labelText = (l: MatchLabel) => (l.level === "qual" ? `Q${l.n}` : l.level === "playoff" ? `M${l.n}` : l.level === "final" ? `Final ${l.n}` : `Match ${l.n}`);
 
 /** A kind of event said by its words alone ("league meet", "qualifiers"): its FIRST types, or null. */
 export function eventKindOf(words: string): MatchFind["kind"] {
@@ -157,12 +163,26 @@ const FINAL = (() => {
   // A double-elimination bracket's final is its last match (and the replay); only a classic bracket's is its "F" series.
   return `m.level = 'playoff' AND ((NOT ${isDouble} AND m.label LIKE 'F%') OR (${isDouble} AND (${double})))`;
 })();
+/** The finals' match `?` ("final 2"): a classic bracket's F2, a double-elimination bracket's grand final (1) or its
+ *  if-needed replay (2). Beside FINAL, which keeps the finals only. */
+const FINAL_NO = (() => {
+  const alliances = `(SELECT COUNT(*) FROM alliances a WHERE a.season = m.season AND a.code = m.code)`;
+  const at = `(m.series - (SELECT MIN(x.series) FROM matches x WHERE x.season = m.season AND x.code = m.code AND x.level = 'playoff') + 1)`;
+  const isDouble = `(m.season >= ${DOUBLE_ELIM_FROM} AND ${alliances} IN (${Object.keys(BRACKETS).map(Number).join(", ")}))`;
+  const double = Object.entries(BRACKETS).map(([n, b]) => `(${alliances} = ${Number(n)} AND ${at} = ${b.matches.length} - 1 + ?)`);
+  // A division's own bracket final is no final when its championship plays finals of its own ("final 2 at nj states").
+  const own = "(e.division_code IS NULL OR NOT EXISTS (SELECT 1 FROM matches z WHERE z.season = m.season AND z.code = e.division_code AND z.level = 'playoff'))";
+  return { sql: `${own} AND ((NOT ${isDouble} AND UPPER(REPLACE(m.label, '-', '')) = ?) OR (${isDouble} AND (${double.join(" OR ")})))`, args: (n: number) => [`F${n}`, ...double.map(() => n)] };
+})();
 
 interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; red_total: number; blue_total: number; v: number }
 
+/** Which penalty points a match with none had, in words: the team's alliance gave none away, or neither did. */
+const cleanWords = (f: Pick<MatchFind, "team">) => (f.team ? "without penalties given away" : "with no penalties either side");
+
 /** The filters the match finder and a scope's highlights (./highlights.ts) take. `events`: these events only (a
  *  division is an event of its own: ./highlights.ts scopeEvents lists them). */
-export type MatchScope = Pick<MatchFind, "season" | "ever" | "window" | "region" | "level" | "finals" | "decided" | "kind" | "cond" | "team" | "label" | "video" | "videoKeys"> & { events?: { season: number; code: string }[];
+export type MatchScope = Pick<MatchFind, "season" | "ever" | "window" | "region" | "level" | "finals" | "decided" | "kind" | "cond" | "team" | "label" | "video" | "videoKeys" | "clean"> & { events?: { season: number; code: string }[];
   /** `events` were named by the query and one isn't official (an off-season event): theirs are the matches all the same. */
   named?: boolean;
   /** A town said ("highlights in Grand Rapids"): events held there only, in `region` (the town's own state or country). */
@@ -187,6 +207,7 @@ export function where(f: MatchScope, upTo = false) {
   if (f.label) {
     const q = "(m.level = 'qual' AND m.number = ?)", pl = "(m.level = 'playoff' AND UPPER(m.label) = ?)";
     if (f.label.level === "qual") { sql.push(q); args.push(f.label.n); }
+    else if (f.label.level === "final") { sql.push(...(f.finals ? [] : [FINAL]), FINAL_NO.sql); args.push(...FINAL_NO.args(f.label.n)); }
     else if (f.label.level === "playoff") { sql.push(pl); args.push(`M${f.label.n}`); }
     else { sql.push(`(${q} OR ${pl})`); args.push(f.label.n, `M${f.label.n}`); }
   }
@@ -196,9 +217,10 @@ export function where(f: MatchScope, upTo = false) {
     args.push(JSON.stringify(f.videoKeys ?? []));
   }
   if (f.team) {
-    sql.push("EXISTS (SELECT 1 FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.on_field = 1 AND x.team = ?)");
+    // Without penalties: the team's own alliance gave away none (its `_pen` is the points it gave the other side).
+    sql.push(`EXISTS (SELECT 1 FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.on_field = 1 AND x.team = ?${f.clean ? " AND (CASE x.alliance WHEN 'red' THEN m.red_pen ELSE m.blue_pen END) = 0" : ""})`);
     args.push(f.team.number);
-  }
+  } else if (f.clean) sql.push("m.red_pen = 0 AND m.blue_pen = 0");
   if (f.events) {
     // By season, as the matches' key reads them.
     const by = new Map<number, string[]>();
@@ -269,24 +291,24 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const eventName = f.events?.find((e) => e.season === f.season && e.name)?.name ?? null;
   const who = f.team ? (f.team.name ? `${f.team.name} (${f.team.number})` : `Team ${f.team.number}`) : null;
   const over = f.over ? `Off by ${f.over.atLeast ? `${f.over.n} points or more` : `more than ${f.over.n} points`}` : null;
-  const typed = [who ? `for ${who}` : null, eventName ? `at ${eventName}` : null, f.kind ? `at ${f.kind.label === "Worlds" ? "Worlds" : f.kind.label.toLowerCase()}` : null, place ? `in ${place}` : null, f.window ? f.window.label : null, f.cond && exact == null ? `where ${condWords(f.cond)}` : null, f.video ? "with video" : null].filter(Boolean).join(" ");
+  const typed = [who ? `for ${who}` : null, eventName ? `at ${eventName}` : null, f.kind ? `at ${f.kind.label === "Worlds" ? "Worlds" : f.kind.label.toLowerCase()}` : null, place ? `in ${place}` : null, f.window ? f.window.label : null, f.cond && exact == null ? `where ${condWords(f.cond)}` : null, f.video ? "with video" : null, f.clean ? cleanWords(f) : null].filter(Boolean).join(" ");
   // A list asked for is titled as one ("Biggest upsets in California"), its table under no heading of its own.
   const head = exact != null ? `${exact}-point match${f.list || rows.length > 1 ? "es" : ""}` : over ? `Predictions ${over.toLowerCase()}` : f.list ? ms.plural : ms.title;
   // A match by its number: "M14 in the finals, 2025–26", "Q12 at Massachusetts Championship, 2025–26"; several,
   // "highest-scoring first" said (the order they're listed in). A qualification number says no match type again.
-  const title = lbl ? `${lbl}${f.finals ? " in the finals" : ""}${typed ? ` ${typed}` : ""}, ${seasonText}${rows.length > 1 ? ", highest-scoring first" : ""}`
+  const title = lbl ? `${lbl}${f.finals && f.label?.level !== "final" ? " in the finals" : ""}${typed ? ` ${typed}` : ""}, ${seasonText}${rows.length > 1 ? ", highest-scoring first" : ""}`
     : `${(filters ? (f.measure === "order" ? `${filters.replace(/^./, (c) => c.toUpperCase())} matches` : head.replace(/match/, `${filters} match`)) : head)}${typed ? ` ${typed}` : ""}, ${seasonText}`;
   const scope = [f.ever ? "All seasons" : seasonText, ...(place ? [place] : []), ...(f.window ? [f.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
-    ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), ...(f.cond ? [condWords(f.cond).replace(/^./, (c) => c.toUpperCase())] : []), ...(f.decided ? ["No ties"] : []), ...(over ? [over] : []), ...(f.video ? ["With video"] : []), ...(f.named ? [] : ["Official events"])];
+    ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), ...(f.cond ? [condWords(f.cond).replace(/^./, (c) => c.toUpperCase())] : []), ...(f.decided ? ["No ties"] : []), ...(over ? [over] : []), ...(f.video ? ["With video"] : []), ...(f.clean ? [f.team ? "No penalties given away" : "No penalties either side"] : []), ...(f.named ? [] : ["Official events"])];
   // An off-season event named is its own matches: never called official.
   const at = f.named ? "at the event named" : "at official events";
-  const definition = `${rule.replace(/^./, (c) => c.toUpperCase())} Only played matches ${at} held in person, with both alliances' points on record.${f.video ? " With video: FIRST's own video of the match, or its place in the event's recording (the same clip its Play button plays)." : ""}`;
-  const where2 = `${who ? ` with ${who}` : ""}${place ? ` in ${place}` : ""}${f.kind ? ` at ${f.kind.label.toLowerCase()}` : ""}${f.window ? ` ${f.window.label}` : ` in ${seasonText}`}${f.cond ? ` where ${condWords(f.cond)}` : ""}${f.video ? " with video" : ""}`;
+  const definition = `${rule.replace(/^./, (c) => c.toUpperCase())} Only played matches ${at} held in person, with both alliances' points on record.${f.video ? " With video: FIRST's own video of the match, or its place in the event's recording (the same clip its Play button plays)." : ""}${f.clean ? (f.team ? " Without penalties: the team's alliance gave away no penalty points (no fouls the other alliance scored from)." : " Without penalties: neither alliance gave away a penalty point.") : ""}`;
+  const where2 = `${who ? ` with ${who}` : ""}${place ? ` in ${place}` : ""}${f.kind ? ` at ${f.kind.label.toLowerCase()}` : ""}${f.window ? ` ${f.window.label}` : ` in ${seasonText}`}${f.cond ? ` where ${condWords(f.cond)}` : ""}${f.video ? " with video" : ""}${f.clean ? ` ${cleanWords(f)}` : ""}`;
   const base = { family: "superlative" as const, intent: `find-${f.measure}`, title, scope, definition, ...(f.team ? { team: f.team } : {}), source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}` };
   if (!rows.length) {
     const none = count && over ? `No prediction for the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} was off by ${f.over!.atLeast ? `${f.over!.n} points or more` : `more than ${f.over!.n} points`}.`
       // A number with no match: that match is missing, never the season's matches ("No M30 played at worlds in 2025–26 yet.").
-      : lbl && !count ? `No ${lbl} played${f.finals ? " in the finals" : ""}${eventName ? ` at ${eventName}` : ""}${where2} yet.`
+      : lbl && !count ? `No ${lbl} played${f.finals && f.label?.level !== "final" ? " in the finals" : ""}${eventName ? ` at ${eventName}` : ""}${where2} yet.`
       : count ? `None of the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} is one: ${rule.replace(/;.*$/, "")}.` : `No played matches${f.named ? "" : " at official events"}${filters ? ` (${filters})` : ""}${where2} yet.`;
     return { ...base, blocks: [], none };
   }

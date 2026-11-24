@@ -343,6 +343,20 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
     if (events.length && rows.length) return { ...done(rows, { ...base, label: label() }), stat };
   }
   const rows = await rowsFor(e, now);
+  // "The next event in Texas": one answer, the soonest (with its divisions, as one card), the rest counted after it
+  // and one tap away on Events, never every upcoming event listed.
+  if (e.next && rows.length) {
+    const where = whereAsStored(e, rows);
+    const cards = firstCards(rows.map((r) => eventHit(r, now)), rows.length);
+    const more = cards.length - 1;
+    const asked = singular(label({ where })).replace(/^Upcoming\b/, "Next");
+    const href = `/events${qsOf({ region: e.region?.key ?? null })}`;
+    return {
+      q, hits: cards.slice(0, 1), step: "deterministic", weak: false,
+      pages: [...(more ? [{ title: `${more} more upcoming: Events${e.region ? ` in ${e.region.name}` : ""}`, href }] : []), ...pagesFor(q)],
+      understood: { ...base, label: `${asked}: ${cards[0].title}${more ? ` · ${more} more upcoming` : ""}`, total: rows.length },
+    };
+  }
   if (rows.length) {
     const where = whereAsStored(e, rows);
     // A bounded window ("this week") stays in the heading: the page's tabs only stand in for upcoming and past.

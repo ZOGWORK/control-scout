@@ -1,7 +1,7 @@
 {
   "name": "control-scout",
   "private": true,
-  "version": "8.0.1",
+  "version": "8.0.3",
   "description": "FTC Control Scout — free FTC scouting and prediction for every team.",
   "license": "GPL-3.0-only",
   "type": "module",
@@ -15,6 +15,8 @@
   "scripts": {
     "search:eval": "tsx scripts/search-eval.ts",
     "search:heldout": "tsx scripts/search-heldout.ts",
+    "search:replay": "tsx scripts/search-replay.ts",
+    "search:replay:build": "tsx scripts/search-replay-build.ts",
     "postinstall": "npm run build -w @control-scout/predict-engine",
     "dev": "concurrently -k -n api,web -c yellow,cyan \"tsx watch server/index.ts\" \"vite\"",
     "dev:api": "tsx watch server/index.ts",

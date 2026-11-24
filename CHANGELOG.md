@@ -15,6 +15,30 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.0.3 — 2026-11-24
+
+Ask the bot when a team plays next and it answers with the match, its alliance and the call.
+
+### Highlights
+- [scout] New /next: a team's next match, with win odds and score
+- [predict] The card is the same one the follow reminders post
+- [fixes] Nothing scheduled yet is said plainly, with the event to watch
+
+### Discord bot
+- **/next** (`bot/next.ts`, `bot/lookups.ts`): the team's next match, on demand, instead of an event code and a match number. It reads the team's events that aren't over — earliest first, three at most — and takes the first unplayed match the team is in, in schedule order (qualifications before playoffs, then series and number), so a match whose time FIRST hasn't posted yet still counts. The answer is the pre-match card the follow reminders post: when it starts, both alliances with the team linked, the favourite's win chance (or "Even call"), the predicted score and the confidence in plain words. No unplayed match is not a guess, and it tells the two cases apart: a schedule with the team on it but no match left is "no more matches at [event]" (naming the next event when it has one), and a schedule without it is "nothing posted yet" with the event to watch; a team with no event this season gets a link to its page. It shows a match's call, so the owner's `livePredictions` switch turns it off with `/predict`. `bot/next.test.ts` covers schedule order, a played match never being the answer, a match without the team, a playoff alliance's third robot, the events being read in order, and no schedule at all. (#2299)
+
+## 8.0.2 — 2026-11-24
+
+Control Scout takes the old 👎 off the answers that still carry it: a button that does nothing isn't left under an answer.
+
+### Highlights
+- [scout] Old answers lose the 👎 that no longer does anything
+- [fixes] The bot tidies its own messages once, on the next deploy
+- [scout] A member's own 👎 and every 👍 stay where they are
+
+### Discord bot
+- **The stale 👎s are taken off** (`bot/cleanup.ts`, `bot/index.ts`): the 👎 was removed in 8.0.1, but the answers the bot posted between 7.9.2 and there still carry it, and clicking it does nothing. On the first connection after this ships the bot walks back through the recent messages of every channel it can read — and each server's active threads — and removes its own reaction from its own answers, then records that server's finished walk in a `kv` row of its own (`bot:down-sweep:<server>`), so a restart or a deploy never scans it again. Only its own reaction goes: a member's 👎 on the same answer is theirs and stays, and a 👍 stays; no row of `discord_answers` is written, since the `down` counts are what people clicked and stay readable in the owner console and the queue's own re-check. The walk ends at a message from before 2026-11-21, before any answer could have a 👎, so a channel's older history is never requested. A sweep that met a channel it couldn't read (no Read Message History, a thread since deleted) or a 👎 that wouldn't come off is logged and that server is not recorded, so the next start walks it again and only it, while a 👎 that is already gone counts as done. A server with no row is walked when it is first seen: one added back has its row deleted with its other data (`bot/forget.ts`) and is swept as it joins, and one added while the bot was down is walked on the next start, since no join event reaches it (one sweep at a time, so a join can't walk over a pass in flight). Archived threads are left alone: one from those two days has to still be active to be read now, and paging every channel's archive for it isn't worth the calls. Reading its own answers back needs **Read Message History**, which the invite now asks for (`DISCORD_PERMISSIONS`): a server that added the bot before 8.0.2 needs the new invite link, and until it has it the bot logs the channels it can't read and asks again on its next start. `bot/cleanup.test.ts` covers its own 👎 coming off (and never the 👍 beside it), a member's 👎 staying, the walk back to the thumbs era, an unreadable channel, a page that won't move backwards, a 👎 that is already gone, the recorded sweep, a sweep that missed something and was retried, a server added back walked alone, a server with no row walked while the others are done, and an unknown bot id. (#2244)
+
 ## 8.0.1 — 2026-11-24
 
 Control Scout's answers carry only a 👍: the 👎 is gone, and with it the note that explained it.
