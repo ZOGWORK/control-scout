@@ -114,6 +114,21 @@ describe("grounding", () => {
     // Without the teams, as before: any fact's number.
     expect(grounded("6980's OPR is 142.3.", two, "4215 vs 6980")).toBe(true);
   });
+  it("a card's heading names its lines' team, and a compare row gives each side to its team (Loopy on #2263)", () => {
+    const teams = new Set([4215, 6980]);
+    const card = ["Awards for team 6980 Bad Wolf: 1 found.", "- Inspire Award 2nd place, 2025–26", "Team 4215 in 2025–26: OPR 142.3."];
+    expect(grounded("6980 placed 2nd for the Inspire Award.", card, "4215 vs 6980", teams)).toBe(true);
+    expect(grounded("4215 placed 2nd for the Inspire Award.", card, "4215 vs 6980", teams)).toBe(false);
+    const cmp = ["Head to head:", "4215 Hypnotic Robotics, 6980 Bad Wolf:", "- OPR: 101.6 vs 46.9 (+54.7)"];
+    expect(grounded("4215's OPR is 101.6 and 6980's is 46.9.", cmp, "4215 vs 6980", teams)).toBe(true);
+    expect(grounded("6980's OPR is 101.6.", cmp, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("4215 leads by 54.7.", cmp, "4215 vs 6980", teams)).toBe(true);
+  });
+  it("a streamed preview checks each piece on its own, as the answer is (Loopy on #2263)", () => {
+    const facts = ["Team 4215 in 2025–26: OPR 142.3.", "Team 6980 in 2025–26: OPR 46.9."];
+    // Joined, "6980's OPR is 142.3 4215 ..." would read as one sentence naming 4215 too.
+    expect(previewOf(JSON.stringify({ text: "6980's OPR is 142.3", points: ["4215 is ahead"] }), facts, "4215 vs 6980", new Set([4215, 6980]))).toBeUndefined();
+  });
 });
 
 /** What brunoAnswer gives for a reply: his points, or none. */
