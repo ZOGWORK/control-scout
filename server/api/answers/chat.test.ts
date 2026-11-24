@@ -111,6 +111,8 @@ describe("a question about something search holds nothing on (#2234, #2227, #222
     expect(chatKind("best coffee place in boston")).toBe("off-topic");
     expect(chatKind("whats the weather like in denver in summer")).toBe("off-topic");
     expect(chatKind("best teleop in boston")).toBeNull();
+    expect(chatKind("local event in boston")).toBeNull();
+    expect(chatKind("exciting match in denver")).toBeNull();
     expect(chatKind("qzv stuff in denver")).toBeNull();
     expect(chatKind("qzv nothing at all")).toBeNull();
   });

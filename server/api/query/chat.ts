@@ -31,6 +31,10 @@ export function chatWords(q: string): string[] {
 const FRAMING = new Set([...NOT_DATA, "agg", "and", "compare", "vs", "together", "list", "hypo", "named"]);
 /** What a question asks about: every lexicon phrase that reads as FTC data, not framing. */
 const SUBJECT_PHRASES = LEXICON.filter((e) => e.syms.some((s) => !FRAMING.has(s.k))).map((e) => e.words);
+/** FTC's own nouns: a match, an event, a team, a season, an award, an alliance, a playoff, worlds, states. Said in a
+ *  question, it is about them, whatever everyday word comes with it ("local event in boston"). */
+const FTC_NOUNS = new Set(["thing", "level", "finals", "alliance", "worlds", "states", "award"]);
+const NOUN_PHRASES = LEXICON.filter((e) => e.syms.some((s) => FTC_NOUNS.has(s.k))).map((e) => e.words);
 /** Every word search reads something in: its lexicon's and its chat words'. */
 const SEARCH_WORDS = new Set([...LEXICON.flatMap((e) => e.words).flatMap((p) => p.split(" ")), ...Object.values(CHAT_WORDS).flat().flatMap((p) => p.split(" "))]);
 /** Whether search reads `w`, or the word it is the plain plural of ("drivers" as "driver"), as everydayWord reads one. */
@@ -87,8 +91,10 @@ export function otherSubject(q: string): string[] {
   const head = place > 0 ? ws.slice(0, place) : ws;
   if (head.some((w) => !everydayWord(w) && !searchWord(w))) return [];
   const subject = head.filter((w) => !searchWord(w));
-  // A word only search uses ("opr", "teleop") makes it an FTC question; one English shares ("forecast", "place")
-  // doesn't, said beside an everyday subject ("weather forecast", "pizza place").
+  // A word only search uses ("opr", "teleop") or one of FTC's own nouns ("match", "event") makes it an FTC question;
+  // another English shares ("forecast", "place") doesn't, said beside an everyday subject ("weather forecast",
+  // "pizza place").
+  if (has(head, NOUN_PHRASES)) return [];
   const data = SUBJECT_PHRASES.filter((p) => has(head, [p]));
   if (data.some((p) => p.some((w) => !everydayWord(w)))) return [];
   return subject;
