@@ -46,6 +46,20 @@ export async function sorryFor(q: string, a: SearchAnswer, opts: { now?: number;
     : p.named ? [p.named.typed]
     : [];
   if (!read.length && !Number.isNaN(team)) read.push(`Team ${team}`);
-  const checked = opts.answers ? await Promise.all(suggest.slice(0, 6).map(async (x) => ((await opts.answers!(x)) ? x : null))) : suggest;
-  return { understood: read, suggest: checked.filter((x): x is string => !!x).slice(0, 4) };
+  return { understood: read, suggest: opts.answers ? await firstAnswering(suggest, opts.answers) : suggest.slice(0, SHOWN) };
+}
+
+/** At most this many suggestions are shown, of the first TRIED. */
+const SHOWN = 4, TRIED = 6;
+
+/** The first SHOWN of `suggest`'s first TRIED that answer, in order: the first SHOWN checked at once, the rest only
+ *  when fewer than SHOWN of those answer (all six were run at once before, each a whole search, though at most four
+ *  are ever shown: the search audit's S5). */
+export async function firstAnswering(suggest: string[], answers: (q: string) => Promise<boolean>): Promise<string[]> {
+  const tried = suggest.slice(0, TRIED);
+  const check = (xs: string[]) => Promise.all(xs.map(async (x) => ((await answers(x)) ? x : null)));
+  const first = (await check(tried.slice(0, SHOWN))).filter((x): x is string => !!x);
+  if (first.length >= SHOWN || tried.length <= SHOWN) return first;
+  const rest = (await check(tried.slice(SHOWN))).filter((x): x is string => !!x);
+  return [...first, ...rest].slice(0, SHOWN);
 }
