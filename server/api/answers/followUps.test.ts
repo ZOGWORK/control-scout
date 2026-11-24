@@ -17,7 +17,7 @@ import { canonicalQuery } from "../../../src/lib/meta";
 import { RELATED_QUERY_MAX, followApiPath, relatedApiPath } from "../../../src/shared/search";
 import { MAX_QUERY } from "../searchAnswer";
 import type { SearchAnswer, SearchFollowUp } from "../../../src/shared/api";
-import { answerKey, candidates, followUps, followUpsWithin, keptFollowUps, lineOf, type Progress, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
+import { aheadCount, answerKey, candidates, followUps, followUpsWithin, keptFollowUps, lineOf, precomputeFollowUps, type Progress, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -413,4 +413,46 @@ describe("the follow-ups' time budget (followUpsWithin)", () => {
     clearAllCaches();
     expect(await followUpsWithin("4215 vs 6980", new Set(), 60_000)).toEqual(direct);
   });
+});
+
+describe("follow-ups made ahead (precomputeFollowUps)", () => {
+  /** Asked until what's served is no longer `old` (a set made again behind it), at most `ms`. */
+  const until = async (q: string, old: unknown, ms = 30_000) => {
+    const end = Date.now() + ms;
+    for (;;) {
+      const now = await followUpsWithin(q, new Set(), 0);
+      if (now !== old || Date.now() > end) return now;
+      await new Promise((ok) => setTimeout(ok, 50));
+    }
+  };
+
+  it("are served at once, the same set followUps makes; stale after a data move, and made again behind it", async () => {
+    clearAllCaches();
+    const { kvSet } = await import("../../db");
+    await kvSet("search:version", "ahead-1");
+    await new Promise((ok) => setTimeout(ok, 2_100));
+    expect(await precomputeFollowUps(["4215", "6980"])).toBe(2);
+    expect(aheadCount()).toBe(2);
+    // Ready with no time at all: made ahead.
+    const served = await followUpsWithin("4215", new Set(), 0);
+    expect(served).toEqual(await followUps("4215", await pageAnswer("4215", 25, new Set())));
+    // Run again on the same index (a retry after one failed): what was made is kept, not made again.
+    expect(await precomputeFollowUps(["4215", "6980"])).toBe(2);
+    expect(await followUpsWithin("4215", new Set(), 0)).toBe(served);
+    // Preferred teams: never the set made for anyone.
+    expect(await followUpsWithin("4215", new Set(["team:6980"]), 0)).not.toBe(served);
+    // New data (the kept answers' generation moves): the old set is served once more, and made again behind it.
+    clearAllCaches();
+    expect(await followUpsWithin("4215", new Set(), 0)).toBe(served);
+    const again = await until("4215", served);
+    expect(again).not.toBe(served);
+    expect(again).toEqual(served);
+    // A stats run moves the index: no longer served (made again as any search's).
+    await kvSet("search:version", "ahead-2");
+    await new Promise((ok) => setTimeout(ok, 2_100));
+    expect((await followUpsWithin("4215", new Set(), 0)).partial).toBe(true);
+    // Made again for the new index, the old ones dropped.
+    expect(await precomputeFollowUps(["6980"])).toBe(1);
+    expect(aheadCount()).toBe(1);
+  }, 90_000);
 });
