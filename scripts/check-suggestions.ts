@@ -8,14 +8,16 @@
 // no Worlds yet gets a card that says so: reported, not failed, as it is that team's true answer).
 // Run it before adding a query to the pool, and after a search change ships.
 //
-//   npm run suggestions:check                                  (the live site)
-//   npm run suggestions:check -- --base http://localhost:3000
+//   npm run suggestions:check                                  (a local server, npm run dev:api)
+//   npm run suggestions:check -- --base https://controlscout.org   (the live site, named outright)
+// Every request carries the test header (server/testTraffic.ts): the failure log never counts these.
 //   npm run suggestions:check -- --team 4215
 import { HOME_SUGGESTIONS, suggestionLabel, teamSuggestions, type HomeSuggestion } from "../src/shared/homeSuggestions.js";
 import type { SearchAnswer } from "../src/shared/api.js";
+import { TEST_HEADER } from "../server/testTraffic.js";
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i === -1 ? undefined : process.argv[i + 1]; };
-const base = (arg("base") ?? "https://controlscout.org").replace(/\/+$/, "");
+const base = (arg("base") ?? "http://127.0.0.1:3000").replace(/\/+$/, "");
 
 /** Why this answer isn't a real card, or null when it is. */
 export function noCard(a: SearchAnswer): string | null {
@@ -33,7 +35,7 @@ export function misspelled(text: string, a: SearchAnswer): string | null {
 async function get<T>(path: string): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
-      const res = await fetch(`${base}${path}`, { headers: { accept: "application/json" } });
+      const res = await fetch(`${base}${path}`, { headers: { accept: "application/json", [TEST_HEADER]: "1" } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return (await res.json()) as T;
     } catch (e) {

@@ -2,18 +2,21 @@
 // and the any-team pairs, asked of the live site signed out, graded, numbers checked against the team page, and
 // written up as tables by set, by family and by failure pattern.
 //
-//   npx tsx scripts/search-signoff/run.ts                       controlscout.org, every set
+//   npx tsx scripts/search-signoff/run.ts                       a local server (npm run dev:api), every set
 //   npx tsx scripts/search-signoff/run.ts --sets C --out C:/tmp/signoff
 //   npx tsx scripts/search-signoff/run.ts --base http://localhost:8787 --par 4
+// Never production by default: the live site only with --base named outright, and every request carries the test
+// header (X-CS-Test, server/testTraffic.ts), so the failure log never counts these questions as visitors'.
 //   npx tsx scripts/search-signoff/run.ts --regrade <out>/results.jsonl   grade a saved run again, asking nothing new
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { crosscheck, type Check } from "./crosscheck.js";
 import { fold, grade, sameAnswer, type Grade, type Live } from "./grade.js";
+import { TEST_HEADER } from "../../server/testTraffic.js";
 
 const arg = (f: string) => { const i = process.argv.indexOf(`--${f}`); return i > 0 ? process.argv[i + 1] : undefined; };
-const BASE = (arg("base") ?? "https://controlscout.org").replace(/\/$/, "");
+const BASE = (arg("base") ?? "http://127.0.0.1:3000").replace(/\/$/, "");
 const SETS = (arg("sets") ?? "A,B,C,D,P,T").split(",");
 const PAR = +(arg("par") ?? 6);
 const STAMP = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
@@ -65,7 +68,7 @@ async function ask(q: string): Promise<Saved> {
   for (let i = 0; i < 3; i++) {
     const t = performance.now();
     try {
-      const r = await fetch(`${BASE}/api/search?${new URLSearchParams({ q, limit: "40", answer: "1" })}`, { headers: { "user-agent": "cs-signoff" }, signal: AbortSignal.timeout(60_000) });
+      const r = await fetch(`${BASE}/api/search?${new URLSearchParams({ q, limit: "40", answer: "1" })}`, { headers: { "user-agent": "cs-signoff", [TEST_HEADER]: "1" }, signal: AbortSignal.timeout(60_000) });
       if (r.ok) return { res: (await r.json()) as Live, ms: Math.round(performance.now() - t) };
       err = `HTTP ${r.status}`;
     } catch (e) { err = String(e); }
@@ -76,7 +79,7 @@ async function ask(q: string): Promise<Saved> {
 type Health = { release?: string; engine?: string; at?: string };
 const health: Health = REGRADE
   ? (() => { try { return JSON.parse(readFileSync(join(dirname(REGRADE), "meta.json"), "utf8")) as Health; } catch { return {}; } })()
-  : { ...((await fetch(`${BASE}/api/health`).then((r) => r.json()).catch(() => ({}))) as Health), at: new Date().toISOString() };
+  : { ...((await fetch(`${BASE}/api/health`, { headers: { [TEST_HEADER]: "1" } }).then((r) => r.json()).catch(() => ({}))) as Health), at: new Date().toISOString() };
 console.log(`${BASE} release ${health.release?.slice(0, 8)} · ${qs.length} queries → ${OUT}${REGRADE ? " (regrade, offline)" : ""}`);
 const done: Done[] = [];
 let next = 0;
