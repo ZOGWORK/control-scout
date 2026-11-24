@@ -8,7 +8,8 @@ import { migrate, openDb, run, setDb } from "../db";
 import { invalidateFlags, setFlag } from "../flags";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, brunoAnswer, followUpOf, grounded, partialAnswer, previewOf, resetBrunoAnswerCache, statFacts, type BrunoAnswer } from "./searchBrunoAnswer";
+import type { SearchAnswer } from "../../src/shared/api";
+import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, answerTeams, brunoAnswer, followUpOf, grounded, partialAnswer, previewOf, resetBrunoAnswerCache, statFacts, type BrunoAnswer } from "./searchBrunoAnswer";
 import { isBrunoQuestion } from "../../src/shared/search";
 
 let fake: Server;
@@ -123,6 +124,17 @@ describe("grounding", () => {
     expect(grounded("4215's OPR is 101.6 and 6980's is 46.9.", cmp, "4215 vs 6980", teams)).toBe(true);
     expect(grounded("6980's OPR is 101.6.", cmp, "4215 vs 6980", teams)).toBe(false);
     expect(grounded("4215 leads by 54.7.", cmp, "4215 vs 6980", teams)).toBe(true);
+  });
+  it("a team named by its name alone is that team (Loopy on #2263)", () => {
+    const teams = new Map<number, string | null>([[4215, "Hypnotic Robotics"], [6980, "Bad Wolf"]]);
+    const facts = ["Team 4215 in 2025–26: OPR 142.3.", "Team 6980 in 2025–26: OPR 46.9."];
+    expect(grounded("Bad Wolf's OPR is 142.3.", facts, "4215 vs 6980", teams)).toBe(false);
+    expect(grounded("Bad Wolf's OPR is 46.9.", facts, "4215 vs 6980", teams)).toBe(true);
+    expect(grounded("Hypnotic Robotics has an OPR of 142.3.", facts, "4215 vs 6980", teams)).toBe(true);
+  });
+  it("a compound question's parts' teams are the answer's (Loopy on #2263)", () => {
+    const a = { q: "x", hits: [], step: "deterministic", clauses: [{ q: "y", hits: [], step: "deterministic", card: { kind: "info", title: "t", lines: [], team: { number: 6980, name: "Bad Wolf" } } }] } as unknown as SearchAnswer;
+    expect([...answerTeams(a)]).toEqual([[6980, "Bad Wolf"]]);
   });
   it("a streamed preview checks each piece on its own, as the answer is (Loopy on #2263)", () => {
     const facts = ["Team 4215 in 2025–26: OPR 142.3.", "Team 6980 in 2025–26: OPR 46.9."];

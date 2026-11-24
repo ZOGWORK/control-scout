@@ -169,18 +169,22 @@ const numbers = (s: string) => (s.replace(/[–—]/g, "-").replace(/(\d),(?=\d{
 
 /** Whether every number in `text` is one the facts or the question have (counting words like "three" don't count as
  *  numbers), each with its team (`teams`: the team numbers the answer is about; see ungrounded). */
-export function grounded(text: string, facts: string[], question: string, teams?: ReadonlySet<number>): boolean {
+export function grounded(text: string, facts: string[], question: string, teams?: BrunoTeams): boolean {
   return ungrounded(text, facts, question, teams).length === 0;
 }
 
 /** A sentence of an answer: split where one ends (". ", "; "), never inside a number ("101.6"). */
 const sentences = (s: string) => s.split(/(?<=[.!?;])\s+/).filter(Boolean);
 
+/** The teams an answer is about: their numbers, each with its name when known (a sentence may name a team by name alone,
+ *  "Bad Wolf's OPR"). */
+export type BrunoTeams = ReadonlySet<number> | ReadonlyMap<number, string | null>;
+
 /** The numbers in `text` that neither the facts nor the question have (what makes an answer fail `grounded`). With
  *  `teams`, each number is checked with the team its sentence names: it must be in a fact line about that team (a line
  *  naming it, or under a heading line that does) or in one about no team, so "6980's OPR is 142.3" fails when 142.3 is
  *  4215's. A sentence naming no team is checked against every fact. */
-export function ungrounded(text: string, facts: string[], question: string, teams?: ReadonlySet<number>): string[] {
+export function ungrounded(text: string, facts: string[], question: string, teams?: BrunoTeams): string[] {
   const asked = new Set(numbers(question));
   const known = (n: string, pool: Iterable<string>) => { for (const k of pool) if (k === n || k === n.replace(/\.0+$/, "")) return true; return false; };
   if (!teams?.size) {
@@ -188,12 +192,16 @@ export function ungrounded(text: string, facts: string[], question: string, team
     return numbers(text).filter((n) => !known(n, all));
   }
   const isTeam = (n: string) => /^\d+$/.test(n) && teams.has(Number(n));
+  // A team named by its name alone ("Bad Wolf"), as well as by number: names of four letters or more, whole words.
+  const fold = (x: string) => x.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
+  const byName = teams instanceof Map ? [...teams].flatMap(([n, name]) => { const f = fold(name ?? ""); return f.length >= 4 && !/^\d+$/.test(f) ? [{ n, f }] : []; }) : [];
+  const teamsIn = (x: string) => { const t = new Set(numbers(x).filter(isTeam).map(Number)); if (byName.length) { const fx = ` ${fold(x)} `; for (const b of byName) if (fx.includes(` ${b.f} `)) t.add(b.n); } return t; };
   // Each fact line with the teams it is about: its own, else, for a list item ("- …"), those of the line it is listed
   // under, the last one that isn't an item ("Bad Wolf (6980) awards:", "Awards for team 4215: 3 found."). A compare
   // row under two teams ("- OPR: 142.3 vs 46.9 (+95.4)") gives each side's numbers to its own team, in order.
   let heading: number[] = [];
   const lines = facts.map((f) => {
-    const own = [...new Set(numbers(f).filter(isTeam).map(Number))];
+    const own = [...teamsIn(f)];
     const item = /^\s*-\s/.test(f);
     const about = own.length || !item ? own : heading;
     if (!item) heading = own;
@@ -207,7 +215,7 @@ export function ungrounded(text: string, facts: string[], question: string, team
   const whose = (l: (typeof lines)[number], n: string) => l.side.get(n) ?? l.side.get(n.replace(/\.0+$/, "")) ?? [...l.side].find(([k]) => k.replace(/\.0+$/, "") === n)?.[1] ?? l.about;
   const bad: string[] = [];
   for (const s of sentences(text)) {
-    const named = new Set(numbers(s).filter(isTeam).map(Number));
+    const named = teamsIn(s);
     for (const n of numbers(s)) {
       if (named.has(Number(n)) && isTeam(n)) continue;
       if (known(n, asked)) continue;
@@ -218,16 +226,20 @@ export function ungrounded(text: string, facts: string[], question: string, team
   return bad;
 }
 
-/** The team numbers an answer is about: its teams' results, its card's team, its stat's teams and rows. */
-export function answerTeams(a: SearchAnswer): Set<number> {
-  const out = new Set<number>();
-  for (const h of a.hits) if (h.kind === "team" && /^\d+$/.test(h.ref)) out.add(Number(h.ref));
-  if (a.card?.team) out.add(a.card.team.number);
-  const s = a.stat;
-  if (s?.team) out.add(s.team.number);
-  for (const t of s?.teams ?? []) out.add(t.number);
-  // A board's rows link each team's page ("/teams/4215").
-  for (const b of s?.blocks ?? []) if (b.kind === "leaderboard") for (const r of b.rows) { const n = /^\/teams\/(\d+)/.exec(r.team.href)?.[1]; if (n) out.add(Number(n)); }
+/** The teams an answer is about, each with its name: its teams' results, its card's team, its stat's teams and rows,
+ *  and the same of each part of a compound question (its clauses, whose facts Bruno is given too). */
+export function answerTeams(a: SearchAnswer): Map<number, string | null> {
+  const out = new Map<number, string | null>();
+  const add = (n: number, name?: string | null) => { if (!out.get(n)) out.set(n, name?.replace(/^\s*\d+\s+/, "").trim() || null); };
+  for (const h of a.hits) if (h.kind === "team" && /^\d+$/.test(h.ref)) add(Number(h.ref), h.title);
+  for (const x of [a, ...(a.clauses ?? [])]) {
+    if (x.card?.team) add(x.card.team.number, x.card.team.name);
+    const s = x.stat;
+    if (s?.team) add(s.team.number, s.team.name);
+    for (const t of s?.teams ?? []) add(t.number, t.name);
+    // A board's rows link each team's page ("/teams/4215").
+    for (const b of s?.blocks ?? []) if (b.kind === "leaderboard") for (const r of b.rows) { const n = /^\/teams\/(\d+)/.exec(r.team.href)?.[1]; if (n) add(Number(n), r.team.label); }
+  }
   return out;
 }
 
@@ -325,7 +337,7 @@ const tidy = (s: unknown, max: number) => (typeof s === "string" ? s.replace(/\s
  * written held back (its next digit could change it), and checked like the answer. undefined: a number in it isn't
  * in the facts (the answer will be dropped, so nothing more of it is shown).
  */
-export function previewOf(raw: string, facts: string[], question: string, teams?: ReadonlySet<number>): BrunoAnswer | null | undefined {
+export function previewOf(raw: string, facts: string[], question: string, teams?: BrunoTeams): BrunoAnswer | null | undefined {
   const p = partialAnswer(raw);
   const pieces = [p.text, ...p.points];
   if (p.open) pieces[pieces.length - 1] = pieces[pieces.length - 1].replace(/[\d.,\-–—]+$/, "");
@@ -341,7 +353,7 @@ async function ask(q: string, asked: string, opts: BrunoOptions, k: string, now:
   const { after, afterSeason, afterMy, ...search } = opts;
   // A follow-up is answered from the search it points back at: that search's facts, said as its. A failed read of
   // them (a database error) is no answer, as a failed model call is, never an error to the page; not cached.
-  let facts: string[], teams: ReadonlySet<number>;
+  let facts: string[], teams: BrunoTeams;
   try {
     const read = (x: string) => searchAnswer(x, { ...search, learn: search.learn ?? true });
     if (after) {
