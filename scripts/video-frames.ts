@@ -1589,6 +1589,8 @@ async function doCode(code: string): Promise<void> {
       // This event's half of a split stream, where the split check found one: its zoom stays on for the edges' reads
       // unless the shrunk-bar check below reads the video instead.
       let splitHalf: SplitSide | null = null;
+      // No player left to read the edges in (the shrunk-bar check's fresh player wouldn't open): the row goes without.
+      let edgesLost = false;
       if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
         // The page as it is here (non-null), for the check's callbacks.
         const pg = page;
@@ -1637,14 +1639,23 @@ async function doCode(code: string): Promise<void> {
         });
         // A hung sample's seek or frame capture may still land on this page, under the edges' reads: they're read in a
         // fresh player instead (on the split half, where the split check found one).
+        // A player that won't open again keeps the video as read (nothing), its row written without edges: the video
+        // played, so it isn't one that couldn't be (PLAY_FAILED).
         if (hung) {
           await closePage(page);
-          page = await player();
-          if (division) divisions.set(page, division);
-          { const e = eventNames.get(code); if (e) pageEvent.set(page, e); }
-          pageDeadline.set(page, deadline);
-          await open(page, v.videoId);
-          if (half) await zoom(page, half);
+          try {
+            const fresh = await player();
+            page = fresh;
+            if (division) divisions.set(fresh, division);
+            { const e = eventNames.get(code); if (e) pageEvent.set(fresh, e); }
+            pageDeadline.set(fresh, deadline);
+            await open(fresh, v.videoId);
+            if (half) await zoom(fresh, half);
+          } catch (e) {
+            if (e instanceof EventOverTime) throw e;
+            edgesLost = true;
+            log(`    couldn't open a fresh player after the hang: ${(e as Error).message.split("\n")[0]} (the row is kept without edges)`);
+          }
         }
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
@@ -1663,7 +1674,7 @@ async function doCode(code: string): Promise<void> {
         else {
           // The edges are read after the matches are placed: one that fails keeps the placed row, without edges (a
           // later --bounds reads them).
-          const edges = await readEdges(page, m.length!, log).catch((e: Error) => {
+          const edges = edgesLost ? {} as { opensOn?: Edge; endsOn?: Edge } : await readEdges(page, m.length!, log).catch((e: Error) => {
             if (e instanceof EventOverTime) throw e;
             log(`    couldn't read its edges: ${e.message.split("\n")[0]} (the row is kept without them)`);
             return {} as { opensOn?: Edge; endsOn?: Edge };
