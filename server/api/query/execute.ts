@@ -3,6 +3,8 @@
 // TwoTeamQuestion, a TopMatchesQuestion, a LeaderboardQuestion). They are built from the slots, never by reading text
 // again, and answered with the families' own cards. A parse that isn't complete, or an intent no family takes, is
 // left to search's other readers (null).
+import { AsyncLocalStorage } from "node:async_hooks";
+import { cleanQuery } from "../../../src/shared/search.js";
 import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/shared/api.js";
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import type { Region } from "../../../src/shared/regions.js";
@@ -57,8 +59,17 @@ export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resol
   /** The query held a quoted phrase: no word fixed in the parse (ParseContext.asTyped). */
   asTyped?: boolean }
 
-/** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
+/** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. Its executors' no, when
+ *  it gives none, is noted under `q` for the soft-failure log (declineOf); an answer clears it. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  const asked: { why: string | null } = { why: null };
+  const a = await DECLINING.run(asked, () => pipelineAsked(q, opts));
+  if (a || !asked.why) DECLINES.delete(declineKey(q));
+  else noteDecline(q, asked.why);
+  return a;
+}
+
+async function pipelineAsked(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
   // "When …" or "where …" ("when did <team> win inspire", "where did <team> play last"): the question as asked, its
   // rows' dates or events the headline (src/shared/query/whenWhere.ts). Only an answer re-headlined says the ask: its
   // reading as said, the ask before it (what the reading added, which of the teams with a name or a part of a region,
@@ -474,25 +485,31 @@ interface Ask { p: Parsed; intent: PipelineIntent; scope: ReadScope; opts: Pipel
  *  one's turn). */
 type Executor = (x: Ask) => Promise<Outcome | undefined>;
 
-/** The pipeline's last no for each query (its reason), for the soft-failure log: kept a minute, the latest few hundred. */
+/** The last no of one pipelineAnswer call's executors (its own, however many parses it reads at once). */
+const DECLINING = new AsyncLocalStorage<{ why: string | null }>();
+/** The pipeline's no for each query it gave no answer (its reason), for the soft-failure log: kept a minute, the
+ *  latest few hundred, under the query as search reads it (cleanQuery: the route's and the pipeline's alike). */
 const DECLINES = new Map<string, { why: string; at: number }>();
 const DECLINE_MS = 60_000, DECLINES_KEPT = 500;
+const declineKey = (q: string) => cleanQuery(q).toLowerCase();
 function noteDecline(q: string, why: string): void {
-  DECLINES.delete(q);
-  DECLINES.set(q, { why, at: Date.now() });
+  const k = declineKey(q);
+  DECLINES.delete(k);
+  DECLINES.set(k, { why, at: Date.now() });
   if (DECLINES.size > DECLINES_KEPT) DECLINES.delete(DECLINES.keys().next().value!);
 }
-/** Why the pipeline last said no to `q` (within the last minute), or null: an executor's own reason. */
+/** Why the pipeline last gave no answer to `q` (within the last minute), or null: its executor's own reason. */
 export function declineOf(q: string): string | null {
-  const d = DECLINES.get(q);
+  const d = DECLINES.get(declineKey(q));
   return d && Date.now() - d.at < DECLINE_MS ? d.why : null;
 }
 
-/** The pipeline's answer for a parse, or null when it says no (its reason noted for declineOf). */
+/** The pipeline's answer for a parse, or null when it says no (its reason kept for the call asking, DECLINING). */
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const out = await executeOrDecline(p, opts);
   if (!isNo(out)) return out;
-  noteDecline(p.q, out.declined);
+  const asked = DECLINING.getStore();
+  if (asked) asked.why = out.declined;
   return null;
 }
 
