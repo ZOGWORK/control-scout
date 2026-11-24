@@ -19,6 +19,8 @@ beforeAll(async () => {
   await ev("USNJWTLT", "NJ Westfield Willow Conference Tournament", "LeagueTournament");
   await ev("USNJWTM1", "NJ Westfield Willow Conference Meet 1", "LeagueMeet");
   await ev("USNJCMP", "New Jersey Championship", "Championship");
+  // An event found by its town only, its name nothing like the words typed.
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJFD', 'NJ Final Depths Meet', 'LeagueMeet', 'Cedarville', 'NJ', 'USA', ?, ?, 't')", [S, `${S + 1}-01-10`, `${S + 1}-01-10`]);
   await ev("USNJCMPMPLE", "New Jersey Championship - Maple Division", "Championship", "USNJCMP");
   // The season before: the championship had other divisions, none named Maple.
   for (const [code, name, division] of [["USNJCMP", "New Jersey Championship", null], ["USNJCMPOAK", "New Jersey Championship - Oak Division", "USNJCMP"], ["USNJCMPELM", "New Jersey Championship - Elm Division", "USNJCMP"]] as const)
@@ -31,6 +33,13 @@ describe("an event by its own name", () => {
     const a = await ask("willow qualifier");
     expect(a.understood?.label).toBe('No qualifier named "willow": events matching "willow"');
     expect(a.hits.map((h) => h.ref).sort()).toEqual([`${S}:USNJWTLT`, `${S}:USNJWTM1`]);
+  });
+  it("found only by its town or a near spelling: asks which event, never guesses one (search audit Q5)", async () => {
+    const a = await ask("cedarville qualifier");
+    expect(a.understood?.label).toBe('Which event? No qualifier named "cedarville"');
+    expect(a.step).toBe("did-you-mean");
+    expect(a.hits.map((h) => h.ref)).toEqual([`${S}:USNJFD`]);
+    expect(a.suggest).toEqual(["NJ Final Depths Meet"]);
   });
   it("a division's tab, the division named without its championship", async () => {
     for (const [q, tab] of [["maple division finals", "Playoffs"], ["maple division rankings", "Rankings"]] as const) {

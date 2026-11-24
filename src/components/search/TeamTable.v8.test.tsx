@@ -35,6 +35,21 @@ describe("TeamTable in v8", () => {
     expect(tr.querySelector("[data-opr]")!.className).toMatch(/text-right.*tabular-nums/);
   });
 
+  it("the OPR header stays purple when its column is the sort, as the table opens (by OPR) and after a click", () => {
+    const { container } = draw();
+    const btn = container.querySelector<HTMLButtonElement>('[data-sort="opr"]')!;
+    const purple = () => {
+      // The v8 class is on the button itself, after the active sort's ink, so it is what v8 draws.
+      const cls = btn.className.split(" ");
+      expect(cls).toContain("v8:text-violet-300");
+      expect(cls.indexOf("v8:text-violet-300")).toBeGreaterThan(cls.indexOf("text-foreground"));
+    };
+    expect(container.querySelector("[data-team-table]")!.getAttribute("data-sort-key")).toBe("opr");
+    purple();
+    btn.click();
+    purple();
+  });
+
   it("v8 off: the classic classes are as they were", () => {
     document.documentElement.removeAttribute("data-v8");
     const { container } = draw();
