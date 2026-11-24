@@ -1168,6 +1168,8 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // "2024 Houston Championship Edison Division"), or a region alone ("New Jersey", "NJ"): the events themselves,
   // filtered on their stored fields and listed by date (./searchEvents.ts). Never a did-you-mean.
   const evq = opts.intents === false ? null : readEventQuery(q);
+  // "The next event" is one, said singular as typed: "next meets in NJ" (read here as "next meet") asks for the list.
+  if (evq?.next && opts.typed && !readEventQuery(opts.typed)?.next) delete evq.next;
   // A team at one of its events ("hypnotic at New Jersey Championship") is the team's answer, not a set of events.
   const teamAt = evq?.words.length && /\sat\s/i.test(q) ? await teamAtEventAnswer(q, limit, prefer) : null;
   if (evq && !teamAt) return eventSetAnswer(q, evq, { now: opts.now });
