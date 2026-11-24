@@ -5,7 +5,7 @@
 // headline, so the numbers are the ones the linked page shows. No team, event or year is written here: the words come
 // from the query as typed, the answer and the lexicon.
 import type { SearchAnswer, SearchFollowUp, SearchFollowUps } from "../../../src/shared/api.js";
-import { ASK_MAX, SEARCH_PAGE_LIMIT, firstCards } from "../../../src/shared/search.js";
+import { ASK_MAX, FOLLOW_BUDGET_MS, SEARCH_PAGE_LIMIT, firstCards } from "../../../src/shared/search.js";
 import { seasonLabel } from "../../../src/shared/format.js";
 import { normalise, parseQuery, type Parsed } from "../query/parse.js";
 import { parseContext } from "../query/context.js";
@@ -13,6 +13,7 @@ import { names } from "../query/names.js";
 import { AWARD_WORDS, LEXICON } from "../query/lexicon.js";
 import { keptAnswer } from "../searchReads.js";
 import { searchAnswer } from "../searchAnswer.js";
+import { loneTeamHit } from "../searchLayers.js";
 import { forecasterBuilds } from "../../predict/engine.js";
 import { failureOf, outcomeTrace } from "../../searchFailures.js";
 
@@ -26,15 +27,43 @@ export const pageAnswer = async (q: string, limit: number, prefer: ReadonlySet<s
   return limit >= SEARCH_PAGE_LIMIT ? a : { ...a, hits: firstCards(a.hits, limit) };
 };
 
+/** The kept follow-ups' key for `q` and `prefer`. */
+const followKey = (q: string, prefer: ReadonlySet<string>) => JSON.stringify(["follow", q, [...prefer].sort(), forecasterBuilds()]);
+/** The follow-up sets being made right now, by key: what each has so far (followUps' Progress), for followUpsWithin. */
+const making = new Map<string, Progress>();
+
 /** The follow-ups for `q` with its own kept answer (followUps), kept a minute as the answer is: the /search page's
  *  first paint and the app's /api/search/follow for the same search are one reading. */
-export const keptFollowUps = (q: string, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUps> =>
-  keptAnswer(JSON.stringify(["follow", q, [...prefer].sort(), forecasterBuilds()]), async () => followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, prefer), prefer));
+export const keptFollowUps = (q: string, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUps> => {
+  const key = followKey(q, prefer);
+  return keptAnswer(key, async () => {
+    const progress: Progress = {};
+    making.set(key, progress);
+    try { return await followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, prefer), prefer, progress); } finally { if (making.get(key) === progress) making.delete(key); }
+  });
+};
+
+/** The follow-ups for `q` within `ms`: the whole kept set when it's ready by then, else what's been checked so far,
+ *  marked `partial` (never kept: the whole set is still being made, and is kept once it's done). */
+export async function followUpsWithin(q: string, prefer: ReadonlySet<string> = new Set(), ms = FOLLOW_BUDGET_MS): Promise<SearchFollowUps> {
+  const whole = keptFollowUps(q, prefer);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((ok) => { timer = setTimeout(ok, ms, null); });
+  const got = await Promise.race([whole, late]).finally(() => clearTimeout(timer));
+  if (got) return got;
+  // Still being made: its checks go on (a failure is the whole set's, met by the next ask).
+  whole.catch(() => {});
+  const now = making.get(followKey(q, prefer))?.now?.();
+  return { ask: [], related: [], ...now, partial: true };
+}
 
 /** At most this many questions are shown, and this many candidates run to find them. */
 export { ASK_MAX };
 export const RELATED_MAX = 8;
 const CHECK_MAX = 16;
+/** A search that names nothing (START's starting points): its questions are START's first ASK_MAX and its related
+ *  searches the next, so no more are checked than can be shown (ASK_MAX and RELATED_MAX, not CHECK_MAX each: the search audit's S2). */
+const START_ASK_CHECK = ASK_MAX, START_RELATED_CHECK = RELATED_MAX;
 /** At most this many of the searches the page already offers are read, to leave out questions that repeat them. */
 const SHOWN_MAX = 8;
 
@@ -125,6 +154,14 @@ const START: Template[] = [
   T("events", [], () => "What championships are coming up?", () => "upcoming championships"),
   T("events", [], () => "What events are this weekend?", () => "events this weekend"),
 ];
+
+/** START's questions, to tell a search's starting points from its own follow-ups. */
+const START_QS = new Set(START.map((x) => x.ask({} as Required<Slots>)));
+/** The season's starting points as candidates, less the search `q` itself. */
+const starts = (q: string): Candidate[] => {
+  const n = normalise(q);
+  return START.map((x) => ({ q: x.ask({} as Required<Slots>), short: x.short({} as Required<Slots>), family: x.family })).filter((x) => normalise(x.q) !== n && normalise(x.short) !== n);
+};
 
 /** The Worlds phrases the lexicon reads, longest first ("first championship" before "first"). */
 const WORLDS = LEXICON.filter((e) => e.syms.some((x) => x.k === "worlds")).map((e) => e.words.join(" ")).sort((a, b) => b.length - a.length);
@@ -285,7 +322,7 @@ export async function initialsUpper(p: Parsed): Promise<Parsed> {
  *  RELATED_MAX short searches about what the questions didn't cover. Each is one search answers directly, with its
  *  answer's own line; none answers what another, the search itself or one the page already offers does. Only the
  *  first CHECK_MAX candidates are run for each: fewer follow-ups, never a slower page. */
-export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUps> {
+export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set(), progress?: Progress): Promise<SearchFollowUps> {
   const read = await initialsUpper(await parseQuery(q, await parseContext(Date.now(), prefer)));
   // A name several teams still share holds an arbitrary first one: no follow-up is about it (../query/shared.ts).
   // A number the answer read as something else is no team: when the answer says how it read the query (its intent's
@@ -295,27 +332,64 @@ export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<
   const p = { ...read, teams: teamless ? [] : read.teams.filter((t) => !t.candidates || t.rule) };
   // The searches the page already offers (a sorry note's, a team fallback's, the answer's own related ones): asked
   // again in other words, they'd be offered twice. Their answers, kept the same way, say what they answer.
-  const shown = [...new Set([...(a.suggest ?? []), ...(a.sorry?.suggest ?? []), ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "related" ? b.queries : []))])].slice(0, SHOWN_MAX);
-  const all = candidates(p, a);
-  const run = (x: string) => inTurns(() => pageAnswer(x, SEARCH_PAGE_LIMIT, prefer)).catch(() => null);
-  const [offered, asked] = await Promise.all([Promise.all(shown.map(run)), pick(all.filter((c) => !c.chip).slice(0, CHECK_MAX).map((c) => ({ ...c, run: c.q })), run)]);
-  const seen = new Set([a, ...offered].flatMap((x) => (x ? [answerKey(x).toLowerCase()] : [])));
-  const ask = fresh(asked, seen, ASK_MAX);
+  // A sorry about no team ("weather in paris"): the season's starting points, the same short list for every such
+  // search, so their checks are the kept answers of the last one (the search audit's S5); a place or name it read is
+  // in the sorry note's own searches already. A sorry about a team keeps that team's questions.
+  const fixed = !!a.sorry && p.teams.length === 0 && answerTeam(a) == null;
+  const shown = fixed ? [] : [...new Set([...(a.suggest ?? []), ...(a.sorry?.suggest ?? []), ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "related" ? b.queries : []))])].slice(0, SHOWN_MAX);
+  const all = fixed ? starts(q) : candidates(p, a);
+  // The season's starting points (a search about nothing): only as many checked as can be shown.
+  const start = all.length > 0 && all.every((c) => START_QS.has(c.q));
+  // This search's own lane in the line (inTurns): its checks take turns with every other search's, one each, so one
+  // visitor's 40 checks never hold another's behind them. Its related searches and highlights, shown after its
+  // questions, wait for every search's questions first (`later`).
+  const lane = `f${++lanes}`;
+  const run = (x: string, later = false) => inTurns(() => pageAnswer(x, SEARCH_PAGE_LIMIT, prefer), lane, later).catch(() => null);
+  const askC = all.filter((c) => !c.chip).slice(0, start ? START_ASK_CHECK : CHECK_MAX).map((c) => ({ ...c, run: c.q }));
+  // Each check's answer as it comes (undefined: still to run), for what's been checked so far (progress).
+  const askDone: (SearchAnswer | null | undefined)[] = askC.map(() => undefined);
+  const offDone: (SearchAnswer | null | undefined)[] = shown.map(() => undefined);
+  // The page's own searches first (read only to leave out questions that repeat them), then the questions: in one
+  // lane they run in this order, so any question checked so far is checked against all of them, and what's sent
+  // partial is always the first of the whole set's questions.
+  const offP = shown.map((x, i) => run(x).then((y) => (offDone[i] = y)));
+  const askP = askC.map((c, i) => run(c.run).then((x) => (askDone[i] = x)));
+  const seenOf = (offered: (SearchAnswer | null | undefined)[]) => new Set([a, ...offered].flatMap((x) => (x ? [answerKey(x).toLowerCase()] : [])));
+  const view = (x: Omit<SearchFollowUp, "q"> & { run: string }): SearchFollowUp => ({ q: x.run, family: x.family, preview: x.preview, value: x.value, rest: x.rest, tone: x.tone });
+  // The team's standout matches, beside the answer on a wide screen: the team asked about, else the one its answer is
+  // about; none for a search about no team, nor for a team searched alone, whose page answer is already its
+  // highlights (../searchPageAnswer.ts withHighlights): the same search twice (the search audit's S2).
+  const about = p.teams[0]?.number ?? answerTeam(a);
+  const lone = loneTeamHit(a);
+  const lights = about != null && !(lone && Number(lone.ref) === about);
+  // What's been checked so far: the questions up to the first still running (they run in order, after the page's
+  // own searches, so these are the first of the whole set's).
+  if (progress) progress.now = () => {
+    const upto = askDone.indexOf(undefined);
+    const done = upto < 0 ? askDone.length : upto;
+    const ask = fresh(pickFrom(askC.slice(0, done), askDone.slice(0, done)), seenOf(offDone), ASK_MAX);
+    return { ask: ask.map(view), related: [], ...(about != null ? { about } : {}) };
+  };
+  const [offered, answered] = await Promise.all([Promise.all(offP), Promise.all(askP)]);
+  const seen = seenOf(offered);
+  const ask = fresh(pickFrom(askC, answered), seen, ASK_MAX);
   // What the questions didn't take, as short searches: never a question's answer again. Only about what the search
   // itself is about (its teams, the team its answer is about): never a team that only a question's answer named (a
   // leaderboard's first, from "top teams" asked under "upcoming events").
   const taken = new Set(ask.map((x) => x.q));
-  const rest = all.filter((c) => !taken.has(c.q)).slice(0, CHECK_MAX).map((c) => ({ ...c, run: c.short }));
-  // The team's standout matches, beside the answer on a wide screen: the team asked about, else the one its answer is
-  // about; none for a search about no team. Run beside the related searches; a related search still comes first to an
-  // answer they share.
-  const about = p.teams[0]?.number ?? answerTeam(a);
-  const [picked, lit] = await Promise.all([pick(rest, run), about != null ? pick([{ q: "", short: "", family: "team" as const, run: `${about} highlights` }], run) : []]);
+  const rest = all.filter((c) => !taken.has(c.q)).slice(0, start ? START_RELATED_CHECK : CHECK_MAX).map((c) => ({ ...c, run: c.short }));
+  // The highlights run beside the related searches; a related search still comes first to an answer they share.
+  const later = (x: string) => run(x, true);
+  const [picked, lit] = await Promise.all([pick(rest, later), lights ? pick([{ q: "", short: "", family: "team" as const, run: `${about} highlights` }], later) : []]);
   const related = fresh(picked, seen, RELATED_MAX);
   const [best] = fresh(lit, seen, 1);
-  const view = (x: Omit<SearchFollowUp, "q"> & { run: string }): SearchFollowUp => ({ q: x.run, family: x.family, preview: x.preview, value: x.value, rest: x.rest, tone: x.tone });
   return { ask: ask.map(view), related: related.map(view), ...(best ? { highlights: { ...view(best), team: about! } } : {}), ...(about != null ? { about } : {}) };
 }
+
+/** What a follow-up set has so far while it's being made (followUps sets `now`): its questions checked so far. */
+export type Progress = { now?: () => SearchFollowUps };
+/** Lanes handed out so far (one per follow-up set made). */
+let lanes = 0;
 
 /** `f`, its calls run one at a time in the order made, each after this process has looked at what else is waiting
  *  (other visitors' requests, timers). The database answers without ever giving the event loop back (its reads
@@ -332,9 +406,116 @@ export function inTurn<A extends unknown[], R>(f: (...args: A) => Promise<R>): (
   };
 }
 
-/** The one queue every follow-up check in this process takes its turn in (inTurn): shared by every request, so two
- *  searches' follow-ups made at once take turns with each other too, never two checks in one turn of the loop. */
-export const inTurns: <T>(task: () => Promise<T>) => Promise<T> = inTurn((task: () => Promise<unknown>) => task()) as <T>(task: () => Promise<T>) => Promise<T>;
+type Job = { task: () => Promise<unknown>; settle: (p: Promise<unknown>) => void; at: number };
+/** The checks waiting, by priority (now, later): a queue per lane (one search's follow-ups), lanes in turn order. */
+const waiting: [Map<string, Job[]>, Map<string, Job[]>] = [new Map(), new Map()];
+let turning = false;
+
+/** Answers being made right now (holdChecks), and the turns waiting for them to be done. */
+let answering = 0;
+const resumes = new Set<() => void>();
+/** How long a check waits for the answers being made before it runs anyway, so a steady stream of answers never
+ *  starves People also ask. */
+const ANSWER_FIRST_MS = FOLLOW_BUDGET_MS / 4;
+/** How long a `later` check waits for the checks that aren't before it runs anyway, so a steady stream of searches
+ *  never starves the related searches and highlights (each set is done only once they are). */
+const LATER_FIRST_MS = FOLLOW_BUDGET_MS * 2;
+/** When a follow-up check was first held back for the answers being made (0: none is): held ones wait
+ *  ANSWER_FIRST_MS from then at most, however many of the answers' own checks run meanwhile. */
+let heldSince = 0;
+
+/** A search's answer is being made (/api/search): follow-up checks wait until it's done (up to ANSWER_FIRST_MS each),
+ *  so a visitor's answer is never slowed by other searches' People also ask. Returns the release (safe to call more
+ *  than once). */
+export function holdChecks(): () => void {
+  answering++;
+  let on = true;
+  return () => {
+    if (!on) return;
+    on = false;
+    if (--answering === 0) wake();
+  };
+}
+
+/** Whether a lane other than the default one has a check waiting. */
+const othersWaiting = () => waiting.some((line) => [...line.keys()].some((lane) => lane !== ""));
+
+/** The next check, or none to run now. Held (an answer being made, and no follow-up check held back ANSWER_FIRST_MS
+ *  yet): only the default lane's (an answer's own checks). Else the first lane's of the highest priority with one
+ *  waiting, that lane then going to the back; `later` ones first once one has waited LATER_FIRST_MS. */
+function nextJob(now: number): Job | undefined {
+  if (othersWaiting() && answering > 0) heldSince ||= now;
+  const held = answering > 0 && heldSince > 0 && now - heldSince < ANSWER_FIRST_MS;
+  const aged = [...waiting[1].values()].some((jobs) => now - jobs[0].at >= LATER_FIRST_MS);
+  for (const line of aged ? [waiting[1], waiting[0]] : waiting) for (const [lane, jobs] of line) {
+    if (held && lane !== "") continue;
+    const job = jobs.shift()!;
+    line.delete(lane);
+    if (jobs.length) line.set(lane, jobs);
+    // A follow-up check runs: none has been held back since before it.
+    if (lane !== "") heldSince = 0;
+    return job;
+  }
+  return undefined;
+}
+
+/** One check, after a turn of the loop; then the next. */
+function turn(): void {
+  if (turning) return;
+  turning = true;
+  setImmediate(go);
+}
+
+function go(): void {
+  const job = nextJob(Date.now());
+  if (!job) {
+    // Only held checks are waiting: run them once the answers are done, their wait is up, or an answer's own comes.
+    if (othersWaiting()) { resumeLater(); return; }
+    turning = false;
+    return;
+  }
+  const p = Promise.resolve().then(job.task);
+  job.settle(p);
+  p.catch(() => {}).finally(() => { turning = false; turn(); });
+}
+
+/** Wake a turn that's waiting (resumeLater). */
+function wake(): void {
+  for (const f of [...resumes]) f();
+}
+
+/** Go on once no answer is being made, ANSWER_FIRST_MS after the first held check was held back, or an answer's own
+ *  check comes, whichever is first. */
+function resumeLater(): void {
+  let done = false;
+  const once = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    resumes.delete(once);
+    go();
+  };
+  const timer = setTimeout(once, Math.max(0, heldSince + ANSWER_FIRST_MS - Date.now()));
+  resumes.add(once);
+}
+
+/** The one line every follow-up check in this process takes its turn in, one check at a time with a turn of the loop
+ *  before each (as inTurn), so two checks never run in the same turn. Fair between searches: each `lane` (one search's
+ *  follow-ups) takes one check in turn with every other lane waiting, so a visitor's first questions never wait behind
+ *  another's 40 checks (one first-come line made four searches at once wait 6.7–7.3 s each: the search audit's S1).
+ *  `later`: run once no lane has a check that isn't, or after LATER_FIRST_MS (related searches, highlights and
+ *  background builds). The default lane is an answer's own checks: never held for the answers being made. The same
+ *  searches run either way, each the same kept answer: only when they run changes. */
+export function inTurns<T>(task: () => Promise<T>, lane = "", later = false): Promise<T> {
+  return new Promise<T>((ok, no) => {
+    const line = waiting[later ? 1 : 0];
+    const job: Job = { task, settle: (p) => { (p as Promise<T>).then(ok, no); }, at: Date.now() };
+    const jobs = line.get(lane);
+    if (jobs) jobs.push(job); else line.set(lane, [job]);
+    if (lane === "") wake();
+    turn();
+  });
+}
 
 /** The first `max` of `xs` whose answers none before them (nor `seen`) gives, each added to `seen`. */
 function fresh<X extends { key: string }>(xs: X[], seen: Set<string>, max: number): X[] {
@@ -345,7 +526,11 @@ function fresh<X extends { key: string }>(xs: X[], seen: Set<string>, max: numbe
 
 /** The candidates (each run as `run`) whose answer is a direct one, in order, each with its preview and answer key. */
 async function pick<C extends Candidate & { run: string }>(cs: C[], run: (q: string) => Promise<SearchAnswer | null>) {
-  const answers = await Promise.all(cs.map((c) => run(c.run)));
+  return pickFrom(cs, await Promise.all(cs.map((c) => run(c.run))));
+}
+
+/** As pick, from the candidates' answers (`answers[i]` is `cs[i]`'s; null or undefined: none). */
+function pickFrom<C extends Candidate & { run: string }>(cs: C[], answers: (SearchAnswer | null | undefined)[]) {
   return cs.flatMap((c, i) => {
     const ans = answers[i];
     const line = ans && !failureOf(c.run, ans, outcomeTrace(ans)) ? lineOf(ans, !!c.list) : null;
