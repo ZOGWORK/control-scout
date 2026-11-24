@@ -43,8 +43,10 @@ const flag = (name: string) => { const i = process.argv.indexOf(`--${name}`); re
 const SET = flag("set"), OUT = flag("out"), ONLY = flag("only")?.toLowerCase(), MIN = flag("min"), JSON_OUT = flag("json");
 const TRAIN = process.argv.includes("--train"), CLAIMS = process.argv.includes("--claims");
 const CLAIMS_FILE = join(import.meta.dirname, "search-heldout.claims.json");
-// The record is the whole held-out run's: a part of one (or the training set) would write a smaller list over it.
-if (CLAIMS && (TRAIN || SET || ONLY)) { console.log("FAIL: --claims records a whole held-out run only (no --set, --only or --train)"); process.exit(1); }
+// The record is the whole held-out run's: a part of one (or the training set) would write a smaller list over it, and
+// --split asks nothing, so it would drop --claims without a word.
+const SPLIT = process.argv.includes("--split");
+if (CLAIMS && (TRAIN || SET || ONLY || SPLIT)) { console.log("FAIL: --claims records a whole held-out run only (no --set, --only, --train or --split)"); process.exit(1); }
 // A --min with no number after it would turn the floor off: refused instead.
 if (process.argv.includes("--min") && !Number.isFinite(Number(MIN ?? NaN))) { console.log(`FAIL: --min needs a number (got ${MIN ?? "nothing"})`); process.exit(1); }
 type Q = HeldOut;
@@ -52,7 +54,7 @@ const FILE = join(import.meta.dirname, "search-heldout.json");
 // Every set, the shared file's and each scripts/heldout/<set>.json, checked whole before any database is touched.
 const all = heldoutSets();
 
-if (process.argv.includes("--split")) {
+if (SPLIT) {
   // "train" lives in the shared file only: a set's own file (scripts/heldout/) is its questions alone, so one of those
   // found in tests or code is named, to reword the test, never left held out with no word said.
   const found = leaks(all.filter((x) => !x.train).map((x) => x.q));
