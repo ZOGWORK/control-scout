@@ -2,22 +2,23 @@
 // or code (./search-heldout-leaks.ts says where it looks). One that does was seen while building search, so its pass
 // says nothing about questions nobody has seen: move it with `npm run search:heldout -- --split`, or reword the test.
 // And the grading of an answer against the one a person wrote (./search-heldout-grade.ts).
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { heldoutSets } from "./heldoutSets";
 import { leaks, scannedTexts } from "./search-heldout-leaks";
 import { gradeWant, wantFacts } from "./search-heldout-grade";
 
-type Q = { set: string; n: number; q: string; want?: string; train?: boolean };
-const rows = JSON.parse(readFileSync(join(import.meta.dirname, "search-heldout.json"), "utf8")) as Q[];
+// Every set: the shared file and each set's own file in scripts/heldout/ (./heldoutSets.ts).
+const rows = heldoutSets();
 const held = rows.filter((x) => !x.train), train = rows.filter((x) => x.train);
 
 describe("held out means held out", () => {
   it("no held-out question appears word for word in tests or code", () => {
     const found = leaks(held.map((x) => x.q));
     const lines = [...found].map(([q, files]) => `"${q}" in ${files.slice(0, 3).join(", ")}`);
-    expect(lines, `held-out questions in tests or code (move them: npm run search:heldout -- --split):\n${lines.join("\n")}`).toEqual([]);
+    expect(lines, `held-out questions in tests or code (move them: npm run search:heldout -- --split, or reword one in scripts/heldout/):\n${lines.join("\n")}`).toEqual([]);
   });
   it("each question once: no set and number twice in the file", () => {
     const ids = rows.map((x) => `${x.set}#${x.n}`);

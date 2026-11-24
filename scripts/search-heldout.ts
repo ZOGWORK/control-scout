@@ -22,8 +22,9 @@
 //   npm run search:heldout -- --min 80        exit 1 below an 80% pass rate (CI, .github/workflows/ci.yml)
 //   npm run search:heldout -- --split         move held-out questions found in tests or code to the training set
 //   DATABASE_URL=file:.data/scout.db npm run search:heldout
-import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { heldoutSets, type HeldOut, type OwnQuestion } from "./heldoutSets.js";
 import { bootSearch, localServer } from "./search-local.js";
 import { gradeWant, wantSeason } from "./search-heldout-grade.js";
 import { leaks } from "./search-heldout-leaks.js";
@@ -35,20 +36,35 @@ const SET = flag("set"), OUT = flag("out"), ONLY = flag("only")?.toLowerCase(), 
 const TRAIN = process.argv.includes("--train");
 // A --min with no number after it would turn the floor off: refused instead.
 if (process.argv.includes("--min") && !Number.isFinite(Number(MIN ?? NaN))) { console.log(`FAIL: --min needs a number (got ${MIN ?? "nothing"})`); process.exit(1); }
-type Q = { set: string; n: number; q: string; want?: string; train?: boolean };
+type Q = HeldOut;
 const FILE = join(import.meta.dirname, "search-heldout.json");
-const all = JSON.parse(readFileSync(FILE, "utf8")) as Q[];
+// Every set, the shared file's and each scripts/heldout/<set>.json, checked whole before any database is touched.
+const all = heldoutSets();
 
 if (process.argv.includes("--split")) {
+  // Marked where each question lives: "train": true on a shared entry, { "q", "train": true } in a set's own file.
   const found = leaks(all.filter((x) => !x.train).map((x) => x.q));
-  const out = all.map((x) => (!x.train && found.has(x.q) ? { ...x, train: true } : x));
-  // Written whole beside it, then renamed over it: the file is the old one or the new one, never half of either.
-  writeFileSync(`${FILE}.tmp`, `[\n${out.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`);
-  renameSync(`${FILE}.tmp`, FILE);
-  const moved = out.filter((x, i) => x.train && !all[i].train).length;
-  console.log(`moved ${moved} to the training set (now ${out.filter((x) => x.train).length}); held out: ${out.filter((x) => !x.train).length}`);
+  const writes: [string, string][] = [];
+  const shared = JSON.parse(readFileSync(FILE, "utf8")) as Q[];
+  const out = shared.map((x) => (!x.train && found.has(x.q) ? { ...x, train: true } : x));
+  if (out.some((x, i) => x !== shared[i])) writes.push([FILE, `[\n${out.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n]\n`]);
+  const dir = join(import.meta.dirname, "heldout");
+  for (const f of readdirSync(dir).sort()) {
+    const qs = JSON.parse(readFileSync(join(dir, f), "utf8")) as OwnQuestion[];
+    const marked = qs.map((q) => (typeof q === "string" && found.has(q) ? { q, train: true as const } : q));
+    if (marked.some((q, i) => q !== qs[i])) writes.push([join(dir, f), `[\n${marked.map((q) => `  ${JSON.stringify(q)}`).join(",\n")}\n]\n`]);
+  }
+  // Each written whole beside it, then renamed over it, every one written before any is renamed: a file is the old one
+  // or the new one, never half of either, and a split stopped part way is finished by running it again.
+  for (const [path, text] of writes) writeFileSync(`${path}.tmp`, text);
+  for (const [path] of writes) renameSync(`${path}.tmp`, path);
+  const now = heldoutSets(), moved = now.filter((x) => x.train).length - all.filter((x) => x.train).length;
+  console.log(`moved ${moved} to the training set (now ${now.filter((x) => x.train).length}); held out: ${now.filter((x) => !x.train).length}`);
   process.exit(0);
 }
+const sets = all.filter((x) => !!x.train === TRAIN).filter((x) => (!SET || x.set === SET) && (!ONLY || x.q.toLowerCase().includes(ONLY)));
+// A set or a filter that matches nothing asks nothing: never a pass.
+if (!sets.length) { console.error(`no ${TRAIN ? "training" : "held-out"} questions match${SET ? ` set ${SET}` : ""}${ONLY ? ` "${ONLY}"` : ""}`); process.exit(1); }
 
 const { season, data } = await bootSearch();
 console.log(`data: ${data}`);
@@ -65,7 +81,6 @@ const { seasonLabel } = await import("../src/shared/format.js");
 const { LEXICON } = await import("../server/api/query/lexicon.js");
 
 const FILLER = new Set(LEXICON.filter((e) => e.syms.every((x) => x.k === "filler")).flatMap((e) => e.words));
-const sets = all.filter((x) => !!x.train === TRAIN).filter((x) => (!SET || x.set === SET) && (!ONLY || x.q.toLowerCase().includes(ONLY)));
 
 type Row = Q & { ms: number; intent: string | null; filters: string[]; place: string | null; time: string | null; card: string; stated: boolean; pattern: string; unread: string[];
   graded: "correct" | "wrong" | "unchecked"; wrong: string; numbers: "same" | "differ" | "not compared";
