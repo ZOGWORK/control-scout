@@ -267,6 +267,9 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // runs (spell: false): a correction is offered only when it finds data, never for reading as chat.
   const chat = opts.spell === false ? null : chatAnswer(String(raw ?? ""), a);
   if (chat) return chat;
+  // A town several regions share, said with none: a tap for each, or, with no direct answer, which one.
+  const town = await sharedTown(String(raw ?? ""), a);
+  if (town) return town;
   // A place asked for, alone or with its rankings, leagues or conferences ("nj", "nj rankings"): its own pages first
   // (src/shared/placePages.ts), whatever answered it. Kept once by address, so an answer that recursed adds none twice.
   const pages = withPlacePages(String(raw ?? ""), a.pages);
@@ -751,14 +754,16 @@ export const WHICH = "Which \"";
 /** Every word search's own lexicon reads: a run made only of them is the question's, never a team's name. */
 const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 
-/** A town several regions share, none holding most of its teams, said as the question's place ("teams in springfield"):
- *  which one (search audit 2026-11-24, Q9), each a tap that asks the same question with the town's region typed beside
- *  it ("teams in springfield il"), as the place reader reads it. Null when the town is read already (one region holds
- *  most of its teams, or its region is typed beside it) or no word after a place word is a shared town. */
-async function sharedTown(q: string, opts: AnswerOptions): Promise<SearchAnswer | null> {
-  const typed = opts.typed ?? q;
+/** A town several regions share, none holding most of its teams, said as the question's place with no region beside it
+ *  ("teams in springfield"; search audit 2026-11-24, Q9): each town is a tap that asks the same question with its region
+ *  typed after it ("teams in springfield MO"), which the place reader reads as that town. An answer found for every town
+ *  at once (the teams of each Springfield) is kept, the taps added; with no direct answer, the question is which town.
+ *  Null when the town is read already (one region holds most of its teams, or its region is typed beside it), when it
+ *  goes on into a longer name ("columbia high school"), or when no word after a place word is a shared town. */
+async function sharedTown(raw: string, a: SearchAnswer): Promise<SearchAnswer | null> {
+  const typed = cleanQuery(raw);
   const idx = await names();
-  if (!idx.townsShared || VERSUS.test(` ${typed} `)) return null;
+  if (!idx.townsShared || VERSUS.test(` ${typed} `) || a.suggest?.length) return null;
   const ws = normalise(typed).split(" ").filter(Boolean);
   for (let i = 1; i < ws.length; i++) {
     if (!/^(?:in|from|at|near|around)$/.test(ws[i - 1])) continue;
@@ -772,17 +777,19 @@ async function sharedTown(q: string, opts: AnswerOptions): Promise<SearchAnswer 
       if ([1, 2, 3].some((k) => i + len + k <= ws.length && !!idx.place(ws.slice(i, i + len + k).join(" "), ws.slice(i, i + len + k).join(" ")))) break;
       const towns = idx.townsShared(said);
       if (towns.length < 2) continue;
-      // Each town's question, its region beside it, kept only when the place reader reads it back as that town.
+      // Each town's question, its region beside it as the region is written ("MO": a code in capitals is read as the
+      // region, "mo" may be a word), kept only when the place reader reads that question's place back as that town.
       const choices = towns.flatMap((t) => {
-        const asked = [...ws.slice(0, i + len), (t.state ?? t.country).toLowerCase(), ...ws.slice(i + len)].join(" ");
-        const back = idx.place(`${said} ${(t.state ?? t.country).toLowerCase()}`, `${said} ${t.state ?? t.country}`);
-        return back && back.country === t.country && (back.state ?? null) === (t.state ?? null) ? [{ asked, label: `${t.city} ${t.state ?? t.country}` }] : [];
+        const tag = t.state ?? t.country;
+        const asked = [...ws.slice(0, i + len), tag, ...ws.slice(i + len)].join(" ");
+        const back = idx.place(`${said} ${tag.toLowerCase()}`, `${said} ${tag}`);
+        return back && back.country === t.country && (back.state ?? null) === (t.state ?? null) ? [{ asked, label: `${t.city} ${tag}` }] : [];
       }).slice(0, 4);
       if (choices.length < 2) return null;
-      const town = towns[0].city;
-      return answer(q, {
+      if (a.step === "deterministic" && (a.stat || a.card || a.hits.length)) return carryOutcome(a, { ...a, suggest: choices.map((c) => c.asked) });
+      return answer(a.q, {
         hits: [], step: "did-you-mean",
-        understood: { kind: "names", label: `Which ${town}? ${choices.slice(0, -1).map((c) => c.label).join(", ")} or ${choices[choices.length - 1].label}` },
+        understood: { kind: "names", label: `Which ${towns[0].city}? ${choices.slice(0, -1).map((c) => c.label).join(", ")} or ${choices[choices.length - 1].label}` },
         suggest: choices.map((c) => c.asked),
       });
     }
@@ -1001,9 +1008,6 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // rules pick (./query/shared.ts), asked again with its number; still tied, which one (each with its place).
   const shared = opts.intents === false || (opts.rewrites ?? 0) >= 2 ? null : await sharedName(q, opts);
   if (shared) return shared;
-  // A town several regions share, said as the question's place with no region beside it: which one.
-  const town = opts.intents === false ? null : await sharedTown(q, opts);
-  if (town) return town;
 
   // 0. A phrasing the readers below miss, said the way they read it ("compare 12345 and 67890" → "12345 vs 67890"):
   // ./searchCoverage.ts. Who won Worlds by a year or a game ("who won worlds last year" → "… 2024-25") is said so

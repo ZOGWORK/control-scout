@@ -673,9 +673,11 @@ export async function layeredAnswer(typed: string, reader: Run, prefer: Readonly
     // the page: the search results guide §7): each reading is the plain question it is ("4215 league rank"), one tap
     // each (SearchAnswer.suggest, drawn first among the follow-ups).
     const found = cands === x0.intents ? x0.found : xw.found;
-    const choices = [...new Set(cands.map((id) => INTENTS.find((i) => i.id === id)?.canonical({ ...found, extra: new Set(found.extra) })).filter((c): c is string => !!c))];
-    const line = choices.length > 1 ? `Which did you mean for ${x0.teams[0]}: ${choices.join(" or ")}?` : `Which did you mean for ${x0.teams[0]}?`;
-    return done({ ...fallback, understood: { ...u, label: u.label ? `${u.label} · ${line}` : line }, ...(choices.length > 1 ? { suggest: choices } : {}) }, null, { ...x0, intents: cands }, "ambiguous");
+    // A reading with no canonical question for what was found (an events question with no season) is still named, in
+    // plain words: the team and the reading ("4215 events"), never dropped to leave a question with no choices.
+    const choices = [...new Set(cands.map((id) => INTENTS.find((i) => i.id === id)?.canonical({ ...found, extra: new Set(found.extra) }) ?? `${x0.teams[0]} ${id.replace(/-/g, " ")}`))];
+    const line = `Which did you mean for ${x0.teams[0]}: ${choices.join(" or ")}?`;
+    return done({ ...fallback, understood: { ...u, label: u.label ? `${u.label} · ${line}` : line }, suggest: choices }, null, { ...x0, intents: cands }, "ambiguous");
   }
   return done(fallback, null, x0);
 }

@@ -219,6 +219,11 @@ describe("Layers 3 and 5, scope position, precedence and ambiguity", () => {
     // Asked in plain words, each reading a tap (search audit Q12): never the intents' own ids.
     expect(a.understood?.label).toMatch(/Which did you mean for 4215: 4215 awards or 4215 location\?/);
     expect(a.suggest).toEqual(["4215 awards", "4215 location"]);
+    // A reading with no canonical question for what was found is still named, never dropped.
+    const ev = await ask("4215 events hometown");
+    expect(searchOutcome(ev)).toMatchObject({ result: "ambiguous", intents: ["events", "location"] });
+    expect(ev.understood?.label).toMatch(/Which did you mean for 4215: 4215 events or 4215 location\?$/);
+    expect(ev.suggest).toEqual(["4215 events", "4215 location"]);
     // Two facts from FIRST's listing are both answered, not ambiguous (failed-search #489).
     expect(searchOutcome(await ask("4215 sponsors school"))?.result).toBe("answered");
     // A weak word with two meanings is named too.
