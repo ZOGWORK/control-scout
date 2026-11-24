@@ -403,30 +403,23 @@ export function inTurn<A extends unknown[], R>(f: (...args: A) => Promise<R>): (
   };
 }
 
-type Job = { task: () => Promise<unknown>; settle: (p: Promise<unknown>) => void };
+type Job = { task: () => Promise<unknown>; settle: (p: Promise<unknown>) => void; at: number };
 /** The checks waiting, by priority (now, later): a queue per lane (one search's follow-ups), lanes in turn order. */
 const waiting: [Map<string, Job[]>, Map<string, Job[]>] = [new Map(), new Map()];
 let turning = false;
 
-/** The next check: the first lane's of the highest priority with one waiting, that lane then going to the back.
- *  `held` (an answer being made, holdChecks): only the default lane's (an answer's own video checks). */
-function nextJob(held: boolean): Job | undefined {
-  for (const line of waiting) for (const [lane, jobs] of line) {
-    if (held && lane !== "") continue;
-    const job = jobs.shift()!;
-    line.delete(lane);
-    if (jobs.length) line.set(lane, jobs);
-    return job;
-  }
-  return undefined;
-}
-
 /** Answers being made right now (holdChecks), and the turns waiting for them to be done. */
 let answering = 0;
-const resumes = new Set<(held: boolean) => void>();
+const resumes = new Set<() => void>();
 /** How long a check waits for the answers being made before it runs anyway, so a steady stream of answers never
  *  starves People also ask. */
 const ANSWER_FIRST_MS = FOLLOW_BUDGET_MS / 4;
+/** How long a `later` check waits for the checks that aren't before it runs anyway, so a steady stream of searches
+ *  never starves the related searches and highlights (each set is done only once they are). */
+const LATER_FIRST_MS = FOLLOW_BUDGET_MS * 2;
+/** When a follow-up check was first held back for the answers being made (0: none is): held ones wait
+ *  ANSWER_FIRST_MS from then at most, however many of the answers' own checks run meanwhile. */
+let heldSince = 0;
 
 /** A search's answer is being made (/api/search): follow-up checks wait until it's done (up to ANSWER_FIRST_MS each),
  *  so a visitor's answer is never slowed by other searches' People also ask. Returns the release (safe to call more
@@ -437,28 +430,44 @@ export function holdChecks(): () => void {
   return () => {
     if (!on) return;
     on = false;
-    if (--answering === 0) for (const go of [...resumes]) go(false);
+    if (--answering === 0) wake();
   };
 }
 
-/** One check, after a turn of the loop (and after the answers being made, up to ANSWER_FIRST_MS); then the next. */
+/** Whether a lane other than the default one has a check waiting. */
+const othersWaiting = () => waiting.some((line) => [...line.keys()].some((lane) => lane !== ""));
+
+/** The next check, or none to run now. Held (an answer being made, and no follow-up check held back ANSWER_FIRST_MS
+ *  yet): only the default lane's (an answer's own checks). Else the first lane's of the highest priority with one
+ *  waiting, that lane then going to the back; `later` ones first once one has waited LATER_FIRST_MS. */
+function nextJob(now: number): Job | undefined {
+  if (othersWaiting() && answering > 0) heldSince ||= now;
+  const held = answering > 0 && heldSince > 0 && now - heldSince < ANSWER_FIRST_MS;
+  const aged = [...waiting[1].values()].some((jobs) => now - jobs[0].at >= LATER_FIRST_MS);
+  for (const line of aged ? [waiting[1], waiting[0]] : waiting) for (const [lane, jobs] of line) {
+    if (held && lane !== "") continue;
+    const job = jobs.shift()!;
+    line.delete(lane);
+    if (jobs.length) line.set(lane, jobs);
+    // A follow-up check runs: none has been held back since before it.
+    if (lane !== "") heldSince = 0;
+    return job;
+  }
+  return undefined;
+}
+
+/** One check, after a turn of the loop; then the next. */
 function turn(): void {
   if (turning) return;
   turning = true;
-  setImmediate(() => go(answering > 0));
+  setImmediate(go);
 }
 
-/** When the oldest held check began waiting (0: none waiting): its ANSWER_FIRST_MS runs from then, however many
- *  answers' own checks run meanwhile. */
-let heldSince = 0;
-
-function go(held: boolean): void {
-  const job = nextJob(held);
-  // A follow-up check runs: no held one has been waiting since before it.
-  if (job && !held) heldSince = 0;
+function go(): void {
+  const job = nextJob(Date.now());
   if (!job) {
-    // Only held checks are waiting: run them once the answers are done, or their wait is up.
-    if (held && waiting.some((line) => line.size > 0)) { resumeLater(); return; }
+    // Only held checks are waiting: run them once the answers are done, their wait is up, or an answer's own comes.
+    if (othersWaiting()) { resumeLater(); return; }
     turning = false;
     return;
   }
@@ -467,19 +476,23 @@ function go(held: boolean): void {
   p.catch(() => {}).finally(() => { turning = false; turn(); });
 }
 
-/** Go on once no answer is being made, or ANSWER_FIRST_MS after the oldest held check began waiting, whichever is
- *  first; or at once, still held, for a check that isn't held (an answer's own, inTurns). */
+/** Wake a turn that's waiting (resumeLater). */
+function wake(): void {
+  for (const f of [...resumes]) f();
+}
+
+/** Go on once no answer is being made, ANSWER_FIRST_MS after the first held check was held back, or an answer's own
+ *  check comes, whichever is first. */
 function resumeLater(): void {
   let done = false;
-  const once = (held: boolean) => {
+  const once = () => {
     if (done) return;
     done = true;
     clearTimeout(timer);
     resumes.delete(once);
-    go(held);
+    go();
   };
-  heldSince ||= Date.now();
-  const timer = setTimeout(once, Math.max(0, heldSince + ANSWER_FIRST_MS - Date.now()), false);
+  const timer = setTimeout(once, Math.max(0, heldSince + ANSWER_FIRST_MS - Date.now()));
   resumes.add(once);
 }
 
@@ -487,16 +500,16 @@ function resumeLater(): void {
  *  before each (as inTurn), so two checks never run in the same turn. Fair between searches: each `lane` (one search's
  *  follow-ups) takes one check in turn with every other lane waiting, so a visitor's first questions never wait behind
  *  another's 40 checks (one first-come line made four searches at once wait 6.7–7.3 s each: the search audit's S1).
- *  `later`: run only once no lane has a check that isn't (related searches and highlights, shown after the
- *  questions). The same searches run either way, each the same kept answer: only when they run changes. */
+ *  `later`: run once no lane has a check that isn't, or after LATER_FIRST_MS (related searches, highlights and
+ *  background builds). The default lane is an answer's own checks: never held for the answers being made. The same
+ *  searches run either way, each the same kept answer: only when they run changes. */
 export function inTurns<T>(task: () => Promise<T>, lane = "", later = false): Promise<T> {
   return new Promise<T>((ok, no) => {
     const line = waiting[later ? 1 : 0];
-    const job: Job = { task, settle: (p) => { (p as Promise<T>).then(ok, no); } };
+    const job: Job = { task, settle: (p) => { (p as Promise<T>).then(ok, no); }, at: Date.now() };
     const jobs = line.get(lane);
     if (jobs) jobs.push(job); else line.set(lane, [job]);
-    // The default lane's (an answer's own checks) never waits for the answers being made: it's theirs.
-    if (lane === "") for (const go of [...resumes]) go(answering > 0);
+    if (lane === "") wake();
     turn();
   });
 }
