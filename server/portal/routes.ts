@@ -20,6 +20,7 @@ import { bugReportOwnerRoutes } from "../bugReports.js";
 import { flushMetrics, usageSummary } from "../metrics.js";
 import { vitalsSummary } from "../vitals.js";
 import { onboardingSummary } from "../onboardingStats.js";
+import { searchScore } from "../searchScore.js";
 import { liveConnections } from "../liveConnections.js";
 import { publicUsage, statsSummary } from "../analytics.js";
 import type { OwnerUsage } from "../../src/shared/owner.js";
@@ -91,6 +92,9 @@ export function ownerRouter(): Router {
     const [usage, views, vitals, onboarding] = await Promise.all([usageSummary(days), statsSummary(days), vitalsSummary(days), onboardingSummary(days)]);
     return { ...usage, live: liveConnections(), pageViews: views.daily.map((d) => ({ day: d.day, views: Number(d.views) })), vitals, onboarding };
   }));
+
+  // Search's time to answer and weekly score (server/searchScore.ts), for the Server & speed tab.
+  r.get("/search-score", h(async (req) => searchScore(num(req.query.days, 14, 1, 90))));
 
   r.get("/predictions", h(async (req) => {
     const kind = req.query.kind === "backtest" ? "backtest" : "live";

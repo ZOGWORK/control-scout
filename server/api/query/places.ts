@@ -33,7 +33,7 @@ const PLACE_WORDS = new Set(["thing:team", "vs", "compare", "or", "and", "no-awa
 const placeWord = (s: string) => PLACE_WORDS.has(s) || s.startsWith("agg:") || s.startsWith("prep:") || (s.startsWith("metric:") && (s === "metric:score" || !!BOARD_STAT[s]));
 
 /** Whether the parse holds only two places, a stat or "teams", and a season: nothing this answer would drop. */
-function onlyPlaces(p: Parsed): boolean {
+export function onlyPlaces(p: Parsed): boolean {
   return (!p.intent || p.intent === "leaderboard") && p.symbols.every(placeWord) && !p.teams.length && !p.rookie && !p.named && p.over == null && !p.notMetrics?.length && !p.notStats?.length && !p.event && !p.eventKind && !p.worlds && !p.states && !p.award && !p.alliance && p.matchNumber == null && !p.level
     && !p.finals && !p.leftover.length && !p.scoreCond && !p.withVideo && !p.undefeated && !p.nameHas && !p.conference && (!p.time || p.time.kind === "season");
 }
