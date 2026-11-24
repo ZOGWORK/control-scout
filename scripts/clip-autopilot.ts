@@ -204,8 +204,8 @@ function othersHold(): Map<string, number> {
 // --- A lane: reads the job its coordinator sent, for it to collect --------------------------------------------------------
 // No gh, no VM key: the job's snapshot, its events read (readSeason) over what's live in it (layLiveRows), and per season
 // the rows the read changed, whether a read failed and the events stopped at their limit, left in
-// .data/lane/results/<job> with the run's log. The coordinator checks and hands them over as its own reads (settle) on
-// its next run.
+// .data/lane/results/<job> with the run's log. The coordinator checks and hands them over as its own reads (settle) when it
+// next services its lanes (after one of its seasons, or at its next run's start).
 const LANE_DIR = join(".data", "lane"), LANE_STATE = join(LANE_DIR, "state.json");
 if (LANE) {
   const state = existsSync(LANE_STATE) ? JSON.parse(readFileSync(LANE_STATE, "utf8")) : { state: "idle" };
@@ -444,6 +444,13 @@ const rsync = (from: string, to: string, timeoutMs: number) => sh("rsync", ["-a"
 // or more; lexie sat idle from 02:33 to 04:10 on 2026-11-24 with its job done). A later round's job id carries the
 // round, so a lane's result folder (named by job id) is never one an earlier job of this run used.
 async function serviceLanes(round: number): Promise<void> {
+// Hours into the run, the held set is read again before a lane's job is picked: an event another session's PR took up
+// (othersHold), or one left by hand to a session (skip.txt), since the run started is held as at its start, not sent
+// to a lane to be read for hours and then wait at settle.
+if (round && LANES.length && !DRY) {
+  for (const [k, n] of othersHold()) if (!inPr.has(k)) { inPr.add(k); log(`  held: ${k} is in #${n}, another open PR`); }
+  for (const k of existsSync(skipFile) ? parseSkip(readFileSync(skipFile, "utf8")) : []) if (!inPr.has(k)) { inPr.add(k); log(`  held: ${k} is in ${skipFile}, left to another session`); }
+}
 // LANES is a list here (an error string stopped the run above; a function sees the wider type).
 for (const lane of DRY ? [] : LANES as Exclude<typeof LANES, string>) {
   const name = `lane ${lane.k} (${lane.host})`, here = join(DIR, "lanes", String(lane.k)), there = `${LANE_HOME}/.data/lane`;
