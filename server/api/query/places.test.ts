@@ -33,7 +33,7 @@ beforeAll(async () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', ?, 'USA')", [n, name, state]);
     for (const [season, opr] of seasons) {
       await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [season, n]);
-      await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties, opr_np, opr_auto, rating_pen, avg_np) VALUES (?, ?, 6, 3, 3, 0, ?, ?, ?, ?)", [season, n, opr, opr / 4, opr / 10, opr * 2]);
+      await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties, opr_np, opr_auto, rating_pen, avg_np, rating_np, rating_matches) VALUES (?, ?, 6, 3, 3, 0, ?, ?, ?, ?, ?, 6)", [season, n, opr, opr / 4, opr / 10, opr * 2, opr]);
     }
   }
   await rebuildSearch();
@@ -97,7 +97,10 @@ describe("two places in one question", () => {
     // Fewer is better: the best by penalties are the fewest first.
     expect(await title("best teams from maryland or delaware by penalties")).toMatch(/^Lowest 10 teams by penalties a match in Maryland or Delaware/);
     const ctx = await parseContext(NOW);
-    for (const q of ["teams from maryland or delaware not opr", "teams named crab from maryland or delaware", "the top maryland team vs the top delaware team"]) {
+    // The board over both is the one-place board's: "best team" is the one team first, as for one place.
+    const best = (await full("best team from maryland or delaware by opr")).stat as StatAnswer;
+    expect([best.headline?.value, best.title]).toEqual(["30311 First State Bots", "Best team in Maryland or Delaware by OPR · 2025–26"]);
+    for (const q of ["how many teams from maryland or delaware", "teams from maryland or delaware not opr", "teams named crab from maryland or delaware", "the top maryland team vs the top delaware team"]) {
       expect(placesAsk(await parseQuery(q, ctx), null), q).toBeNull();
     }
   });

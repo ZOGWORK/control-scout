@@ -9,15 +9,14 @@ import { seasonLabel } from "../../../src/shared/format.js";
 import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all } from "../../db.js";
 import { BOARD_STATS, type BoardStat } from "../answers/families/leaderboard.js";
-import { boardSearch } from "../answers/index.js";
 import { relativeSeason } from "../answers/season.js";
-import type { LeaderboardQuestion } from "../answers/read.js";
-import { normalise, type Parsed } from "./parse.js";
+import type { Parsed } from "./parse.js";
 
 /** A place's teams need this many with the stat for the season to be the one both are set side by side in. */
 export const MIN_TEAMS = 3;
 
-const regionOf = (pl: Place): Region => ({ key: `${pl.country}:${pl.state ?? ""}`, country: pl.country, state: pl.state ?? "", name: pl.name });
+/** A place read as a region (a whole country: no state). */
+export const placeRegion = (pl: Place): Region => ({ key: `${pl.country}:${pl.state ?? ""}`, country: pl.country, state: pl.state ?? "", name: pl.name });
 const placeSql = (r: Region) => `(t.country = ?${r.state ? " AND t.state = ?" : ""})`;
 const placeArgs = (r: Region) => [r.country, ...(r.state ? [r.state] : [])];
 
@@ -39,24 +38,18 @@ export function placesAsk(p: Parsed, stat: string | null): "side" | "board" | nu
     const st = BOARD_STATS[stat ?? "opr"];
     return st && !st.count ? "side" : null;
   }
-  // Both places' teams on one board: "teams" or a stat said ("teams from nj or ny", "best auto in nj or ny").
-  return p.symbols.includes("thing:team") || stat || p.agg ? "board" : null;
+  // Both places' teams on one board, the leaderboard's (./execute.ts, `also`): "teams" or a stat said ("teams from nj
+  // or ny", "best auto in nj or ny"). A count of them, or anything else, is another reader's.
+  return (!p.intent || p.intent === "leaderboard") && (p.symbols.includes("thing:team") || stat || p.agg) ? "board" : null;
 }
 
-/** The answer for two places, or null when the question asks something else of them (left to search's other readers). */
+/** Two places' averages side by side, or null when the question asks something else of them (the board over both is
+ *  the leaderboard's, ./execute.ts). */
 export async function placesAnswer(p: Parsed, stat: string | null, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const ask = placesAsk(p, stat);
-  if (!ask || !p.places) return null;
-  const [a, b] = p.places.list.map(regionOf);
+  if (placesAsk(p, stat) !== "side" || !p.places) return null;
   // A season said, or "this season" / "last season" as the season it names.
   const season = p.time?.kind === "season" ? relativeSeason(p.time.relative, p.time.season) : null;
-  if (ask === "side") return sideBySide(p.q, [a, b], BOARD_STATS[stat ?? "opr"], season, opts, p.places.said === "versus" ? "versus" : "vs");
-  const q: LeaderboardQuestion = {
-    kind: "top", stat: stat ?? "opr", n: Math.min(25, p.n ?? 10), region: a, also: [b], alsoWord: p.places.said === "and" ? "and" : "or", city: null, season,
-    // Fewer is better ("best … by penalties"): fewest first, as the one-place board reads "best" and "worst".
-    ...((p.agg === "min") !== (!!BOARD_STATS[stat ?? "opr"]?.fewerBetter && /\b(?:best|better|cleanest|worst|weakest)\b/.test(normalise(p.q))) ? { asc: true } : {}),
-  };
-  return boardSearch(p.q, q, opts);
+  return sideBySide(p.q, p.places.list.map(placeRegion), BOARD_STATS[stat ?? "opr"], season, opts, p.places.said === "versus" ? "versus" : "vs");
 }
 
 const fmt = (st: BoardStat, v: number) => (st.unit === "%" ? `${Math.round(v * 100)}%` : v.toFixed(st.digits));
