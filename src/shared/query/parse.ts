@@ -15,6 +15,7 @@ import { pickShared as pickAmong } from "./shared.js";
 const wholeName = (n: string | null) => (n ?? "").toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
 import { allowedEdits, editDistance, joinThousands } from "../fuzzy.js";
 import { edits } from "../regions.js";
+import { everydayWord } from "./everyday.js";
 
 export interface TeamSlot {
   number: number; name: string | null; typed: string; via: "number" | "name" | "near";
@@ -920,7 +921,7 @@ function fixSpelling(toks: Tok[], names: Names, typedWords: string[]): { typed: 
  *  another form of the word ("championship" of "championships", "qualifies" of "qualified": typed as meant), never a
  *  word the parse's later steps read. */
 function nearSearchWord(w: string): string | null {
-  if (w.length < 5 || !/^[a-z]+$/.test(w) || LATER_WORDS.has(w) || LEX_WORDS.has(w)) return null;
+  if (w.length < 5 || !/^[a-z]+$/.test(w) || LATER_WORDS.has(w) || LEX_WORDS.has(w) || everydayWord(w)) return null;
   const near: string[] = [];
   for (let len = w.length - 1; len <= w.length + 1; len++) for (const k of FIX_WORDS.get(len) ?? []) if (k[0] === w[0] && editDistance(w, k, 1) === 1) near.push(k);
   return near.length === 1 && !inflected(w, near[0]) ? near[0] : null;
