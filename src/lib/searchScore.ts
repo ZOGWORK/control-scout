@@ -89,7 +89,7 @@ export type SearchShown = {
   drawn: boolean;
   /** Nothing more is on its way for these words. */
   settled: boolean;
-  /** It is going straight on to the one page the words name. */
+  /** It is going straight on to the one page the words name: its answer named it (never while that's still pending). */
   leaving: boolean;
   outcome: SearchOutcome;
 };

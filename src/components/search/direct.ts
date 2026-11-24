@@ -46,8 +46,9 @@ export function markDirect(query: string) { marked = { q: norm(query), at: Date.
 
 /** /search's side (src/pages/SearchPage.tsx): a new query is asked at once (it was submitted, not typed: no typing
  *  pause), and a query marked by a box goes on to the one page it names once the page's own answer for it is in
- *  (`live`: answered by this page's request, never the first paint's hits it may open with). True while that's
- *  pending: the page keeps its loading screen rather than flash results it may leave.
+ *  (`live`: answered by this page's request, never the first paint's hits it may open with). `waiting` while that's
+ *  pending: the page keeps its loading screen rather than flash results it may leave. `going` only once its answer
+ *  named the one page and the page is going on to it now (a pending wait may still end in results or Sorry).
  *  `seeded`: the page already has these words' answer on screen (the search box's handoff, ./handoff.ts, or a first
  *  paint's hits), which the box itself read before sending the query here and found no single page in. Nothing is
  *  waited for then: the page shows what it has, and never goes on to a page it already knew these words don't name.
@@ -73,5 +74,6 @@ export function useSubmittedSearch(query: string, s: { answer: SearchAnswer | un
     const d = live ? directHit(answer, query) : null;
     if (d) nav(hitHref(d), { replace: true });
   }, [mine, seeded, live, error, answer, query, nav]);
-  return !seeded && mine && !error && (!live || !!directHit(answer, query));
+  const waiting = !seeded && mine && !error && (!live || !!directHit(answer, query));
+  return { waiting, going: waiting && live };
 }
