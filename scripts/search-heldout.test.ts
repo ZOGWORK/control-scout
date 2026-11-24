@@ -2,7 +2,8 @@
 // or code (./search-heldout-leaks.ts says where it looks). One that does was seen while building search, so its pass
 // says nothing about questions nobody has seen: move it with `npm run search:heldout -- --split`, or reword the test.
 // And the grading of an answer against the one a person wrote (./search-heldout-grade.ts).
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -87,4 +88,25 @@ describe("graded against the written answer", () => {
     expect(gradeWant("Awards in 2025–26 only, list stated", "anything", 2025).verdict).toBe("unchecked");
     expect(gradeWant(undefined, "anything", 2025).verdict).toBe("unchecked");
   });
+});
+
+// One reader per question (the search audit's C2): the questions both the pipeline and the keyword layer claim,
+// recorded by set and number (./search-heldout.claims.json), read against a whole run by ./search-heldout.ts.
+describe("the record of questions claimed twice", () => {
+  const recorded = (JSON.parse(readFileSync(join(import.meta.dirname, "search-heldout.claims.json"), "utf8")) as { both: string[] }).both;
+  it("names held-out questions only, each once, in order", () => {
+    const ids = new Set(held.map((x) => `${x.set}#${x.n}`));
+    expect(recorded.filter((k) => !ids.has(k))).toEqual([]);
+    expect(recorded).toEqual([...new Set(recorded)].sort());
+  });
+  it("is rewritten by a whole held-out run only: --claims with a set, a filter or the training set is refused", () => {
+    // Refused before any database is opened, so quick; the record is left as it was.
+    const before = readFileSync(join(import.meta.dirname, "search-heldout.claims.json"), "utf8");
+    for (const part of [["--set", "q260"], ["--only", "closest"], ["--train"]]) {
+      const r = spawnSync(process.execPath, ["--import", "tsx", join(import.meta.dirname, "search-heldout.ts"), "--claims", ...part], { encoding: "utf8", timeout: 60_000 });
+      expect(r.status, part.join(" ")).toBe(1);
+      expect(r.stdout).toContain("--claims records a whole held-out run only");
+    }
+    expect(readFileSync(join(import.meta.dirname, "search-heldout.claims.json"), "utf8")).toBe(before);
+  }, 120_000);
 });
