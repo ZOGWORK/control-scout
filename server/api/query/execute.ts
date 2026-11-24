@@ -81,7 +81,7 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     const stat = seasonsStat(p);
     const ranked = stat === undefined ? null : await seasonsAnswer(p, stat, opts);
     if (ranked || !p.complete || !p.intent || !ANSWERED.has(p.intent)) return ranked;
-    return perSeasonAnswer(p, opts, (x) => execute(x, { ...opts, full: true }));
+    return perSeasonAnswer(p, opts, (x, full) => execute(x, { ...opts, full }));
   }
   // An event's matches and nothing else asked ("<event> matches", "matches at <event>"): its matches in the order played,
   // each row playing its clip, as a team's matches do.
