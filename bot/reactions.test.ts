@@ -3,7 +3,7 @@
 // given for, and the answer's first 👎 files it in the site's failed-search list in the same write as the vote.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../server/db";
-import { BAD, GOOD, downNotes, downVote, reactionUsage, serialVotes, trackAnswer, vote } from "./reactions";
+import { BAD, GOOD, downNotes, downVote, reactionUsage, serialVotes, trackAnswer, vote, type DownNoteState } from "./reactions";
 
 /** What the answers' 👎s have filed (server/searchFailures.ts downvoteFailure). */
 const failed = () => all<{ key: string; result_type: string; intent: string | null; count: number; examples: string }>(
@@ -140,6 +140,24 @@ describe("the thumbs on an answer", () => {
     // A second 👎 files nothing, so it says nothing.
     expect(await downVote("n1")).toEqual({ filed: false });
     expect(note.due("n1", false)).toBe(false);
+  });
+
+  it("remembers what it told and still owes across a restart", () => {
+    let saved: DownNoteState | undefined;
+    const first = downNotes(500, (s) => { saved = s; });
+    expect(first.due("told", true)).toBe(true);
+    first.said("told");
+    expect(first.due("owed", true)).toBe(true);
+    first.unsent("owed");
+    // A new process (a deploy, a crash) picks both up: the note it said stays unsaid, the one it owes is still owed.
+    const after = downNotes();
+    after.hydrate(saved!);
+    expect(after.due("told", true)).toBe(false);
+    expect(after.due("owed", false)).toBe(true);
+    // Junk in the saved state is ignored rather than crashing the bot.
+    const odd = downNotes();
+    odd.hydrate({ told: ["a", 5 as unknown as string], owed: [null as unknown as string] });
+    expect(odd.due("a", true)).toBe(false);
   });
 
   it("keeps a note that couldn't be delivered owed until it arrives", () => {

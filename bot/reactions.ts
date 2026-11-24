@@ -57,31 +57,46 @@ export async function downVote(messageId: string, now = Date.now()): Promise<{ f
  *  the button explains itself at the moment it is used. */
 export const DOWN_NOTE = "📝 Noted — a 👎 files this question so we can fix the answer. It's not a dislike button.";
 
+/** What the 👎 notes remember: the answers a channel has been told about, and the ones it owes a note that never
+ *  reached a channel. Saved (bot/index.ts) so a restart neither says it twice nor drops it. */
+export interface DownNoteState { told: string[]; owed: string[] }
+
 /** Which answers' channels have been told what a 👎 does, and whether this vote owes the note (bot/index.ts).
  *
  *  The note is due when the vote filed the question — `due` is handed `downVote`'s own answer, so an answer from before
  *  questions were kept, or one whose question is all personal, says nothing instead of promising a filing that never
  *  happened — and again on any later 👎 if the note couldn't be delivered: a channel that wouldn't take the message, or
- *  a send Discord refused, leaves it owed rather than spent. Owed notes are kept until they are said; the answers
- *  already told are capped at `max`, past which the oldest is forgotten and a vote taken off and added again on it can
- *  say the note once more — a repeat, never a missing one. */
-export function downNotes(max = 500) {
+ *  a send Discord refused, leaves it owed rather than spent. Every change is saved through `save`, so a restart picks
+ *  the sets up again ('hydrate'); the answers already told are capped at `max`, past which the oldest is forgotten and a
+ *  vote taken off and added again on it can say the note once more — a repeat, never a missing one. */
+export function downNotes(max = 500, save: (state: DownNoteState) => void = () => {}) {
   const told = new Set<string>();
   const owed = new Set<string>();
+  const keep = () => save({ told: [...told], owed: [...owed] });
   return {
+    /** Take up what an earlier run saved (a restart, a deploy). */
+    hydrate(state: DownNoteState): void {
+      told.clear();
+      owed.clear();
+      for (const id of state.told ?? []) if (typeof id === "string") told.add(id);
+      for (const id of state.owed ?? []) if (typeof id === "string") owed.add(id);
+    },
     /** Whether this vote owes the note: it filed the question, or an earlier vote's note never arrived. */
     due(messageId: string, filed: boolean): boolean {
       return !told.has(messageId) && (filed || owed.has(messageId));
     },
-    /** It reached the channel: never again for this answer in this process. */
+    /** It reached the channel: never again for this answer. */
     said(messageId: string): void {
       owed.delete(messageId);
       told.add(messageId);
       if (told.size > max) told.delete(told.values().next().value!);
+      keep();
     },
-    /** It couldn't be delivered: the next 👎 on this answer tries again. */
+    /** It couldn't be delivered: the next 👎 on this answer tries again, and a restart still owes it. */
     unsent(messageId: string): void {
-      if (!told.has(messageId)) owed.add(messageId);
+      if (told.has(messageId)) return;
+      owed.add(messageId);
+      keep();
     },
   };
 }
