@@ -34,5 +34,6 @@ it("a team's season: a gap between each event's playoffs and its qualification m
 it("an event's own schedule: its level headings, no gap", () => {
   const ms = [match("A", "qual", 1), match("A", "playoff", 1)];
   const { container } = render(<MemoryRouter><TooltipProvider><MatchList matches={ms} highlight={11} /></TooltipProvider></MemoryRouter>);
+  expect(order(container)).toEqual(["#Qualifications", "1", "#Playoffs", "1"]);
   expect(container.querySelector("[data-level-break]")).toBeNull();
 });
