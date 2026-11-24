@@ -482,9 +482,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
         if (isBrunoQuestion(raw.trim().slice(0, 200)) && !pointsBack(chatWords(raw)) && brunoBudget.take(req)) {
           if (prepaid.size > 5000) prepaid.clear();
           // Paid while his answer is coming or came; one that failed (not kept) leaves the page's ask to pay again.
-          const k = brunoAsk(req);
-          prepaid.set(k, Date.now());
-          void brunoAnswer(raw, { prefer, limit: SEARCH_PAGE_LIMIT }).then((r) => { if (!r) prepaid.delete(k); }, () => { prepaid.delete(k); });
+          const k = brunoAsk(req), paidAt = Date.now();
+          prepaid.set(k, paidAt);
+          // Only this start's own pass: a newer early start of the same ask keeps its own.
+          const unpay = () => { if (prepaid.get(k) === paidAt) prepaid.delete(k); };
+          void brunoAnswer(raw, { prefer, limit: SEARCH_PAGE_LIMIT }).then((r) => { if (!r) unpay(); }, unpay);
         }
       }
       // An answer any visitor shares: counted, so the next process makes it before it answers (./api/searchWarm.ts).
