@@ -79,7 +79,7 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     const stat = seasonsStat(p);
     return stat === undefined ? null : seasonsAnswer(p, stat, opts);
   }
-  // Two to four teams set side by side by one stat ("4215 vs 6980 vs 23268 teleop", "compare 4215 and 6980 average
+  // Two to four teams set side by side by one stat ("<team> vs <team> vs <team> teleop", "compare <team> and <team> average
   // score"): their season numbers in one card, that stat its headline row.
   const by = comparedStat(p);
   if (by) {
@@ -311,7 +311,7 @@ const BOARD_STAT: Partial<Record<string, string>> = {
 const COMPARE_BY_WORDS = new Set(["vs", "compare", "and", "thing:team", "agg:mean"]);
 /** The board stats two teams' own side-by-side cards answer ("12345 vs 67890 penalties", "… record" is head to head). */
 const TWO_TEAM_STATS = new Set(["opr", "rating", "penalties", "record", "wins"]);
-/** The one board stat (BOARD_STATS) two to four teams are compared by ("4215 vs 6980 vs 23268 teleop"), or null: the
+/** The one board stat (BOARD_STATS) two to four teams are compared by ("<team> vs <team> vs <team> teleop"), or null: the
  *  teams said once each, "vs" or "compare", one stat (a phase is that phase's OPR; "average score" the average score)
  *  and a season at most. Anything else said (an event, a place, a count, a filter) is another question's. */
 function comparedStat(p: Parsed): string | null {
