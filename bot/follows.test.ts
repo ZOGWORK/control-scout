@@ -177,6 +177,8 @@ describe("follows and the tick, on a database", () => {
     // FIRST moves Q7 back forty minutes.
     await run("UPDATE matches SET time = ? WHERE season = ? AND code = 'USTXAUQ' AND level = 'qual' AND series = 0 AND number = 7", [iso(NOW + 50 * 60_000).slice(0, 19), S]);
     clearAllCaches();
+    // A failed post releases its claim and keeps the old schedule, so the next tick tries the move again.
+    expect(await notifyTick(vi.fn(async () => "error" as const), "s", () => {}, NOW + 60_000)).toBe(0);
     expect(await notifyTick(send, "s", () => {}, NOW + 60_000)).toBe(1);
     const [, moved] = send.mock.calls.at(-1) as unknown as [string, { description: string }];
     expect(moved.description.split("\n")[0]).toMatch(/^Moved: it was <t:\d+:t>, now <t:\d+:R>/);

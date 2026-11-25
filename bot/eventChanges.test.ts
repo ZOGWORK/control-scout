@@ -1,7 +1,7 @@
 // The schedule as it changes (bot/eventChanges.ts): a moved start, a changed lineup, a match that appeared, the match
 // two away, and the state roundtrip the tick compares against — pure functions, plus the table.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { migrate, openDb, run, setDb } from "../server/db";
+import { all, migrate, openDb, run, setDb } from "../server/db";
 import type { MatchView } from "../src/shared/api";
 import type { Follow } from "./follows";
 import { ALERT_WINDOW_MS, alertKey, alertLead, changedMatches, loadMatchState, onDeckDue, saveMatchState, type MatchState } from "./eventChanges";
@@ -88,5 +88,18 @@ describe("the schedule state, on a database", () => {
     expect((await loadMatchState(2025, "X")).size).toBe(2);
     expect((await loadMatchState(2025, "X")).get("qual:0:7")?.startsAt).toBe(iso(NOW + 1_200_000));
     expect((await loadMatchState(2025, "OTHER")).size).toBe(0);
+  });
+
+  it("refreshes seen_at for a stable schedule, so a live event's rows aren't pruned as stale", async () => {
+    await saveMatchState(2025, "X", [m(7, NOW + 600_000)], NOW);
+    await saveMatchState(2025, "X", [m(7, NOW + 600_000)], NOW + 60_000);
+    const [row] = await all<{ seen_at: string }>("SELECT seen_at FROM discord_match_state WHERE match_key = 'qual:0:7'");
+    expect(row.seen_at).toBe(iso(NOW + 60_000));
+  });
+
+  it("leaves a skipped match at its old state, so a failed alert is retried", async () => {
+    await saveMatchState(2025, "X", [m(7, NOW + 600_000)], NOW);
+    await saveMatchState(2025, "X", [m(7, NOW + 1_800_000)], NOW + 60_000, new Set(["qual:0:7"]));
+    expect((await loadMatchState(2025, "X")).get("qual:0:7")?.startsAt).toBe(iso(NOW + 600_000));
   });
 });

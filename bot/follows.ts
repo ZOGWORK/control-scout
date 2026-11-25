@@ -250,8 +250,9 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
   }
   const events = [...new Map(found.map((e) => [e.code, e])).values()];
   let posted = 0;
-  // Claim, send, mark sent; a failure gives the claim back (and counts toward dropping a channel that's gone).
-  const deliver = async (channel: string, code: string, key: string, kind: string, embed: () => Promise<APIEmbed> | APIEmbed) => {
+  // Claim, send, mark sent; a failure gives the claim back (and counts toward dropping a channel that's gone). False:
+  // nothing was sent, so a change-based alert's state must not advance past it.
+  const deliver = async (channel: string, code: string, key: string, kind: string, embed: () => Promise<APIEmbed> | APIEmbed): Promise<boolean> => {
     const k = [channel, CURRENT_SEASON, code, key, kind];
     const t = new Date(now).toISOString();
     const claimed = (await run(
@@ -259,13 +260,13 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
       || (await run(
         "UPDATE discord_posts SET claimed_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ? AND sent_at IS NULL AND claimed_at < ?",
         [t, ...k, new Date(now - CLAIM_STALE_MS).toISOString()]));
-    if (!claimed) return;
+    if (!claimed) return true;
     const r = await send(channel, pride(await embed()));
     if (r === "ok") {
       posted++;
       await run("UPDATE discord_posts SET sent_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ?", [new Date().toISOString(), ...k]);
       await run("UPDATE discord_follows SET failures = 0 WHERE channel_id = ? AND failures > 0", [channel]);
-      return;
+      return true;
     }
     await run("DELETE FROM discord_posts WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ? AND sent_at IS NULL", k);
     if (r === "gone") {
@@ -286,6 +287,7 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
         }
       }
     }
+    return false;
   };
   for (const ev of events) {
     const d = await cachedEventDetail(CURRENT_SEASON, ev.code);
@@ -294,14 +296,17 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
     // sight of an event only records it (changedMatches returns nothing for an empty map).
     const prev = await loadMatchState(CURRENT_SEASON, ev.code).catch(() => null);
     if (prev) {
+      // A failed alert keeps that match's old state, so the next tick still sees the change and the claim releases it
+      // for another try (an already-sent channel stays quiet: its claim is not deleted).
+      const retry = new Set<string>();
       for (const a of changedMatches(active, d.matches, prev, now)) {
         // Each new time or lineup is its own post, not swallowed by the first change's claim.
-        await deliver(a.channel, ev.code, alertKey(a), a.kind, () => alertEmbed(a, d.event.name, site, now));
+        if (!(await deliver(a.channel, ev.code, alertKey(a), a.kind, () => alertEmbed(a, d.event.name, site, now)))) retry.add(a.match.key);
       }
       for (const c of onDeckDue(active, d.matches, now)) {
         await deliver(c.channel, ev.code, c.match.key, "ondeck", () => preMatchEmbed(d.event.name, c.match, site, onDeckLead(c.match)));
       }
-      await saveMatchState(CURRENT_SEASON, ev.code, d.matches, now).catch((e) => log(`follows: couldn't record ${ev.code}'s schedule (${(e as Error)?.message ?? String(e)})`));
+      await saveMatchState(CURRENT_SEASON, ev.code, d.matches, now, retry).catch((e) => log(`follows: couldn't record ${ev.code}'s schedule (${(e as Error)?.message ?? String(e)})`));
     }
     for (const due of dueNow(active, d.matches, now)) await deliver(due.channel, ev.code, due.match.key, due.kind, () => postEmbed(due, d, site));
     const today = venueClock(now, d.event.timezone ?? null).date;

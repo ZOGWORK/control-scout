@@ -144,12 +144,14 @@ export async function loadMatchState(season: number, code: string): Promise<Map<
   }]));
 }
 
-/** Record this tick's schedule, and drop rows no event needs compared any more. */
-export async function saveMatchState(season: number, code: string, matches: MatchView[], now = Date.now()): Promise<void> {
+/** Record this tick's schedule, and drop rows no event needs compared any more. `skip`: matches whose alert failed, so
+ *  their old state is kept and the change is detected (and retried) on the next tick. */
+export async function saveMatchState(season: number, code: string, matches: MatchView[], now = Date.now(), skip: ReadonlySet<string> = new Set()): Promise<void> {
   const at = new Date(now).toISOString();
   // One statement per chunk of 40 (SQLite's parameter cap), rather than a write per match every minute.
-  for (let i = 0; i < matches.length; i += 40) {
-    const chunk = matches.slice(i, i + 40);
+  const keep = matches.filter((m) => !skip.has(m.key));
+  for (let i = 0; i < keep.length; i += 40) {
+    const chunk = keep.slice(i, i + 40);
     const values = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = chunk.flatMap((m) => [season, code, m.key, m.startsAt ?? null,
       m.red.teams.map((t) => t.number).sort((a, b) => a - b).join(","),
@@ -159,9 +161,7 @@ export async function saveMatchState(season: number, code: string, matches: Matc
       `INSERT INTO discord_match_state (season, code, match_key, starts_at, red, blue, level, seen_at)
        VALUES ${values}
        ON CONFLICT(season, code, match_key) DO UPDATE SET starts_at = excluded.starts_at, red = excluded.red,
-         blue = excluded.blue, level = excluded.level, seen_at = excluded.seen_at
-       WHERE discord_match_state.starts_at IS NOT excluded.starts_at OR discord_match_state.red != excluded.red
-          OR discord_match_state.blue != excluded.blue OR discord_match_state.level != excluded.level`,
+         blue = excluded.blue, level = excluded.level, seen_at = excluded.seen_at`,
       params);
   }
   await run("DELETE FROM discord_match_state WHERE seen_at < ?", [new Date(now - STATE_KEEP_MS).toISOString()]);
