@@ -16,7 +16,7 @@ an embed that links back to controlscout.org:
 | `/unfollow team: event: channel:` | Stop them (every channel if none is given). Manage Server only |
 | `/following` | What the server follows — teams and events — and where each posts (up to 10 in all) |
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below), with buttons for what to ask next |
-| `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👍 an answer |
+| `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👎 an answer to report it |
 | `/config` | What the bot is and can do here, read live: the release it runs, the account it is and how many servers it is in, the season, the site it talks to, chat on (or why it isn't) and the chat limit this server has, report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
 
@@ -62,28 +62,38 @@ is not a question), so a button clicked within the hour asks it as `/ask` would 
 server memory — and one clicked later, or after a restart, says it has expired and names `/ask`. Follows are
 deliberately not buttons: a button would let anyone follow without Manage Server.
 
-**👍** (`bot/reactions.ts`, migration 105). The bot adds one to every answer it posts; a click is counted on that one
-answer and nowhere else, with no record of who clicked. The owner console shows the total beside the bot's other
-numbers. The row also keeps the **question the answer was given for**, which is the record of what the answer was for.
-An answer's votes are applied in the order Discord sent them, so a 👍 taken back within a moment leaves nothing behind.
+**No thumbs.** The bot puts no emoji on its answers and counts nothing. It used to add a 👍 (counted on that answer
+alone, with no record of who clicked) and a 👎 (which filed the answer's question in the site's failed-search queue),
+and the pair read as like/dislike rather than "report this": a 👍 on a good answer and a 👎 on a fine one both meant
+nothing useful. What they collected stays readable — the owner console's totals, the queue's own re-check of an old
+`downvoted` row — and nothing writes them any more (`bot/reactions.ts`).
 
-**No 👎.** It was meant as "this answer is wrong — file it", and the answer's first 👎 filed the question in the
-site's failed-search list as a `downvoted` failure. People read it as a dislike button instead, so answers that were
-fine put questions in the queue, and a note had to explain what the button did. Both are gone: the `down` column and
-any `downvoted` rows stay readable (the owner console's total, the queue's own re-check) and nothing writes them.
+**A 👎 is a report.** `👎` is in Discord's own emoji picker, and the bot never adds it: a person who goes and picks it
+out is reporting that answer, so it is filed as a GitHub issue through the same path "Report this to ControlScout"
+uses (`bot/report.ts`) — the question the answer was written for, the answer's own words, the channel, who added the
+👎 and the bot's last log lines — and the bot replies under the answer with the issue's number (`bot/handler.ts`
+`downvoted`). Only a message the bot posted has a row (`discord_answers`, migration 104), so a 👎 anywhere else files
+nothing, and there is one issue per answer: its number is kept on that row (migration 109), so a second 👎 days later,
+or after a restart, points at the same issue instead of filing a duplicate — and a person or a server is capped at a
+few an hour like any report. An answer from before the bot kept its question (migration 105) still files, and the issue
+says the question wasn't recorded. Discord sends only a message's id for an answer it has no copy of (one from before
+the last restart), so the bot fetches it first: the issue still shows the answer's words and the reporter's nickname.
 
-**The stale 👎s are taken off** (`bot/cleanup.ts`). The emoji the bot added between 7.9.2 and 8.0.1 is still on the
-answers it posted then, where it is a button that does nothing: on the first connection after 8.0.2 the bot walks back
-through the recent messages of every channel it can read — and each server's active threads — removes its own reaction
-from its own answers, and records that server's finished walk in a `kv` row of its own (`bot:down-sweep:<server>`), so a restart never scans it again. Only its
-own reaction goes: a member's 👎 is theirs, and a 👍 stays. The walk ends at a message older than 2026-11-21, before any
-answer could carry a 👎, so a channel's older history is never read and the two days the thumbs existed are all it
-covers. A sweep that met a channel it couldn't read — no Read Message History, a thread since deleted — or a 👎 that
-wouldn't come off is logged and that server is not recorded, so the next start walks it again — and only it; a 👎 that
-is already gone counts as done. A server with no row is walked when it is first seen: one the bot is added back to has its row deleted with its other data (`bot/forget.ts`) and is swept as it joins, and one added while the bot was down is walked on the next start, since no join event reaches it. Archived threads are left
-alone: a thread from those two days has to still be active to be read now, and paging every channel's archive for it
-isn't worth the calls. No row is written to `discord_answers`: the counts are what people clicked and stay readable;
-only the emoji nobody can use any more comes off.
+**The old emoji are taken off** (`bot/cleanup.ts`). Both reactions the bot used to add are still on the answers it
+posted between 7.9.2 and now, where they are buttons that do nothing: on the first connection after this ships the bot
+walks back through the recent messages of every channel it can read — and each server's active threads — removes its
+own 👎 and its own 👍 from its own answers, and records that server's finished walk in a `kv` row of its own
+(`bot:thumbs-sweep:<server>`, a new key from the 👎-only sweep, so every server walks once more), so a restart never
+scans it again. Only its own reactions go: a member's 👎 or 👍 is theirs, and any other emoji stays. The walk ends at a
+message older than 2026-11-21, before any answer could carry a thumb, so a channel's older history is never read and
+the days the thumbs existed are all it covers. A sweep that met a channel it couldn't read — no Read Message History,
+a thread since deleted — or a thumb that wouldn't come off is logged and that server is not recorded, so the next
+start walks it again — and only it; a thumb that is already gone counts as done. A server with no row is walked when
+it is first seen: one the bot is added back to has its row deleted with its other data (`bot/forget.ts`) and is swept
+as it joins, and one added while the bot was down is walked on the next start, since no join event reaches it. Archived
+threads are left alone: a thread from those days has to still be active to be read now, and paging every channel's
+archive for it isn't worth the calls. No row is written to `discord_answers`: the counts are what people clicked and
+stay readable; only the emoji nobody can use any more comes off.
 
 **What it was asked** (`bot/asks.ts`, migration 104). Every ask is recorded — the words as typed with personal data
 redacted, the step search answered it at, whether Bruno's chat answered it, and how long it took; never who asked,
@@ -175,8 +185,9 @@ only unreachable (`GuildDelete` with `available: false`, a Discord outage) is no
 
 The owner console's Discord bot panel lists each server by the name Discord shows (kept on join, on a rename and once
 at startup) beside its id, and shows the bot's own numbers: chats today and this week, the share answered and the share
-Bruno answered (the rest fell back to the card), the middle answer time, the follow posts sent today and the thumbs. A
-name Discord hasn't sent since names were kept reads "Name not known yet" rather than a guess.
+Bruno answered (the rest fell back to the card), the middle answer time, the follow posts sent today, and the totals
+the thumbs collected before they were removed. A name Discord hasn't sent since names were kept reads "Name not known
+yet" rather than a guess.
 
 **His name is Bruno, and he's a golden retriever in spirit.** `brunoPersona()` (`bot/productFacts.ts`) goes with every
 chat: friendly, loyal, eager to help, a little goofy, never pushy — a light touch, not a paragraph of self-introduction,
@@ -357,7 +368,7 @@ code; you can also type a code yourself).
    never paste it anywhere else). Leave **Public Bot** on so any team can add it. No privileged intents
    are needed and none is switched on in the portal: the bot asks for `Guilds`, `GuildMessages`,
    `GuildMessageReactions` and `DirectMessageReactions`, all of them non-privileged. The reaction intents are
-   what deliver a 👍 on an answer; without them the bot adds the emoji and never hears the click.
+   what deliver a 👎 on an answer (a report); without them the bot never hears it.
 4. **Installation:** set the install link to "None" (the site's invite link is used instead), or to the
    same scopes and permissions as below.
 
@@ -370,11 +381,11 @@ https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applic
 - Scopes: `bot` and `applications.commands`.
 - Permissions `2147567680` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Read Message History
   (65536) + Use Application Commands (2147483648). Nothing else: the bot manages nothing and joins voice. It reads a
-  channel's recent messages once, on the first start after 8.0.2, to take its own stale 👎s off its answers
-  (`bot/cleanup.ts`, above), and otherwise only the messages that @mention it. A server that invited the bot before
-  7.9.2 has no Add Reactions, so its answers get no 👍 until the bot is re-invited with this link; a server that
-  invited it before 8.0.2 has no Read Message History, so the stale 👎s stay until then (the bot logs which channels
-  it can't read and asks again on every start). Nothing else changes for either.
+  channel's recent messages once per server, to take its own old 👎s and 👍s off its answers (`bot/cleanup.ts`,
+  above), and otherwise only the messages that @mention it. Add Reactions is kept from when the bot put emoji on its
+  answers: it adds none now, and removing its own old reactions is all it uses it for. A server that invited it before
+  8.0.2 has no Read Message History, so its old emoji stay until then (the bot logs which channels it can't read and
+  asks again on every start). Nothing else changes for it.
 
 `discordInviteUrl()` in `src/shared/discord.ts` builds exactly this link.
 

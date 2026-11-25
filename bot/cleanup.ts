@@ -1,10 +1,12 @@
-// The 👎 the bot used to put on every answer (7.9.2 until 8.0.1) is still on the answers it posted in between: a button
-// that does nothing now. This takes it off, once — the first connection after this ships walks back through every text
-// channel it can read (and each server's active threads), removes its own reaction from its own answers, and records that
-// server's finished walk in a `kv` row of its own, so a restart or a deploy doesn't scan it again.
+// The 👎 the bot used to put on every answer (7.9.2 until 8.0.1) and the 👍 it put on every answer (7.9.2 until now)
+// are still on the answers it posted in between: buttons that do nothing, on an answer that has no reactions of the bot's
+// any more. This takes them off, once — the first connection after this ships walks back through every text channel it
+// can read (and each server's active threads), removes its own reactions from its own answers, and records that server's
+// finished walk in a `kv` row of its own, so a restart or a deploy doesn't scan it again.
 //
-// Only its own reaction, only on its own message: a member's 👎 is theirs, and a 👍 stays. The counts are untouched — the
-// `down` column is what people clicked, and it stays readable (bot/reactions.ts); nothing here writes a row.
+// Only its own reactions, only on its own message: a member's 👎 or 👍 is theirs, and anything else stays. The counts are
+// untouched — the `up` and `down` columns are what people clicked, and they stay readable (bot/reactions.ts); nothing
+// here writes a row.
 //
 // A server's row is written only when its whole walk finished. A server that added the bot before 8.0.2 has no Read
 // Message History, so its channels can't be read: the sweep says which and what is missing, isn't recorded, and tries
@@ -14,16 +16,19 @@
 import type { Client } from "discord.js";
 import { kvGet, kvSet } from "../server/db.js";
 
-/** The reaction being taken off, and the only thing this module looks for. */
+/** The 👎 the bot used to add to every answer: taken off its own messages. */
 export const OLD_DOWN = "👎";
-/** No answer can carry one from before this: the thumbs shipped on 2026-11-22, so a page whose oldest message is older
- *  ends the walk (days of slack, since a deploy can lag its commit). */
+/** The 👍 it added to every answer until this release: taken off its own messages too. */
+export const OLD_UP = "👍";
+/** No answer can carry either from before this: the thumbs shipped on 2026-11-22, so a page whose oldest message is
+ *  older ends the walk (days of slack, since a deploy can lag its commit). */
 export const THUMBS_FROM = Date.parse("2026-11-21T00:00:00Z");
 /** Messages a request asks for (Discord's cap). */
 export const PAGE = 100;
-/** One server's `kv` row, saying its walk finished; deleted with the server's other data when the bot is removed
- *  (bot/forget.ts), so a server added back is walked again. */
-export const sweepKey = (guild: string) => `bot:down-sweep:${guild}`;
+/** One server's `kv` row, saying its walk finished. A new key from the 👎-only sweep, so every server walks once more
+ *  for the 👍 it still carries; deleted with the server's other data when the bot is removed (bot/forget.ts), so a
+ *  server added back is walked again. */
+export const sweepKey = (guild: string) => `bot:thumbs-sweep:${guild}`;
 
 /** One reaction as the sweep reads it: the emoji, whether this bot is the one who added it, and how to take it off. */
 export interface SweptReaction {
@@ -65,7 +70,7 @@ export interface Swept {
   channels: number;
   /** Messages read. */
   messages: number;
-  /** Stale 👎s taken off. */
+  /** The bot's own stale 👎s and 👍s taken off. */
   removed: number;
   /** Channels or reactions that couldn't be read or cleared: logged, never fatal. */
   failed: number;
@@ -74,7 +79,10 @@ export interface Swept {
 /** Discord's answers for a reaction that is already gone, or a message that is: nothing to do, not a failure. */
 const GONE = new Set([10008, 10014]);
 
-/** Take the bot's stale 👎s off its answers, channel by channel. Only thumbs-era messages are read: the walk stops at
+/** Whether an emoji is one the bot used to add to its answers. */
+const ours = (emoji: string | null): boolean => emoji === OLD_DOWN || emoji === OLD_UP;
+
+/** Take the bot's stale thumbs off its answers, channel by channel. Only thumbs-era messages are read: the walk stops at
  *  `THUMBS_FROM`, so a channel's older history is never requested. */
 export async function sweepStaleThumbs(sweep: Sweep, log: (m: string) => void = () => {}): Promise<Swept> {
   const listed = await sweep.channels();
@@ -92,34 +100,36 @@ export async function sweepStaleThumbs(sweep: Sweep, log: (m: string) => void = 
         out.failed++;
         const code = (e as { code?: number })?.code;
         const why = code === 50001 || code === 50013 ? " — Control Scout needs Read Message History there" : "";
-        log(`stale 👎: couldn't read ${channel.id}${why} (${(e as Error)?.message ?? String(e)})`);
+        log(`stale thumbs: couldn't read ${channel.id}${why} (${(e as Error)?.message ?? String(e)})`);
         break;
       }
       if (!read.length) break;
       out.messages += read.length;
       for (const m of read) {
         if (m.author?.id !== sweep.me) continue;
-        // `me` is Discord saying this bot added it: a member's own 👎 on the same answer stays.
-        const stale = [...m.reactions.cache.values()].find((r) => r.emoji.name === OLD_DOWN && r.me);
-        if (!stale) continue;
-        try {
-          await stale.users.remove(sweep.me);
-          out.removed++;
-        } catch (e) {
-          // Already gone (a second pass over the same answer) is fine; anything else means this answer isn't known to be
-          // clean, so the sweep isn't recorded and the next start asks again.
-          if (GONE.has((e as { code?: number })?.code ?? 0)) continue;
-          out.failed++;
-          log(`stale 👎: couldn't take one off ${channel.id}/${m.id} (${(e as Error)?.message ?? String(e)})`);
+        // `me` is Discord saying this bot added it: a member's own 👎 or 👍 on the same answer stays, and so does any
+        // other emoji. Both of the bot's are stale — the 👎 it added until 8.0.1, and the 👍 until this release.
+        for (const stale of [...m.reactions.cache.values()]) {
+          if (!stale.me || !ours(stale.emoji.name)) continue;
+          try {
+            await stale.users.remove(sweep.me);
+            out.removed++;
+          } catch (e) {
+            // Already gone (a second pass over the same answer) is fine; anything else means this answer isn't known to be
+            // clean, so the sweep isn't recorded and the next start asks again.
+            if (GONE.has((e as { code?: number })?.code ?? 0)) continue;
+            out.failed++;
+            log(`stale thumbs: couldn't take one off ${channel.id}/${m.id} (${(e as Error)?.message ?? String(e)})`);
+          }
         }
       }
-      // Past the oldest message on the page is older still, and no answer there had a 👎: that is the end of it.
+      // Past the oldest message on the page is older still, and no answer there had a thumb: that is the end of it.
       const oldest = read[read.length - 1];
       if (read.length < PAGE || oldest.createdTimestamp < THUMBS_FROM) break;
       // A page that hands back the message we asked to go before would loop forever: said, and left unfinished.
       if (oldest.id === before) {
         out.failed++;
-        log(`stale 👎: ${channel.id} isn't paging back past ${oldest.id}`);
+        log(`stale thumbs: ${channel.id} isn't paging back past ${oldest.id}`);
         break;
       }
       before = oldest.id;
@@ -139,7 +149,7 @@ const pager = (ch: { id: string; messages: { fetch: unknown } }): SweptChannel =
 
 /** Every channel to look in: every text channel of every server the bot is in, and each server's active threads (an
  *  answer posted in a thread has its own message id). Archived threads are out of reach on purpose: listing the public
- *  ones needs Read Message History and the private ones need Manage Threads, and a thread from the two days the thumbs
+ *  ones needs Read Message History and the private ones need Manage Threads, and a thread from the days the thumbs
  *  existed has to still be active to hold one now (bot/README.md says so). */
 async function places(client: Client, log: (m: string) => void, only?: string): Promise<{ channels: SweptChannel[]; unreadable: number }> {
   const out: SweptChannel[] = [];
@@ -152,7 +162,7 @@ async function places(client: Client, log: (m: string) => void, only?: string): 
   let unreadable = 0;
   const missed = (what: string, e: unknown) => {
     unreadable++;
-    log(`stale 👎: couldn't list ${what} (${(e as Error)?.message ?? String(e)})`);
+    log(`stale thumbs: couldn't list ${what} (${(e as Error)?.message ?? String(e)})`);
     return null;
   };
   for (const guild of client.guilds.cache.values()) {
@@ -179,11 +189,11 @@ const oneAtATime = <T>(work: () => Promise<T>): Promise<T> => {
   return next;
 };
 
-/** Take the stale 👎s off, once per server: its own row says its walk has run, so a restart or a deploy doesn't scan it
- *  again. Returns null when every server had already been walked (or there are none).
+/** Take the stale thumbs off, once per server: its own row says its walk has run, so a restart or a deploy doesn't scan
+ *  it again. Returns null when every server had already been walked (or there are none).
  *
  *  `only` is a server added back (bot/index.ts): its answers are still in Discord, so just that server is swept now.
- *  Taking off a 👎 that is already gone is not a failure, which is what makes a server swept before it was removed safe
+ *  Taking off a thumb that is already gone is not a failure, which is what makes a server swept before a change safe
  *  to walk again. */
 export function sweepOldThumbs(client: Client, log: (m: string) => void, opts: { only?: string } = {}): Promise<Swept | null> {
   return oneAtATime(() => sweep(client, log, opts.only));
@@ -193,7 +203,7 @@ async function sweep(client: Client, log: (m: string) => void, only?: string): P
   const me = client.user?.id;
   if (!me) {
     // Sweeping as "" would match no answer and record a run that did nothing: left for the next start instead.
-    log("stale 👎: the bot's own id isn't known yet; the old thumbs-down is left for the next start");
+    log("stale thumbs: the bot's own id isn't known yet; the old emoji are left for the next start");
     return null;
   }
   // Only the servers with no row of their own: one added while the bot was down has none, so it is walked on this start
@@ -206,17 +216,17 @@ async function sweep(client: Client, log: (m: string) => void, only?: string): P
   if (!todo.length) return null;
   const total: Swept = { channels: 0, messages: 0, removed: 0, failed: 0 };
   for (const id of todo) {
-    log(`stale 👎: taking the old thumbs-down off its answers in server ${id}`);
+    log(`stale thumbs: taking the old emoji off its answers in server ${id}`);
     const swept = await sweepStaleThumbs({ me, channels: () => places(client, log, id) }, log);
     total.channels += swept.channels; total.messages += swept.messages; total.removed += swept.removed; total.failed += swept.failed;
     // A row only for a walk that finished: a server that couldn't be read has none, so the next start asks again. A failed
     // write is said and never thrown — the reactions are off already, and the cost is one more walk.
     if (!swept.failed) {
       await kvSet(sweepKey(id), { at: new Date().toISOString(), removed: swept.removed }).catch((e) => {
-        log(`stale 👎: couldn't record the sweep of ${id} (${(e as Error)?.message ?? String(e)}); it will run again next start`);
+        log(`stale thumbs: couldn't record the sweep of ${id} (${(e as Error)?.message ?? String(e)}); it will run again next start`);
       });
     }
-    log(`stale 👎: server ${id}: took ${swept.removed} off ${swept.messages} messages in ${swept.channels} channels${swept.failed ? `; ${swept.failed} couldn't be read or cleared, left for the next start` : ""}`);
+    log(`stale thumbs: server ${id}: took ${swept.removed} off ${swept.messages} messages in ${swept.channels} channels${swept.failed ? `; ${swept.failed} couldn't be read or cleared, left for the next start` : ""}`);
   }
   return total;
 }

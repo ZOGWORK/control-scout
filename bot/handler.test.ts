@@ -668,11 +668,9 @@ describe("the answer's buttons", () => {
     expect(ask).toHaveBeenCalledTimes(1);
   });
 
-  it("records what it was asked, and adds 👍 to the answer", async () => {
+  it("records what it was asked and the answer's row, and adds no reaction to it", async () => {
     const noteAsk = vi.fn(async () => {});
-    // A row write the test decides when to finish, so "before" and "after" are both observable.
-    let written: () => void = () => {};
-    const trackAnswer = vi.fn(() => new Promise<void>((r) => { written = r; }));
+    const trackAnswer = vi.fn(async () => {});
     const react = vi.fn(async (_emoji: string) => ({}));
     const h = createHandler(() => {}, lookups({ noteAsk, trackAnswer }));
     const c = command("ask", { question: "who won decode" });
@@ -680,15 +678,11 @@ describe("the answer's buttons", () => {
     c.i.editReply = async (p: any) => { c.calls.push({ kind: "edit", payload: p }); return { id: "m9", react }; };
     await h(c.i);
     expect(noteAsk).toHaveBeenCalledWith({ question: "who won decode", step: "deterministic", chat: false, answered: true, ms: expect.any(Number), guild: "g1" });
-    // The question goes with the row: it is the record of what the answer was for (bot/reactions.ts).
+    // The question goes with the row: it is what a 👎 on the answer reports (bot/reactions.ts).
     expect(trackAnswer).toHaveBeenCalledWith("m9", "g1", "who won decode");
-    // The row goes in first, then the emoji: a click the moment they render must find it, so nothing is added while the
-    // write is still in flight.
     await new Promise((r) => setTimeout(r, 0));
+    // Nothing is added to the answer any more: no 👍, so there is no button to press.
     expect(react).not.toHaveBeenCalled();
-    written();
-    await new Promise((r) => setTimeout(r, 0));
-    expect(react.mock.calls.map((x) => x[0])).toEqual(["👍"]);
   });
 
   it("the bot's own fallback is neither answered nor Bruno's; his own reply is both", async () => {
@@ -711,6 +705,135 @@ describe("the answer's buttons", () => {
     c2.i.guildId = "g1";
     await h2(c2.i);
     expect(noteAsk).toHaveBeenLastCalledWith(expect.objectContaining({ chat: true, answered: true }));
+  });
+});
+
+describe("a 👎 on one of its answers", () => {
+  const filed = { ok: true as const, number: 2150, url: "https://github.com/ZOGWORK/control-scout/issues/2150" };
+  /** An answer as a reaction carries it: its text, its channel, and a reply that is recorded. */
+  function answer(over: { id?: string; content?: string | null } = {}) {
+    const said: { kind: string; embeds: APIEmbed[] }[] = [];
+    const m = {
+      id: "m9", guildId: "g1", channelId: "c1",
+      content: "Exodus (30030) qualified for Words once, averaging 52.0 auto points.",
+      reply: vi.fn(async (o: { embeds: APIEmbed[] }) => { said.push({ kind: "reply", embeds: o.embeds }); return { id: "ack" }; }),
+      channel: { send: vi.fn(async (o: { embeds: APIEmbed[] }) => { said.push({ kind: "send", embeds: o.embeds }); }) },
+      ...over,
+    };
+    return { m, said };
+  }
+
+  it("files the question the answer was written for, with the answer's words, and says where the issue is", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const answerRow = vi.fn(async () => ({ question: "how many times did exodus go to words", report: null }));
+    const { m, said } = answer();
+    await createHandler(() => {}, lookups({ report, answerRow })).downvoted(m as any, { id: "u1", globalName: "Sushil", displayName: "Sushil" });
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(report.mock.calls[0][0]).toMatchObject({
+      guild: "g1", channel: "c1", user: "u1", name: "Sushil",
+      message: "how many times did exodus go to words",
+    });
+    // The answer itself is the thread the issue shows: what it said, not just what it was asked.
+    expect(report.mock.calls[0][0].thread).toEqual([{ role: "bruno", text: "Exodus (30030) qualified for Words once, averaging 52.0 auto points." }]);
+    // Under the answer, with its number.
+    expect(said).toHaveLength(1);
+    expect(said[0].kind).toBe("reply");
+    expect(said[0].embeds[0].title).toBe("Reported");
+    expect(said[0].embeds[0].description).toContain("#2150");
+  });
+
+  it("still files an answer from before answers kept their question, and says the question wasn't recorded", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const { m } = answer();
+    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: null, report: null }) })).downvoted(m as any, { id: "u1" });
+    expect(report.mock.calls[0][0].message).toMatch(/wasn't recorded/);
+  });
+
+  it("files nothing for a message it never posted, a bot's own 👎, or with reporting off", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const answerRow = vi.fn(async () => ({ question: "who won decode", report: null }));
+    const { m, said } = answer();
+    await createHandler(() => {}, lookups({ report, answerRow })).downvoted(m as any, { id: "b1", bot: true });
+    expect(answerRow).not.toHaveBeenCalled();
+    // No row: not one of its answers, so a reaction on it is somebody else's business.
+    await createHandler(() => {}, lookups({ report, answerRow: async () => null })).downvoted(m as any, { id: "u1" });
+    expect(report).not.toHaveBeenCalled();
+    // Reporting off (no GITHUB_REPORT_TOKEN at startup): there is nowhere to file it.
+    await createHandler(() => {}, lookups({ answerRow })).downvoted(m as any, { id: "u1" });
+    expect(answerRow).not.toHaveBeenCalled();
+    expect(said).toEqual([]);
+  });
+
+  it("files one issue per answer, however many people 👎 it", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const h = createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }) }));
+    const { m } = answer();
+    // Two at once share the filing in flight; a third a moment later is answered with the same issue.
+    await Promise.all([h.downvoted(m as any, { id: "u1" }), h.downvoted(m as any, { id: "u2" })]);
+    await h.downvoted(m as any, { id: "u3" });
+    expect(report).toHaveBeenCalledTimes(1);
+  });
+
+  it("says plainly when GitHub didn't take it", async () => {
+    const report = vi.fn(async (_r: Report) => ({ ok: false as const, reason: "GitHub answered 403" }));
+    const { m, said } = answer();
+    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }) })).downvoted(m as any, { id: "u1" });
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(said[0].embeds[0].title).toBe("Couldn't file that report");
+  });
+
+  it("fetches an answer Discord sent only part of, so the issue has its words", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const whole = answer().m;
+    const partial = { id: "m9", partial: true, content: null, fetch: vi.fn(async () => whole) };
+    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }) })).downvoted(partial as any, { id: "u1" });
+    expect(partial.fetch).toHaveBeenCalledTimes(1);
+    // The fetched answer is what the issue shows, and where its reply goes.
+    expect(report.mock.calls[0][0].thread).toEqual([{ role: "bruno", text: "Exodus (30030) qualified for Words once, averaging 52.0 auto points." }]);
+    expect(whole.reply).toHaveBeenCalled();
+  });
+
+  it("keeps the issue on the answer's row, so a later 👎 finds it", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const rememberReport = vi.fn(async () => {});
+    const { m } = answer();
+    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }), rememberReport })).downvoted(m as any, { id: "u1" });
+    expect(rememberReport).toHaveBeenCalledWith("m9", filed);
+  });
+
+  it("says so when the issue can't be kept on the row, rather than losing the fact silently", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const lines: string[] = [];
+    const rememberReport = vi.fn(async () => { throw new Error("SQLITE_BUSY"); });
+    const { m, said } = answer();
+    await createHandler((l) => lines.push(l), lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }), rememberReport })).downvoted(m as any, { id: "u1" });
+    // The report still went out and the person still gets its number; only the memory of it failed.
+    expect(said[0].embeds[0].description).toContain("#2150");
+    expect(lines.join("\n")).toMatch(/couldn't keep it on the answer/);
+    expect(lines.join("\n")).toContain("#2150");
+  });
+
+  it("keeps the issue on the row even when nothing can be said under the answer", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const rememberReport = vi.fn(async () => {});
+    const lines: string[] = [];
+    const { m } = answer();
+    m.reply = vi.fn(async () => { throw new Error("Missing Access"); });
+    m.channel.send = vi.fn(async () => { throw new Error("Missing Access"); });
+    await createHandler((l) => lines.push(l), lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }), rememberReport })).downvoted(m as any, { id: "u1" });
+    // Filed is filed: the row keeps the number even though the answer, and its channel, refused a reply.
+    expect(rememberReport).toHaveBeenCalledWith("m9", filed);
+    expect(lines.join("\n")).toMatch(/filed #2150 but couldn't say so/);
+  });
+
+  it("points a later 👎 at the issue the row already has, instead of filing another", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const issue = { number: 2150, url: "https://github.com/ZOGWORK/control-scout/issues/2150" };
+    const { m, said } = answer();
+    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode", report: issue }) })).downvoted(m as any, { id: "u2" });
+    expect(report).not.toHaveBeenCalled();
+    expect(said[0].kind).toBe("reply");
+    expect(said[0].embeds[0].description).toContain("#2150");
   });
 });
 

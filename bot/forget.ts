@@ -26,8 +26,8 @@ export async function forgetGuild(guild: string): Promise<number> {
   gone += await run("DELETE FROM discord_asks WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_answers WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_guilds WHERE guild_id = ?", [guild]);
-  // The stale 👎 sweep's row (bot/cleanup.ts): a server added back is walked again, since its old answers still hold the
-  // bot's thumbs-down.
+  // The stale thumbs sweep's row (bot/cleanup.ts): a server added back is walked again, since its old answers still hold
+  // the bot's own 👎s and 👍s.
   gone += await run("DELETE FROM kv WHERE key = ?", [sweepKey(guild)]);
   return gone;
 }

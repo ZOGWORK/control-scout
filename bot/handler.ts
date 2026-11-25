@@ -7,7 +7,7 @@ import { AnswerCache } from "./guard.js";
 import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
 import { addFollow, followName, followingEmbed, listFollows, removeFollow, type FollowTarget } from "./follows.js";
 import { answerComponents, buttonQuestion, QuestionButtons } from "./buttons.js";
-import { GOOD, trackAnswer } from "./reactions.js";
+import { answerRow as answerRowOf, markReported, trackAnswer, type AnswerRow } from "./reactions.js";
 import { noteAsk, type AskRecord } from "./asks.js";
 import { SORRY_SENTENCE } from "../src/shared/search.js";
 import { BOT_COMMANDS } from "../src/shared/discord.js";
@@ -44,9 +44,15 @@ export interface Lookups {
   ask: (question: string, history?: BrunoChatTurn[], memory?: string[], guild?: string | null, channelSubject?: string | null) => Promise<AskReply>;
   /** Every ask, for the owner console (bot/asks.ts): the words, the step, who answered, how long. */
   noteAsk?: (r: AskRecord) => Promise<void>;
-  /** An answer the bot posted, so its 👍 reactions count (bot/reactions.ts), with the question it answered, which is
-   *  the record of what the answer was for. */
+  /** An answer the bot posted, with the question it answered (bot/reactions.ts): the row says what the answer was for,
+   *  so a 👎 on it can report that question. Nothing is added to the answer itself. */
   trackAnswer?: (messageId: string, guild: string | null, question?: string) => Promise<void>;
+  /** The row for a message the bot posted, or null (bot/reactions.ts): a 👎 only reports a message that has one, so a
+   *  reaction on somebody else's message files nothing. */
+  answerRow?: (messageId: string) => Promise<AnswerRow | null>;
+  /** Keeps the issue a 👎 on an answer opened, on the answer's row (bot/reactions.ts): a second 👎 later, or after a
+   *  restart, answers with that issue instead of filing a duplicate. */
+  rememberReport?: (messageId: string, issue: { number: number; url: string }) => Promise<void>;
   /** What a server teaches the bot (bot/memory.ts); absent: nothing is remembered. */
   memory?: Memory;
   /** Files a "Report this to ControlScout" as a GitHub issue (bot/report.ts); absent: reporting is off. */
@@ -92,6 +98,8 @@ export const realLookups: Lookups = {
   ask: async (question, history, memory, guild, channelSubject) => askSearch(question, await (askDeps ??= realAskDeps()), site(), history, memory, guild ?? null, channelSubject ?? null),
   noteAsk: (r) => noteAsk(r),
   trackAnswer: (id, guild, question) => trackAnswer(id, guild, question),
+  answerRow: (id) => answerRowOf(id),
+  rememberReport: (id, issue) => markReported(id, issue),
   enabled: (flag) => isEnabled(flag),
   quota: takeChat,
   memory: { recall: recallMemory, learn: learnMemory, thread: readThread, keep: keepThread, channel: readChannelSubject, keepChannel: keepChannelSubject },
@@ -189,6 +197,34 @@ const brunoTurn = (text: string): BrunoChatTurn => {
 /** An answer pings nobody: not the asker, not @everyone, a role or a person named in Bruno's text. */
 export const NO_PINGS = { parse: [] as never[], repliedUser: false };
 
+/** What a 👎 report says in place of the question when the answer predates answers keeping one (migration 105): the
+ *  issue still shows the answer, just not what it was asked. */
+export const QUESTION_UNRECORDED = "The question this answer was written for wasn't recorded (the answer predates answers keeping it).";
+
+/** One of the bot's answers, as a reaction carries it: enough to reply under it and say what it said. */
+export interface AnswerMessage {
+  id: string;
+  guildId?: string | null;
+  channelId?: string | null;
+  /** Discord sent only this message's id (an answer from before the last restart), so the report has to fetch it first. */
+  partial?: boolean;
+  fetch?: () => Promise<AnswerMessage>;
+  /** The answer's text, which the report shows as its own turn. */
+  content?: string | null;
+  reply?: (opts: { embeds: APIEmbed[]; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>;
+  channel?: { send?: (opts: { embeds: APIEmbed[]; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown> };
+}
+
+/** The person who 👎'd an answer: their Discord id, never an email, and the name Discord shows them by there. */
+export interface Reporter {
+  id: string;
+  bot?: boolean;
+  globalName?: string | null;
+  username?: string | null;
+  /** Their nickname in that server, when the reaction carries their membership (it usually does). */
+  displayName?: string | null;
+}
+
 /** The answer's buttons (bot/buttons.ts): a row of questions, a row of links. */
 export type AnswerComponents = APIActionRowComponent<APIButtonComponent>[];
 
@@ -277,17 +313,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       : { ...(r.content ? { content: r.content } : {}), embeds: [pride(r.embed)] };
     return components.length ? { ...post, components } : post;
   };
-  /** A 👍 on an answer, and its row, so the console can read how answers land (bot/reactions.ts): its words go with the
-   *  row, never who asked. A message that can't take reactions (or a stand-in without them) changes nothing. */
-  function watchVotes(sent: unknown, guild: string | null, question: string): void {
-    const m = sent as { id?: string; react?: (emoji: string) => Promise<unknown> } | undefined;
+  /** An answer's row, with the question it answered (bot/reactions.ts): a 👎 on the answer later reports that question.
+   *  Nothing is added to the post — there is no emoji on it any more — and a stand-in without a row changes nothing. */
+  function keepAnswer(sent: unknown, guild: string | null, question: string): void {
+    const m = sent as { id?: string } | undefined;
     if (!m?.id) return;
-    // The row goes in before the emoji does: a click that arrives the moment the emoji renders must find the answer it
-    // counts on, or the vote updates no row and is lost.
-    const tracked = lookups.trackAnswer?.(m.id, guild, question) ?? Promise.resolve();
-    void Promise.resolve(tracked).catch(() => {}).then(() => {
-      void m.react?.(GOOD)?.catch(() => {});
-    });
+    void Promise.resolve(lookups.trackAnswer?.(m.id, guild, question)).catch(() => {});
   }
   /** The thread a post of the bot's carries on, by its message id: every turn up to and including that answer. */
   const threads = new Map<string, BrunoChatTurn[]>();
@@ -332,12 +363,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
    * message never files twice (a repeat, a second mention while the first is still being filed) while two members'
    * different reports are two issues.
    */
-  async function reportIt(key: string, where: Omit<Report, "message" | "thread" | "logs">, q: string, thread: BrunoChatTurn[], post: (e: APIEmbed) => Promise<unknown>): Promise<void> {
+  async function reportIt(key: string, where: Omit<Report, "message" | "thread" | "logs">, q: string, thread: BrunoChatTurn[], post: (e: APIEmbed) => Promise<unknown>): Promise<Filed | null> {
     const at = Date.now();
     const already = filed.get(key);
     if (already && at - already.at < REPORT_REPEAT_MS) {
       await post(reportedEmbed(already));
-      return;
+      return null;
     }
     // The same report asked for twice at once: both get the one issue (the promise is shared, not just its result).
     let flight = filing.get(key);
@@ -352,12 +383,15 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       await post(r.limited
         ? errorEmbed("That's a lot of reports", "This person or server has asked for a few this hour. Try again later, or report it on controlscout.org.")
         : errorEmbed("Couldn't file that report", "Something on my side stopped the report from reaching GitHub. Try again in a moment, or report it on controlscout.org."));
-      return;
+      return null;
     }
     if (filed.size > 200) filed.clear();
     filed.set(key, { at, number: r.number, url: r.url });
     logLine(`report filed: #${r.number} guild=${where.guild ?? "-"}`);
-    await post(reportedEmbed(r));
+    // The issue exists now, so a reply that fails must not look like a filing that failed: a 👎 keeps the number on the
+    // answer's row next, and a caller that never learned it would let a later 👎 file a duplicate.
+    await post(reportedEmbed(r)).catch((e) => logLine(`report filed #${r.number} but couldn't say so: ${(e as Error)?.message ?? String(e)}`));
+    return r;
   }
   /** Remember what this ask taught the server: the asker's name and the teams the message named (bot/memory.ts). */
   function learnAsk(guild: string | null | undefined, user: string, name: string | null, q: string): void {
@@ -496,11 +530,11 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         post = { embeds: [pride(unavailableEmbed())] };
       }
       const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
-      // Only an answer takes votes: the failure notice above is not one.
+      // Only an answer gets a row: the failure notice above is not one.
       if (r) {
         remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId);
         keepChannel(i.channelId, question, i.guildId);
-        watchVotes(sent, i.guildId ?? null, quoted(question, r));
+        keepAnswer(sent, i.guildId ?? null, quoted(question, r));
       }
       return;
     }
@@ -594,9 +628,50 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const sent = await send(askPost(quoted(q, r), r, false));
       remember((sent as { id?: string } | undefined)?.id, history, quoted(q, r), r, m.guildId ?? null);
       keepChannel(m.channelId, q, m.guildId);
-      watchVotes(sent, m.guildId ?? null, quoted(q, r));
+      keepAnswer(sent, m.guildId ?? null, quoted(q, r));
     } catch (e) {
       logLine(`mention failed: ${(e as Error)?.message ?? String(e)}`);
+    }
+  }
+
+  /**
+   * A 👎 on one of its answers, added on purpose: that is a report, so it is filed as a GitHub issue with the question
+   * the answer was written for and the answer's own words (bot/report.ts), and the person is told where it is. Only a
+   * message the bot posted has a row, so a 👎 anywhere else files nothing; the issue is kept on that row and in memory,
+   * so a second 👎 on it answers the same issue rather than opening another. Never throws.
+   */
+  async function downvoted(answer: AnswerMessage, reporter: Reporter): Promise<void> {
+    try {
+      if (reporter.bot || !answer?.id || !lookups.report) return;
+      // Discord sends only an id for a message it has no copy of: fetched here, so the issue carries the answer's words.
+      const whole = answer.partial && answer.fetch ? await answer.fetch().catch(() => answer) : answer;
+      const row = await lookups.answerRow?.(whole.id).catch(() => null);
+      if (!row) return;
+      // Under the answer, where the 👎 was; a message it can't reply to falls back to its channel, and neither is worth
+      // failing a report over.
+      const post = async (embed: APIEmbed): Promise<unknown> => {
+        const payload = { embeds: [pride(embed)], allowedMentions: NO_PINGS };
+        const replied = whole.reply?.(payload);
+        return replied ? replied.catch(() => whole.channel?.send?.(payload)) : whole.channel?.send?.(payload);
+      };
+      // One issue per answer, kept on its row: a 👎 a day later, or after a restart, points at the issue the first one
+      // filed instead of opening a duplicate (an hour's memory alone would forget it, bot/report.ts's limits aside).
+      if (row.report) {
+        await post(reportedEmbed(row.report));
+        return;
+      }
+      const said = (whole.content ?? "").trim();
+      const opened = await reportIt(`answer:${whole.id}`,
+        { guild: whole.guildId ?? null, channel: whole.channelId ?? null, user: reporter.id, name: shownName(reporter, { displayName: reporter.displayName ?? null }) },
+        row.question ?? QUESTION_UNRECORDED, said ? [turn("bruno", said)] : [], post);
+      if (opened?.ok) {
+        // The issue is filed either way; if the row can't keep it, a later 👎 may file the same report again, so it is
+        // said (the in-memory map only covers the next ten minutes).
+        await Promise.resolve(lookups.rememberReport?.(whole.id, opened)).catch((e) =>
+          logLine(`downvote: filed #${opened.number} but couldn't keep it on the answer (${(e as Error)?.message ?? String(e)}); a later 👎 may file it again`));
+      }
+    } catch (e) {
+      logLine(`downvote failed: ${(e as Error)?.message ?? String(e)}`);
     }
   }
 
@@ -631,11 +706,11 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         post = { embeds: [pride(unavailableEmbed())] };
       }
       const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
-      // Only an answer takes votes: the failure notice above is not one.
+      // Only an answer gets a row: the failure notice above is not one.
       if (r) {
               remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId ?? null);
       keepChannel(i.channelId, question, i.guildId);
-      watchVotes(sent, i.guildId ?? null, quoted(question, r));
+      keepAnswer(sent, i.guildId ?? null, quoted(question, r));
     }
   }
 
@@ -649,7 +724,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       logLine(`interaction failed: ${(e as Error)?.message ?? String(e)}`);
     }
   }
-  return Object.assign(handle, { mention });
+  return Object.assign(handle, { mention, downvoted });
 }
 
 /** The parts of a discord.js Message a mention answer uses (a stand-in in tests). */
