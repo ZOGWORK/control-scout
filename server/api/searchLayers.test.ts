@@ -8,6 +8,7 @@ import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
 import { FILLER, FORBIDDEN, INTENTS, PARAPHRASES, RETIRED, WEAK_SIGNALS } from "./searchCatalog";
 import { pipelineReads } from "./query/execute";
+import { INTENT_WORDS } from "../../src/shared/query/lexicon";
 import { extract, loneTeamHit, paraphrase, searchKey, searchOutcome, setLayersForTest, stripFiller, tokens, traceOf } from "./searchLayers";
 import { PARAPHRASE_SETS } from "./searchLayers.sets";
 import { unreadNote } from "../../src/shared/searchPage";
@@ -238,13 +239,22 @@ describe("Layers 3 and 5, scope position, precedence and ambiguity", () => {
     expect(a.card?.title ?? "").not.toMatch(/Where they're from/);
   });
   it("a retired intent's questions are the pipeline's alone: the keyword layer claims none, the pipeline reads each", async () => {
-    // searchCatalog.ts RETIRED: every member of its paraphrase set, as the held-out claims record counts them.
+    // searchCatalog.ts RETIRED: every member of its paraphrase sets (named with spaces: "last match"), and each of its
+    // words said with a team, as the held-out claims record counts them.
     for (const id of RETIRED) {
-      const sets = PARAPHRASE_SETS.filter((s) => s.intent === id || s.intent.startsWith(`${id} (`));
-      expect(sets.length, id).toBeGreaterThan(0);
+      const name = id.replace(/-/g, " ");
+      const sets = PARAPHRASE_SETS.filter((s) => s.intent === name || s.intent.startsWith(`${name} (`));
+      const said = INTENTS.find((i) => i.id === id)!.team === "forbidden" ? [] : INTENT_WORDS[id].map((w) => `4215 ${w}`);
+      expect(sets.length + said.length, id).toBeGreaterThan(0);
       for (const q of sets.flatMap((s) => [s.canonical, ...s.members.map(([, m]) => m)])) {
         expect((await extract(q)).canonical, `${id}: ${q}`).toBeNull();
         expect(await pipelineReads(q), `${id}: ${q}`).toBe(true);
+      }
+      // A word said with a team is still answered, by the pipeline or by Layer 1, never by the keyword layer alone.
+      for (const q of said) {
+        expect((await extract(q)).canonical, `${id}: ${q}`).toBeNull();
+        const o = searchOutcome(await ask(q))!;
+        expect((await pipelineReads(q)) || (o.won === "template" && o.result === "answered"), `${id}: ${q} (${o.layers.join(" > ")}, ${o.result})`).toBe(true);
       }
     }
     // A short form the keyword layer alone read before, now the lexicon's ("w l" is the record), said with a season.
