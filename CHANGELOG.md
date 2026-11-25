@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 8.0.5 — 2026-11-25
 
-Bruno can look something up while he answers, and the bot no longer throws a whole reply away over a figure he worked out himself. (#2307)
+Bruno can look something up while he answers, and the bot no longer throws a whole reply away over a figure he worked out himself. (#2323)
 
 ### Highlights
 - [fixes] "Auto OPR at their last meet" is answered from that meet
