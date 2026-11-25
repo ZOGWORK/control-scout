@@ -131,6 +131,23 @@ describe("a shared note's state", () => {
     await waitFor(() => expect(noteState(102)).toBeNull(), { timeout: SAVED_SHOW_MS + 1000 });
   });
 
+  it("closed while it shows Saved: the timer that takes the mark down is cleared, never firing on a list that's gone", async () => {
+    // One firing after the list closed set the state of an unmounted list (and, after a test, of no window at all).
+    const set = vi.spyOn(globalThis, "setTimeout"), clear = vi.spyOn(globalThis, "clearTimeout");
+    const view = show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    fireEvent.focus(noteInput(102));
+    fireEvent.change(noteInput(102), { target: { value: "Fast cycles" } });
+    fireEvent.keyDown(noteInput(102), { key: "Enter" });
+    await waitFor(() => expect(noteState(102)).toBe("saved"));
+    const marks = set.mock.calls.flatMap((c, i) => (c[1] === SAVED_SHOW_MS + 50 ? [set.mock.results[i].value] : []));
+    expect(marks.length).toBeGreaterThan(0);
+    view.unmount();
+    for (const t of marks) expect(clear).toHaveBeenCalledWith(t);
+    set.mockRestore();
+    clear.mockRestore();
+  });
+
   it("Needs attention when it didn't go; Retry takes it back through Saving to Saved", async () => {
     await ready();
     dropPosts = 1; getsFail = true; // lost before it arrived, and the check can't read the list either
