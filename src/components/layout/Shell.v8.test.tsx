@@ -131,22 +131,41 @@ describe("v8 shell", () => {
     expect(container.querySelector("[data-page-end-glow]")).toBeTruthy();
   });
 
-  it("shows one gradient at a time: no page-end glow on Home, and elsewhere only once the top wash is off screen", () => {
+  it("shows one gradient at a time: no page-end glow on Home, and elsewhere only once the top wash is off screen and the glow has come into view", () => {
     expect(shell("/").container.querySelector("[data-page-end-glow]")).toBeNull();
     cleanup();
-    let report: (on: boolean) => void = () => {};
+    // One fake observer per watched element: the wash, and the glow itself (so its rise happens on screen).
+    const reports = new Map<Element, (on: boolean) => void>();
+    const margins = new Map<Element, string | undefined>();
     const real = globalThis.IntersectionObserver;
     globalThis.IntersectionObserver = class {
-      constructor(cb: IntersectionObserverCallback) { report = (on) => cb([{ isIntersecting: on } as IntersectionObserverEntry], this as unknown as IntersectionObserver); }
-      observe() { report(true); } disconnect() {} unobserve() {} takeRecords() { return []; }
+      cb: IntersectionObserverCallback; margin?: string;
+      constructor(cb: IntersectionObserverCallback, opts?: IntersectionObserverInit) { this.cb = cb; this.margin = opts?.rootMargin; }
+      observe(el: Element) {
+        reports.set(el, (on) => this.cb([{ isIntersecting: on, target: el } as unknown as IntersectionObserverEntry], this as unknown as IntersectionObserver));
+        margins.set(el, this.margin);
+      }
+      disconnect() {} unobserve() {} takeRecords() { return []; }
     } as unknown as typeof IntersectionObserver;
     try {
       const glow = () => document.querySelector("[data-page-end-glow]")!;
       shell("/events");
+      const wash = document.querySelector("[data-wash]")!;
+      const report = (el: Element, on: boolean) => act(() => reports.get(el)!(on));
+      // The glow rises only once it is well onto the screen, so the rise is seen.
+      expect(margins.get(glow())).toBe("0px 0px -12% 0px");
+      report(wash, true);
       expect(glow().hasAttribute("data-hidden")).toBe(true);
-      act(() => report(false));
+      // The wash scrolls away while the glow is still below the screen: it stays hidden, to rise when reached.
+      report(wash, false);
+      expect(glow().hasAttribute("data-hidden")).toBe(true);
+      report(glow(), true);
       expect(glow().hasAttribute("data-hidden")).toBe(false);
-      act(() => report(true));
+      // Scrolled back up past it: hidden again, so it rises again next time.
+      report(glow(), false);
+      expect(glow().hasAttribute("data-hidden")).toBe(true);
+      report(glow(), true);
+      report(wash, true);
       expect(glow().hasAttribute("data-hidden")).toBe(true);
     } finally { globalThis.IntersectionObserver = real; }
   });
