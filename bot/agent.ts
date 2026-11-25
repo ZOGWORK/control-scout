@@ -7,3 +7,10 @@
 export const AGENT_STEPS = 3;
 /** The searches one step may ask for: a reply that asks three things has all three run, not the first two. */
 export const QUERIES_PER_STEP = 3;
+/** The wall-clock time one answer may spend in the loop, its searches and correction round included. The steps alone
+ *  bound the work but not the wait: three steps of a slow model at one call's 45 s ceiling would hold the channel for
+ *  minutes. Past this he posts what he already said. */
+export const AGENT_BUDGET_MS = 120_000;
+/** The least time worth starting one more model call with: with less left than this the call would only time out, so
+ *  the loop stops and the answer posts instead. */
+export const MIN_CALL_MS = 5_000;

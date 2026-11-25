@@ -223,8 +223,11 @@ they found. It is a loop, not a retry (`talk` in `bot/ask.ts`): up to `AGENT_STE
 searches, so a question can be worked out rather than answered from the first packet. Each step's result is reported
 whether or not it found anything (a search that found nothing says so, so he changes the words instead of asking for
 the same one again), a search already run is never run twice, and the last step is told the lookups are done and to
-answer from what it has. A reply that is only a `LOOKUP:` line is a step, not an empty answer. The `LOOKUP:` line is
-the bot's instruction, never something a reader sees. A records answer naming a number the facts don't have is also no longer an instant card: it is
+answer from what it has. The whole loop runs on one wall-clock budget (`AGENT_BUDGET_MS`, two minutes): each call is
+given only the time left (never more than its own `CHAT_TIMEOUT_MS` ceiling), and once there isn't time for another
+call worth starting the loop stops and posts the words he already said (`[bot] chat out of time at step N`, in the
+journal), so a slow model can't hold a channel for minutes. A reply that is only a `LOOKUP:` line is a step, not an
+empty answer. The `LOOKUP:` line is the bot's instruction, never something a reader sees. A records answer naming a number the facts don't have is also no longer an instant card: it is
 sent back once with those numbers named (`[bot] chat repaired`), and only a second refusal posts the card. A reply that
 says it couldn't find the records is filed in the site's failed-search queue like an empty answer, so the phrasing is
 learned rather than lost. Every chat still carries the two product facts it can't get wrong (the remodel is complete,
