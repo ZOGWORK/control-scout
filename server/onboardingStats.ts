@@ -6,7 +6,7 @@
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { Client } from "@libsql/client";
 import { db } from "./db.js";
-import { COLLECT_MAX_BYTES, dayOf, isBot, rateLimiter } from "./analytics.js";
+import { COLLECT_MAX_BYTES, addDays, dayOf, isBot, rateLimiter } from "./analytics.js";
 import { parseOnboardingBeacon, type OnboardingBeacon, type OnboardingSummary } from "../src/shared/onboardingStats.js";
 
 /** Add one beacon to its day's total. */
@@ -18,9 +18,9 @@ export async function recordOnboarding(b: OnboardingBeacon, now = new Date(), c:
   });
 }
 
-/** The funnel over the last `days` UTC days (today included). */
+/** The funnel over the last `days` Eastern-time days (today included; days before 2026-11-25 were UTC). */
 export async function onboardingSummary(days = 14, now = Date.now(), c: Client = db()): Promise<OnboardingSummary> {
-  const to = dayOf(new Date(now)), from = dayOf(new Date(now - (days - 1) * 86_400_000));
+  const to = dayOf(new Date(now)), from = addDays(to, -(days - 1));
   const rows = (await c.execute({
     sql: `SELECT event, step, team, SUM(count) AS n FROM onboarding_daily WHERE day BETWEEN ? AND ? GROUP BY event, step, team`,
     args: [from, to],
