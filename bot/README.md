@@ -215,6 +215,18 @@ frame is asked as the thing it asks about, so "…and who is by" after "what is 
 "bio buzz world record", the record's card naming the alliance that set it. That's the same question typed into
 controlscout.org/search, and the same answer comes back.
 
+**A lookup in the middle of an answer.** His facts are searched before he writes, so a question the first search read
+loosely used to be refused from inside the answer ("I couldn't find … in the facts"). He can ask for one instead: a
+reply that ends with a `LOOKUP: <query>` line — the instruction rides in every chat's own packet (`lookupNote()` in
+`bot/productFacts.ts`) — has that search run with learning off, its facts added after a line saying what was looked up,
+and he answers again from all of it, at most twice per answer. The `LOOKUP:` line is the bot's instruction, never
+something a reader sees. A records answer naming a number the facts don't have is also no longer an instant card: it is
+sent back once with those numbers named (`[bot] chat repaired`), and only a second refusal posts the card. A reply that
+says it couldn't find the records is filed in the site's failed-search queue like an empty answer, so the phrasing is
+learned rather than lost. Every chat still carries the two product facts it can't get wrong (the remodel is complete,
+Zog Mode exists); the v8 design description goes only when the message asks about the product (`asksProduct`), which
+leaves a records question five more lines for its own facts.
+
 **The records post beside his words.** When search found the records a chat is about, the answer posts as Bruno's text
 *and* the site's card: the same board or record card `/search` shows, its video and its "ask next" buttons, linked to the
 part's own answer rather than the whole message search. A message search couldn't read, and Control Scout's own
