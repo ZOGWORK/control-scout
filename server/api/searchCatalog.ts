@@ -95,6 +95,13 @@ export const INTENTS: Intent[] = [
   { id: "meaning", family: "meanings", words: INTENT_WORDS["meaning"], team: "forbidden", scope: [], canonical: () => null },
 ];
 
+/** Intents retired from the keyword layer (the search audit's C2): the pipeline reads every question they'd claim, so
+ *  the keyword layer hands on no phrasing for them (scripts/search-heldout.claims.json, the questions both claim, goes
+ *  down with each). They stay in the catalog: their words are still a question's, read for precedence and ambiguity as
+ *  before (a team's states and record asked together is still two intents, never the states one alone), and spelling
+ *  still knows them. */
+export const RETIRED: ReadonlySet<string> = new Set(["record"]);
+
 /** A leaderboard's stat word and the phrasing the leaderboard answer reads (answers/families/leaderboard.ts and the
  *  win-rate card in searchAsks.ts). "teams" alone is the prediction rating's board, as "top teams" is today. */
 const LEADER_STATS: Record<string, (f: Found) => string> = {

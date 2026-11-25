@@ -25,7 +25,7 @@ import { longForm } from "./searchLongForm.js";
 import { names as pipelineNames } from "./query/names.js";
 import { pickShared } from "./query/shared.js";
 import { asksWhich, onlyOrdinary } from "./query/ordinary.js";
-import { AWARDS, FILLER, FORBIDDEN, type Found, INTENTS, type Intent, LEADER_STAT_WORDS, PARAPHRASES, PHASES, PRECEDENCE, SCAFFOLD, TAIL_FILLER, WEAK_SIGNALS } from "./searchCatalog.js";
+import { AWARDS, FILLER, FORBIDDEN, type Found, INTENTS, type Intent, LEADER_STAT_WORDS, PARAPHRASES, PHASES, PRECEDENCE, RETIRED, SCAFFOLD, TAIL_FILLER, WEAK_SIGNALS } from "./searchCatalog.js";
 
 export type LayerId = "normalize" | "template" | "longform" | "keyword" | "paraphrase" | "filler" | "scope" | "fallback";
 export type OutcomeResult = "answered" | "no-match" | "team-fallback" | "weak" | "name-search-only" | "empty" | "ambiguous";
@@ -398,7 +398,8 @@ export async function extract(q: string, prefer: ReadonlySet<string> = new Set()
     unknown.length = 0;
     return { teams: [], intents, weak: [], found, dropped, forbidden: blocking, unknown: term ? [] : ["(no term)"], canonical: term ? `what is ${term}` : null, teamFirst: null, intent: it };
   }
-  let canonical = it && !blocking.length && !unknown.length ? it.canonical(found) : null;
+  // A retired intent (searchCatalog.ts RETIRED) is the pipeline's to answer: no phrasing is handed on for it.
+  let canonical = it && !RETIRED.has(it.id) && !blocking.length && !unknown.length ? it.canonical(found) : null;
   if (!canonical && it?.id === "events" && found.teams.length === 1 && !blocking.length && !unknown.length) {
     // A team's events with no season: its latest season with an event (said in the answer's title).
     const s = await get<{ season: number }>("SELECT MAX(season) AS season FROM event_teams WHERE team = ?", [Number(found.teams[0])]);

@@ -6,7 +6,8 @@ import type { SearchAnswer } from "../../src/shared/api";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { FILLER, FORBIDDEN, INTENTS, PARAPHRASES, WEAK_SIGNALS } from "./searchCatalog";
+import { FILLER, FORBIDDEN, INTENTS, PARAPHRASES, RETIRED, WEAK_SIGNALS } from "./searchCatalog";
+import { pipelineReads } from "./query/execute";
 import { extract, loneTeamHit, paraphrase, searchKey, searchOutcome, setLayersForTest, stripFiller, tokens, traceOf } from "./searchLayers";
 import { PARAPHRASE_SETS } from "./searchLayers.sets";
 import { unreadNote } from "../../src/shared/searchPage";
@@ -231,11 +232,21 @@ describe("Layers 3 and 5, scope position, precedence and ambiguity", () => {
   });
   it("every filter typed stays in the phrasing handed on; scope a weak word's intent can't take blocks it", async () => {
     expect((await extract("which events of 4215 in new jersey in 2025-26")).canonical).toBe("4215 events in New Jersey 2025-26");
-    expect((await extract("record of 4215 at new jersey championship 2024-25")).canonical).toBe("4215 record at new jersey championship 2024-25");
     expect((await extract("awards of 4215 at new jersey championship 2024-25")).canonical).toBe("4215 awards at new jersey championship 2024-25");
     const a = await ask("4215 based 2024-25");
     expect(searchOutcome(a)?.won).not.toBe("scope");
     expect(a.card?.title ?? "").not.toMatch(/Where they're from/);
+  });
+  it("a retired intent's questions are the pipeline's alone: the keyword layer claims none, the pipeline reads each", async () => {
+    // searchCatalog.ts RETIRED: every member of its paraphrase set, as the held-out claims record counts them.
+    for (const id of RETIRED) {
+      const sets = PARAPHRASE_SETS.filter((s) => s.intent === id || s.intent.startsWith(`${id} (`));
+      expect(sets.length, id).toBeGreaterThan(0);
+      for (const q of sets.flatMap((s) => [s.canonical, ...s.members.map(([, m]) => m)])) {
+        expect((await extract(q)).canonical, `${id}: ${q}`).toBeNull();
+        expect(await pipelineReads(q), `${id}: ${q}`).toBe(true);
+      }
+    }
   });
   it("a team's events with no season: its latest season with an event, said so", async () => {
     const a = await ask("4215 events");
