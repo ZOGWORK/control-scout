@@ -1,7 +1,8 @@
-// What a Discord server teaches the bot, kept in the database (migration 100) so it survives a restart: the teams its
-// people ask about, the name each person goes by there, and the turns of a reply thread. Nothing is personal beyond a
-// Discord id and the display name Discord already shows; the tables are private (server/data/snapshot.ts), and all of
-// it is deleted when the bot is removed from the server (bot/forget.ts).
+// What a Discord server teaches the bot, kept in the database (migrations 100 and 108) so it survives a restart: the
+// teams its people ask about, the name each person goes by there, the turns of a reply thread, and the question each
+// channel is talking about. Nothing is personal beyond a Discord id and the display name Discord already shows; the
+// tables are private (server/data/snapshot.ts), and all of it is deleted when the bot is removed from the server
+// (bot/forget.ts).
 //
 // Teams are learned from the message itself (teamsAsked, below): a 3 to 5 digit number that could be one. Years are
 // skipped (1900–2099) so "who won decode 2025" doesn't teach the bot that 2025 is this server's team.
@@ -14,6 +15,9 @@ export const TEAMS_MAX = 5;
 export const TURNS_MAX = 6;
 /** A thread nobody has carried on in this long is forgotten. */
 export const THREAD_DAYS = 14;
+/** How long a channel's subject holds. A channel talks about one team or event for a while and then moves on, so a
+ *  follow-up an hour later is a new question rather than a continuation of that one. */
+export const CHANNEL_SUBJECT_MINUTES = 60;
 
 /** The teams a message asked about, most likely first: a 3 to 5 digit number that could be a team, no years. */
 export function teamsAsked(q: string, max = 3): number[] {
@@ -62,6 +66,27 @@ export async function thread(root: string, now = Date.now()): Promise<BrunoChatT
     const turns = JSON.parse(row.turns) as BrunoChatTurn[];
     return Array.isArray(turns) ? turns.filter((t) => t && (t.role === "user" || t.role === "bruno") && typeof t.text === "string") : [];
   } catch { return []; }
+}
+
+/** The team or event a channel was asking about recently, in that question's own words: what a follow-up outside a
+ *  reply thread ("their last meet?") means (bot/subject.ts). Null: nothing kept, or kept longer than
+ *  CHANNEL_SUBJECT_MINUTES ago, which is a different conversation. */
+export async function channelSubject(channel: string, now = Date.now()): Promise<string | null> {
+  const row = await get<{ subject: string; asked_at: string }>("SELECT subject, asked_at FROM discord_channel_subjects WHERE channel_id = ?", [channel]);
+  if (!row?.subject) return null;
+  return Date.parse(row.asked_at) < now - CHANNEL_SUBJECT_MINUTES * 60_000 ? null : row.subject;
+}
+
+/** What this channel is talking about now: the words of a records question asked in it, replaced by the next one asked
+ *  there, and kept in its server so removing the bot takes it with the rest (bot/forget.ts). A row nobody has replaced in
+ *  THREAD_DAYS is dropped, so the table is never bigger than the channels in use. */
+export async function keepChannelSubject(channel: string, subject: string, guild: string | null, now = Date.now()): Promise<void> {
+  await run(
+    `INSERT INTO discord_channel_subjects (channel_id, subject, asked_at, guild_id) VALUES (?, ?, ?, ?)
+     ON CONFLICT(channel_id) DO UPDATE SET subject = excluded.subject, asked_at = excluded.asked_at,
+       guild_id = COALESCE(excluded.guild_id, discord_channel_subjects.guild_id)`,
+    [channel, subject, new Date(now).toISOString(), guild]);
+  await run("DELETE FROM discord_channel_subjects WHERE asked_at < ?", [new Date(now - THREAD_DAYS * 86_400_000).toISOString()]);
 }
 
 /** Keep a thread's last turns in its server (`guild`: which server, so it can be forgotten with the rest of that

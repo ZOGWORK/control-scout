@@ -1,6 +1,6 @@
 // A removed server's data (bot/forget.ts), on a database: every per-server row the bot writes goes — follows and the
-// posts they sent, the chat limit and its usage, the teams, the names, the reply threads, the questions it was asked,
-// the votes on its answers and its name — and another server's rows are untouched.
+// posts they sent, the chat limit and its usage, the teams, the names, the reply threads, what each channel was asking
+// about, the questions it was asked, the votes on its answers and its name — and another server's rows are untouched.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../server/db";
 import { forgetGuild } from "./forget";
@@ -17,6 +17,7 @@ async function seed(guild: string, channel: string) {
   await run("INSERT INTO discord_guild_teams (guild_id, team, asks, last_at) VALUES (?, 6980, 1, ?)", [guild, at]);
   await run("INSERT INTO discord_people (guild_id, user_id, name, asks, last_at) VALUES (?, 'u1', 'Alex', 1, ?)", [guild, at]);
   await run("INSERT INTO discord_threads (root_id, turns, updated_at, guild_id) VALUES (?, '[{\"role\":\"user\",\"text\":\"hi\"}]', ?, ?)", [`root-${guild}`, at, guild]);
+  await run("INSERT INTO discord_channel_subjects (channel_id, subject, asked_at, guild_id) VALUES (?, '6980 opr', ?, ?)", [`c-${channel}`, at, guild]);
   await run("INSERT INTO discord_asks (guild_id, question, step, chat, answered, ms, asked_at) VALUES (?, 'who won decode', 'deterministic', 1, 1, 900, ?)", [guild, at]);
   await run("INSERT INTO discord_answers (message_id, guild_id, up, down, voted_at) VALUES (?, ?, 1, 0, ?)", [`m-${guild}`, guild, at]);
   await run("INSERT INTO discord_guilds (guild_id, name, joined_at, seen_at) VALUES (?, 'Austin Robotics', ?, ?)", [guild, at, at]);
@@ -32,7 +33,7 @@ describe("forgetting a removed server, on a database", () => {
     await migrate(c);
   });
   beforeEach(async () => {
-    for (const t of ["discord_follows", "discord_posts", "discord_limits", "discord_chat_usage", "discord_guild_teams", "discord_people", "discord_threads", "discord_asks", "discord_answers", "discord_guilds"]) {
+    for (const t of ["discord_follows", "discord_posts", "discord_limits", "discord_chat_usage", "discord_guild_teams", "discord_people", "discord_threads", "discord_channel_subjects", "discord_asks", "discord_answers", "discord_guilds"]) {
       await run(`DELETE FROM ${t}`);
     }
   });
@@ -40,14 +41,14 @@ describe("forgetting a removed server, on a database", () => {
   it("deletes every row the bot kept for that server, and only that server's", async () => {
     await seed("g1", "c1");
     await seed("g2", "c2");
-    // The count is what went: ten rows here, including the follow's post (keyed by channel, not server).
-    expect(await forgetGuild("g1")).toBe(10);
-    for (const t of ["discord_follows", "discord_limits", "discord_chat_usage", "discord_guild_teams", "discord_people", "discord_threads", "discord_asks", "discord_answers", "discord_guilds"]) {
+    // The count is what went: eleven rows here, including the follow's post (keyed by channel, not server).
+    expect(await forgetGuild("g1")).toBe(11);
+    for (const t of ["discord_follows", "discord_limits", "discord_chat_usage", "discord_guild_teams", "discord_people", "discord_threads", "discord_channel_subjects", "discord_asks", "discord_answers", "discord_guilds"]) {
       expect(await count(t, "g1"), t).toBe(0);
     }
     expect(Number((await all<{ c: number }>("SELECT COUNT(*) c FROM discord_posts WHERE channel_id = 'c1'"))[0].c)).toBe(0);
     // The other server still has all of its own.
-    for (const t of ["discord_follows", "discord_limits", "discord_chat_usage", "discord_guild_teams", "discord_people", "discord_threads", "discord_asks", "discord_answers", "discord_guilds"]) {
+    for (const t of ["discord_follows", "discord_limits", "discord_chat_usage", "discord_guild_teams", "discord_people", "discord_threads", "discord_channel_subjects", "discord_asks", "discord_answers", "discord_guilds"]) {
       expect(await count(t, "g2"), t).toBe(1);
     }
     expect(Number((await all<{ c: number }>("SELECT COUNT(*) c FROM discord_posts WHERE channel_id = 'c2'"))[0].c)).toBe(1);

@@ -328,6 +328,30 @@ describe("a chat with Bruno", () => {
     expect(search.mock.calls[0][0]).toBe("what about 6980?");
   });
 
+  // The same follow-up outside a reply thread: the channel's own recent question is the subject.
+  it("a follow-up outside a reply thread is searched as what the channel was asking about", async () => {
+    const search = vi.fn(async (q: string) => base({ hits: [hit(26000)] }));
+    const d = chatDeps({ text: "Auto OPR 45.2 at BIOBUZZ.", search: true }, { search });
+    const subject = "what did theseus get in auto opr in biobizz";
+    await ask("their last meet?", d, SITE, [], [], null, subject);
+    const asked = search.mock.calls[0][0] as string;
+    expect(asked).toBe(`their last meet? (${subject})`);
+    // He is told it was the channel's subject, not a thread's: there is no thread here.
+    expect(d.chat).toHaveBeenCalledWith(asked, expect.anything(), [], [expect.stringContaining("This channel has been talking about:")], CHAT_TIMEOUT_MS);
+    // Nothing recent to go on, and a message naming its own team, are asked as typed.
+    search.mockClear();
+    await ask("their last meet?", d, SITE, [], [], null, null);
+    expect(search.mock.calls[0][0]).toBe("their last meet?");
+    search.mockClear();
+    await ask("what about 6980?", d, SITE, [], [], null, subject);
+    expect(search.mock.calls[0][0]).toBe("what about 6980?");
+    // A reply thread is closer than the channel: its own subject is the one a follow-up in it means.
+    search.mockClear();
+    const history = [{ role: "user" as const, text: "4215 opr" }, { role: "bruno" as const, text: "42.1." }];
+    await ask("their record?", d, SITE, history, [], null, subject);
+    expect(search.mock.calls[0][0]).toBe("their record? (4215 opr)");
+  });
+
   it("the post: the question quoted for /ask, his words, the video, and a small credit line with an unpreviewed link", () => {
     expect(chatPost("who  won decode", { text: "30030 Exodus won.", video: "https://youtu.be/A", page: `${SITE}/search?q=x` }, { quote: true }).split("\n")).toEqual([
       "> **who won decode**", "30030 Exodus won.", "https://youtu.be/A", `-# Bruno AI · [more on controlscout.org](<${SITE}/search?q=x>)`,

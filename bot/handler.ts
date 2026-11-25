@@ -14,9 +14,10 @@ import { BOT_COMMANDS } from "../src/shared/discord.js";
 import { eventChoices, eventCode, eventLookup, nextLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
 import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
-import { ask as askSearch, chatPost, offeredQuestion, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
+import { ask as askSearch, chatPost, offeredQuestion, realAskDeps, recordsTurn, type AskDeps, type AskReply } from "./ask.js";
 import { takeChat, type Quota } from "./quota.js";
-import { keep as keepThread, learn as learnMemory, recall as recallMemory, teamsAsked, thread as readThread } from "./memory.js";
+import { channelSubject as readChannelSubject, keep as keepThread, keepChannelSubject, learn as learnMemory, recall as recallMemory, teamsAsked, thread as readThread } from "./memory.js";
+import { subjectKept } from "./subject.js";
 import { fileReport, wantsReport, type Filed, type Report } from "./report.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 
@@ -38,8 +39,9 @@ export interface Lookups {
   following: (guild: string) => Promise<APIEmbed>;
   /** /ask and a mention: Bruno's chat reply, else the website's search answer (bot/ask.ts); `history`: the reply
    *  thread before it; `memory`: the server's own lines for the chat (bot/memory.ts); `guild`: the server it was asked
-   *  in (never who asked), for the site's failed-search queue. */
-  ask: (question: string, history?: BrunoChatTurn[], memory?: string[], guild?: string | null) => Promise<AskReply>;
+   *  in (never who asked), for the site's failed-search queue; `channelSubject`: what the channel was asking about lately,
+   *  for a message outside a reply thread. */
+  ask: (question: string, history?: BrunoChatTurn[], memory?: string[], guild?: string | null, channelSubject?: string | null) => Promise<AskReply>;
   /** Every ask, for the owner console (bot/asks.ts): the words, the step, who answered, how long. */
   noteAsk?: (r: AskRecord) => Promise<void>;
   /** An answer the bot posted, so its 👍 reactions count (bot/reactions.ts), with the question it answered, which is
@@ -70,6 +72,10 @@ export interface Memory {
   thread: (root: string) => Promise<BrunoChatTurn[]>;
   /** Keep a reply thread's last turns, in its server, so it can be forgotten with the rest of that server's data. */
   keep: (root: string, turns: BrunoChatTurn[], guild: string | null) => Promise<void>;
+  /** What a channel was asking about lately, for a follow-up that isn't in a reply thread: null when nothing recent. */
+  channel: (channel: string) => Promise<string | null>;
+  /** Keep what a channel is asking about now, in its server, so it can be forgotten with the rest of its data. */
+  keepChannel: (channel: string, subject: string, guild: string | null) => Promise<void>;
 }
 
 export const realLookups: Lookups = {
@@ -83,12 +89,12 @@ export const realLookups: Lookups = {
   follow: addFollow,
   unfollow: removeFollow,
   following: async (guild) => followingEmbed(await listFollows(guild), site()),
-  ask: async (question, history, memory, guild) => askSearch(question, await (askDeps ??= realAskDeps()), site(), history, memory, guild ?? null),
+  ask: async (question, history, memory, guild, channelSubject) => askSearch(question, await (askDeps ??= realAskDeps()), site(), history, memory, guild ?? null, channelSubject ?? null),
   noteAsk: (r) => noteAsk(r),
   trackAnswer: (id, guild, question) => trackAnswer(id, guild, question),
   enabled: (flag) => isEnabled(flag),
   quota: takeChat,
-  memory: { recall: recallMemory, learn: learnMemory, thread: readThread, keep: keepThread },
+  memory: { recall: recallMemory, learn: learnMemory, thread: readThread, keep: keepThread, channel: readChannelSubject, keepChannel: keepChannelSubject },
   report: fileReport,
 };
 let askDeps: Promise<AskDeps> | undefined;
@@ -240,12 +246,13 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
    * questions), the same for /ask and a mention, whatever its case or spacing, and by the thread before it: a
    * follow-up in a thread is its own question.
    */
-  async function askReply(question: string, key: string, history: BrunoChatTurn[] = [], memory: string[] = [], guild: string | null = null): Promise<AskReply> {
+  async function askReply(question: string, key: string, history: BrunoChatTurn[] = [], memory: string[] = [], guild: string | null = null, channelSubject: string | null = null): Promise<AskReply> {
     const t0 = Date.now();
     let fresh = false;
-    // The server's own lines are part of the key: two servers asking the same thing get different answers.
-    const k = [question, ...history.map((t) => `${t.role}:${t.text}`), ...memory].join("\u0000").trim().replace(/\s+/g, " ").toUpperCase();
-    const r = await asks.get(k, () => { fresh = true; return lookups.ask(question, history, memory, guild); });
+    // The server's own lines are part of the key, and so is the channel's subject: two servers asking the same thing get
+    // different answers, and two channels whose follow-ups mean different teams get their own.
+    const k = [question, channelSubject ?? "", ...history.map((t) => `${t.role}:${t.text}`), ...memory].join("\u0000").trim().replace(/\s+/g, " ").toUpperCase();
+    const r = await asks.get(k, () => { fresh = true; return lookups.ask(question, history, memory, guild, channelSubject); });
     const ms = Date.now() - t0;
     // What the bot was asked (bot/asks.ts), once per question rather than once per reader: a cached repeat is the same
     // ask. Never who asked, never awaited, never able to fail an answer.
@@ -357,6 +364,20 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     if (!guild || !lookups.memory) return;
     void lookups.memory.learn(guild, user, name, teamsAsked(q)).catch(() => {});
   }
+  /** What this channel was asking about lately — for a message that isn't a reply to one of the bot's answers, where the
+   *  reply thread's own subject is the one that counts (bot/subject.ts). Null when there's nothing recent, no memory to
+   *  read, or no channel to read it for. */
+  async function channelSubjectFor(channel: string | null | undefined, history: BrunoChatTurn[]): Promise<string | null> {
+    if (!channel || history.length || !lookups.memory) return null;
+    return lookups.memory.channel(channel).catch(() => null);
+  }
+  /** Leave this question as what the channel is talking about: its words, when it asked about the records without only
+   *  looking back at them, so the channel's next "their record?" means this one (bot/memory.ts). */
+  function keepChannel(channel: string | null | undefined, q: string, guild: string | null | undefined): void {
+    if (!channel || !lookups.memory) return;
+    const subject = subjectKept(q, recordsTurn);
+    if (subject) void lookups.memory.keepChannel(channel, subject, guild ?? null).catch(() => {});
+  }
 
   function answer(i: ChatInputCommandInteraction): Promise<APIEmbed> {
     const key = describe(i);
@@ -465,7 +486,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       let post: AskPost;
       let r: AskReply | undefined;
       try {
-        r = await askReply(question, describe(i), [], lines, i.guildId);
+        // /ask is never in a reply thread: what the channel was asking about lately is what a follow-up in it means.
+        r = await askReply(question, describe(i), [], lines, i.guildId, await channelSubjectFor(i.channelId, []));
         // What was asked when a yes — or a no — answered the question Bruno offered (bot/ask.ts): the reply quotes
         // that, not the word.
         post = askPost(quoted(question, r), r, true);
@@ -477,6 +499,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // Only an answer takes votes: the failure notice above is not one.
       if (r) {
         remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId);
+        keepChannel(i.channelId, question, i.guildId);
         watchVotes(sent, i.guildId ?? null, quoted(question, r));
       }
       return;
@@ -553,9 +576,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       void m.channel.sendTyping?.().catch(() => {});
       const typing = setInterval(() => { void m.channel.sendTyping?.().catch(() => {}); }, 8_000);
       typing.unref?.();
+      // A reply to one of his answers leans on that thread; anything else in the channel leans on what the channel was
+      // asking about last (bot/memory.ts). Read once, after the server's own lines, before any model call.
+      const channelSubject = await channelSubjectFor(m.channelId, history);
       let r: AskReply;
       try {
-        r = await askReply(q, `@mention question=${q.toUpperCase().slice(0, 100)}`, history, lines, m.guildId ?? null);
+        r = await askReply(q, `@mention question=${q.toUpperCase().slice(0, 100)}`, history, lines, m.guildId ?? null, channelSubject);
       } catch (e) {
         clearInterval(typing);
         logLine(`@mention ask failed: ${(e as Error)?.message ?? String(e)}`);
@@ -567,6 +593,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // answered, so the thread carries on from 4215's record rather than from the word).
       const sent = await send(askPost(quoted(q, r), r, false));
       remember((sent as { id?: string } | undefined)?.id, history, quoted(q, r), r, m.guildId ?? null);
+      keepChannel(m.channelId, q, m.guildId);
       watchVotes(sent, m.guildId ?? null, quoted(q, r));
     } catch (e) {
       logLine(`mention failed: ${(e as Error)?.message ?? String(e)}`);
@@ -597,7 +624,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     let post: AskPost;
     let r: AskReply | undefined;
     try {
-              r = await askReply(question, `/ask question=${question.toUpperCase().slice(0, 100)}`, [], lines, i.guildId ?? null);
+              r = await askReply(question, `/ask question=${question.toUpperCase().slice(0, 100)}`, [], lines, i.guildId ?? null, await channelSubjectFor(i.channelId, []));
                 post = askPost(quoted(question, r), r, true);
       } catch (e) {
         logLine(`button ask failed: ${(e as Error)?.message ?? String(e)}`);
@@ -607,6 +634,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // Only an answer takes votes: the failure notice above is not one.
       if (r) {
               remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId ?? null);
+      keepChannel(i.channelId, question, i.guildId);
       watchVotes(sent, i.guildId ?? null, quoted(question, r));
     }
   }

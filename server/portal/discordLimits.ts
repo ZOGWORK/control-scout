@@ -26,7 +26,8 @@ type Handler = (req: Request, res: Response) => Promise<unknown>;
 const MAX_CAP = 100_000;
 /** A Discord server id (a snowflake). */
 const GUILD = /^\d{15,22}$/;
-/** The servers the bot has kept something for: a follow, a cap, a count, a team, a person, a thread, a question, a name. */
+/** The servers the bot has kept something for: a follow, a cap, a count, a team, a person, a thread, a channel's
+ *  subject, a question, a name. */
 const GUILDS = `
   SELECT guild_id FROM discord_follows
   UNION SELECT guild_id FROM discord_limits
@@ -34,6 +35,7 @@ const GUILDS = `
   UNION SELECT guild_id FROM discord_guild_teams
   UNION SELECT guild_id FROM discord_people
   UNION SELECT guild_id FROM discord_threads WHERE guild_id IS NOT NULL
+  UNION SELECT guild_id FROM discord_channel_subjects WHERE guild_id IS NOT NULL
   UNION SELECT guild_id FROM discord_asks WHERE guild_id IS NOT NULL
   UNION SELECT guild_id FROM discord_guilds`;
 
@@ -45,12 +47,14 @@ export async function ownerDiscordLimits(now = Date.now()): Promise<OwnerDiscord
     all<{ guild_id: string }>(GUILDS),
     all<{ guild_id: string; n: number }>("SELECT guild_id, COUNT(*) n FROM discord_follows GROUP BY guild_id"),
     all<{ guild_id: string; window: string; used: number }>("SELECT guild_id, window, used FROM discord_chat_usage WHERE window IN (?, ?)", [w.hour, w.day]),
-    // The last time anyone asked it something there: a team it was asked about, a name, a thread (bot/memory.ts).
+    // The last time anyone asked it something there: a team it was asked about, a name, a thread, a channel's subject
+    // (bot/memory.ts).
     all<{ guild_id: string; at: string }>(
       `SELECT guild_id, MAX(at) at FROM (
          SELECT guild_id, last_at at FROM discord_guild_teams
          UNION ALL SELECT guild_id, last_at FROM discord_people
          UNION ALL SELECT guild_id, updated_at FROM discord_threads WHERE guild_id IS NOT NULL
+         UNION ALL SELECT guild_id, asked_at at FROM discord_channel_subjects WHERE guild_id IS NOT NULL
        ) GROUP BY guild_id`),
     all<{ guild_id: string; per_hour: number | null; per_day: number | null; updated_by: string | null; updated_at: string | null }>(
       "SELECT guild_id, per_hour, per_day, updated_by, updated_at FROM discord_limits"),

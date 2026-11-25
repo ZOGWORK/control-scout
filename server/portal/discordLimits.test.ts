@@ -66,7 +66,7 @@ afterAll(() => {
 });
 beforeEach(async () => {
   process.env.OWNER_EMAILS = "owner@example.com";
-  for (const t of ["discord_follows", "discord_chat_usage", "discord_limits", "discord_guild_teams", "discord_people", "discord_threads", "discord_asks", "discord_answers", "discord_guilds"]) {
+      for (const t of ["discord_follows", "discord_chat_usage", "discord_limits", "discord_guild_teams", "discord_people", "discord_threads", "discord_channel_subjects", "discord_asks", "discord_answers", "discord_guilds"]) {
     await run(`DELETE FROM ${t}`);
   }
   auditFrom = Number((await get<{ n: number }>("SELECT COALESCE(MAX(id), 0) n FROM owner_audit"))!.n);
