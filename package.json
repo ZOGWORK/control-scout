@@ -14,6 +14,7 @@
   },
   "scripts": {
     "search:eval": "tsx scripts/search-eval.ts",
+    "bot:eval": "tsx scripts/bot-eval.ts",
     "search:heldout": "tsx scripts/search-heldout.ts",
     "search:followups": "tsx scripts/search-followups.ts",
     "search:replay": "tsx scripts/search-replay.ts",

@@ -3,7 +3,7 @@
 // the site already has: GITHUB_REPORT_TOKEN.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetReportLimits, setGithubFetch } from "../server/errorReports";
-import { REPORT_LABELS, REPORT_LIMITS, REPORT_TITLE, fileReport, reportBody, reportSetup, wantsReport, type Report } from "./report";
+import { REPORT_LABELS, REPORT_LIMITS, REPORT_TITLE, fileReport, noteReport, reportBody, reportSetup, wantsReport, type Report } from "./report";
 
 const report = (over: Partial<Report> = {}): Report => ({
   guild: "g1", channel: "c1", user: "u1", name: "Alex",
@@ -42,6 +42,16 @@ describe("the issue's body", () => {
     // Nothing secret ever rides along: the token isn't in what the bot writes.
     process.env.GITHUB_REPORT_TOKEN = "ghp_secret_value";
     expect(reportBody(report())).not.toContain("ghp_secret_value");
+  });
+
+  it("says what produced a reported answer, how long it took and where to open it", () => {
+    const body = reportBody(report({ answer: { source: "bruno", step: "deterministic", ms: 1100, url: "https://discord.com/channels/g1/c1/m9" } }));
+    expect(body).toContain("### The answer");
+    expect(body).toContain("**From:** Bruno's chat (Control Point)");
+    expect(body).toContain("**Search step:** deterministic · **Answered in:** 1100 ms");
+    expect(body).toContain("**Message:** https://discord.com/channels/g1/c1/m9");
+    // An answer from before sources were kept says so rather than guessing.
+    expect(reportBody(report({ answer: { source: null, step: null, ms: null, url: null } }))).toContain("not recorded");
   });
 
   it("can't be used to ping a GitHub user or cross-reference an issue", () => {
@@ -94,6 +104,21 @@ describe("filing it", () => {
     expect(calls[0].body.body).not.toContain("token-123");
   });
 
+  it("still files when the repository has no `discord` label, rather than losing the report", async () => {
+    const labels: string[][] = [];
+    setGithubFetch((async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      labels.push(body.labels);
+      return body.labels.includes("discord")
+        ? new Response("{}", { status: 422 })
+        : Response.json({ number: 2129, html_url: "https://github.com/ZOGWORK/control-scout/issues/2129" }, { status: 201 });
+    }) as typeof fetch);
+    expect(await fileReport(report())).toMatchObject({ ok: true, number: 2129 });
+    expect(labels).toHaveLength(2);
+    expect(labels[1]).not.toContain("discord");
+    expect(labels[1]).toEqual(REPORT_LABELS.filter((l) => l !== "discord"));
+  });
+
   it("says why when it can't: no token, or GitHub refusing", async () => {
     delete process.env.GITHUB_REPORT_TOKEN;
     expect(await fileReport(report())).toMatchObject({ ok: false });
@@ -111,6 +136,18 @@ describe("filing it", () => {
     delete process.env.GITHUB_REPORT_TOKEN;
     expect(reportSetup()).toEqual({ on: false, line: expect.stringContaining("report filing off") });
     expect(reportSetup().line).toContain("GITHUB_REPORT_TOKEN");
+  });
+
+  it("adds a comment when somebody else reports the same answer, and says nothing without a token", async () => {
+    expect(await noteReport(2129, { user: "u2", name: "Sam", guild: "g1", messageId: "m9" })).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].url).toContain("/issues/2129/comments");
+    expect(calls[0].body.body).toContain("Sam");
+    expect(calls[0].body.body).toContain("discord.com/channels/g1/m9");
+    delete process.env.GITHUB_REPORT_TOKEN;
+    expect(await noteReport(2129, { user: "u3", name: null, guild: null })).toBe(false);
+    expect(calls).toHaveLength(1);
   });
 
   it("caps one person and one server an hour, and files nothing past it", async () => {

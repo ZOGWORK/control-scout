@@ -17,31 +17,36 @@ describe("the row behind an answer", () => {
 
   it("keeps the question an answer was given for, so a 👎 can report it", async () => {
     await trackAnswer("m1", "g1", "who won decode");
-    expect(await answerRow("m1")).toEqual({ question: "who won decode", report: null });
+    expect(await answerRow("m1")).toEqual({ question: "who won decode", report: null, source: null, step: null, ms: null });
     // Redacted like every ask (bot/asks.ts), and one line.
     await trackAnswer("m2", "g1", "who   won\n decode");
-    expect(await answerRow("m2")).toEqual({ question: "who won decode", report: null });
+    expect(await answerRow("m2")).toEqual({ question: "who won decode", report: null, source: null, step: null, ms: null });
   });
 
   it("has no question for an answer from before questions were kept, and no row at all for a message it never posted", async () => {
     await trackAnswer("m1", "g1");
-    expect(await answerRow("m1")).toEqual({ question: null, report: null });
+    expect(await answerRow("m1")).toEqual({ question: null, report: null, source: null, step: null, ms: null });
     // Null is what keeps a 👎 elsewhere from filing anything.
     expect(await answerRow("someone-elses")).toBeNull();
     expect(await answerRow("")).toBeNull();
   });
 
+  it("keeps what produced the answer and how long it took, for a report's triage", async () => {
+    await trackAnswer("m7", "g1", "who won decode", { source: "bruno", step: "deterministic", ms: 1100 });
+    expect(await answerRow("m7")).toEqual({ question: "who won decode", report: null, source: "bruno", step: "deterministic", ms: 1100 });
+  });
+
   it("tracking the same message twice keeps the row it had", async () => {
     await trackAnswer("m3", "g1", "first");
     await trackAnswer("m3", "g1", "second");
-    expect(await answerRow("m3")).toEqual({ question: "first", report: null });
+    expect(await answerRow("m3")).toEqual({ question: "first", report: null, source: null, step: null, ms: null });
   });
 
   it("keeps the issue a 👎 opened on the row, so a later 👎 finds it after a restart", async () => {
     await trackAnswer("m6", "g1", "who won decode");
     const issue = { number: 2150, url: "https://github.com/ZOGWORK/control-scout/issues/2150" };
     await markReported("m6", issue);
-    expect(await answerRow("m6")).toEqual({ question: "who won decode", report: issue });
+    expect(await answerRow("m6")).toEqual({ question: "who won decode", report: issue, source: null, step: null, ms: null });
     // A message it never posted: nothing to write, and nothing to read back.
     await markReported("someone-elses", issue);
     expect(await answerRow("someone-elses")).toBeNull();

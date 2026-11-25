@@ -16,13 +16,16 @@ import { askText } from "./asks.js";
  *  this, which is what makes it a report rather than a button everybody is prompted to press. */
 export const REPORT = "👎";
 
+/** What produced an answer, for a report's triage: Bruno's chat, the bot's own fallback, or the search card. */
+export interface AnswerMeta { source: string | null; step: string | null; ms: number | null }
+
 /** Keep an answer's row, with the question it answered (redacted and one line, as every ask is: `askText`), which is
- *  what a 👎 report names. A message that is already known keeps its row. */
-export async function trackAnswer(messageId: string, guild: string | null, question = "", now = Date.now()): Promise<void> {
+ *  what a 👎 report names, and what produced it. A message that is already known keeps its row. */
+export async function trackAnswer(messageId: string, guild: string | null, question = "", meta: AnswerMeta | null = null, now = Date.now()): Promise<void> {
   if (!messageId) return;
   await run(
-    "INSERT OR IGNORE INTO discord_answers (message_id, guild_id, up, down, question, voted_at) VALUES (?, ?, 0, 0, ?, ?)",
-    [messageId, guild, askText(question) || null, new Date(now).toISOString()],
+    "INSERT OR IGNORE INTO discord_answers (message_id, guild_id, up, down, question, source, step, ms, voted_at) VALUES (?, ?, 0, 0, ?, ?, ?, ?, ?)",
+    [messageId, guild, askText(question) || null, meta?.source ?? null, meta?.step ?? null, meta?.ms ?? null, new Date(now).toISOString()],
   );
 }
 
@@ -31,17 +34,25 @@ export async function trackAnswer(messageId: string, guild: string | null, quest
 export interface AnswerRow {
   question: string | null;
   report: { number: number; url: string } | null;
+  /** What produced it (migration 110); all null on an answer from before sources were kept. */
+  source: string | null;
+  step: string | null;
+  ms: number | null;
 }
 
 /** The row for a message, or null when the bot never posted it: that null is what keeps a 👎 on somebody else's message
  *  from filing anything. */
 export async function answerRow(messageId: string): Promise<AnswerRow | null> {
   if (!messageId) return null;
-  const r = await get<{ question: string | null; report_number: number | null; report_url: string | null }>(
-    "SELECT question, report_number, report_url FROM discord_answers WHERE message_id = ?", [messageId]);
+  const r = await get<{ question: string | null; report_number: number | null; report_url: string | null; source: string | null; step: string | null; ms: number | null }>(
+    "SELECT question, report_number, report_url, source, step, ms FROM discord_answers WHERE message_id = ?", [messageId]);
   if (!r) return null;
   const number = r.report_number == null ? null : Number(r.report_number);
-  return { question: r.question ?? null, report: number != null && r.report_url ? { number, url: r.report_url } : null };
+  return {
+    question: r.question ?? null,
+    report: number != null && r.report_url ? { number, url: r.report_url } : null,
+    source: r.source ?? null, step: r.step ?? null, ms: r.ms == null ? null : Number(r.ms),
+  };
 }
 
 /** Keep the issue a 👎 on this answer opened: a second 👎 an hour later, or after a restart, finds it on the row and

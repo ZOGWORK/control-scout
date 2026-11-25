@@ -8,16 +8,16 @@ import type { OwnerDiscordLimits } from "../../shared/discordLimits";
 import { ApiError } from "../../lib/api";
 
 const GUILD = "111111111111111111";
-const USAGE = { servers: 1, asksToday: 3, asksWeek: 9, answeredPct: 89, chatPct: 67, medianMs: 1200, postsToday: 2, votesUp: 4, votesDown: 1 };
+const USAGE = { servers: 1, asksToday: 3, asksWeek: 9, answeredPct: 89, chatPct: 67, medianMs: 1200, postsToday: 2, answers: 40, reported: 3, reportedPct: 8, repeatPct: 14 };
 const NO_CAP: OwnerDiscordLimits = {
-  servers: [{ guild: GUILD, name: "Austin Robotics", perHour: null, perDay: null, custom: false, usedHour: 0, usedDay: 0, follows: 2, lastAsk: null, updatedBy: null, updatedAt: null }],
-  defaultLimit: { perHour: null, perDay: null },
+  servers: [{ guild: GUILD, name: "Austin Robotics", perHour: 60, perDay: 300, custom: false, usedHour: 0, usedDay: 0, follows: 2, stoppedFollows: 0, lastAsk: null, updatedBy: null, updatedAt: null }],
+  defaultLimit: { perHour: 60, perDay: 300 },
   usage: USAGE,
   unanswered: [],
 };
 const CAPPED: OwnerDiscordLimits = {
-  servers: [{ guild: GUILD, name: "Austin Robotics", perHour: 60, perDay: 300, custom: true, usedHour: 1, usedDay: 1, follows: 1, lastAsk: null, updatedBy: "owner@example.test", updatedAt: "2026-11-22T00:00:00Z" }],
-  defaultLimit: { perHour: null, perDay: null },
+  servers: [{ guild: GUILD, name: "Austin Robotics", perHour: 60, perDay: 300, custom: true, usedHour: 1, usedDay: 1, follows: 1, stoppedFollows: 1, lastAsk: null, updatedBy: "owner@example.test", updatedAt: "2026-11-22T00:00:00Z" }],
+  defaultLimit: { perHour: 60, perDay: 300 },
   usage: USAGE,
   unanswered: [{ question: "how did our alliance do at worlds", count: 4, step: "no-match", lastAt: "2026-11-22T00:00:00Z", servers: 2 }],
 };
@@ -57,9 +57,9 @@ const fillAndSave = (hour: string, day: string) => {
 const lastCall = () => apiFetch.mock.calls[0] as [string, { method?: string; json?: unknown }];
 
 describe("the owner console's Discord bot panel", () => {
-  it("reads a server without a cap as No cap, with nothing to clear", () => {
+  it("reads a server without its own cap as the default ceiling, with nothing to clear", () => {
     render(<DiscordPanel />);
-    expect(screen.getByText("No cap")).toBeTruthy();
+    expect(screen.getByText("Default (60 an hour, 300 a day)")).toBeTruthy();
     // Empty boxes suggest no cap, not the old 30/100 defaults.
     expect(screen.getByLabelText("Chats an hour").getAttribute("placeholder")).toBe("No cap");
     expect(screen.getByLabelText("Chats a day").getAttribute("placeholder")).toBe("No cap");
@@ -174,7 +174,7 @@ describe("the owner console's Discord bot panel", () => {
   });
 
   it("keeps the cap form when no server is listed: clearing the last cap must not take the way to set one", () => {
-    h.data = { servers: [], defaultLimit: { perHour: null, perDay: null }, usage: { ...USAGE, servers: 0 }, unanswered: [] };
+    h.data = { servers: [], defaultLimit: { perHour: 60, perDay: 300 }, usage: { ...USAGE, servers: 0 }, unanswered: [] };
     render(<DiscordPanel />);
     expect(screen.getByText("No servers yet")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Give a server its own cap" })).toBeTruthy();

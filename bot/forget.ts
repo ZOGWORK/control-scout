@@ -23,6 +23,9 @@ export async function forgetGuild(guild: string): Promise<number> {
   gone += await run("DELETE FROM discord_people WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_threads WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_channel_subjects WHERE guild_id = ?", [guild]);
+  // Ask-button questions offered under that server's answers (bot/buttons.ts): they carry the server, so they go with
+  // the rest of it rather than waiting for the 30-day prune.
+  gone += await run("DELETE FROM discord_button_questions WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_asks WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_answers WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_guilds WHERE guild_id = ?", [guild]);

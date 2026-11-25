@@ -19,11 +19,21 @@ export const wantsReport = (q: string) => REPORT_TRIGGER.test(q);
 
 /** The issue's title, as asked for: every report is a "Discord type issue". */
 export const REPORT_TITLE = "Discord type issue";
-/** The labels a report carries: the same the site's own error reports use (server/errorReports.ts). */
-export const REPORT_LABELS = ["bug", "auto-reported"];
+/** The labels a report carries: the same the site's own error reports use (server/errorReports.ts), plus `discord` so
+ *  the issues from here can be found as a group. */
+export const REPORT_LABELS = ["bug", "auto-reported", "discord"];
 
 /** What the bot can see when it files: where it happened and who asked (Discord ids, never an email), the message
  *  that asked, the thread before it, and the bot's own recent log lines (no secret, no id: bot/handler.ts keeps them). */
+/** What produced the answer being reported, and where to open it: the first thing someone triaging needs. `source`
+ *  is `bruno` (his chat), `scout` (the bot's own fallback) or `card` (the website's search card). */
+export interface ReportAnswer {
+  source: string | null;
+  step: string | null;
+  ms: number | null;
+  url: string | null;
+}
+
 export interface Report {
   guild: string | null;
   channel: string | null;
@@ -32,6 +42,8 @@ export interface Report {
   message: string;
   thread: BrunoChatTurn[];
   logs: string[];
+  /** The answer a 👎 reported (absent for "report this to ControlScout", which names a message). */
+  answer?: ReportAnswer;
 }
 
 /** Reports one person, and one server, may file an hour: an issue is public and filed under the site's own token (and
@@ -63,6 +75,13 @@ export function reportBody(r: Report, now = Date.now()): string {
     `- **Server:** \`${r.guild ?? "unknown"}\``,
     `- **Channel:** \`${r.channel ?? "unknown"}\``,
     `- **Asked by:** ${quiet(clip(r.name ?? "a member", 100))} (\`${r.user}\`)`,
+    ...(r.answer ? [
+      "",
+      "### The answer",
+      `- **From:** ${answerSource(r.answer.source)}`,
+      `- **Search step:** ${r.answer.step ?? "not recorded"}${r.answer.ms == null ? "" : ` · **Answered in:** ${r.answer.ms} ms`}`,
+      ...(r.answer.url ? [`- **Message:** ${r.answer.url}`] : []),
+    ] : []),
     "",
     `### The bot's last log lines (${r.logs.length})`,
     "```",
@@ -74,6 +93,34 @@ export function reportBody(r: Report, now = Date.now()): string {
     `_Repo: ${GITHUB_REPO}_`,
   ];
   return lines.join("\n").slice(0, 60_000);
+}
+
+/** How an answer's source reads in an issue. */
+const answerSource = (source: string | null) => source === "bruno"
+  ? "Bruno's chat (Control Point)"
+  : source === "scout"
+    ? "Control Scout's own fallback"
+    : source === "card"
+      ? "the website's search card"
+      : "not recorded (an answer from before sources were kept)";
+
+/** A second person's 👎 on the same answer: a comment on the issue the first one opened, so triage sees that more than
+ *  one person hit it. Never throws and never takes a report slot (the issue already exists). */
+export async function noteReport(number: number, n: { user: string; name: string | null; guild: string | null; messageId?: string | null }): Promise<boolean> {
+  const token = env.githubReportToken;
+  if (!token || !Number.isInteger(number) || number <= 0) return false;
+  const body = [
+    `Another 👎 report on the same answer, from ${quiet(clip(n.name ?? "a member", 100))} (\`${n.user}\`)`,
+    n.guild ? `in server \`${n.guild}\`.` : "in a direct message.",
+    // A channel link needs the server; without one there is nothing useful to link to.
+    n.messageId && n.guild ? `Message: https://discord.com/channels/${n.guild}/${n.messageId}` : "",
+  ].filter(Boolean).join(" ");
+  try {
+    await gh(token, "POST", `/issues/${number}/comments`, { body });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The startup line: whether "Report this to ControlScout" can file at all, so it can be confirmed from the journal
@@ -101,9 +148,18 @@ export async function fileReport(r: Report, now = Date.now()): Promise<Filed> {
   takeReportSlot(person, REPORT_LIMITS.user, now);
   if (server) takeReportSlot(server, REPORT_LIMITS.guild, now);
   try {
-    const issue = await gh<{ number: number; html_url?: string }>(token, "POST", "/issues", {
-      title: REPORT_TITLE, body: reportBody(r, now), labels: REPORT_LABELS,
+    const open = (labels: string[]) => gh<{ number: number; html_url?: string }>(token, "POST", "/issues", {
+      title: REPORT_TITLE, body: reportBody(r, now), labels,
     });
+    let issue: { number: number; html_url?: string };
+    try {
+      issue = await open(REPORT_LABELS);
+    } catch (e) {
+      // A repository without the `discord` label refuses the whole issue. The title already groups these reports, so
+      // the two labels the site uses are enough: file it rather than lose the report over a label.
+      if ((e as { status?: number })?.status !== 422) throw e;
+      issue = await open(REPORT_LABELS.filter((l) => l !== "discord"));
+    }
     const number = Number(issue.number);
     return { ok: true, number, url: issue.html_url ?? `https://github.com/${GITHUB_REPO}/issues/${number}` };
   } catch (e) {
