@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 8.0.5 — 2026-11-25
 
-Bruno can look something up while he answers, and the bot no longer throws a whole reply away over a figure he worked out himself. (#2324)
+Bruno can look something up while he answers, and the bot no longer throws a whole reply away over a figure he worked out himself.
 
 ### Highlights
 - [fixes] "Auto OPR at their last meet" is answered from that meet
@@ -26,7 +26,7 @@ Bruno can look something up while he answers, and the bot no longer throws a who
 
 ### Search
 - **A team's meets carry their own OPR phases** (`server/api/searchBrunoAnswer.ts`): `answerFacts` adds the team's latest three meets from `team_event_stats`, each named and dated with its Auto, TeleOp, Endgame and total OPR. "What did Theseus get in auto OPR at their last meet" is that meet's number instead of the season average, which is what the chat needed before it could answer instead of saying the facts didn't hold it. `server/api/searchBrunoAnswer.facts.test.ts` seeds a team, an event and its event stats and checks the line, and that the answer those facts make possible passes the number check. (#2324)
-- **Grounding accepts a ratio, not an invention**: a decimal that is one fact divided by another, or a share of a total ("45.2 of 92.5 is 48.9%"), no longer fails the check, so a per-match average ("110 OPR over 8 matches is 13.8") doesn't drop the whole reply. Sums, differences and products are still refused — on a head-to-head, 46.9 + 54.7 rebuilds the other side's 101.6, which the team-aware check exists to catch — and a whole number is checked as written. Seasons are never operands. The website's streamed answer uses the same check, so its previews stay as strict as before.
+- **Grounding accepts a ratio, not an invention**: a decimal that is two numbers of one fact line divided ("110 OPR over 8 matches is 13.8", "45.2 of 92.5 is 48.9%") no longer fails the check, so a per-match average doesn't drop the whole reply. It must match at the precision it was written with, and pairs are never drawn across two different records — a packet of hundreds of numbers has thousands of cross-line ratios, so any invented decimal would land near one by chance. Sums, differences and products are refused too (on a head-to-head, 46.9 + 54.7 rebuilds the other side's 101.6, which the team-aware check exists to catch), whole numbers are checked as written, and seasons are never operands. The website's streamed answer uses the same check, so its previews stay as strict as before.
 
 ### Discord bot
 - **A lookup in the middle of an answer** (`bot/ask.ts`, `bot/productFacts.ts`): a reply that ends with a `LOOKUP: <query>` line — an instruction in every chat's own packet, `lookupNote()` — has that search run with learning off, its facts added to the packet after a line saying what was looked up, and Bruno answers again from all of it. At most two lookups per answer, the `LOOKUP:` line never posts, and a lookup that finds nothing leaves his words as they were. `bot/ask.test.ts` covers the round, the facts reaching the second call, and the request never reaching the reader.

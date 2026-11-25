@@ -193,37 +193,41 @@ export function grounded(text: string, facts: string[], question: string, teams?
 }
 
 /**
- * Whether `n` is a ratio of two of the facts' own numbers rather than a number he made up: a per-match average ("their
- *  110 OPR over 8 matches is 13.8 a match") or a share of a total ("45.2 of 92.5 is 48.9%"), to within a rounding of
- *  the result. Those were being dropped for the card, which turned good arithmetic into "I can't answer that". Sums,
- *  differences and products are deliberately not read this way: on a head-to-head, 46.9 + 54.7 is the other side's
- *  101.6, and the team-aware check exists to refuse exactly that.
+ * The numbers a calculated figure may be a ratio of, per fact line (and the question): a per-match average or a share of
+ * a total is two numbers of one line — "Auto OPR 45.2, OPR 92.5" — never a pair drawn from different records. Keeping
+ * the pools apart is what makes the check safe: a packet of hundreds of numbers has thousands of cross-line ratios, and
+ * any invented decimal lands near one of them by chance. Seasons are never operands ("2025 − 2019" is nobody's stat).
  */
-function derived(n: number, known: number[]): boolean {
-  const close = (x: number) => Number.isFinite(x) && Math.abs(x - n) <= Math.max(0.05, Math.abs(n) * 0.005);
-  for (let i = 0; i < known.length; i++) {
-    const a = known[i];
-    // A number that is itself a fact is not a calculated one: whose fact it is stays the team-aware check's business.
-    for (let j = i; j < known.length; j++) {
-      const b = known[j];
-      // A ratio of one number to itself is 1, which would make every "1" a calculated one: only two different numbers.
-      if (b !== 0 && a !== b && (close(a / b) || close((a / b) * 100))) return true;
-      if (a !== 0 && a !== b && (close(b / a) || close((b / a) * 100))) return true;
+const operands = (pools: Iterable<string>[]) =>
+  pools.map((p) => [...new Set([...p].map(Number).filter((v) => Number.isFinite(v) && !(v >= 1900 && v <= 2099)))].slice(0, 40));
+
+/** The operand pools for a set of fact lines and the question: one pool per line, so only a line's own numbers pair. */
+const poolsOf = (lines: string[], asked: Iterable<string>) =>
+  operands([...lines.map((l) => numbers(l)), numbers([...asked].join(" "))]);
+
+/**
+ * Whether `n` is a ratio of two of one line's numbers rather than a number he made up: a per-match average ("their 110
+ * OPR over 8 matches is 13.8 a match") or a share of a total ("45.2 of 92.5 is 48.9%"). Those were being dropped for the
+ * card, which turned good arithmetic into "I can't answer that". The result must match a ratio at the precision it was
+ * written with (13.8 is 13.75 rounded, not merely near it), and whole numbers are never read this way, so a count can't
+ * be invented. Sums, differences and products are not read this way either: on a head-to-head, 46.9 + 54.7 is the other
+ * side's 101.6, which the team-aware check exists to refuse.
+ */
+const calculated = (n: string, pools: number[][]) => {
+  const v = Number(n);
+  if (!Number.isFinite(v) || Number.isInteger(v)) return false;
+  const written = /\.(\d+)/.exec(n)?.[1].length ?? 0;
+  const same = (x: number) => Number.isFinite(x) && x.toFixed(written) === v.toFixed(written);
+  for (const pool of pools) {
+    for (let i = 0; i < pool.length; i++) {
+      for (let j = 0; j < pool.length; j++) {
+        const a = pool[i], b = pool[j];
+        if (i === j || b === 0 || a === b) continue;
+        if (same(a / b) || same((a / b) * 100)) return true;
+      }
     }
   }
   return false;
-}
-
-/** The numbers a calculated figure may be arithmetic on, at most 250 distinct: seasons are never operands ("2025 − 2019"
- *  is nobody's stat) and a broad packet must not make the check crawl. */
-const operands = (pools: Iterable<string>[]) =>
-  [...new Set(pools.flatMap((p) => [...p]).map(Number).filter((v) => Number.isFinite(v) && !(v >= 1900 && v <= 2099)))].slice(0, 250);
-
-/** Whether `n` is a calculated figure (one written with a decimal) rather than a made-up one: see derived. A whole number
- *  is a claim and is checked as written, so two facts can't be summed by chance into a count he invented. */
-const calculated = (n: string, values: number[]) => {
-  const v = Number(n);
-  return Number.isFinite(v) && !Number.isInteger(v) && derived(v, values);
 };
 
 /** A sentence of an answer: split where one ends (". ", "; "), never inside a number ("101.6") or after an abbreviation
@@ -243,8 +247,8 @@ export function ungrounded(text: string, facts: string[], question: string, team
   const known = (n: string, pool: Iterable<string>) => { for (const k of pool) if (k === n || k === n.replace(/\.0+$/, "")) return true; return false; };
   if (!teams?.size) {
     const all = new Set([...asked, ...numbers(facts.join(" "))]);
-    const values = operands([all]);
-    return numbers(text).filter((n) => !known(n, all) && !calculated(n, values));
+    const pools = poolsOf(facts, asked);
+    return numbers(text).filter((n) => !known(n, all) && !calculated(n, pools));
   }
   const isTeam = (n: string) => /^\d+$/.test(n) && teams.has(Number(n));
   // A team named by its name alone ("Bad Wolf"), as well as by number: names of four letters or more, whole words.
@@ -284,13 +288,14 @@ export function ungrounded(text: string, facts: string[], question: string, team
   const bad: string[] = [];
   for (const s of sentences(text)) {
     const named = teamsIn(s);
-    // A decimal may be arithmetic on the facts about the teams this sentence names (every fact when it names none).
-    const values = operands([asked, ...lines.filter((l) => !named.size || !l.about.length || l.about.some((t) => named.has(t))).map((l) => l.nums)]);
+    // A decimal may be a ratio of one line's numbers, among the facts about the teams this sentence names (every fact
+    // when it names none).
+    const pools = poolsOf(lines.filter((l) => !named.size || !l.about.length || l.about.some((t) => named.has(t))).map((l) => [...l.nums].join(" ")), asked);
     for (const n of numbers(s)) {
       if (named.has(Number(n)) && isTeam(n)) continue;
       if (known(n, asked)) continue;
       const ok = lines.some((l) => { if (!known(n, l.nums)) return false; const of = whose(l, n); return !named.size || !of.length || of.some((t) => named.has(t)); });
-      if (!ok && !calculated(n, values)) bad.push(n);
+      if (!ok && !calculated(n, pools)) bad.push(n);
     }
   }
   return bad;

@@ -409,7 +409,9 @@ describe("ungrounded numbers", () => {
     expect(ungrounded("OPR 16.4, bottom 38%", ["16 OPR · top 62%"], "4215 opr")).toEqual(["16.4", "38"]);
     // A per-match average and a share of a total are ratios on the facts' numbers, and used to drop the whole reply.
     expect(ungrounded("110 OPR over 8 matches is 13.8 a match", ["OPR 110, 8 matches"], "q")).toEqual([]);
-    expect(ungrounded("45.2 of its 92.5 total is 48.9%", ["Auto OPR 45.2", "OPR 92.5"], "q")).toEqual([]);
+    expect(ungrounded("45.2 of its 92.5 total is 48.9%", ["Auto OPR 45.2, OPR 92.5"], "q")).toEqual([]);
+    // A ratio has to be two numbers of one fact line: 777 / 10 across two different records is not a calculation.
+    expect(ungrounded("77.7 a match", ["score 777", "10 matches"], "q")).toEqual(["77.7"]);
     // Sums and differences are not: on a head-to-head they can rebuild the other team's stat, which is what the
     // team-aware check refuses.
     expect(ungrounded("their 45.0 is 7.3 under 52.3", ["Auto OPR 45.0", "average 52.3"], "q")).toEqual(["7.3"]);
