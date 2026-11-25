@@ -1549,9 +1549,16 @@ async function doCode(code: string): Promise<void> {
     // venue's date (a Saturday 09:00 broadcast in Sydney starts on Friday in UTC).
     // A match with no time at all (Chicago Robotics Invitational's results) may be in any of them: each video is walked.
     const day = v.day ?? (m.start ? localDate(m.start, rows[0]?.timezone) : undefined);
-    const mine = played.filter((x) => !held.has(x.label) && (x.scheduled ? x.time == null || videos.length === 1 || !day || x.time.slice(0, 10) === day
+    const byTime = played.filter((x) => !held.has(x.label) && (x.scheduled ? x.time == null || videos.length === 1 || !day || x.time.slice(0, 10) === day
       : from == null ? !videos.some((o) => o !== v && inside(o, x.epoch))
       : (from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)) || lead(x)));
+    // The event's only video, whose broadcast holds none of its matches by time (a re-stream of the day's recording, later
+    // that night: 2022 USMOKSKCWM4's S7nzGdWDr4s, 05:20Z the next day): read as an upload, every match not yet held.
+    // Without this it was saved read with no starts and never looked at again.
+    const asUpload = !byTime.length && videos.length === 1 && from != null;
+    const mine = asUpload ? played.filter((x) => !held.has(x.label)) : byTime;
+    const offset = from == null || asUpload ? null : -from;
+    if (asUpload) log(`  ${v.videoId}: its broadcast (${m.start}) holds none of the event's matches by time: read as an upload`);
     // A video read well on an earlier run keeps its row: the event is back for another of its videos (a new link, one
     // that couldn't be played), and a re-read now could place fewer of this one's matches. --all reads it again.
     const prior = kept.get(`${v.videoId}|${code}`);
@@ -1593,7 +1600,7 @@ async function doCode(code: string): Promise<void> {
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
       // Live starts whose opening reads nothing stay, unconfirmed (--live).
       const live = LIVE.get(`${v.videoId}|${code}`), liveMedium = LIVE_MEDIUM.get(`${v.videoId}|${code}`), unread = new Set<string>();
-      let j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
+      let j = await placeVideo(page, mine, offset, m.length!, log, unread, live, liveMedium);
       // Nothing read at all: a player that never showed the stream (an interstitial, a stalled load) looks the same as a
       // video without the overlay, so it gets one more go in a fresh player before its matches count as missing.
       if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
@@ -1605,7 +1612,7 @@ async function doCode(code: string): Promise<void> {
       pageDeadline.set(page, deadline);
         await open(page, v.videoId);
         unread.clear();
-        j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
+        j = await placeVideo(page, mine, offset, m.length!, log, unread, live, liveMedium);
       }
       // Still nothing: two meets split on one stream, each bar too small to read (findSplit). Read again zoomed to this
       // event's half, every crop reading its bar where a full-size one would be.
@@ -1626,7 +1633,7 @@ async function doCode(code: string): Promise<void> {
             log(`    a split stream: this event's on its ${side} half, read zoomed to it`);
             await zoom(pg, side);
             const zoomedUnread = new Set<string>();
-            const zoomed = await placeVideo(pg, mine, from == null ? null : -from, m.length!, log, zoomedUnread, live, liveMedium);
+            const zoomed = await placeVideo(pg, mine, offset, m.length!, log, zoomedUnread, live, liveMedium);
             j = zoomed;
             unread.clear();
             for (const l of zoomedUnread) unread.add(l);
@@ -1652,7 +1659,7 @@ async function doCode(code: string): Promise<void> {
           log("    a score bar drawn small in the frame: read zoomed to it");
           await zoomTo(pg, css);
           const zoomedUnread = new Set<string>();
-          const zoomed = await placeVideo(pg, mine, from == null ? null : -from, m.length!, log, zoomedUnread, live, liveMedium);
+          const zoomed = await placeVideo(pg, mine, offset, m.length!, log, zoomedUnread, live, liveMedium);
           if (!zoomed.placed.size && !zoomed.review.size && [...zoomed.missing.values()].every((w) => w === NOTHING_READ)) { await restore(); return; }
           j = zoomed;
           unread.clear();
