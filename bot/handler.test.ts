@@ -813,6 +813,19 @@ describe("a 👎 on one of its answers", () => {
     expect(lines.join("\n")).toContain("#2150");
   });
 
+  it("keeps the issue on the row even when nothing can be said under the answer", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const rememberReport = vi.fn(async () => {});
+    const lines: string[] = [];
+    const { m } = answer();
+    m.reply = vi.fn(async () => { throw new Error("Missing Access"); });
+    m.channel.send = vi.fn(async () => { throw new Error("Missing Access"); });
+    await createHandler((l) => lines.push(l), lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }), rememberReport })).downvoted(m as any, { id: "u1" });
+    // Filed is filed: the row keeps the number even though the answer, and its channel, refused a reply.
+    expect(rememberReport).toHaveBeenCalledWith("m9", filed);
+    expect(lines.join("\n")).toMatch(/filed #2150 but couldn't say so/);
+  });
+
   it("points a later 👎 at the issue the row already has, instead of filing another", async () => {
     const report = vi.fn(async (_r: Report) => filed);
     const issue = { number: 2150, url: "https://github.com/ZOGWORK/control-scout/issues/2150" };

@@ -388,7 +388,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     if (filed.size > 200) filed.clear();
     filed.set(key, { at, number: r.number, url: r.url });
     logLine(`report filed: #${r.number} guild=${where.guild ?? "-"}`);
-    await post(reportedEmbed(r));
+    // The issue exists now, so a reply that fails must not look like a filing that failed: a 👎 keeps the number on the
+    // answer's row next, and a caller that never learned it would let a later 👎 file a duplicate.
+    await post(reportedEmbed(r)).catch((e) => logLine(`report filed #${r.number} but couldn't say so: ${(e as Error)?.message ?? String(e)}`));
     return r;
   }
   /** Remember what this ask taught the server: the asker's name and the teams the message named (bot/memory.ts). */
