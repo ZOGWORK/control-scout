@@ -30,7 +30,7 @@ describe("the recording's side column", () => {
     expect(open[0].getAttribute("href")).toBe("/?tab=matches&match=qual%3A0%3A2");
   });
 
-  it("no blocks without scored matches, no source line when it isn't known, none of it while live", () => {
+  it("no blocks without scored matches or while live (the source line stays live), no source line when it isn't known", () => {
     const { unmount } = render(<MemoryRouter><WatchLive d={detail({ status: "finished", matches: [m(1, [1, 2], [3, 4])] })} stream={{ ...stream, origin: undefined }} /></MemoryRouter>);
     expect(document.querySelector("[data-best-matches]")).toBeNull();
     expect(document.querySelector("[data-recording-origin]")).toBeNull();
