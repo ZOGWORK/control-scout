@@ -52,8 +52,9 @@ export const PRIVATE_TABLES = [
   "discord_follows", "discord_posts",
   // The Discord bot's per-server chat limits and usage (migration 99): server ids and their traffic.
   "discord_limits", "discord_chat_usage",
-  // What a Discord server teaches the bot (migration 100): its teams, people's names and reply threads.
-  "discord_guild_teams", "discord_people", "discord_threads",
+  // What a Discord server teaches the bot (migrations 100 and 108): its teams, people's names, reply threads and what
+  // each channel was asking about.
+  "discord_guild_teams", "discord_people", "discord_threads", "discord_channel_subjects",
   // The bot's own record of its servers (migration 104): server names, the questions it was asked, and the thumbs on its
   // answers. Server ids and people's words, so never shipped.
   "discord_guilds", "discord_asks", "discord_answers",

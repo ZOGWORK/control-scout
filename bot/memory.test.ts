@@ -1,9 +1,9 @@
 // What a Discord server teaches the bot (bot/memory.ts), on a database: the teams its people ask about, the names
-// they go by there, and a reply thread kept past a restart. Plus the one rule that keeps the memory honest: a season
-// year in a question is not a team.
+// they go by there, a reply thread kept past a restart, and what each channel was asking about lately. Plus the one rule
+// that keeps the memory honest: a season year in a question is not a team.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { get, migrate, openDb, run, setDb } from "../server/db";
-import { TEAMS_MAX, THREAD_DAYS, keep, learn, recall, teamsAsked, thread } from "./memory";
+import { CHANNEL_SUBJECT_MINUTES, TEAMS_MAX, THREAD_DAYS, channelSubject, keep, keepChannelSubject, learn, recall, teamsAsked, thread } from "./memory";
 
 const NOW = Date.parse("2026-11-22T05:30:00Z");
 const DAY = 86_400_000;
@@ -30,6 +30,7 @@ describe("the server's memory, on a database", () => {
     await run("DELETE FROM discord_guild_teams");
     await run("DELETE FROM discord_people");
     await run("DELETE FROM discord_threads");
+    await run("DELETE FROM discord_channel_subjects");
   });
 
   it("recalls the teams a server asks about most, counting each ask, at most TEAMS_MAX of them", async () => {
@@ -68,5 +69,25 @@ describe("the server's memory, on a database", () => {
     await keep("new", [{ role: "user", text: "hi" }], "g1", NOW);
     expect(await thread("old", NOW)).toEqual([]);
     expect(await thread("new", NOW)).toHaveLength(1);
+  });
+
+  it("keeps what a channel is talking about, per channel, until an hour has passed", async () => {
+    expect(await channelSubject("c1", NOW)).toBeNull();
+    await keepChannelSubject("c1", "what did theseus get in auto opr", "g1", NOW);
+    expect(await channelSubject("c1", NOW + 59 * 60_000)).toBe("what did theseus get in auto opr");
+    // Another channel is another conversation, and another server is not read for this one.
+    expect(await channelSubject("c2", NOW)).toBeNull();
+    // The channel moves on: the latest records question replaces the one before it, and the row knows its server.
+    await keepChannelSubject("c1", "6980 opr", "g1", NOW + 60_000);
+    expect(await channelSubject("c1", NOW + 60_000)).toBe("6980 opr");
+    expect((await get<{ guild_id: string }>("SELECT guild_id FROM discord_channel_subjects WHERE channel_id = 'c1'"))!.guild_id).toBe("g1");
+    // An hour after that question, "their record?" is a new conversation.
+    expect(await channelSubject("c1", NOW + 60_000 + CHANNEL_SUBJECT_MINUTES * 60_000 + 1)).toBeNull();
+  });
+
+  it("drops a channel subject nobody replaced", async () => {
+    await keepChannelSubject("hold", "4215 opr", "g1", NOW - (THREAD_DAYS + 1) * DAY);
+    await keepChannelSubject("fresh", "6980 opr", "g1", NOW);
+    expect(Number((await get<{ c: number }>("SELECT COUNT(*) c FROM discord_channel_subjects WHERE channel_id = 'hold'"))!.c)).toBe(0);
   });
 });

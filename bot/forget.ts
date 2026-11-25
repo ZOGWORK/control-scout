@@ -1,6 +1,6 @@
 // A server's data, deleted when the bot is removed from it: the follows and the posts they already sent, the chat limit
-// and what it used, the teams it asked about, the names its people went by there, the reply threads it kept, the
-// questions it was asked, the votes on its answers and its name. Nothing else the bot writes is per-server, so this is
+// and what it used, the teams it asked about, the names its people went by there, the reply threads it kept, what each
+// channel was asking about, the questions it was asked, the votes on its answers and its name. Nothing else the bot writes is per-server, so this is
 // the whole of what it knew about a server; one added again starts from nothing, the default chat cap included, since
 // its limit row is gone too.
 //
@@ -22,6 +22,7 @@ export async function forgetGuild(guild: string): Promise<number> {
   gone += await run("DELETE FROM discord_guild_teams WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_people WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_threads WHERE guild_id = ?", [guild]);
+  gone += await run("DELETE FROM discord_channel_subjects WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_asks WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_answers WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_guilds WHERE guild_id = ?", [guild]);

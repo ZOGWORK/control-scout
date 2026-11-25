@@ -272,24 +272,30 @@ export const chatContext = (facts: string[], memory: string[] = [], question = "
 
 /** The website's answer to `q`, with Bruno's help where the site would use it: his chat reply first (the reply
  *  thread before it in `history`), else the card. `memory`: the server's own lines for the chat (bot/memory.ts);
- *  `guild`: the server it was asked in (never who asked), for the site's failed-search queue. */
+ *  `guild`: the server it was asked in (never who asked), for the site's failed-search queue; `channelSubject`: what the
+ *  channel was asking about lately (`bot/memory.ts`'s `channelSubject`), for a message that isn't in a reply thread. */
 /**
  * /ask and a mention: the message's answer, with a "yes" to the question Bruno ended his last reply with asked as that
  * question (`resolved`: what was asked, so the post quotes it and the thread keeps it), never as the word "yes"; a
  * "no" to it declines it politely, with nothing searched.
  */
-export async function ask(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[] = [], memory: string[] = [], guild: string | null = null): Promise<AskReply> {
+export async function ask(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[] = [], memory: string[] = [], guild: string | null = null, channelSubject: string | null = null): Promise<AskReply> {
   const offered = offeredQuestion(history);
   if (offered && declined(q)) return declinedReply(offered);
   const subject = offered && affirmative(q) ? offered : null;
   // A follow-up that only looks back at the thread ("their last meet", "and their OPR?") is asked as the thread's
   // subject — the last thing said about the records — so search reads the team or event the thread named instead of
-  // the word "their". A question that names its own team, or a thread with no subject, is asked as typed.
-  const kept = subject ? null : threadSubject(history, recordsTurn);
+  // the word "their". Outside a reply thread there is no thread to read, so the channel's own subject is used instead:
+  // the last records question asked there (bot/memory.ts), so "their last meet?" in a channel that just asked about
+  // Theseus means Theseus. A question that names its own team, or nothing recent to go on, is asked as typed.
+  const fromThread = subject ? null : threadSubject(history, recordsTurn);
+  const kept = fromThread ?? channelSubject ?? null;
   const asked = subject ?? withSubject(q, kept) ?? q;
   // He is told which subject the follow-up was read as, so his reply names that team rather than guessing from the
-  // thread, and so a number he says about it is checked the way the thread's own are.
-  const lines = asked === q || !kept ? memory : [...memory, `This thread is about: ${kept}. A follow-up saying "their", "they" or "that team" means it.`];
+  // thread (or the channel), and so a number he says about it is checked the way the thread's own are.
+  const lines = asked === q || !kept ? memory : [...memory, fromThread
+    ? `This thread is about: ${kept}. A follow-up saying "their", "they" or "that team" means it.`
+    : `This channel has been talking about: ${kept}. A message saying "their", "they" or "that team" means it.`];
   const r = await answerAsk(asked, deps, site, history, lines, guild);
   return subject ? { ...r, resolved: subject } : r;
 }
