@@ -13,7 +13,7 @@ import { CURRENT_SEASON } from "../server/data/seasons.js";
 import { cachedEventDetail } from "../server/api/events.js";
 import { seasonStats, teamKnown } from "../server/api/teams.js";
 import { eventDue, eventRecapEmbed, eventScheduleEmbed, eveEmbed, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts.js";
-import { alertEmbed, changedMatches, loadMatchState, onDeckDue, onDeckLead, saveMatchState } from "./eventChanges.js";
+import { alertEmbed, alertKey, changedMatches, loadMatchState, onDeckDue, onDeckLead, saveMatchState } from "./eventChanges.js";
 import type { EventDetail, MatchView } from "../src/shared/api.js";
 import { FOOTER, Friendly, VOLT, linkedAlliance, pride, preMatchEmbed, resultEmbed, teamLink, teamsOf } from "./views.js";
 
@@ -295,9 +295,8 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
     const prev = await loadMatchState(CURRENT_SEASON, ev.code).catch(() => null);
     if (prev) {
       for (const a of changedMatches(active, d.matches, prev, now)) {
-        // A moved match can move again: each new time is its own post, not swallowed by the first one's claim.
-        const key = `${a.match.key}:${a.kind}${a.kind === "moved" && a.match.startsAt ? `:${a.match.startsAt}` : ""}`;
-        await deliver(a.channel, ev.code, key, a.kind, () => alertEmbed(a, d.event.name, site, now));
+        // Each new time or lineup is its own post, not swallowed by the first change's claim.
+        await deliver(a.channel, ev.code, alertKey(a), a.kind, () => alertEmbed(a, d.event.name, site, now));
       }
       for (const c of onDeckDue(active, d.matches, now)) {
         await deliver(c.channel, ev.code, c.match.key, "ondeck", () => preMatchEmbed(d.event.name, c.match, site, onDeckLead(c.match)));

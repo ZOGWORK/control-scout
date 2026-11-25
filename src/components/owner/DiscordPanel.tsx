@@ -75,17 +75,20 @@ export function DiscordPanel() {
     if (!GUILD.test(g)) { toast.error("That isn't a Discord server id (a long number). In Discord: right-click the server → Copy Server ID."); return; }
     const perHour = fromBox(hour), perDay = fromBox(day);
     if (perHour === undefined || perDay === undefined) { toast.error(`A cap is a whole number up to ${MAX_CAP.toLocaleString()}; 0 is no cap in that window.`); return; }
-    // Both blank goes back to the default ceiling; 0 is an explicit no-cap, which needs a row of its own to say so.
+    // A lone blank follows the default for that window; 0 is an explicit no-cap, which needs a row of its own to say so.
+    const fallback = state.data?.defaultLimit ?? { perHour: null, perDay: null };
+    const cap = { perHour: perHour ?? fallback.perHour, perDay: perDay ?? fallback.perDay };
+    // Both blank goes back to the default ceiling rather than writing a row that says the same thing.
     const none = perHour == null && perDay == null;
     setBusy("save");
     try {
       const next = none
         ? await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "DELETE", json: {} })
-        : await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "PUT", json: { perHour, perDay } });
+        : await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "PUT", json: cap });
       prime(PATH, next);
       toast.success(none
         ? "That server is back on the default cap. Its counters start afresh."
-        : `Saved that server's cap: ${capWords({ perHour: perHour || null, perDay: perDay || null })}. Its counters start afresh.`);
+        : `Saved that server's cap: ${capWords({ perHour: cap.perHour || null, perDay: cap.perDay || null })}. Its counters start afresh.`);
       setGuild(""); setHour(""); setDay("");
     } catch (err) {
       // Already uncapped (another owner got there first): that is the state the blank save asked for, so show it and
@@ -203,7 +206,7 @@ export function DiscordPanel() {
 
             <form onSubmit={save} className="rounded-xl border border-border bg-card p-4">
               <h3 className="font-medium">Give a server its own cap</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Replaces both windows. 0 is no cap in that window; leave both blank to put the server back on the default ({capWords(d.defaultLimit)}).</p>
+              <p className="mt-1 text-sm text-muted-foreground">Replaces both windows. A blank box follows the default ({capWords(d.defaultLimit)}); 0 is no cap in that window. Leave both blank to put the server back on the default.</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
                 <label className="block min-w-0 text-sm">
                   <span className="mb-1 block text-muted-foreground">Server id</span>

@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../server/db";
 import type { MatchView } from "../src/shared/api";
 import type { Follow } from "./follows";
-import { ALERT_WINDOW_MS, alertLead, changedMatches, loadMatchState, onDeckDue, saveMatchState, type MatchState } from "./eventChanges";
+import { ALERT_WINDOW_MS, alertKey, alertLead, changedMatches, loadMatchState, onDeckDue, saveMatchState, type MatchState } from "./eventChanges";
 
 const NOW = Date.parse("2026-10-24T15:00:00Z");
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -30,6 +30,16 @@ describe("schedule changes", () => {
   it("a change smaller than the threshold, or one to a match not followed, isn't posted", () => {
     expect(changedMatches([f(1)], [m(7, NOW + 600_000 + 30_000)], prev([["qual:0:7", state()]]), NOW)).toEqual([]);
     expect(changedMatches([f(9)], [m(7, NOW + 1_800_000)], prev([["qual:0:7", state()]]), NOW)).toEqual([]);
+  });
+
+  it("each new time or lineup is a new claim, so a second change isn't swallowed", () => {
+    const at = { channel: "c1", was: null };
+    const first = { ...at, match: m(7, NOW + 600_000), kind: "moved" as const };
+    const later = { ...at, match: m(7, NOW + 1_800_000), kind: "moved" as const };
+    expect(alertKey(first)).not.toBe(alertKey(later));
+    const red5 = { ...at, match: m(7, NOW + 600_000, { red: { teams: [t(1), t(5)], score: null } }), kind: "changed" as const };
+    const red6 = { ...at, match: m(7, NOW + 600_000, { red: { teams: [t(1), t(6)], score: null } }), kind: "changed" as const };
+    expect(alertKey(red5)).not.toBe(alertKey(red6));
   });
 
   it("a changed lineup is its own alert; a played or far-off match is never one", () => {

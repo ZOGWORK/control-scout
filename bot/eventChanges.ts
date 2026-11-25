@@ -42,6 +42,14 @@ export interface MatchAlert {
   was: MatchState | null;
 }
 
+/** The claim key for one alert in the post log: a second move or a second lineup change is a new post, not the first
+ *  one's claim. (Two alerts for the same match and kind differ only in what changed, so that is what the key adds.) */
+export function alertKey(a: MatchAlert): string {
+  const lineup = [...a.match.red.teams, ...a.match.blue.teams].map((t) => t.number).sort((x, y) => x - y).join("-");
+  const change = a.kind === "moved" ? a.match.startsAt ?? "" : a.kind === "changed" ? lineup : "";
+  return `${a.match.key}:${a.kind}${change ? `:${change}` : ""}`;
+}
+
 /** Every team on the field (a playoff alliance's sitting-out third included: it is still in the match). */
 const teamsIn = (m: MatchView): number[] => [...m.red.teams, ...m.blue.teams].map((t) => t.number);
 

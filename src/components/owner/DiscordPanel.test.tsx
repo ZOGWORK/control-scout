@@ -87,13 +87,13 @@ describe("the owner console's Discord bot panel", () => {
     await waitFor(() => expect(h.success).toHaveBeenCalledWith("Saved that server's cap: none. Its counters start afresh."));
   });
 
-  it("sets a cap when either window has a number", async () => {
+  it("fills a lone blank box from the default, so the other ceiling isn't silently dropped", async () => {
     fillAndSave("60", "");
     await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
     const [url, init] = lastCall();
     expect(url).toBe(`/api/owner/discord/limits/${GUILD}`);
     expect(init?.method).toBe("PUT");
-    expect(init?.json).toEqual({ perHour: 60, perDay: null });
+    expect(init?.json).toEqual({ perHour: 60, perDay: 300 });
   });
 
   it("turns a 409 on a blank save into the success it asked for, refreshes and clears the form", async () => {
