@@ -1,11 +1,12 @@
 // /ask: the website's search answer as one embed, Bruno only where the site would use him, credited only then.
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
-import { BRUNO_CREDIT, DESCRIPTION_MAX, affirmative, ask, askEmbed, askNext, chatContext, chatPost, declined, fitLines, offeredQuestion, videoLinks, type AskDeps } from "./ask";
+import { BRUNO_CREDIT, CHAT_TIMEOUT_MS, DESCRIPTION_MAX, affirmative, ask, askEmbed, askNext, chatContext, chatPost, declined, fitLines, offeredQuestion, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 import { SORRY_SENTENCE } from "../src/shared/search";
 import { NO_CHAT, NO_REPLY } from "./smallTalk";
 import { brunoMethod, brunoPersona } from "./productFacts";
+import { AGENT_BUDGET_MS } from "./agent";
 
 const SITE = "https://controlscout.org";
 const hit = (n: number, extra: Partial<SearchHit> = {}): SearchHit => ({ kind: "team", ref: String(n), title: `${n} | Team ${n}`, subtitle: "Oradell, NJ", season: 2025, ...extra });
@@ -243,7 +244,8 @@ describe("a chat with Bruno", () => {
     expect(r.meta).toMatchObject({ chat: true, sentence: false });
     expect(d.bruno).not.toHaveBeenCalled();
     expect(d.video).not.toHaveBeenCalled();
-    expect(d.chat).toHaveBeenCalledWith("hi bruno", ["Result: none"], [], []);
+    // The first call of a turn is the only one that may take a whole CHAT_TIMEOUT_MS; the rest share the loop's budget.
+    expect(d.chat).toHaveBeenCalledWith("hi bruno", ["Result: none"], [], [], CHAT_TIMEOUT_MS);
   });
 
   it("a message that asks several things: each part's facts go with the message's own, and its answer is the card", async () => {
@@ -254,7 +256,7 @@ describe("a chat with Bruno", () => {
     const r = await ask(q, d, SITE);
     expect(lookups).toHaveBeenCalledWith(q);
     // The message's facts first, then the parts' (the leaderboard's own line answers "where from" and "auto opr").
-    expect(d.chat).toHaveBeenCalledWith(q, ["Result: 4215 | Team 4215", "#1 23268 Ultraviolet (Hillsborough, NJ): OPR 157.9, Auto OPR 40"], [], []);
+    expect(d.chat).toHaveBeenCalledWith(q, ["Result: 4215 | Team 4215", "#1 23268 Ultraviolet (Hillsborough, NJ): OPR 157.9, Auto OPR 40"], [], [], CHAT_TIMEOUT_MS);
     expect(r.chat?.text).toMatch(/23268/);
     // His words keep their shape, and the board search found for the part rides beside them as the card, linked to that
     // answer on the site rather than to the whole message search.
@@ -306,7 +308,7 @@ describe("a chat with Bruno", () => {
     const d = chatDeps({ text: "Second were 4215.", search: true }, { search });
     const history = [{ role: "user" as const, text: "who won decode" }, { role: "bruno" as const, text: "30030 Exodus won." }];
     await ask("and second?", d, SITE, history);
-    expect(d.chat).toHaveBeenCalledWith("and second?", ["Result: 4215 | Team 4215", "Result: 30030 | Team 30030"], history, []);
+    expect(d.chat).toHaveBeenCalledWith("and second?", ["Result: 4215 | Team 4215", "Result: 30030 | Team 30030"], history, [], CHAT_TIMEOUT_MS);
   });
 
   // The screenshot's shape: a follow-up that only says "their", in a thread that named the team last turn.
@@ -319,7 +321,7 @@ describe("a chat with Bruno", () => {
     expect(asked).toContain("their last meet?");
     expect(asked).toContain("theseus");
     // He is told what the follow-up was read as, in the packet's own lines rather than left to guess from the thread.
-    expect(d.chat).toHaveBeenCalledWith(asked, expect.anything(), history, expect.arrayContaining([expect.stringContaining("This thread is about:")]));
+    expect(d.chat).toHaveBeenCalledWith(asked, expect.anything(), history, expect.arrayContaining([expect.stringContaining("This thread is about:")]), CHAT_TIMEOUT_MS);
     // A team named in the follow-up itself is its own: the thread's subject is never added over it.
     search.mockClear();
     await ask("what about 6980?", d, SITE, history);
@@ -520,6 +522,43 @@ describe("a chat that looks something up, and one that got a number wrong", () =
     expect(chat).toHaveBeenCalledTimes(4);
     expect(((chat.mock.calls[3] as unknown[])[1] as string[])[0]).toContain("Lookups are done");
     expect(r.chat!.text).toBe("That's all I can find.");
+  });
+
+  it("stops when the reply's time budget is spent, instead of holding the channel for another step", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chat = vi.fn(async () => {
+        // A slow model: this one reply used the whole loop's budget.
+        vi.setSystemTime(Date.now() + AGENT_BUDGET_MS);
+        return { text: "Let me check that.\nLOOKUP: 26000 opr", search: false };
+      });
+      const factsFor = vi.fn(async () => ["Team 26000: OPR 45.2."]);
+      const r = await ask("26000 opr", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+      // No search for facts a reply can't be written from, and no second call: the words before the request post.
+      expect(factsFor).not.toHaveBeenCalled();
+      expect(chat).toHaveBeenCalledTimes(1);
+      expect(r.chat!.text).toBe("Let me check that.");
+      expect(r.chat!.text).not.toContain("LOOKUP");
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("gives each call only the time the budget has left, never a fresh full timeout", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chat = vi.fn()
+        .mockImplementationOnce(async () => {
+          // A step that took one call's ceiling plus 40 s leaves 35 s of the loop's two minutes.
+          vi.setSystemTime(Date.now() + CHAT_TIMEOUT_MS + 40_000);
+          return { text: "One more.\nLOOKUP: 4215 opr", search: false };
+        })
+        .mockResolvedValueOnce({ text: "4215 is **45.2**.", search: true });
+      const r = await ask("4215 opr", deps(base(), { chat, facts: vi.fn(async () => []), factsFor: vi.fn(async () => ["4215: OPR 45.2."]) }), SITE);
+      expect(chat).toHaveBeenCalledTimes(2);
+      // One call is still capped at CHAT_TIMEOUT_MS; the next is capped at what the budget has left.
+      expect((chat.mock.calls[0] as unknown[])[4]).toBe(CHAT_TIMEOUT_MS);
+      expect((chat.mock.calls[1] as unknown[])[4]).toBe(AGENT_BUDGET_MS - CHAT_TIMEOUT_MS - 40_000);
+      expect(r.chat!.text).toBe("4215 is **45.2**.");
+    } finally { vi.useRealTimers(); }
   });
 
   it("a number the facts don't have gets one correction round instead of the card", async () => {

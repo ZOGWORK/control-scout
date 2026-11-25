@@ -11,8 +11,9 @@
 //                                         buttons included) when the facts answer it, and a link to the website.
 //      his lookups                        an agent loop (talk, below): a reply may ask for searches with `LOOKUP: <query>`
 //                                         lines (bot/productFacts.ts's lookupNote), the bot runs them and hands the facts
-//                                         back for the next step — up to AGENT_STEPS steps, each search reported whether
-//                                         it found anything, so he can work a question out instead of answering once.
+//                                         back for the next step — up to AGENT_STEPS steps inside AGENT_BUDGET_MS of wall
+//                                         clock, each search reported whether it found anything, so he can work a
+//                                         question out instead of answering once and without holding the channel.
 //      one correction                    a reply naming a number the facts don't have is rewritten once, told which
 //                                         number, instead of being dropped for the card on the spot.
 //   3. refine(q) / brunoAnswer(q)         only when that chat gives nothing: search's own answer, with his rewrite of
@@ -36,7 +37,7 @@ import { RECORD_NUMBER, WORKING, smallTalk } from "./smallTalk.js";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
 import { lookupFacts, splitAsk, type Lookup } from "./tools.js";
 import { threadSubject, withSubject } from "./subject.js";
-import { AGENT_STEPS, QUERIES_PER_STEP } from "./agent.js";
+import { AGENT_BUDGET_MS, AGENT_STEPS, MIN_CALL_MS, QUERIES_PER_STEP } from "./agent.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -68,8 +69,10 @@ export interface AskDeps {
   /** Search's facts for an answer, as Bruno reads them (server/api/searchBrunoAnswer.ts answerFacts). */
   facts?: (a: SearchAnswer) => Promise<string[]>;
   /** Bruno's chat reply (Control Point's discord-chat), or null: off, unavailable, or a number not in the facts.
-   *  `memory`: what the server has taught the bot (bot/memory.ts) — its teams, the asker's name — sent with the facts. */
-  chat?: (message: string, facts: string[], history: BrunoChatTurn[], memory?: string[]) => Promise<ChatReply | null>;
+   *  `memory`: what the server has taught the bot (bot/memory.ts) — its teams, the asker's name — sent with the facts.
+   *  `timeoutMs`: how long this one call may take — the loop hands each call only the time its budget has left
+   *  (bot/agent.ts), so a slow model can't chain three full timeouts into minutes. */
+  chat?: (message: string, facts: string[], history: BrunoChatTurn[], memory?: string[], timeoutMs?: number) => Promise<ChatReply | null>;
   /** The facts of a message's parts, when it asks several things (bot/tools.ts): each part searched on its own, its
    *  facts returned with the site's own answer to the first part it could answer (never throws, never past the cap). */
   lookups?: (q: string) => Promise<Lookup>;
@@ -185,9 +188,10 @@ function declinedReply(offer: string): AskReply {
   };
 }
 
-/** How long a chat waits for Bruno before the card posts instead. Generous: a model reply takes a while (Control
+/** How long one chat call waits for Bruno before the card posts instead. Generous: a model reply takes a while (Control
  *  Point's one-sentence answers take about 11 s on the live deployment, and a structured explanation of a few
- *  paragraphs takes longer), and the mention's typing indicator stays up while it's written. */
+ *  paragraphs takes longer), and the mention's typing indicator stays up while it's written. It is one call's ceiling:
+ *  the loop's steps and correction share AGENT_BUDGET_MS of wall clock (bot/agent.ts). */
 export const CHAT_TIMEOUT_MS = 45_000;
 
 export async function realAskDeps(): Promise<AskDeps> {
@@ -207,7 +211,7 @@ export async function realAskDeps(): Promise<AskDeps> {
     // No viewer: only the site's own match clips and recordings, as a page drawn for everyone gets.
     video: (a) => answerVideo(a),
     facts: (a) => answerFacts(a),
-    chat: async (message, facts, history, memory = []) => {
+    chat: async (message, facts, history, memory = [], timeoutMs = CHAT_TIMEOUT_MS) => {
       // Why a chat didn't happen is logged (never the message or the key): a deployment is diagnosed from these lines.
       if (!brunoAvailable()) {
         console.info(`[bot] chat off: ${CHAT_OFF_UNCONFIGURED}`);
@@ -221,7 +225,7 @@ export async function realAskDeps(): Promise<AskDeps> {
       // whole packet (400 `facts[i]`), which used to fall back to the card with nothing in the log.
       const context = chatContext(facts, memory, message);
       let r: { text: string; search: boolean };
-      try { r = await brunoDiscordChat(message, context, history, CHAT_TIMEOUT_MS); }
+      try { r = await brunoDiscordChat(message, context, history, timeoutMs ?? CHAT_TIMEOUT_MS); }
       catch (e) {
         // "Control Point answered 404", "timeout", a network error: enough to fix a deployment, and no secret in it.
         console.info(`[bot] chat failed: ${(e as Error)?.message ?? String(e)}`);
@@ -424,15 +428,29 @@ const LOOKUPS_DONE = `Lookups are done (${AGENT_STEPS} steps used). Answer now f
  * run twice; the last step is told the lookups are done and to answer from what it has. A reply that is only a request
  * (no words yet) is a step, not an empty answer. A number the facts don't have gets one correction round naming it
  * before ask's own check refuses the reply. Never throws: a step that fails keeps what he said.
+ *
+ * The whole loop runs on one wall-clock budget (`AGENT_BUDGET_MS`): every call is given only the time left (never more
+ * than `CHAT_TIMEOUT_MS`), and once there isn't time for another call worth starting the loop stops and posts what he
+ * already said, instead of three slow steps holding the channel for minutes.
  */
 async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: AskDeps, memory: string[], records: boolean): Promise<ChatReply | null> {
+  // The clock starts before the first call: the steps, their searches and the correction round all come out of it.
+  const deadline = Date.now() + AGENT_BUDGET_MS;
+  /** What one more model call may take: the budget's time left, never more than one call's own ceiling — 0 once the
+   *  budget is spent. */
+  const room = () => Math.max(0, Math.min(CHAT_TIMEOUT_MS, deadline - Date.now()));
+  /** One more model call, or null when there isn't time for one worth starting (or the call fails). */
+  const talkOnce = (lines: string[]) => {
+    const left = room();
+    return left < MIN_CALL_MS ? Promise.resolve(null) : deps.chat!(q, lines, history, memory, left).catch(() => null);
+  };
   let packet = fit(facts, CHAT_FACTS, CHAT_FACTS_CHARS);
   // The last thing he actually said — never a request, and never nothing: a step that only looked something up leaves
   // the words before it standing.
   let spoken: ChatReply | null = null;
   // What he has already looked up, so a repeated search is not run again (it answers the same way it did).
   const tried = new Set<string>();
-  let reply = await deps.chat!(q, packet, history, memory).catch(() => null);
+  let reply = await talkOnce(packet);
   for (let step = 1; reply && step <= AGENT_STEPS; step++) {
     const asked = lookupAsked(reply.text);
     if (asked.text) spoken = { ...reply, text: asked.text };
@@ -440,6 +458,8 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
     if (!asked.queries.length || !factsFor) break;
     const fresh = asked.queries.filter((r) => !tried.has(r.toLowerCase()));
     if (!fresh.length) break;
+    // Out of time: facts for a reply there's no budget left to write would only hold the channel longer.
+    if (room() < MIN_CALL_MS) { console.info(`[bot] chat out of time at step ${step}: posting what he said`); break; }
     for (const r of fresh) tried.add(r.toLowerCase());
     // A lookup that threw is not a lookup that found nothing — told they are the same, he says the records don't
     // exist when the search was never reachable — so a failed search is counted apart from an empty one.
@@ -459,8 +479,7 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
     console.info(`[bot] chat lookup: ${fresh.join(" | ").slice(0, 160)} (${found.length} facts${failed.length ? `, ${failed.length} failed` : ""})`);
     packet = fit([note, ...packet, ...found], CHAT_FACTS, CHAT_FACTS_CHARS);
     const last = step === AGENT_STEPS;
-    const next = await deps.chat!(q, last ? fit([LOOKUPS_DONE, ...packet], CHAT_FACTS, CHAT_FACTS_CHARS) : packet, history, memory)
-      .catch(() => null);
+    const next = await talkOnce(last ? fit([LOOKUPS_DONE, ...packet], CHAT_FACTS, CHAT_FACTS_CHARS) : packet);
     if (!next) break;
     reply = next;
     if (last) break;
@@ -474,7 +493,7 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
   // A number he made up: told which one, he gets one chance to say it from the facts instead of the card posting.
   if (reply && records && reply.unknown?.length) {
     const fix = `Correction: your last reply used numbers the facts don't have (${reply.unknown.slice(0, 6).join(", ")}). Rewrite it using only the facts; where they don't hold a number, say what's missing instead of guessing.`;
-    const next = await deps.chat!(q, fit([fix, ...packet], CHAT_FACTS, CHAT_FACTS_CHARS), history, memory).catch(() => null);
+    const next = await talkOnce(fit([fix, ...packet], CHAT_FACTS, CHAT_FACTS_CHARS));
     // The correction names the invented numbers and travels in the packet, so the chat's own check would take a repeat
     // as grounded. The rewrite is checked against the facts he already had instead, and a `LOOKUP:` line in it (the
     // instruction says to ask when the facts don't hold something) is the bot's, never something to post.
