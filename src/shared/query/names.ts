@@ -4,7 +4,7 @@
 import { allowedEdits, editDistance, joinThousands } from "../fuzzy.js";
 import { countryOf, countryOfDemonym } from "../countries.js";
 import { regionOf, regionPartOf } from "../searchEventQuery.js";
-import { edits, nearRegion } from "../regions.js";
+import { edits, findRegions, nearRegion } from "../regions.js";
 import { eventInitialisms } from "./initialisms.js";
 import { LEXICON } from "./lexicon.js";
 import { STEP_ITEMS, runAll } from "../steps.js";
@@ -138,6 +138,10 @@ export function* namesSteps(teams: NameRow[], places: PlaceRow[]): Generator<voi
     if (++step % STEP_ITEMS === 0) yield;
     const k = fold(p.city ?? "");
     if (!k || !p.country) continue;
+    // A town stored as its own state's code ("IN", Indiana) is the state typed twice, never a town: read as one, the
+    // word "in" before the state ("top score in Indiana") would be a town named "IN" in it. Only where the code is a
+    // region the index names: a town named as its region's code abroad ("Fes", FES) is still a town.
+    if (p.state && k === fold(p.state) && findRegions(`${p.country}:${p.state}`).length) continue;
     const where = `${p.country}:${p.state ?? ""}`;
     const at = towns.get(k) ?? towns.set(k, new Map()).get(k)!;
     const had = at.get(where);
