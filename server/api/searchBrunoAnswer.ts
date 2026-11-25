@@ -153,6 +153,19 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
       const bits = [s.wins != null && s.losses != null ? `record ${s.wins}-${s.losses}-${s.ties ?? 0}` : "", s.opr_np != null ? `OPR ${s.opr_np.toFixed(1)}` : "", s.rank_np != null && s.ranked_teams ? `OPR rank ${s.rank_np} of ${s.ranked_teams}` : ""].filter(Boolean);
       if (bits.length) facts.push(`Team ${team} in ${seasonLabel(s.season)}: ${bits.join(", ")}.`);
     }
+    // The team's own meets, newest first, each with its phase OPRs (team_event_stats): "what did they get in auto OPR at
+    // their last meet" is that meet's number, not the season's average, and the meet it names is the one asked about.
+    // Without these a records question the site could answer was refused with "I couldn't find … in the facts".
+    const meets = await all<{ season: number; code: string; name: string | null; start: string | null; opr_np: number | null; opr_auto: number | null; opr_teleop: number | null; opr_endgame: number | null }>(
+      `SELECT s.season, s.code, e.name, e.start, s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame
+         FROM team_event_stats s LEFT JOIN events e ON e.season = s.season AND e.code = s.code
+        WHERE s.team = ? AND COALESCE(s.matches, 0) > 0
+        ORDER BY COALESCE(e.start, '') DESC, s.season DESC LIMIT 3`, [team]);
+    for (const m of meets) {
+      const said = ([["Auto OPR", m.opr_auto], ["TeleOp OPR", m.opr_teleop], ["Endgame OPR", m.opr_endgame], ["OPR", m.opr_np]] as const)
+        .filter(([, v]) => v != null).map(([label, v]) => `${label} ${(v as number).toFixed(1)}`);
+      if (said.length) facts.push(`Team ${team} at ${m.name ?? m.code} (${seasonLabel(m.season)}${m.start ? `, ${m.start.slice(0, 10)}` : ""}): ${said.join(", ")}.`);
+    }
   }
   // Bounded: the first lines are the ones that answer.
   const out: string[] = [];
@@ -179,6 +192,44 @@ export function grounded(text: string, facts: string[], question: string, teams?
   return ungrounded(text, facts, question, teams).length === 0;
 }
 
+/**
+ * The numbers a calculated figure may be a ratio of, per fact line (and the question): a per-match average or a share of
+ * a total is two numbers of one line — "Auto OPR 45.2, OPR 92.5" — never a pair drawn from different records. Keeping
+ * the pools apart is what makes the check safe: a packet of hundreds of numbers has thousands of cross-line ratios, and
+ * any invented decimal lands near one of them by chance. Seasons are never operands ("2025 − 2019" is nobody's stat).
+ */
+const operands = (pools: Iterable<string>[]) =>
+  pools.map((p) => [...new Set([...p].map(Number).filter((v) => Number.isFinite(v) && !(v >= 1900 && v <= 2099)))].slice(0, 40));
+
+/** The operand pools for a set of fact lines and the question: one pool per line, so only a line's own numbers pair. */
+const poolsOf = (lines: string[], asked: Iterable<string>) =>
+  operands([...lines.map((l) => numbers(l)), numbers([...asked].join(" "))]);
+
+/**
+ * Whether `n` is a ratio of two of one line's numbers rather than a number he made up: a per-match average ("their 110
+ * OPR over 8 matches is 13.8 a match") or a share of a total ("45.2 of 92.5 is 48.9%"). Those were being dropped for the
+ * card, which turned good arithmetic into "I can't answer that". The result must match a ratio at the precision it was
+ * written with (13.8 is 13.75 rounded, not merely near it), and whole numbers are never read this way, so a count can't
+ * be invented. Sums, differences and products are not read this way either: on a head-to-head, 46.9 + 54.7 is the other
+ * side's 101.6, which the team-aware check exists to refuse.
+ */
+const calculated = (n: string, pools: number[][]) => {
+  const v = Number(n);
+  if (!Number.isFinite(v) || Number.isInteger(v)) return false;
+  const written = /\.(\d+)/.exec(n)?.[1].length ?? 0;
+  const same = (x: number) => Number.isFinite(x) && x.toFixed(written) === v.toFixed(written);
+  for (const pool of pools) {
+    for (let i = 0; i < pool.length; i++) {
+      for (let j = 0; j < pool.length; j++) {
+        const a = pool[i], b = pool[j];
+        if (i === j || b === 0 || a === b) continue;
+        if (same(a / b) || same((a / b) * 100)) return true;
+      }
+    }
+  }
+  return false;
+};
+
 /** A sentence of an answer: split where one ends (". ", "; "), never inside a number ("101.6") or after an abbreviation
  *  ("4215 vs. 6980", "No. 1", "approx. 40"), which is the same sentence going on. */
 const sentences = (s: string) => s.split(/(?<=[.!?;])(?<!\b(?:vs|v|no|nos|approx|avg|ca|cf|e\.g|i\.e|etc|st|mt|jr|sr|dr|mr|mrs|ms)\.)\s+/i).filter(Boolean);
@@ -196,7 +247,8 @@ export function ungrounded(text: string, facts: string[], question: string, team
   const known = (n: string, pool: Iterable<string>) => { for (const k of pool) if (k === n || k === n.replace(/\.0+$/, "")) return true; return false; };
   if (!teams?.size) {
     const all = new Set([...asked, ...numbers(facts.join(" "))]);
-    return numbers(text).filter((n) => !known(n, all));
+    const pools = poolsOf(facts, asked);
+    return numbers(text).filter((n) => !known(n, all) && !calculated(n, pools));
   }
   const isTeam = (n: string) => /^\d+$/.test(n) && teams.has(Number(n));
   // A team named by its name alone ("Bad Wolf"), as well as by number: names of four letters or more, whole words.
@@ -236,11 +288,14 @@ export function ungrounded(text: string, facts: string[], question: string, team
   const bad: string[] = [];
   for (const s of sentences(text)) {
     const named = teamsIn(s);
+    // A decimal may be a ratio of one line's numbers, among the facts about the teams this sentence names (every fact
+    // when it names none).
+    const pools = poolsOf(lines.filter((l) => !named.size || !l.about.length || l.about.some((t) => named.has(t))).map((l) => [...l.nums].join(" ")), asked);
     for (const n of numbers(s)) {
       if (named.has(Number(n)) && isTeam(n)) continue;
       if (known(n, asked)) continue;
       const ok = lines.some((l) => { if (!known(n, l.nums)) return false; const of = whose(l, n); return !named.size || !of.length || of.some((t) => named.has(t)); });
-      if (!ok) bad.push(n);
+      if (!ok && !calculated(n, pools)) bad.push(n);
     }
   }
   return bad;
