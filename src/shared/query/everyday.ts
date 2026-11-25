@@ -55,7 +55,7 @@ fancy fantastic farm farmer fashion fast faster fastest father fault favor favor
 feather feature feed feel feeling feet fell fellow felt female fence festival fever field fierce fifteen fifty fight
 figure file fill film final finally finance find fine finger finish fire firm first fish fishing fist five flag flame
 flash flat flavor flavour flight float flood floor flour flower flowers flying focus fold folk follow food fool foolish
-foot football force forest forever forget forgive fork form formal former fortune forty forward found fountain four
+foot football force forecast forest forever forget forgive fork form formal former fortune forty forward found fountain four
 fourteen frame free freedom freeze fresh friday fridge fried friend friendly friends frighten frog front frozen fruit
 frying fuel full fully funny furniture further future gain gallery game games garage garbage garden garlic gate gather
 gave general gentle gently gentleman genuine ghost giant gift ginger girl girls give given giving glad glass glasses

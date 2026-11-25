@@ -3,7 +3,7 @@
 // is what the site's own pages say (src/shared/faq.ts, the About settings, /how-it-works/search).
 import type { SearchAnswer, SearchCardLine, SearchPageLink } from "../../../src/shared/api.js";
 import { pagesFor } from "../../../src/shared/search.js";
-import { chatKind, type ChatKind } from "../query/chat.js";
+import { asksToGet, chatKind, otherSubject, type ChatKind } from "../query/chat.js";
 
 const MANUAL = "https://ftc-resources.firstinspires.org/ftc/game/manual";
 const HOW = "/how-it-works/search";
@@ -48,6 +48,13 @@ const CARDS: Record<ChatKind, { title: string; lines: SearchCardLine[]; pages: S
   },
 };
 
+/** The off-topic card for a question about something else entirely ("the weather", "pizza"): what search covers, and
+ *  what to ask it instead; the parts lines are for "where do i get". */
+const ELSEWHERE: SearchCardLine[] = [
+  { text: "Search answers from FTC results: teams, events, matches, rankings and predictions", detail: "Anything outside FTC robotics isn't in those records", href: HOW },
+  { text: "Ask about a team, an event or a match", detail: "A team number, a team or event name, or a question about them", href: HOW },
+];
+
 /** The card for `q` when search found nothing in it and it isn't a search of FTC data; else null. A spelling's guess
  *  ("did you mean") is no answer to a question about an earlier answer: "… you said here" is never "… you card here".
  *  Any other kind keeps a correction (a team's name typed nearly right beside "you" is that team's). */
@@ -55,12 +62,17 @@ export function chatAnswer(q: string, found: SearchAnswer): SearchAnswer | null 
   const answered = !!(found.stat || found.card || (found.step !== "recovery" && found.hits.length));
   if (answered && found.step !== "did-you-mean") return null;
   const kind = chatKind(q);
-  if (!kind || (answered && kind !== "follow-up")) return null;
+  // A question about something else is no question about what a spelling's guess found from its other words ("… in
+  // come today" for a city): the guess is kept only when it changed the thing asked about itself.
+  const subject = kind === "off-topic" ? otherSubject(q) : [];
+  const kept = (w: string) => ` ${(found.didYouMean ?? "").toLowerCase()} `.includes(` ${w} `);
+  if (!kind || (answered && kind !== "follow-up" && !(subject.length && subject.every(kept)))) return null;
   const c = CARDS[kind];
+  const lines = kind === "off-topic" && !asksToGet(q) ? ELSEWHERE : c.lines;
   return {
     q: found.q, hits: [], step: "deterministic", weak: false, chat: kind,
     pages: [...c.pages, ...pagesFor(found.q).filter((p) => !c.pages.some((x) => x.href === p.href))],
-    card: { kind: "info", title: c.title, lines: c.lines },
+    card: { kind: "info", title: c.title, lines },
     understood: { kind: "question", label: c.title },
   };
 }
