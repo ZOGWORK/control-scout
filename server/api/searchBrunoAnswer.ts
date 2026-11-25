@@ -148,6 +148,19 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
       const bits = [s.wins != null && s.losses != null ? `record ${s.wins}-${s.losses}-${s.ties ?? 0}` : "", s.opr_np != null ? `OPR ${s.opr_np.toFixed(1)}` : "", s.rank_np != null && s.ranked_teams ? `OPR rank ${s.rank_np} of ${s.ranked_teams}` : ""].filter(Boolean);
       if (bits.length) facts.push(`Team ${team} in ${seasonLabel(s.season)}: ${bits.join(", ")}.`);
     }
+    // The team's own meets, newest first, each with its phase OPRs (team_event_stats): "what did they get in auto OPR at
+    // their last meet" is that meet's number, not the season's average, and the meet it names is the one asked about.
+    // Without these a records question the site could answer was refused with "I couldn't find … in the facts".
+    const meets = await all<{ season: number; code: string; name: string | null; start: string | null; opr_np: number | null; opr_auto: number | null; opr_teleop: number | null; opr_endgame: number | null }>(
+      `SELECT s.season, s.code, e.name, e.start, s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame
+         FROM team_event_stats s LEFT JOIN events e ON e.season = s.season AND e.code = s.code
+        WHERE s.team = ? AND COALESCE(s.matches, 0) > 0
+        ORDER BY COALESCE(e.start, '') DESC, s.season DESC LIMIT 3`, [team]);
+    for (const m of meets) {
+      const said = ([["Auto OPR", m.opr_auto], ["TeleOp OPR", m.opr_teleop], ["Endgame OPR", m.opr_endgame], ["OPR", m.opr_np]] as const)
+        .filter(([, v]) => v != null).map(([label, v]) => `${label} ${(v as number).toFixed(1)}`);
+      if (said.length) facts.push(`Team ${team} at ${m.name ?? m.code} (${seasonLabel(m.season)}${m.start ? `, ${m.start.slice(0, 10)}` : ""}): ${said.join(", ")}.`);
+    }
   }
   // Bounded: the first lines are the ones that answer.
   const out: string[] = [];
@@ -170,10 +183,44 @@ export function grounded(text: string, facts: string[], question: string): boole
   return ungrounded(text, facts, question).length === 0;
 }
 
-/** The numbers in `text` that neither the facts nor the question have (what makes an answer fail `grounded`). */
+/**
+ * Whether `n` is arithmetic on the facts' own numbers rather than a number he made up: the sum, difference, product,
+ * ratio or percentage of two the facts (or the question) have, to within a rounding of the result. A calculated answer
+ * ("their 110 OPR over 8 matches is 13.8 a match") is not an invented one, and dropping it for the card was turning
+ * good arithmetic into "I can't answer that". Seasons are never operands (2025 − 2019 is nobody's stat), and only a
+ * figure written with a decimal is read this way: a whole number is checked as written, so a coincidence between two
+ * facts can't ground a count he made up.
+ */
+function derived(n: number, known: number[]): boolean {
+  const close = (x: number) => Number.isFinite(x) && Math.abs(x - n) <= Math.max(0.05, Math.abs(n) * 0.005);
+  for (let i = 0; i < known.length; i++) {
+    const a = known[i];
+    if (close(a)) return true;
+    for (let j = i; j < known.length; j++) {
+      const b = known[j];
+      if (close(a + b) || close(Math.abs(a - b)) || close(a * b)) return true;
+      // A ratio of one number to itself is 1, which would make every "1" a calculated one: only two different numbers.
+      if (b !== 0 && a !== b && (close(a / b) || close((a / b) * 100))) return true;
+      if (a !== 0 && a !== b && (close(b / a) || close((b / a) * 100))) return true;
+    }
+  }
+  return false;
+}
+
+/** The numbers in `text` that neither the facts nor the question have (what makes an answer fail `grounded`). A number
+ *  the facts' own arithmetic gives is not one: see `derived`. */
 export function ungrounded(text: string, facts: string[], question: string): string[] {
-  const known = new Set(numbers([question, ...facts].join(" ")));
-  return numbers(text).filter((n) => !known.has(n) && !known.has(n.replace(/\.0+$/, "")));
+  const known = numbers([question, ...facts].join(" "));
+  const set = new Set(known);
+  // The values a calculation can start from, at most 250 distinct: a broad packet must not make the check crawl.
+  const values = [...new Set(known.map(Number).filter((v) => Number.isFinite(v) && !(v >= 1900 && v <= 2099)))].slice(0, 250);
+  return numbers(text).filter((n) => {
+    if (set.has(n) || set.has(n.replace(/\.0+$/, ""))) return false;
+    // Only a figure with a decimal: an exact whole number is a record claim, and two facts can always be summed,
+    // subtracted or divided into some small integer by chance.
+    const v = Number(n);
+    return !(Number.isFinite(v) && !Number.isInteger(v) && derived(v, values));
+  });
 }
 
 /** The page's search choices, and `after`: the search a follow-up points back at ("was that the same in all the

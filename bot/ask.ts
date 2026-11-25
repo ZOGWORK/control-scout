@@ -9,6 +9,11 @@
 //                                         with search's facts, and his reply is the post: plain text like a chat, with the
 //                                         records search found as the site's own card beside it (video and "ask next"
 //                                         buttons included) when the facts answer it, and a link to the website.
+//      his lookups                        a reply may end with `LOOKUP: <query>` (bot/productFacts.ts's lookupNote): the bot
+//                                         searches it and hands the facts back for a second (at most third) call, so he can
+//                                         look something up in the middle of an answer rather than only before it.
+//      one correction                    a reply naming a number the facts don't have is rewritten once, told which
+//                                         number, instead of being dropped for the card on the spot.
 //   3. refine(q) / brunoAnswer(q)         only when that chat gives nothing: search's own answer, with his rewrite of
 //                                         a weak query and (older callers) his one sentence, as the website posts it.
 // Every number in a post is search's own or passed the grounded check. The chat leads; a chat that's off,
@@ -25,7 +30,7 @@ import type { StatAnswer, StatBlock, StatLink, StatMatchRow } from "../src/share
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search.js";
 import { FOOTER, VOLT, teamLink } from "./views.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
-import { answerScope, answerStyle, brunoMethod, brunoPersona, productFacts, zogModeReply } from "./productFacts.js";
+import { answerScope, answerStyle, brunoMethod, brunoPersona, lookupNote, productFacts, zogModeReply } from "./productFacts.js";
 import { RECORD_NUMBER, WORKING, smallTalk } from "./smallTalk.js";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
 import { lookupFacts, splitAsk, type Lookup } from "./tools.js";
@@ -65,6 +70,10 @@ export interface AskDeps {
   /** The facts of a message's parts, when it asks several things (bot/tools.ts): each part searched on its own, its
    *  facts returned with the site's own answer to the first part it could answer (never throws, never past the cap). */
   lookups?: (q: string) => Promise<Lookup>;
+  /** One more search, for a query Bruno asked for himself (a reply ending `LOOKUP: …`): its facts, as he reads them.
+   *  Never throws, and nothing when search can't read the query — the round adds nothing and he answers from what he
+   *  has. */
+  factsFor?: (q: string) => Promise<string[]>;
   /** A records question search couldn't answer: the site's failed-search queue (server/searchFailures.ts), given the
    *  answer and the server it was asked in (never who asked). Synchronous, never awaited, never throws. */
   miss?: (q: string, a: SearchAnswer, guild: string | null) => void;
@@ -123,8 +132,9 @@ export function affirmative(q: string): boolean {
   return words.some((w) => YES.has(w)) && words.every((w) => YES.has(w) || YES_FILLER.has(w));
 }
 
-/** What Bruno offers at the end of a turn: "…at the Bedford Qualifier. Also want 4215's record?" is "4215's record". */
-const OFFER = /(?:also\s+)?(?:want|would you like|do you want|should i (?:get|pull|look up))\s+([^?.!\n]{2,80})\?/gi;
+/** What Bruno offers at the end of a turn: "…at the Bedford Qualifier. Also want 4215's record?" is "4215's record".
+ *  "Want me to pull …" is the same offer said another way. */
+const OFFER = /(?:also\s+)?(?:want(?:\s+me\s+to)?|would you like(?:\s+me\s+to)?|do you want(?:\s+me\s+to)?|should i (?:get|pull|look up))\s+([^?.!\n]{2,80})\?/gi;
 
 /** The question Bruno offered at the end of his last turn in the thread — the last one he asked — or null when he
  *  offered none. */
@@ -202,7 +212,7 @@ export async function realAskDeps(): Promise<AskDeps> {
       }
       // Product knowledge first, every line inside Control Point's per-fact cap: one longer line and it refuses the
       // whole packet (400 `facts[i]`), which used to fall back to the card with nothing in the log.
-      const context = chatContext(facts, memory);
+      const context = chatContext(facts, memory, message);
       let r: { text: string; search: boolean };
       try { r = await brunoDiscordChat(message, context, history, CHAT_TIMEOUT_MS); }
       catch (e) {
@@ -211,9 +221,11 @@ export async function realAskDeps(): Promise<AskDeps> {
         return null;
       }
       if (!r || typeof r.text !== "string" || !r.text.trim()) { console.info("[bot] chat empty: Bruno sent no reply"); return null; }
-      // Every number his must be the facts', the message's or the thread's — reported (never dropped here: ask knows
-      // whether a number could be a record at all), so a reply the check does refuse is traced to the number that failed.
-      const unknown = ungrounded(r.text, [...context, ...history.map((t) => t.text)], message);
+      // Every number his must be the facts', the server's memory's, the message's or the thread's — reported (never
+      // dropped here: ask knows whether a number could be a record at all), so a reply the check does refuse is traced
+      // to the number that failed. The persona and style lines are not facts: their "3-6 steps" must not ground an FTC
+      // number by arithmetic.
+      const unknown = ungrounded(r.text, [...facts, ...memory, ...history.map((t) => t.text)], message);
       return { text: r.text.trim(), search: r.search === true, unknown };
     },
     // The bot's lookups (bot/tools.ts): a message asking several things has each part searched on its own, and every
@@ -226,6 +238,8 @@ export async function realAskDeps(): Promise<AskDeps> {
         facts: (a) => answerFacts(a),
       });
     },
+    // What he asks for mid-answer: the same unlearned search, its facts only (his reply is the answer, so no card).
+    factsFor: (q) => searchAnswer(q, { learn: false, limit: SEARCH_PAGE_LIMIT }).then((a) => answerFacts(a)).catch(() => []),
     // The site's own failed-search queue (server/searchFailures.ts): the words people actually use, which the website's
     // search box never sees. In-memory and synchronous; the bot flushes it once a minute (bot/index.ts). A failure here
     // never touches the answer: reporting is never on the path.
@@ -236,10 +250,11 @@ export async function realAskDeps(): Promise<AskDeps> {
 }
 
 /** What a chat is sent: who he is and how to work a question out (`brunoPersona`, `brunoMethod`), the product and
- *  answer guidance, what the server has taught the bot, then search's facts — every line inside Control Point's
- *  per-fact cap, and as many facts as its line and character caps leave room for. */
-export const chatContext = (facts: string[], memory: string[] = []): string[] => {
-  const head = [...productFacts(), brunoPersona(), brunoMethod(), answerStyle(), answerScope(), ...memory].map(clip);
+ *  answer guidance, how to ask for a lookup, what the server has taught the bot, then search's facts — every line inside
+ *  Control Point's per-fact cap, and as many facts as its line and character caps leave room for. `question`: the message
+ *  the chat is for, so the long design facts go only when it asks about the product (bot/productFacts.ts). */
+export const chatContext = (facts: string[], memory: string[] = [], question = ""): string[] => {
+  const head = [...productFacts(question), brunoPersona(), brunoMethod(), answerStyle(), answerScope(), lookupNote(), ...memory].map(clip);
   return [...head, ...fit(facts, CHAT_FACTS - head.length, CHAT_FACTS_CHARS - chars(head))];
 };
 
@@ -274,7 +289,7 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
   // sentence; the deterministic answer then posts, bounded by the chat's own timeout.
   const chatting = !!(deps.chat && deps.facts);
   if (chatting) {
-    const talked = await chatWith(q, answer, history, deps, memory).catch(() => null);
+    const talked = await chatWith(q, answer, history, deps, memory, records).catch(() => null);
     const reply = talked?.reply ?? null;
     // His numbers are checked against the facts, the message and the thread — where a number could be a record: an
     // answer with records behind it, or a message (or thread) that names one. A message that asked nothing of the
@@ -295,6 +310,9 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
       const keep = reply.search && showsRecords(shown);
       const video = reply.search && deps.video ? await deps.video(shown).catch(() => undefined) : undefined;
       const watch = videoLinks(video);
+      // A reply that says it couldn't find the records is a failed search too, even though it was said politely: the
+      // site's queue learns the phrasing, and the answer still posts (an empty answer is filed further down).
+      if (recordsMiss(q) && CANT.test(reply.text)) deps.miss?.(q, answer, guild);
       return {
         embed: askEmbed(q, shown, null, site, video, pageQ),
         meta: { step: answer.step, refined: false, sentence: false, chat: true },
@@ -356,9 +374,69 @@ const RECORD_WORDS = /\b(?:teams?|alliances?|partners?|events?|matches?|quals?|q
  *  record number in it, or a records word — and not a build question, whose "team" or "match" is about the robot. */
 const recordsMiss = (q: string) => !WORKING.test(q) && (RECORD_NUMBER.test(q) || RECORD_WORDS.test(q));
 
+/** The words a reply uses when the facts didn't hold what was asked: "I couldn't find … in the facts", "no data for …".
+ *  A records message answered this way is a miss the queue should learn, even though he said it kindly. */
+const CANT = /\b(?:(?:couldn't|could not|can't|cannot) find|not (?:in|among) the facts|don'?t have (?:that|any|the)|no (?:data|record|facts?) (?:for|on)|isn'?t in (?:the )?facts|didn'?t find)\b/i;
+
+/** The searches Bruno asks for in his reply (`LOOKUP: …`), taken from it: the lookup is the bot's to run, never part of
+ *  what posts. */
+const LOOKUP = /^[ \t]*lookup\s*:\s*(.+)$/gim;
+/** How many times one answer may ask for a lookup. */
+export const LOOKUP_ROUNDS = 2;
+
+/** A reply split into what he said and the searches he asked for: at most LOOKUP_ROUNDS queries, and the text with the
+ *  `LOOKUP:` lines taken out. */
+export function lookupAsked(text: string): { text: string; queries: string[] } {
+  const queries = [...text.matchAll(LOOKUP)].map((m) => m[1].trim().slice(0, 120)).filter(Boolean).slice(0, LOOKUP_ROUNDS);
+  const said = text.replace(LOOKUP, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return { text: said, queries };
+}
+
+/**
+ * Bruno's reply to `q` from `facts`, with the two things one call can't do: the lookups he asks for are run and the facts
+ * handed back (at most LOOKUP_ROUNDS rounds), and a number the facts don't have gets one correction round naming it
+ * before ask's own check refuses the reply. Never throws: a round that fails keeps what he said.
+ */
+async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: AskDeps, memory: string[], records: boolean): Promise<ChatReply | null> {
+  let packet = facts;
+  let reply = await deps.chat!(q, packet, history, memory).catch(() => null);
+  for (let round = 0; reply && round < LOOKUP_ROUNDS; round++) {
+    const asked = lookupAsked(reply.text);
+    if (!asked.queries.length) break;
+    // Keep his words, never the request: a `LOOKUP:` line is the bot's to run, not something to post.
+    reply = asked.text ? { ...reply, text: asked.text } : null;
+    if (!reply || !deps.factsFor) break;
+    const found = (await Promise.all(asked.queries.map((r) => deps.factsFor!(r).catch(() => [] as string[]))))
+      .flat().filter((f) => f && !packet.includes(f));
+    if (!found.length) break;
+    console.info(`[bot] chat lookup: ${asked.queries.join(" | ").slice(0, 160)} (${found.length} facts)`);
+    const note = `Looked up ${asked.queries.join(" · ").slice(0, 200)}: the facts below include what that search found.`;
+    packet = fit([note, ...packet, ...found], CHAT_FACTS, CHAT_FACTS_CHARS);
+    const next = await deps.chat!(q, packet, history, memory).catch(() => null);
+    if (!next) break;
+    reply = next;
+  }
+  // A `LOOKUP:` line he didn't get to run (the rounds are used up, or no search is wired) still never posts.
+  if (reply) {
+    const said = lookupAsked(reply.text);
+    if (said.queries.length) reply = said.text ? { ...reply, text: said.text } : null;
+  }
+  // A number he made up: told which one, he gets one chance to say it from the facts instead of the card posting.
+  if (reply && records && reply.unknown?.length) {
+    const fix = `Correction: your last reply used numbers the facts don't have (${reply.unknown.slice(0, 6).join(", ")}). Rewrite it using only the facts; where they don't hold a number, say what's missing instead of guessing.`;
+    const next = await deps.chat!(q, fit([fix, ...packet], CHAT_FACTS, CHAT_FACTS_CHARS), history, memory).catch(() => null);
+    if (next && !next.unknown?.length) {
+      console.info("[bot] chat repaired: rewritten without the numbers it invented");
+      reply = next;
+    }
+  }
+  return reply;
+}
+
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
- *  second place?" has the records it's about), then his reply. */
-async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[], deps: AskDeps, memory: string[] = []): Promise<{ reply: ChatReply | null; card?: SearchAnswer } | null> {
+ *  second place?" has the records it's about), then his reply — with the lookups he asks for and one correction round
+ *  where the message is about the records (talk). */
+async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[], deps: AskDeps, memory: string[] = [], records = false): Promise<{ reply: ChatReply | null; card?: SearchAnswer } | null> {
   // The message's own facts, then its parts' (bot/tools.ts): a question with several parts has each one's records.
   const own = await deps.facts!(answer);
   const looked = deps.lookups ? await deps.lookups(q).catch(() => ({ facts: [] } as Lookup)) : { facts: [] };
@@ -366,16 +444,20 @@ async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[
   // The part's own answer, when one answered: it is the card the post shows beside his words.
   const card = looked.answer;
   const before = [...history].reverse().find((t) => t.role === "user")?.text;
-  if (!before || before.trim().toUpperCase() === q.trim().toUpperCase()) return { reply: await deps.chat!(q, fit(facts, CHAT_FACTS, CHAT_FACTS_CHARS), history, memory), card };
-  const earlier = (await deps.search(before).then((a) => deps.facts!(a)).catch(() => [] as string[])).filter((f) => !facts.includes(f));
-  // Both questions' records get a share: the new one's first half, then the earlier one's, then whatever room is left
-  // for the rest of either (a broad new answer must not crowd out the records the follow-up is about).
-  const half = Math.floor(CHAT_FACTS / 2), halfChars = Math.floor(CHAT_FACTS_CHARS / 2);
-  const now = fit(facts, half, halfChars);
-  const then = fit(earlier, CHAT_FACTS - now.length, CHAT_FACTS_CHARS - chars(now));
-  const kept = [...now, ...then];
-  const rest = fit([...facts.slice(now.length), ...earlier.slice(then.length)], CHAT_FACTS - kept.length, CHAT_FACTS_CHARS - chars(kept));
-  return { reply: await deps.chat!(q, [...now, ...rest.filter((f) => facts.includes(f)), ...then, ...rest.filter((f) => !facts.includes(f))], history, memory), card };
+  let packet: string[];
+  if (!before || before.trim().toUpperCase() === q.trim().toUpperCase()) packet = fit(facts, CHAT_FACTS, CHAT_FACTS_CHARS);
+  else {
+    const earlier = (await deps.search(before).then((a) => deps.facts!(a)).catch(() => [] as string[])).filter((f) => !facts.includes(f));
+    // Both questions' records get a share: the new one's first half, then the earlier one's, then whatever room is left
+    // for the rest of either (a broad new answer must not crowd out the records the follow-up is about).
+    const half = Math.floor(CHAT_FACTS / 2), halfChars = Math.floor(CHAT_FACTS_CHARS / 2);
+    const now = fit(facts, half, halfChars);
+    const then = fit(earlier, CHAT_FACTS - now.length, CHAT_FACTS_CHARS - chars(now));
+    const kept = [...now, ...then];
+    const rest = fit([...facts.slice(now.length), ...earlier.slice(then.length)], CHAT_FACTS - kept.length, CHAT_FACTS_CHARS - chars(kept));
+    packet = [...now, ...rest.filter((f) => facts.includes(f)), ...then, ...rest.filter((f) => !facts.includes(f))];
+  }
+  return { reply: await talk(q, packet, history, deps, memory, records), card };
 }
 
 /** Characters `lines` take as sent (one line each). */

@@ -407,6 +407,56 @@ describe("ungrounded numbers", () => {
     const { ungrounded } = await import("../server/api/searchBrunoAnswer");
     expect(ungrounded("OPR 16, ranked #1,378 of 2,227 in 2026–27", ["16 OPR (#1,378 of 2,227 worldwide · 2026–27)"], "4215 opr")).toEqual([]);
     expect(ungrounded("OPR 16.4, bottom 38%", ["16 OPR · top 62%"], "4215 opr")).toEqual(["16.4", "38"]);
+    // A per-match average and a gap are calculations on the facts' numbers, and used to drop the whole reply.
+    expect(ungrounded("110 OPR over 8 matches is 13.8 a match", ["OPR 110, 8 matches"], "q")).toEqual([]);
+    expect(ungrounded("their 45.0 auto is 7.3 under the 52.3 average", ["Auto OPR 45.0", "field average 52.3"], "q")).toEqual([]);
+    // A ratio of a number to itself is not a new fact: "1" isn't grounded by any number being present.
+    expect(ungrounded("they won 1 match", ["OPR 45.0"], "q")).toEqual(["1"]);
+    // A number that is none of theirs and none of their arithmetic still fails.
+    expect(ungrounded("OPR 77.7", ["OPR 45.0"], "q")).toEqual(["77.7"]);
+  });
+});
+
+describe("a chat that looks something up, and one that got a number wrong", () => {
+  it("runs the LOOKUP it asks for, sends the facts back, and never posts the request", async () => {
+    const found = "Team 26000 at BIOBUZZ (2025–26): Auto OPR 45.2.";
+    const factsFor = vi.fn(async () => [found]);
+    const chat = vi.fn()
+      .mockResolvedValueOnce({ text: "I couldn't find that meet in the facts.\nLOOKUP: 26000 opr at biobuzz", search: false })
+      .mockResolvedValueOnce({ text: "Theseus scored **45.2** auto OPR at BIOBUZZ.", search: true });
+    const r = await ask("what did theseus get in auto opr at biobuzz", deps(base(), { chat, facts: vi.fn(async () => ["Team 26000 Theseus."]), factsFor }), SITE);
+    expect(factsFor).toHaveBeenCalledWith("26000 opr at biobuzz");
+    expect(chat).toHaveBeenCalledTimes(2);
+    // The second call has the searched facts and says where they came from.
+    const sent = (chat.mock.calls[1] as unknown[])[1] as string[];
+    expect(sent.join("\n")).toContain(found);
+    expect(sent[0]).toContain("Looked up 26000 opr at biobuzz");
+    // The request is the bot's, not the reader's.
+    expect(r.chat!.text).toBe("Theseus scored **45.2** auto OPR at BIOBUZZ.");
+    expect(r.chat!.text).not.toContain("LOOKUP");
+  });
+
+  it("a lookup that finds nothing still posts his words, without the request", async () => {
+    const chat = vi.fn(async () => ({ text: "I couldn't find that one.\nLOOKUP: nobody at nowhere", search: false }));
+    const r = await ask("99999 opr at nowhere", deps(base(), { chat, facts: vi.fn(async () => []), factsFor: vi.fn(async () => []) }), SITE);
+    expect(r.chat!.text).toBe("I couldn't find that one.");
+  });
+
+  it("a number the facts don't have gets one correction round instead of the card", async () => {
+    const chat = vi.fn()
+      .mockResolvedValueOnce({ text: "4215 won 7 awards.", search: true, unknown: ["7"] })
+      .mockResolvedValueOnce({ text: "4215 won 3 awards.", search: true, unknown: [] });
+    const r = await ask("4215 awards", deps(base(), { facts: vi.fn(async () => ["4215 Hypnotic Robotics: 3 awards in 2025–26."]), chat }), SITE);
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect((chat.mock.calls[1] as unknown[])[1]).toEqual(expect.arrayContaining([expect.stringContaining("used numbers the facts don't have (7)")]));
+    expect(r.chat!.text).toBe("4215 won 3 awards.");
+  });
+
+  it("a reply that says it couldn't find the records files the miss, even though it answered", async () => {
+    const miss = vi.fn();
+    const chat = vi.fn(async () => ({ text: "I couldn't find auto OPR for that meet in the facts.", search: false }));
+    await ask("26000 auto opr at biobuzz", deps(base(), { chat, facts: vi.fn(async () => ["Team 26000 Theseus."]), miss }), SITE, [], [], "g1");
+    expect(miss).toHaveBeenCalledWith("26000 auto opr at biobuzz", expect.anything(), "g1");
   });
 });
 

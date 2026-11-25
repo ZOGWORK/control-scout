@@ -1,7 +1,14 @@
+/** Whether a message asks about the product itself — its look, a feature, Zog Mode — rather than about the records.
+ *  Only then are the detailed design facts worth the packet lines they take from a records answer. */
+export const asksProduct = (q: string) =>
+  /\b(?:control\s*scout|the\s+(?:app|site|website|redesign)|v8|redesign|remodel|zog|dog\s+mode|theme|interface|sidebar|dashboard|feature|ui)\b/i.test(q);
+
 /** Current product knowledge for Discord mentions and reply threads. Keep implementation
- * facts here rather than relying on the model's older product description. */
-export function productFacts(): string[] {
-  return [
+ * facts here rather than relying on the model's older product description. `question`: the message the chat is for —
+ *  the full design description goes only when it asks about the product, and a records question keeps the two facts
+ *  every chat needs (the remodel is done, Zog Mode exists) so its own records get the room instead. */
+export function productFacts(question = ""): string[] {
+  const all = [
     "Current Control Scout product facts: the remodel is complete. The previous yellow/gold interface has been replaced by the new v8 design; do not describe the remodel as upcoming or still being built.",
     "The new look uses near-black surfaces, white primary text, muted grey labels, subtle borders, a restrained slate-blue accent, and a dusky slate-to-mauve gradient wash. The old yellow accent, loud fills and decorative grid are retired from the standard design.",
     "The redesign applies a consistent sidebar, header, cards, controls and compact typography across the app. Inter is the main font, Space Grotesk is used for large figures and JetBrains Mono for codes; tabular numerals keep columns aligned. Desktop has a collapsible sidebar; phones keep mobile navigation. Home focuses on search, live events, top teams and your teams, with no promotional hero line.",
@@ -10,7 +17,18 @@ export function productFacts(): string[] {
     "Zog Mode is an existing, available Control Scout feature: the masked-dog theme. 'The dog', 'where is the dog?' and 'zog' here mean that photograph, not dog-named teams. Call it Zog Mode. It adds a warm yellow tint and a repeating dog photograph behind the page; cards and text keep their normal styling. Only the owner can turn it on or off in the owner console. Don't call it disabled or removed.",
     "Keep Zog Mode explanations short, playful and about its public appearance. Do not discuss management details, configuration or deployment. Never claim to have changed any settings or performed an action.",
   ];
+  // The remodel's completion and Zog Mode's existence are the two facts a chat can't get wrong, whatever it asks;
+  // the rest describe the v8 look, and only a product question has room for them.
+  return asksProduct(question) ? all : all.filter((_, i) => i === 0 || i === 5);
 }
+
+/** How he asks for a lookup in the middle of an answer: a `LOOKUP:` line the bot runs and sends the facts back for
+ *  (bot/ask.ts's talk). Without it he could only read what was searched before he started writing, and a question the
+ *  first search missed was refused with "I couldn't find that in the facts". Inside Control Point's 400-character cap. */
+export const lookupNote = () =>
+  "If the facts don't hold part of the question, end your reply with one line exactly `LOOKUP: <a short search>` " +
+  "(for example `LOOKUP: 26000 opr at biobuzz`) and nothing after it. I'll run it and send the facts back so you can " +
+  "answer properly. At most two, and never for a product or maths question.";
 
 /** What he may answer at all, sent with every Discord chat: a channel asks maths, design and rules questions as often
  *  as records ones, and refusing those ("Sorry — I can't answer that yet") reads as the bot being broken. FTC numbers
