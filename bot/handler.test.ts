@@ -725,7 +725,7 @@ describe("a 👎 on one of its answers", () => {
 
   it("files the question the answer was written for, with the answer's words, and says where the issue is", async () => {
     const report = vi.fn(async (_r: Report) => filed);
-    const answerRow = vi.fn(async () => ({ question: "how many times did exodus go to words" }));
+    const answerRow = vi.fn(async () => ({ question: "how many times did exodus go to words", report: null }));
     const { m, said } = answer();
     await createHandler(() => {}, lookups({ report, answerRow })).downvoted(m as any, { id: "u1", globalName: "Sushil", displayName: "Sushil" });
     expect(report).toHaveBeenCalledTimes(1);
@@ -745,13 +745,13 @@ describe("a 👎 on one of its answers", () => {
   it("still files an answer from before answers kept their question, and says the question wasn't recorded", async () => {
     const report = vi.fn(async (_r: Report) => filed);
     const { m } = answer();
-    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: null }) })).downvoted(m as any, { id: "u1" });
+    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: null, report: null }) })).downvoted(m as any, { id: "u1" });
     expect(report.mock.calls[0][0].message).toMatch(/wasn't recorded/);
   });
 
   it("files nothing for a message it never posted, a bot's own 👎, or with reporting off", async () => {
     const report = vi.fn(async (_r: Report) => filed);
-    const answerRow = vi.fn(async () => ({ question: "who won decode" }));
+    const answerRow = vi.fn(async () => ({ question: "who won decode", report: null }));
     const { m, said } = answer();
     await createHandler(() => {}, lookups({ report, answerRow })).downvoted(m as any, { id: "b1", bot: true });
     expect(answerRow).not.toHaveBeenCalled();
@@ -766,7 +766,7 @@ describe("a 👎 on one of its answers", () => {
 
   it("files one issue per answer, however many people 👎 it", async () => {
     const report = vi.fn(async (_r: Report) => filed);
-    const h = createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode" }) }));
+    const h = createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }) }));
     const { m } = answer();
     // Two at once share the filing in flight; a third a moment later is answered with the same issue.
     await Promise.all([h.downvoted(m as any, { id: "u1" }), h.downvoted(m as any, { id: "u2" })]);
@@ -777,9 +777,38 @@ describe("a 👎 on one of its answers", () => {
   it("says plainly when GitHub didn't take it", async () => {
     const report = vi.fn(async (_r: Report) => ({ ok: false as const, reason: "GitHub answered 403" }));
     const { m, said } = answer();
-    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode" }) })).downvoted(m as any, { id: "u1" });
+    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }) })).downvoted(m as any, { id: "u1" });
     expect(report).toHaveBeenCalledTimes(1);
     expect(said[0].embeds[0].title).toBe("Couldn't file that report");
+  });
+
+  it("fetches an answer Discord sent only part of, so the issue has its words", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const whole = answer().m;
+    const partial = { id: "m9", partial: true, content: null, fetch: vi.fn(async () => whole) };
+    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }) })).downvoted(partial as any, { id: "u1" });
+    expect(partial.fetch).toHaveBeenCalledTimes(1);
+    // The fetched answer is what the issue shows, and where its reply goes.
+    expect(report.mock.calls[0][0].thread).toEqual([{ role: "bruno", text: "Exodus (30030) qualified for Words once, averaging 52.0 auto points." }]);
+    expect(whole.reply).toHaveBeenCalled();
+  });
+
+  it("keeps the issue on the answer's row, so a later 👎 finds it", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const rememberReport = vi.fn(async () => {});
+    const { m } = answer();
+    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }), rememberReport })).downvoted(m as any, { id: "u1" });
+    expect(rememberReport).toHaveBeenCalledWith("m9", filed);
+  });
+
+  it("points a later 👎 at the issue the row already has, instead of filing another", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const issue = { number: 2150, url: "https://github.com/ZOGWORK/control-scout/issues/2150" };
+    const { m, said } = answer();
+    await createHandler(() => {}, lookups({ report, answerRow: async () => ({ question: "who won decode", report: issue }) })).downvoted(m as any, { id: "u2" });
+    expect(report).not.toHaveBeenCalled();
+    expect(said[0].kind).toBe("reply");
+    expect(said[0].embeds[0].description).toContain("#2150");
   });
 });
 

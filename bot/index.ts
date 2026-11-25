@@ -18,7 +18,7 @@ import { notifyTick, type Send } from "./follows.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
 import { rememberGuild } from "./guilds.js";
-import { REPORT, reporterName } from "./reactions.js";
+import { REPORT, reporterName, wholeAnswer } from "./reactions.js";
 import { sweepOldThumbs } from "./cleanup.js";
 import { flushSearchFailures } from "../server/searchFailures.js";
 import { site } from "./lookups.js";
@@ -191,10 +191,15 @@ client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m 
  *  once at startup (bot/cleanup.ts). */
 client.on(Events.MessageReactionAdd, (r, u) => {
   if (u.bot || r.emoji.name !== REPORT) return;
-  void handle.downvoted(r.message as never, {
-    id: u.id, bot: u.bot, globalName: u.globalName, username: u.username,
-    displayName: reporterName(r.message, u.id),
-  }).catch(() => {});
+  void (async () => {
+    // Only an id arrives for a message Discord has no copy of (an answer from before the last restart): fetched, so the
+    // issue has the answer's words and the report has the reporter's nickname (bot/reactions.ts).
+    const answer = await wholeAnswer(r.message);
+    await handle.downvoted(answer as never, {
+      id: u.id, bot: u.bot, globalName: u.globalName, username: u.username,
+      displayName: reporterName(answer, u.id),
+    });
+  })().catch(() => {});
 });
 // The site's failed-search queue counts Discord's own misses too (bot/ask.ts): the buffer is in this process, so the bot
 // flushes it as the site does, every minute.

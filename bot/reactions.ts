@@ -26,18 +26,43 @@ export async function trackAnswer(messageId: string, guild: string | null, quest
   );
 }
 
-/** One of the bot's answers, as a 👎 finds it: the question it was written for, or null when the row predates answers
- *  keeping it (migration 105). */
+/** One of the bot's answers, as a 👎 finds it: the question it was written for (null when the row predates answers
+ *  keeping it, migration 105), and the issue a 👎 on it already opened, if one did (migration 109). */
 export interface AnswerRow {
   question: string | null;
+  report: { number: number; url: string } | null;
 }
 
 /** The row for a message, or null when the bot never posted it: that null is what keeps a 👎 on somebody else's message
  *  from filing anything. */
 export async function answerRow(messageId: string): Promise<AnswerRow | null> {
   if (!messageId) return null;
-  const r = await get<{ question: string | null }>("SELECT question FROM discord_answers WHERE message_id = ?", [messageId]);
-  return r ? { question: r.question ?? null } : null;
+  const r = await get<{ question: string | null; report_number: number | null; report_url: string | null }>(
+    "SELECT question, report_number, report_url FROM discord_answers WHERE message_id = ?", [messageId]);
+  if (!r) return null;
+  const number = r.report_number == null ? null : Number(r.report_number);
+  return { question: r.question ?? null, report: number != null && r.report_url ? { number, url: r.report_url } : null };
+}
+
+/** Keep the issue a 👎 on this answer opened: a second 👎 an hour later, or after a restart, finds it on the row and
+ *  answers with the same issue instead of filing a duplicate. */
+export async function markReported(messageId: string, issue: { number: number; url: string }): Promise<void> {
+  if (!messageId) return;
+  await run("UPDATE discord_answers SET report_number = ?, report_url = ? WHERE message_id = ?", [issue.number, issue.url, messageId]);
+}
+
+/** An answer as a reaction carries it, whole enough to report. With `Partials.Message` Discord sends only an id for a
+ *  message it has no copy of (an answer from before the bot's last restart), so it is fetched — without that the issue
+ *  has none of the answer's words and the report has no nickname. A fetch that fails leaves what arrived: a thinner
+ *  report beats none. */
+export interface ReactedAnswer {
+  partial?: boolean;
+  fetch?: () => Promise<ReactedAnswer>;
+}
+export async function wholeAnswer<T extends ReactedAnswer>(message: T): Promise<T> {
+  if (!message.partial || !message.fetch) return message;
+  // `fetch` gives back the same kind of message it was called on, which is what Discord sends.
+  return (await message.fetch().catch(() => message)) as T;
 }
 
 /** The name Discord shows the reporter by in that server — the nickname, not the handle — for the issue's "reported by". A

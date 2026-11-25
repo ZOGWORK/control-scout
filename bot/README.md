@@ -73,9 +73,11 @@ out is reporting that answer, so it is filed as a GitHub issue through the same 
 uses (`bot/report.ts`) — the question the answer was written for, the answer's own words, the channel, who added the
 👎 and the bot's last log lines — and the bot replies under the answer with the issue's number (`bot/handler.ts`
 `downvoted`). Only a message the bot posted has a row (`discord_answers`, migration 104), so a 👎 anywhere else files
-nothing, and there is one issue per answer: a second 👎 on it within ten minutes points at the same issue, and a
-person or a server is capped at a few an hour like any report. An answer from before the bot kept its question
-(migration 105) still files, and the issue says the question wasn't recorded.
+nothing, and there is one issue per answer: its number is kept on that row (migration 109), so a second 👎 days later,
+or after a restart, points at the same issue instead of filing a duplicate — and a person or a server is capped at a
+few an hour like any report. An answer from before the bot kept its question (migration 105) still files, and the issue
+says the question wasn't recorded. Discord sends only a message's id for an answer it has no copy of (one from before
+the last restart), so the bot fetches it first: the issue still shows the answer's words and the reporter's nickname.
 
 **The old emoji are taken off** (`bot/cleanup.ts`). Both reactions the bot used to add are still on the answers it
 posted between 7.9.2 and now, where they are buttons that do nothing: on the first connection after this ships the bot

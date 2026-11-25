@@ -1,9 +1,9 @@
 // The row behind each answer (bot/reactions.ts): the question it was written for, which is what a 👎 reports, nothing at
 // all for a message the bot never posted, and the totals the owner console reads — counted while the thumbs existed, and
 // never written again.
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrate, openDb, run, setDb } from "../server/db";
-import { REPORT, answerRow, reactionUsage, reporterName, trackAnswer } from "./reactions";
+import { REPORT, answerRow, markReported, reactionUsage, reporterName, trackAnswer, wholeAnswer } from "./reactions";
 
 describe("the row behind an answer", () => {
   beforeAll(async () => {
@@ -17,15 +17,15 @@ describe("the row behind an answer", () => {
 
   it("keeps the question an answer was given for, so a 👎 can report it", async () => {
     await trackAnswer("m1", "g1", "who won decode");
-    expect(await answerRow("m1")).toEqual({ question: "who won decode" });
+    expect(await answerRow("m1")).toEqual({ question: "who won decode", report: null });
     // Redacted like every ask (bot/asks.ts), and one line.
     await trackAnswer("m2", "g1", "who   won\n decode");
-    expect(await answerRow("m2")).toEqual({ question: "who won decode" });
+    expect(await answerRow("m2")).toEqual({ question: "who won decode", report: null });
   });
 
   it("has no question for an answer from before questions were kept, and no row at all for a message it never posted", async () => {
     await trackAnswer("m1", "g1");
-    expect(await answerRow("m1")).toEqual({ question: null });
+    expect(await answerRow("m1")).toEqual({ question: null, report: null });
     // Null is what keeps a 👎 elsewhere from filing anything.
     expect(await answerRow("someone-elses")).toBeNull();
     expect(await answerRow("")).toBeNull();
@@ -34,7 +34,17 @@ describe("the row behind an answer", () => {
   it("tracking the same message twice keeps the row it had", async () => {
     await trackAnswer("m3", "g1", "first");
     await trackAnswer("m3", "g1", "second");
-    expect(await answerRow("m3")).toEqual({ question: "first" });
+    expect(await answerRow("m3")).toEqual({ question: "first", report: null });
+  });
+
+  it("keeps the issue a 👎 opened on the row, so a later 👎 finds it after a restart", async () => {
+    await trackAnswer("m6", "g1", "who won decode");
+    const issue = { number: 2150, url: "https://github.com/ZOGWORK/control-scout/issues/2150" };
+    await markReported("m6", issue);
+    expect(await answerRow("m6")).toEqual({ question: "who won decode", report: issue });
+    // A message it never posted: nothing to write, and nothing to read back.
+    await markReported("someone-elses", issue);
+    expect(await answerRow("someone-elses")).toBeNull();
   });
 
   it("keeps the totals the thumbs collected, and nothing adds to them any more", async () => {
@@ -47,6 +57,30 @@ describe("the row behind an answer", () => {
 
   it("names the one reaction a person adds deliberately", () => {
     expect(REPORT).toBe("👎");
+  });
+});
+
+describe("an answer Discord sent only part of", () => {
+  /** A message as the gateway hands it over: `partial` when only its id arrived, with `fetch` for the rest. */
+  interface Sent { id: string; partial: boolean; content: string | null; fetch: () => Promise<Sent> }
+  const sent = (over: Partial<Sent> = {}): Sent => {
+    const m: Sent = { id: "m9", partial: false, content: "Exodus qualified once.", fetch: async () => m, ...over };
+    return m;
+  };
+
+  it("is fetched before it is reported, so the issue has its words", async () => {
+    const full = sent();
+    const partial = sent({ partial: true, content: null, fetch: async () => full });
+    expect(await wholeAnswer(partial)).toBe(full);
+  });
+
+  it("is left as it came when it isn't partial, or the fetch fails", async () => {
+    const whole = sent();
+    const fetch = vi.fn(async () => whole);
+    expect(await wholeAnswer({ ...whole, fetch })).toMatchObject({ id: "m9", partial: false });
+    expect(fetch).not.toHaveBeenCalled();
+    const partial = sent({ partial: true, content: null, fetch: async () => { throw new Error("10008"); } });
+    expect(await wholeAnswer(partial)).toBe(partial);
   });
 });
 

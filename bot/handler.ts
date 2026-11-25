@@ -7,7 +7,7 @@ import { AnswerCache } from "./guard.js";
 import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
 import { addFollow, followName, followingEmbed, listFollows, removeFollow, type FollowTarget } from "./follows.js";
 import { answerComponents, buttonQuestion, QuestionButtons } from "./buttons.js";
-import { answerRow as answerRowOf, trackAnswer, type AnswerRow } from "./reactions.js";
+import { answerRow as answerRowOf, markReported, trackAnswer, type AnswerRow } from "./reactions.js";
 import { noteAsk, type AskRecord } from "./asks.js";
 import { SORRY_SENTENCE } from "../src/shared/search.js";
 import { BOT_COMMANDS } from "../src/shared/discord.js";
@@ -50,6 +50,9 @@ export interface Lookups {
   /** The row for a message the bot posted, or null (bot/reactions.ts): a 👎 only reports a message that has one, so a
    *  reaction on somebody else's message files nothing. */
   answerRow?: (messageId: string) => Promise<AnswerRow | null>;
+  /** Keeps the issue a 👎 on an answer opened, on the answer's row (bot/reactions.ts): a second 👎 later, or after a
+   *  restart, answers with that issue instead of filing a duplicate. */
+  rememberReport?: (messageId: string, issue: { number: number; url: string }) => Promise<void>;
   /** What a server teaches the bot (bot/memory.ts); absent: nothing is remembered. */
   memory?: Memory;
   /** Files a "Report this to ControlScout" as a GitHub issue (bot/report.ts); absent: reporting is off. */
@@ -96,6 +99,7 @@ export const realLookups: Lookups = {
   noteAsk: (r) => noteAsk(r),
   trackAnswer: (id, guild, question) => trackAnswer(id, guild, question),
   answerRow: (id) => answerRowOf(id),
+  rememberReport: (id, issue) => markReported(id, issue),
   enabled: (flag) => isEnabled(flag),
   quota: takeChat,
   memory: { recall: recallMemory, learn: learnMemory, thread: readThread, keep: keepThread, channel: readChannelSubject, keepChannel: keepChannelSubject },
@@ -202,6 +206,9 @@ export interface AnswerMessage {
   id: string;
   guildId?: string | null;
   channelId?: string | null;
+  /** Discord sent only this message's id (an answer from before the last restart), so the report has to fetch it first. */
+  partial?: boolean;
+  fetch?: () => Promise<AnswerMessage>;
   /** The answer's text, which the report shows as its own turn. */
   content?: string | null;
   reply?: (opts: { embeds: APIEmbed[]; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>;
@@ -356,12 +363,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
    * message never files twice (a repeat, a second mention while the first is still being filed) while two members'
    * different reports are two issues.
    */
-  async function reportIt(key: string, where: Omit<Report, "message" | "thread" | "logs">, q: string, thread: BrunoChatTurn[], post: (e: APIEmbed) => Promise<unknown>): Promise<void> {
+  async function reportIt(key: string, where: Omit<Report, "message" | "thread" | "logs">, q: string, thread: BrunoChatTurn[], post: (e: APIEmbed) => Promise<unknown>): Promise<Filed | null> {
     const at = Date.now();
     const already = filed.get(key);
     if (already && at - already.at < REPORT_REPEAT_MS) {
       await post(reportedEmbed(already));
-      return;
+      return null;
     }
     // The same report asked for twice at once: both get the one issue (the promise is shared, not just its result).
     let flight = filing.get(key);
@@ -376,12 +383,13 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       await post(r.limited
         ? errorEmbed("That's a lot of reports", "This person or server has asked for a few this hour. Try again later, or report it on controlscout.org.")
         : errorEmbed("Couldn't file that report", "Something on my side stopped the report from reaching GitHub. Try again in a moment, or report it on controlscout.org."));
-      return;
+      return null;
     }
     if (filed.size > 200) filed.clear();
     filed.set(key, { at, number: r.number, url: r.url });
     logLine(`report filed: #${r.number} guild=${where.guild ?? "-"}`);
     await post(reportedEmbed(r));
+    return r;
   }
   /** Remember what this ask taught the server: the asker's name and the teams the message named (bot/memory.ts). */
   function learnAsk(guild: string | null | undefined, user: string, name: string | null, q: string): void {
@@ -627,25 +635,34 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   /**
    * A 👎 on one of its answers, added on purpose: that is a report, so it is filed as a GitHub issue with the question
    * the answer was written for and the answer's own words (bot/report.ts), and the person is told where it is. Only a
-   * message the bot posted has a row, so a 👎 anywhere else files nothing; the key is the answer, so a second 👎 on it
-   * answers the same issue rather than opening another. Never throws.
+   * message the bot posted has a row, so a 👎 anywhere else files nothing; the issue is kept on that row and in memory,
+   * so a second 👎 on it answers the same issue rather than opening another. Never throws.
    */
   async function downvoted(answer: AnswerMessage, reporter: Reporter): Promise<void> {
     try {
       if (reporter.bot || !answer?.id || !lookups.report) return;
-      const row = await lookups.answerRow?.(answer.id).catch(() => null);
+      // Discord sends only an id for a message it has no copy of: fetched here, so the issue carries the answer's words.
+      const whole = answer.partial && answer.fetch ? await answer.fetch().catch(() => answer) : answer;
+      const row = await lookups.answerRow?.(whole.id).catch(() => null);
       if (!row) return;
       // Under the answer, where the 👎 was; a message it can't reply to falls back to its channel, and neither is worth
       // failing a report over.
       const post = async (embed: APIEmbed): Promise<unknown> => {
         const payload = { embeds: [pride(embed)], allowedMentions: NO_PINGS };
-        const replied = answer.reply?.(payload);
-        return replied ? replied.catch(() => answer.channel?.send?.(payload)) : answer.channel?.send?.(payload);
+        const replied = whole.reply?.(payload);
+        return replied ? replied.catch(() => whole.channel?.send?.(payload)) : whole.channel?.send?.(payload);
       };
-      const said = (answer.content ?? "").trim();
-      await reportIt(`answer:${answer.id}`,
-        { guild: answer.guildId ?? null, channel: answer.channelId ?? null, user: reporter.id, name: shownName(reporter, { displayName: reporter.displayName ?? null }) },
+      // One issue per answer, kept on its row: a 👎 a day later, or after a restart, points at the issue the first one
+      // filed instead of opening a duplicate (an hour's memory alone would forget it, bot/report.ts's limits aside).
+      if (row.report) {
+        await post(reportedEmbed(row.report));
+        return;
+      }
+      const said = (whole.content ?? "").trim();
+      const opened = await reportIt(`answer:${whole.id}`,
+        { guild: whole.guildId ?? null, channel: whole.channelId ?? null, user: reporter.id, name: shownName(reporter, { displayName: reporter.displayName ?? null }) },
         row.question ?? QUESTION_UNRECORDED, said ? [turn("bruno", said)] : [], post);
+      if (opened?.ok) await Promise.resolve(lookups.rememberReport?.(whole.id, opened)).catch(() => {});
     } catch (e) {
       logLine(`downvote failed: ${(e as Error)?.message ?? String(e)}`);
     }
