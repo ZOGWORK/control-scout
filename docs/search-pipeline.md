@@ -343,6 +343,13 @@ It prints the pass rate per set and per pattern, each failing question with its 
 states them). A pattern is fixed in the pipeline (a phrase in the lexicon, a rule, a family), and every set and the
 generated eval run again.
 
+**One reader per question** (the search audit's C2). A held-out question is claimed by the pipeline when it reads it
+whole (`pipelineReads`), and by the keyword layer when that layer finds a catalog intent with a phrasing to hand on
+(`extract`'s canonical). The questions both claim are recorded by set and number in
+`scripts/search-heldout.claims.json`. A whole held-out run (the CI job) fails when one more question is claimed twice,
+and when a recorded one no longer is. The list only goes down: retiring a keyword intent the pipeline covers takes its
+questions off, and `--claims` rewrites the record.
+
 ## Failure patterns
 
 Failed-search reporting (`server/searchFailures.ts`, `docs/failed-search-reporting.md`) files a failure under its
@@ -366,7 +373,8 @@ pattern failing again is a gap of its own.
    with the slots on the card; the window clause, place by country or town, and the no-event-yet card. How a question
    was said beside what it asks (one match or several, "official", a comparison word) comes from the parse's `cues`
    (`src/shared/query/lexicon.ts` CUES), read in any word order; `server/api/query/wordOrder.test.ts` keeps a regex
-   on the raw text out of the executor.
+   on the raw text out of the executor. Each intent has one executor (`EXECUTORS`, its takers tried in order), and a
+   no is `{ declined: reason }`, a fixed phrase noted for the soft-failure log (`declineOf`), never a silent null.
 3. **Relaxation**: when the exact filters return nothing, relax them in a stated order (time window → its season → the
    season before; event → season; place kept). The card says what was relaxed.
 4. **Prediction and matchup**: a team at a named event, before and after side by side; two teams' winner, scores and

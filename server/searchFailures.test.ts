@@ -259,6 +259,9 @@ describe("soft failures (audit M5): answered, but not the whole question", () =>
     // The pipeline had the intent and another reader answered: declined, with why.
     expect(softFailureOf(answered("4215 opr"), read("team-opr", true))).toMatchObject({ type: "declined", reason: "read whole, not answered by it" });
     expect(softFailureOf(answered("4215 opr scorecard"), read("team-opr", false))).toMatchObject({ type: "declined", reason: "words it couldn't read" });
+    // The pipeline's own reason for its no (execute.ts declineOf), when it gave one; never for words it couldn't read.
+    expect(softFailureOf(answered("4215 opr"), read("team-opr", true), "a count its answer doesn't list")).toMatchObject({ type: "declined", reason: "a count its answer doesn't list" });
+    expect(softFailureOf(answered("4215 opr scorecard"), read("team-opr", false), "a count its answer doesn't list")).toMatchObject({ reason: "words it couldn't read" });
     // No intent read: the pipeline never had the question, so nothing was declined.
     expect(softFailureOf(answered("hypnotic robotics"), read(null, false))).toBeNull();
   });
