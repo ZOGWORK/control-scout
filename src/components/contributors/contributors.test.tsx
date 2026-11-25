@@ -157,6 +157,34 @@ describe("the match page", () => {
     expect(document.querySelector("[data-credit-preview]")?.textContent).toMatch(/Will show as: Video by Sam Lee · Visible to Tigers \(4215\) only/);
   });
 
+  it("has no way to add a link once FIRST's video, a recording's clip or a public link plays", () => {
+    const verified = { status: "verified", source: "application", teams: [], pending: null, rejected: null, ready: true, credit: "Video by Sam Lee" };
+    const cases: [Partial<MatchView>, unknown][] = [
+      [{ video: "https://youtu.be/FIRSTvideo1" } as Partial<MatchView>, null],
+      [{ clip: { videoId: "streamvideo", t: 120, end: 300 } } as unknown as Partial<MatchView>, null],
+      [{}, cv()],
+    ];
+    for (const [over, video] of cases) {
+      h.user = { id: 2 };
+      h.match = { video, own: [], me: verified };
+      const { unmount } = render(<MemoryRouter><MatchContributorPanel m={match(1, over)} /></MemoryRouter>);
+      expect(document.querySelector("[data-add-form]")).toBeNull();
+      unmount();
+      h.user = null;
+      h.match = { video };
+      render(<MemoryRouter><MatchContributorPanel m={match(1, over)} /></MemoryRouter>);
+      expect(screen.queryByRole("button", { name: /Get Verified/ })).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("still offers the form when the only video is one its own contributor sees", () => {
+    h.user = { id: 2 };
+    h.match = { video: cv({ tier: "self", mine: true }), own: [], me: { status: "verified", source: "application", teams: [], pending: null, rejected: null, ready: true, credit: "Video by Sam Lee" } };
+    render(<MemoryRouter><MatchContributorPanel m={match(1)} /></MemoryRouter>);
+    expect(document.querySelector("[data-add-form='public']")).toBeTruthy();
+  });
+
   it("says another video plays (not FIRST's) when the owner put a link before FIRST's", () => {
     h.user = { id: 2 };
     const me = { status: "verified", source: "application", teams: [], pending: null, rejected: null, ready: true, credit: "Video by Sam Lee" };
