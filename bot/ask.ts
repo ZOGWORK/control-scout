@@ -34,6 +34,7 @@ import { answerScope, answerStyle, brunoMethod, brunoPersona, lookupNote, produc
 import { RECORD_NUMBER, WORKING, smallTalk } from "./smallTalk.js";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
 import { lookupFacts, splitAsk, type Lookup } from "./tools.js";
+import { threadSubject, withSubject } from "./subject.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -275,7 +276,15 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
   const offered = offeredQuestion(history);
   if (offered && declined(q)) return declinedReply(offered);
   const subject = offered && affirmative(q) ? offered : null;
-  const r = await answerAsk(subject ?? q, deps, site, history, memory, guild);
+  // A follow-up that only looks back at the thread ("their last meet", "and their OPR?") is asked as the thread's
+  // subject — the last thing said about the records — so search reads the team or event the thread named instead of
+  // the word "their". A question that names its own team, or a thread with no subject, is asked as typed.
+  const kept = subject ? null : threadSubject(history, recordsTurn);
+  const asked = subject ?? withSubject(q, kept) ?? q;
+  // He is told which subject the follow-up was read as, so his reply names that team rather than guessing from the
+  // thread, and so a number he says about it is checked the way the thread's own are.
+  const lines = asked === q || !kept ? memory : [...memory, `This thread is about: ${kept}. A follow-up saying "their", "they" or "that team" means it.`];
+  const r = await answerAsk(asked, deps, site, history, lines, guild);
   return subject ? { ...r, resolved: subject } : r;
 }
 
@@ -378,6 +387,10 @@ const RECORD_WORDS = /\b(?:teams?|alliances?|partners?|events?|matches?|quals?|q
 /** Whether an unanswered message is a question about the records, and so belongs in the site's failed-search queue: a
  *  record number in it, or a records word — and not a build question, whose "team" or "match" is about the robot. */
 const recordsMiss = (q: string) => !WORKING.test(q) && (RECORD_NUMBER.test(q) || RECORD_WORDS.test(q));
+
+/** Whether a turn of a thread was about the records at all: a record number or a records word in it, never a build
+ *  question. The thread's subject is taken from the last turn that was (bot/subject.ts). */
+export const recordsTurn = (text: string) => !WORKING.test(text) && (RECORD_NUMBER.test(text) || RECORD_WORDS.test(text));
 
 /** The words a reply uses when the facts didn't hold what was asked: "I couldn't find … in the facts", "no data for …".
  *  A records message answered this way is a miss the queue should learn, even though he said it kindly. */
