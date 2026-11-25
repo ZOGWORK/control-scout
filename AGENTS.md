@@ -57,3 +57,16 @@ npm run packs          # offline packs + /packs/latest.json
 npm run shots -- …     # PR screenshots (see rule 6)
 npm run equivalence    # engine == Control Point's, bit for bit
 ```
+
+## Local setup
+
+```bash
+npm install
+cp .env.example .env   # FIRST Events API credentials (optional but recommended), Resend key (optional)
+npm run seed:scout     # optional: import a local FTC Scout cache for instant history
+npm run sync           # then stats / packs / dev as above
+```
+
+Without FIRST credentials the app still starts, but shows empty states until data arrives via `seed:scout` or a copied
+database (`npm run db:export` makes one). Without a Resend key, sign-in is hidden and everything personal stays on the
+device.
