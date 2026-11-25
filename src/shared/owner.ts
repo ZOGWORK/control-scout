@@ -127,9 +127,12 @@ export interface OwnerModeration {
 /** GET /api/owner/analytics: owner-only usage numbers, and whether the home page publishes its "in use" section. */
 export interface OwnerAnalytics {
   days: number; from: string; to: string;
-  /** Page views and sessions come from visitors who opted into usage statistics. */
-  totals: { pageViews: number; sessions: number };
-  daily: { day: string; pageViews: number; sessions: number }[];
+  /** From visitors who opted into usage statistics, the owner's own devices left out. visitors: each day's unique visitors
+   *  added up (one browser on 3 days counts 3); newVisitors: browsers here for the first time in the period. */
+  totals: { pageViews: number; sessions: number; visitors: number; newVisitors: number };
+  /** Unique visitors are counted from `since` (Eastern day); newEver: every new visitor since then. */
+  visitors: { since: string; newEver: number };
+  daily: { day: string; pageViews: number; sessions: number; visitors: number; newVisitors: number }[];
   /** The 10 most viewed pages in the period, and the 10 sites that started the most visits (by host). */
   topPages: { path: string; views: number }[];
   referrers: { host: string; sessions: number }[];

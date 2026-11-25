@@ -1,9 +1,9 @@
-// Owner console › Analytics (owner only): page views and sessions from visitors who opted into usage
-// statistics (page views first: the owner reads this tab for traffic, not prediction counts), and the choice
+// Owner console › Analytics (owner only): page views, unique visitors and sessions from visitors who opted into usage
+// statistics, the owner's own devices left out (page views first: the owner reads this tab for traffic, not prediction counts), and the choice
 // to publish the home page's "in use" section (server/ownerSettings.ts; confirmed, and audited with the old
 // and new value). Aggregates only: no accounts, emails or addresses.
 import { useState } from "react";
-import { CalendarDays, Eye, Globe, MousePointerClick } from "lucide-react";
+import { CalendarDays, Eye, Globe, MousePointerClick, UserPlus, Users } from "lucide-react";
 import { Section } from "../page";
 import { StatTile } from "../StatTile";
 import { Async } from "../states";
@@ -29,7 +29,7 @@ function DailyViews({ daily }: { daily: OwnerAnalytics["daily"] }) {
       <div className="flex h-40 items-end gap-1" role="img"
         aria-label={`Page views per day: ${daily.map((d) => `${d.day} ${d.pageViews}`).join("; ")}`}>
         {daily.map((d) => (
-          <div key={d.day} className="flex h-full min-w-0 flex-1 items-end" title={`${d.day}: ${int(d.pageViews)} page views · ${int(d.sessions)} sessions`}>
+          <div key={d.day} className="flex h-full min-w-0 flex-1 items-end" title={`${d.day}: ${int(d.pageViews)} page views · ${int(d.visitors)} visitors · ${int(d.sessions)} sessions`}>
             <span className="block w-full rounded-t-[3px] bg-accent" style={{ height: `${(d.pageViews / max) * 100}%`, minHeight: d.pageViews ? 2 : 0 }} />
           </div>
         ))}
@@ -40,6 +40,9 @@ function DailyViews({ daily }: { daily: OwnerAnalytics["daily"] }) {
     </div>
   );
 }
+
+/** "Nov 25" for a YYYY-MM-DD day. */
+const shortDay = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** A short ranked list with each row's share drawn as a zero-based bar behind it (largest = full width). */
 function Ranked({ title, note, rows, unit, empty }: { title: string; note?: string; rows: { key: string; label: string; value: number; mono?: boolean }[]; unit: string; empty: string }) {
@@ -113,6 +116,12 @@ function PublishUsage({ s }: { s: PublishUsageSetting }) {
   );
 }
 
+/** Unique visitors a day, averaged over the days they were counted (from `visitors.since`), not the whole period. */
+function visitorsPerDay(a: OwnerAnalytics): number {
+  const counted = a.daily.filter((d) => d.day >= a.visitors.since);
+  return counted.length ? counted.reduce((n, d) => n + d.visitors, 0) / counted.length : 0;
+}
+
 export function AnalyticsPanel() {
   const [days, setDays] = useState(14);
   const state = useApi<OwnerAnalytics>(`/api/owner/analytics?days=${days}`);
@@ -126,12 +135,18 @@ export function AnalyticsPanel() {
       <Async state={state}>
         {(a) => (
           <>
-            <Section title="Page views" description="Counted only from visitors who said yes to usage statistics.">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Section title="Page views" description="Counted only from visitors who said yes to usage statistics. Your own devices are left out.">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
                 <StatTile tone="accent" icon={Eye} label="Page views" value={int(a.totals.pageViews)} hint={`${int(a.totals.pageViews / Math.max(1, a.days))} a day on average`} />
-                <StatTile tone="sky" icon={MousePointerClick} label="Sessions" value={int(a.totals.sessions)} hint="Visits started" />
+                <StatTile tone="violet" icon={UserPlus} label="Unique visitors" value={int(a.totals.newVisitors)} hint={`new in ${a.days} days · ${int(a.visitors.newEver)} since ${shortDay(a.visitors.since)}`} />
+                <StatTile tone="amber" icon={Users} label="Visitors a day" value={int(visitorsPerDay(a))} hint={`on average · ${int(a.daily.at(-1)?.visitors ?? 0)} today`} />
+                <StatTile tone="sky" icon={MousePointerClick} label="Sessions" value={int(a.totals.sessions)} hint="Visits started, one per browser tab" />
                 <StatTile className="col-span-2 sm:col-span-1" tone="emerald" icon={CalendarDays} label="Today" value={int(a.daily.at(-1)?.pageViews ?? 0)} hint="page views so far (Eastern time)" />
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                A visitor is one browser: the same person on a phone and a laptop counts twice, and one browser on three days counts on
+                each day. Unique visitors are counted from {shortDay(a.visitors.since)}; page views and sessions go back further.
+              </p>
               <div className="mt-4"><DailyViews daily={a.daily} /></div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <Ranked title="Most viewed kinds of page" note="By route: /teams/:number is every team page together. Which team is never recorded." rows={a.topPages.map((r) => ({ key: r.path, label: r.path, value: r.views, mono: true }))} unit="views" empty="No page views in this period." />

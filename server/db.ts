@@ -2848,6 +2848,18 @@ CREATE TABLE search_score_daily (
 ) WITHOUT ROWID;
 `,
   },
+  {
+    version: 107,
+    name: "unique visitors per day and new visitors",
+    sql: `
+-- Unique visitors (server/analytics.ts, src/lib/analytics.tsx): two more sums on the page-view aggregate. visitors: views
+-- that were a browser's first of the Eastern day (a localStorage date), so a day's sum is its unique visitors. new_visitors:
+-- views that were a browser's first ever (a localStorage flag), so a period's sum is the new visitors it brought. Still no
+-- IDs: each view sends two yes/no bits. Days before this have 0 in both (VISITORS_SINCE, src/shared/analytics.ts).
+ALTER TABLE analytics_daily ADD COLUMN visitors INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE analytics_daily ADD COLUMN new_visitors INTEGER NOT NULL DEFAULT 0;
+`,
+  },
 ];
 
 export type Db = Client;

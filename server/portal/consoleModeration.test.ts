@@ -13,6 +13,7 @@ import { resetMetrics } from "../metrics";
 import { dayOf, recordPageView } from "../analytics";
 import { canTriage, statusForTriage, triageQueue } from "./feedback";
 import { TRIAGE_NEXT } from "../../src/shared/owner";
+import { VISITORS_SINCE } from "../../src/shared/analytics";
 
 let server: Server;
 let base = "";
@@ -241,15 +242,16 @@ describe("error report notes", () => {
 describe("analytics and the \"in use\" choice", () => {
   it("counts page views and sessions per day, and nothing about predictions, with no email anywhere", async () => {
     const today = dayOf(new Date());
-    await recordPageView({ path: "/", ref: "", screen: "phone", lang: "en", session: true });
-    await recordPageView({ path: "/teams", ref: "", screen: "phone", lang: "en", session: false });
+    await recordPageView({ path: "/", ref: "", screen: "phone", lang: "en", session: true, visitor: true, newVisitor: true });
+    await recordPageView({ path: "/teams", ref: "", screen: "phone", lang: "en", session: false, visitor: false, newVisitor: false });
     // Prediction traffic is not part of this tab (the owner reads it for page views only).
     await run("INSERT INTO request_metrics_daily (day, route, count) VALUES (?, 'GET /api/predict/match', 7)", [today]);
     const r = await call("GET", "/api/owner/analytics?days=7", { cookie: ownerCookie });
     expect(r.status).toBe(200);
-    expect(r.json.totals).toEqual({ pageViews: 2, sessions: 1 });
+    expect(r.json.totals).toEqual({ pageViews: 2, sessions: 1, visitors: 1, newVisitors: 1 });
+    expect(r.json.visitors).toEqual({ since: VISITORS_SINCE, newEver: 1 });
     expect(r.json.daily).toHaveLength(7);
-    expect(r.json.daily.at(-1)).toEqual({ day: today, pageViews: 2, sessions: 1 });
+    expect(r.json.daily.at(-1)).toEqual({ day: today, pageViews: 2, sessions: 1, visitors: 1, newVisitors: 1 });
     expect(r.json.topPages).toEqual([{ path: "/", views: 1 }, { path: "/teams", views: 1 }]);
     expect(r.json.referrers).toEqual([]);
     expect(r.json).not.toHaveProperty("ledger");
@@ -258,7 +260,7 @@ describe("analytics and the \"in use\" choice", () => {
   });
 
   it("publishes the home page's section only once confirmed, audits old and new, and /api/public-usage follows it", async () => {
-    await recordPageView({ path: "/", ref: "", screen: "phone", lang: "en", session: true });
+    await recordPageView({ path: "/", ref: "", screen: "phone", lang: "en", session: true, visitor: true, newVisitor: true });
     let a = await call("GET", "/api/owner/analytics", { cookie: ownerCookie });
     expect(a.json.publishUsage).toMatchObject({ enabled: false, source: "env", envDefault: false });
     expect((await call("GET", "/api/public-usage")).json.reason).toBe("not-published");
@@ -294,7 +296,7 @@ describe("analytics and the \"in use\" choice", () => {
   it("follows PUBLIC_USAGE_ENABLED until the owner chooses, and the owner's choice over it after", async () => {
     process.env.PUBLIC_USAGE_ENABLED = "1";
     invalidateOwnerSettings();
-    await recordPageView({ path: "/", ref: "", screen: "phone", lang: "en", session: true });
+    await recordPageView({ path: "/", ref: "", screen: "phone", lang: "en", session: true, visitor: true, newVisitor: true });
     expect((await call("GET", "/api/public-usage")).json.status).toBe("available");
     await call("PUT", "/api/owner/settings/public-usage", { cookie: ownerCookie, body: { enabled: false, confirm: true } });
     expect((await call("GET", "/api/public-usage")).json.reason).toBe("not-published");

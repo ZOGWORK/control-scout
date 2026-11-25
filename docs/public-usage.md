@@ -8,7 +8,7 @@ publishes two numbers about the site itself, nothing about any visitor:
 | `totals.pageViews`, `daily[].pageViews` | Page loads recorded by `POST /api/collect` | All traffic: only browsers whose visitor chose "Allow" send them, and browsers sending Do Not Track or Global Privacy Control, bots and automated browsers are never counted |
 | `totals.sessionStarts`, `daily[].sessionStarts` | The first recorded page of a browser tab's session (a `sessionStorage` flag) | People: one person with two tabs starts two sessions, and a browser blocking storage may start one per page |
 
-Days are UTC. The window is the last 30 days, today included (`to`), and today is
+Days are US Eastern time (UTC before 2026-11-25). The window is the last 30 days, today included (`to`), and today is
 still partial. If counting began inside the window, `measuredFrom` is the first
 recorded day and the series starts there: earlier days weren't measured, so they
 are left out rather than shown as zeroes. A day after that with no views is a
