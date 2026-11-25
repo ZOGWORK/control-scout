@@ -548,14 +548,14 @@ for (const q of picked) (bySeason.get(q.season) ?? bySeason.set(q.season, []).ge
 const oneAtATime = serial();
 const service = () => oneAtATime(async () => { try { await serviceLanes(++laneRound); } catch (e) { log(`lanes: servicing failed (${(e as Error).message.split(String.fromCharCode(10))[0]}); tried again later`); } });
 const laneTimer = LANES.length && !DRY ? setInterval(() => void service(), LANE_SERVICE_MS) : null;
-const waiting = [...bySeason], reading = new Set<number>(), taken = new Set(picked.map((q) => `${q.season}/${q.code}`));
+const waiting = [...bySeason], readingNow = new Set<number>(), taken = new Set(picked.map((q) => `${q.season}/${q.code}`));
 const refill = () => {
   if (!REFILL_MS || DRY || Date.now() - RUN_START > REFILL_MS) return [];
   return pickEvents(mine.filter((q) => !taken.has(`${q.season}/${q.code}`)), inPr, memory, MAX).picked;
 };
 try {
   await Promise.all(Array.from({ length: REFILL_MS ? SEASONS_AT_ONCE : Math.max(1, Math.min(SEASONS_AT_ONCE, bySeason.size)) }, async () => {
-    for (let g = nextSeasonGroup(waiting, reading, refill); g; g = nextSeasonGroup(waiting, reading, refill)) {
+    for (let g = nextSeasonGroup(waiting, readingNow, refill); g; g = nextSeasonGroup(waiting, readingNow, refill)) {
       const [season, events] = g;
       if (!bySeason.has(season) || !events.every((e) => bySeason.get(season)!.includes(e))) {
         for (const e of events) taken.add(`${e.season}/${e.code}`);
@@ -563,11 +563,11 @@ try {
       }
       const file = seasonFile(season);
       if (!existsSync(file)) { log(`${season}: no ${file} to write (add the season's file first)`); continue; }
-      reading.add(season);
+      readingNow.add(season);
       try {
         const codes = events.map((e) => e.code);
         await settle(season, codes, await readSeason(season, codes, new Set(events.filter(recheckOnly).map((e) => e.code))));
-      } finally { reading.delete(season); }
+      } finally { readingNow.delete(season); }
       await service();
     }
   }));
