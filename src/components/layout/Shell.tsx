@@ -448,7 +448,7 @@ export function Shell({ children }: { children: ReactNode }) {
             : <Sidebar rail={collapsed || !wide} wide={wide} onToggle={toggle} onMenu={openMenu} />)}
           <div className="relative flex min-w-0 flex-1 flex-col">
             {/* The top wash sits under the bar; a separate glow marks the page's end below. */}
-            {!bare && v8 && <Wash size={washSize(loc.pathname)} />}
+            {!bare && v8 && <Wash size={washSize(loc.pathname)} rise />}
             {/* The top patch (#2147, #2144): Safari 26 on an iPhone paints the strip behind the clock from the page, a
                 black band with the page blurred under it as you scroll, unless a fixed bar touches the top: then it
                 fills the strip with that bar's solid colour. v8 has no such bar, so this thin one stands in, in the
