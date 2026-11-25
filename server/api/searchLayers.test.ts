@@ -247,6 +247,8 @@ describe("Layers 3 and 5, scope position, precedence and ambiguity", () => {
         expect(await pipelineReads(q), `${id}: ${q}`).toBe(true);
       }
     }
+    // A short form the keyword layer alone read before, now the lexicon's ("w l" is the record), said with a season.
+    expect(await pipelineReads("4215 w l 2024-25")).toBe(true);
   });
   it("a team's events with no season: its latest season with an event, said so", async () => {
     const a = await ask("4215 events");
