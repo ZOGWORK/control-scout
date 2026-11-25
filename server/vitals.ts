@@ -6,7 +6,7 @@
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { Client, InStatement } from "@libsql/client";
 import { db } from "./db.js";
-import { COLLECT_MAX_BYTES, dayOf, isBot, rateLimiter } from "./analytics.js";
+import { COLLECT_MAX_BYTES, addDays, dayOf, isBot, rateLimiter } from "./analytics.js";
 import { percentile } from "./metrics.js";
 import {
   parseVitals, VITAL_BUCKET_COUNT, VITAL_BUCKETS, VITAL_THRESHOLDS, VITALS, vitalBucket,
@@ -45,9 +45,9 @@ export function vitalStat(name: VitalName, b: number[], max: number): VitalStat 
 /** The pages with the most measured loads in the Usage panel; the rest still count toward "all pages". */
 export const VITALS_PAGES = 15;
 
-/** Web vitals over the last `days` UTC days (today included): all pages together, then per page (most loads first). */
+/** Web vitals over the last `days` Eastern-time days (today included; days before 2026-11-25 were UTC): all pages together, then per page (most loads first). */
 export async function vitalsSummary(days = 14, now = Date.now(), c: Client = db()): Promise<{ all: VitalsRow; pages: VitalsRow[] }> {
-  const to = dayOf(new Date(now)), from = dayOf(new Date(now - (days - 1) * 86_400_000));
+  const to = dayOf(new Date(now)), from = addDays(to, -(days - 1));
   const rows = (await c.execute({
     sql: `SELECT path, metric, SUM(count) AS count, MAX(max) AS max, ${BCOLS.map((b) => `SUM(${b}) AS ${b}`).join(", ")}
           FROM web_vitals_daily WHERE day BETWEEN ? AND ? GROUP BY path, metric`,
