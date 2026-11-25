@@ -9,9 +9,10 @@
 //                                         with search's facts, and his reply is the post: plain text like a chat, with the
 //                                         records search found as the site's own card beside it (video and "ask next"
 //                                         buttons included) when the facts answer it, and a link to the website.
-//      his lookups                        a reply may end with `LOOKUP: <query>` (bot/productFacts.ts's lookupNote): the bot
-//                                         searches it and hands the facts back for a second (at most third) call, so he can
-//                                         look something up in the middle of an answer rather than only before it.
+//      his lookups                        an agent loop (talk, below): a reply may ask for searches with `LOOKUP: <query>`
+//                                         lines (bot/productFacts.ts's lookupNote), the bot runs them and hands the facts
+//                                         back for the next step — up to AGENT_STEPS steps, each search reported whether
+//                                         it found anything, so he can work a question out instead of answering once.
 //      one correction                    a reply naming a number the facts don't have is rewritten once, told which
 //                                         number, instead of being dropped for the card on the spot.
 //   3. refine(q) / brunoAnswer(q)         only when that chat gives nothing: search's own answer, with his rewrite of
@@ -399,46 +400,71 @@ const CANT = /\b(?:(?:couldn't|could not|can't|cannot) find|not (?:in|among) the
 /** The searches Bruno asks for in his reply (`LOOKUP: …`), taken from it: the lookup is the bot's to run, never part of
  *  what posts. */
 const LOOKUP = /^[ \t]*lookup\s*:\s*(.+)$/gim;
-/** How many times one answer may ask for a lookup. */
-export const LOOKUP_ROUNDS = 2;
+/** The steps of one answer's loop: a reply may look something up, the facts come back, and he replies again. One step
+ *  answers most records questions; a message asking several things, or a follow-up that turns out to need another
+ *  subject, can take two or three. */
+export const AGENT_STEPS = 3;
+/** The searches one step may ask for: a reply that asks three things has all three run, not the first two. */
+export const QUERIES_PER_STEP = 3;
 
-/** A reply split into what he said and the searches he asked for: at most LOOKUP_ROUNDS queries, and the text with the
+/** A reply split into what he said and the searches he asked for: at most `max` queries, and the text with the
  *  `LOOKUP:` lines taken out. */
-export function lookupAsked(text: string): { text: string; queries: string[] } {
-  const queries = [...text.matchAll(LOOKUP)].map((m) => m[1].trim().slice(0, 120)).filter(Boolean).slice(0, LOOKUP_ROUNDS);
+export function lookupAsked(text: string, max = QUERIES_PER_STEP): { text: string; queries: string[] } {
+  const queries = [...text.matchAll(LOOKUP)].map((m) => m[1].trim().slice(0, 120)).filter(Boolean).slice(0, max);
   const said = text.replace(LOOKUP, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   return { text: said, queries };
 }
 
+/** The line that ends the loop: the last step is told the lookups are spent, so he answers from the facts he has
+ *  instead of asking for one more the bot won't run. */
+const LOOKUPS_DONE = `Lookups are done (${AGENT_STEPS} steps used). Answer now from the facts above; where they don't hold something, say what's missing. Don't ask for another lookup.`;
+
 /**
- * Bruno's reply to `q` from `facts`, with the two things one call can't do: the lookups he asks for are run and the facts
- * handed back (at most LOOKUP_ROUNDS rounds), and a number the facts don't have gets one correction round naming it
- * before ask's own check refuses the reply. Never throws: a round that fails keeps what he said.
+ * Bruno's reply to `q` from `facts`, worked out in steps rather than in one call: every reply may ask for searches
+ * (`LOOKUP: …`), the bot runs them, and the facts come back as what that step found for the next reply. A step whose
+ * search finds nothing says so, so he changes the words instead of repeating the search; a search already run is never
+ * run twice; the last step is told the lookups are done and to answer from what it has. A reply that is only a request
+ * (no words yet) is a step, not an empty answer. A number the facts don't have gets one correction round naming it
+ * before ask's own check refuses the reply. Never throws: a step that fails keeps what he said.
  */
 async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: AskDeps, memory: string[], records: boolean): Promise<ChatReply | null> {
-  let packet = facts;
+  let packet = fit(facts, CHAT_FACTS, CHAT_FACTS_CHARS);
+  // The last thing he actually said — never a request, and never nothing: a step that only looked something up leaves
+  // the words before it standing.
+  let spoken: ChatReply | null = null;
+  // What he has already looked up, so a repeated search is not run again (it answers the same way it did).
+  const tried = new Set<string>();
   let reply = await deps.chat!(q, packet, history, memory).catch(() => null);
-  for (let round = 0; reply && round < LOOKUP_ROUNDS; round++) {
+  for (let step = 1; reply && step <= AGENT_STEPS; step++) {
     const asked = lookupAsked(reply.text);
-    if (!asked.queries.length) break;
-    // Keep his words, never the request: a `LOOKUP:` line is the bot's to run, not something to post.
-    reply = asked.text ? { ...reply, text: asked.text } : null;
-    if (!reply || !deps.factsFor) break;
-    const found = (await Promise.all(asked.queries.map((r) => deps.factsFor!(r).catch(() => [] as string[]))))
+    if (asked.text) spoken = { ...reply, text: asked.text };
+    const factsFor = deps.factsFor;
+    if (!asked.queries.length || !factsFor) break;
+    const fresh = asked.queries.filter((r) => !tried.has(r.toLowerCase()));
+    if (!fresh.length) break;
+    for (const r of fresh) tried.add(r.toLowerCase());
+    const found = (await Promise.all(fresh.map((r) => factsFor(r).catch(() => [] as string[]))))
       .flat().filter((f) => f && !packet.includes(f));
-    if (!found.length) break;
-    console.info(`[bot] chat lookup: ${asked.queries.join(" | ").slice(0, 160)} (${found.length} facts)`);
-    const note = `Looked up ${asked.queries.join(" · ").slice(0, 200)}: the facts below include what that search found.`;
+    const label = fresh.join(" · ").slice(0, 200);
+    // What the step found is said either way: an empty search that came back as silence is one he asks for again.
+    const note = found.length
+      ? `Looked up ${label} (step ${step} of ${AGENT_STEPS}): the facts below include what that search found.`
+      : `Looked up ${label} (step ${step} of ${AGENT_STEPS}): the search found nothing. Don't ask for it again; try different words, or say what's missing.`;
+    console.info(`[bot] chat lookup: ${fresh.join(" | ").slice(0, 160)} (${found.length} facts)`);
     packet = fit([note, ...packet, ...found], CHAT_FACTS, CHAT_FACTS_CHARS);
-    const next = await deps.chat!(q, packet, history, memory).catch(() => null);
+    const last = step === AGENT_STEPS;
+    const next = await deps.chat!(q, last ? fit([LOOKUPS_DONE, ...packet], CHAT_FACTS, CHAT_FACTS_CHARS) : packet, history, memory)
+      .catch(() => null);
     if (!next) break;
     reply = next;
+    if (last) break;
   }
-  // A `LOOKUP:` line he didn't get to run (the rounds are used up, or no search is wired) still never posts.
+  // A `LOOKUP:` line he didn't get to run (the steps are used up, or no search is wired) still never posts.
   if (reply) {
-    const said = lookupAsked(reply.text);
-    if (said.queries.length) reply = said.text ? { ...reply, text: said.text } : null;
+    const said = lookupAsked(reply.text).text;
+    if (said) spoken = { ...reply, text: said };
   }
+  reply = spoken;
   // A number he made up: told which one, he gets one chance to say it from the facts instead of the card posting.
   if (reply && records && reply.unknown?.length) {
     const fix = `Correction: your last reply used numbers the facts don't have (${reply.unknown.slice(0, 6).join(", ")}). Rewrite it using only the facts; where they don't hold a number, say what's missing instead of guessing.`;
