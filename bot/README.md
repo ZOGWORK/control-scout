@@ -227,6 +227,17 @@ learned rather than lost. Every chat still carries the two product facts it can'
 Zog Mode exists); the v8 design description goes only when the message asks about the product (`asksProduct`), which
 leaves a records question five more lines for its own facts.
 
+**A thread's subject.** A follow-up that only says "their last meet" or "and their OPR?" has no team in it, and search
+read it as a question about the word "their". The thread already named one: `bot/subject.ts` takes the last turn in it
+that was about the records (a record number or a records word, never a build question, and never a turn that only looks
+back), and asks the follow-up as that turn's words — `their last meet? (what did theseus get in auto opr in the last
+meet they had in biobizz)`. It only happens for a message that looks back ("their", "they", "that team", "the same
+event") and names no team or event of its own, so a message with a number in it is still asked as typed; the post still
+quotes what the person wrote. The subject is the thread's own text, so it needs no lookup of its own, holds for a name
+as well as a number, and survives a deploy with the thread (`bot/memory.ts`). `bot/evals/threads.json` is the phrasing
+bank this is checked against — the follow-ups the failed-search queue kept filing — and `bot/subject.test.ts` asks each
+of them the way a reply in that thread would; add new phrasings there rather than in a one-off test.
+
 **The records post beside his words.** When search found the records a chat is about, the answer posts as Bruno's text
 *and* the site's card: the same board or record card `/search` shows, its video and its "ask next" buttons, linked to the
 part's own answer rather than the whole message search. A message search couldn't read, and Control Scout's own

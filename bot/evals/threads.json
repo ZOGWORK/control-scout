@@ -1,0 +1,50 @@
+[
+  {
+    "why": "The screenshot's shape: a follow-up that only says \"their\" after a message naming the team by name.",
+    "thread": ["so like what did theseus get in auto opr in the last meet they had in biobizz"],
+    "q": "their last meet?",
+    "expect": "what did theseus get in auto opr in the last meet they had in biobizz"
+  },
+  {
+    "why": "A follow-up after a number was typed: the number carries.",
+    "thread": ["4215 record 2026-27"],
+    "q": "and their OPR?",
+    "expect": "4215 record 2026-27"
+  },
+  {
+    "why": "An event named by its code carries to the next question about it.",
+    "thread": ["who won AUBRQ2"],
+    "q": "what about that event's finals?",
+    "expect": "who won AUBRQ2"
+  },
+  {
+    "why": "The most recent thing named wins, not the first.",
+    "thread": ["what about 4215", "6980 vs 4215", "their record?"],
+    "q": "and their next event",
+    "expect": "6980 vs 4215"
+  },
+  {
+    "why": "A thread that never mentioned the records has no subject to give.",
+    "thread": ["hi", "thanks"],
+    "q": "their schedule",
+    "expect": null
+  },
+  {
+    "why": "A team named in the follow-up itself is not replaced by the thread's.",
+    "thread": ["4215 opr"],
+    "q": "what about 6980?",
+    "expect": null
+  },
+  {
+    "why": "A build question's \"it\" is the robot, never the thread's team.",
+    "thread": ["4215 opr"],
+    "q": "how does it work?",
+    "expect": null
+  },
+  {
+    "why": "A message that names nothing and looks back at nothing is asked as it is.",
+    "thread": ["4215 opr"],
+    "q": "what is the bio buzz world record",
+    "expect": null
+  }
+]

@@ -309,6 +309,23 @@ describe("a chat with Bruno", () => {
     expect(d.chat).toHaveBeenCalledWith("and second?", ["Result: 4215 | Team 4215", "Result: 30030 | Team 30030"], history, []);
   });
 
+  // The screenshot's shape: a follow-up that only says "their", in a thread that named the team last turn.
+  it("a follow-up that only looks back is searched as the thread's subject", async () => {
+    const search = vi.fn(async (q: string) => base({ hits: [hit(26000)] }));
+    const d = chatDeps({ text: "Auto OPR 45.2 at BIOBUZZ.", search: true }, { search });
+    const history = [{ role: "user" as const, text: "so like what did theseus get in auto opr in the last meet they had in biobizz" }, { role: "bruno" as const, text: "I couldn't find that in the facts." }];
+    await ask("their last meet?", d, SITE, history);
+    const asked = search.mock.calls[0][0] as string;
+    expect(asked).toContain("their last meet?");
+    expect(asked).toContain("theseus");
+    // He is told what the follow-up was read as, in the packet's own lines rather than left to guess from the thread.
+    expect(d.chat).toHaveBeenCalledWith(asked, expect.anything(), history, expect.arrayContaining([expect.stringContaining("This thread is about:")]));
+    // A team named in the follow-up itself is its own: the thread's subject is never added over it.
+    search.mockClear();
+    await ask("what about 6980?", d, SITE, history);
+    expect(search.mock.calls[0][0]).toBe("what about 6980?");
+  });
+
   it("the post: the question quoted for /ask, his words, the video, and a small credit line with an unpreviewed link", () => {
     expect(chatPost("who  won decode", { text: "30030 Exodus won.", video: "https://youtu.be/A", page: `${SITE}/search?q=x` }, { quote: true }).split("\n")).toEqual([
       "> **who won decode**", "30030 Exodus won.", "https://youtu.be/A", `-# Bruno AI · [more on controlscout.org](<${SITE}/search?q=x>)`,
