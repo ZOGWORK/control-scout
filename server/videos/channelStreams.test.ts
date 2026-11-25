@@ -185,7 +185,8 @@ describe("resolveChannelStreams and the event's recording", () => {
     const rec = (await eventRecording(S, "MTI"))!;
     expect(rec.videoId).toBe(SAT);
     expect(rec.more?.map((m) => m.videoId)).toEqual([SUN]);
-    expect(recordingStream(rec, "America/New_York").days).toEqual([{ videoId: SAT, label: "Saturday" }, { videoId: SUN, label: "Sunday" }]);
+    expect(recordingStream(rec, "America/New_York").days).toEqual([{ videoId: SAT, label: "Saturday", origin: "channel" }, { videoId: SUN, label: "Sunday", origin: "channel" }]);
+    expect(recordingStream(rec, "America/New_York").origin).toBe("channel"); // read off the channel FIRST's link names
   });
 
   it("puts each match on its second in its own day's video", async () => {

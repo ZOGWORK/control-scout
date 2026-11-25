@@ -52,6 +52,9 @@ export interface OfficialVideo {
   /** A named part when one day has more than one video ("Awards"). */
   part?: string | null;
   channelId: string; title: string;
+  /** Who added it (official_videos.source): list (the hand-checked list), watcher (found on a watched channel), owner
+   *  (approved from the owner's queue) or owner-page (picked on the event page). Read rows only. */
+  source?: string;
 }
 export interface OfficialList { channels: Record<string, string>; videos: OfficialVideo[] }
 
@@ -66,13 +69,14 @@ export function forgetOfficial() { bySeason = new Map(); void loadManualStarts()
 const rowOf = (r: any): OfficialVideo => ({
   season: Number(r.season), code: String(r.code), videoId: String(r.video_id), kind: r.kind === "highlight" ? "highlight" : "recording",
   day: r.day ?? null, part: r.part ?? null, channelId: String(r.channel_id), title: String(r.title),
+  ...(r.source == null ? {} : { source: String(r.source) }),
 });
 
 /** Every kept official video of a season (both kinds), cached for a minute. */
 export function seasonOfficial(season: number, now = Date.now()): Promise<OfficialVideo[]> {
   const hit = bySeason.get(season);
   if (hit && now - hit.at < TTL_MS) return hit.v;
-  const v = all<any>("SELECT season, code, video_id, kind, day, part, channel_id, title FROM official_videos WHERE season = ? AND removed_at IS NULL ORDER BY code, day, added_at", [season]).then((rows) => rows.map(rowOf));
+  const v = all<any>("SELECT season, code, video_id, kind, day, part, channel_id, title, source FROM official_videos WHERE season = ? AND removed_at IS NULL ORDER BY code, day, added_at", [season]).then((rows) => rows.map(rowOf));
   bySeason.set(season, { at: now, v });
   v.catch(() => { if (bySeason.get(season)?.v === v) bySeason.delete(season); });
   return v;

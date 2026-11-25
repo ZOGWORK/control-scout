@@ -23,6 +23,9 @@ import { scrollToElement } from "../lib/pageScroll";
 import { TierMark, WinBar } from "./predict";
 import { cn } from "./cn";
 import { PredictedPair } from "./ScoreRange";
+import { ClipLink, MatchVideoLink } from "./MatchClip";
+import { TeamNo } from "./EventGlance";
+import { originNote, recordingHighlights, type RecordingHighlight, type RecordingHighlights } from "../lib/recordingHighlights";
 
 export const WATCH_ID = "watch-live";
 
@@ -42,15 +45,19 @@ export function WatchLive({ d, stream, watch = null, owner }: { d: EventDetail; 
   // Live: the overlay shows the rail's call (the match being called, or a result for a minute).
   const rail = useRail(d);
   const liveCall: OverlayCall | null = finished ? null : rail.result ? { match: rail.result, phase: "after" } : rail.current ? { match: rail.current, phase: "before" } : null;
+  // Finished: the event's best auto, best TeleOp and closest match beside the recording (below it on a phone).
+  const best = finished ? recordingHighlights(d) : null;
+  const side = !!best && !!(best.auto || best.teleop || best.closest);
   return (
     <section ref={section} id={WATCH_ID} aria-labelledby={`${WATCH_ID}-h`} className="mb-8 scroll-mt-bar-4" data-watch-live data-recording={finished ? "" : undefined}>
       <h2 id={`${WATCH_ID}-h`} className="mb-3 font-display text-lg font-semibold text-foreground">{finished ? "Watch the recording" : "Watch live"}</h2>
-      <div className={cn("grid gap-4", !finished && "lg:grid-cols-3")}>
-        <div className={cn("min-w-0", finished ? "max-w-4xl" : "lg:col-span-2")}>
+      <div className={cn("grid gap-4", (!finished || side) && "lg:grid-cols-3")}>
+        <div className={cn("min-w-0", finished && !side ? "max-w-4xl" : "lg:col-span-2")}>
           <Player stream={stream} title={`${d.event.name} live stream`} matches={d.matches} liveCall={liveCall} recording={finished} watch={watch} />
           {finished && <p className="mt-2 text-sm text-muted-foreground">{stream.youtubeOnly?.includes(stream.videoId) ? `Event finished: this is the recording. Its owner turned off playing on other sites, so it plays on YouTube only${d.matches.some((m) => m.clip) ? "; a match's Watch button opens it there at that match" : ""}.` : d.matches.some((m) => m.clip) ? "Event finished: this is the recording. A match's Watch button starts it at that match." : d.matches.some((m) => m.video) ? "Event finished: this is the recording. A match's video button plays that match here." : "Event finished: this is the recording."}</p>}
         </div>
         {!finished && <PredictionRail d={d} rail={rail} />}
+        {side && <BestMatches d={d} best={best!} />}
       </div>
       {owner}
     </section>
@@ -113,6 +120,8 @@ function Player({ stream, title, matches, liveCall, recording, watch }: { stream
   // and nothing to show over it.
   const youtubeOnly = !own && !!stream.youtubeOnly?.includes(day);
   const offerOverlay = !youtubeOnly && (timed || liveVideo || !!ownMatch);
+  // Where the day's video came from (a match's official video is labelled on its own).
+  const origin = own ? null : originNote(stream.days?.find((x) => x.videoId === day)?.origin ?? (day === stream.videoId ? stream.origin : undefined));
   return (
     <>
     <div ref={box} className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
@@ -182,7 +191,57 @@ function Player({ stream, title, matches, liveCall, recording, watch }: { stream
         </span>
       )}
     </div>
+    {origin && <p className="mt-2 text-xs text-muted-foreground" data-recording-origin>{origin}</p>}
     </>
+  );
+}
+
+/** Beside a finished event's recording: its best auto, best TeleOp and closest match (lib/recordingHighlights.ts), each
+ *  opening its match, with a way to watch it in the player when it has a clip or FIRST's own video. Stacked in the
+ *  column beside the player on a wide screen; three across under it on a tablet, one under another on a phone. */
+function BestMatches({ d, best }: { d: EventDetail; best: RecordingHighlights }) {
+  const blocks: [string, RecordingHighlight | null, "auto" | "teleop" | "closest"][] = [["Best auto", best.auto, "auto"], ["Best TeleOp", best.teleop, "teleop"], ["Closest match", best.closest, "closest"]];
+  return (
+    <aside aria-label="Best matches" className="grid min-w-0 content-start gap-3 sm:grid-cols-3 lg:grid-cols-1" data-best-matches>
+      {blocks.map(([label, h, kind]) => h && <BestBlock key={kind} label={label} h={h} kind={kind} season={d.event.season} />)}
+    </aside>
+  );
+}
+
+function BestBlock({ label, h, kind, season }: { label: string; h: RecordingHighlight; kind: "auto" | "teleop" | "closest"; season: number }) {
+  const m = h.match;
+  const tone = (c: "red" | "blue") => (c === "red" ? "text-red-alliance" : "text-blue-alliance");
+  const teams = (list: number[], c: "red" | "blue" | null) => (
+    <span className={cn("flex flex-wrap gap-x-2", c && tone(c))}>{list.map((t) => <TeamNo key={t} team={t} season={season} className="text-sm" />)}</span>
+  );
+  const on = (c: "red" | "blue") => { const f = m[c].teams.filter((t) => t.onField); return (f.length ? f : m[c].teams).map((t) => t.number); };
+  return (
+    <div className="min-w-0 rounded-2xl border border-border bg-card p-3.5" data-best={kind}>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <Link to={`?tab=matches&match=${encodeURIComponent(m.key)}`} className="tap-44 text-sm font-semibold text-foreground hover:text-accent-text" aria-label={`Open ${m.label}`}>{m.label}</Link>
+      </div>
+      {kind === "closest" ? (
+        <>
+          <p className="mt-1 font-display text-2xl font-bold tabular-nums">
+            <span className="text-red-alliance">{m.red.score!.total}</span><span className="px-1 text-muted-foreground">–</span><span className="text-blue-alliance">{m.blue.score!.total}</span>
+            <span className="ml-2 text-sm font-medium text-muted-foreground">{h.value === 0 ? "tie" : `by ${h.value}`}</span>
+          </p>
+          <div className="mt-1 flex flex-wrap justify-between gap-x-3">{teams(on("red"), "red")}{teams(on("blue"), "blue")}</div>
+        </>
+      ) : (
+        <>
+          <p className="mt-1 font-display text-2xl font-bold tabular-nums">{h.value}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{kind === "auto" ? "auto points" : "TeleOp points"}</span></p>
+          <div className="mt-1">{teams(h.teams, h.side)}</div>
+        </>
+      )}
+      {(m.clip || m.video) && (
+        <div className="mt-2 text-sm font-medium">
+          {m.clip ? <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className="tap-44 text-accent-text hover:underline">Watch</ClipLink>
+            : <MatchVideoLink url={m.video!} label={m.label} matchKey={m.key} className="tap-44 text-accent-text hover:underline">Watch</MatchVideoLink>}
+        </div>
+      )}
+    </div>
   );
 }
 
