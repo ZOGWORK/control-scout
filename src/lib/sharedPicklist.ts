@@ -689,13 +689,16 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   }, []);
 
   // The timers that take a "Saved" mark down, cleared when the list goes: one firing after it would set the state of
-  // a list no longer on screen.
+  // a list no longer on screen. A save that lands after the list closed (its answer still on the way) marks nothing.
   const savedTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const closed = useRef(false);
   useEffect(() => {
     const timers = savedTimers.current;
-    return () => { for (const t of timers) clearTimeout(t); timers.clear(); };
+    closed.current = false;
+    return () => { closed.current = true; for (const t of timers) clearTimeout(t); timers.clear(); };
   }, []);
   const markSaved = useCallback((k: string) => {
+    if (closed.current) return;
     setSavedAt((s) => ({ ...s, [k]: Date.now() }));
     const t = setTimeout(() => {
       savedTimers.current.delete(t);

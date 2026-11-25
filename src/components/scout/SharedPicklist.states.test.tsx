@@ -147,6 +147,22 @@ describe("a shared note's state", () => {
     set.mockRestore();
     clear.mockRestore();
   });
+  it("closed while a save is on its way: the answer that lands after marks nothing and sets no timer", async () => {
+    const view = show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    hold = true;
+    fireEvent.focus(noteInput(102));
+    fireEvent.change(noteInput(102), { target: { value: "Fast cycles" } });
+    fireEvent.keyDown(noteInput(102), { key: "Enter" });
+    await waitFor(() => expect(notePosts()).toHaveLength(1));
+    view.unmount();
+    const set = vi.spyOn(globalThis, "setTimeout");
+    release();
+    // The save's answer lands (its work is let go), and no Saved mark is set or timed for the closed list.
+    await waitFor(() => expect(volatileWorkCount()).toBe(0));
+    expect(set.mock.calls.filter((c) => c[1] === SAVED_SHOW_MS + 50)).toEqual([]);
+    set.mockRestore();
+  });
 
   it("Needs attention when it didn't go; Retry takes it back through Saving to Saved", async () => {
     await ready();
