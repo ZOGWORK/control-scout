@@ -230,3 +230,28 @@ export function rowsDelta(rows: Row[], live: Map<string, Row>): { clips: number;
   }
   return { clips, recordings: rows.length, events: [...new Set(rows.map((r) => r.code))].sort(), reasons };
 }
+
+/** How many seasons a run reads at once (AUTOPILOT_SEASONS, 1 to 6; anything else 1). Each season is its own reader with
+ *  its own browser and its own file (server/data/frameTimings/<season>.ts), so seasons read side by side touch nothing
+ *  in common; the reader's --lanes splits only one call's events, and a job's seasons hold one or two each. */
+export const parseSeasons = (s: string | undefined): number => (/^[1-6]$/.test(s ?? "") ? Number(s) : 1);
+
+/** Runs `fn` on every item, at most `n` at a time, each next item started as one finishes. Resolves when all have; a
+ *  rejection is thrown once every item running has settled (none left running behind the caller). */
+export async function pool<T>(items: readonly T[], n: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0, failed: { e: unknown } | null = null;
+  const worker = async () => {
+    while (next < items.length && !failed) {
+      const item = items[next++];
+      try { await fn(item); } catch (e) { failed ??= { e }; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(n, items.length)) }, worker));
+  if (failed) throw (failed as { e: unknown }).e;
+}
+
+/** A queue of steps run one after another, whoever adds them (lane servicing, with seasons read side by side). */
+export function serial(): (step: () => Promise<void>) => Promise<void> {
+  let tail: Promise<void> = Promise.resolve();
+  return (step) => { const run = tail.then(step); tail = run.catch(() => {}); return run; };
+}
