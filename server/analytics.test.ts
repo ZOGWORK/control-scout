@@ -86,6 +86,14 @@ describe("POST /api/collect", () => {
   });
 });
 
+describe("dayOf", () => {
+  it("counts days in Eastern time, so a late-evening view stays on that evening's date", () => {
+    expect(dayOf(new Date("2026-11-25T03:30:00Z"))).toBe("2026-11-24"); // 10:30 pm EST
+    expect(dayOf(new Date("2026-11-25T05:00:00Z"))).toBe("2026-11-25"); // midnight EST
+    expect(dayOf(new Date("2026-07-04T03:59:00Z"))).toBe("2026-07-03"); // 11:59 pm EDT
+  });
+});
+
 describe("aggregation", () => {
   it("upserts: the same day/path/referrer/screen/lang adds to one row", async () => {
     const now = new Date("2026-10-15T12:00:00Z");
@@ -93,7 +101,7 @@ describe("aggregation", () => {
     await recordPageView(view, now);
     await recordPageView(view, now);
     await recordPageView({ ...view, screen: "phone" }, now);
-    await recordPageView(view, new Date("2026-10-16T00:00:01Z"));
+    await recordPageView(view, new Date("2026-10-16T04:00:01Z")); // 00:00:01 Eastern (EDT) on the 16th
     const r = await rows();
     expect(r.map((x) => [x.day, x.screen, x.views, x.sessions])).toEqual([
       ["2026-10-15", "desktop", 3, 1], ["2026-10-15", "phone", 1, 0], ["2026-10-16", "desktop", 1, 0],
@@ -179,7 +187,7 @@ describe("public usage", () => {
     expect(u).toMatchObject({ status: "unavailable", reason: "error", totals: null });
   });
 
-  it("sums page views and session starts per UTC day over 30 days, today (partial) included", async () => {
+  it("sums page views and session starts per Eastern-time day over 30 days, today (partial) included", async () => {
     await record("2026-09-17", 5, 5); // a day before the window: not counted
     await record("2026-09-18", 2, 1); // the window's first day
     await record("2026-10-16", 3, 1, { path: "/teams/:number", screen: "phone" });

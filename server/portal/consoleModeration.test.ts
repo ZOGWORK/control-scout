@@ -10,7 +10,7 @@ import { sha256 } from "../auth/session";
 import { invalidateOwnerSettings } from "../ownerSettings";
 import { resetAbuse } from "../moderation";
 import { resetMetrics } from "../metrics";
-import { recordPageView } from "../analytics";
+import { dayOf, recordPageView } from "../analytics";
 import { canTriage, statusForTriage, triageQueue } from "./feedback";
 import { TRIAGE_NEXT } from "../../src/shared/owner";
 
@@ -240,7 +240,7 @@ describe("error report notes", () => {
 
 describe("analytics and the \"in use\" choice", () => {
   it("counts page views and sessions per day, and nothing about predictions, with no email anywhere", async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = dayOf(new Date());
     await recordPageView({ path: "/", ref: "", screen: "phone", lang: "en", session: true });
     await recordPageView({ path: "/teams", ref: "", screen: "phone", lang: "en", session: false });
     // Prediction traffic is not part of this tab (the owner reads it for page views only).

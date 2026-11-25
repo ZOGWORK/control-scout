@@ -130,7 +130,7 @@ export function AnalyticsPanel() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <StatTile tone="accent" icon={Eye} label="Page views" value={int(a.totals.pageViews)} hint={`${int(a.totals.pageViews / Math.max(1, a.days))} a day on average`} />
                 <StatTile tone="sky" icon={MousePointerClick} label="Sessions" value={int(a.totals.sessions)} hint="Visits started" />
-                <StatTile className="col-span-2 sm:col-span-1" tone="emerald" icon={CalendarDays} label="Today" value={int(a.daily.at(-1)?.pageViews ?? 0)} hint="page views so far (UTC)" />
+                <StatTile className="col-span-2 sm:col-span-1" tone="emerald" icon={CalendarDays} label="Today" value={int(a.daily.at(-1)?.pageViews ?? 0)} hint="page views so far (Eastern time)" />
               </div>
               <div className="mt-4"><DailyViews daily={a.daily} /></div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">

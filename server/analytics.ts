@@ -22,8 +22,13 @@ export const BOT_UA = /bot|crawl|spider|slurp|archiver|scrape|headless|lighthous
 
 export const isBot = (ua: string | undefined) => !ua || ua.length < 20 || BOT_UA.test(ua);
 
-/** The UTC day a view counts toward. */
-export const dayOf = (d: Date) => d.toISOString().slice(0, 10);
+/** Days are counted in US Eastern time (the owner's day, DST included): a view at 11 pm ET counts toward that
+ * evening's date, not the next UTC day. Rows recorded before 11-25-2026 were bucketed by UTC day. */
+export const STATS_TIME_ZONE = "America/New_York";
+const easternDay = new Intl.DateTimeFormat("en-CA", { timeZone: STATS_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+
+/** The Eastern-time day (YYYY-MM-DD) a view counts toward. */
+export const dayOf = (d: Date) => easternDay.format(d);
 
 /** Add one page view to its day's aggregate row. */
 export async function recordPageView(v: PageView, now = new Date(), c: Client = db()): Promise<void> {
@@ -44,7 +49,7 @@ export type StatsSummary = {
   languages: { lang: string; views: number }[];
 };
 
-/** Totals for the last `days` UTC days (today included). */
+/** Totals for the last `days` Eastern-time days (today included). */
 export async function statsSummary(days = 30, now = new Date(), c: Client = db()): Promise<StatsSummary> {
   const to = dayOf(now);
   const from = dayOf(new Date(now.getTime() - (days - 1) * 86_400_000));
@@ -64,7 +69,7 @@ export async function statsSummary(days = 30, now = new Date(), c: Client = db()
 
 /**
  * What the home page shows about Control Scout's own use: page views and sessions
- * started per UTC day for the last `days` days (today, still partial, included).
+ * started per Eastern-time day for the last `days` days (today, still partial, included).
  * Allowlisted by construction: only those two sums are read, never the paths,
  * referrers, screens or languages the owner's summary breaks them down by.
  *
@@ -93,7 +98,7 @@ export async function publicUsage(enabled: boolean, now = new Date(), c: Client 
   const start = first > from ? first : from;
   const byDay = new Map(rows.map((r) => [r.day, r]));
   const daily: PublicUsage["daily"] = [];
-  for (let t = Date.parse(`${start}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000) {
+  for (let t = Date.parse(`${start}T12:00:00Z`); t <= Date.parse(`${to}T12:00:00Z`); t += 86_400_000) { // noon UTC: the same date in Eastern time
     const day = dayOf(new Date(t));
     const r = byDay.get(day);
     daily.push({ day, pageViews: r?.views ?? 0, sessionStarts: r?.sessions ?? 0 });

@@ -75,7 +75,7 @@ export type PublicUsageUnavailable =
   | "error";
 
 export interface PublicUsageDay {
-  /** UTC day, YYYY-MM-DD. */
+  /** Eastern-time day, YYYY-MM-DD. */
   day: string;
   pageViews: number;
   sessionStarts: number;
@@ -85,7 +85,7 @@ export interface PublicUsage {
   status: "available" | "unavailable";
   /** Set when status is "unavailable". */
   reason: PublicUsageUnavailable | null;
-  /** The window's first and last UTC days (inclusive). `to` is today, so it's still partial. */
+  /** The window's first and last Eastern-time days (inclusive). `to` is today, so it's still partial. */
   from: string;
   to: string;
   /** The day counting began (the first recorded day), when it falls inside the window: earlier days weren't measured. */
