@@ -14,7 +14,7 @@ import { db } from "./db.js";
 import { env } from "./env.js";
 import { registerCache } from "./caches.js";
 import { publishUsageSetting } from "./ownerSettings.js";
-import { parsePageView, type PageView } from "../src/shared/analytics.js";
+import { parsePageView, statsDay, STATS_TIME_ZONE, type PageView } from "../src/shared/analytics.js";
 import { PUBLIC_USAGE_DAYS, type PublicUsage } from "../src/shared/home.js";
 
 /** Crawlers, link previews, monitors, scripts and automated browsers. */
@@ -22,39 +22,50 @@ export const BOT_UA = /bot|crawl|spider|slurp|archiver|scrape|headless|lighthous
 
 export const isBot = (ua: string | undefined) => !ua || ua.length < 20 || BOT_UA.test(ua);
 
-/** The UTC day a view counts toward. */
-export const dayOf = (d: Date) => d.toISOString().slice(0, 10);
+/** Days are counted in US Eastern time (the owner's day, DST included): a view at 11 pm ET counts toward that
+ * evening's date, not the next UTC day. Rows recorded before 11-25-2026 were bucketed by UTC day. */
+export { STATS_TIME_ZONE };
+/** The Eastern-time day (YYYY-MM-DD) a view counts toward (src/shared/analytics.ts statsDay, which the browser uses too). */
+export const dayOf = statsDay;
+
+/** A YYYY-MM-DD date `n` calendar days later (negative: earlier). Calendar arithmetic, so a DST change in
+ * between never repeats or skips a day the way stepping 24 hours from an instant would. */
+export const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** Add one page view to its day's aggregate row. */
 export async function recordPageView(v: PageView, now = new Date(), c: Client = db()): Promise<void> {
   await c.execute({
-    sql: `INSERT INTO analytics_daily (day, path, referrer_host, screen, lang, views, sessions) VALUES (?, ?, ?, ?, ?, 1, ?)
-          ON CONFLICT (day, path, referrer_host, screen, lang) DO UPDATE SET views = views + 1, sessions = sessions + excluded.sessions`,
-    args: [dayOf(now), v.path, v.ref, v.screen, v.lang, v.session ? 1 : 0],
+    sql: `INSERT INTO analytics_daily (day, path, referrer_host, screen, lang, views, sessions, visitors, new_visitors) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+          ON CONFLICT (day, path, referrer_host, screen, lang) DO UPDATE SET views = views + 1, sessions = sessions + excluded.sessions,
+            visitors = visitors + excluded.visitors, new_visitors = new_visitors + excluded.new_visitors`,
+    args: [dayOf(now), v.path, v.ref, v.screen, v.lang, v.session ? 1 : 0, v.visitor ? 1 : 0, v.newVisitor ? 1 : 0],
   });
 }
 
 export type StatsSummary = {
   days: number; from: string; to: string;
-  totals: { views: number; sessions: number };
-  daily: { day: string; views: number; sessions: number }[];
+  /** visitors: the period's daily unique visitors added up (one browser on 3 days is 3); newVisitors: browsers here for
+   *  the first time in the period (each once). */
+  totals: { views: number; sessions: number; visitors: number; newVisitors: number };
+  daily: { day: string; views: number; sessions: number; visitors: number; newVisitors: number }[];
   topPaths: { path: string; views: number }[];
   topReferrers: { host: string; sessions: number }[];
   screens: { screen: string; views: number }[];
   languages: { lang: string; views: number }[];
 };
 
-/** Totals for the last `days` UTC days (today included). */
+/** Totals for the last `days` Eastern-time days (today included). */
 export async function statsSummary(days = 30, now = new Date(), c: Client = db()): Promise<StatsSummary> {
   const to = dayOf(now);
-  const from = dayOf(new Date(now.getTime() - (days - 1) * 86_400_000));
+  const from = addDays(to, -(days - 1));
   const q = async <T>(sql: string) => (await c.execute({ sql, args: [from, to] })).rows.map((r) => ({ ...r }) as T);
   const where = "WHERE day BETWEEN ? AND ?";
-  const [tot] = await q<{ views: number | null; sessions: number | null }>(`SELECT SUM(views) AS views, SUM(sessions) AS sessions FROM analytics_daily ${where}`);
+  const sums = "SUM(views) AS views, SUM(sessions) AS sessions, SUM(visitors) AS visitors, SUM(new_visitors) AS newVisitors";
+  const [tot] = await q<Record<"views" | "sessions" | "visitors" | "newVisitors", number | null>>(`SELECT ${sums} FROM analytics_daily ${where}`);
   return {
     days, from, to,
-    totals: { views: Number(tot?.views ?? 0), sessions: Number(tot?.sessions ?? 0) },
-    daily: await q(`SELECT day, SUM(views) AS views, SUM(sessions) AS sessions FROM analytics_daily ${where} GROUP BY day ORDER BY day`),
+    totals: { views: Number(tot?.views ?? 0), sessions: Number(tot?.sessions ?? 0), visitors: Number(tot?.visitors ?? 0), newVisitors: Number(tot?.newVisitors ?? 0) },
+    daily: await q(`SELECT day, ${sums} FROM analytics_daily ${where} GROUP BY day ORDER BY day`),
     topPaths: await q(`SELECT path, SUM(views) AS views FROM analytics_daily ${where} GROUP BY path ORDER BY views DESC, path LIMIT 20`),
     topReferrers: await q(`SELECT referrer_host AS host, SUM(sessions) AS sessions FROM analytics_daily ${where} AND referrer_host <> '' GROUP BY referrer_host ORDER BY sessions DESC, host LIMIT 20`),
     screens: await q(`SELECT screen, SUM(views) AS views FROM analytics_daily ${where} GROUP BY screen ORDER BY views DESC`),
@@ -64,7 +75,7 @@ export async function statsSummary(days = 30, now = new Date(), c: Client = db()
 
 /**
  * What the home page shows about Control Scout's own use: page views and sessions
- * started per UTC day for the last `days` days (today, still partial, included).
+ * started per Eastern-time day for the last `days` days (today, still partial, included).
  * Allowlisted by construction: only those two sums are read, never the paths,
  * referrers, screens or languages the owner's summary breaks them down by.
  *
@@ -75,7 +86,7 @@ export async function statsSummary(days = 30, now = new Date(), c: Client = db()
  */
 export async function publicUsage(enabled: boolean, now = new Date(), c: Client = db(), days = PUBLIC_USAGE_DAYS): Promise<PublicUsage> {
   const to = dayOf(now);
-  const from = dayOf(new Date(now.getTime() - (days - 1) * 86_400_000));
+  const from = addDays(to, -(days - 1));
   const base = { from, to, generatedAt: now.toISOString(), coverage: "opt-in" as const };
   const unavailable = (reason: PublicUsage["reason"]): PublicUsage => ({ ...base, status: "unavailable", reason, measuredFrom: null, measuredThrough: null, totals: null, daily: [] });
   if (!enabled) return unavailable("not-published");
@@ -93,8 +104,7 @@ export async function publicUsage(enabled: boolean, now = new Date(), c: Client 
   const start = first > from ? first : from;
   const byDay = new Map(rows.map((r) => [r.day, r]));
   const daily: PublicUsage["daily"] = [];
-  for (let t = Date.parse(`${start}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000) {
-    const day = dayOf(new Date(t));
+  for (let day = start; day <= to; day = addDays(day, 1)) {
     const r = byDay.get(day);
     daily.push({ day, pageViews: r?.views ?? 0, sessionStarts: r?.sessions ?? 0 });
   }

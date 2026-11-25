@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "./db";
 import { createApp } from "./app";
 import type { PageView } from "../src/shared/analytics";
-import { cachedPublicUsage, dayOf, isBot, publicUsage, rateLimiter, recordPageView, statsSummary } from "./analytics";
+import { addDays, cachedPublicUsage, dayOf, isBot, publicUsage, rateLimiter, recordPageView, statsSummary } from "./analytics";
 import { clearAllCaches } from "./caches";
 import type { PublicUsage } from "../src/shared/home";
 
@@ -31,7 +31,7 @@ afterAll(() => {
 });
 beforeEach(async () => { await run("DELETE FROM analytics_daily"); });
 
-const view: PageView = { path: "/teams/:number", ref: "", screen: "desktop", lang: "en", session: false };
+const view: PageView = { path: "/teams/:number", ref: "", screen: "desktop", lang: "en", session: false, visitor: false, newVisitor: false };
 const post = (body: unknown, headers: Record<string, string> = {}, type = "application/json") =>
   fetch(`${base}/api/collect`, { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body), headers: { "Content-Type": type, "User-Agent": CHROME, ...headers } });
 const rows = () => all<{ day: string; path: string; referrer_host: string; screen: string; lang: string; views: number; sessions: number }>("SELECT * FROM analytics_daily ORDER BY day, path, referrer_host, screen");
@@ -42,8 +42,8 @@ describe("POST /api/collect", () => {
     expect((await post(view, {}, "text/plain;charset=UTF-8")).status).toBe(204);
     const r = await rows();
     expect(r.map((x) => ({ ...x }))).toEqual([
-      { day: dayOf(new Date()), path: "/teams/:number", referrer_host: "", screen: "desktop", lang: "en", views: 1, sessions: 0 },
-      { day: dayOf(new Date()), path: "/teams/:number", referrer_host: "google.com", screen: "desktop", lang: "en", views: 1, sessions: 1 },
+      { day: dayOf(new Date()), path: "/teams/:number", referrer_host: "", screen: "desktop", lang: "en", views: 1, sessions: 0, visitors: 0, new_visitors: 0 },
+      { day: dayOf(new Date()), path: "/teams/:number", referrer_host: "google.com", screen: "desktop", lang: "en", views: 1, sessions: 1, visitors: 0, new_visitors: 0 },
     ]);
   });
 
@@ -86,14 +86,41 @@ describe("POST /api/collect", () => {
   });
 });
 
+describe("dayOf", () => {
+  it("counts days in Eastern time, so a late-evening view stays on that evening's date", () => {
+    expect(dayOf(new Date("2026-11-25T03:30:00Z"))).toBe("2026-11-24"); // 10:30 pm EST
+    expect(dayOf(new Date("2026-11-25T05:00:00Z"))).toBe("2026-11-25"); // midnight EST
+    expect(dayOf(new Date("2026-07-04T03:59:00Z"))).toBe("2026-07-03"); // 11:59 pm EDT
+  });
+
+  it("steps calendar days, so a window across a DST change neither repeats nor skips a day", () => {
+    // 11:30 pm EST on Nov 2, 2026 (DST ended Nov 1): 24-hour steps back would land on Nov 1 twice.
+    const to = dayOf(new Date("2026-11-03T04:30:00Z"));
+    expect(to).toBe("2026-11-02");
+    expect([0, 1, 2, 3].map((i) => addDays(to, -i))).toEqual(["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"]);
+    expect(addDays("2026-03-07", 2)).toBe("2026-03-09"); // across spring-forward
+  });
+});
+
 describe("aggregation", () => {
+  it("sums unique visitors per day and new visitors per period, beside views and sessions", async () => {
+    const day1 = new Date("2026-11-24T15:00:00Z"), day2 = new Date("2026-11-25T15:00:00Z");
+    await recordPageView({ ...view, session: true, visitor: true, newVisitor: true }, day1); // browser A, first visit
+    await recordPageView(view, day1);                                                        // A again
+    await recordPageView({ ...view, session: true, visitor: true, newVisitor: true }, day1); // browser B, first visit
+    await recordPageView({ ...view, session: true, visitor: true }, day2);                   // A comes back the next day
+    const s = await statsSummary(7, day2);
+    expect(s.totals).toEqual({ views: 4, sessions: 3, visitors: 3, newVisitors: 2 });
+    expect(s.daily.map((d) => [d.day, d.visitors, d.newVisitors])).toEqual([["2026-11-24", 2, 2], ["2026-11-25", 1, 0]]);
+  });
+
   it("upserts: the same day/path/referrer/screen/lang adds to one row", async () => {
     const now = new Date("2026-10-15T12:00:00Z");
     await recordPageView({ ...view, session: true }, now);
     await recordPageView(view, now);
     await recordPageView(view, now);
     await recordPageView({ ...view, screen: "phone" }, now);
-    await recordPageView(view, new Date("2026-10-16T00:00:01Z"));
+    await recordPageView(view, new Date("2026-10-16T04:00:01Z")); // 00:00:01 Eastern (EDT) on the 16th
     const r = await rows();
     expect(r.map((x) => [x.day, x.screen, x.views, x.sessions])).toEqual([
       ["2026-10-15", "desktop", 3, 1], ["2026-10-15", "phone", 1, 0], ["2026-10-16", "desktop", 1, 0],
@@ -179,7 +206,7 @@ describe("public usage", () => {
     expect(u).toMatchObject({ status: "unavailable", reason: "error", totals: null });
   });
 
-  it("sums page views and session starts per UTC day over 30 days, today (partial) included", async () => {
+  it("sums page views and session starts per Eastern-time day over 30 days, today (partial) included", async () => {
     await record("2026-09-17", 5, 5); // a day before the window: not counted
     await record("2026-09-18", 2, 1); // the window's first day
     await record("2026-10-16", 3, 1, { path: "/teams/:number", screen: "phone" });
@@ -221,7 +248,7 @@ describe("public usage", () => {
     it("answers only the allowlisted aggregate: no paths, referrers, screens or languages", async () => {
       process.env.PUBLIC_USAGE_ENABLED = "1";
       const today = dayOf(new Date());
-      await recordPageView({ path: "/teams/:number", ref: "secret-referrer.example", screen: "phone", lang: "de", session: true }, new Date(`${today}T00:30:00Z`));
+      await recordPageView({ path: "/teams/:number", ref: "secret-referrer.example", screen: "phone", lang: "de", session: true, visitor: true, newVisitor: true }, new Date(`${today}T16:30:00Z`));
       const r = await fetch(`${base}/api/public-usage`);
       expect(r.status).toBe(200);
       expect(r.headers.get("cache-control")).toMatch(/^public/);

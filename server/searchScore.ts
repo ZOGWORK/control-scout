@@ -8,7 +8,7 @@
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { Client } from "@libsql/client";
 import { db } from "./db.js";
-import { COLLECT_MAX_BYTES, dayOf, isBot, rateLimiter } from "./analytics.js";
+import { COLLECT_MAX_BYTES, addDays, dayOf, isBot, rateLimiter } from "./analytics.js";
 import { percentile } from "./metrics.js";
 import {
   ANSWER_BUCKET_COUNT, ANSWER_BUCKETS_MS, answerBucket, isoWeek, parseSearchBeacon, SEARCH_SAMPLE, weekStart,
@@ -74,11 +74,11 @@ export function weeksOf(rows: Row[]): SearchWeek[] {
 /** Weeks in the score: this one and the seven before it. */
 export const SCORE_WEEKS = 8;
 
-/** Time to answer over the last `days` UTC days (today included), and the last SCORE_WEEKS ISO weeks' scores. */
+/** Time to answer over the last `days` Eastern-time days (today included; days before 2026-11-25 were UTC), and the last SCORE_WEEKS ISO weeks' scores. */
 export async function searchScore(days = 14, now = Date.now(), c: Client = db()): Promise<SearchScore> {
   const today = dayOf(new Date(now));
-  const from = dayOf(new Date(now - (days - 1) * 86_400_000));
-  const first = weekStart(isoWeek(dayOf(new Date(now - (SCORE_WEEKS - 1) * 7 * 86_400_000))));
+  const from = addDays(today, -(days - 1));
+  const first = weekStart(isoWeek(addDays(today, -(SCORE_WEEKS - 1) * 7)));
   const rows = (await c.execute({ sql: `SELECT day, screen, entry, ${COUNTS.join(", ")}, max_ms, ${BCOLS.join(", ")} FROM search_score_daily WHERE day BETWEEN ? AND ?`, args: [first < from ? first : from, today] })).rows as unknown as Row[];
   const inDays = rows.filter((r) => String(r.day) >= from);
   return {
