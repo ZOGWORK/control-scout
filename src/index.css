@@ -537,14 +537,14 @@ a.underline:visited:where(.text-accent-text), .prose-links a:visited { color: co
     radial-gradient(ellipse 30% 80% at 52% 100%, color-mix(in srgb, var(--glow-c, #556496) 30%, transparent), transparent 80%);
   mask-image: radial-gradient(ellipse 65% 110% at 50% 110%, #000 25%, transparent 78%);
 }
-/* One gradient at a time: hidden while the top wash is on screen (PageEndGlow.tsx), fading in once it has scrolled away.
-   On a short page (Predict on a phone) the glow is already in view when the wash leaves, so the entrance is seen: a
-   slow ease-out fade as the pool swells up from the page's end (#2146). Leaving is quicker. A scale anchored at the
-   bottom edge, not a translate: it never reaches past the box, so the page never grows a scroll while the glow is
+/* One gradient at a time: hidden while the top wash is on screen (PageEndGlow.tsx), and until the glow itself comes
+   into view, so the entrance is always seen, on a long page too: a slow ease-out fade as the pool swells up from the
+   page's end (#2146). Leaving is quicker, and it rises again the next time you come down to it. A scale anchored at
+   the bottom edge, not a translate: it never reaches past the box, so the page never grows a scroll while the glow is
    hidden. Opacity and transform only, so it stays on the compositor. Reduced motion: no swell, and the app-wide
    reduced-motion rule (end of this file) makes the change instant, as it does every transition. */
-[data-page-end-glow] { transform-origin: 50% 100%; transition: opacity 900ms cubic-bezier(0.22, 1, 0.36, 1), transform 900ms cubic-bezier(0.22, 1, 0.36, 1); }
-[data-page-end-glow][data-hidden] { opacity: 0; transform: scaleY(0.85); transition-duration: 250ms; transition-timing-function: ease-out; }
+[data-page-end-glow] { transform-origin: 50% 100%; transition: opacity 1200ms cubic-bezier(0.22, 1, 0.36, 1), transform 1400ms cubic-bezier(0.22, 1, 0.36, 1); }
+[data-page-end-glow][data-hidden] { opacity: 0; transform: scaleY(0.7); transition-duration: 250ms; transition-timing-function: ease-out; }
 @media (prefers-reduced-motion: reduce) { [data-page-end-glow][data-hidden] { transform: none; } }
 
 /* ---------- Ambient background (always on) ----------
@@ -782,14 +782,21 @@ html.compact .density-card { padding: 0.875rem; }
 .cs-hero-search > div:first-child input { font-size: 1.0625rem; }
 /* The v8 wash's glows (Wash.tsx) drift: each a slow wave of a few percent with a soft swell, never more. Transform
    and opacity only (the compositor's), three lengths that never line up; still for reduced motion. */
-.wash-glow { will-change: transform, opacity; animation: wash-drift-a 19s ease-in-out infinite alternate; }
-.wash-glow[data-wash-glow="1"] { animation-name: wash-drift-b; animation-duration: 23s; animation-delay: -8s; }
-.wash-glow[data-wash-glow="2"] { animation-name: wash-drift-c; animation-duration: 29s; animation-delay: -15s; }
-@keyframes wash-drift-a { 0% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; } 50% { transform: translate3d(3%, 4%, 0) scale(1.06); opacity: 0.8; } 100% { transform: translate3d(-1.5%, 2%, 0) scale(1.03); opacity: 0.95; } }
-@keyframes wash-drift-b { 0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.95; } 50% { transform: translate3d(-3%, 4%, 0) scale(1.08); opacity: 0.78; } 100% { transform: translate3d(2%, 1.5%, 0) scale(1.02); opacity: 1; } }
-@keyframes wash-drift-c { 0% { transform: translate3d(0, 0, 0) scale(1.02); opacity: 1; } 50% { transform: translate3d(-3.5%, 3%, 0) scale(1.07); opacity: 0.82; } 100% { transform: translate3d(1.5%, 4%, 0) scale(1); opacity: 0.92; } }
+.wash-glow { will-change: transform, opacity; animation: wash-drift-a 13s ease-in-out infinite alternate; }
+.wash-glow[data-wash-glow="1"] { animation-name: wash-drift-b; animation-duration: 16s; animation-delay: -6s; }
+.wash-glow[data-wash-glow="2"] { animation-name: wash-drift-c; animation-duration: 19s; animation-delay: -11s; }
+/* Each colour sways toward its neighbour and back and breathes a little, out of step with the others, so where the
+   colours meet the blend slowly shifts: lively, never a pulse. */
+@keyframes wash-drift-a { 0% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; } 50% { transform: translate3d(7%, 5%, 0) scale(1.1); opacity: 0.7; } 100% { transform: translate3d(-3%, 3%, 0) scale(1.04); opacity: 0.92; } }
+@keyframes wash-drift-b { 0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.92; } 50% { transform: translate3d(-6%, 5%, 0) scale(1.12); opacity: 0.68; } 100% { transform: translate3d(4%, 2%, 0) scale(1.03); opacity: 1; } }
+@keyframes wash-drift-c { 0% { transform: translate3d(0, 0, 0) scale(1.03); opacity: 1; } 50% { transform: translate3d(-7%, 4%, 0) scale(1.1); opacity: 0.72; } 100% { transform: translate3d(3%, 5%, 0) scale(1); opacity: 0.9; } }
+/* The wash rises in once per page load (Shell's Wash, `rise`): the colour pours down from the top edge as the page
+   opens, the same slow swell the page-end glow has. It carries on from the first paint's own rise (server/bootShell.ts,
+   the same keyframes), so the app taking over never restarts it. Not on page changes: the shell keeps one wash. */
+.wash-rise { transform-origin: 50% 33%; animation: wash-rise 1400ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes wash-rise { from { opacity: 0; transform: translate3d(0, -4vh, 0) scaleY(0.8); } to { opacity: 1; transform: none; } }
 /* As specific as the per-glow rules above, or their animation-name and duration would outrank `none`. */
-@media (prefers-reduced-motion: reduce) { .wash-glow, .wash-glow[data-wash-glow] { animation: none; will-change: auto; } }
+@media (prefers-reduced-motion: reduce) { .wash-glow, .wash-glow[data-wash-glow] { animation: none; will-change: auto; } .wash-rise { animation: none; } }
 @keyframes cs-hero-glow {
   0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 14%, transparent), 0 0 28px -6px color-mix(in srgb, var(--color-accent) 30%, transparent); }
   50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 22%, transparent), 0 0 34px -4px color-mix(in srgb, var(--color-accent) 42%, transparent); }

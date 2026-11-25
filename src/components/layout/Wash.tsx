@@ -1,6 +1,6 @@
 // The v8 background combines a softly moving wash near the top with a moving particle wave lower down.
 // The wash is taller on top-level pages. Both layers sit behind the content.
-import { useEffect, useId } from "react";
+import { useEffect, useId, useState } from "react";
 import { DotWave } from "./DotWave";
 import { cn } from "../cn";
 import { useServerFlag } from "../../lib/flags";
@@ -26,9 +26,33 @@ export const TOP_PATCH = edge("--wash-b");
 /** The same edge left to right (the wash's left, middle and right colours), drawn over TOP_PATCH so the patch runs on
  *  into the wash on screen; Safari still reads the solid TOP_PATCH under it. */
 export const TOP_PATCH_IMAGE = `linear-gradient(to right,${edge("--wash-a")} 5%,${edge("--wash-b")} 50%,${edge("--wash-c")} 95%)`;
+/** How long the wash's rise takes (index.css `.wash-rise`, and the first paint's copy in server/bootShell.ts). */
+export const WASH_RISE_MS = 1400;
+
+/** Where the wash's rise is now, as a (negative) animation-delay that carries on from the first paint's rise, which
+ *  started when the page first painted; null once it has finished (nothing left to show). */
+export function riseDelay(now = performance.now(), firstPaint = firstPaintAt()): string | null {
+  const elapsed = Math.max(0, now - firstPaint);
+  return elapsed >= WASH_RISE_MS ? null : `${-Math.round(elapsed)}ms`;
+}
+function firstPaintAt(): number {
+  try {
+    const fcp = performance.getEntriesByName("first-contentful-paint")[0] ?? performance.getEntriesByType("paint")[0];
+    return fcp ? fcp.startTime : 0;
+  } catch { return 0; }
+}
+
 const HEIGHT = { tall: "clamp(16rem, calc(42vh * var(--wash-spread, 1)), calc(30rem * var(--wash-spread, 1)))", short: "clamp(13rem, calc(34vh * var(--wash-spread, 1)), calc(23rem * var(--wash-spread, 1)))" } as const;
 
-export function Wash({ size = "tall", className, includeParticleWave = true }: { size?: "tall" | "short"; className?: string; includeParticleWave?: boolean }) {
+/** `rise`: the wash pours in from the top once, as the page loads (only the shell's wash, which stays for the visit). */
+export function Wash({ size = "tall", className, includeParticleWave = true, rise = false }: { size?: "tall" | "short"; className?: string; includeParticleWave?: boolean; rise?: boolean }) {
+  // Taken once, when the wash first draws: later renders (a page change) never restart it. The server's first paint
+  // (server/bootShell.ts, .csb-col) is still in #root while the app's first render runs: when it is there, its wash has
+  // been rising since the page first painted, so carry on from there; without it (no server HTML), rise from the start.
+  const [delay] = useState(() => {
+    if (!rise || typeof performance === "undefined") return null;
+    return document.querySelector(".csb-col") ? riseDelay() : "0ms";
+  });
   const grain = `grain-${useId().replace(/:/g, "")}`;
   const waveOn = useServerFlag("particleWave");
   // The owner's wash is in the page's head already (server/seo.ts); only a page without the server's HTML asks for it.
@@ -40,7 +64,8 @@ export function Wash({ size = "tall", className, includeParticleWave = true }: {
         className={cn("pointer-events-none absolute inset-x-0 top-0 overflow-hidden", className)}>
         {/* No blur here: the glows are already soft (each fades out on an eased curve), and a blur over moving layers is redrawn
             every frame (measured: a frame every ~67 ms with it, every 16.7 ms without, same look). */}
-        <div className="absolute -inset-x-[10%] -top-1/2 bottom-0">
+        <div className={cn("absolute -inset-x-[10%] -top-1/2 bottom-0", delay !== null && "wash-rise")}
+          style={delay !== null ? { animationDelay: delay } : undefined}>
           {/* Painted right, middle, left: the left glow on top where they overlap, as the single background list
               (whose first image painted on top) always drew them. */}
           {[2, 1, 0].map((i) => <div key={i} data-wash-glow={i} className="wash-glow absolute inset-0" style={{ backgroundImage: GLOWS[i] }} />)}
