@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "./db";
 import { createApp } from "./app";
 import type { PageView } from "../src/shared/analytics";
-import { cachedPublicUsage, dayOf, isBot, publicUsage, rateLimiter, recordPageView, statsSummary } from "./analytics";
+import { addDays, cachedPublicUsage, dayOf, isBot, publicUsage, rateLimiter, recordPageView, statsSummary } from "./analytics";
 import { clearAllCaches } from "./caches";
 import type { PublicUsage } from "../src/shared/home";
 
@@ -91,6 +91,14 @@ describe("dayOf", () => {
     expect(dayOf(new Date("2026-11-25T03:30:00Z"))).toBe("2026-11-24"); // 10:30 pm EST
     expect(dayOf(new Date("2026-11-25T05:00:00Z"))).toBe("2026-11-25"); // midnight EST
     expect(dayOf(new Date("2026-07-04T03:59:00Z"))).toBe("2026-07-03"); // 11:59 pm EDT
+  });
+
+  it("steps calendar days, so a window across a DST change neither repeats nor skips a day", () => {
+    // 11:30 pm EST on Nov 2, 2026 (DST ended Nov 1): 24-hour steps back would land on Nov 1 twice.
+    const to = dayOf(new Date("2026-11-03T04:30:00Z"));
+    expect(to).toBe("2026-11-02");
+    expect([0, 1, 2, 3].map((i) => addDays(to, -i))).toEqual(["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"]);
+    expect(addDays("2026-03-07", 2)).toBe("2026-03-09"); // across spring-forward
   });
 });
 
