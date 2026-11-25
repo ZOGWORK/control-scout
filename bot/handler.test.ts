@@ -374,7 +374,7 @@ describe("@mention answers", () => {
     const h = createHandler(() => {}, l);
     const { m, sent } = msg(`<@${BOT}> who won decode`);
     await h.mention(m, BOT);
-    expect(l.ask).toHaveBeenCalledWith("who won decode", [], [], "g1");
+    expect(l.ask).toHaveBeenCalledWith("who won decode", [], [], "g1", null);
     expect(sent).toHaveLength(1);
     expect(sent[0].kind).toBe("reply");
     expect(sent[0].embeds[0].title).toBe("ask who won decode");
@@ -557,7 +557,7 @@ describe("a chat with Bruno in Discord", () => {
     await h.mention(message(`<@${BOT}> who won decode`, {}, "bot-1").m, BOT);
     const follow = message("and second?", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }, "bot-2");
     await h.mention(follow.m, BOT);
-    expect(ask).toHaveBeenLastCalledWith("and second?", [{ role: "user", text: "who won decode" }, { role: "bruno", text: "re: who won decode (0)" }], [], "g");
+    expect(ask).toHaveBeenLastCalledWith("and second?", [{ role: "user", text: "who won decode" }, { role: "bruno", text: "re: who won decode (0)" }], [], "g", null);
     expect(follow.sent[0].content).toMatch(/^re: and second\? \(2\)/);
     await h.mention(message("and third?", { reference: { messageId: "bot-2" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
     expect((ask.mock.calls.at(-1) as unknown[])[1]).toHaveLength(4);
@@ -577,7 +577,7 @@ describe("a chat with Bruno in Discord", () => {
     await h.mention(message(`<@${BOT}> hi`, {}, "bot-1").m, BOT);
     const follow = message("who won decode", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }, "bot-2");
     await h.mention(follow.m, BOT);
-    expect(ask).toHaveBeenLastCalledWith("who won decode", [], [], "g");
+    expect(ask).toHaveBeenLastCalledWith("who won decode", [], [], "g", null);
   });
 });
 
@@ -633,7 +633,7 @@ describe("the answer's buttons", () => {
     // The click answers in the channel, as /ask would (with the make-up the channel needs to see).
     const b = button(post.components[0].components[0].custom_id);
     await h(b.i);
-    expect(ask).toHaveBeenLastCalledWith("4215 awards", [], [], "g1");
+    expect(ask).toHaveBeenLastCalledWith("4215 awards", [], [], "g1", null);
     expect(b.calls.map((x) => x.kind)).toEqual(["defer", "edit"]);
     expect(b.calls[1].payload.embeds[0].title).toBe("ask 4215 awards");
     expect(b.calls[1].payload.allowedMentions).toEqual({ parse: [], repliedUser: false });
@@ -788,6 +788,8 @@ describe("what the server has taught the bot", () => {
       learn: vi.fn(async () => {}),
       thread: vi.fn(async () => []),
       keep: vi.fn(async () => {}),
+      channel: vi.fn(async () => null),
+      keepChannel: vi.fn(async () => {}),
       ...over,
     };
   }
@@ -876,7 +878,7 @@ describe("what the server has taught the bot", () => {
     const l = lookups({ memory: mem, ask: chatAnswer() });
     await createHandler(() => {}, l).mention(message("and second?", {}, { reference: { messageId: "old" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
     expect(mem.thread).toHaveBeenCalledWith("old");
-    expect(l.ask).toHaveBeenCalledWith("and second?", turns, [], "g1");
+    expect(l.ask).toHaveBeenCalledWith("and second?", turns, [], "g1", null);
   });
 
   it("keeps the answer's thread, so a reply to it carries on even after a deploy", async () => {
@@ -890,6 +892,53 @@ describe("what the server has taught the bot", () => {
     ], "g1");
   });
 
+  it("a message outside a reply thread picks up what its channel was asking about", async () => {
+    const mem = memory({ channel: vi.fn(async () => "what did theseus get in auto opr") });
+    const l = lookups({ memory: mem, ask: chatAnswer() });
+    const h = createHandler(() => {}, l);
+    const first = message(`<@${BOT}> their last meet?`, {}, { channelId: "c1" });
+    await h.mention(first.m, BOT);
+    // The follow-up names no team: the channel's own question goes with it, so search can read what it means.
+    expect(mem.channel).toHaveBeenCalledWith("c1");
+    expect(l.ask).toHaveBeenCalledWith("their last meet?", [], [], "g1", "what did theseus get in auto opr");
+    // A message that only looks back adds nothing to the channel's subject.
+    expect(mem.keepChannel).not.toHaveBeenCalled();
+    // A question that names a team becomes what the channel is talking about next.
+    await h.mention(message(`<@${BOT}> 6980 opr`, {}, { channelId: "c1" }).m, BOT);
+    expect(mem.keepChannel).toHaveBeenCalledWith("c1", "6980 opr", "g1");
+    // A reply to one of his answers leans on that thread: the channel's subject is not read over it.
+    vi.mocked(mem.channel).mockClear();
+    const follow = message("and second?", {}, { channelId: "c1", reference: { messageId: "m1" }, mentions: { repliedUser: { id: BOT } } });
+    await h.mention(follow.m, BOT);
+    expect(mem.channel).not.toHaveBeenCalled();
+    expect(vi.mocked(l.ask).mock.calls.at(-1)).toEqual(["and second?", expect.any(Array), [], "g1", null]);
+  });
+
+  it("/ask in a channel reads and keeps the channel's subject, and a channel without one asks as typed", async () => {
+    const mem = memory({ channel: vi.fn(async (c: string) => (c === "c1" ? "4215 opr" : null)) });
+    const l = lookups({ memory: mem, ask: chatAnswer() });
+    const h = createHandler(() => {}, l);
+    const one = command("ask", { question: "their record?" });
+    one.i.guildId = "g1";
+    one.i.channelId = "c1";
+    await h(one.i);
+    expect(l.ask).toHaveBeenCalledWith("their record?", [], [], "g1", "4215 opr");
+    // The subject it was asked with is part of the cache key: another channel's follow-up is another question.
+    const two = command("ask", { question: "their record?" });
+    two.i.guildId = "g1";
+    two.i.channelId = "c2";
+    await h(two.i);
+    expect(l.ask).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(l.ask).mock.calls[1]).toEqual(["their record?", [], [], "g1", null]);
+    // A records question leaves the channel talking about it; a follow-up leaves the subject as it was.
+    expect(mem.keepChannel).not.toHaveBeenCalled();
+    const three = command("ask", { question: "who won AUBRQ2?" });
+    three.i.guildId = "g1";
+    three.i.channelId = "c1";
+    await h(three.i);
+    expect(mem.keepChannel).toHaveBeenCalledWith("c1", "who won AUBRQ2", "g1");
+  });
+
   it("a memory that fails changes nothing: the question is still answered", async () => {
     // (kept last in this block: it is the only one that lets every memory call throw)
     const mem = memory({
@@ -897,6 +946,8 @@ describe("what the server has taught the bot", () => {
       learn: async () => { throw new Error("database is locked"); },
       thread: async () => { throw new Error("database is locked"); },
       keep: async () => { throw new Error("database is locked"); },
+      channel: async () => { throw new Error("database is locked"); },
+      keepChannel: async () => { throw new Error("database is locked"); },
     });
     const l = lookups({ memory: mem, ask: chatAnswer() });
     const { m, sent } = message(`<@${BOT}> 4215`, {}, { reference: { messageId: "old" }, mentions: { repliedUser: { id: BOT } } });
@@ -984,7 +1035,7 @@ describe("\"Report this to ControlScout\"", () => {
   it("the thread before it goes with the report, and its log too", async () => {
     const report = vi.fn(async (_r: Report) => filed);
     const turns = [{ role: "user" as const, text: "who won decode" }, { role: "bruno" as const, text: "30030 won." }];
-    const h = createHandler(() => {}, lookups({ report, memory: { recall: vi.fn(async () => ({ teams: [], name: null })), learn: vi.fn(async () => {}), thread: vi.fn(async () => turns), keep: vi.fn(async () => {}) } }));
+    const h = createHandler(() => {}, lookups({ report, memory: { recall: vi.fn(async () => ({ teams: [], name: null })), learn: vi.fn(async () => {}), thread: vi.fn(async () => turns), keep: vi.fn(async () => {}), channel: vi.fn(async () => null), keepChannel: vi.fn(async () => {}) } }));
     await h.mention(message(`<@${BOT}> report this to ControlScout`, { reference: { messageId: "old" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
     expect(vi.mocked(report).mock.calls[0][0]).toMatchObject({ thread: turns, logs: [] });
   });

@@ -2,7 +2,8 @@
 // meet" or "and their OPR?" is searched as the team or event the thread named instead of as a question about the word
 // "their". The subject is the thread's own words — the latest message that was about the records — so a team carries
 // forward by name or by number without a second lookup, and a restart keeps it with the thread (bot/handler.ts keeps the
-// turns and bot/memory.ts keeps them past a deploy).
+// turns and bot/memory.ts keeps them past a deploy). A channel has one too, outside any reply thread: the last records
+// question asked in it, kept by bot/memory.ts, so a follow-up in the channel means what the channel was asking about.
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 
 /** The words that look back at what the thread said: a pronoun, or the subject said as "that team"/"the same event".
@@ -35,17 +36,23 @@ export function subjectOf(text: string): string {
   return text.replace(/^\s*(?:so|and|but|also|ok|okay|hey)[\s,]+/i, "").replace(/[?!.\s]+$/, "").replace(/\s+/g, " ").trim().slice(0, 200);
 }
 
+/** The subject one message gives, as the words to keep: the message's own, when it was about the records and didn't
+ *  only look back at them. Null when it names nothing to carry (a greeting, a build question, a bare "their record?"
+ *  — which adds nothing to a subject already kept). */
+export function subjectKept(text: string, about: (text: string) => boolean): string | null {
+  return about(text) && !onlyLookingBack(text) ? subjectOf(text) || null : null;
+}
+
 /**
   * What the thread is about: the last thing the asker said that named something — `about` is bot/ask.ts's "this was a
- *  question about the records" (a record number or a records word), and a turn that only looks back is skipped, so
- *  "their record?" never becomes the subject of the next "and their OPR?". Null when the thread has said nothing of the
- *  sort. Other people's turns count too: a thread is the channel's, and the subject someone else named is the one a
- *  follow-up means.
+  * question about the records" (a record number or a records word), and a turn that only looks back is skipped, so
+  * "their record?" never becomes the subject of the next "and their OPR?". Null when the thread has said nothing of the
+  * sort. Other people's turns count too: a thread is the channel's, and the subject someone else named is the one a
+  * follow-up means.
  */
 export function threadSubject(history: BrunoChatTurn[], about: (text: string) => boolean): string | null {
-  const said = [...history].reverse().find((t) => t.role === "user" && about(t.text) && !onlyLookingBack(t.text));
-  const subject = said ? subjectOf(said.text) : null;
-  return subject || null;
+  const said = [...history].reverse().filter((t) => t.role === "user").map((t) => subjectKept(t.text, about)).find(Boolean);
+  return said ?? null;
 }
 
 /**

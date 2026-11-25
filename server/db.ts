@@ -2860,6 +2860,25 @@ ALTER TABLE analytics_daily ADD COLUMN visitors INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE analytics_daily ADD COLUMN new_visitors INTEGER NOT NULL DEFAULT 0;
 `,
   },
+  {
+    version: 108,
+    name: "what a channel was asking about",
+    sql: `
+-- The team or event a channel was asking about (bot/memory.ts, bot/subject.ts): a follow-up outside a reply thread
+-- ("their record?" in a channel that just asked about Theseus) means that question, so the follow-up is searched for
+-- it instead of for the word "their". One row per channel, replaced by each records question asked in it and read for
+-- an hour; rows nobody replaced in two weeks are dropped, and a server's go with it when the bot is removed
+-- (bot/forget.ts). A channel id, its server and one question's words: never shipped.
+CREATE TABLE IF NOT EXISTS discord_channel_subjects (
+  channel_id TEXT PRIMARY KEY,
+  subject TEXT NOT NULL,
+  asked_at TEXT NOT NULL,
+  guild_id TEXT
+);
+CREATE INDEX IF NOT EXISTS discord_channel_subjects_age ON discord_channel_subjects (asked_at);
+CREATE INDEX IF NOT EXISTS discord_channel_subjects_guild ON discord_channel_subjects (guild_id);
+`,
+  },
 ];
 
 export type Db = Client;

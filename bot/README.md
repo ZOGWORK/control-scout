@@ -245,6 +245,19 @@ as well as a number, and survives a deploy with the thread (`bot/memory.ts`). `b
 bank this is checked against — the follow-ups the failed-search queue kept filing — and `bot/subject.test.ts` asks each
 of them the way a reply in that thread would; add new phrasings there rather than in a one-off test.
 
+**A channel has a subject too.** Most people ask in the channel, not in a reply to one of its answers, so `/ask` and a
+mention outside a reply thread lean on what that channel was asking about last: `bot/memory.ts` keeps the words of each
+records question in `discord_channel_subjects` (migration 108), one row per channel, and `their last meet?` an hour or
+less after `who won AUBRQ2` is asked as `their last meet? (who won AUBRQ2)` with a packet line telling him it was the
+channel's subject rather than a thread's. The same rules apply: only a message that looks back and names nothing of its
+own gets it, a reply thread's own subject is closer and wins, a message that only looks back never replaces what the
+channel is talking about, and the row is read for `CHANNEL_SUBJECT_MINUTES` (60) — a channel moves on, and a follow-up
+an hour later is a new question. A records question leaves the channel talking about it (`/ask`, a mention and a button
+all do), the subject is part of the answer cache's key so two channels' follow-ups are two answers, and the rows are
+deleted with the rest of the server's data (`bot/forget.ts`). It works from what the bot can see: it reads only messages
+that mention it or reply to it, so the channel's subject is the last question asked of it there, not every word in the
+channel.
+
 **The records post beside his words.** When search found the records a chat is about, the answer posts as Bruno's text
 *and* the site's card: the same board or record card `/search` shows, its video and its "ask next" buttons, linked to the
 part's own answer rather than the whole message search. A message search couldn't read, and Control Scout's own

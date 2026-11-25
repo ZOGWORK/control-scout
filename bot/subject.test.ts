@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 import { recordsTurn } from "./ask.js";
-import { looksBack, namesOwn, subjectOf, threadSubject, withSubject } from "./subject.js";
+import { looksBack, namesOwn, subjectKept, subjectOf, threadSubject, withSubject } from "./subject.js";
 
 const said = (...texts: string[]): BrunoChatTurn[] => texts.map((text) => ({ role: "user" as const, text }));
 
@@ -20,6 +20,16 @@ describe("a thread's subject", () => {
     expect(threadSubject(said("their record?"), recordsTurn)).toBeNull();
     // A build question is not a subject, however long it is.
     expect(threadSubject(said("how does a 42:15 gear ratio work?"), recordsTurn)).toBeNull();
+  });
+
+  it("is what one message keeps for a channel as well: its words, unless it only looks back", () => {
+    expect(subjectKept("what did theseus get in auto opr", recordsTurn)).toBe("what did theseus get in auto opr");
+    expect(subjectKept("6980 opr!", recordsTurn)).toBe("6980 opr");
+    // A follow-up names nothing new, so it never replaces what the thread or channel already has.
+    expect(subjectKept("their last meet?", recordsTurn)).toBeNull();
+    // Nothing about the records at all: a greeting, a build question.
+    expect(subjectKept("hi", recordsTurn)).toBeNull();
+    expect(subjectKept("how does a 42:15 gear ratio work?", recordsTurn)).toBeNull();
   });
 
   it("is read from a turn's words, without its question form", () => {
