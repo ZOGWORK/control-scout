@@ -36,7 +36,7 @@ describe("everyday words in the parser's near names", () => {
   const names = buildNames(TEAMS.map((t, i) => ({ number: 30001 + i, ...t, country: "USA", lastPlayed: 2026 })), []);
   const ctx: ParseContext = { names, today: "2026-11-24", isEvent: async () => false, nearTeam: async (w) => names.nearTeam(w) };
   it("reads no team in an everyday word typed near a name", async () => {
-    for (const q of ["best pizza in new york", "what is a minor penalty", "where is the pizza place", "minor penalty rules"]) expect((await parseQuery(q, ctx)).teams, q).toEqual([]);
+    for (const q of ["best pizza in new jersey", "what is a minor penalty", "where is the pizza place", "minor penalty rules"]) expect((await parseQuery(q, ctx)).teams, q).toEqual([]);
   });
   it("reads the team when \"team\" says so, and a real typo of a name", async () => {
     expect((await parseQuery("team pizza record", ctx)).teams.map((t) => t.number)).toEqual([30002]);

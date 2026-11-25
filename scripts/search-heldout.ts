@@ -121,12 +121,14 @@ for (const x of sets) {
   const unread = p.leftover.filter((w) => !FILLER.has(w.toLowerCase()) && !/^\d+$/.test(w));
   // A place is stated by its name (or the region it's a part of, said so); a time by its words, its season or a
   // relaxation the card says.
-  const placeStated = !place || text.includes(fold(place)) || /isnt a separate region/.test(text);
+  // A card saying the question isn't about FTC data (a.chat: "the weather in <city> today") shows no place's or time's
+  // FTC data, so it names neither.
+  const placeStated = !place || !!a.chat || text.includes(fold(place)) || /isnt a separate region/.test(text);
   // "This season" is the latest season (the current one, or the default when the current has no data yet) and "last
   // season" the one before the default: the card names that season. A season said is that season; a month said is
   // that month (its first three letters) and that year in full.
   const relative = p.time?.relative === "this" ? [CURRENT_SEASON, season] : p.time?.relative === "last" ? [season - 1] : [];
-  const timeStated = !p.time || /relaxed|no .* yet|showing \d{4}/.test(text) || text.includes(fold(p.time.label))
+  const timeStated = !p.time || !!a.chat || /relaxed|no .* yet|showing \d{4}/.test(text) || text.includes(fold(p.time.label))
     || relative.some((y) => text.includes(fold(seasonLabel(y))))
     // A bare year ("states in 2024") is either season it touches: the one it starts or the one it ends.
     || (p.time.kind === "season" && p.time.season != null
