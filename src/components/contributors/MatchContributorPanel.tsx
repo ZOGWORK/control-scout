@@ -5,6 +5,8 @@
 //     while an application waits, "Add a Link" (public) once verified, and "Share with your team" for an unverified
 //     account on a team. Each shows "Will show as: Video by <name>" first. A personal link stays in the Video section
 //     below, on the device, as before.
+//   No way to add one once the match already plays a video everyone sees (FIRST's own, a reader's or watcher's clip, or a
+//   contributor's): only the viewer's own lines stay, so they still see where their earlier link stands.
 import { useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { BadgeCheck, Clock, Globe2, Link2, Users } from "lucide-react";
@@ -29,19 +31,22 @@ export function MatchContributorPanel({ m }: { m: MatchView }) {
   const d = state.data;
   const pick = d ? pickMatchVideo(m.video, d.video, m.clip) : null;
   const teamName = (n: number | null) => d?.me?.teams.find((t) => t.number === n)?.name ?? null;
+  // A link only its contributor sees doesn't count: everyone else still has no video.
+  const hasVideo = !!pick && !(pick.kind === "contributor" && pick.video.tier === "self");
   return (
     <section className="mt-7 space-y-4" aria-label="Match videos people added" data-videos-path={state.data ? "match" : undefined}>
       {pick?.kind === "contributor" && <ContributorPlayer v={pick.video} label={m.label} teamName={teamName(pick.video.team)} />}
-      {d && <AddArea m={m} me={d.me ?? null} own={d.own ?? []} signedIn={!!user} firstPlays={!!m.video} overFirst={!!d.video?.overFirst} />}
+      {d && <AddArea m={m} me={d.me ?? null} own={d.own ?? []} signedIn={!!user} firstPlays={!!m.video} overFirst={!!d.video?.overFirst} hasVideo={hasVideo} />}
     </section>
   );
 }
 
 const BOX = "rounded-xl border border-line bg-card p-4";
 
-function AddArea({ m, me, own, signedIn, firstPlays, overFirst }: { m: MatchView; me: MyContributorStatus | null; own: { id: number; shown: boolean; tier: string; team: number | null; name: string }[]; signedIn: boolean; firstPlays: boolean; overFirst: boolean }) {
+function AddArea({ m, me, own, signedIn, firstPlays, overFirst, hasVideo }: { m: MatchView; me: MyContributorStatus | null; own: { id: number; shown: boolean; tier: string; team: number | null; name: string }[]; signedIn: boolean; firstPlays: boolean; overFirst: boolean; hasVideo: boolean }) {
   const openSignIn = useOpenSignIn();
   const { ensure } = useAccountSetup();
+  if (hasVideo && (!signedIn || !me)) return null;
   if (!signedIn || !me) {
     return (
       <div className={cn(BOX, "flex flex-wrap items-center justify-between gap-3")} data-add-video="signed-out">
@@ -57,6 +62,7 @@ function AddArea({ m, me, own, signedIn, firstPlays, overFirst }: { m: MatchView
       {own.map((o) => <li key={o.id}>Your video: {tierLabel({ tier: o.tier as "public", team: o.team }, teams.find((t) => t.number === o.team)?.name)}{o.shown ? "" : firstPlays && !overFirst ? " · not playing: FIRST's official video plays first" : " · not playing: this match already has a video (the site owner can swap them)"}</li>)}
     </ul>
   );
+  if (hasVideo) return mineLines || null;
   if (!me.ready) {
     return (
       <div className={cn(BOX, "flex flex-wrap items-center justify-between gap-3")} data-add-video="setup">
