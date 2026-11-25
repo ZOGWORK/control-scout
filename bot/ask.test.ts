@@ -488,6 +488,18 @@ describe("a chat that looks something up, and one that got a number wrong", () =
     expect(r.chat!.text).toBe("I couldn't find that one.");
   });
 
+  it("a lookup that failed to run is not reported as an empty search", async () => {
+    const chat = vi.fn()
+      .mockResolvedValueOnce({ text: "Let me check.\nLOOKUP: 26000 opr", search: false })
+      .mockResolvedValueOnce({ text: "I couldn't check that just now — try me again in a minute.", search: false });
+    const factsFor = vi.fn(async () => { throw new Error("timeout"); });
+    const r = await ask("26000 opr", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+    const sent = ((chat.mock.calls[1] as unknown[])[1] as string[]).join("\n");
+    expect(sent).toContain("failed to run");
+    expect(sent).not.toContain("found nothing");
+    expect(r.chat!.text).toBe("I couldn't check that just now — try me again in a minute.");
+  });
+
   it("a reply that is only a LOOKUP line is a step, not an empty answer", async () => {
     const chat = vi.fn()
       .mockResolvedValueOnce({ text: "LOOKUP: 26000 auto opr", search: false })

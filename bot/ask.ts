@@ -36,6 +36,7 @@ import { RECORD_NUMBER, WORKING, smallTalk } from "./smallTalk.js";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
 import { lookupFacts, splitAsk, type Lookup } from "./tools.js";
 import { threadSubject, withSubject } from "./subject.js";
+import { AGENT_STEPS, QUERIES_PER_STEP } from "./agent.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -400,12 +401,9 @@ const CANT = /\b(?:(?:couldn't|could not|can't|cannot) find|not (?:in|among) the
 /** The searches Bruno asks for in his reply (`LOOKUP: …`), taken from it: the lookup is the bot's to run, never part of
  *  what posts. */
 const LOOKUP = /^[ \t]*lookup\s*:\s*(.+)$/gim;
-/** The steps of one answer's loop: a reply may look something up, the facts come back, and he replies again. One step
- *  answers most records questions; a message asking several things, or a follow-up that turns out to need another
- *  subject, can take two or three. */
-export const AGENT_STEPS = 3;
-/** The searches one step may ask for: a reply that asks three things has all three run, not the first two. */
-export const QUERIES_PER_STEP = 3;
+/** The steps of one answer's loop, and the searches one step may ask for: with bot/productFacts.ts's tool note,
+ *  which is built from the same numbers (bot/agent.ts). */
+export { AGENT_STEPS, QUERIES_PER_STEP } from "./agent.js";
 
 /** A reply split into what he said and the searches he asked for: at most `max` queries, and the text with the
  *  `LOOKUP:` lines taken out. */
@@ -443,14 +441,22 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
     const fresh = asked.queries.filter((r) => !tried.has(r.toLowerCase()));
     if (!fresh.length) break;
     for (const r of fresh) tried.add(r.toLowerCase());
-    const found = (await Promise.all(fresh.map((r) => factsFor(r).catch(() => [] as string[]))))
-      .flat().filter((f) => f && !packet.includes(f));
-    const label = fresh.join(" · ").slice(0, 200);
-    // What the step found is said either way: an empty search that came back as silence is one he asks for again.
+    // A lookup that threw is not a lookup that found nothing — told they are the same, he says the records don't
+    // exist when the search was never reachable — so a failed search is counted apart from an empty one.
+    const runs = await Promise.all(fresh.map(async (r) => {
+      try { return { r, facts: await factsFor(r), ok: true }; } catch { return { r, facts: [] as string[], ok: false }; }
+    }));
+    const failed = runs.filter((x) => !x.ok).map((x) => x.r);
+    const found = runs.flatMap((x) => x.facts).filter((f) => f && !packet.includes(f));
+    const label = fresh.join(" · ").slice(0, 120);
+    // What the step found is said either way: an empty search that came back as silence is one he asks for again, and
+    // a search that didn't run must not be reported as proof the records are missing.
     const note = found.length
-      ? `Looked up ${label} (step ${step} of ${AGENT_STEPS}): the facts below include what that search found.`
-      : `Looked up ${label} (step ${step} of ${AGENT_STEPS}): the search found nothing. Don't ask for it again; try different words, or say what's missing.`;
-    console.info(`[bot] chat lookup: ${fresh.join(" | ").slice(0, 160)} (${found.length} facts)`);
+      ? `Looked up ${label} (step ${step} of ${AGENT_STEPS}): the facts below include what that search found.${failed.length ? ` The search for ${failed.join(" · ").slice(0, 80)} failed to run: that is not an empty result.` : ""}`
+      : failed.length
+        ? `Looked up ${label} (step ${step} of ${AGENT_STEPS}): the search failed to run. That is not an empty result: don't say the records don't exist, say you couldn't check it.`
+        : `Looked up ${label} (step ${step} of ${AGENT_STEPS}): the search found nothing. Don't ask for it again; try different words, or say what's missing.`;
+    console.info(`[bot] chat lookup: ${fresh.join(" | ").slice(0, 160)} (${found.length} facts${failed.length ? `, ${failed.length} failed` : ""})`);
     packet = fit([note, ...packet, ...found], CHAT_FACTS, CHAT_FACTS_CHARS);
     const last = step === AGENT_STEPS;
     const next = await deps.chat!(q, last ? fit([LOOKUPS_DONE, ...packet], CHAT_FACTS, CHAT_FACTS_CHARS) : packet, history, memory)

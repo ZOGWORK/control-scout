@@ -1,3 +1,5 @@
+import { AGENT_STEPS, QUERIES_PER_STEP } from "./agent.js";
+
 /** Whether a message asks about the product itself — its look, a feature, Zog Mode — rather than about the records.
  *  Only then are the detailed design facts worth the packet lines they take from a records answer. */
 export const asksProduct = (q: string) =>
@@ -28,8 +30,8 @@ export function productFacts(question = ""): string[] {
 export const lookupNote = () =>
   "You can look things up: end a reply with a line exactly `LOOKUP: <a short search>` (for example " +
   "`LOOKUP: 26000 opr at biobuzz`) and nothing after it. I run it, send the facts back, and you can look again — " +
-  "up to 2 a step, 3 steps. A search that finds nothing says so: don't repeat it, change the words or say what's " +
-  "missing. Never for a product or maths question.";
+  `up to ${QUERIES_PER_STEP} a step, ${AGENT_STEPS} steps. A search that finds nothing says so: don't repeat it, ` +
+  "change the words or say what's missing. Never for a product or maths question.";
 
 /** What he may answer at all, sent with every Discord chat: a channel asks maths, design and rules questions as often
  *  as records ones, and refusing those ("Sorry — I can't answer that yet") reads as the bot being broken. FTC numbers
