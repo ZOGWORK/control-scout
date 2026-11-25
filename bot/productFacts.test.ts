@@ -3,7 +3,7 @@ import { answerScope, answerStyle, brunoMethod, brunoPersona, productFacts, zogM
 import { ungrounded } from "../server/api/searchBrunoAnswer";
 
 it("grounds the completed remodel and available Zog Mode without claiming its background is on", () => {
-  const facts = productFacts();
+  const facts = productFacts("what changed in Control Scout?");
   expect(facts.join(" ")).toContain("remodel is complete");
   expect(facts.join(" ")).toContain("yellow/gold");
   expect(facts.join(" ")).toContain("multiple angled streams");
@@ -14,9 +14,19 @@ it("grounds the completed remodel and available Zog Mode without claiming its ba
   expect(ungrounded("The v8 remodel is complete. Zog Mode exists and is available.", facts, "what changed?")).toEqual([]);
 });
 it("keeps every product fact inside Control Point's 400-character cap, so none is clipped mid-sentence", () => {
-  const facts = productFacts();
+  const facts = productFacts("what changed in Control Scout?");
   for (const f of facts) expect(f.length).toBeLessThanOrEqual(400);
   expect(facts.find((f) => f.startsWith("Zog Mode is an existing"))).toMatch(/Only the owner can turn it on or off/);
+});
+
+it("sends the design description only when the message asks about the product, and the two essentials otherwise", () => {
+  const records = productFacts("26000 auto opr at biobuzz");
+  expect(records).toHaveLength(2);
+  expect(records.join(" ")).toContain("remodel is complete");
+  expect(records.join(" ")).toContain("existing, available");
+  expect(records.join(" ")).not.toContain("particle-dot wave");
+  // The lines a records question spends on the v8 look are its facts instead.
+  expect(productFacts("how does the app look now").length).toBeGreaterThan(records.length);
 });
 
 it("knows he is Bruno, a golden retriever in spirit — and that he is software, not a dog or a person", () => {
