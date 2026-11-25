@@ -662,7 +662,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const opened = await reportIt(`answer:${whole.id}`,
         { guild: whole.guildId ?? null, channel: whole.channelId ?? null, user: reporter.id, name: shownName(reporter, { displayName: reporter.displayName ?? null }) },
         row.question ?? QUESTION_UNRECORDED, said ? [turn("bruno", said)] : [], post);
-      if (opened?.ok) await Promise.resolve(lookups.rememberReport?.(whole.id, opened)).catch(() => {});
+      if (opened?.ok) {
+        // The issue is filed either way; if the row can't keep it, a later 👎 may file the same report again, so it is
+        // said (the in-memory map only covers the next ten minutes).
+        await Promise.resolve(lookups.rememberReport?.(whole.id, opened)).catch((e) =>
+          logLine(`downvote: filed #${opened.number} but couldn't keep it on the answer (${(e as Error)?.message ?? String(e)}); a later 👎 may file it again`));
+      }
     } catch (e) {
       logLine(`downvote failed: ${(e as Error)?.message ?? String(e)}`);
     }

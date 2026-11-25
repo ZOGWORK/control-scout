@@ -801,6 +801,18 @@ describe("a 👎 on one of its answers", () => {
     expect(rememberReport).toHaveBeenCalledWith("m9", filed);
   });
 
+  it("says so when the issue can't be kept on the row, rather than losing the fact silently", async () => {
+    const report = vi.fn(async (_r: Report) => filed);
+    const lines: string[] = [];
+    const rememberReport = vi.fn(async () => { throw new Error("SQLITE_BUSY"); });
+    const { m, said } = answer();
+    await createHandler((l) => lines.push(l), lookups({ report, answerRow: async () => ({ question: "who won decode", report: null }), rememberReport })).downvoted(m as any, { id: "u1" });
+    // The report still went out and the person still gets its number; only the memory of it failed.
+    expect(said[0].embeds[0].description).toContain("#2150");
+    expect(lines.join("\n")).toMatch(/couldn't keep it on the answer/);
+    expect(lines.join("\n")).toContain("#2150");
+  });
+
   it("points a later 👎 at the issue the row already has, instead of filing another", async () => {
     const report = vi.fn(async (_r: Report) => filed);
     const issue = { number: 2150, url: "https://github.com/ZOGWORK/control-scout/issues/2150" };
