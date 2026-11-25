@@ -111,6 +111,8 @@ describe("official videos", () => {
     clearAllCaches();
     const r = (await eventRecording(S, "CRI"))!;
     expect(recordingStream(r, "America/Chicago").days?.map((d) => d.label).sort()).toEqual(["Saturday · Full stream", "Saturday · Matches", "Sunday · Full stream", "Sunday · Matches"]);
+    // Where each day's video came from, said under the player: the watcher's add, the checked list's, FIRST's own link.
+    expect(Object.fromEntries(recordingStream(r, "America/Chicago").days!.map((d) => [d.videoId, d.origin]))).toEqual({ [SATF]: "watcher", [SATM]: "list", [FL]: "first", [SUNM]: "list" });
     // FIRST's link with a part from the list is still FIRST's link when it leads.
     await run("UPDATE official_videos SET removed_at = 'x' WHERE code = 'CRI' AND video_id != ?", [FL]);
     clearAllCaches();
