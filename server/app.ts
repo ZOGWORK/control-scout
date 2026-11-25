@@ -101,6 +101,7 @@ import { pushRouter } from "./push/routes.js";
 import { digestRouter } from "./digest/routes.js";
 import { reportsRouter } from "./errorReports.js";
 import { counters as failureCounters, failureOf, keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, searchFailuresRouter, softFailureOf, softKey } from "./searchFailures.js";
+import { declineOf } from "./api/query/execute.js";
 import { supporters } from "./sponsors.js";
 import { statusNow } from "./uptime.js";
 import { packsRouter } from "./packs/routes.js";
@@ -525,7 +526,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
         // its pattern is read too, off the answer path, and logged under a soft key that never files an issue.
         const failed = !!failureOf(q, ans, trace);
         const p = failed || ans.stat || ans.card ? await patternFor(q) : null;
-        const soft = !failed && p ? softFailureOf(ans, p.read) : null;
+        const soft = !failed && p ? softFailureOf(ans, p.read, declineOf(q)) : null;
         noteSearch(q, ans, client, trace, at, soft && p ? softKey(soft, p.key) : failed ? p?.key ?? (await keyFor(q)) : await keyFor(q), p?.missed, soft, p?.legacy);
       }).catch(() => {});
       // A lone team's highlights, the rows' numbers and the answer's video (server/api/searchPage.ts). Who's asking (for

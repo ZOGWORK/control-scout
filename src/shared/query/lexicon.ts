@@ -494,3 +494,165 @@ export const CHAT_WORDS = {
   /** The verb between them: "where do i", "where can we", "where should i". */
   modal: ["do", "can", "could", "should", "would", "to"],
 };
+
+// The keyword layer's words (server/api/searchCatalog.ts, docs/search-layers.md): kept here with every other way of
+// saying something (the search audit's C1), the catalog holding only what each intent is and the phrasing it hands on.
+
+/** Strong keywords by catalog intent (searchCatalog.ts INTENTS): any one, with the intent's team rule met, is the
+ *  intent. Phrases are words joined by spaces. */
+export const INTENT_WORDS: Record<string, string[]> = {
+  "location": ["from", "location", "located", "hometown", "come from", "comes from"],
+  "school": ["school", "high school", "organization"],
+  "sponsors": ["sponsor", "sponsors", "sponsored"],
+  "rookie-year": ["rookie year", "rookie", "founded"],
+  "website": ["website", "web site", "site", "url"],
+  "opr": ["opr", "oprs"],
+  "rating": ["rating", "prediction rating", "predicted rating", "prediction", "predicted"],
+  "record": ["record", "wins", "losses", "win loss", "w l", "wins and losses"],
+  "win-rate": ["win rate", "win percentage"],
+  "rank": ["rank", "ranking", "ranked", "standing"],
+  "matches": ["matches", "match", "games", "schedule", "fixtures"],
+  "high-score": ["highest score", "high score", "best score", "top score", "highest scores"],
+  "next-match": ["next match", "next game", "upcoming match"],
+  "next-event": ["next event", "upcoming event", "next competition"],
+  "last-event": ["last event", "most recent event", "latest event", "previous event"],
+  "last-match": ["last match", "last game", "most recent match", "latest match", "previous match"],
+  "awards": ["awards", "award"],
+  "events": ["events", "event"],
+  "worlds": ["worlds", "world championship", "first championship"],
+  "states": ["states", "state championship", "state championships"],
+  "reliability": ["reliability", "reliable"],
+  "league-rank": ["league rank", "league standing", "league ranking"],
+  "report-card": ["report card"],
+  "versus": ["vs", "versus", "v", "compare", "head to head", "better than"],
+  "leaderboard": ["top", "best", "highest", "most", "leaders", "leaderboard", "strongest"],
+  "count": ["how many", "number of", "count"],
+  "winners": ["won", "winner", "winners", "champion", "champions", "who won"],
+  "meaning": ["define", "definition", "meaning", "means", "mean"],
+};
+
+/** A phase is its own stat word: "12345 auto" is the team's Auto OPR, "best auto" the Auto OPR leaderboard. */
+export const PHASES: Record<string, "auto" | "teleop" | "endgame"> = { auto: "auto", autonomous: "auto", teleop: "teleop", endgame: "endgame" };
+
+/** Award names in the data: a name narrows the awards (or winners) intent, never a team-name search. */
+export const AWARDS = ["inspire", "think", "connect", "design", "innovate", "motivate", "control", "reach", "sustain", "compass", "promote", "judges"];
+
+/** Weak signals (Layer 5): a word that points at one intent only when no strong keyword is present. Each lists every
+ *  intent it could mean; one candidate is answered, more than one is named and never guessed. */
+export const WEAK_SIGNALS: Record<string, string[]> = {
+  where: ["location"],
+  based: ["location"],
+  city: ["location"],
+  played: ["matches"],
+  won: ["awards"],
+  win: ["awards", "next-match"],
+  good: ["opr"],
+  strong: ["opr"],
+  stats: ["opr", "record"],
+};
+
+/** Layer 3: phrasings people use for an intent, said the way the keyword layer reads them. Each is tried on whole
+ *  words only; the reading line names the paraphrase when one was used. */
+export const PARAPHRASES: [string, string][] = [
+  ["from where", "from"],
+  ["where from", "from"],
+  ["where are they from", "from"],
+  ["where is it from", "from"],
+  ["what city", "location"],
+  ["what town", "location"],
+  ["what state", "location"],
+  ["based in", "location"],
+  ["based out of", "location"],
+  ["what school", "school"],
+  ["which school", "school"],
+  ["who sponsors", "sponsors"],
+  ["when did start", "rookie year"],
+  ["first season", "rookie year"],
+  ["start year", "rookie year"],
+  ["how old", "rookie year"],
+  ["offensive power rating", "opr"],
+  ["tele op", "teleop"],
+  ["driver controlled", "teleop"],
+  ["end game", "endgame"],
+  ["autonomous", "auto"],
+  ["how many wins", "wins"],
+  ["win loss record", "record"],
+  ["games played", "matches"],
+  ["matches played", "matches"],
+  ["upcoming game", "next match"],
+  ["next competition", "next event"],
+  ["next tournament", "next event"],
+  ["upcoming competition", "next event"],
+  ["most recent competition", "last event"],
+  ["last competition", "last event"],
+  ["last tournament", "last event"],
+  ["trophies", "awards"],
+  ["awards won", "awards"],
+  ["competitions", "events"],
+  ["tournaments", "events"],
+  ["world championships", "worlds"],
+  ["state champs", "states"],
+  ["who would win", "who wins"],
+  ["who will win", "who wins"],
+  ["leader board", "leaderboard"],
+  // A team that scores the most is read by OPR, the points it adds to its alliance's score (the line says so).
+  ["highest scoring teams", "top opr"],
+  ["highest scoring team", "top opr"],
+  ["top scoring teams", "top opr"],
+  ["top scoring team", "top opr"],
+  ["opr leaders", "top opr"],
+  ["what does mean", "meaning"],
+];
+
+/** Layer 4 filler, allowlist only (docs/search-layers.md has each word's justification): words that cannot change
+ *  which team, intent, place, season, event, award or stat a query means. Stripped only outside a team's full name. */
+export const FILLER: string[] = [
+  // Time filler: "right now", carrying no season or date.
+  "rn", "right now", "currently", "at the moment", "at this moment",
+  // Politeness and softeners.
+  "please", "pls", "plz", "just", "really", "basically", "actually", "quick", "kindly",
+  // Greetings, only with a team and an intent (filler never makes an intent from nothing).
+  "hey", "hi", "hello",
+  // An answer of none allowed: every answer already says when there is none.
+  "if any", "if there is one", "if there are any",
+  // A tag asking for a straight answer: it offers no second team, event or stat to choose ("or nah").
+  "or nah", "or what", "be honest",
+  // Where the answer comes from: every answer is this site's.
+  "on this site", "on the site", "on this website", "on the website", "on this app", "on the app", "on here",
+];
+
+/** How an answer is to be shown, said at the end of a query ("207 matches at east bergen, in order, with scores"): every
+ *  match list is in order with its scores already. Only at the end: "matches with scores over 200" keeps its words. */
+export const TAIL_FILLER: string[] = [
+  "in order", "in chronological order", "in date order", "in time order", "with scores", "with the scores", "with their scores",
+  "with results", "with the results", "with their results", "with details", "with all the details",
+  // An aside that says again what "watch" or "best" asks ("…, like actually good ones").
+  "like actually good ones", "like the actually good ones", "like the good ones", "like good ones", "like the really good ones",
+  "actually good ones", "the actually good ones", "the good ones", "only the good ones", "the really good ones",
+];
+
+/** Question and conversational scaffolding, read by the keyword layer around the team, intent and scope (never by
+ *  plain stripping, and never inside a team's full name). */
+export const SCAFFOLD: string[] = [
+  "what was", "what is", "what's", "whats", "what are", "what", "was", "were", "is", "are", "do", "does", "did", "how", "can", "could",
+  "would", "should", "tell me", "show me", "give me", "tell me about", "find", "search", "look up", "lookup", "i want", "i need",
+  "called", "named", "this team called", "team called", "team named", "this team", "that team", "the team", "of this team",
+  "for this team", "team", "teams", "ftc", "about", "info", "information", "their", "its", "his", "her", "they", "them", "it",
+  "who", "which", "when", "there", "any", "all", "list", "much", "many",
+  "have", "has", "had", "been", "get", "go", "went", "come", "comes", "came", "know", "me", "you", "your", "i", "we",
+  // Connectors, consumed only as glue between the team, the intent and the scope.
+  "of", "in", "for", "at", "the", "a", "an", "to", "on", "during", "with",
+  // Beside, as a place: never the time word "next".
+  "next to",
+];
+
+/** Never filler, never ignored (a later layer may still answer, but never by dropping these). */
+export const FORBIDDEN: string[] = [
+  "not", "never", "no", "without", "except", "excluding",
+  "vs", "versus", "or", "and", "than", "better", "worse",
+  "before", "after", "next", "last", "this", "yesterday", "today", "tomorrow", "this week", "this month", "this weekend",
+];
+
+/** A leaderboard's stat words (searchCatalog.ts LEADER_STATS), in the order they're looked for: the longer or narrower
+ *  first ("win rate" before "wins", "prediction rating" before "rating"). */
+export const LEADER_STAT_ORDER = ["win rate", "wins", "auto", "teleop", "endgame", "opr", "prediction rating", "rating", "teams"];

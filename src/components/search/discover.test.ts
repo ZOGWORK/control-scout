@@ -1,7 +1,7 @@
 // The example searches show the range of what search answers: never one team's page, and no fixed team at all.
 import { describe, expect, it } from "vitest";
 import { SEARCH_EXAMPLES, SEARCH_EXAMPLE_SET } from "./discover";
-import { READINGS, SEARCH_FAMILIES, SEARCH_SHOWCASE, SEARCH_STEPS } from "../howitworks/searchDocs";
+import { READINGS, SEARCH_COMPLEX, SEARCH_FAMILIES, SEARCH_SHOWCASE, SEARCH_STEPS, SEARCH_VIDEO } from "../howitworks/searchDocs";
 
 /** The teams the how-it-works page's worked examples name (each reads one query word by word). */
 const DOC_TEAMS = new Set(["4215", "6980", "7149", "23268"]);
@@ -17,7 +17,7 @@ describe("example searches", () => {
     expect(SEARCH_EXAMPLES.filter((q) => /\b(nj|new jersey|oradell)\b/i.test(q))).toEqual([]);
   });
   it("the how-it-works search examples name only its few worked-example teams", () => {
-    const docs = [...SEARCH_STEPS.map((s) => s.example), ...SEARCH_FAMILIES.map((f) => f.q), ...SEARCH_SHOWCASE.flatMap((g) => g.items.map((i) => i.q)), ...READINGS.map((r) => r.q)];
+    const docs = [...SEARCH_STEPS.map((s) => s.example), ...SEARCH_FAMILIES.map((f) => f.q), ...[...SEARCH_SHOWCASE, ...SEARCH_COMPLEX].flatMap((g) => g.items.map((i) => i.q)), ...SEARCH_VIDEO.map((v) => v.q), ...READINGS.map((r) => r.q)];
     // A season ("2025-26", "2024/25") or a year ("march 15 2026") is not a team.
     const numbers = (q: string) => q.replace(/\b(19|20)\d\d([-/]\d\d)?\b/g, "").match(/\b\d{3,5}\b/g) ?? [];
     expect(docs.flatMap(numbers).filter((t) => !DOC_TEAMS.has(t))).toEqual([]);
