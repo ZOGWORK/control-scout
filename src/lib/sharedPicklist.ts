@@ -688,9 +688,20 @@ export function usePickList(space: string | null, season: number, live: LiveMode
     setServer((cur) => newer(cur, l));
   }, []);
 
+  // The timers that take a "Saved" mark down, cleared when the list goes: one firing after it would set the state of
+  // a list no longer on screen.
+  const savedTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = savedTimers.current;
+    return () => { for (const t of timers) clearTimeout(t); timers.clear(); };
+  }, []);
   const markSaved = useCallback((k: string) => {
     setSavedAt((s) => ({ ...s, [k]: Date.now() }));
-    setTimeout(() => setSavedAt((s) => { if (!(k in s) || Date.now() - s[k] < SAVED_SHOW_MS) return s; const { [k]: _gone, ...rest } = s; return rest; }), SAVED_SHOW_MS + 50);
+    const t = setTimeout(() => {
+      savedTimers.current.delete(t);
+      setSavedAt((s) => { if (!(k in s) || Date.now() - s[k] < SAVED_SHOW_MS) return s; const { [k]: _gone, ...rest } = s; return rest; });
+    }, SAVED_SHOW_MS + 50);
+    savedTimers.current.add(t);
   }, []);
 
   const fetchList = useCallback(async () => {
