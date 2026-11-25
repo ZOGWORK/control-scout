@@ -2879,6 +2879,17 @@ CREATE INDEX IF NOT EXISTS discord_channel_subjects_age ON discord_channel_subje
 CREATE INDEX IF NOT EXISTS discord_channel_subjects_guild ON discord_channel_subjects (guild_id);
 `,
   },
+  {
+    version: 109,
+    name: "the issue a 👎 on an answer opened",
+    sql: `
+-- The GitHub issue a 👎 on an answer opened (bot/reactions.ts): kept on the answer's own row, so a second 👎 an hour later
+-- or after a restart answers with that issue instead of filing a duplicate. The number and its link only; the row goes
+-- with its server when the bot is removed (bot/forget.ts), so nothing here outlives it.
+ALTER TABLE discord_answers ADD COLUMN report_number INTEGER;
+ALTER TABLE discord_answers ADD COLUMN report_url TEXT;
+`,
+  },
 ];
 
 export type Db = Client;
