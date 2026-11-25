@@ -84,6 +84,8 @@ const VM_HOST = process.env.AUTOPILOT_SSH ?? "ubuntu@132.145.202.89", VM_KEY = p
 const VM_SSH = ["-o", "BatchMode=yes", "-i", VM_KEY];
 const VM_INBOX = "/opt/control-scout/shared/data/auto-reads-inbox";
 
+/** A database's -wal and -shm, removed before a new copy is written in its place. */
+function dropSidecars(db: string): void { for (const x of ["-wal", "-shm"]) rmSync(db + x, { force: true }); }
 /** A command, its output to the log; throws on failure unless `ok` is set. */
 function sh(cmd: string, args: string[], o: { ok?: boolean; timeoutMs?: number; quiet?: boolean; shell?: boolean; input?: string } = {}): { code: number; out: string } {
   const r = spawnSync(cmd, args, { encoding: "utf8", timeout: o.timeoutMs ?? 600_000, maxBuffer: 64 << 20, env: process.env, shell: o.shell, input: o.input });
@@ -219,7 +221,9 @@ if (LANE) {
   process.on("exit", (code) => { if (!finished) writeFileSync(LANE_STATE, JSON.stringify({ state: "failed", id: job.id, at: at(), why: `the lane's run ended (exit ${code}) before its job was read: its log ${LOG}` })); });
   writeFileSync(LANE_STATE, JSON.stringify({ state: "running", id: job.id, at: at() }));
   const gz = join(LANE_DIR, "snapshot.db.gz"), db = join(LANE_DIR, "snapshot.db");
-  if (existsSync(gz)) { writeFileSync(db, gunzipSync(readFileSync(gz))); rmSync(gz); }
+  // A new snapshot drops the old one's -wal and -shm: SQLite lays a WAL left by a run that died over whatever file
+  // sits beside it, and a fresh copy read through a stale WAL is "database disk image is malformed".
+  if (existsSync(gz)) { dropSidecars(db); writeFileSync(db, gunzipSync(readFileSync(gz))); rmSync(gz); }
   process.env.DATABASE_URL = `file:${db.replace(/\\/g, "/")}`;
   await layLiveRows();
   log(`lane: job ${job.id}: ${job.seasons.map((x) => `${x.season} ${x.codes.join(",")}`).join("; ")}`);
@@ -248,6 +252,7 @@ if (!snapshot) {
     sh("scp", [...ssh, `${host}:${remote}.gz`, join(DIR, "snapshot.db.gz")], { timeoutMs: 1_800_000 });
   } finally { sh("ssh", [...ssh, host, `sudo rm -f ${remote} ${remote}.gz`], { ok: true }); }
   snapshot = join(DIR, "snapshot.db");
+  dropSidecars(snapshot);
   writeFileSync(snapshot, gunzipSync(readFileSync(join(DIR, "snapshot.db.gz"))));
   log(`snapshot taken (${Math.round(readFileSync(snapshot).length / 1e6)} MB)`);
 }
@@ -506,7 +511,7 @@ for (const lane of DRY ? [] : LANES as Exclude<typeof LANES, string>) {
     try {
       // The snapshot goes gzipped when this run took one (a fifth of the size); the lane unpacks it.
       const gz = join(DIR, "snapshot.db.gz"), send = !DB && existsSync(gz) ? gz : snapshot!;
-      laneSsh(lane.host, `mkdir -p ${there} && rm -f ${there}/snapshot.db ${there}/snapshot.db.gz`);
+      laneSsh(lane.host, `mkdir -p ${there} && rm -f ${there}/snapshot.db ${there}/snapshot.db-wal ${there}/snapshot.db-shm ${there}/snapshot.db.gz`);
       rsync(send, `${lane.host}:${there}/${send.endsWith(".gz") ? "snapshot.db.gz" : "snapshot.db"}`, 1_800_000);
       rsync(sending, `${lane.host}:${there}/job.json`, 120_000);
       laneSsh(lane.host, `printf '%s' '${JSON.stringify({ state: "queued", id: job2.id, at: new Date().toISOString() })}' > ${there}/state.json`);
