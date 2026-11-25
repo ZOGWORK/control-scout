@@ -18,7 +18,7 @@ import { notifyTick, type Send } from "./follows.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
 import { rememberGuild } from "./guilds.js";
-import { GOOD, serialVotes, vote } from "./reactions.js";
+import { REPORT } from "./reactions.js";
 import { sweepOldThumbs } from "./cleanup.js";
 import { flushSearchFailures } from "../server/searchFailures.js";
 import { site } from "./lookups.js";
@@ -101,9 +101,9 @@ async function waitForSite(timeoutMs = 180_000): Promise<void> {
 
 // GuildMessages (not privileged) for "@Control Scout …": Discord sends the text only of messages that mention the
 // bot, so without the privileged Message Content intent it never reads anything else. GuildMessageReactions and
-// DirectMessageReactions (not privileged either) are what deliver a 👍 on an answer (bot/reactions.ts): without them
-// the bot would add the emoji and never hear the click. Partials: a vote on an answer from before the bot's last restart
-// still arrives (its message, channel and reaction may not be cached).
+// DirectMessageReactions (not privileged either) are what deliver a 👎 on an answer (bot/reactions.ts): a person adding
+// one deliberately is reporting that answer, and without these intents the bot would never hear it. Partials: a report
+// on an answer from before the bot's last restart still arrives (its message, channel and reaction may not be cached).
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessageReactions],
   partials: [Partials.Message, Partials.Reaction, Partials.Channel],
@@ -137,9 +137,9 @@ client.once(Events.ClientReady, (c) => {
   // after this ships, and a rename or a new server keeps it current.
   for (const g of c.guilds.cache.values()) void rememberGuild(g.id, g.name).catch(() => {});
   void registerUntilDone(c.application.id);
-  // The 👎 the bot added before it was removed is still on its older answers, where it is a button that does nothing:
-  // taken off once, on this first connection (bot/cleanup.ts).
-  void sweepOldThumbs(client, log).catch((e) => log(`stale 👎: sweep failed: ${(e as Error)?.message ?? String(e)}`));
+  // The 👎 and 👍 the bot used to add are still on its older answers, where they are buttons that do nothing: taken off
+  // once, on this first connection (bot/cleanup.ts).
+  void sweepOldThumbs(client, log).catch((e) => log(`stale thumbs: sweep failed: ${(e as Error)?.message ?? String(e)}`));
   // Warm the season's ratings so the first /predict doesn't wait for them.
   liveForecaster(CURRENT_SEASON).then(() => log("ratings ready")).catch((e) => log(`ratings not ready: ${(e as Error).message}`));
 });
@@ -185,21 +185,17 @@ setInterval(() => {
 }, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
 client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m as never, client.user.id); });
-/** One answer's 👍 in the order Discord sent them (bot/reactions.ts): an add and its removal must not land the wrong
- *  way round. */
-const serial = serialVotes();
-/** A 👍 on one of the bot's answers, counted (bot/reactions.ts): never who clicked, and only messages it posted have a
- *  row — so a reaction anywhere else, a 👎 still on an answer from before it was removed, or any other emoji, changes
- *  nothing (the stale 👎s themselves are taken off once at startup, bot/cleanup.ts). */
-type Counted = { emoji: { name: string | null }; message: { id: string } };
-const voted = (delta: 1 | -1) => (reaction: Counted, user: { bot?: boolean }) => {
-  if (user.bot) return;
-  const emoji = reaction.emoji.name;
-  if (emoji !== GOOD) return;
-  void serial(reaction.message.id, () => vote(reaction.message.id, emoji, delta)).catch(() => {});
-};
-client.on(Events.MessageReactionAdd, (r, u) => voted(1)(r as Counted, u));
-client.on(Events.MessageReactionRemove, (r, u) => voted(-1)(r as Counted, u));
+/** A 👎 as the gateway sends it: the emoji, the answer it is on, and the name Discord shows the person by there. */
+type Downvote = { emoji: { name: string | null }; message: never; member?: { displayName?: string | null } | null };
+/** A 👎 added on purpose is a report (bot/handler.ts `downvoted`): the answer's question and words go to GitHub, and
+ *  the person is told where the issue is. Only a message the bot posted has a row, so a 👎 anywhere else files nothing,
+ *  and the bot adds no emoji of its own — so a 👍 somebody adds changes nothing, and the ones it did add are taken off
+ *  once at startup (bot/cleanup.ts). */
+client.on(Events.MessageReactionAdd, (r, u) => {
+  if (u.bot || r.emoji.name !== REPORT) return;
+  void handle.downvoted(r.message as never, { id: u.id, bot: u.bot, globalName: u.globalName, username: u.username, displayName: r.member?.displayName ?? null })
+    .catch(() => {});
+});
 // The site's failed-search queue counts Discord's own misses too (bot/ask.ts): the buffer is in this process, so the bot
 // flushes it as the site does, every minute.
 setInterval(() => {
@@ -211,10 +207,10 @@ client.on(Events.GuildCreate, (g) => {
   self.servers = client.guilds.cache.size;
   log(`added to a server (${self.servers} now): ${g.id}`);
   void rememberGuild(g.id, g.name).catch(() => {});
-  // A server it is added back to still has the answers it posted there, 👎s and all: swept on the way in, since the row
-  // says the sweep is done and would otherwise skip it (bot/cleanup.ts; a pass that misses something there asks for a
-  // full one on the next start).
-  void sweepOldThumbs(client, log, { only: g.id }).catch((e) => log(`stale 👎: sweep failed in ${g.id}: ${(e as Error)?.message ?? String(e)}`));
+  // A server it is added back to still has the answers it posted there, 👎s and 👍s and all: swept on the way in, since
+  // the row says the sweep is done and would otherwise skip it (bot/cleanup.ts; a pass that misses something there asks
+  // for a full one on the next start).
+  void sweepOldThumbs(client, log, { only: g.id }).catch((e) => log(`stale thumbs: sweep failed in ${g.id}: ${(e as Error)?.message ?? String(e)}`));
 });
 client.on(Events.GuildUpdate, (_old, g) => { void rememberGuild(g.id, g.name).catch(() => {}); });
 client.on(Events.GuildDelete, (g) => {

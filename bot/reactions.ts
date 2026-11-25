@@ -1,22 +1,23 @@
-// The quality signal on an answer: a 👍 reaction, counted (migration 104). The bot adds it to every answer it posts; a
-// click is a count on that answer, never a record of who clicked (no user id is kept), so the owner console can see
-// whether answers land at all.
+// The row behind each answer the bot posted (migration 104), and the one thing a reaction on it does: a 👎 added by a
+// person, on purpose, is a report — filed as a GitHub issue with the question the answer was written for
+// (bot/report.ts, bot/handler.ts `downvoted`).
 //
-// Only messages the bot posted have a row (trackAnswer), so a reaction on anything else is ignored: nobody can inflate a
-// number by reacting in a channel the bot was never in.
+// There is no 👍. The bot used to add one to every answer and count it, and a 👍/👎 pair read as like/dislike rather
+// than "report this": the bot puts no emoji on an answer any more, and nothing is counted. What the thumbs collected
+// before that stays readable (`up` and `down`, reactionUsage, the owner console); nothing writes them, and the emoji the
+// bot itself added are taken off once, on the first start after this (bot/cleanup.ts).
 //
-// There is no 👎. It was meant as "this answer is wrong, file it", and it filed the question the answer was written for
-// in the site's failed-search queue — but people read it as a dislike button, so answers that were fine put questions in
-// the queue and drew a note explaining what the button did. What it counted before stays: the `down` column and the
-// queue's `downvoted` rows are still read (reactionUsage, the queue's own re-check); nothing writes them any more, and
-// the emoji itself is taken off the answers that still carry one, once, on the first start after 8.0.2 (bot/cleanup.ts).
+// Only messages the bot posted have a row (trackAnswer), so a reaction on anything else is ignored: a 👎 can't report a
+// message the bot never wrote.
 import { get, run } from "../server/db.js";
 import { askText } from "./asks.js";
 
-export const GOOD = "👍";
+/** The reaction a person adds to an answer to report it. The bot never adds one itself: only a deliberate click does
+ *  this, which is what makes it a report rather than a button everybody is prompted to press. */
+export const REPORT = "👎";
 
-/** Keep an answer's row so its reactions count, with the question it answered (redacted and one line, as every ask is:
- *  `askText`), which is the record of what the answer was for. A message that is already known keeps its counts. */
+/** Keep an answer's row, with the question it answered (redacted and one line, as every ask is: `askText`), which is
+ *  what a 👎 report names. A message that is already known keeps its row. */
 export async function trackAnswer(messageId: string, guild: string | null, question = "", now = Date.now()): Promise<void> {
   if (!messageId) return;
   await run(
@@ -25,32 +26,22 @@ export async function trackAnswer(messageId: string, guild: string | null, quest
   );
 }
 
-/** One vote on an answer: `delta` 1 for a reaction added, -1 for one taken back. Never below zero. Only 👍 counts: any
- *  other emoji — a 👎 still on an answer from before it was removed, or anything else — changes nothing. */
-export async function vote(messageId: string, emoji: string, delta: 1 | -1 = 1, now = Date.now()): Promise<number> {
-  const column = emoji === GOOD ? "up" : null;
-  if (!column || !messageId) return 0;
-  return run(
-    `UPDATE discord_answers SET ${column} = MAX(0, ${column} + ?), voted_at = ? WHERE message_id = ?`,
-    [delta, new Date(now).toISOString(), messageId],
-  );
+/** One of the bot's answers, as a 👎 finds it: the question it was written for, or null when the row predates answers
+ *  keeping it (migration 105). */
+export interface AnswerRow {
+  question: string | null;
 }
 
-/** One answer's votes in the order Discord sent them: an add and its removal must not land the wrong way round — a 👍
- *  clicked and taken back within a moment would otherwise leave the answer at up = 1. Per message, so different
- *  answers never wait on each other. */
-export function serialVotes(): <T>(messageId: string, work: () => Promise<T>) => Promise<T> {
-  const chain = new Map<string, Promise<unknown>>();
-  return <T>(messageId: string, work: () => Promise<T>): Promise<T> => {
-    // Started after whatever the same answer has in flight, whether that finished or failed.
-    const next = (chain.get(messageId) ?? Promise.resolve()).then(work, work);
-    chain.set(messageId, next);
-    void next.catch(() => {}).finally(() => { if (chain.get(messageId) === next) chain.delete(messageId); });
-    return next;
-  };
+/** The row for a message, or null when the bot never posted it: that null is what keeps a 👎 on somebody else's message
+ *  from filing anything. */
+export async function answerRow(messageId: string): Promise<AnswerRow | null> {
+  if (!messageId) return null;
+  const r = await get<{ question: string | null }>("SELECT question FROM discord_answers WHERE message_id = ?", [messageId]);
+  return r ? { question: r.question ?? null } : null;
 }
 
-/** Every vote the bot's answers have collected. `down` is what 👎 counted before it was removed; nothing adds to it. */
+/** Every vote the bot's answers collected while the thumbs existed, for the owner console. `down` is what a 👎 counted
+ *  before it was removed; nothing adds to either now — a 👎 files a report instead of counting. */
 export async function reactionUsage(): Promise<{ up: number; down: number }> {
   const r = await get<{ up: number; down: number }>("SELECT COALESCE(SUM(up), 0) AS up, COALESCE(SUM(down), 0) AS down FROM discord_answers");
   return { up: Number(r?.up ?? 0), down: Number(r?.down ?? 0) };

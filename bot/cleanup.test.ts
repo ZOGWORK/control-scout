@@ -1,11 +1,11 @@
-// The stale 👎 sweep (bot/cleanup.ts): its own 👎 off its own answers and nothing else, the walk back to the thumbs era,
-// pages read as Discord sends them (a Map, not an array), a channel it can't read, a page that won't move, a 👎 that is
-// already gone, the whole thing once — and only once it finished — one server's pass when it is added back, and one sweep
-// at a time.
+// The stale thumbs sweep (bot/cleanup.ts): its own 👎 and 👍 off its own answers and nothing else, the walk back to the
+// thumbs era, pages read as Discord sends them (a Map, not an array), a channel it can't read, a page that won't move, a
+// thumb that is already gone, the whole thing once — and only once it finished — one server's pass when it is added back,
+// and one sweep at a time.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Client } from "discord.js";
 import { kvGet, migrate, openDb, run, setDb } from "../server/db";
-import { OLD_DOWN, PAGE, THUMBS_FROM, sweepKey, sweepOldThumbs, sweepStaleThumbs, type SweptChannel, type SweptMessage, type SweptReaction } from "./cleanup";
+import { OLD_DOWN, OLD_UP, PAGE, THUMBS_FROM, sweepKey, sweepOldThumbs, sweepStaleThumbs, type SweptChannel, type SweptMessage, type SweptReaction } from "./cleanup";
 
 const BOT = "bot-1";
 const someone = "person-1";
@@ -54,18 +54,19 @@ const page = (n: number, start = IN_ERA, reactions?: SweptReaction[]) =>
 const sweep = (channels: SweptChannel[], unreadable = 0) =>
   sweepStaleThumbs({ me: BOT, channels: async () => ({ channels, unreadable }) });
 
-describe("the stale 👎 sweep", () => {
-  it("takes its own 👎 off its own answer, and nothing else", async () => {
+describe("the stale thumbs sweep", () => {
+  it("takes its own 👎 and 👍 off its own answers, and nothing else", async () => {
     const gone: string[] = [];
-    const mine = msg("a1", IN_ERA, [reacted("👍", true, gone), reacted(OLD_DOWN, true, gone)]);
-    // A member's own 👎 on the same answer, a person's message the bot reacted to, and a 👍 on an answer: all stay.
-    const shared = msg("a2", IN_ERA, [reacted(OLD_DOWN, false, gone)]);
-    const theirs = msg("p1", IN_ERA, [reacted(OLD_DOWN, true, gone)], false);
-    const good = msg("a3", IN_ERA, [reacted("👍", true, gone)]);
-    const s = await sweep([channel("c1", [[mine, shared, theirs, good]])]);
-    // Exactly the bot's 👎 on its own answer, never the 👍 beside it.
-    expect(gone).toEqual([OLD_DOWN]);
-    expect(s).toEqual({ channels: 1, messages: 4, removed: 1, failed: 0 });
+    const mine = msg("a1", IN_ERA, [reacted(OLD_UP, true, gone), reacted(OLD_DOWN, true, gone)]);
+    // A member's own reactions on the same answer, a person's message the bot reacted to, and an emoji it never added:
+    // all stay.
+    const shared = msg("a2", IN_ERA, [reacted(OLD_DOWN, false, gone), reacted(OLD_UP, false, gone)]);
+    const theirs = msg("p1", IN_ERA, [reacted(OLD_DOWN, true, gone), reacted(OLD_UP, true, gone)], false);
+    const other = msg("a3", IN_ERA, [reacted("🔥", true, gone)]);
+    const s = await sweep([channel("c1", [[mine, shared, theirs, other]])]);
+    // Exactly the bot's two on its own answer: no member's, no other emoji.
+    expect(gone).toEqual([OLD_UP, OLD_DOWN]);
+    expect(s).toEqual({ channels: 1, messages: 4, removed: 2, failed: 0 });
   });
 
   it("walks back to the thumbs era and no further", async () => {
@@ -115,7 +116,7 @@ describe("the stale 👎 sweep", () => {
     expect(s.messages).toBe(PAGE * 2);
   });
 
-  it("a 👎 that is already gone is not a failure", async () => {
+  it("a thumb that is already gone is not a failure", async () => {
     const already = msg("a1", IN_ERA, [reacted(OLD_DOWN, true, [], Object.assign(new Error("Unknown Emoji"), { code: 10014 }))]);
     const s = await sweep([channel("c1", [[already]])]);
     expect(s).toEqual({ channels: 1, messages: 1, removed: 0, failed: 0 });
@@ -129,7 +130,7 @@ describe("the sweep runs once a server finished", () => {
     await migrate(c);
   });
   beforeEach(async () => {
-    await run("DELETE FROM kv WHERE key LIKE 'bot:down-sweep%'");
+    await run("DELETE FROM kv WHERE key LIKE 'bot:thumbs-sweep%'");
   });
 
   /** One server with one channel: each read is recorded in `reads`, `broken` makes listing its channels fail, and `gate`
