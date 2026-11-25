@@ -464,6 +464,64 @@ describe("a chat that looks something up, and one that got a number wrong", () =
     expect(r.chat!.text).toBe("I couldn't find that one.");
   });
 
+  it("works a question out in steps: every reply may look up, and what each step found goes to the next", async () => {
+    const chat = vi.fn()
+      .mockResolvedValueOnce({ text: "I need a few searches.\nLOOKUP: 4215 opr\nLOOKUP: 6980 opr\nLOOKUP: 4215 awards", search: false })
+      .mockResolvedValueOnce({ text: "One more for the head to head.\nLOOKUP: 4215 vs 6980", search: false })
+      .mockResolvedValueOnce({ text: "4215 is **45.2**, 6980 is **38.1**.", search: true });
+    const factsFor = vi.fn(async (q: string) => [`facts for ${q}`]);
+    const r = await ask("how do 4215 and 6980 compare", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+    // Three searches from one reply all run, and the next step's search is a step later, not a retry.
+    expect(factsFor.mock.calls.map((c) => c[0])).toEqual(["4215 opr", "6980 opr", "4215 awards", "4215 vs 6980"]);
+    expect(chat).toHaveBeenCalledTimes(3);
+    const third = ((chat.mock.calls[2] as unknown[])[1] as string[]).join("\n");
+    expect(third).toContain("facts for 4215 opr");
+    expect(third).toContain("facts for 4215 vs 6980");
+    expect(r.chat!.text).toBe("4215 is **45.2**, 6980 is **38.1**.");
+  });
+
+  it("a step whose search found nothing says so, and the same search is never run twice", async () => {
+    const chat = vi.fn(async () => ({ text: "I couldn't find that one.\nLOOKUP: 26000 opr", search: false }));
+    const factsFor = vi.fn(async () => []);
+    const r = await ask("26000 opr", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+    expect(factsFor).toHaveBeenCalledTimes(1);
+    expect(r.chat!.text).toBe("I couldn't find that one.");
+  });
+
+  it("a lookup that failed to run is not reported as an empty search", async () => {
+    const chat = vi.fn()
+      .mockResolvedValueOnce({ text: "Let me check.\nLOOKUP: 26000 opr", search: false })
+      .mockResolvedValueOnce({ text: "I couldn't check that just now — try me again in a minute.", search: false });
+    const factsFor = vi.fn(async () => { throw new Error("timeout"); });
+    const r = await ask("26000 opr", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+    const sent = ((chat.mock.calls[1] as unknown[])[1] as string[]).join("\n");
+    expect(sent).toContain("failed to run");
+    expect(sent).not.toContain("found nothing");
+    expect(r.chat!.text).toBe("I couldn't check that just now — try me again in a minute.");
+  });
+
+  it("a reply that is only a LOOKUP line is a step, not an empty answer", async () => {
+    const chat = vi.fn()
+      .mockResolvedValueOnce({ text: "LOOKUP: 26000 auto opr", search: false })
+      .mockResolvedValueOnce({ text: "26000's auto OPR is **45.2**.", search: true });
+    const r = await ask("26000 auto opr", deps(base(), { chat, facts: vi.fn(async () => []), factsFor: vi.fn(async () => ["Team 26000: Auto OPR 45.2."]) }), SITE);
+    expect(r.chat!.text).toBe("26000's auto OPR is **45.2**.");
+  });
+
+  it("stops at the step budget, and the last step is told to answer from what it has", async () => {
+    let asked = 0;
+    const chat = vi.fn(async (_q: string, packet: string[]) => ({
+      text: packet.some((l) => l.startsWith("Lookups are done")) ? "That's all I can find." : `One more.\nLOOKUP: search ${++asked}`,
+      search: false,
+    }));
+    const factsFor = vi.fn(async (q: string) => [`facts for ${q}`]);
+    const r = await ask("a question one search can't settle", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+    // The first reply plus one per step, and the last one carries the instruction instead of another search.
+    expect(chat).toHaveBeenCalledTimes(4);
+    expect(((chat.mock.calls[3] as unknown[])[1] as string[])[0]).toContain("Lookups are done");
+    expect(r.chat!.text).toBe("That's all I can find.");
+  });
+
   it("a number the facts don't have gets one correction round instead of the card", async () => {
     const chat = vi.fn()
       .mockResolvedValueOnce({ text: "4215 won 7 awards.", search: true, unknown: ["7"] })

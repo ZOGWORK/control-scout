@@ -215,12 +215,16 @@ frame is asked as the thing it asks about, so "…and who is by" after "what is 
 "bio buzz world record", the record's card naming the alliance that set it. That's the same question typed into
 controlscout.org/search, and the same answer comes back.
 
-**A lookup in the middle of an answer.** His facts are searched before he writes, so a question the first search read
-loosely used to be refused from inside the answer ("I couldn't find … in the facts"). He can ask for one instead: a
-reply that ends with a `LOOKUP: <query>` line — the instruction rides in every chat's own packet (`lookupNote()` in
-`bot/productFacts.ts`) — has that search run with learning off, its facts added after a line saying what was looked up,
-and he answers again from all of it, at most twice per answer. The `LOOKUP:` line is the bot's instruction, never
-something a reader sees. A records answer naming a number the facts don't have is also no longer an instant card: it is
+**A lookup in the middle of an answer, in steps.** His facts are searched before he writes, so a question the first
+search read loosely used to be refused from inside the answer ("I couldn't find … in the facts"). He can ask for one
+instead: a reply that ends with `LOOKUP: <query>` lines — the instruction rides in every chat's own packet
+(`lookupNote()` in `bot/productFacts.ts`) — has those searches run with learning off, and he replies again with what
+they found. It is a loop, not a retry (`talk` in `bot/ask.ts`): up to `AGENT_STEPS` (3) steps, each taking up to three
+searches, so a question can be worked out rather than answered from the first packet. Each step's result is reported
+whether or not it found anything (a search that found nothing says so, so he changes the words instead of asking for
+the same one again), a search already run is never run twice, and the last step is told the lookups are done and to
+answer from what it has. A reply that is only a `LOOKUP:` line is a step, not an empty answer. The `LOOKUP:` line is
+the bot's instruction, never something a reader sees. A records answer naming a number the facts don't have is also no longer an instant card: it is
 sent back once with those numbers named (`[bot] chat repaired`), and only a second refusal posts the card. A reply that
 says it couldn't find the records is filed in the site's failed-search queue like an empty answer, so the phrasing is
 learned rather than lost. Every chat still carries the two product facts it can't get wrong (the remodel is complete,
