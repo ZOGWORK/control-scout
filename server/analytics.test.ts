@@ -31,7 +31,7 @@ afterAll(() => {
 });
 beforeEach(async () => { await run("DELETE FROM analytics_daily"); });
 
-const view: PageView = { path: "/teams/:number", ref: "", screen: "desktop", lang: "en", session: false };
+const view: PageView = { path: "/teams/:number", ref: "", screen: "desktop", lang: "en", session: false, visitor: false, newVisitor: false };
 const post = (body: unknown, headers: Record<string, string> = {}, type = "application/json") =>
   fetch(`${base}/api/collect`, { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body), headers: { "Content-Type": type, "User-Agent": CHROME, ...headers } });
 const rows = () => all<{ day: string; path: string; referrer_host: string; screen: string; lang: string; views: number; sessions: number }>("SELECT * FROM analytics_daily ORDER BY day, path, referrer_host, screen");
@@ -42,8 +42,8 @@ describe("POST /api/collect", () => {
     expect((await post(view, {}, "text/plain;charset=UTF-8")).status).toBe(204);
     const r = await rows();
     expect(r.map((x) => ({ ...x }))).toEqual([
-      { day: dayOf(new Date()), path: "/teams/:number", referrer_host: "", screen: "desktop", lang: "en", views: 1, sessions: 0 },
-      { day: dayOf(new Date()), path: "/teams/:number", referrer_host: "google.com", screen: "desktop", lang: "en", views: 1, sessions: 1 },
+      { day: dayOf(new Date()), path: "/teams/:number", referrer_host: "", screen: "desktop", lang: "en", views: 1, sessions: 0, visitors: 0, new_visitors: 0 },
+      { day: dayOf(new Date()), path: "/teams/:number", referrer_host: "google.com", screen: "desktop", lang: "en", views: 1, sessions: 1, visitors: 0, new_visitors: 0 },
     ]);
   });
 
@@ -103,6 +103,17 @@ describe("dayOf", () => {
 });
 
 describe("aggregation", () => {
+  it("sums unique visitors per day and new visitors per period, beside views and sessions", async () => {
+    const day1 = new Date("2026-11-24T15:00:00Z"), day2 = new Date("2026-11-25T15:00:00Z");
+    await recordPageView({ ...view, session: true, visitor: true, newVisitor: true }, day1); // browser A, first visit
+    await recordPageView(view, day1);                                                        // A again
+    await recordPageView({ ...view, session: true, visitor: true, newVisitor: true }, day1); // browser B, first visit
+    await recordPageView({ ...view, session: true, visitor: true }, day2);                   // A comes back the next day
+    const s = await statsSummary(7, day2);
+    expect(s.totals).toEqual({ views: 4, sessions: 3, visitors: 3, newVisitors: 2 });
+    expect(s.daily.map((d) => [d.day, d.visitors, d.newVisitors])).toEqual([["2026-11-24", 2, 2], ["2026-11-25", 1, 0]]);
+  });
+
   it("upserts: the same day/path/referrer/screen/lang adds to one row", async () => {
     const now = new Date("2026-10-15T12:00:00Z");
     await recordPageView({ ...view, session: true }, now);
@@ -237,7 +248,7 @@ describe("public usage", () => {
     it("answers only the allowlisted aggregate: no paths, referrers, screens or languages", async () => {
       process.env.PUBLIC_USAGE_ENABLED = "1";
       const today = dayOf(new Date());
-      await recordPageView({ path: "/teams/:number", ref: "secret-referrer.example", screen: "phone", lang: "de", session: true }, new Date(`${today}T00:30:00Z`));
+      await recordPageView({ path: "/teams/:number", ref: "secret-referrer.example", screen: "phone", lang: "de", session: true, visitor: true, newVisitor: true }, new Date(`${today}T16:30:00Z`));
       const r = await fetch(`${base}/api/public-usage`);
       expect(r.status).toBe(200);
       expect(r.headers.get("cache-control")).toMatch(/^public/);

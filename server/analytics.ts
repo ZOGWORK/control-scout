@@ -14,7 +14,7 @@ import { db } from "./db.js";
 import { env } from "./env.js";
 import { registerCache } from "./caches.js";
 import { publishUsageSetting } from "./ownerSettings.js";
-import { parsePageView, type PageView } from "../src/shared/analytics.js";
+import { parsePageView, statsDay, STATS_TIME_ZONE, type PageView } from "../src/shared/analytics.js";
 import { PUBLIC_USAGE_DAYS, type PublicUsage } from "../src/shared/home.js";
 
 /** Crawlers, link previews, monitors, scripts and automated browsers. */
@@ -24,11 +24,9 @@ export const isBot = (ua: string | undefined) => !ua || ua.length < 20 || BOT_UA
 
 /** Days are counted in US Eastern time (the owner's day, DST included): a view at 11 pm ET counts toward that
  * evening's date, not the next UTC day. Rows recorded before 11-25-2026 were bucketed by UTC day. */
-export const STATS_TIME_ZONE = "America/New_York";
-const easternDay = new Intl.DateTimeFormat("en-CA", { timeZone: STATS_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
-
-/** The Eastern-time day (YYYY-MM-DD) a view counts toward. */
-export const dayOf = (d: Date) => easternDay.format(d);
+export { STATS_TIME_ZONE };
+/** The Eastern-time day (YYYY-MM-DD) a view counts toward (src/shared/analytics.ts statsDay, which the browser uses too). */
+export const dayOf = statsDay;
 
 /** A YYYY-MM-DD date `n` calendar days later (negative: earlier). Calendar arithmetic, so a DST change in
  * between never repeats or skips a day the way stepping 24 hours from an instant would. */
@@ -37,16 +35,19 @@ export const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T1
 /** Add one page view to its day's aggregate row. */
 export async function recordPageView(v: PageView, now = new Date(), c: Client = db()): Promise<void> {
   await c.execute({
-    sql: `INSERT INTO analytics_daily (day, path, referrer_host, screen, lang, views, sessions) VALUES (?, ?, ?, ?, ?, 1, ?)
-          ON CONFLICT (day, path, referrer_host, screen, lang) DO UPDATE SET views = views + 1, sessions = sessions + excluded.sessions`,
-    args: [dayOf(now), v.path, v.ref, v.screen, v.lang, v.session ? 1 : 0],
+    sql: `INSERT INTO analytics_daily (day, path, referrer_host, screen, lang, views, sessions, visitors, new_visitors) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+          ON CONFLICT (day, path, referrer_host, screen, lang) DO UPDATE SET views = views + 1, sessions = sessions + excluded.sessions,
+            visitors = visitors + excluded.visitors, new_visitors = new_visitors + excluded.new_visitors`,
+    args: [dayOf(now), v.path, v.ref, v.screen, v.lang, v.session ? 1 : 0, v.visitor ? 1 : 0, v.newVisitor ? 1 : 0],
   });
 }
 
 export type StatsSummary = {
   days: number; from: string; to: string;
-  totals: { views: number; sessions: number };
-  daily: { day: string; views: number; sessions: number }[];
+  /** visitors: the period's daily unique visitors added up (one browser on 3 days is 3); newVisitors: browsers here for
+   *  the first time in the period (each once). */
+  totals: { views: number; sessions: number; visitors: number; newVisitors: number };
+  daily: { day: string; views: number; sessions: number; visitors: number; newVisitors: number }[];
   topPaths: { path: string; views: number }[];
   topReferrers: { host: string; sessions: number }[];
   screens: { screen: string; views: number }[];
@@ -59,11 +60,12 @@ export async function statsSummary(days = 30, now = new Date(), c: Client = db()
   const from = addDays(to, -(days - 1));
   const q = async <T>(sql: string) => (await c.execute({ sql, args: [from, to] })).rows.map((r) => ({ ...r }) as T);
   const where = "WHERE day BETWEEN ? AND ?";
-  const [tot] = await q<{ views: number | null; sessions: number | null }>(`SELECT SUM(views) AS views, SUM(sessions) AS sessions FROM analytics_daily ${where}`);
+  const sums = "SUM(views) AS views, SUM(sessions) AS sessions, SUM(visitors) AS visitors, SUM(new_visitors) AS newVisitors";
+  const [tot] = await q<Record<"views" | "sessions" | "visitors" | "newVisitors", number | null>>(`SELECT ${sums} FROM analytics_daily ${where}`);
   return {
     days, from, to,
-    totals: { views: Number(tot?.views ?? 0), sessions: Number(tot?.sessions ?? 0) },
-    daily: await q(`SELECT day, SUM(views) AS views, SUM(sessions) AS sessions FROM analytics_daily ${where} GROUP BY day ORDER BY day`),
+    totals: { views: Number(tot?.views ?? 0), sessions: Number(tot?.sessions ?? 0), visitors: Number(tot?.visitors ?? 0), newVisitors: Number(tot?.newVisitors ?? 0) },
+    daily: await q(`SELECT day, ${sums} FROM analytics_daily ${where} GROUP BY day ORDER BY day`),
     topPaths: await q(`SELECT path, SUM(views) AS views FROM analytics_daily ${where} GROUP BY path ORDER BY views DESC, path LIMIT 20`),
     topReferrers: await q(`SELECT referrer_host AS host, SUM(sessions) AS sessions FROM analytics_daily ${where} AND referrer_host <> '' GROUP BY referrer_host ORDER BY sessions DESC, host LIMIT 20`),
     screens: await q(`SELECT screen, SUM(views) AS views FROM analytics_daily ${where} GROUP BY screen ORDER BY views DESC`),

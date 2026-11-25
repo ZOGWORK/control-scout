@@ -3,10 +3,20 @@
 // Paths are reduced to route patterns ("/teams/:number"), so what's stored says
 // which kind of page was viewed, never which team someone looked at.
 
+/** Usage statistics count days in US Eastern time (the owner's day, DST included), on the server and in the browser. */
+export const STATS_TIME_ZONE = "America/New_York";
+const statsDayFormat = new Intl.DateTimeFormat("en-CA", { timeZone: STATS_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+/** The Eastern-time day (YYYY-MM-DD) an instant falls on. */
+export const statsDay = (d: Date) => statsDayFormat.format(d);
+
+/** The first day unique visitors were counted (migration 107): days before it have views and sessions, no visitors. */
+export const VISITORS_SINCE = "2026-11-25";
+
 export type Screen = "phone" | "tablet" | "desktop";
 export const SCREENS: readonly Screen[] = ["phone", "tablet", "desktop"];
 
-/** What the browser sends to POST /api/collect. No IDs, nothing per-person. */
+/** What the browser sends to POST /api/collect. No IDs, nothing per-person: three yes/no bits say whether this view
+ *  starts a tab's session, the browser's day, or the browser's first visit. */
 export type PageView = {
   /** Route pattern, e.g. "/events/:season/:code". */
   path: string;
@@ -17,6 +27,12 @@ export type PageView = {
   lang: string;
   /** True on the first page view of a browser session (sessionStorage flag). */
   session: boolean;
+  /** True on this browser's first page view of the Eastern day (a localStorage date, never an ID): summed per day it is
+   *  that day's unique visitors. */
+  visitor: boolean;
+  /** True on this browser's first page view ever (a localStorage flag): summed over a period it is the new visitors. A
+   *  browser whose storage was cleared counts as new again. */
+  newVisitor: boolean;
 };
 
 const STATIC_ROUTES = new Set([
@@ -70,5 +86,8 @@ export function parsePageView(body: unknown): PageView | null {
   if (typeof b.session !== "boolean") return null;
   if (b.ref != null && typeof b.ref !== "string") return null;
   if (b.lang != null && typeof b.lang !== "string") return null;
-  return { path: b.path, ref: cleanHost(b.ref), screen: b.screen as Screen, lang: cleanLang(b.lang), session: b.session };
+  // Optional: a page loaded before these were sent leaves them out (counted as not a new visitor).
+  if (b.visitor != null && typeof b.visitor !== "boolean") return null;
+  if (b.newVisitor != null && typeof b.newVisitor !== "boolean") return null;
+  return { path: b.path, ref: cleanHost(b.ref), screen: b.screen as Screen, lang: cleanLang(b.lang), session: b.session, visitor: b.visitor === true, newVisitor: b.newVisitor === true };
 }
