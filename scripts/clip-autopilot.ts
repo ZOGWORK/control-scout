@@ -42,7 +42,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { forgetSettled, recheckOnly, laneJobMs, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes } from "./lib/autopilotRun";
+import { forgetSettled, recheckOnly, laneJobMs, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes, parseSeasons, pool, serial } from "./lib/autopilotRun";
 import { clipCheckProblems } from "./lib/autopilotClips";
 import { streamRun } from "./lib/streamRun";
 import { eventLimitMs, readFailed as readFailedExit } from "./lib/videoFrames";
@@ -73,6 +73,10 @@ const DIR = ".data/autopilot", STAMP = new Date().toISOString().replace(/[:.]/g,
  *  else 2). Not the coordinator's --lanes (other computers' lanes).
  *  Declared up here: a lane's run (if (LANE), below) reads (readSeason) before the rest of the file runs. */
 const READER_LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process.env.AUTOPILOT_LANES! : "2";
+// Seasons read at once (AUTOPILOT_SEASONS): a season is one reader call, and its --lanes split only that call's events.
+// One at a time, a job of six seasons with an event or two each read one video at a time for most of its hours (derek,
+// 2026-11-25: 2024 USPALAQ1 alone for 2 h, then 2019 2019IASQ2 alone for 2.5 h, its other two pages idle).
+const SEASONS_AT_ONCE = parseSeasons(process.env.AUTOPILOT_SEASONS);
 mkdirSync(join(DIR, "runs"), { recursive: true });
 const LOG = join(DIR, "runs", `${STAMP}.log`);
 const log = (s: string) => { const line = `${new Date().toISOString()} ${s}`; console.log(line); appendFileSync(LOG, `${line}\n`); };
@@ -227,11 +231,11 @@ if (LANE) {
   process.env.DATABASE_URL = `file:${db.replace(/\\/g, "/")}`;
   await layLiveRows();
   log(`lane: job ${job.id}: ${job.seasons.map((x) => `${x.season} ${x.codes.join(",")}`).join("; ")}`);
-  for (const { season, codes, recheck } of job.seasons) {
+  await pool(job.seasons, SEASONS_AT_ONCE, async ({ season, codes, recheck }) => {
     const r = existsSync(seasonFile(season)) ? await readSeason(season, codes, new Set(recheck ?? [])) : { changed: [], readFailed: true, stopped: new Map() };
     writeFileSync(join(out, `${season}.json`), JSON.stringify({ season, codes, changed: r.changed, readFailed: r.readFailed, stopped: [...r.stopped] }));
     log(`lane: ${season}: ${r.changed.length} rows changed${r.readFailed ? ", a read failed" : ""}`);
-  }
+  });
   copyFileSync(LOG, join(out, "run.log"));
   finished = true;
   writeFileSync(LANE_STATE, JSON.stringify({ state: "done", id: job.id, at: at() }));
@@ -530,13 +534,15 @@ await serviceLanes(0);
 const bySeason = new Map<number, typeof picked>();
 let laneRound = 0;
 for (const q of picked) (bySeason.get(q.season) ?? bySeason.set(q.season, []).get(q.season)!).push(q);
-for (const [season, events] of bySeason) {
+// Seasons side by side (SEASONS_AT_ONCE); the lanes are serviced after each, one servicing at a time.
+const oneAtATime = serial();
+await pool([...bySeason], SEASONS_AT_ONCE, async ([season, events]) => {
   const file = seasonFile(season);
-  if (!existsSync(file)) { log(`${season}: no ${file} to write (add the season's file first)`); continue; }
+  if (!existsSync(file)) { log(`${season}: no ${file} to write (add the season's file first)`); return; }
   const codes = events.map((e) => e.code);
   await settle(season, codes, await readSeason(season, codes, new Set(events.filter(recheckOnly).map((e) => e.code))));
-  await serviceLanes(++laneRound);
-}
+  await oneAtATime(() => serviceLanes(++laneRound));
+});
 
 // --- 7. The live clips the clock places, checked by their first frame --------------------------------------------------------
 // Each clip the live site plays from the clock is read paused at its first second (video-frames.ts --clips): its own

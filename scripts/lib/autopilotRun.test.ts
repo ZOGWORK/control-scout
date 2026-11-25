@@ -1,7 +1,7 @@
 // The clip autopilot's choices (scripts/lib/autopilotRun.ts): which queued events a run reads, when one that gave
 // nothing new is tried again, and what a delivery's rows change.
 import { describe, expect, it } from "vitest";
-import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
+import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, parseSeasons, pool, serial, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -320,5 +320,33 @@ describe("nothingRead", () => {
   });
   it("makes its event a failed read: not shipped, not counted as tried", () => {
     expect(readOutcome({ rows: 0, opened: 0, waiting: 0, tooBig: 0, readFailed: true, changed: 1 })).toBe("read failed");
+  });
+});
+
+describe("parseSeasons / pool / serial", () => {
+  it("reads AUTOPILOT_SEASONS as 1 to 6, anything else 1", () => {
+    expect(parseSeasons("3")).toBe(3);
+    expect(parseSeasons("6")).toBe(6);
+    for (const s of [undefined, "", "0", "7", "2.5", "x"]) expect(parseSeasons(s)).toBe(1);
+  });
+  it("runs every item, never more than n at once", async () => {
+    let running = 0, most = 0;
+    const done: number[] = [];
+    await pool([1, 2, 3, 4, 5], 2, async (i) => { running++; most = Math.max(most, running); await new Promise((r) => setTimeout(r, 5 * (6 - i))); done.push(i); running--; });
+    expect(done.sort()).toEqual([1, 2, 3, 4, 5]);
+    expect(most).toBe(2);
+  });
+  it("throws a failure only once the running items have settled, starting no new one", async () => {
+    const finished: number[] = [];
+    await expect(pool([1, 2, 3], 2, async (i) => { if (i === 1) throw new Error("one"); await new Promise((r) => setTimeout(r, 10)); finished.push(i); })).rejects.toThrow("one");
+    expect(finished).toEqual([2]);
+  });
+  it("serial runs its steps one after another, a failed step not stopping the next", async () => {
+    const run = serial(), order: string[] = [];
+    const a = run(async () => { await new Promise((r) => setTimeout(r, 10)); order.push("a"); });
+    const b = run(async () => { order.push("b"); throw new Error("b"); });
+    const c = run(async () => { order.push("c"); });
+    await a; await expect(b).rejects.toThrow("b"); await c;
+    expect(order).toEqual(["a", "b", "c"]);
   });
 });
