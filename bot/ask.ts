@@ -74,6 +74,10 @@ export interface AskDeps {
    *  Never throws, and nothing when search can't read the query — the round adds nothing and he answers from what he
    *  has. */
   factsFor?: (q: string) => Promise<string[]>;
+  /** The numbers in a reply that the facts don't have, checked as the chat's own reply was (realAskDeps). The correction
+   *  round names the invented numbers, and that line is part of what the chat checks its next reply against: a rewrite
+   *  that simply repeats one would count as grounded, so it is checked here against the facts without the correction. */
+  unknown?: (text: string, facts: string[], history: BrunoChatTurn[], memory: string[], question: string) => string[];
   /** A records question search couldn't answer: the site's failed-search queue (server/searchFailures.ts), given the
    *  answer and the server it was asked in (never who asked). Synchronous, never awaited, never throws. */
   miss?: (q: string, a: SearchAnswer, guild: string | null) => void;
@@ -240,6 +244,7 @@ export async function realAskDeps(): Promise<AskDeps> {
     },
     // What he asks for mid-answer: the same unlearned search, its facts only (his reply is the answer, so no card).
     factsFor: (q) => searchAnswer(q, { learn: false, limit: SEARCH_PAGE_LIMIT }).then((a) => answerFacts(a)).catch(() => []),
+    unknown: (text, facts, history, memory, question) => ungrounded(text, [...facts, ...memory, ...history.map((t) => t.text)], question),
     // The site's own failed-search queue (server/searchFailures.ts): the words people actually use, which the website's
     // search box never sees. In-memory and synchronous; the bot flushes it once a minute (bot/index.ts). A failure here
     // never touches the answer: reporting is never on the path.
@@ -425,9 +430,14 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
   if (reply && records && reply.unknown?.length) {
     const fix = `Correction: your last reply used numbers the facts don't have (${reply.unknown.slice(0, 6).join(", ")}). Rewrite it using only the facts; where they don't hold a number, say what's missing instead of guessing.`;
     const next = await deps.chat!(q, fit([fix, ...packet], CHAT_FACTS, CHAT_FACTS_CHARS), history, memory).catch(() => null);
-    if (next && !next.unknown?.length) {
+    // The correction names the invented numbers and travels in the packet, so the chat's own check would take a repeat
+    // as grounded. The rewrite is checked against the facts he already had instead, and a `LOOKUP:` line in it (the
+    // instruction says to ask when the facts don't hold something) is the bot's, never something to post.
+    const said = next ? lookupAsked(next.text).text : "";
+    const invented = next && said ? (deps.unknown ? deps.unknown(said, packet, history, memory, q) : next.unknown ?? []) : ["lookup"];
+    if (next && said && !invented.length) {
       console.info("[bot] chat repaired: rewritten without the numbers it invented");
-      reply = next;
+      reply = { ...next, text: said };
     }
   }
   return reply;

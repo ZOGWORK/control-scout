@@ -455,6 +455,34 @@ describe("a chat that looks something up, and one that got a number wrong", () =
     expect(r.chat!.text).toBe("4215 won 3 awards.");
   });
 
+  it("a correction that repeats the invented number is refused: the correction line is not a fact", async () => {
+    const chat = vi.fn()
+      .mockResolvedValueOnce({ text: "4215 won 7 awards.", search: true, unknown: ["7"] })
+      .mockResolvedValueOnce({ text: "4215 won 7 awards.", search: true, unknown: [] });
+    const d = deps(base(), {
+      facts: vi.fn(async () => ["4215 Hypnotic Robotics: 3 awards in 2025–26."]),
+      chat,
+      // The chat's own check now sees "7" in its packet (the correction names it); this one reads the facts alone.
+      unknown: (text: string) => (text.includes("7") ? ["7"] : []),
+    });
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const r = await ask("4215 awards", d, SITE);
+      expect(r.chat).toBeUndefined();
+      expect(info.mock.calls.flat().join(" ")).toContain("[bot] chat dropped: numbers not in the facts: 7");
+    } finally { info.mockRestore(); }
+  });
+
+  it("a corrected reply that ends with a LOOKUP line posts the words, never the request", async () => {
+    const chat = vi.fn()
+      .mockResolvedValueOnce({ text: "4215 won 7 awards.", search: true, unknown: ["7"] })
+      .mockResolvedValueOnce({ text: "I couldn't find the award count in the facts.\nLOOKUP: 4215 awards", search: false, unknown: [] });
+    const d = deps(base(), { facts: vi.fn(async () => ["4215 Hypnotic Robotics: 3 awards in 2025–26."]), chat });
+    const r = await ask("4215 awards", d, SITE);
+    expect(r.chat!.text).toBe("I couldn't find the award count in the facts.");
+    expect(r.chat!.text).not.toContain("LOOKUP");
+  });
+
   it("a reply that says it couldn't find the records files the miss, even though it answered", async () => {
     const miss = vi.fn();
     const chat = vi.fn(async () => ({ text: "I couldn't find auto OPR for that meet in the facts.", search: false }));
