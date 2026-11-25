@@ -318,75 +318,13 @@ async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer>
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
   await refreshSearchSeason(opts.now);
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
-  // A chat command written out with its option ("/ask question:how did 4215 do last event", as the Discord bot's
-  // "Ask next" text reads, pasted into a message or the search box): the option's value is the question.
-  const command = String(raw ?? "").replace(SLASH_COMMAND, "");
-  if (command !== String(raw ?? "") && command.trim()) {
-    const b = await searchAnswer(command, opts);
-    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
-  }
-  // Informal short forms said in full first ("events happening rn"), in the query as typed (its quotes and operators
-  // kept), the answer keeping the query as typed.
-  // A clause saying what isn't asked ("…, not just one number", "in 2024-25, not this season") goes; the rest is the ask.
-  const plain = withoutContrast(withoutExamples(String(raw ?? "")));
-  if (plain !== String(raw ?? "")) {
-    const b = await searchAnswer(plain, opts);
-    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
-  }
-  // A city FIRST runs as a region of its own, said in full ("new york city championship"): its short form, as its
-  // events are named (src/shared/regions.ts).
-  const city = cityShortForm(plain);
-  if (city !== plain) {
-    const b = await searchAnswer(city, opts);
-    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
-  }
-  // A last clause that only talks around the question ("…, i forgot", "…, be honest") goes too: never a team's name.
-  const unasked = await withoutAside(String(raw ?? ""), opts);
-  if (unasked !== String(raw ?? "")) {
-    const b = await searchAnswer(unasked, opts);
-    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
-  }
-  // Stray letters typed on their own ("… in nj n", "what is t r best team"): the question without them, the letters
-  // said as not read.
-  const stray = await withoutStrayLetter(String(raw ?? ""), opts);
-  if (stray) {
-    const b = await searchAnswer(stray.rest, opts);
-    const understood = b.understood ? { ...b.understood, unread: [...(b.understood.unread ?? []), ...stray.letters] } : b.understood;
+  // Every rewrite before the readers, in one ordered step (normalised): the question as they leave it is answered
+  // once, the answer keeping the query as typed and saying the stray letters it read past.
+  const said = String(raw ?? ""), norm = await normalised(said, opts);
+  if (norm.text !== said) {
+    const b = await searchAnswer(norm.text, opts);
+    const understood = norm.letters.length && b.understood ? { ...b.understood, unread: [...(b.understood.unread ?? []), ...norm.letters] } : b.understood;
     return carryOutcome(b, { ...b, q: cleanQuery(raw), ...(understood ? { understood } : {}) });
-  }
-  const said = String(raw ?? ""), full = await inFull(said);
-  if (full !== said) {
-    const b = await searchAnswer(full, opts);
-    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
-  }
-  // A season written with both years ("2025-2026"): written as search reads one ("2025-26").
-  // Numbers said as words after a word that takes one ("opr over eighty") in digits (./query/lexicon.ts spelledNumbers).
-  // A season written with a comma ("2025, 26", "season 25, 26") is the same season: consecutive years only, the
-  // second as two digits (two four-digit numbers with a comma, "2024, 2025", are two teams), and two two-digit years
-  // only beside a season word, so a list of team numbers ("25, 26") stays a list.
-  const next = (a: string, b: string) => (Number(b) === (Number(a.slice(-2)) + 1) % 100);
-  // A possessive after a name ending in punctuation ("die toaster, die!'s worst score"): the name as typed, never a
-  // stray "s" every reader would take for a word (or a team named "s").
-  const owned = said.replace(/(?<=[\p{L}\p{N}][^\p{L}\p{N}\s'’]+)['’]s(?=[\s,;:?!]|$)/gu, "");
-  // A team's number said again before an event word ("37032 record at 37032 meet") is the same team's own event, never a
-  // second team: "at their meet".
-  const once = owned.replace(/\b(\d{1,6})\b(.*?)\b(at|in|from|during)\s+#?\1(?:['’]s)?\s+(?=(?:events?|meets?|competitions?|comps?|tournaments?)\b)/gi, (_, n: string, mid: string, at: string) => `${n}${mid}${at} their `)
-    // "… in their last" with nothing after it: their last event, the one thing a team is "in" ("best teleop in their
-    // last"). Never before a number or a noun ("in their last 5 matches", "in their last match"), which says its own.
-    .replace(/\b(in|at|during)\s+(their|its)\s+(last|latest|most recent)(\s*[?.!]*)$/i, "$1 $2 $3 event$4");
-  const dated = once.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
-    .replace(/\b(20\d\d)\s*,\s*(\d\d)\b/g, (w, a: string, b: string) => (next(a, b) ? `${a}-${b}` : w))
-    .replace(/\b(season\s+)(\d\d)\s*,\s*(\d\d)\b|\b(\d\d)\s*,\s*(\d\d)(\s+season)\b/gi, (w, pre?: string, a1?: string, b1?: string, a2?: string, b2?: string, post?: string) => {
-      const [a, b] = a1 ? [a1, b1!] : [a2!, b2!];
-      return next(a, b) ? `${pre ?? ""}20${a}-${b}${post ?? ""}` : w;
-    });
-  // The names are loaded only when there is a number said as words; the rewrite itself is the name-aware one, on the
-  // text as typed.
-  const saysNumber = spelledNumbers(dated) !== dated;
-  const years = saysNumber ? spelledNumbers(dated, await inAName()) : dated;
-  if (years !== said) {
-    const b = await searchAnswer(years, opts);
-    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
   // Singular "state" after a region asks for its rankings; plural "states" or an explicit
   // championship still asks for results at that event.
@@ -467,6 +405,74 @@ async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer>
   if (opts.spell === false || String(raw ?? "").includes('"')) return onPage(raw, a, opts);
   const asked = /\?\s*$/.test(String(raw ?? ""));
   return onPage(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
+}
+
+/** The question as every rewrite before the readers leaves it (the search audit's C2): one ordered step, each rewrite
+ *  read on the text the ones before it left, and all of them again from the first after any one changes it (as asking
+ *  the rewritten question again did), until none does. `letters`: stray letters taken out, said as not read. */
+async function normalised(raw: string, opts: AnswerOptions): Promise<{ text: string; letters: string[] }> {
+  const letters: string[] = [];
+  let text = raw;
+  for (let round = 0; round < NORMALISE_ROUNDS; round++) {
+    const next = await rewriteOnce(text, opts, letters);
+    if (next === text) break;
+    text = next;
+  }
+  return { text, letters };
+}
+/** More rewrites than any question needs: a rewrite that undid another could never loop for ever. */
+const NORMALISE_ROUNDS = 16;
+
+/** The first of the rewrites that changes `said`, its text; else `said` itself. */
+async function rewriteOnce(said: string, opts: AnswerOptions, letters: string[]): Promise<string> {
+  // A chat command written out with its option ("/ask question:how did 4215 do last event", as the Discord bot's
+  // "Ask next" text reads, pasted into a message or the search box): the option's value is the question.
+  const command = said.replace(SLASH_COMMAND, "");
+  if (command !== said && command.trim()) return command;
+  // Informal short forms said in full first ("events happening rn"), in the query as typed (its quotes and operators
+  // kept), the answer keeping the query as typed.
+  // A clause saying what isn't asked ("…, not just one number", "in 2024-25, not this season") goes; the rest is the ask.
+  const plain = withoutContrast(withoutExamples(said));
+  if (plain !== said) return plain;
+  // A city FIRST runs as a region of its own, said in full ("new york city championship"): its short form, as its
+  // events are named (src/shared/regions.ts).
+  const city = cityShortForm(plain);
+  if (city !== plain) return city;
+  // A last clause that only talks around the question ("…, i forgot", "…, be honest") goes too: never a team's name.
+  const unasked = await withoutAside(said, opts);
+  if (unasked !== said) return unasked;
+  // Stray letters typed on their own ("… in nj n", "what is t r best team"): the question without them, the letters
+  // said as not read.
+  const stray = await withoutStrayLetter(said, opts);
+  if (stray) { letters.push(...stray.letters); return stray.rest; }
+  const full = await inFull(said);
+  if (full !== said) return full;
+  // A season written with both years ("2025-2026"): written as search reads one ("2025-26").
+  // Numbers said as words after a word that takes one ("opr over eighty") in digits (./query/lexicon.ts spelledNumbers).
+  // A season written with a comma ("2025, 26", "season 25, 26") is the same season: consecutive years only, the
+  // second as two digits (two four-digit numbers with a comma, "2024, 2025", are two teams), and two two-digit years
+  // only beside a season word, so a list of team numbers ("25, 26") stays a list.
+  const next = (a: string, b: string) => (Number(b) === (Number(a.slice(-2)) + 1) % 100);
+  // A possessive after a name ending in punctuation ("die toaster, die!'s worst score"): the name as typed, never a
+  // stray "s" every reader would take for a word (or a team named "s").
+  const owned = said.replace(/(?<=[\p{L}\p{N}][^\p{L}\p{N}\s'’]+)['’]s(?=[\s,;:?!]|$)/gu, "");
+  // A team's number said again before an event word ("37032 record at 37032 meet") is the same team's own event, never a
+  // second team: "at their meet".
+  const once = owned.replace(/\b(\d{1,6})\b(.*?)\b(at|in|from|during)\s+#?\1(?:['’]s)?\s+(?=(?:events?|meets?|competitions?|comps?|tournaments?)\b)/gi, (_, n: string, mid: string, at: string) => `${n}${mid}${at} their `)
+    // "… in their last" with nothing after it: their last event, the one thing a team is "in" ("best teleop in their
+    // last"). Never before a number or a noun ("in their last 5 matches", "in their last match"), which says its own.
+    .replace(/\b(in|at|during)\s+(their|its)\s+(last|latest|most recent)(\s*[?.!]*)$/i, "$1 $2 $3 event$4");
+  const dated = once.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
+    .replace(/\b(20\d\d)\s*,\s*(\d\d)\b/g, (w, a: string, b: string) => (next(a, b) ? `${a}-${b}` : w))
+    .replace(/\b(season\s+)(\d\d)\s*,\s*(\d\d)\b|\b(\d\d)\s*,\s*(\d\d)(\s+season)\b/gi, (w, pre?: string, a1?: string, b1?: string, a2?: string, b2?: string, post?: string) => {
+      const [a, b] = a1 ? [a1, b1!] : [a2!, b2!];
+      return next(a, b) ? `${pre ?? ""}20${a}-${b}${post ?? ""}` : w;
+    });
+  // The names are loaded only when there is a number said as words; the rewrite itself is the name-aware one, on the
+  // text as typed.
+  const saysNumber = spelledNumbers(dated) !== dated;
+  const years = saysNumber ? spelledNumbers(dated, await inAName()) : dated;
+  return years;
 }
 
 /**
