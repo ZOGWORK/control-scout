@@ -15,20 +15,6 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 8.0.6 — 2026-11-25
-
-A Discord thread remembers the team it is about, so a follow-up that only says "their" is answered.
-
-### Highlights
-- [scout] "Their last meet" means the team the thread named
-- [fixes] A follow-up with no team in it is searched as the thread's subject
-- [scout] The follow-up eval set grows from the phrasings people filed
-
-### Discord bot
-- **A thread's subject** (`bot/subject.ts`, `bot/ask.ts`): a follow-up that only looks back — "their last meet", "and their OPR?", "what about that event?" — used to be searched as a question about the word "their", so the facts held nothing and the answer was "I couldn't find that." The thread already named one: the last turn in it about the records is taken as its subject, and the follow-up is asked as that turn's words — `their last meet? (what did theseus get in auto opr in the last meet they had in biobizz)`. It happens only when the message looks back and names no team or event of its own, so a message with a number in it is asked as typed, and the post still quotes what the person wrote. The subject is the thread's own text: it holds for a team's name as well as its number, needs no lookup of its own, and survives a deploy with the thread (`bot/memory.ts`). (#2326)
-- **He is told what the follow-up was read as**: the chat's packet gains the line `This thread is about: …`, so Bruno names that team instead of guessing from the turns, and a number he gives about it is grounded the way the thread's own are.
-- **A follow-up eval set** (`bot/evals/threads.json`, `bot/subject.test.ts`): the phrasings the failed-search queue kept filing — "their last meet", "and their OPR?", "what about that event?" — are checked the way a reply in that thread would ask them, so a new phrasing goes in the bank rather than in a one-off test.
-
 ## 8.0.5 — 2026-11-25
 
 Bruno can look something up while he answers, and the bot no longer throws a whole reply away over a figure he worked out himself.
