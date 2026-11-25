@@ -40,6 +40,18 @@ export async function answerRow(messageId: string): Promise<AnswerRow | null> {
   return r ? { question: r.question ?? null } : null;
 }
 
+/** The name Discord shows the reporter by in that server — the nickname, not the handle — for the issue's "reported by". A
+ *  `MessageReaction` carries no member of its own (only the gateway's raw payload does), so it comes from the answer's
+ *  guild's member cache. A reactor who isn't cached is unnamed here, and the report falls back to their global name or
+ *  handle (bot/handler.ts `shownName`) instead of losing the report. */
+export function reporterName(
+  message: { guild?: { members: { cache: { get(id: string): { displayName?: string | null } | undefined } } } | null } | null,
+  userId: string,
+): string | null {
+  const name = message?.guild?.members.cache.get(userId)?.displayName;
+  return name && name.trim() ? name.trim() : null;
+}
+
 /** Every vote the bot's answers collected while the thumbs existed, for the owner console. `down` is what a 👎 counted
  *  before it was removed; nothing adds to either now — a 👎 files a report instead of counting. */
 export async function reactionUsage(): Promise<{ up: number; down: number }> {

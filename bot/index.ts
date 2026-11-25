@@ -18,7 +18,7 @@ import { notifyTick, type Send } from "./follows.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
 import { rememberGuild } from "./guilds.js";
-import { REPORT } from "./reactions.js";
+import { REPORT, reporterName } from "./reactions.js";
 import { sweepOldThumbs } from "./cleanup.js";
 import { flushSearchFailures } from "../server/searchFailures.js";
 import { site } from "./lookups.js";
@@ -185,16 +185,16 @@ setInterval(() => {
 }, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
 client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m as never, client.user.id); });
-/** A 👎 as the gateway sends it: the emoji, the answer it is on, and the name Discord shows the person by there. */
-type Downvote = { emoji: { name: string | null }; message: never; member?: { displayName?: string | null } | null };
 /** A 👎 added on purpose is a report (bot/handler.ts `downvoted`): the answer's question and words go to GitHub, and
  *  the person is told where the issue is. Only a message the bot posted has a row, so a 👎 anywhere else files nothing,
  *  and the bot adds no emoji of its own — so a 👍 somebody adds changes nothing, and the ones it did add are taken off
  *  once at startup (bot/cleanup.ts). */
 client.on(Events.MessageReactionAdd, (r, u) => {
   if (u.bot || r.emoji.name !== REPORT) return;
-  void handle.downvoted(r.message as never, { id: u.id, bot: u.bot, globalName: u.globalName, username: u.username, displayName: r.member?.displayName ?? null })
-    .catch(() => {});
+  void handle.downvoted(r.message as never, {
+    id: u.id, bot: u.bot, globalName: u.globalName, username: u.username,
+    displayName: reporterName(r.message, u.id),
+  }).catch(() => {});
 });
 // The site's failed-search queue counts Discord's own misses too (bot/ask.ts): the buffer is in this process, so the bot
 // flushes it as the site does, every minute.

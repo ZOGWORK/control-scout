@@ -3,7 +3,7 @@
 // never written again.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../server/db";
-import { REPORT, answerRow, reactionUsage, trackAnswer } from "./reactions";
+import { REPORT, answerRow, reactionUsage, reporterName, trackAnswer } from "./reactions";
 
 describe("the row behind an answer", () => {
   beforeAll(async () => {
@@ -47,5 +47,24 @@ describe("the row behind an answer", () => {
 
   it("names the one reaction a person adds deliberately", () => {
     expect(REPORT).toBe("👎");
+  });
+});
+
+describe("the name a report shows the reporter by", () => {
+  /** An answer as the reaction gateway carries it: its guild, and whoever is cached there. `MessageReaction` itself has no
+   *  member, which is what made reading one off the reaction always null. */
+  const answer = (nick?: string) => ({ guild: { members: { cache: new Map(nick === undefined ? [] : [["u1", { displayName: nick }]]) } } });
+
+  it("is the nickname Discord shows them by in that server", () => {
+    expect(reporterName(answer("Coach Kim"), "u1")).toBe("Coach Kim");
+    expect(reporterName(answer("  Coach Kim "), "u1")).toBe("Coach Kim");
+  });
+
+  it("is null when the reactor isn't cached there, has no nickname, or the answer is a DM", () => {
+    expect(reporterName(answer(), "u1")).toBeNull();
+    expect(reporterName(answer("   "), "u1")).toBeNull();
+    expect(reporterName(answer("Coach Kim"), "someone-else")).toBeNull();
+    expect(reporterName({ guild: null }, "u1")).toBeNull();
+    expect(reporterName(null, "u1")).toBeNull();
   });
 });
