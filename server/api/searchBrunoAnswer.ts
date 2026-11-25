@@ -193,19 +193,19 @@ export function grounded(text: string, facts: string[], question: string, teams?
 }
 
 /**
- * Whether `n` is arithmetic on the facts' own numbers rather than a number he made up: the sum, difference, product,
- * ratio or percentage of two the facts (or the question) have, to within a rounding of the result. A calculated answer
- * ("their 110 OPR over 8 matches is 13.8 a match") is not an invented one, and dropping it for the card was turning
- * good arithmetic into "I can't answer that".
+ * Whether `n` is a ratio of two of the facts' own numbers rather than a number he made up: a per-match average ("their
+ *  110 OPR over 8 matches is 13.8 a match") or a share of a total ("45.2 of 92.5 is 48.9%"), to within a rounding of
+ *  the result. Those were being dropped for the card, which turned good arithmetic into "I can't answer that". Sums,
+ *  differences and products are deliberately not read this way: on a head-to-head, 46.9 + 54.7 is the other side's
+ *  101.6, and the team-aware check exists to refuse exactly that.
  */
 function derived(n: number, known: number[]): boolean {
   const close = (x: number) => Number.isFinite(x) && Math.abs(x - n) <= Math.max(0.05, Math.abs(n) * 0.005);
   for (let i = 0; i < known.length; i++) {
     const a = known[i];
-    if (close(a)) return true;
+    // A number that is itself a fact is not a calculated one: whose fact it is stays the team-aware check's business.
     for (let j = i; j < known.length; j++) {
       const b = known[j];
-      if (close(a + b) || close(Math.abs(a - b)) || close(a * b)) return true;
       // A ratio of one number to itself is 1, which would make every "1" a calculated one: only two different numbers.
       if (b !== 0 && a !== b && (close(a / b) || close((a / b) * 100))) return true;
       if (a !== 0 && a !== b && (close(b / a) || close((b / a) * 100))) return true;
