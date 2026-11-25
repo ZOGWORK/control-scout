@@ -97,7 +97,7 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 describe("event recordings", () => {
   it("before YouTube is read: FIRST's video is the player, no match clips yet", async () => {
     const d = await getJson(`/api/events/${S}/CLIPS`);
-    expect(d.event.stream).toEqual({ videoId: FIRST_ID, streamUrl: `https://www.youtube-nocookie.com/embed/${FIRST_ID}`, source: "first" });
+    expect(d.event.stream).toEqual({ videoId: FIRST_ID, streamUrl: `https://www.youtube-nocookie.com/embed/${FIRST_ID}`, source: "first", origin: "first" });
     expect(d.matches.some((m: any) => m.clip)).toBe(false);
   });
 
@@ -145,6 +145,7 @@ describe("event recordings", () => {
   it("the owner's stream wins, with its own timing", async () => {
     const d = await getJson(`/api/events/${S}/OWNER`);
     expect(d.event.stream.videoId).toBe(OWNER_ID);
+    expect(d.event.stream.origin).toBe("owner"); // said under the player: the site owner added it
     expect(d.event.stream.source).toBeUndefined();
     expect(d.matches[0].clip.t).toBe(3620 - 20);
   });

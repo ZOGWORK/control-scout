@@ -12,7 +12,7 @@ import { seasonStreams } from "../portal/streams.js";
 import { embedUrl, parseStreamUrl } from "../../src/shared/stream.js";
 import { CHAPTER_MIN_GAP_S, CLIP_LEAD_S, actualStart, chaptersConfirm, clearOfPrevious, clipEnd, clipSecond, frameClipEnd, gapSlack, labelRank, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
 import { localToUtcMs } from "../../src/shared/time.js";
-import type { EventStream, MatchView } from "../../src/shared/api.js";
+import type { EventStream, MatchView, RecordingOrigin } from "../../src/shared/api.js";
 import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { youtubeId } from "../../src/shared/personal.js";
@@ -27,7 +27,7 @@ import { clipPulled } from "../data/clipChecks.js";
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string; unplayableSince?: string }
 /** One of a recording's videos. day: its broadcast's date at the venue, when an official list gave it; part: a named
  *  part of a day that has more than one video ("Awards"). */
-export interface RecordingVideo { videoId: string; meta: VideoMeta | null; day?: string | null; part?: string | null }
+export interface RecordingVideo { videoId: string; meta: VideoMeta | null; day?: string | null; part?: string | null; /** Where it came from (videoOrigin). */ origin?: RecordingOrigin }
 /** An event's recording: its video, and, for an event broadcast a day at a time (a channel's broadcasts, or the
  *  organiser's official days), the other days' videos in broadcast order. */
 export interface Recording extends RecordingVideo {
@@ -41,7 +41,7 @@ export interface Recording extends RecordingVideo {
 }
 
 const TTL_MS = 60_000;
-type SeasonData = { first: Map<string, string>; /** FIRST's own link (or its short link's video), by event. */ link: Map<string, string>; more: Map<string, string[]>; daily: Set<string>; official: Set<string>; meta: Map<string, VideoMeta>; extra: Map<string, { day: string | null; part: string | null }>; failed: string[]; /** The owner's event-page corrections (ownerPicks). */ picks: Map<string, OwnerPicks> };
+type SeasonData = { first: Map<string, string>; /** FIRST's own link (or its short link's video), by event. */ link: Map<string, string>; more: Map<string, string[]>; daily: Set<string>; /** The videos read off the channel FIRST's link names (event_broadcasts). */ channel: Set<string>; official: Set<string>; meta: Map<string, VideoMeta>; extra: Map<string, OfficialExtra>; failed: string[]; /** The owner's event-page corrections (ownerPicks). */ picks: Map<string, OwnerPicks> };
 
 /** Maps read without one of their sources (the owner's streams, the official recordings): online they're shown as
  *  they are (and the failure is logged); the season pack's events board refuses them (isPartial, api/reads.ts). */
@@ -129,9 +129,10 @@ function seasonData(season: number, now = Date.now()) {
     }
     // Official recordings (server/videos/officialVideos.ts): an organiser's day broadcasts, checked against the event.
     // An event without a link of FIRST's gets its first day as its video; every other day joins it, a day at a time.
-    const extra = new Map<string, { day: string | null; part: string | null }>();
+    const extra = new Map<string, OfficialExtra>();
     for (const o of (await soft("official recordings", season, failed, seasonOfficial(season), () => [])).filter((x) => x.kind === "recording")) {
-      extra.set(o.videoId, { day: o.day ?? null, part: o.part ?? null });
+      const origin = officialOrigin(o.source);
+      extra.set(o.videoId, { day: o.day ?? null, part: o.part ?? null, ...(origin ? { origin } : {}) });
       const list = more.get(o.code) ?? [];
       if (!first.has(o.code)) first.set(o.code, o.videoId);
       else if (first.get(o.code) !== o.videoId && !list.includes(o.videoId)) more.set(o.code, [...list, o.videoId]);
@@ -144,7 +145,7 @@ function seasonData(season: number, now = Date.now()) {
       const part = ids.slice(i, i + 200);
       for (const r of await all<any>(`SELECT ${META_COLUMNS} FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) meta.set(String(r.video_id), metaOf(r));
     }
-    return { first, link, more, daily, official: new Set(official.map((o) => String(o.code))), meta, extra, failed, picks: await soft("owner's picks", season, failed, ownerPicks(season), () => new Map<string, OwnerPicks>()) };
+    return { first, link, more, daily, channel: new Set(days.map((d) => String(d.video_id))), official: new Set(official.map((o) => String(o.code))), meta, extra, failed, picks: await soft("owner's picks", season, failed, ownerPicks(season), () => new Map<string, OwnerPicks>()) };
   })();
   // A map read before keeps being given while its next read runs (search reads these on its answer path: a read
   // costs a season's matches); forgetRecordings drops it at once when the links change.
@@ -153,6 +154,27 @@ function seasonData(season: number, now = Date.now()) {
   v.then(() => { if (cache.get(season) === entry) cache.set(season, { at: now, v, ready: true }); },
     () => { if (cache.get(season) === entry) { if (entry.v === v) cache.delete(season); else entry.at = 0; } });
   return entry.v;
+}
+
+/** An official recording's facts the event's videos take: its listed day and part, and who added it. */
+type OfficialExtra = { day: string | null; part: string | null; origin?: RecordingOrigin };
+
+/** Who added an official recording (official_videos.source) as the page says it: the watcher, the hand-checked list,
+ *  or the owner (approved from the queue, or picked on the event page). Anything else: not said. */
+export function officialOrigin(source: string | null | undefined): RecordingOrigin | undefined {
+  if (source === "watcher") return "watcher";
+  if (source === "list") return "list";
+  if (source === "owner" || source === "owner-page") return "owner";
+  return undefined;
+}
+
+/** Where one of an event's videos came from: FIRST's own link (or its short link's video) first, a broadcast read off
+ *  the channel FIRST's link names, else the official recording's adder (officialOrigin). */
+export function videoOrigin(videoId: string, code: string, d: Pick<SeasonData, "link" | "channel" | "extra">): RecordingOrigin | undefined {
+  const channel = d.channel.has(videoId) ? "channel" : "first";
+  if (d.link.get(code) === videoId) return channel;
+  if (d.extra.has(videoId)) return d.extra.get(videoId)!.origin;
+  return channel;
 }
 
 /** The owner's corrections to an event's recordings, made on its page (server/videos/ownerRecordings.ts): the videos
@@ -194,21 +216,22 @@ const dayKey = (v: RecordingVideo) => v.meta?.start ?? (v.day ? `${v.day}T12:00:
  *  kept, for the coverage check, server/videos/coverage.ts, which names it as the reason its day has no clips). */
 export async function seasonRecordings(season: number, keepUnavailable = false): Promise<Map<string, Recording>> {
   const failed: string[] = [];
-  const [{ first, link, more, daily, meta, extra, failed: dataFailed, picks }, owner] = await Promise.all([seasonData(season), soft("owner streams", season, failed, seasonStreams(season), () => new Map<string, EventStream>())]);
+  const [data, owner] = await Promise.all([seasonData(season), soft("owner streams", season, failed, seasonStreams(season), () => new Map<string, EventStream>())]);
+  const { first, link, more, daily, meta, extra, failed: dataFailed, picks } = data;
   const out = new Map<string, Recording>();
   if (failed.length || dataFailed.length) partial.add(out);
   for (const [code, videoId] of first) {
     // Every day YouTube still plays, in order: the first of them is the event's video (a day made private leaves the others).
     // The owner's corrections on the event page come first of all (ownerPicks): what they took off is left out, and a
     // day they picked a video for plays theirs alone.
-    const all = picked([videoId, ...(more.get(code) ?? [])].map((id): RecordingVideo => ({ videoId: id, meta: meta.get(id) ?? null, ...(extra.get(id) ?? {}) })), picks.get(code)).filter((d) => keepUnavailable || d.meta?.status !== "unavailable");
+    const all = picked([videoId, ...(more.get(code) ?? [])].map((id): RecordingVideo => { const origin = videoOrigin(id, code, data); return { videoId: id, meta: meta.get(id) ?? null, ...(extra.get(id) ?? {}), ...(origin ? { origin } : {}) }; }), picks.get(code)).filter((d) => keepUnavailable || d.meta?.status !== "unavailable");
     // A day at a time: in the order they were broadcast (FIRST's link can be any of the days).
     if (all.length > 1) all.sort((a, b) => dayKey(a).localeCompare(dayKey(b)));
     const [main, ...days] = all;
     if (main) out.set(code, { ...main, code, source: extra.has(main.videoId) && link.get(code) !== main.videoId ? "official" : "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
   }
   // The owner portal's stream, unless the owner's event-page picks say otherwise (taken off, or days picked there).
-  for (const [code, s] of owner) if (!picks.get(code)?.blocked.has(s.videoId) && !picks.get(code)?.days.size) out.set(code, { videoId: s.videoId, code, source: "owner", meta: meta.get(s.videoId) ?? null });
+  for (const [code, s] of owner) if (!picks.get(code)?.blocked.has(s.videoId) && !picks.get(code)?.days.size) out.set(code, { videoId: s.videoId, code, source: "owner", origin: "owner", meta: meta.get(s.videoId) ?? null });
   if (!keepUnavailable) for (const [code, r] of out) if (r.meta?.status === "unavailable") out.delete(code);
   return out;
 }
@@ -339,11 +362,11 @@ export async function eventRecording(season: number, code: string): Promise<Reco
 export const youtubeOnly = (meta: Pick<VideoMeta, "embeddable"> | null | undefined): { youtubeOnly?: true } => (meta?.embeddable === false ? { youtubeOnly: true } : {});
 
 export const recordingStream = (r: Recording, timezone?: string | null): EventStream => ({
-  videoId: r.videoId, streamUrl: embedUrl(r.videoId), ...(r.source !== "owner" ? { source: r.source } : {}),
+  videoId: r.videoId, streamUrl: embedUrl(r.videoId), ...(r.source !== "owner" ? { source: r.source } : {}), ...(r.origin ? { origin: r.origin } : {}),
   // A day at a time: each day's video, named by its weekday at the venue (the broadcast's start).
   // A day with a second video (the awards) names it: "Sunday · Awards".
   ...(() => { const ids = [r, ...(r.more ?? [])].filter((d) => d.meta?.embeddable === false).map((d) => d.videoId); return ids.length ? { youtubeOnly: ids } : {}; })(),
-  ...(r.more?.length ? { days: [r, ...r.more].map((d) => ({ videoId: d.videoId, label: dayLabel(d.meta?.start ?? (d.day ? `${d.day}T12:00:00Z` : null), d.meta?.start ? timezone : "UTC") + (d.part ? ` · ${d.part}` : "") })) } : {}),
+  ...(r.more?.length ? { days: [r, ...r.more].map((d) => ({ videoId: d.videoId, label: dayLabel(d.meta?.start ?? (d.day ? `${d.day}T12:00:00Z` : null), d.meta?.start ? timezone : "UTC") + (d.part ? ` · ${d.part}` : ""), ...(d.origin ? { origin: d.origin } : {}) })) } : {}),
 });
 
 /** A broadcast's weekday at the venue ("Saturday"); "Day" when its start isn't known. */
