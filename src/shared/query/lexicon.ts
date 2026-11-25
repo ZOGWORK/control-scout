@@ -248,7 +248,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["been to|been at|gone to|went to|go to|made it to|make it to|qualified for|qualify for|qualified to|attended|competed at|appearance|appearances", { k: "metric", v: "appearance" }],
   // What is counted or listed.
   // A schedule is its matches ("<team> schedule", "<event> schedule"): one word with "match" before it too.
-  ["match|matches|game|games|round|rounds|qualification match|schedule|schedules|match schedule|match schedules|game schedule", { k: "thing", v: "match" }],
+  ["match|matches|game|games|round|rounds|qualification match|schedule|schedules|fixture|fixtures|match schedule|match schedules|game schedule", { k: "thing", v: "match" }],
   ["event|events|competition|competitions|comp|comps|tournament|tournaments|meet|meets", { k: "thing", v: "event" }],
   ["season|seasons|year|years", { k: "thing", v: "season" }],
   ["team|teams|robot|robots", { k: "thing", v: "team" }],
