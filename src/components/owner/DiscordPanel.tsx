@@ -2,8 +2,8 @@
 // Bruno answered, how long it takes, what it posts, how many answers were reported), the questions it couldn't answer — the
 // phrasings the website's search box never sees — and the per-server chat caps (bot/quota.ts) with the control to give
 // one server a cap, or take it away again (server/portal/discordLimits.ts). Every server has the default ceiling; a row
-// of its own replaces it. Servers are listed by the name Discord shows beside their id. A blank box, or 0, is no cap for
-// that window; either write starts that server's counters afresh.
+// of its own replaces it. Servers are listed by the name Discord shows beside their id. Both boxes blank puts a server back
+// on the default; 0 is no cap for that window, and either write starts that server's counters afresh.
 import { useState, type FormEvent } from "react";
 import { Bot } from "lucide-react";
 import { EmptyState, Section } from "../page";
@@ -23,11 +23,11 @@ const MAX_CAP = 100_000;
 const capWords = (l: { perHour: number | null; perDay: number | null }) =>
   [l.perHour == null ? null : `${l.perHour} an hour`, l.perDay == null ? null : `${l.perDay} a day`].filter(Boolean).join(", ") || "none";
 
-/** A cap from a box: blank or 0 is no cap, a whole count is that cap, anything else is refused (undefined). */
+/** A cap from a box: blank is unset, 0 is no cap for that window, a whole count is that cap, anything else is refused. */
 const fromBox = (v: string): number | null | undefined => {
   if (!v.trim()) return null;
   const n = Number(v);
-  return Number.isInteger(n) && n >= 0 && n <= MAX_CAP ? (n === 0 ? null : n) : undefined;
+  return Number.isInteger(n) && n >= 0 && n <= MAX_CAP ? n : undefined;
 };
 
 const pct = (n: number | null) => (n == null ? "—" : `${n}%`);
@@ -74,9 +74,8 @@ export function DiscordPanel() {
     const g = guild.trim();
     if (!GUILD.test(g)) { toast.error("That isn't a Discord server id (a long number). In Discord: right-click the server → Copy Server ID."); return; }
     const perHour = fromBox(hour), perDay = fromBox(day);
-    if (perHour === undefined || perDay === undefined) { toast.error(`A cap is a whole number up to ${MAX_CAP.toLocaleString()}; blank or 0 is no cap.`); return; }
-    // Both blank (or 0) is no cap, so it clears the server's row rather than writing one that says nothing: the panel
-    // then reads the default, instead of "Own cap · none".
+    if (perHour === undefined || perDay === undefined) { toast.error(`A cap is a whole number up to ${MAX_CAP.toLocaleString()}; 0 is no cap in that window.`); return; }
+    // Both blank goes back to the default ceiling; 0 is an explicit no-cap, which needs a row of its own to say so.
     const none = perHour == null && perDay == null;
     setBusy("save");
     try {
@@ -84,13 +83,15 @@ export function DiscordPanel() {
         ? await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "DELETE", json: {} })
         : await apiFetch<OwnerDiscordLimits>(`${PATH}/${g}`, { method: "PUT", json: { perHour, perDay } });
       prime(PATH, next);
-      toast.success(none ? "That server has no cap. Its counters start afresh." : `Saved that server's cap: ${capWords({ perHour, perDay })}. Its counters start afresh.`);
+      toast.success(none
+        ? "That server is back on the default cap. Its counters start afresh."
+        : `Saved that server's cap: ${capWords({ perHour: perHour || null, perDay: perDay || null })}. Its counters start afresh.`);
       setGuild(""); setHour(""); setDay("");
     } catch (err) {
       // Already uncapped (another owner got there first): that is the state the blank save asked for, so show it and
       // refresh, so the table can't keep showing a cap someone else has taken away.
       if (none && (err as ApiError).status === 409) {
-        toast.success("That server already has no cap.");
+        toast.success("That server is already on the default cap.");
         setGuild(""); setHour(""); setDay("");
         void state.reload();
       } else toast.error((err as ApiError).message);
@@ -106,7 +107,7 @@ export function DiscordPanel() {
     } catch (err) {
       // Someone else cleared it first: the state this asked for, so say so and refresh rather than repeat the 409.
       if ((err as ApiError).status === 409) {
-        toast.success("That server already has no cap.");
+        toast.success("That server is already on the default cap.");
         void state.reload();
       } else toast.error((err as ApiError).message);
     } finally { setBusy(null); }
@@ -202,7 +203,7 @@ export function DiscordPanel() {
 
             <form onSubmit={save} className="rounded-xl border border-border bg-card p-4">
               <h3 className="font-medium">Give a server its own cap</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Replaces both windows. Leave a box blank (or 0) for no cap in that window; leave both blank to put the server back on the default.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Replaces both windows. 0 is no cap in that window; leave both blank to put the server back on the default ({capWords(d.defaultLimit)}).</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
                 <label className="block min-w-0 text-sm">
                   <span className="mb-1 block text-muted-foreground">Server id</span>
@@ -210,11 +211,11 @@ export function DiscordPanel() {
                 </label>
                 <label className="block min-w-0 text-sm">
                   <span className="mb-1 block text-muted-foreground">Chats an hour</span>
-                  <Input value={hour} onChange={(e) => setHour(e.target.value)} placeholder="No cap" inputMode="numeric" className="tabular-nums max-sm:h-10" />
+                  <Input value={hour} onChange={(e) => setHour(e.target.value)} placeholder="Default" inputMode="numeric" className="tabular-nums max-sm:h-10" />
                 </label>
                 <label className="block min-w-0 text-sm">
                   <span className="mb-1 block text-muted-foreground">Chats a day</span>
-                  <Input value={day} onChange={(e) => setDay(e.target.value)} placeholder="No cap" inputMode="numeric" className="tabular-nums max-sm:h-10" />
+                  <Input value={day} onChange={(e) => setDay(e.target.value)} placeholder="Default" inputMode="numeric" className="tabular-nums max-sm:h-10" />
                 </label>
                 <Button type="submit" disabled={!!busy}>{busy === "save" ? "Saving…" : "Save cap"}</Button>
               </div>

@@ -60,20 +60,31 @@ describe("the owner console's Discord bot panel", () => {
   it("reads a server without its own cap as the default ceiling, with nothing to clear", () => {
     render(<DiscordPanel />);
     expect(screen.getByText("Default (60 an hour, 300 a day)")).toBeTruthy();
-    // Empty boxes suggest no cap, not the old 30/100 defaults.
-    expect(screen.getByLabelText("Chats an hour").getAttribute("placeholder")).toBe("No cap");
-    expect(screen.getByLabelText("Chats a day").getAttribute("placeholder")).toBe("No cap");
+    // Empty boxes follow the default; 0 is how the owner says no cap.
+    expect(screen.getByLabelText("Chats an hour").getAttribute("placeholder")).toBe("Default");
+    expect(screen.getByLabelText("Chats a day").getAttribute("placeholder")).toBe("Default");
     expect(screen.queryByText("Back to default")).toBeNull();
     expect(screen.getByRole("heading", { name: "Discord bot" })).toBeTruthy();
   });
 
-  it("saves a blank pair as no cap: it clears the row instead of writing an empty own cap", async () => {
+  it("saves a blank pair back to the default: it clears the row instead of writing an empty own cap", async () => {
     fillAndSave("", "");
     await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
     const [url, init] = lastCall();
     expect(url).toBe(`/api/owner/discord/limits/${GUILD}`);
     expect(init?.method).toBe("DELETE");
     expect(init?.json).toEqual({});
+    await waitFor(() => expect(h.success).toHaveBeenCalledWith("That server is back on the default cap. Its counters start afresh."));
+  });
+
+  it("saves an explicit 0 as no cap, rather than mistaking it for the default", async () => {
+    fillAndSave("0", "0");
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+    const [url, init] = lastCall();
+    expect(url).toBe(`/api/owner/discord/limits/${GUILD}`);
+    expect(init?.method).toBe("PUT");
+    expect(init?.json).toEqual({ perHour: 0, perDay: 0 });
+    await waitFor(() => expect(h.success).toHaveBeenCalledWith("Saved that server's cap: none. Its counters start afresh."));
   });
 
   it("sets a cap when either window has a number", async () => {
@@ -88,7 +99,7 @@ describe("the owner console's Discord bot panel", () => {
   it("turns a 409 on a blank save into the success it asked for, refreshes and clears the form", async () => {
     apiFetch.mockRejectedValueOnce(new ApiError(409, "That server has no cap of its own"));
     fillAndSave("", "");
-    await waitFor(() => expect(h.success).toHaveBeenCalledWith("That server already has no cap."));
+    await waitFor(() => expect(h.success).toHaveBeenCalledWith("That server is already on the default cap."));
     expect(h.error).not.toHaveBeenCalled();
     expect(h.reload).toHaveBeenCalled();
     expect((screen.getByLabelText("Server id") as HTMLInputElement).value).toBe("");
@@ -157,7 +168,7 @@ describe("the owner console's Discord bot panel", () => {
     apiFetch.mockRejectedValueOnce(new ApiError(409, "That server has no cap of its own"));
     render(<DiscordPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Back to default" }));
-    await waitFor(() => expect(h.success).toHaveBeenCalledWith("That server already has no cap."));
+    await waitFor(() => expect(h.success).toHaveBeenCalledWith("That server is already on the default cap."));
     expect(h.error).not.toHaveBeenCalled();
     expect(h.reload).toHaveBeenCalled();
   });

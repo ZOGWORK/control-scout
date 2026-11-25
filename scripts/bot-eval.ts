@@ -44,7 +44,7 @@ for (const c of bank) {
 const bad = results.filter((r) => r.c.expect === "records" && (r.sorry || r.step === "no-match"));
 const regressions = bad.filter((r) => !r.c.known), known = bad.filter((r) => r.c.known);
 for (const r of results) {
-  const mark = r.c.expect !== "records" ? "    " : r.sorry ? (r.c.known ? "known" : "FAIL") : "ok";
+  const mark = r.c.expect !== "records" ? "    " : bad.includes(r) ? (r.c.known ? "known" : "FAIL") : "ok";
   console.log(`${mark} ${r.step.padEnd(14)} ${String(r.ms).padStart(5)} ms  ${r.c.question}  →  ${r.what}`);
 }
 const timed = results.map((r) => r.ms).sort((a, b) => a - b);

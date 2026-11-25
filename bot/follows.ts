@@ -272,12 +272,14 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
       await run("UPDATE discord_follows SET failures = failures + 1 WHERE channel_id = ?", [channel]);
       // Kept, not deleted: the follow says it stopped and why, can be revived by following again, and the console can
       // show it. Its creator is told once, since the channel itself can't be posted in.
-      const stopped = await run(
-        "UPDATE discord_follows SET dropped_at = ?, drop_reason = 'the channel refused posts' WHERE channel_id = ? AND failures >= ? AND dropped_at IS NULL",
+      // RETURNING the rows this statement actually stopped: `follows` is the tick's snapshot, and another failed post
+      // for this channel may already have added a failure since, so the snapshot can name a follow that is still running.
+      const stopped = await all<{ created_by: string | null; kind: string; team: number | null; event: string | null }>(
+        "UPDATE discord_follows SET dropped_at = ?, drop_reason = 'the channel refused posts' WHERE channel_id = ? AND failures >= ? AND dropped_at IS NULL RETURNING created_by, kind, team, event",
         [new Date(now).toISOString(), channel, MAX_FAILURES]);
-      if (stopped) {
-        log(`follows: stopped ${stopped} in channel ${channel} after ${MAX_FAILURES} failed posts`);
-        for (const f of follows.filter((x) => x.channel_id === channel && !x.dropped_at)) {
+      if (stopped.length) {
+        log(`follows: stopped ${stopped.length} in channel ${channel} after ${MAX_FAILURES} failed posts`);
+        for (const f of stopped) {
           if (!f.created_by || !dm) continue;
           const what = f.kind === "event" ? `event ${f.event}` : `team ${f.team}`;
           void dm(f.created_by, `Control Scout stopped posting ${what} in <#${channel}> because Discord kept refusing messages there. Give it View Channel, Send Messages and Embed Links, then run /follow again to restart it.`).catch(() => {});

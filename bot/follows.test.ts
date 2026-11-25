@@ -221,6 +221,21 @@ describe("follows and the tick, on a database", () => {
     expect(await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW)).toBe("added");
     expect((await all<{ dropped_at: string | null }>("SELECT dropped_at FROM discord_follows"))[0].dropped_at).toBeNull();
   });
+
+  it("only the follow that reached the limit is stopped and DMed; a newer follow in the same channel keeps running", async () => {
+    await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5);
+    await addFollow("g", "c1", { kind: "team", team: 4215 }, "u2", NOW - 864e5);
+    // One more refused post takes 18360 over; 4215 has none and only picks up this tick's few.
+    await run("UPDATE discord_follows SET failures = ? WHERE team = 18360", [MAX_FAILURES - 1]);
+    const dm = vi.fn(async (_user: string, _text: string) => {});
+    await clearPosts();
+    await notifyTick(vi.fn(async () => "gone" as const), "s", () => {}, NOW, dm);
+    const rows = await all<{ team: number; dropped_at: string | null }>("SELECT team, dropped_at FROM discord_follows ORDER BY team");
+    expect(rows.find((r) => r.team === 18360)!.dropped_at).toBe(iso(NOW));
+    expect(rows.find((r) => r.team === 4215)!.dropped_at).toBeNull();
+    expect(dm).toHaveBeenCalledTimes(1);
+    expect(dm.mock.calls[0][0]).toBe("u");
+  });
 });
 
 describe("review fixes", () => {
