@@ -571,7 +571,11 @@ try {
       await service();
     }
   }));
-} finally { if (laneTimer) clearInterval(laneTimer); }
+} finally {
+  // A servicing the timer started (or one queued behind it) is waited for: the steps after collect and send nothing.
+  if (laneTimer) clearInterval(laneTimer);
+  await oneAtATime(async () => {});
+}
 
 // --- 7. The live clips the clock places, checked by their first frame --------------------------------------------------------
 // Each clip the live site plays from the clock is read paused at its first second (video-frames.ts --clips): its own

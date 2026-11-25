@@ -349,6 +349,12 @@ describe("parseSeasons / pool / serial", () => {
     await a; await expect(b).rejects.toThrow("b"); await c;
     expect(order).toEqual(["a", "b", "c"]);
   });
+  it("an empty step added last settles only after every step queued before it (the run waits for its lanes)", async () => {
+    const run = serial(), order: string[] = [];
+    void run(async () => { await new Promise((r) => setTimeout(r, 15)); order.push("servicing"); });
+    await run(async () => {});
+    expect(order).toEqual(["servicing"]);
+  });
 });
 
 describe("parseRefillHours / nextSeasonGroup", () => {
