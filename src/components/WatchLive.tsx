@@ -214,6 +214,8 @@ function BestBlock({ label, h, kind, season }: { label: string; h: RecordingHigh
   const teams = (list: number[], c: "red" | "blue" | null) => (
     <span className={cn("flex flex-wrap gap-x-2", c && tone(c))}>{list.map((t) => <TeamNo key={t} team={t} season={season} className="text-sm" />)}</span>
   );
+  const watch = m.clip ? <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className="tap-44 text-sm font-medium text-accent-text hover:underline">Watch</ClipLink>
+    : m.video ? <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className="tap-44 text-sm font-medium text-accent-text hover:underline">Watch</MatchVideoLink> : null;
   const on = (c: "red" | "blue") => { const f = m[c].teams.filter((t) => t.onField); return (f.length ? f : m[c].teams).map((t) => t.number); };
   return (
     <div className="min-w-0 rounded-2xl border border-border bg-card p-3.5" data-best={kind}>
@@ -232,15 +234,11 @@ function BestBlock({ label, h, kind, season }: { label: string; h: RecordingHigh
       ) : (
         <>
           <p className="mt-1 font-display text-2xl font-bold tabular-nums">{h.value}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{kind === "auto" ? "auto points" : "TeleOp points"}</span></p>
-          <div className="mt-1">{teams(h.teams, h.side)}</div>
+          {/* The alliance and the way to watch on one line: compact, stacked under the player on a phone too. */}
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3">{teams(h.teams, h.side)}{watch}</div>
         </>
       )}
-      {(m.clip || m.video) && (
-        <div className="mt-2 text-sm font-medium">
-          {m.clip ? <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className="tap-44 text-accent-text hover:underline">Watch</ClipLink>
-            : <MatchVideoLink url={m.video!} label={m.label} matchKey={m.key} className="tap-44 text-accent-text hover:underline">Watch</MatchVideoLink>}
-        </div>
-      )}
+      {kind === "closest" && watch && <div className="mt-1">{watch}</div>}
     </div>
   );
 }
