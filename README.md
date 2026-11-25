@@ -61,6 +61,8 @@ package, so predictions can never be better in one app than the other.
 
 Control Scout runs at [controlscout.org](https://controlscout.org) — free forever, no account needed for core features.
 
+Contributing? Local setup is in [AGENTS.md](AGENTS.md#local-setup).
+
 ## Hosting
 
 * Runs on the Oracle VM next to Control Point:
