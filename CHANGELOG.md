@@ -17,23 +17,16 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 8.0.5 — 2026-11-25
 
-Bruno can look something up while he answers, and the bot no longer throws a whole reply away over a figure he worked out himself.
+A team's meets now carry their own OPR phases, and a figure Bruno works out from one line of facts no longer fails the number check.
 
 ### Highlights
 - [fixes] "Auto OPR at their last meet" is answered from that meet
-- [scout] A reply can ask for one more lookup, mid-answer
+- [scout] A ratio is checked at the precision it was written with
 - [fixes] A number he calculated is no longer treated as invented
 
 ### Search
 - **A team's meets carry their own OPR phases** (`server/api/searchBrunoAnswer.ts`): `answerFacts` adds the team's latest three meets from `team_event_stats`, each named and dated with its Auto, TeleOp, Endgame and total OPR. "What did Theseus get in auto OPR at their last meet" is that meet's number instead of the season average, which is what the chat needed before it could answer instead of saying the facts didn't hold it. `server/api/searchBrunoAnswer.facts.test.ts` seeds a team, an event and its event stats and checks the line, and that the answer those facts make possible passes the number check. (#2324)
 - **Grounding accepts a ratio, not an invention**: a decimal that is two numbers of one fact line divided ("110 OPR over 8 matches is 13.8", "45.2 of 92.5 is 48.9%") no longer fails the check, so a per-match average doesn't drop the whole reply. It must match at the precision it was written with, and pairs are never drawn across two different records — a packet of hundreds of numbers has thousands of cross-line ratios, so any invented decimal would land near one by chance. Sums, differences and products are refused too (on a head-to-head, 46.9 + 54.7 rebuilds the other side's 101.6, which the team-aware check exists to catch), whole numbers are checked as written, and seasons are never operands. The website's streamed answer uses the same check, so its previews stay as strict as before.
-
-### Discord bot
-- **A lookup in the middle of an answer** (`bot/ask.ts`, `bot/productFacts.ts`): a reply that ends with a `LOOKUP: <query>` line — an instruction in every chat's own packet, `lookupNote()` — has that search run with learning off, its facts added to the packet after a line saying what was looked up, and Bruno answers again from all of it. At most two lookups per answer, the `LOOKUP:` line never posts, and a lookup that finds nothing leaves his words as they were. `bot/ask.test.ts` covers the round, the facts reaching the second call, and the request never reaching the reader.
-- **One correction round instead of an instant card**: a records answer naming a number the facts don't have is sent back once with those numbers named, and the rewritten reply posts when it is grounded (`[bot] chat repaired`). Only a second refusal posts the card (`[bot] chat dropped`), so a rounding or a calculation he can restate no longer costs the answer.
-- **A miss said politely is still a miss**: a reply that says it couldn't find the records ("I couldn't find auto OPR for that meet in the facts") now files the question in the site's failed-search queue, the way an empty answer already did, so the phrasing is learned instead of lost.
-- **The context diet**: every chat keeps the two product facts it can't get wrong (the remodel is complete, Zog Mode exists); the detailed v8 design description is sent only when the message asks about the product (`asksProduct`), giving a records question five more lines of its own facts inside Control Point's 40-line packet. The offer Bruno closes with is also read from "want me to pull …" wording, not only "also want …".
-- **A team's last meet in his facts** applies to every Discord records answer too, so the same question in a channel is answered from the meet rather than the season.
 
 ## 8.0.4 — 2026-11-24
 
