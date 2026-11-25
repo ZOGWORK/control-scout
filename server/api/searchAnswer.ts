@@ -68,6 +68,7 @@ import { withPage } from "./answers/teamsNamed.js";
 import { asideWord, asksWhich, onlyOrdinary } from "./query/ordinary.js";
 import { LEXICON } from "./query/lexicon.js";
 import { SEARCH_MAX_QUERY as MAX_QUERY, cleanQuery, queryCut } from "../../src/shared/search.js";
+import { whyTeamAnswer } from "./answers/families/whyTeam.js";
 import { awardQuery, bottomAnswer, calledTeams, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, explainTeamAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 /** The longest query read, and the query as search reads it (src/shared/search.ts: the event pack reads a query the
@@ -1113,6 +1114,10 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // `full` asks for the page's answer, whatever this surface shows: the explainer decides on it.
   const meant = opts.intents === false ? null : await explainTeamAnswer(q, (x, full) => searchAnswer(x, full ? { ...opts, learn: false, full: true, limit: Math.max(opts.limit ?? 0, SEARCH_PAGE_LIMIT) } : { ...opts, learn: false }), (opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT));
   if (meant) return meant;
+  // Why a team is strong ("why is <team> so good at autonomous", "what makes <team> a strong alliance partner"): its
+  // numbers against the field (./answers/families/whyTeam.ts), before a stat answer reads one phase of it alone.
+  const why = opts.intents === false ? null : await whyTeamAnswer(q, (core) => resolveCore(core, opts));
+  if (why) return why;
 
   // 0. A stat question about a team ("12345 highest score in worlds", "12345 worlds record"): ./answers/index.ts.
   const resolve = (core: string) => resolveCore(core, opts);

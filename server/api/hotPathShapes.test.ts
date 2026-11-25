@@ -156,8 +156,8 @@ describe("hot-path API responses", () => {
     }
   });
   it("Bruno's budget: an answered early start pays for the page's own ask of it, and nothing else", async () => {
-    const A = encodeURIComponent("why is 101 good at auto"), C = encodeURIComponent("why is 101 good at endgame");
-    const B = encodeURIComponent("why is 102 good at auto");
+    const A = encodeURIComponent("how could 101 get better at auto"), C = encodeURIComponent("how could 101 get better at endgame");
+    const B = encodeURIComponent("how could 102 get better at auto");
     const early = async (q: string) => { await fetch(`${base}/api/search?q=${q}&limit=25&answer=1&bruno=1`); await new Promise((r) => setTimeout(r, 20)); };
     const ask = async (q: string) => (await fetch(`${base}/api/search/bruno?q=${q}`)).status;
     // He answers A early (a token: 19 left), and the page's own ask of A joins that answer: free.
