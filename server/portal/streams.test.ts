@@ -55,7 +55,7 @@ describe("event streams", () => {
     expect(r.json.stream).toEqual({ videoId: ID, streamUrl: `https://www.youtube-nocookie.com/embed/${ID}` });
     // Stored as a full link to the video, whatever form was pasted.
     expect(r.json.streams).toMatchObject([{ season: S, code: "USCAQ1", name: "California Qualifier", url: `https://www.youtube.com/watch?v=${ID}` }]);
-    expect((await detail()).stream).toEqual({ videoId: ID, streamUrl: `https://www.youtube-nocookie.com/embed/${ID}` });
+    expect((await detail()).stream).toEqual({ videoId: ID, streamUrl: `https://www.youtube-nocookie.com/embed/${ID}`, origin: "owner" });
     expect((await row()).stream).toBe(true);
     expect(await all("SELECT action FROM owner_audit WHERE action LIKE 'stream.%'")).toEqual([{ action: "stream.set" }]);
   });

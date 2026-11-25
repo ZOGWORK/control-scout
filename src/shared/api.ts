@@ -738,12 +738,21 @@ export interface FieldRow {
   meet?: { rank: number; rs: number; tb: number[]; wins: number; losses: number; ties: number; played: number } | null;
 }
 
+/** Where an event's recording video came from (server/videos/recordings.ts): first, the stream link on FIRST's event
+ *  listing (or the video its short link opens); channel, a broadcast our watcher found on the YouTube channel FIRST's
+ *  link names (server/videos/channelStreams.ts); watcher, a recording our official-video watcher found on an organiser's
+ *  channel (server/videos/officialWatch.ts); list, our hand-checked list of official videos; owner, the site owner's pick. */
+export type RecordingOrigin = "first" | "channel" | "watcher" | "list" | "owner";
+
 /** An event's live stream as the owner set it (server/portal/streams.ts): YouTube, played from youtube-nocookie.com. */
 export interface EventStream {
   videoId: string; streamUrl: string; /** "first": FIRST's liveStreamUrl (or the short link or channel its event page gives); "official": an organiser's
    *  recording from its official channel (server/videos/officialVideos.ts); absent: one the owner set. */ source?: "first" | "official";
-  /** An event broadcast a day at a time: each day's video in order (the first is videoId), named by its weekday. Absent: one video. */
-  days?: { videoId: string; label: string }[];
+  /** Where the video came from, said under the player (RecordingOrigin). Absent: unknown (an older server or a saved pack). */
+  origin?: RecordingOrigin;
+  /** An event broadcast a day at a time: each day's video in order (the first is videoId), named by its weekday, with
+   *  where it came from. Absent: one video. */
+  days?: { videoId: string; label: string; origin?: RecordingOrigin }[];
   /** Its videos whose owner turned off playing on other sites (video_meta.embeddable): they open on YouTube. */
   youtubeOnly?: string[];
 }

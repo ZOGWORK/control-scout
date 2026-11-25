@@ -281,7 +281,8 @@ describe("a match's own video, with the call over it", () => {
     localStorage.removeItem("cs-video-predictions");
     const m = { key: "qual:0:1", label: "Q1", played: true, red: { teams: [{ number: 1, onField: true }], score: { total: 30 } }, blue: { teams: [{ number: 2, onField: true }], score: { total: 20 } }, prediction: { pRed: 0.6 }, video: "https://www.youtube.com/watch?v=Ve9_fshsUec&t=3600" };
     render(<MemoryRouter><WatchLive d={{ ...d, matches: [m] } as unknown as EventDetail} stream={stream} /><MatchVideoLink url={m.video} label="Q1" matchKey={m.key} /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("link", { name: "Official video of Q1" }));
+    // The last of them: the best-matches block beside the recording has its own (its blocks name Q1 too).
+    fireEvent.click(screen.getAllByRole("link", { name: "Official video of Q1" }).at(-1)!);
     const frame = document.querySelector("iframe")!;
     const report = (t: number, playerState: number) => act(() => { window.dispatchEvent(new MessageEvent("message", { origin: "https://www.youtube-nocookie.com", source: frame.contentWindow, data: JSON.stringify({ event: "infoDelivery", info: { currentTime: t, playerState } }) })); });
     const phase = () => document.querySelector("[data-video-predictions]")?.getAttribute("data-video-predictions");
