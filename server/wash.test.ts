@@ -84,7 +84,8 @@ describe("the first paint", () => {
   });
 
   it("the shell's own wash reads the same variables, with the defaults as fallbacks before the app's CSS loads", () => {
-    const rule = BOOT_STYLE.match(/html\[data-v8\] \.csb-col\{[^}]*\}/)![0];
+    // On its own layer behind the column (::before), so it can rise in as the page first paints.
+    const rule = BOOT_STYLE.match(/html\[data-v8\] \.csb-col::before\{[^}]*\}/)![0];
     for (const [v, d] of [["--wash-a", "#5a76ad"], ["--wash-b", "#5f5785"], ["--wash-c", "#91689c"]]) expect(rule).toContain(`var(${v},${d})`);
     expect(rule).toContain("var(--wash-strength,1)");
     expect(rule).toContain("var(--wash-spread,1)");
