@@ -8,6 +8,10 @@ sits anywhere in the path.
 Code:
 - `server/api/searchLayers.ts`: the layers.
 - `server/api/searchCatalog.ts`: the intents, their scopes and canonical phrasings, reviewed data.
+  `RETIRED` lists the intents whose questions the pipeline reads whole (the search audit's C2). They stay in the catalog,
+  so their words still count for precedence and ambiguity, but the keyword layer hands on no phrasing for them. Each
+  retirement takes its questions off `scripts/search-heldout.claims.json`, and `searchLayers.test.ts` checks that the
+  pipeline reads every paraphrase of a retired intent.
 - `src/shared/query/lexicon.ts`: the words the layers read (`INTENT_WORDS`, `WEAK_SIGNALS`, `PARAPHRASES`, `FILLER`,
   `TAIL_FILLER`, `SCAFFOLD`, `FORBIDDEN`, `PHASES`, `AWARDS`, `LEADER_STAT_ORDER`), the one word list for all of search
   (`server/api/searchWords.guard.test.ts` fails when the catalog spells out a list of its own).
