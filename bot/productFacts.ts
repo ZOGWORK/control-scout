@@ -1,3 +1,5 @@
+import { AGENT_STEPS, QUERIES_PER_STEP } from "./agent.js";
+
 /** Whether a message asks about the product itself — its look, a feature, Zog Mode — rather than about the records.
  *  Only then are the detailed design facts worth the packet lines they take from a records answer. */
 export const asksProduct = (q: string) =>
@@ -22,13 +24,14 @@ export function productFacts(question = ""): string[] {
   return asksProduct(question) ? all : all.filter((_, i) => i === 0 || i === 5);
 }
 
-/** How he asks for a lookup in the middle of an answer: a `LOOKUP:` line the bot runs and sends the facts back for
- *  (bot/ask.ts's talk). Without it he could only read what was searched before he started writing, and a question the
- *  first search missed was refused with "I couldn't find that in the facts". Inside Control Point's 400-character cap. */
+/** How he uses his tools: `LOOKUP:` lines the bot runs and sends the facts back for, in steps (bot/ask.ts's talk).
+ *  Without them he could only read what was searched before he started writing, and a question the first search missed
+ *  was refused with "I couldn't find that in the facts". Inside Control Point's 400-character cap. */
 export const lookupNote = () =>
-  "If the facts don't hold part of the question, end your reply with one line exactly `LOOKUP: <a short search>` " +
-  "(for example `LOOKUP: 26000 opr at biobuzz`) and nothing after it. I'll run it and send the facts back so you can " +
-  "answer properly. At most two, and never for a product or maths question.";
+  "You can look things up: end a reply with a line exactly `LOOKUP: <a short search>` (for example " +
+  "`LOOKUP: 26000 opr at biobuzz`) and nothing after it. I run it, send the facts back, and you can look again — " +
+  `up to ${QUERIES_PER_STEP} a step, ${AGENT_STEPS} steps. A search that finds nothing says so: don't repeat it, ` +
+  "change the words or say what's missing. Never for a product or maths question.";
 
 /** What he may answer at all, sent with every Discord chat: a channel asks maths, design and rules questions as often
  *  as records ones, and refusing those ("Sorry — I can't answer that yet") reads as the bot being broken. FTC numbers

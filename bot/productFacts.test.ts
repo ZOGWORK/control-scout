@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
-import { answerScope, answerStyle, brunoMethod, brunoPersona, productFacts, zogModeReply } from "./productFacts";
+import { answerScope, answerStyle, brunoMethod, brunoPersona, lookupNote, productFacts, zogModeReply } from "./productFacts";
+import { AGENT_STEPS, QUERIES_PER_STEP } from "./agent";
 import { ungrounded } from "../server/api/searchBrunoAnswer";
 
 it("grounds the completed remodel and available Zog Mode without claiming its background is on", () => {
@@ -17,6 +18,12 @@ it("keeps every product fact inside Control Point's 400-character cap, so none i
   const facts = productFacts("what changed in Control Scout?");
   for (const f of facts) expect(f.length).toBeLessThanOrEqual(400);
   expect(facts.find((f) => f.startsWith("Zog Mode is an existing"))).toMatch(/Only the owner can turn it on or off/);
+});
+
+it("tells him the lookup budget the loop actually runs, inside the fact cap", () => {
+  const note = lookupNote();
+  expect(note.length).toBeLessThanOrEqual(400);
+  expect(note).toContain(`${QUERIES_PER_STEP} a step, ${AGENT_STEPS} steps`);
 });
 
 it("sends the design description only when the message asks about the product, and the two essentials otherwise", () => {
