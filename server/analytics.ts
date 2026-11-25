@@ -30,6 +30,10 @@ const easternDay = new Intl.DateTimeFormat("en-CA", { timeZone: STATS_TIME_ZONE,
 /** The Eastern-time day (YYYY-MM-DD) a view counts toward. */
 export const dayOf = (d: Date) => easternDay.format(d);
 
+/** A YYYY-MM-DD date `n` calendar days later (negative: earlier). Calendar arithmetic, so a DST change in
+ * between never repeats or skips a day the way stepping 24 hours from an instant would. */
+export const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
 /** Add one page view to its day's aggregate row. */
 export async function recordPageView(v: PageView, now = new Date(), c: Client = db()): Promise<void> {
   await c.execute({
@@ -52,7 +56,7 @@ export type StatsSummary = {
 /** Totals for the last `days` Eastern-time days (today included). */
 export async function statsSummary(days = 30, now = new Date(), c: Client = db()): Promise<StatsSummary> {
   const to = dayOf(now);
-  const from = dayOf(new Date(now.getTime() - (days - 1) * 86_400_000));
+  const from = addDays(to, -(days - 1));
   const q = async <T>(sql: string) => (await c.execute({ sql, args: [from, to] })).rows.map((r) => ({ ...r }) as T);
   const where = "WHERE day BETWEEN ? AND ?";
   const [tot] = await q<{ views: number | null; sessions: number | null }>(`SELECT SUM(views) AS views, SUM(sessions) AS sessions FROM analytics_daily ${where}`);
@@ -80,7 +84,7 @@ export async function statsSummary(days = 30, now = new Date(), c: Client = db()
  */
 export async function publicUsage(enabled: boolean, now = new Date(), c: Client = db(), days = PUBLIC_USAGE_DAYS): Promise<PublicUsage> {
   const to = dayOf(now);
-  const from = dayOf(new Date(now.getTime() - (days - 1) * 86_400_000));
+  const from = addDays(to, -(days - 1));
   const base = { from, to, generatedAt: now.toISOString(), coverage: "opt-in" as const };
   const unavailable = (reason: PublicUsage["reason"]): PublicUsage => ({ ...base, status: "unavailable", reason, measuredFrom: null, measuredThrough: null, totals: null, daily: [] });
   if (!enabled) return unavailable("not-published");
@@ -98,8 +102,7 @@ export async function publicUsage(enabled: boolean, now = new Date(), c: Client 
   const start = first > from ? first : from;
   const byDay = new Map(rows.map((r) => [r.day, r]));
   const daily: PublicUsage["daily"] = [];
-  for (let t = Date.parse(`${start}T12:00:00Z`); t <= Date.parse(`${to}T12:00:00Z`); t += 86_400_000) { // noon UTC: the same date in Eastern time
-    const day = dayOf(new Date(t));
+  for (let day = start; day <= to; day = addDays(day, 1)) {
     const r = byDay.get(day);
     daily.push({ day, pageViews: r?.views ?? 0, sessionStarts: r?.sessions ?? 0 });
   }
