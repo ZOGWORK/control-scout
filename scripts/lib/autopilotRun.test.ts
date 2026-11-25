@@ -1,7 +1,7 @@
 // The clip autopilot's choices (scripts/lib/autopilotRun.ts): which queued events a run reads, when one that gave
 // nothing new is tried again, and what a delivery's rows change.
 import { describe, expect, it } from "vitest";
-import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, parseSeasons, pool, serial, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
+import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -348,5 +348,35 @@ describe("parseSeasons / pool / serial", () => {
     const c = run(async () => { order.push("c"); });
     await a; await expect(b).rejects.toThrow("b"); await c;
     expect(order).toEqual(["a", "b", "c"]);
+  });
+  it("an empty step added last settles only after every step queued before it (the run waits for its lanes)", async () => {
+    const run = serial(), order: string[] = [];
+    void run(async () => { await new Promise((r) => setTimeout(r, 15)); order.push("servicing"); });
+    await run(async () => {});
+    expect(order).toEqual(["servicing"]);
+  });
+});
+
+describe("parseRefillHours / nextSeasonGroup", () => {
+  it("reads AUTOPILOT_REFILL_H as 0 to 24 hours, anything else 0", () => {
+    expect(parseRefillHours("6")).toBe(6);
+    expect(parseRefillHours("24")).toBe(24);
+    for (const s of [undefined, "", "25", "-1", "1.5", "x"]) expect(parseRefillHours(s)).toBe(0);
+  });
+  const q = (season: number, code: string) => ({ season, code });
+  it("gives the first waiting group whose season no reader is on, and drops it from waiting", () => {
+    const waiting: [number, { season: number; code: string }[]][] = [[2024, [q(2024, "A")]], [2025, [q(2025, "B")]]];
+    expect(nextSeasonGroup(waiting, new Set([2024]))).toEqual([2025, [q(2025, "B")]]);
+    expect(waiting.map(([s]) => s)).toEqual([2024]);
+  });
+  it("refills from the due pick, one season no reader is on, all of its events", () => {
+    const more = () => [q(2024, "A"), q(2023, "B"), q(2024, "C"), q(2023, "D")];
+    expect(nextSeasonGroup([], new Set([2024]), more)).toEqual([2023, [q(2023, "B"), q(2023, "D")]]);
+    expect(nextSeasonGroup([], new Set(), more)).toEqual([2024, [q(2024, "A"), q(2024, "C")]]);
+  });
+  it("gives nothing when every season left is being read, or there's no refill", () => {
+    expect(nextSeasonGroup([[2024, [q(2024, "A")]]], new Set([2024]))).toBeNull();
+    expect(nextSeasonGroup([], new Set([2024]), () => [q(2024, "A")])).toBeNull();
+    expect(nextSeasonGroup([], new Set())).toBeNull();
   });
 });

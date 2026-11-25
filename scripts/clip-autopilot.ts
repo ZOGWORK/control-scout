@@ -42,7 +42,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { forgetSettled, recheckOnly, laneJobMs, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes, parseSeasons, pool, serial } from "./lib/autopilotRun";
+import { forgetSettled, recheckOnly, laneJobMs, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup } from "./lib/autopilotRun";
 import { clipCheckProblems } from "./lib/autopilotClips";
 import { streamRun } from "./lib/streamRun";
 import { eventLimitMs, readFailed as readFailedExit } from "./lib/videoFrames";
@@ -77,6 +77,14 @@ const READER_LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process
 // One at a time, a job of six seasons with an event or two each read one video at a time for most of its hours (derek,
 // 2026-11-25: 2024 USPALAQ1 alone for 2 h, then 2019 2019IASQ2 alone for 2.5 h, its other two pages idle).
 const SEASONS_AT_ONCE = parseSeasons(process.env.AUTOPILOT_SEASONS);
+// Refills (AUTOPILOT_REFILL_H): a season reader that's done picks the next due events, so one slow season doesn't hold
+// the others' pages idle until the run ends (the PC, 2026-11-25: three of four readers done within the hour, the fourth
+// on for hours). Only this long into the run: a run still ends, for main's code and a fresh snapshot.
+const REFILL_MS = parseRefillHours(process.env.AUTOPILOT_REFILL_H) * 3600_000, RUN_START = Date.now();
+// While this computer reads, its lanes are serviced this often as well as after each season: a lane that finished its
+// job got its next one only when a season here ended (derek and lexie idle from 21:16 on 2026-11-25, amelia's seasons
+// hours long).
+const LANE_SERVICE_MS = 10 * 60_000;
 mkdirSync(join(DIR, "runs"), { recursive: true });
 const LOG = join(DIR, "runs", `${STAMP}.log`);
 const log = (s: string) => { const line = `${new Date().toISOString()} ${s}`; console.log(line); appendFileSync(LOG, `${line}\n`); };
@@ -534,15 +542,40 @@ await serviceLanes(0);
 const bySeason = new Map<number, typeof picked>();
 let laneRound = 0;
 for (const q of picked) (bySeason.get(q.season) ?? bySeason.set(q.season, []).get(q.season)!).push(q);
-// Seasons side by side (SEASONS_AT_ONCE); the lanes are serviced after each, one servicing at a time.
+// Seasons side by side (SEASONS_AT_ONCE), each reader taking the next group as it finishes (nextSeasonGroup), and
+// refilling from the queue while the run is under REFILL_MS. The lanes are serviced after each season and every
+// LANE_SERVICE_MS, one servicing at a time.
 const oneAtATime = serial();
-await pool([...bySeason], SEASONS_AT_ONCE, async ([season, events]) => {
-  const file = seasonFile(season);
-  if (!existsSync(file)) { log(`${season}: no ${file} to write (add the season's file first)`); return; }
-  const codes = events.map((e) => e.code);
-  await settle(season, codes, await readSeason(season, codes, new Set(events.filter(recheckOnly).map((e) => e.code))));
-  await oneAtATime(() => serviceLanes(++laneRound));
-});
+const service = () => oneAtATime(async () => { try { await serviceLanes(++laneRound); } catch (e) { log(`lanes: servicing failed (${(e as Error).message.split(String.fromCharCode(10))[0]}); tried again later`); } });
+const laneTimer = LANES.length && !DRY ? setInterval(() => void service(), LANE_SERVICE_MS) : null;
+const waiting = [...bySeason], readingNow = new Set<number>(), taken = new Set(picked.map((q) => `${q.season}/${q.code}`));
+const refill = () => {
+  if (!REFILL_MS || DRY || Date.now() - RUN_START > REFILL_MS) return [];
+  return pickEvents(mine.filter((q) => !taken.has(`${q.season}/${q.code}`)), inPr, memory, MAX).picked;
+};
+try {
+  await Promise.all(Array.from({ length: REFILL_MS ? SEASONS_AT_ONCE : Math.max(1, Math.min(SEASONS_AT_ONCE, bySeason.size)) }, async () => {
+    for (let g = nextSeasonGroup(waiting, readingNow, refill); g; g = nextSeasonGroup(waiting, readingNow, refill)) {
+      const [season, events] = g;
+      if (!bySeason.has(season) || !events.every((e) => bySeason.get(season)!.includes(e))) {
+        for (const e of events) taken.add(`${e.season}/${e.code}`);
+        log(`refill: reading ${events.map((e) => `${e.season}/${e.code} (${e.frames.due})`).join(", ")}`);
+      }
+      const file = seasonFile(season);
+      if (!existsSync(file)) { log(`${season}: no ${file} to write (add the season's file first)`); continue; }
+      readingNow.add(season);
+      try {
+        const codes = events.map((e) => e.code);
+        await settle(season, codes, await readSeason(season, codes, new Set(events.filter(recheckOnly).map((e) => e.code))));
+      } finally { readingNow.delete(season); }
+      await service();
+    }
+  }));
+} finally {
+  // A servicing the timer started (or one queued behind it) is waited for: the steps after collect and send nothing.
+  if (laneTimer) clearInterval(laneTimer);
+  await oneAtATime(async () => {});
+}
 
 // --- 7. The live clips the clock places, checked by their first frame --------------------------------------------------------
 // Each clip the live site plays from the clock is read paused at its first second (video-frames.ts --clips): its own

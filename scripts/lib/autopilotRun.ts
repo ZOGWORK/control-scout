@@ -255,3 +255,18 @@ export function serial(): (step: () => Promise<void>) => Promise<void> {
   let tail: Promise<void> = Promise.resolve();
   return (step) => { const run = tail.then(step); tail = run.catch(() => {}); return run; };
 }
+
+/** AUTOPILOT_REFILL_H (0 to 24, hours; anything else 0): how long into a run a season reader with nothing left to read
+ *  picks more due events instead of going idle. 0, never: the run reads what it picked at its start. */
+export const parseRefillHours = (s: string | undefined): number => (/^(?:[0-9]|1[0-9]|2[0-4])$/.test(s ?? "") ? Number(s) : 0);
+
+/** The next season group a free reader takes: the first still waiting whose season no reader is on (a season is one
+ *  file, read by one call at a time), else, when `more` is given (a refill pick, due order), the events of the first
+ *  season in it no reader is on. Null: nothing it may read now. `waiting` loses the group it gives. */
+export function nextSeasonGroup<Q extends { season: number }>(waiting: [number, Q[]][], reading: ReadonlySet<number>, more: () => Q[] = () => []): [number, Q[]] | null {
+  const i = waiting.findIndex(([s]) => !reading.has(s));
+  if (i >= 0) return waiting.splice(i, 1)[0];
+  const due = more();
+  const season = due.find((q) => !reading.has(q.season))?.season;
+  return season == null ? null : [season, due.filter((q) => q.season === season)];
+}
