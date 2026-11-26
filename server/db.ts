@@ -2992,6 +2992,76 @@ ALTER TABLE discord_guild_settings ADD COLUMN videos INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE discord_guild_settings ADD COLUMN ask_channel TEXT;
 `,
   },
+  {
+    version: 114,
+    name: "creator videos: channel intake, automatic team tags, tag removals",
+    sql: `
+-- Creator channels the owner watches (server/videos/creatorVideos.ts), apart from the official organisers' channels: FUN
+-- Robotics Network first. uploads_playlist is the channel's UU… list (read with playlistItems, never a search). added_by
+-- is a role ("seed" or "owner"), never an email: who did it is in owner_audit. checked_at and last_error: the intake's.
+CREATE TABLE IF NOT EXISTS creator_channels (
+  channel_id TEXT PRIMARY KEY,
+  handle TEXT,
+  title TEXT NOT NULL,
+  uploads_playlist TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  added_by TEXT,
+  added_at TEXT NOT NULL,
+  checked_at TEXT,
+  last_error TEXT
+);
+-- Their public videos: YouTube's own title and description (refreshed within 30 days, dropped when deleted or no longer
+-- embeddable), the channel's playlists each is in (JSON array of ids), the series those playlists name, the program it
+-- is for and its FTC season.
+CREATE TABLE IF NOT EXISTS creator_videos (
+  video_id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  published_at TEXT NOT NULL,
+  duration_s INTEGER,
+  playlist_ids TEXT,
+  series TEXT,
+  program TEXT NOT NULL DEFAULT 'unknown',
+  season INTEGER,
+  embeddable INTEGER NOT NULL DEFAULT 1,
+  last_refreshed TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS creator_videos_published ON creator_videos (published_at);
+CREATE INDEX IF NOT EXISTS creator_videos_series ON creator_videos (series, published_at);
+CREATE INDEX IF NOT EXISTS creator_videos_refreshed ON creator_videos (last_refreshed);
+-- The FTC teams a creator video is about, found in its title and description by rule (cue, bare-name, name): re-derived
+-- on every refresh, never confirmed by anyone.
+CREATE TABLE IF NOT EXISTS video_team_tags (
+  video_id TEXT NOT NULL,
+  team_number INTEGER NOT NULL,
+  rule TEXT NOT NULL,
+  PRIMARY KEY (video_id, team_number)
+);
+CREATE INDEX IF NOT EXISTS video_team_tags_team ON video_team_tags (team_number);
+-- A tag the owner took off: never derived again. removed_by is a role ("owner"); the email is in owner_audit.
+CREATE TABLE IF NOT EXISTS video_tag_removals (
+  video_id TEXT NOT NULL,
+  team_number INTEGER NOT NULL,
+  removed_by TEXT,
+  removed_at TEXT NOT NULL,
+  PRIMARY KEY (video_id, team_number)
+);
+-- Each intake run's YouTube quota and counts, like official_watch_runs.
+CREATE TABLE IF NOT EXISTS creator_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  units INTEGER NOT NULL DEFAULT 0,
+  channels INTEGER NOT NULL DEFAULT 0,
+  seen INTEGER NOT NULL DEFAULT 0,
+  refreshed INTEGER NOT NULL DEFAULT 0,
+  dropped INTEGER NOT NULL DEFAULT 0,
+  tagged INTEGER NOT NULL DEFAULT 0,
+  error TEXT
+);
+`,
+  },
 ];
 
 export type Db = Client;

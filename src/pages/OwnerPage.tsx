@@ -52,6 +52,7 @@ import { ErrorsPanel } from "../components/owner/ErrorsPanel";
 import { BugReportsPanel } from "../components/owner/BugReportsPanel";
 import { ContributorsPanel } from "../components/owner/ContributorsPanel";
 import { OfficialVideosPanel } from "../components/owner/OfficialVideosPanel";
+import { CreatorVideosPanel } from "../components/owner/CreatorVideosPanel";
 import { ClipCoveragePanel } from "../components/owner/ClipCoveragePanel";
 import { AnalyticsPanel } from "../components/owner/AnalyticsPanel";
 import { KeptLast, useKeepLast } from "../components/owner/keepLast";
@@ -65,6 +66,7 @@ const PANELS = [
   { id: "packs", label: "Packs & offline", icon: PackageOpen, group: "Data" },
   { id: "officialVideos", label: "Official videos", icon: Tv, group: "Data" },
   { id: "clipCoverage", label: "Clip coverage", icon: Film, group: "Data" },
+  { id: "creatorVideos", label: "Creator videos", icon: MonitorPlay, group: "Data" },
   { id: "predictions", label: "Predictions & ledger", icon: Target, group: "Product" },
   { id: "content", label: "Rankings & content", icon: Trophy, group: "Product" },
   { id: "features", label: "Features", icon: ToggleRight, group: "Product" },
@@ -202,6 +204,7 @@ export default function OwnerPage() {
           {panel === "bugs" && <BugReportsPanel />}
           {panel === "contributors" && <ContributorsPanel />}
           {panel === "officialVideos" && <OfficialVideosPanel />}
+          {panel === "creatorVideos" && <CreatorVideosPanel />}
           {panel === "clipCoverage" && <ClipCoveragePanel />}
           {panel === "analytics" && <AnalyticsPanel />}
           {panel === "accounts" && <div className="space-y-8"><UsersPanel /><WorkspacesSection /><OrphanedPanel /></div>}

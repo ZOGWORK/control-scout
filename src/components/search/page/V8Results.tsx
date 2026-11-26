@@ -3,6 +3,7 @@
 // compact summary with its next match), 2–4 follow-up chips. Lower down: related results as plain rows, grouped, each
 // group capped with "Show N more". Drawn only in v8 (src/pages/SearchPage.tsx); v8 off never renders these.
 import { useMemo, useState, type ReactNode } from "react";
+import { FeaturedChip } from "../../FeaturedVideos";
 import { Link } from "react-router-dom";
 import { ArrowRight, CalendarDays, ChevronDown, FileText, MapPin, Search, Shield, Swords } from "lucide-react";
 import type { MatchView, SearchFollowUp, SearchHit } from "../../../shared/api";
@@ -120,6 +121,7 @@ export function V8TeamAnswer({ team, name, place, summary, pending = false, stat
           <p className="font-display text-[2.5rem] font-semibold leading-none tracking-tight tabular-nums text-accent" data-team-number>{team}</p>
           <p className="mt-1.5 break-words text-base font-medium text-foreground">{name}</p>
           {(place || s?.place) && <p className="mt-0.5 flex items-center gap-1 text-sm text-text-muted"><MapPin className="size-3.5 shrink-0" aria-hidden />{place || s?.place}</p>}
+          <FeaturedChip team={team} className="mt-2" />
         </div>
         <Link to={`/teams/${team}${summary ? `?season=${summary.season}` : ""}`} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 text-sm text-foreground hover:bg-ink/[0.06] max-md:min-h-[44px]" data-team-page>
           Team page<ArrowRight className="size-4" aria-hidden />
