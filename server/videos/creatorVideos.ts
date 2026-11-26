@@ -521,7 +521,10 @@ export async function addCreatorChannel(input: unknown, actor: string, opts: { a
   const at = new Date(opts.now ?? Date.now()).toISOString();
   const was = await get<{ active: number }>("SELECT active FROM creator_channels WHERE channel_id = ?", [channelId]);
   const put = await ownerWrite(() => run(`INSERT INTO creator_channels (channel_id, handle, title, uploads_playlist, active, added_by, added_at) VALUES (?1, ?2, COALESCE(?3, ?2, ?1), ?4, 1, 'owner', ?5)
-             ON CONFLICT(channel_id) DO UPDATE SET active = 1, handle = COALESCE(excluded.handle, creator_channels.handle),
+             ON CONFLICT(channel_id) DO UPDATE SET active = 1,
+               -- turned back on: what it posted while off may sit past the first page, so read down until caught up.
+               checked_at = CASE WHEN creator_channels.active = 0 THEN NULL ELSE creator_channels.checked_at END,
+               handle = COALESCE(excluded.handle, creator_channels.handle),
                title = COALESCE(?3, creator_channels.title), uploads_playlist = excluded.uploads_playlist`,
     [channelId, resolvedHandle, title, uploads, at]));
   if (put === BUSY) return { ok: false, error: BUSY };

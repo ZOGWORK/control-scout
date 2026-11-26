@@ -195,6 +195,18 @@ describe("the creator-video intake", () => {
     expect(o.runs.length).toBeGreaterThan(0);
   });
 
+  it("reads a channel turned back on down to its stored videos, so what it posted while off isn't skipped", async () => {
+    const at = "2026-11-01T00:00:00.000Z";
+    await run("UPDATE creator_channels SET checked_at = ? WHERE channel_id = ?", [at, FUN]);
+    // Re-added while still watched: it stays caught up.
+    expect(await addCreatorChannel(FUN, "owner@example.test", { apiKey: null })).toEqual({ ok: true, channelId: FUN });
+    expect(await get("SELECT checked_at FROM creator_channels WHERE channel_id = ?", [FUN])).toEqual({ checked_at: at });
+    // Turned off, then on: the next run reads past the first page.
+    expect(await deactivateCreatorChannel(FUN, "owner@example.test")).toEqual({ ok: true });
+    expect(await addCreatorChannel(FUN, "owner@example.test", { apiKey: null })).toEqual({ ok: true, channelId: FUN });
+    expect(await get("SELECT checked_at, active FROM creator_channels WHERE channel_id = ?", [FUN])).toEqual({ checked_at: null, active: 1 });
+  });
+
   it("stops on a used-up quota, keeps what it read, and waits 12 hours between scheduled runs", async () => {
     quota = true;
     const out = await runCreatorIntake(log, opts(T0 + 32 * 864e5));
