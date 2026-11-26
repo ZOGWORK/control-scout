@@ -4,7 +4,7 @@
 (`creator_channels`, migration 114) and tags the FTC teams in them. Nobody confirms a tag: the owner can only take a
 wrong one off (Owner › Creator videos), and a removed tag is never derived again (`video_tag_removals`).
 
-## Intake (every 12 hours, on the official watcher's 30-minute checks)
+## Intake (every 4 hours, on the official watcher's 30-minute checks)
 
 1. The channel's playlists (`playlists.list`, 1 unit per 50). A playlist is read again (`playlistItems`) only when its
    etag changed, so its members are known without re-reading the whole channel.

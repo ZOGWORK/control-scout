@@ -318,7 +318,7 @@ if (!process.env.CS_NO_SCHEDULER) {
     })
       .catch((e) => log(`official videos: watcher: ${(e as Error).message}`))
       // Then the creator channels (server/videos/creatorVideos.ts: FUN Robotics Network's uploads, playlists and
-      // automatic team tags), every 12 hours on the same checks; its writes take the same writer lease.
+      // automatic team tags), every 4 hours on the same checks; its writes take the same writer lease.
       .then(() => creatorIfDue(log)).catch((e) => log(`creator videos: ${(e as Error).message}`));
   };
   setTimeout(() => { watch(); setInterval(watch, WATCH_CHECK_MS).unref(); }, WATCH_FIRST_MS).unref();
