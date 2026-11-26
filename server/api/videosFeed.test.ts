@@ -151,6 +151,23 @@ describe("GET /api/videos/feed", () => {
     expect(await get("SELECT watched_s, completed FROM video_watch WHERE user_id = ? AND item_key = ?", [me.id, second.key])).toEqual({ watched_s: 40, completed: 1 });
   });
 
+  it("never pages one signed-out device through another's list, even with the same teams", async () => {
+    // Device A's first page; then device B (same follows, nothing hidden) builds its own; A's next page is still A's.
+    const a1 = await feed("?my=1111");
+    const hidden = a1.items[0].key;
+    const aHist = encodeURIComponent(encodeHistory([{ key: hidden, state: "x" }]));
+    const a1h = await feed(`?my=1111&h=${aHist}`);
+    expect(a1h.items.some((i) => i.key === hidden)).toBe(false);
+    const b1 = await feed("?my=1111");
+    expect(b1.next).not.toBe(a1h.next);
+    const a2 = await feed(`?my=1111&h=${aHist}&cursor=${a1h.next}`);
+    expect(a2.items.some((i) => i.key === hidden)).toBe(false);
+    expect(a2.items.some((i) => a1h.items.some((x) => x.key === i.key))).toBe(false);
+    // A cursor for a list that's gone starts a fresh one rather than failing.
+    const stale = await feed(`?my=1111&cursor=zzzzzzzzzzzz.12`);
+    expect(stale.items.length).toBeGreaterThan(0);
+  });
+
   it("does the same for a signed-out device's own history", async () => {
     const first = (await feed("?my=1111")).items;
     const h = encodeHistory([{ key: first[0].key, state: "x" }]);
@@ -161,6 +178,7 @@ describe("GET /api/videos/feed", () => {
   it("refuses an unknown filter or cursor", async () => {
     expect((await fetch(`${base}/api/videos/feed?filter=nope`, { headers: { "X-CS-Test": "1" } })).status).toBe(400);
     expect((await fetch(`${base}/api/videos/feed?cursor=abc`, { headers: { "X-CS-Test": "1" } })).status).toBe(400);
+    expect((await fetch(`${base}/api/videos/feed?cursor=12`, { headers: { "X-CS-Test": "1" } })).status).toBe(400);
   });
 
   it("says so when a filter has nothing, and reads creator videos once their tables exist", async () => {

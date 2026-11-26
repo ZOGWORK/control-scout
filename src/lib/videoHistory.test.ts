@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { withWatch } from "./videoHistory";
+import { sentHistory, withWatch } from "./videoHistory";
+import { HISTORY_SENT } from "../shared/videosFeed";
 import { readProgress } from "./ytBridge";
 import { milestones } from "../components/FeedCard";
 import { feedPath } from "../pages/VideosPage";
@@ -17,6 +18,23 @@ describe("withWatch (a signed-out device's history)", () => {
     for (let i = 0; i < 250; i++) big = withWatch(big, { key: `c:v${i}`, kind: "creator", watchedS: 5 }, i);
     expect(big.length).toBe(200);
     expect(big[0].key).toBe("c:v249");
+    // A "not interested" outlives 250 newer starts.
+    let kept = withWatch([], { key: "c:no", kind: "creator", watchedS: 0, hidden: true }, 0);
+    for (let i = 0; i < 250; i++) kept = withWatch(kept, { key: `c:v${i}`, kind: "creator", watchedS: 5 }, 1 + i);
+    expect(kept.length).toBe(200);
+    expect(kept.at(-1)).toEqual({ key: "c:no", state: "x", at: 0 });
+  });
+});
+
+describe("sentHistory", () => {
+  it("always sends an old 'not interested', and finishes before starts", () => {
+    let h: ReturnType<typeof withWatch> = withWatch([], { key: "c:hidden", kind: "creator", watchedS: 0, hidden: true }, 0);
+    h = withWatch(h, { key: "c:done", kind: "creator", watchedS: 99, completed: true }, 1);
+    for (let i = 0; i < 190; i++) h = withWatch(h, { key: `c:v${i}`, kind: "creator", watchedS: 5 }, 10 + i);
+    const sent = sentHistory(h);
+    expect(sent.length).toBe(HISTORY_SENT);
+    expect(sent.slice(0, 2).map((e) => e.key)).toEqual(["c:hidden", "c:done"]);
+    expect(sent[2].key).toBe("c:v189");
   });
 });
 
@@ -50,7 +68,7 @@ describe("milestones", () => {
 describe("feedPath", () => {
   it("carries a signed-out device's teams and history, and nothing of the kind when signed in", () => {
     expect(feedPath("all", null, null)).toBe("/api/videos/feed");
-    expect(feedPath("myTeams", "12", null)).toBe("/api/videos/feed?filter=myTeams&cursor=12");
+    expect(feedPath("myTeams", "abcdefghijkl.12", null)).toBe("/api/videos/feed?filter=myTeams&cursor=abcdefghijkl.12");
     expect(feedPath("all", null, { myTeam: 4215, teams: [1, 2], history: "c:x~d" })).toBe("/api/videos/feed?my=4215&teams=1%2C2&h=c%3Ax%7Ed");
   });
 });
