@@ -2,6 +2,9 @@
 // valid 10 minutes, 5 tries; at most 5 sends per address per hour and one
 // every 30 s. Codes beat magic links here: email scanners can't burn them.
 import { randomInt } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { get, run } from "../db.js";
 import { env } from "../env.js";
 import { codeEmail } from "./emailTemplate.js";
@@ -58,10 +61,17 @@ export const sendEmail: Mailer = (...args) => mailer(...args);
 const devCodeLog = () => !emailEnabled() && env.mailDevLog;
 /** Email-code sign-in is offered: a real mailer, or the development code log. */
 export const emailSignInEnabled = () => emailEnabled() || env.mailDevLog;
-const sendCode: Mailer = (to, subject, text, html) => {
+const sendCode: Mailer = async (to, subject, text, html) => {
   if (!devCodeLog()) return mailer(to, subject, text, html);
-  console.log(`[mail] to ${to}\n[mail] code ${/\b(\d{6})\b/.exec(text)?.[1] ?? "?"}`);
-  return Promise.resolve();
+  // The subject leads with the code ("483625 is your Control Scout code"); the text opens with a greeting.
+  console.log(`[mail] to ${to}\n[mail] code ${/^(\d{6})\b/.exec(subject)?.[1] ?? "?"}`);
+  // The email as it would have gone, to open in a browser: the system temp folder, never the repository.
+  try {
+    const file = join(tmpdir(), "control-scout-mail", "last-code.html");
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, html);
+    console.log(`[mail] preview ${file}`);
+  } catch { /* the code is in the log either way */ }
 };
 
 export const normalizeEmail = (e: string) => e.trim().toLowerCase();
@@ -85,13 +95,17 @@ export async function startEmailSignIn(rawEmail: string): Promise<StartResult> {
       sent = prev.sent_count + 1; windowStart = prev.window_start;
     }
   }
+  // Greet the account by name when the address already has one (the note only ever goes to that address). Read before the
+  // code is stored, and a failed read just greets "there": it can never leave a stored code that was never sent.
+  const name = await get<{ display_name: string | null }>("SELECT display_name FROM users WHERE email = ?", [email])
+    .then((r) => r?.display_name ?? null, () => null);
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await run(
     `INSERT INTO email_codes (email, code_hash, expires_at, attempts, sent_count, window_start) VALUES (?, ?, ?, 0, ?, ?)
      ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0, sent_count = excluded.sent_count, window_start = excluded.window_start`,
     [email, codeHash(email, code), new Date(now + CODE_TTL_MS).toISOString(), sent, windowStart],
   );
-  const { subject, text, html } = codeEmail(code, { minutes: CODE_TTL_MS / 60_000, siteUrl: env.appUrl });
+  const { subject, text, html } = codeEmail(code, { minutes: CODE_TTL_MS / 60_000, siteUrl: env.appUrl, name });
   try { await sendCode(email, subject, text, html); }
   catch (e) {
     console.warn(`[email] sign-in code not sent: ${(e as Error)?.name === "TimeoutError" ? "timeout" : (e as Error)?.message ?? "unknown"}`);
