@@ -4,6 +4,7 @@
 // On a phone the rank, team, OPR and record stay in the row, and the phases open under it on a tap.
 import { Fragment, useId, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { FeaturedChip } from "../FeaturedVideos";
 import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import { firstDir, hasPhases, phaseNote, sortTeamRows, teamColumns, type TeamSortKey, type TeamTable as Table, type TeamTableRow } from "../../shared/teamTable";
 import { cn } from "../cn";
@@ -131,6 +132,7 @@ export function TeamTable({ table, label, limit }: { table: Table; label: string
                     <td className={cn("px-2 py-1.5 @max-[44rem]/tt:w-full @max-[44rem]/tt:max-w-0 @max-[44rem]/tt:px-1.5", CELL, "v8:@min-[44rem]/tt:w-full v8:@min-[44rem]/tt:min-w-[10rem] v8:@min-[44rem]/tt:max-w-0")}>
                       {/* The clamp on the text, not the link: the link's tap padding would show a third line over the town. */}
                       <Link to={r.href} className="block font-medium text-foreground hover:text-accent-text v8:hover:text-foreground hover:underline max-md:min-w-[44px] pointer-coarse:min-w-[44px] max-md:-my-[13px] max-md:py-[13px] pointer-coarse:-my-[13px] pointer-coarse:py-[13px]"><span className="line-clamp-2 break-words v8:@min-[44rem]/tt:block v8:@min-[44rem]/tt:truncate" title={name}><span className={cn("tabular-nums", V8_NUM)}>{r.team}</span>{r.name && ` ${r.name}`}</span></Link>
+                      <FeaturedChip team={r.team} className="mt-0.5" />
                       {r.location && <span className="block break-words text-[11px] text-muted-foreground v8:text-[0.75rem] v8:text-text-faint v8:@min-[44rem]/tt:truncate">{r.location}</span>}
                     </td>
                     {table.asked && <td className={cn("whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground v8:text-accent", CELL)} data-asked>{r.asked?.display ?? "–"}</td>}

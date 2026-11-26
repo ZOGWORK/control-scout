@@ -90,7 +90,7 @@ describe("owner console", () => {
     expect(screen.queryAllByRole("tab")).toEqual([]);
     expect(within(nav).getAllByText(/^(Health|Data|Product|People & trust|Record)$/).map((g) => g.textContent)).toEqual(["Health", "Data", "Product", "People & trust", "Record"]);
     expect(within(nav).getAllByRole("button").map((t) => t.textContent?.replace(/\d+/g, ""))).toEqual([
-      "Overview", "Server & speed", "Data & sync", "Packs & offline", "Official videos", "Clip coverage", "Predictions & ledger", "Rankings & content", "Features", "Discord bot", "Appearance", "Moderation", "Video contributors", "Feedback & errors", "Bug reports", "Analytics", "Accounts", "Photo storage", "Audit log",
+      "Overview", "Server & speed", "Data & sync", "Packs & offline", "Official videos", "Clip coverage", "Creator videos", "Predictions & ledger", "Rankings & content", "Features", "Discord bot", "Appearance", "Moderation", "Video contributors", "Feedback & errors", "Bug reports", "Analytics", "Accounts", "Photo storage", "Audit log",
     ]);
     const section = (name: RegExp) => within(nav).getByRole("button", { name });
     const feedback = section(/Feedback & errors/);

@@ -18,6 +18,7 @@ import { SEARCH_GROUPS, cardWho, shownPath } from "../../shared/search";
 import { cn } from "../cn";
 import { TONE } from "./page/v8tone";
 import { TeamTable } from "./TeamTable";
+import { FeaturedChip } from "../FeaturedVideos";
 import { SEARCH_EXAMPLES, addRecentSearch, clearRecentSearches, useRecentSearches } from "./discover";
 import { dateRange, seasonLabel } from "../../lib/format";
 import { EventStatusChip } from "../EventChips";
@@ -254,6 +255,7 @@ export function HitText({ h, opr }: { h: SearchHit; opr?: boolean }) {
     <span className="min-w-0 flex-1">
       <span className="flex min-w-0 items-start gap-2">
         <span className="line-clamp-2 min-w-0 flex-1 break-words">{h.title}</span>
+        {h.kind === "team" && /^\d{1,6}$/.test(h.ref) && <FeaturedChip team={Number(h.ref)} className="mt-px" />}
         {o != null && <span className="mt-px shrink-0 rounded-md border border-border bg-muted/50 px-1.5 py-px text-[11px] v8:bg-transparent v8:text-[0.75rem]" data-opr><span className="text-muted-foreground">OPR </span><span className="font-semibold tabular-nums text-foreground">{o.toFixed(1)}</span></span>}
       </span>
       {(h.subtitle || h.season != null) && (

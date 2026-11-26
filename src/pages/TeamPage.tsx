@@ -56,6 +56,7 @@ import { TeamScheduleSection } from "../components/ScheduleDifficulty";
 import { predictHref } from "../shared/predictUrl";
 import { useIsV8 } from "../lib/v8";
 import { V8_PHASE } from "../lib/records/describe";
+import { FeaturedBadge, FeaturedSection } from "../components/FeaturedVideos";
 
 /** v8 (docs/design/v8-revamp-brief.md): a small label, sentence case and faint (the uppercase tracked eyebrows today). */
 const V8_LABEL = "v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint";
@@ -144,6 +145,7 @@ function ClassicProfile({ p, drawn = false, asked, onSeason }: { p: TeamProfile;
         </>
       )}
       {rest && !hasResults && <><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
+      {rest && <FeaturedSection key={p.team.number} featured={p.featured} />}
       {/* Workspace members only: their workspace's scouting on this team (nothing for anyone else). Last, after
           the team's own numbers and matches: it's the members' take, not the first thing a search opens on. */}
       {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} reliability={p.stats?.reliability} />}
@@ -205,6 +207,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
             {t.rookieYear && <span>Rookie year {t.rookieYear}</span>}
             {t.website && <a href={t.website.startsWith("http") ? t.website : `https://${t.website}`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
           </div>
+          <FeaturedBadge featured={p.featured} className="relative mt-3" />
           {t.sponsors.length > 0 && (
             <Collapsible className="relative mt-3">
               <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-10 pointer-coarse:min-h-[44px]">
@@ -806,6 +809,7 @@ function V8Profile({ p, drawn, asked, onSeason }: { p: TeamProfile; drawn: boole
           </div>
         </>
       )}
+      {rest && <FeaturedSection key={p.team.number} featured={p.featured} />}
       {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} reliability={p.stats?.reliability} />}
       {rest && predictable && <CommonsSection team={p.team.number} season={p.season} />}
     </div>
@@ -909,6 +913,7 @@ function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s:
                 {t.website && <>{line.length > 0 && " · "}<a href={websiteHref(t.website)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 underline-offset-2 hover:text-text-base hover:underline" data-team-website>Website <ExternalLink className="size-3" aria-hidden /></a></>}
               </p>
             )}
+            <FeaturedBadge featured={p.featured} className="mt-2.5" />
             {t.sponsors.length > 0 && (
               <Collapsible className="mt-1.5">
                 <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-xs text-text-faint hover:text-text-muted pointer-coarse:min-h-[44px]">

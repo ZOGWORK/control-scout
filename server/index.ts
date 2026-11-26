@@ -12,6 +12,7 @@ import { seedOfficialVideos } from "./videos/officialVideos.js";
 import { applyVideoDecisions } from "./videos/videoDecisions.js";
 import { WATCH_CHECK_MS, WATCH_FIRST_MS, watchIfDue } from "./videos/officialWatch.js";
 import { runChannelAudit } from "./videos/officialAudit.js";
+import { creatorIfDue } from "./videos/creatorVideos.js";
 import { dropWrongLinks } from "./videos/linkCheck.js";
 import "./env.js";
 import { env } from "./env.js";
@@ -315,7 +316,10 @@ if (!process.env.CS_NO_SCHEDULER) {
       if (r) await runChannelAudit(log).catch((e) => log(`official videos: audit: ${(e as Error).message}`));
       return r?.added ? checkClipCoverage(log) : 0;
     })
-      .catch((e) => log(`official videos: watcher: ${(e as Error).message}`));
+      .catch((e) => log(`official videos: watcher: ${(e as Error).message}`))
+      // Then the creator channels (server/videos/creatorVideos.ts: FUN Robotics Network's uploads, playlists and
+      // automatic team tags), every 12 hours on the same checks; its writes take the same writer lease.
+      .then(() => creatorIfDue(log)).catch((e) => log(`creator videos: ${(e as Error).message}`));
   };
   setTimeout(() => { watch(); setInterval(watch, WATCH_CHECK_MS).unref(); }, WATCH_FIRST_MS).unref();
 }
