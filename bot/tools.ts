@@ -116,7 +116,12 @@ function nearestTeam(answers: (SearchAnswer | null | undefined)[], i: number): n
 
 /** What a message's lookups found: the facts for the chat, and the site's own answer to the first part search could
  *  answer (its card, for the post beside Bruno's words). */
-export interface Lookup { facts: string[]; answer?: SearchAnswer }
+export interface Lookup {
+  facts: string[];
+  answer?: SearchAnswer;
+  /** Each part, in the order asked, and whether search answered it: what the post's own check line reports. */
+  parts: { q: string; answered: boolean }[];
+}
 
 /**
  * The facts of a message's parts, each part searched on its own: the parts in the order asked, no line twice, and at
@@ -128,7 +133,7 @@ export async function lookupFacts(parts: string[], deps: {
   search: (q: string) => Promise<SearchAnswer | null>;
   facts: (a: SearchAnswer) => Promise<string[]>;
 }): Promise<Lookup> {
-  if (parts.length < 2) return { facts: [] };
+  if (parts.length < 2) return { facts: [], parts: [] };
   const answers: (SearchAnswer | null)[] = new Array(parts.length).fill(null);
   await Promise.all(parts.map(async (p, i) => {
     // A follow-up can't be searched until the part it leans on has answered: it's read below, in order.
@@ -163,5 +168,5 @@ export async function lookupFacts(parts: string[], deps: {
   // The part whose answer has something to show: a card or a stat first, then results that aren't search's sorry.
   const shown = answers.find((a): a is SearchAnswer => !!a && !!(a.card || a.stat))
     ?? answers.find((a): a is SearchAnswer => !!a && !a.sorry && !(a.step === "recovery" && !a.card && !a.stat) && !!a.hits.length);
-  return { facts: out, ...(shown ? { answer: shown } : {}) };
+  return { facts: out, parts: parts.map((q, i) => ({ q, answered: !!answers[i] && !answers[i]!.sorry })), ...(shown ? { answer: shown } : {}) };
 }

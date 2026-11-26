@@ -18,8 +18,39 @@ an embed that links back to controlscout.org:
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below), with buttons for what to ask next |
 | `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👎 an answer to report it |
 | `/settings` | How this server gets its posts: quiet hours (UTC), whether match reminders are on, and a role to ping on them. Manage Server only, answered privately |
-| `/config` | What the bot is and can do here, read live: the release it runs, the account it is and how many servers it is in, the season, the site it talks to, chat on (or why it isn't) and the chat limit this server has, report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
+| `/config` | What the bot is and can do here, read live, **and how this server's answers read**: `style:short`/`detailed`, `extras:false` for no follow-up buttons, `videos:false` for no clips, `reset:true` for the defaults. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
+
+## /config: how a server wants its answers
+
+`bot/settings.ts` (migration 112, the same `discord_guild_settings` row as the posts' settings). Nothing new is a
+command: `/config` with no option still shows the bot's own setup, and with one changes that one thing (the rest are
+carried over, and `/config reset:true` puts all three back).
+
+- **style** — `short` writes one or two lines with the number first, `detailed` keeps the reasoning and names the
+  records it used. It rides with the chat as a line of the server's memory (`styleLine`), so it shapes Bruno's reply
+  and is part of the answer cache's key: two servers asking the same thing with different styles get their own answers.
+  With the chat off there is no prose to shape, and the card is the site's own.
+- **extras** — off drops the "ask next" buttons under an answer. The website link and the "Something's wrong" button
+  stay: those aren't suggestions.
+- **videos** — off drops the clips and their links (the message's player and the Watch buttons) from every answer,
+  including a message that asked for videos. On, an answer carries what search found.
+
+A write from `/settings` (posts) never resets these, and the other way round: a patch leaves what it doesn't name alone.
+
+**A video is a task, not a keyword** (`bot/ask.ts` `asksVideo`). "Where is Exodus from and show me videos" is answered
+in parts: the team and its town from search, then — when the message's own answer has no clip — the same request
+without the video words searched for the team, whose answer's clips are posted as the player and up to three Watch
+links. If nothing has a clip, the answer says so rather than leaving the request silently unanswered (the check line
+below).
+
+**Every answer says what it checked.** The post carries `✓ Checked N searches against Control Scout`, and when a part
+of the message couldn't be answered (or videos were asked for and none found) it says that too: `couldn't check: …`.
+It comes from the parts search actually ran (`bot/tools.ts` `Lookup.parts`) or the answer's own clauses, never from a
+second guess.
+
+**A team answer always has two more things to ask** (`askNext`): where it's from and its videos, after the answer's own
+suggestions, within the button row's four. A suggestion already covered by the answer isn't repeated.
 
 ## /settings: what a server asks of its posts
 
