@@ -7,7 +7,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import type { StatAnswer } from "../../../shared/searchStat";
 import { TONES } from "../../StatTile";
-import { StatAnswerCard, oneContext, saidBy } from "./StatAnswer";
+import { StatAnswerCard, namesItsMeasure, oneContext, saidBy } from "./StatAnswer";
 import { SeasonPickContext } from "./SeasonPick";
 import { meaningOf } from "../../../lib/textTones";
 
@@ -217,6 +217,29 @@ describe("each fact printed once (the guide's §8)", () => {
     expect(c.querySelector("[data-block=record]")!.textContent).not.toContain("win rate");
     // One team's record headline: its wins in the team's hue (the record's own ink would otherwise hide it).
     expect(c.querySelector("[data-headline] [data-record-text] b")!.className).toContain("text-team-a");
+  });
+  it("a team at an event: no Record or Rank tile repeating the headline's record and \"Ranked\" line, the OPR kept (#2343)", () => {
+    const c = draw({ ...opr, family: "event", intent: "results", title: "Results at Worlds · Lovelace Division", scope: ["2025–26"],
+      headline: { value: "9-6-0", label: "in 15 matches at Worlds · Lovelace Division", sub: "Ranked #3 of 57 · 2025–26 · Houston, TX", href: "/events/2025/X?team=23435" },
+      blocks: [{ kind: "kpis", items: [{ label: "Rank", value: "#3 of 57", href: "/events/2025/X?team=23435" }, { label: "Record", value: "9-6-0" }, { label: "OPR", value: "170.9" }] }] });
+    expect([...c.querySelectorAll("[data-kpi]")].map((k) => k.textContent)).toEqual(["OPR170.9"]);
+  });
+  it("a rank headline drops its Rank tile and keeps the record; another record or rank stays", () => {
+    const c = draw({ ...opr, family: "event", intent: "event-rank", title: "Rank at NJ Championship",
+      headline: { value: "#3 of 57", label: "NJ Championship", sub: "2025–26" },
+      blocks: [{ kind: "kpis", items: [{ label: "Rank", value: "#3 of 57" }, { label: "Record", value: "9-6-0" }, { label: "OPR", value: "170.9" }] }] });
+    expect([...c.querySelectorAll("[data-kpi]")].map((k) => k.textContent)).toEqual(["Record9-6-0", "OPR170.9"]);
+    // Only the measure's own label: a playoff record or a world rank with the same numbers is another fact.
+    expect(namesItsMeasure("Record", "9-6-0")).toBe(true);
+    expect(namesItsMeasure("Rank", "#3 of 57")).toBe(true);
+    expect(namesItsMeasure("Playoff record", "9-6-0")).toBe(false);
+    expect(namesItsMeasure("Record", "81%")).toBe(false);
+    expect(namesItsMeasure("Worldwide by OPR", "#3 of 57")).toBe(false);
+  });
+  it("a record said in the headline's line drops a bare Record tile (an average margin's)", () => {
+    const c = draw({ ...opr, family: "aggregate", intent: "average-margin", headline: { value: "+12.4", label: "points a match in 2025–26, over 32 matches", sub: "26-6-0" },
+      blocks: [{ kind: "kpis", items: [{ label: "In wins", value: "+20.1" }, { label: "In losses", value: "−18.0" }, { label: "Record", value: "26-6-0" }] }] });
+    expect([...c.querySelectorAll("[data-kpi]")].map((k) => k.textContent)).toEqual(["In wins+20.1", "In losses−18.0"]);
   });
   it("a score without penalties is a score, not the penalty phase", () => {
     expect(meaningOf("Without penalties")).toBeNull();
