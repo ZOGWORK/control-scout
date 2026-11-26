@@ -42,7 +42,7 @@ export interface Profile {
 
 const DAY = 86_400_000;
 /** How many days a pool's freshness takes to halve. */
-export const HALF_LIFE_DAYS: Record<FeedSource, number> = { weekend: 2, team: 14, creator: 45, behindTheBot: 120, record: 30, close: 7, upset: 10, popular: 7 };
+export const HALF_LIFE_DAYS: Record<FeedSource, number> = { weekend: 2, team: 14, creator: 45, behindTheBot: 120, record: 30, close: 7, upset: 10, popular: 7, recent: 7 };
 const TIE_BOOST: Record<Tie, number> = { member: 2.5, myTeam: 2.5, tracked: 1.5, shortlist: 1.2, scouted: 1 };
 /** The general feed's own picks, lifted when there's nothing personal to go on. */
 const COLD_START: ReadonlySet<FeedSource> = new Set(["weekend", "record", "behindTheBot", "upset"]);
@@ -135,24 +135,30 @@ export function seeded(seed: string): () => number {
 export const EXPLORE_EVERY = 7;
 /** How many in a row one event or channel may have. */
 export const MAX_RUN = 2;
+/** How many in a row one pool may have (a page of top scores alone isn't a feed). */
+export const MAX_SOURCE_RUN = 3;
 
 /**
  * The feed's order from scored candidates (any order): best first, except that no event or channel gets more than
- * MAX_RUN in a row while another is left, and every EXPLORE_EVERY-th slot is drawn from further down the list (past
+ * MAX_RUN in a row and no pool more than MAX_SOURCE_RUN while another is left, and every EXPLORE_EVERY-th slot is drawn from further down the list (past
  * the top 5) so the feed never narrows to one thing.
  */
-export function mixFeed<T extends { group: string }>(scored: { c: T; score: number }[], seed: string): T[] {
+export function mixFeed<T extends { group: string; item?: { source: string } }>(scored: { c: T; score: number }[], seed: string): T[] {
   const rest = [...scored].sort((a, b) => b.score - a.score).map((s) => s.c);
   const rand = seeded(seed);
   const out: T[] = [];
   const runOf = (g: string) => { let n = 0; for (let i = out.length - 1; i >= 0 && out[i].group === g; i--) n++; return n; };
+  const src = (c: T) => c.item?.source;
+  const sourceRun = (s: string | undefined) => { let n = 0; if (s == null) return 0; for (let i = out.length - 1; i >= 0 && src(out[i]) === s; i--) n++; return n; };
+  const fits = (c: T) => runOf(c.group) < MAX_RUN && sourceRun(src(c)) < MAX_SOURCE_RUN;
   while (rest.length) {
     let at = -1;
     if ((out.length + 1) % EXPLORE_EVERY === 0 && rest.length > 6) {
       const from = 5, to = Math.min(rest.length, 60);
       const pick = from + Math.floor(rand() * (to - from));
-      if (runOf(rest[pick].group) < MAX_RUN) at = pick;
+      if (fits(rest[pick])) at = pick;
     }
+    if (at < 0) at = rest.findIndex(fits);
     if (at < 0) at = rest.findIndex((c) => runOf(c.group) < MAX_RUN);
     if (at < 0) at = 0;
     out.push(rest.splice(at, 1)[0]);

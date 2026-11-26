@@ -85,7 +85,13 @@ describe("GET /api/videos/feed", () => {
     expect(a.coldStart).toBe(true);
     expect(a.items.length).toBe(12);
     expect(a.items[0].title).toContain("400");
-    expect(a.items[0].reason).toBe("Season high: 400 points");
+    expect(a.items[0].reason).toBe("Season high: 400 without penalties");
+    // No pool fills more than 3 in a row while another has items.
+    const whole = await all3();
+    for (let i = 3; i < whole.length; i++) {
+      const run = new Set(whole.slice(i - 3, i + 1).map((x) => x.source)).size === 1;
+      if (run) expect(whole.slice(i).every((x) => x.source === whole[i].source)).toBe(true);
+    }
     for (const i of a.items) { expect(i.reason).toBeTruthy(); expect(i.videoId).toMatch(/^vid\d{8}$/); expect(i.kind).toBe("match"); }
     // A match in several pools says its most telling reason: the tie is a close finish, not a top score.
     expect((await all3()).filter((i) => i.reason === "Ended in a tie").map((i) => i.title)).toEqual(["Q12: 3333 & 5555 vs 6666 · 112–112"]);
@@ -109,6 +115,8 @@ describe("GET /api/videos/feed", () => {
     const a = await feed("?my=1111");
     expect(a.coldStart).toBe(false);
     expect(a.items[0].reason).toBe("Your team, 1111");
+    expect(a.items[0].personal).toBe(true);
+    expect(a.items.filter((i) => !i.teams.includes(1111)).every((i) => !i.personal)).toBe(true);
     expect(a.items[0].teams).toContain(1111);
   });
 

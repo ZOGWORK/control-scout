@@ -128,3 +128,17 @@ describe("mixFeed", () => {
     for (let i = 0; i < 1000; i++) { const v = r(); expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThan(1); }
   });
 });
+
+describe("mixFeed by pool", () => {
+  it("never puts more than 3 from one pool in a row while another pool is left", () => {
+    const xs = Array.from({ length: 20 }, (_, i) => ({ c: { group: `g${i}`, id: i, item: { source: i < 15 ? "record" : "recent" } }, score: 100 - i }));
+    const out = mixFeed(xs, "pools");
+    const firstRecent = out.findIndex((c) => c.item.source === "recent");
+    expect(firstRecent).toBe(3);
+    let run = 0;
+    for (const [i, c] of out.entries()) {
+      run = i && out[i - 1].item.source === c.item.source ? run + 1 : 1;
+      if (run > 3) expect(out.slice(i).every((x) => x.item.source === c.item.source)).toBe(true);
+    }
+  });
+});

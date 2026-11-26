@@ -14,9 +14,10 @@ import { watchKindOf, type FeedItem, type FeedSource, type WatchReport } from ".
 import { ClipImage } from "./search/page/ClipImage";
 import { cn } from "./cn";
 
-/** Each pool its own hue, the same everywhere (the reason chip and the card's edge). */
+/** Each pool its own hue, the same everywhere (the reason chip and the card's edge); a reason that is the person's
+ *  own team ("You follow 4215") is always the team's green, whatever pool it came from. */
 export const SOURCE_TONE: Record<FeedSource, string> = {
-  team: "bg-accent/15 text-accent-text border-accent/40",
+  team: "bg-team-c/15 text-team-c-text border-team-c/40",
   weekend: "bg-live/15 text-live border-live/40",
   creator: "bg-team-d/15 text-team-d border-team-d/40",
   behindTheBot: "bg-team-b/15 text-team-b-text border-team-b/40",
@@ -24,12 +25,13 @@ export const SOURCE_TONE: Record<FeedSource, string> = {
   close: "bg-info/15 text-info-text border-info/40",
   upset: "bg-danger/15 text-danger-text border-danger/40",
   popular: "bg-success/15 text-success-text border-success/40",
+  recent: "bg-team-a/15 text-team-a border-team-a/40",
 };
 
 /** The card's left edge in its pool's hue. */
 const EDGE: Record<FeedSource, string> = {
-  team: "border-l-accent", weekend: "border-l-live", creator: "border-l-team-d", behindTheBot: "border-l-team-b",
-  record: "border-l-warning", close: "border-l-info", upset: "border-l-danger", popular: "border-l-success",
+  team: "border-l-team-c", weekend: "border-l-live", creator: "border-l-team-d", behindTheBot: "border-l-team-b",
+  record: "border-l-warning", close: "border-l-info", upset: "border-l-danger", popular: "border-l-success", recent: "border-l-team-a",
 };
 
 const shortDate = (iso: string | null) => {
@@ -90,7 +92,7 @@ export function FeedCard({ item, signedIn, onHide }: { item: FeedItem; signedIn:
   const when = shortDate(item.published);
   const meta = [item.event?.name ?? item.channel ?? null, when].filter(Boolean).join(" · ");
   return (
-    <article className={cn("group/card flex min-w-0 flex-col overflow-hidden rounded-xl border border-line bg-card border-l-4", EDGE[item.source])} data-feed-card={item.key}>
+    <article className={cn("group/card flex min-w-0 flex-col overflow-hidden rounded-xl border border-line bg-card border-l-4", EDGE[item.personal ? "team" : item.source])} data-feed-card={item.key}>
       <div className="relative aspect-video w-full overflow-hidden bg-black">
         {playing ? (
           <iframe ref={frame} className="absolute inset-0 size-full" title={`${item.title} video`}
@@ -110,7 +112,7 @@ export function FeedCard({ item, signedIn, onHide }: { item: FeedItem; signedIn:
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-3">
-        <span className={cn("self-start rounded-md border px-2 py-0.5 text-xs font-semibold", SOURCE_TONE[item.source])} data-feed-reason>{item.reason}</span>
+        <span className={cn("self-start rounded-md border px-2 py-0.5 text-xs font-semibold", SOURCE_TONE[item.personal ? "team" : item.source])} data-feed-reason>{item.reason}</span>
         {item.href ? <Link to={item.href} className="line-clamp-2 text-sm font-semibold leading-5 text-text-base hover:underline">{item.title}</Link>
           : <p className="line-clamp-2 text-sm font-semibold leading-5 text-text-base">{item.title}</p>}
         <div className="mt-auto flex items-center gap-2">

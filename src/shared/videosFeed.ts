@@ -8,7 +8,7 @@ import type { SearchVideoItem } from "./api";
 export type FeedKind = SearchVideoItem["kind"] | "creator";
 
 /** Why an item was picked, the pool it came from; each has its own weight in the ranking (server/api/videosFeed.rank.ts). */
-export type FeedSource = "team" | "weekend" | "creator" | "behindTheBot" | "record" | "close" | "upset" | "popular";
+export type FeedSource = "team" | "weekend" | "creator" | "behindTheBot" | "record" | "close" | "upset" | "popular" | "recent";
 
 /** What a person's finishes and skips are learned per (video_watch.kind): a match, a stream, a creator's video, a
  *  Behind the Bot episode. */
@@ -31,6 +31,8 @@ export interface FeedItem extends Omit<SearchVideoItem, "kind" | "contributor"> 
   published: string | null;
   /** One line on why it's in this person's feed ("Your team", "Upset", "Behind the Bot"). */
   reason: string;
+  /** The reason is the person's own tie to a team in it ("You follow 4215"), not the pool's. */
+  personal?: true;
   /** A creator video's channel name and series ("behind-the-bot"). */
   channel?: string;
   series?: string;
