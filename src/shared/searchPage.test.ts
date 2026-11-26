@@ -147,4 +147,10 @@ describe("namesSaid", () => {
     expect(namesSaid(undefined)).toBeNull();
     expect(namesSaid('Which "mirror"? 3 teams have that name; 1 of them still play: 1 (A, B)', ["Mirror"])).toBe("3 teams are named Mirror; 1 still plays");
   });
+  it("says how many of them played the event or season the query names, none said as such (#2342)", () => {
+    expect(namesSaid('Which "tin comets"? 3 teams have that name; 2 of them played at Worlds: 6001 (Paramus, NJ), 6002 (Carmel, IN)', ["Tin Comets"]))
+      .toBe("3 teams are named Tin Comets; 2 played at Worlds");
+    expect(namesSaid('Which "green machine"? 4 teams have that name; none of them played at Worlds in 2024–25 (17324 Green Machines did): 8791 (Greenwood, IN), 15458 (Mullica Hill, NJ)', ["Green Machine"]))
+      .toBe("4 teams are named Green Machine; none played at Worlds in 2024–25 (17324 Green Machines did)");
+  });
 });

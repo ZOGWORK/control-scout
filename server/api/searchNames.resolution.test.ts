@@ -37,6 +37,17 @@ beforeAll(async () => {
     // A name two equal teams share whose last word is a generic one ("Robotics").
     [5801, "Copper Robotics", "Camden", "NJ", "USA", [[2025, 500, 8000]]],
     [5802, "Copper Robotics", "Flint", "MI", "USA", [[2025, 520, 8000]]],
+    // Names several equal teams share, told apart by who played at Worlds (#2342): one did, two did, none did (a team
+    // with a name like it did).
+    [5901, "Moss Rovers", "Paramus", "NJ", "USA", [[2025, 500, 8000]]],
+    [5902, "Moss Rovers", "Carmel", "IN", "USA", [[2025, 510, 8000]]],
+    [5903, "Moss Rovers", "Peoria", "IL", "USA", [[2025, 520, 8000]]],
+    [6001, "Tin Comets", "Paramus", "NJ", "USA", [[2025, 500, 8000]]],
+    [6002, "Tin Comets", "Carmel", "IN", "USA", [[2025, 510, 8000]]],
+    [6003, "Tin Comets", "Peoria", "IL", "USA", [[2025, 520, 8000]]],
+    [6101, "Sand Larks", "Paramus", "NJ", "USA", [[2025, 500, 8000]]],
+    [6102, "Sand Larks", "Carmel", "IN", "USA", [[2025, 510, 8000]]],
+    [6103, "Sand Larkspur", "Austin", "TX", "USA", [[2025, 100, 8000]]],
   ];
   for (const [n, name, city, state, country, seasons] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, ?)", [n, name, city, state, country]);
@@ -45,6 +56,13 @@ beforeAll(async () => {
       await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'X', ?, 50, 5)", [season, n]);
       await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, ranked_teams, matches) VALUES (?, ?, 50, ?, ?, 5)", [season, n, rank, of]);
     }
+  }
+  // Worlds 2025-26 and one division: 5902 is on the division's roster, 6001 and 6002 played its matches, 6103 too.
+  await run("INSERT INTO events (season, code, name, type, source) VALUES (2025, 'FTCCMP1', 'FIRST Championship', 'FIRSTChampionship', 'test')");
+  await run("INSERT INTO events (season, code, name, type, division_code, source) VALUES (2025, 'FTCCMP1ALPH', 'FIRST Championship - Alpha Division', 'FIRSTChampionship', 'FTCCMP1', 'test')");
+  await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'FTCCMP1ALPH', 5902)");
+  for (const [k, t] of [6001, 6002, 6103].entries()) {
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2025, 'FTCCMP1ALPH', 'qual', 0, ?, ?, 'red')", [k + 1, t]);
   }
   await rebuildSearch();
 });
@@ -88,6 +106,35 @@ describe("a name several teams share", () => {
     const b = await ask("sigma wolves record");
     expect(teamsOf(b)[0]).toBe(5301);
     expect(b.understood?.label).toMatch(/5301.*the stronger one of 2 teams with the name/);
+  });
+});
+
+describe("a shared name with an event or season named beside it (#2342)", () => {
+  it("only one of its teams played it: the question answered for that team, saying why", async () => {
+    const a = await ask("moss rovers at worlds");
+    expect(a.understood?.label.startsWith(WHICH)).toBe(false);
+    expect(teamsOf(a)[0]).toBe(5902);
+    expect(teamsOf(a)).not.toContain(5901);
+    expect(a.understood?.label).toContain("5902 (Carmel, IN), the only one that played at Worlds of 3 teams with the name");
+  });
+  it("several did: only those are asked about, and picking one asks the same question about it", async () => {
+    const a = await ask("tin comets at worlds");
+    expect(a.understood?.label.startsWith(`${WHICH}tin comets"? 3 teams have that name; 2 of them played at Worlds: `)).toBe(true);
+    expect(a.hits.map((h) => h.ref).sort()).toEqual(["6001", "6002"]);
+    expect(a.hits.map((h) => h.href).sort()).toEqual(["/search?q=6001%20at%20worlds", "/search?q=6002%20at%20worlds"]);
+    expect(a.suggest).toEqual(["6001 at worlds", "6002 at worlds"]);
+  });
+  it("none did: said plainly, its teams still listed, and a team by a name like it that did offered first", async () => {
+    const a = await ask("sand larks at worlds");
+    expect(a.understood?.label.startsWith(`${WHICH}sand larks"? 2 teams have that name; none of them played at Worlds (6103 Sand Larkspur did): `)).toBe(true);
+    expect(a.hits.map((h) => h.ref)).toEqual(["6101", "6102", "6103"]);
+    // The name's own teams open their pages (an answer about Worlds would be empty); the one that went asks it.
+    expect(a.hits.map((h) => h.href ?? null)).toEqual([null, null, "/search?q=6103%20at%20worlds"]);
+    expect(a.suggest?.[0]).toBe("6103 at worlds");
+  });
+  it("a season with nobody on record at the event says nothing about who played it", async () => {
+    const a = await ask("moss rovers at worlds 2026-27");
+    expect(a.understood?.label.startsWith(`${WHICH}moss rovers"? 3 teams have that name: `)).toBe(true);
   });
 });
 
