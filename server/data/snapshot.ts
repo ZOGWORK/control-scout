@@ -63,6 +63,8 @@ export const PRIVATE_TABLES = [
   // What each server asked of its posts, and how fast its people could ask (migration 111): server ids, a ping role and
   // per-person counts, deleted with its other data.
   "discord_guild_settings", "discord_person_usage",
+  // The creator-video intake's runs (migration 114): its quota and errors, this server's own operations.
+  "creator_runs",
   // The weekly email digest (migration 50): who turned it on, their unsubscribe link, and the per-week send log.
   "digest_prefs", "digest_sends",
   // The home page's hero lines (migration 55): owner settings, like feature_flags; who changed them is in owner_audit.
@@ -121,6 +123,9 @@ export const PUBLIC_TABLES = [
   "discord_match_state",
   // The bot's last-seen dates per event (migration 111): public codes and dates.
   "discord_event_state",
+  // Creator channels' public videos and the FTC teams found in them (migration 114): YouTube ids, titles and
+  // descriptions, team numbers; added_by and removed_by are roles, never emails (who did it is in owner_audit).
+  "creator_channels", "creator_videos", "video_team_tags", "video_tag_removals",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero
