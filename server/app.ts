@@ -54,7 +54,7 @@ import { eventClipCoverage } from "./videos/coverage.js";
 import { answerVideo } from "./api/answers/video.js";
 import { matchViews } from "./api/matches.js";
 import { teamNextMatch, weekendEvents } from "./api/weekend.js";
-import { cleanWatch, recordWatch, videoFeed } from "./api/videosFeed.js";
+import { cleanWatch, FEED_CURSOR, recordWatch, videoFeed } from "./api/videosFeed.js";
 import { decodeHistory, FEED_FILTERS, isFeedFilter } from "../src/shared/videosFeed.js";
 import { eventListAnswer, matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
 import { matchReport } from "./api/matchReport.js";
@@ -744,13 +744,13 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     const filter = req.query.filter == null || req.query.filter === "" ? "all" : String(req.query.filter);
     if (!isFeedFilter(filter)) throw bad(`filter must be one of ${FEED_FILTERS.map((f) => f.id).join(", ")}`);
     const cursor = typeof req.query.cursor === "string" && req.query.cursor ? req.query.cursor : null;
-    if (cursor && !/^\d{1,4}$/.test(cursor)) throw bad("cursor must be one the feed gave");
+    if (cursor && !FEED_CURSOR.test(cursor)) throw bad("cursor must be one the feed gave");
     const user = await currentUser(req).catch(() => null);
     const n = (x: unknown) => { const v = Number(x); return Number.isInteger(v) && v > 0 && v <= 999_999 ? v : null; };
     const teams = typeof req.query.teams === "string" ? [...new Set(req.query.teams.split(",").slice(0, 30).map(n).filter((v): v is number => v != null))] : [];
     const hints = user ? { myTeam: null, teams: [], history: [] } : { myTeam: n(req.query.my), teams, history: decodeHistory(req.query.h) };
-    // The kept list and explore draw: per account, or per device's teams (its history moves with every watch, so a
-    // page read after one still continues the same list).
+    // The explore draw's seed and whose kept lists these are: per account, or per device's teams (each first page's
+    // list has its own id in the cursor, so devices with the same teams never share one).
     const viewer = user ? `u:${user.id}` : `d:${createHash("sha256").update(JSON.stringify([hints.myTeam, hints.teams])).digest("base64url").slice(0, 16)}`;
     res.setHeader("Cache-Control", "private, no-store");
     return videoFeed({ viewer, userId: user?.id ?? null, hints, filter, cursor });

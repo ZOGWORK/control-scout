@@ -16,6 +16,7 @@
 // kept per team. A match is a candidate only when it has a video to play (seasonClipKeys, the Play buttons' check).
 // Then each person's score and mix (./videosFeed.rank.ts) on top, cheap. Every read selects only its columns and
 // goes through db.ts's all(), which lets the event loop turn (#1557).
+import { randomBytes } from "node:crypto";
 import { all, get, run } from "../db.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
 import { registerCache } from "../caches.js";
@@ -354,13 +355,21 @@ const EMPTY: Record<FeedFilter, string> = {
 let lists = new Map<string, { at: number; items: FeedItem[]; cold: boolean }>();
 registerCache("Videos feed", () => { poolCache = null; teamCache = new Map(); eventClipCache = new Map(); lists = new Map(); });
 
-/** The feed's page from `cursor` (an offset; none: the first page, built afresh). `viewer`: who's asking, for the
- *  kept list and the explore draw's seed. */
+/** A page's cursor: the kept list's own id and the offset into it ("<id>.<offset>"). */
+export const FEED_CURSOR = /^([A-Za-z0-9_-]{12})\.(\d{1,4})$/;
+
+/** The feed's page from `cursor` (none: the first page, built afresh as a new list with its own id, which the next
+ *  cursors carry: two devices with the same follows never page through each other's list). `viewer`: who's asking,
+ *  for the explore draw's seed, and bound to the kept list so a cursor is read only by whoever it was given to. */
 export async function videoFeed(opts: { viewer: string; userId: number | null; hints: DeviceHints; filter: FeedFilter; cursor: string | null; now?: number }): Promise<FeedAnswer> {
   const now = opts.now ?? Date.now();
-  const at = opts.cursor && /^\d{1,4}$/.test(opts.cursor) ? Number(opts.cursor) : 0;
-  const listKey = `${opts.viewer}|${opts.filter}`;
-  let list = at > 0 ? lists.get(listKey) : undefined;
+  const cur = opts.cursor ? FEED_CURSOR.exec(opts.cursor) : null;
+  const at = cur ? Number(cur[2]) : 0;
+  let id = cur?.[1] ?? randomBytes(9).toString("base64url");
+  const listKey = (x: string) => `${opts.viewer}|${opts.filter}|${x}`;
+  let list = cur ? lists.get(listKey(id)) : undefined;
+  // A list gone (kept too long, or the server restarted): built afresh under a new id; the app skips repeats.
+  if (cur && !list) id = randomBytes(9).toString("base64url");
   if (!list || now - list.at > LIST_TTL_MS) {
     const p = await profileOf(opts.userId, opts.hints);
     const pool = await pools(now);
@@ -380,12 +389,12 @@ export async function videoFeed(opts: { viewer: string; userId: number | null; h
     }
     const items = mixFeed(scored, `${opts.viewer}|${isoDay(now)}`).map((c) => c.item);
     list = { at: now, items, cold: isCold(p) };
-    lists.set(listKey, list);
+    lists.set(listKey(id), list);
     if (lists.size > 3000) lists = new Map([...lists].slice(-2000));
   }
   const page = list.items.slice(at, at + PAGE_SIZE).map((i) => ({ ...i }));
   await withStills(page as unknown as SearchVideoItem[], now).catch(() => undefined);
-  const next = at + PAGE_SIZE < list.items.length ? String(at + PAGE_SIZE) : null;
+  const next = at + PAGE_SIZE < list.items.length ? `${id}.${at + PAGE_SIZE}` : null;
   return { items: page, next, coldStart: list.cold, ...(list.items.length ? {} : { empty: EMPTY[opts.filter] }) };
 }
 
