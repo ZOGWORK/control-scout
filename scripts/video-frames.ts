@@ -44,7 +44,7 @@ import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, foundBox, sampleFinds, zoomCss } from "./lib/frameZoom";
-import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
+import { between, edgeReject, eventLimitMs, GAP_READS, gapOf, type Gap } from "./lib/videoFrames";
 import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type RecheckRead, type RecheckVerdict } from "./lib/reviewRecheck";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -979,8 +979,6 @@ async function recheckVideo(row: FrameTiming, length: number, due: { label: stri
 
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
  *  minus that moment (epoch seconds), when YouTube gives the broadcast's start (an upload has none). */
-/** A video's gap read (--gaps): the starts that stand, their openings and which of them are medium. */
-type Gap = { starts: Record<string, number>; opens: Record<string, number>; medium: Set<string> };
 async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>, liveMedium?: Set<string>, gap?: Gap): Promise<Judged> {
   // The overlay names a replay ("M14-2", a tiebreak) by its match alone (M14), and a semifinal's match by its series
   // and number ("M1-2" is that match only): each name, its matches in order (sameMatch).
@@ -1597,7 +1595,7 @@ async function doCode(code: string): Promise<void> {
     }
     // --gaps: the starts it has (the live ones, else its row's) stand; a video with none of its matches missing is kept.
     const liveStarts = LIVE.get(`${v.videoId}|${code}`);
-    const gap = GAPS && prior ? { starts: { ...(liveStarts ?? prior.starts) }, opens: prior.opens ?? {}, medium: new Set([...(prior.medium ?? []), ...(LIVE_MEDIUM.get(`${v.videoId}|${code}`) ?? [])]) } : undefined;
+    const gap = GAPS && prior ? gapOf(prior, liveStarts, LIVE_MEDIUM.get(`${v.videoId}|${code}`)) : undefined;
     if (gap && !mine.some((x) => gap.starts[x.label] == null)) {
       for (const l of Object.keys(gap.starts)) held.add(l);
       log(`  ${v.videoId}: no match of it without a start, kept`);

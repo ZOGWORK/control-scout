@@ -1137,3 +1137,17 @@ export function between(ms: M[], seen: Map<number, number>, i: number): boolean 
   for (const k of seen.keys()) if (!ms[k].scheduled) { if (k < i) lo = true; else if (k > i) hi = true; }
   return lo && hi;
 }
+
+/** A video's gap read (--gaps): the starts that stand, their checked openings and which of them are medium. */
+export type Gap = { starts: Record<string, number>; opens: Record<string, number>; medium: Set<string> };
+/** The gap read of a video with a row: the live starts where there are some (else the row's), each with the row's
+ *  checked opening and medium only where the row has that same start; a start the live file moved has its opening
+ *  checked again, and is medium as the live file says. */
+export function gapOf(row: { starts: Record<string, number>; opens?: Record<string, number>; medium?: string[] }, live?: Record<string, number>, liveMedium?: ReadonlySet<string>): Gap {
+  const starts = { ...(live ?? row.starts) };
+  const same = (l: string) => row.starts[l] != null && row.starts[l] === starts[l];
+  const opens: Record<string, number> = {};
+  for (const [l, o] of Object.entries(row.opens ?? {})) if (same(l)) opens[l] = o;
+  const medium = new Set([...(row.medium ?? []).filter(same), ...[...(liveMedium ?? [])].filter((l) => starts[l] != null)]);
+  return { starts, opens, medium };
+}
