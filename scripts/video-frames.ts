@@ -49,7 +49,7 @@ import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type Re
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live", "event-limit"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "recheck", "trace", "verify"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live", "event-limit"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "gaps", "recheck", "trace", "verify"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -61,7 +61,7 @@ const args = new Map<string, string | true>();
       if (v == null || v === "" || v.startsWith("--")) { console.error(`--${name}: give it a value`); process.exit(2); }
       args.set(name, v);
     } else if (m && BOOL_FLAGS.has(name) && m[2] == null) args.set(name, true);
-    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --event-limit, --all, --check, --dry, --trace, --verify, --recheck, --clips, --live <file>)`); process.exit(2); }
+    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --event-limit, --all, --gaps, --check, --dry, --trace, --verify, --recheck, --clips, --live <file>)`); process.exit(2); }
   }
 }
 const arg = (k: string) => { const v = args.get(k); return typeof v === "string" ? v : undefined; };
@@ -95,6 +95,11 @@ const pageDeadline = new WeakMap<Page, Deadline>();
  *  server/data/frameTimings.ts, before it can be read). */
 const FRAMES_FILE = `server/data/frameTimings/${season}.ts`;
 if (!existsSync(FRAMES_FILE)) { console.error(`--season ${season}: no ${FRAMES_FILE} (add it, and its import in server/data/frameTimings.ts)`); process.exit(2); }
+/** --gaps: a video read before is looked at only for its matches without a start, each between the starts either side
+ *  of it (the live ones, else its row's), which stand as read: neither read again nor their openings checked again. A
+ *  match the frames there don't show stays missing (2026-11-26: a re-read with --all walked every match of a 40-match
+ *  video again for one gap, and its re-read starts came back seconds off the live ones, for the owner to turn down). */
+const GAPS = flag("gaps");
 const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds"), CLIPS = flag("clips"), RECHECK = flag("recheck");
 
 const { migrate, all } = await import("../server/db.js");
@@ -974,11 +979,16 @@ async function recheckVideo(row: FrameTiming, length: number, due: { label: stri
 
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
  *  minus that moment (epoch seconds), when YouTube gives the broadcast's start (an upload has none). */
-async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>, liveMedium?: Set<string>): Promise<Judged> {
+/** A video's gap read (--gaps): the starts that stand, their openings and which of them are medium. */
+type Gap = { starts: Record<string, number>; opens: Record<string, number>; medium: Set<string> };
+async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>, liveMedium?: Set<string>, gap?: Gap): Promise<Judged> {
   // The overlay names a replay ("M14-2", a tiebreak) by its match alone (M14), and a semifinal's match by its series
   // and number ("M1-2" is that match only): each name, its matches in order (sameMatch).
   const byName = { get: (n: string) => { const is = ms.flatMap((m, i) => (sameMatch(n, m.label) ? [i] : [])); return is.length ? is : undefined; } };
   const seen = new Map<number, number>(); // index → confirmed start second
+  // --gaps: the starts that stand are taken as read, so each match without one is looked for from its neighbours' places.
+  if (gap) ms.forEach((m, i) => { const t = gap.starts[m.label]; if (t != null) seen.set(i, t); });
+  const looking = gap ? ms.filter((m) => gap.starts[m.label] == null) : ms;
   const tried = new Set<number>(); // matches a read named, confirmed or not
   let namedAny = false; // a frame named one of the event's matches, timer read or not: the player showed the stream
   const from = pageReads.get(page) ?? 0, reads = () => (pageReads.get(page) ?? 0) - from;
@@ -987,7 +997,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   // matches unread (USIAPOMPM11 2025, 81 frames of 72).
   // Reads spent finding the matches when the clock reads nothing (scan) are added: they place none (USNMCMP 2025, 61
   // frames of scanning, then 232 left M1–M5 in a gap unread).
-  let budget = Math.max(60, 8 * ms.length);
+  let budget = gap ? Math.max(20, 8 * looking.length) : Math.max(60, 8 * ms.length);
   let unconfirmed = 0;
   const extra = new Set<number>(); // matches between two reads given GAP_READS of their own
   const near = (i: number): number | null => {
@@ -1038,6 +1048,13 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
    *  this read's placements; one that isn't conflicts with what the frames show here, and goes to review saying with
    *  what. Then every placed start's opening is checked. */
   const liveBack = async (j: Judged) => {
+    // --gaps: a start that stands keeps its confidence and its checked opening, so only the new starts are checked.
+    if (gap) for (const [l, t] of Object.entries(gap.starts)) {
+      const p = j.placed.get(l);
+      if (!p || p.t !== t) continue;
+      if (gap.medium.has(l)) p.confidence = "medium";
+      if (gap.opens[l] != null) j.opens.set(l, gap.opens[l]);
+    }
     const order = new Map(ms.map((m, i) => [m.label, i]));
     if (live && namedAny) for (const [label, t] of Object.entries(live)) {
       if (j.placed.has(label) || !order.has(label)) continue;
@@ -1072,7 +1089,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   // Matches with only their scheduled time (M.scheduled) have no clock to look for them by: the video is walked a frame
   // every WALK_STEP_S (each match's 2:38 shows on at least two), past each match once its start is confirmed. A video
   // naming none of its matches in its first WALK_BLIND_S has no overlay to read: the walk stops there.
-  if (ms.some((m) => m.scheduled)) {
+  if (looking.some((m) => m.scheduled)) {
     budget += Math.ceil(length / WALK_STEP_S);
     for (let t = WALK_STEP_S; t < length && reads() < budget && (namedAny || t < WALK_BLIND_S);) {
       const r = await readAt(page, t);
@@ -1498,7 +1515,7 @@ async function doCode(code: string): Promise<void> {
   };
   const rowOf = (v: (typeof own)[number]) => kept.get(`${v.videoId}|${code}`);
   const read = own.filter(holds).every((v) => { const f = rowOf(v); return f && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)); });
-  if (!CHECK && !ALL && !VERIFY && !BOUNDS && !RECHECK && !waiting && own.some(holds) && read) return;
+  if (!CHECK && !ALL && !GAPS && !VERIFY && !BOUNDS && !RECHECK && !waiting && own.some(holds) && read) return;
   // --verify: an event none of whose rows still has openings to check doesn't count against --limit.
   if (VERIFY && !own.some((v) => { const f = rowOf(v); return f && (!f.opens || f.unconfirmed?.length) && Object.keys(f.starts).length; })) return;
   // --bounds: likewise an event none of whose rows still lacks an edge (every row, with --all).
@@ -1578,7 +1595,15 @@ async function doCode(code: string): Promise<void> {
       if (prior && (!prior.opens || prior.unconfirmed?.length) && Object.keys(prior.starts).length) await verifyRow(prior, division, log);
       continue;
     }
-    if (!CHECK && !ALL && prior && !Object.values(prior.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED))) {
+    // --gaps: the starts it has (the live ones, else its row's) stand; a video with none of its matches missing is kept.
+    const liveStarts = LIVE.get(`${v.videoId}|${code}`);
+    const gap = GAPS && prior ? { starts: { ...(liveStarts ?? prior.starts) }, opens: prior.opens ?? {}, medium: new Set([...(prior.medium ?? []), ...(LIVE_MEDIUM.get(`${v.videoId}|${code}`) ?? [])]) } : undefined;
+    if (gap && !mine.some((x) => gap.starts[x.label] == null)) {
+      for (const l of Object.keys(gap.starts)) held.add(l);
+      log(`  ${v.videoId}: no match of it without a start, kept`);
+      continue;
+    }
+    if (!CHECK && !ALL && !gap && prior && !Object.values(prior.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED))) {
       for (const l of Object.keys(prior.starts)) held.add(l);
       log(`  ${v.videoId}: read on an earlier run, kept`);
       continue;
@@ -1600,7 +1625,7 @@ async function doCode(code: string): Promise<void> {
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
       // Live starts whose opening reads nothing stay, unconfirmed (--live).
       const live = LIVE.get(`${v.videoId}|${code}`), liveMedium = LIVE_MEDIUM.get(`${v.videoId}|${code}`), unread = new Set<string>();
-      let j = await placeVideo(page, mine, offset, m.length!, log, unread, live, liveMedium);
+      let j = await placeVideo(page, mine, offset, m.length!, log, unread, live, liveMedium, gap);
       // Nothing read at all: a player that never showed the stream (an interstitial, a stalled load) looks the same as a
       // video without the overlay, so it gets one more go in a fresh player before its matches count as missing.
       if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
@@ -1612,7 +1637,7 @@ async function doCode(code: string): Promise<void> {
       pageDeadline.set(page, deadline);
         await open(page, v.videoId);
         unread.clear();
-        j = await placeVideo(page, mine, offset, m.length!, log, unread, live, liveMedium);
+        j = await placeVideo(page, mine, offset, m.length!, log, unread, live, liveMedium, gap);
       }
       // Still nothing: two meets split on one stream, each bar too small to read (findSplit). Read again zoomed to this
       // event's half, every crop reading its bar where a full-size one would be.
@@ -1633,7 +1658,7 @@ async function doCode(code: string): Promise<void> {
             log(`    a split stream: this event's on its ${side} half, read zoomed to it`);
             await zoom(pg, side);
             const zoomedUnread = new Set<string>();
-            const zoomed = await placeVideo(pg, mine, offset, m.length!, log, zoomedUnread, live, liveMedium);
+            const zoomed = await placeVideo(pg, mine, offset, m.length!, log, zoomedUnread, live, liveMedium, gap);
             j = zoomed;
             unread.clear();
             for (const l of zoomedUnread) unread.add(l);
@@ -1659,7 +1684,7 @@ async function doCode(code: string): Promise<void> {
           log("    a score bar drawn small in the frame: read zoomed to it");
           await zoomTo(pg, css);
           const zoomedUnread = new Set<string>();
-          const zoomed = await placeVideo(pg, mine, offset, m.length!, log, zoomedUnread, live, liveMedium);
+          const zoomed = await placeVideo(pg, mine, offset, m.length!, log, zoomedUnread, live, liveMedium, gap);
           if (!zoomed.placed.size && !zoomed.review.size && [...zoomed.missing.values()].every((w) => w === NOTHING_READ)) { await restore(); return; }
           j = zoomed;
           unread.clear();
@@ -1706,7 +1731,8 @@ async function doCode(code: string): Promise<void> {
         else {
           // The edges are read after the matches are placed: one that fails keeps the placed row, without edges (a
           // later --bounds reads them).
-          const edges = edgesLost ? {} as { opensOn?: Edge; endsOn?: Edge } : await readEdges(page, m.length!, log).catch((e: Error) => {
+          // --gaps: the video's edges were read with its row, and stay.
+          const edges = edgesLost ? {} as { opensOn?: Edge; endsOn?: Edge } : gap && prior?.opensOn && prior.endsOn ? { opensOn: prior.opensOn, endsOn: prior.endsOn } : await readEdges(page, m.length!, log).catch((e: Error) => {
             if (e instanceof EventOverTime) throw e;
             log(`    couldn't read its edges: ${e.message.split("\n")[0]} (the row is kept without them)`);
             return {} as { opensOn?: Edge; endsOn?: Edge };
