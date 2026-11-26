@@ -28,7 +28,7 @@ describe("sign-in code email", () => {
       expect(part).toContain("Happy scouting,");
       expect(part).toContain(SIGNER);
       expect(part).toMatch(/Didn(&#39;|')t ask for this\?/);
-      expect(part).toContain("nobody can sign in without the code");
+      expect(part).toContain("Nobody can sign in without the code");
     }
     expect(preheader(e.html)).toBe("Hey Sam, your sign-in code is 395572. It works for 10 minutes.");
     expect(codeEmail("395572").text.startsWith("Hey there,\n")).toBe(true);
@@ -38,13 +38,14 @@ describe("sign-in code email", () => {
     const { html } = codeEmail("395572", { siteUrl: "https://controlscout.org" });
     expect(html).toContain('<img src="https://controlscout.org/email/mark-white.png"');
     expect(html).toMatch(/<img [^>]*alt="Control Scout"/);
-    expect(html.match(/<img/g)).toHaveLength(1);
-    for (const art of ["code-wash.jpg", "code-glow.jpg"]) {
+    expect(html.match(/<img/g)).toHaveLength(2); // the mark by the name and in the sign-off
+    expect(html).not.toMatch(/#ffc700|#eab308|gold/i); // no yellow left from the old look
+    for (const art of ["code-wash.jpg", "code-panel.jpg", "code-glow.jpg"]) {
       // each background image sits on a cell that also has a background colour (Outlook, images off)
       expect(html).toMatch(new RegExp(`background="https://controlscout.org/email/${art.replace(".", "\\.")}" bgcolor="#[0-9a-f]{6}"`));
     }
     // every file the email points at ships in public/
-    for (const f of ["code-wash.jpg", "code-glow.jpg", "mark-white.png"]) expect(existsSync(join(__dirname, "..", "..", "public", "email", f))).toBe(true);
+    for (const f of ["code-wash.jpg", "code-panel.jpg", "code-glow.jpg", "mark-white.png"]) expect(existsSync(join(__dirname, "..", "..", "public", "email", f))).toBe(true);
     expect(html).toContain('<meta name="color-scheme" content="dark">');
     expect(html).toContain("max-width:560px");
   });

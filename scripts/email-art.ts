@@ -1,6 +1,7 @@
-// Draws the sign-in code email's three images (server/auth/emailTemplate.ts) into public/email/:
-//   code-wash.jpg   the wash across the top of the card (560×220 at 2×): the site's three glows, its grain, a faint
+// Draws the sign-in code email's four images (server/auth/emailTemplate.ts) into public/email/:
+//   code-wash.jpg   the wash across the top of the card (560×280 at 2×): the site's three glows, its grain, a faint
 //                   field of FTC tiles in perspective and a ribbon of particle dots, fading into the card's colour
+//   code-panel.jpg  behind the code: a mint glow under the digits and a fine dot grid (496×190 at 2×)
 //   code-glow.jpg   the soft page-end glow along the card's foot (560×150 at 2×)
 //   mark-white.png  the white mark on transparent (26 px at 2×, PNG: WebP doesn't show in Outlook)
 // JPEGs because the card behind them is one solid colour (no transparency needed) and they stay small.
@@ -46,14 +47,15 @@ body { position: relative; } i { position: absolute; border-radius: 50%; display
 .grain { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .12; mix-blend-mode: overlay; }`;
 
 const wash = `<!doctype html><html><head><style>${base}
-body { width: 560px; height: 220px; }
+body { width: 560px; height: 280px; }
 .glows { position: absolute; inset: 0; overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom,#000 0%,rgb(0 0 0/.95) 25%,rgb(0 0 0/.78) 45%,rgb(0 0 0/.5) 65%,rgb(0 0 0/.2) 84%,transparent 100%); }
-.glows div { position: absolute; left: -10%; right: -10%; top: -32%; bottom: 0; }
-.field { position: absolute; right: -70px; top: 18px; width: 300px; height: 300px; transform: perspective(520px) rotateX(58deg) rotateZ(-28deg);
+  -webkit-mask-image: linear-gradient(to bottom,#000 0%,rgb(0 0 0/.97) 30%,rgb(0 0 0/.82) 50%,rgb(0 0 0/.55) 68%,rgb(0 0 0/.22) 86%,transparent 100%); }
+.glows div { position: absolute; left: -10%; right: -10%; top: -18%; bottom: 0; }
+.field { position: absolute; right: -60px; top: 60px; width: 300px; height: 300px; transform: perspective(520px) rotateX(58deg) rotateZ(-28deg);
   background-image: linear-gradient(rgba(255,255,255,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.16) 1px, transparent 1px);
   background-size: 50px 50px; border: 1px solid rgba(255,255,255,.2);
   -webkit-mask-image: radial-gradient(60% 60% at 40% 40%, #000 0%, rgba(0,0,0,.5) 55%, transparent 100%); opacity: .55; }
+.fieldfade { position: absolute; inset: 0; -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 90%); }
 .field::after { content: ""; position: absolute; left: 100px; top: 100px; width: 100px; height: 100px; background: rgba(255,255,255,.06); }
 </style></head><body>
 <div class="glows">
@@ -61,8 +63,8 @@ body { width: 560px; height: 220px; }
   <div style="background-image:radial-gradient(44% 80% at 52% 0%,${softStops(W.b)})"></div>
   <div style="background-image:radial-gradient(48% 84% at 12% 0%,${softStops(W.a)})"></div>
 </div>
-<div class="field"></div>
-${ribbon(560, 220, (t) => 70 + 120 * t * t, 16, 520, 51091, 0.42)}
+<div class="fieldfade"><div class="field"></div></div>
+${ribbon(560, 280, (t) => 90 + 150 * t * t, 18, 620, 51091, 0.45)}
 ${grain}
 </body></html>`;
 
@@ -78,6 +80,21 @@ body { width: 560px; height: 150px; }
 </div>
 ${ribbon(560, 150, (t) => 122 + 10 * Math.sin(t * Math.PI * 2), 9, 260, 7741)}
 ${grain}
+</body></html>`;
+
+// Behind the code: the panel's colour with a soft mint glow under the digits, a faint wash glow in the top corners and
+// a fine dot grid fading out from the middle (496×190 at 2×; the email draws it with background-size: cover).
+const MINT = "#34d399";
+const panel = `<!doctype html><html><head><style>* { margin: 0; box-sizing: border-box; } html, body { background: #141416; overflow: hidden; }
+body { width: 496px; height: 190px; position: relative; } div { position: absolute; inset: 0; }
+.grid { background-image: radial-gradient(rgba(255,255,255,.13) 1px, transparent 1.3px); background-size: 14px 14px; background-position: 7px 7px;
+  -webkit-mask-image: radial-gradient(70% 80% at 50% 55%, #000 0%, rgba(0,0,0,.35) 55%, transparent 85%); }
+</style></head><body>
+<div style="background-image:radial-gradient(60% 70% at 50% 62%,${softStops(`color-mix(in srgb,${MINT} 18%,transparent)`)})"></div>
+<div style="background-image:radial-gradient(45% 80% at 0% 0%,${softStops(`color-mix(in srgb,${W.a} 30%,transparent)`)})"></div>
+<div style="background-image:radial-gradient(45% 80% at 100% 0%,${softStops(`color-mix(in srgb,${W.c} 34%,transparent)`)})"></div>
+<div class="grid"></div>
+${grain.replace('class="grain"', 'class="grain" style="position:absolute;inset:0;width:100%;height:100%;opacity:.1;mix-blend-mode:overlay"')}
 </body></html>`;
 
 // The master is white on near-black (#111), not transparent: its brightness becomes the alpha (the dark ground drops
@@ -107,7 +124,8 @@ async function shoot(html: string, width: number, height: number, file: string, 
   await p.screenshot(type === "jpeg" ? { path, type, quality: 82 } : { path, type, omitBackground: true });
   console.log(`${path}: ${(statSync(path).size / 1024).toFixed(1)} KB`);
 }
-await shoot(wash, 560, 220, "code-wash.jpg", "jpeg");
+await shoot(wash, 560, 280, "code-wash.jpg", "jpeg");
+await shoot(panel, 496, 190, "code-panel.jpg", "jpeg");
 await shoot(glow, 560, 150, "code-glow.jpg", "jpeg");
 await shoot(markPage, 26, 26, "mark-white.png", "png");
 await b.close();
