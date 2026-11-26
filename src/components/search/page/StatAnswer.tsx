@@ -48,6 +48,15 @@ export function saidBy(stat: StatAnswer) {
 }
 type Said = ReturnType<typeof saidBy>;
 
+/** A tile whose number names its own measure, so the card saying the number has said the tile: a W-L-T record under
+ *  a record's label ("Record 9-6-0" under "9-6-0 in 15 matches"), a place "#3 of 57" under a rank's label ("Rank"
+ *  under "Ranked #3 of 57"). Any other number needs its label said too ("Auto 8" stays under "8 matches rated"). */
+export function namesItsMeasure(label: string, value: string): boolean {
+  const l = label.trim();
+  return (/^\d+[-–]\d+[-–]\d+$/.test(value.trim()) && /^(?:record|w-l-t)$/i.test(l))
+    || (/^#\d[\d,]*\s+of\s+\d[\d,]*$/.test(value.trim()) && /^(?:rank|place|standing)$/i.test(l));
+}
+
 /** A headline's context: a rank or a percentile, never both (they're the same fact twice), and no season the scope
  *  above already shows. */
 export function oneContext(label: string, sub: string | undefined, scope: string[]) {
@@ -212,7 +221,7 @@ function Block({ b: block, team, teams, said, hue, captioned = true }: { b: Stat
   const fmt = (n: number) => n.toLocaleString("en-US");
   // The same number of the same thing: its value and what it measures (its label, or a season the scope shows).
   const told = (k: Extract<StatBlock, { kind: "kpis" }>["items"][number]) => !!said && said.has(String(k.value))
-    && (said.has(k.label) || statedSeason(String(k.value)) != null) && (!k.sub || said.has(k.sub))
+    && (said.has(k.label) || namesItsMeasure(k.label, String(k.value)) || statedSeason(String(k.value)) != null) && (!k.sub || said.has(k.sub))
     && (k.rank == null || said.has(`#${fmt(k.rank)}${k.of != null ? ` of ${fmt(k.of)}` : ""}`));
   const b: StatBlock = block.kind === "kpis" && said && !(teams && teams.length > 1)
     ? { ...block, items: block.items.filter((k) => !told(k)) } : block;
