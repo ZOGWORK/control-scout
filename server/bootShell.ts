@@ -134,6 +134,7 @@ export const BOOT_STYLE = `<style>
       html[data-v8] .csb-top>a img{width:20px;height:20px}
       html[data-v8] .csb-nav a[aria-current] .csb-ico{background:var(--b-fg);opacity:.9}
       html[data-v8] .csb-top{position:static;height:56px;border-bottom-color:transparent;background:transparent}
+      @media (display-mode:standalone){html .csb-top{box-sizing:content-box;padding-top:env(safe-area-inset-top)}}
       html[data-v8] .csb .csb-crumb{display:none}
       html[data-v8] .csb-main{background:none}
       html[data-v8] .csb-col{position:relative;isolation:isolate}html[data-v8] .csb-col::before{content:"";position:absolute;top:0;left:0;right:0;height:100vh;z-index:-1;pointer-events:none;transform-origin:50% 0;animation:wash-rise 1400ms cubic-bezier(0.22,1,0.36,1) both;background-repeat:no-repeat;background-image:radial-gradient(52% calc(37vh * var(--wash-spread,1)) at 12% 0,${softStops("color-mix(in srgb,color-mix(in srgb,var(--wash-a,#5a76ad) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent)")}),radial-gradient(48% calc(35vh * var(--wash-spread,1)) at 52% 0,${softStops("color-mix(in srgb,color-mix(in srgb,var(--wash-b,#5f5785) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent)")}),radial-gradient(52% calc(37vh * var(--wash-spread,1)) at 90% 0,${softStops("color-mix(in srgb,color-mix(in srgb,var(--wash-c,#91689c) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent)")})}
