@@ -2,7 +2,7 @@
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
 import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
-import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
+import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, gapOf, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
 
@@ -1124,5 +1124,27 @@ describe("edgeReject", () => {
   it("rejects another division's or event's overlay with readAt's reason", () => {
     expect(edgeReject("Qualification 4 of 14", "other", "another event's overlay", 14)).toBe("another event's overlay");
     expect(edgeReject("Qualification 4 of 14", "other", undefined, 14)).toBe("another division's overlay");
+  });
+});
+
+describe("gapOf (--gaps)", () => {
+  const row = { starts: { Q1: 100, Q2: 400, Q4: 1000 }, opens: { Q1: 95, Q2: 395, Q4: 995 }, medium: ["Q2", "Q4"] };
+  it("takes the live starts, and the row's opening and medium only where the row has that same start", () => {
+    const g = gapOf(row, { Q1: 100, Q2: 410, Q4: 1000 }, new Set(["Q1"]));
+    expect(g.starts).toEqual({ Q1: 100, Q2: 410, Q4: 1000 });
+    // Q2 moved on the live file: its opening is checked again, and it isn't medium for the row's sake.
+    expect(g.opens).toEqual({ Q1: 95, Q4: 995 });
+    expect([...g.medium].sort()).toEqual(["Q1", "Q4"]);
+  });
+  it("takes the row's starts where nothing is live", () => {
+    const g = gapOf(row);
+    expect(g.starts).toEqual(row.starts);
+    expect(g.opens).toEqual(row.opens);
+    expect([...g.medium].sort()).toEqual(["Q2", "Q4"]);
+  });
+  it("keeps no opening of a start the live file doesn't have", () => {
+    const g = gapOf(row, { Q1: 100 });
+    expect(g.opens).toEqual({ Q1: 95 });
+    expect([...g.medium]).toEqual([]);
   });
 });
