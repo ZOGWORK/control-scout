@@ -109,6 +109,7 @@ import { declineOf } from "./api/query/execute.js";
 import { supporters } from "./sponsors.js";
 import { statusNow } from "./uptime.js";
 import { packsRouter } from "./packs/routes.js";
+import { internalRouter } from "./internal.js";
 import { bundleRouter } from "./packs/bundle.js";
 import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, rateLimiter, statsRouter } from "./analytics.js";
 import { visitorIp } from "./visitorIp.js";
@@ -1237,6 +1238,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   // Content-Security-Policy violation reports (server/securityHeaders.ts), ahead of the API's own routes and 404.
   app.use(CSP_REPORT_PATH, cspReportRouter());
   app.use("/api", api);
+  // Control Point's calls to Scout, with the shared key (server/internal.ts, docs/shared-accounts.md).
+  app.use("/internal", internalRouter());
   app.use("/packs", packsRouter());
   // The /search page counts against the same search limit as /api/search (searchLimit).
   app.get(/^\/search\/?$/i, searches);

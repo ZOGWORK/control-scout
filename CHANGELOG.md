@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.0.8 — 2026-11-26
+
+Control Point's team dashboard can now show a team's Behind the Bot episode and its latest match clips, read from Control Scout.
+
+### Highlights
+- [workspace] Control Point's dashboard shows a team's Behind the Bot badge
+- [workspace] A team's latest match clips play from Control Point too
+- [teams] Each clip shows its own match, not the stream's cover
+
+### Teams
+- **A route for Control Point** (`server/internal.ts`, `server/videos/teamVideos.ts`): `GET /internal/teams/:n/videos` answers the creator videos whose title names the team (`featuredFor`, in a series) and its latest six match clips, newest first: FIRST's own match video, else the match's place in the event's recording, each with its own frame when its storyboard is known. Control Point calls it with the shared internal key; without a key it isn't there (404), and a wrong one is refused (401). Public data only, and nothing about a workspace or account is sent either way. Documented in `docs/shared-accounts.md`. (#2363)
+
 ## 8.0.7 — 2026-11-26
 
 A Videos tab: match clips, streams and creator videos in one feed that plays in the app, picked for each person.
