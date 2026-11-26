@@ -259,7 +259,10 @@ export async function retagAll(c: Pick<Ctx, "locked">, look?: TagLookups): Promi
   for (const [k, rule] of want) {
     if (have.get(k) === rule) continue;
     const [v, n] = k.split("|");
-    writes.push({ sql: "INSERT INTO video_team_tags (video_id, team_number, rule) VALUES (?, ?, ?) ON CONFLICT(video_id, team_number) DO UPDATE SET rule = excluded.rule", args: [v, Number(n), rule] });
+    // Never over a removal the owner made while this ran (the removals were read at its start).
+    writes.push({ sql: `INSERT INTO video_team_tags (video_id, team_number, rule) SELECT ?1, ?2, ?3
+            WHERE NOT EXISTS (SELECT 1 FROM video_tag_removals r WHERE r.video_id = ?1 AND r.team_number = ?2)
+            ON CONFLICT(video_id, team_number) DO UPDATE SET rule = excluded.rule`, args: [v, Number(n), rule] });
   }
   for (const k of have.keys()) {
     if (want.has(k)) continue;
@@ -267,7 +270,7 @@ export async function retagAll(c: Pick<Ctx, "locked">, look?: TagLookups): Promi
     writes.push({ sql: "DELETE FROM video_team_tags WHERE video_id = ? AND team_number = ?", args: [v, Number(n)] });
   }
   for (let i = 0; i < writes.length; i += 200) { const chunk = writes.slice(i, i + 200); await c.locked(() => db().batch(chunk, "write")); }
-  if (writes.length) forgetFeatured();
+  if (writes.length) await c.locked(() => tagsChanged());
   return want.size;
 }
 
@@ -409,6 +412,23 @@ export function featuredTeamSet(): Promise<Set<number>> {
   return value;
 }
 export function forgetFeatured(): void { featuredSet = null; }
+
+/** Moved whenever tags change (a run's, or a removal): team profiles are cached with it in their key
+ *  (server/api/teams.ts cachedTeamProfile), so a badge comes and goes at once, in every server process. */
+const VERSION_KEY = "creator:version";
+export const creatorVersion = async (): Promise<string> => (await kvGet<string>(VERSION_KEY)) ?? "0";
+async function tagsChanged(): Promise<void> {
+  await kvSet(VERSION_KEY, new Date().toISOString() + Math.random().toString(36).slice(2, 6));
+  forgetFeatured();
+}
+
+/** An owner's write: under the data lock like every other write here, waiting a few seconds at most. While the data
+ *  sync holds it, the owner is asked to try again instead of the write failing on a busy database. */
+const BUSY = "The data sync is writing right now: try again in a minute.";
+async function ownerWrite<T>(fn: () => Promise<T>): Promise<T | typeof BUSY> {
+  try { return await withDataLock("creator videos (owner)", fn, { ttlMs: 30_000, waitMs: 5000, pollMs: 250 }); }
+  catch (e) { if (e instanceof LockBusy || isBusy(e)) return BUSY; throw e; }
+}
 registerCache("Featured teams (creator videos)", forgetFeatured, { clipFree: true });
 
 // ---- The owner's side (Owner › Creator videos, /api/owner/creators) ----
@@ -479,9 +499,10 @@ export async function addCreatorChannel(input: unknown, actor: string, opts: { a
   if (!channelId || !CHANNEL_ID.test(channelId)) return { ok: false, error: "That isn't a YouTube channel id." };
   const at = new Date(opts.now ?? Date.now()).toISOString();
   const was = await get<{ active: number }>("SELECT active FROM creator_channels WHERE channel_id = ?", [channelId]);
-  await run(`INSERT INTO creator_channels (channel_id, handle, title, uploads_playlist, active, added_by, added_at) VALUES (?, ?, ?, ?, 1, 'owner', ?)
+  const put = await ownerWrite(() => run(`INSERT INTO creator_channels (channel_id, handle, title, uploads_playlist, active, added_by, added_at) VALUES (?, ?, ?, ?, 1, 'owner', ?)
              ON CONFLICT(channel_id) DO UPDATE SET active = 1, handle = COALESCE(excluded.handle, creator_channels.handle), title = excluded.title, uploads_playlist = excluded.uploads_playlist`,
-    [channelId, resolvedHandle, title, uploads, at]);
+    [channelId, resolvedHandle, title, uploads, at]));
+  if (put === BUSY) return { ok: false, error: BUSY };
   await recordAudit(actor, was ? "creatorChannel.reactivate" : "creatorChannel.add", { channelId, handle: resolvedHandle, title }, null, was ? { from: !!Number(was.active), to: true } : undefined);
   return { ok: true, channelId };
 }
@@ -490,7 +511,7 @@ export async function addCreatorChannel(input: unknown, actor: string, opts: { a
 export async function deactivateCreatorChannel(channelId: string, actor: string): Promise<Result> {
   const was = await get<{ title: string }>("SELECT title FROM creator_channels WHERE channel_id = ? AND active = 1", [channelId]);
   if (!was) return { ok: false, error: "That channel isn't watched." };
-  await run("UPDATE creator_channels SET active = 0 WHERE channel_id = ?", [channelId]);
+  if (await ownerWrite(() => run("UPDATE creator_channels SET active = 0 WHERE channel_id = ?", [channelId])) === BUSY) return { ok: false, error: BUSY };
   await recordAudit(actor, "creatorChannel.deactivate", { channelId, title: String(was.title) }, null, { from: true, to: false });
   return { ok: true };
 }
@@ -500,11 +521,14 @@ export async function removeCreatorTag(videoId: string, team: number, actor: str
   if (!VIDEO_ID.test(videoId) || !Number.isInteger(team) || team <= 0) return { ok: false, error: "Not a tag." };
   const tag = await get<{ rule: string }>("SELECT rule FROM video_team_tags WHERE video_id = ? AND team_number = ?", [videoId, team]);
   if (!tag) return { ok: false, error: "That tag isn't there (already removed, or derived away)." };
-  await db().batch([
-    { sql: "INSERT INTO video_tag_removals (video_id, team_number, removed_by, removed_at) VALUES (?, ?, 'owner', ?) ON CONFLICT(video_id, team_number) DO NOTHING", args: [videoId, team, new Date(now).toISOString()] },
-    { sql: "DELETE FROM video_team_tags WHERE video_id = ? AND team_number = ?", args: [videoId, team] },
-  ], "write");
-  forgetFeatured();
+  const done = await ownerWrite(async () => {
+    await db().batch([
+      { sql: "INSERT INTO video_tag_removals (video_id, team_number, removed_by, removed_at) VALUES (?, ?, 'owner', ?) ON CONFLICT(video_id, team_number) DO NOTHING", args: [videoId, team, new Date(now).toISOString()] },
+      { sql: "DELETE FROM video_team_tags WHERE video_id = ? AND team_number = ?", args: [videoId, team] },
+    ], "write");
+    await tagsChanged();
+  });
+  if (done === BUSY) return { ok: false, error: BUSY };
   await recordAudit(actor, "creatorTag.remove", { videoId, team, rule: String(tag.rule) });
   return { ok: true };
 }

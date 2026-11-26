@@ -4,7 +4,8 @@
 // longer plays and re-derives what changed, a removed tag never comes back, and every owner action is audited.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
-import { addCreatorChannel, creatorIfDue, creatorVideosFor, deactivateCreatorChannel, featuredFor, featuredTeamSet, ownerCreators, ownerTags, removeCreatorTag, runCreatorIntake, SEED_CHANNELS } from "./creatorVideos";
+import { cachedTeamProfile } from "../api/teams";
+import { addCreatorChannel, creatorIfDue, creatorVersion, creatorVideosFor, deactivateCreatorChannel, featuredFor, featuredTeamSet, ownerCreators, ownerTags, removeCreatorTag, retagAll, runCreatorIntake, SEED_CHANNELS } from "./creatorVideos";
 
 const FUN = SEED_CHANNELS[0].channelId;
 const UPLOADS = `UU${FUN.slice(2)}`;
@@ -132,8 +133,12 @@ describe("the creator-video intake", () => {
     expect(fresh?.n).toBe(0);
   });
 
-  it("takes a removed tag off for good, audited", async () => {
+  it("takes a removed tag off for good, audited, and off the cached team page at once", async () => {
+    const before = await creatorVersion();
+    expect((await cachedTeamProfile(21229))?.featured?.map((f) => f.videoId)).toEqual(["newnewnewn1", "qcqcqcqcqc1"]);
     expect(await removeCreatorTag("qcqcqcqcqc1", 21229, "owner@example.test", T0)).toEqual({ ok: true });
+    expect(await creatorVersion()).not.toBe(before);
+    expect((await cachedTeamProfile(21229))?.featured?.map((f) => f.videoId)).toEqual(["newnewnewn1"]);
     expect(await removeCreatorTag("qcqcqcqcqc1", 21229, "owner@example.test", T0)).toMatchObject({ ok: false });
     expect(await get("SELECT removed_by FROM video_tag_removals WHERE video_id = 'qcqcqcqcqc1'")).toEqual({ removed_by: "owner" });
     expect(await get("SELECT action, actor FROM owner_audit WHERE action = 'creatorTag.remove'")).toEqual({ action: "creatorTag.remove", actor: "owner@example.test" });
@@ -142,6 +147,23 @@ describe("the creator-video intake", () => {
     // Its other video still features it.
     expect((await featuredFor(21229)).map((f) => f.videoId)).toEqual(["newnewnewn1"]);
     expect((await ownerTags({ team: 21229 })).map((t) => t.videoId)).toEqual(["newnewnewn1"]);
+  });
+
+  it("never writes a tag back over a removal made while a run was deriving", async () => {
+    await run("DELETE FROM video_team_tags WHERE video_id = 'newnewnewn1'");
+    const look = { team: () => ({ name: "Quality Control" }), active: () => true, named: () => [] };
+    // The removal lands after the run read the removals, just before its write.
+    let first = true;
+    const locked = async <T,>(fn: () => Promise<T>) => {
+      if (first) { first = false; await run("INSERT INTO video_tag_removals (video_id, team_number, removed_by, removed_at) VALUES ('newnewnewn1', 21229, 'owner', 'x')"); }
+      return fn();
+    };
+    await retagAll({ locked }, look);
+    expect(await get("SELECT 1 x FROM video_team_tags WHERE video_id = 'newnewnewn1' AND team_number = 21229")).toBeUndefined();
+    // Without the removal it's derived again.
+    await run("DELETE FROM video_tag_removals WHERE video_id = 'newnewnewn1'");
+    await retagAll({ locked: (fn) => fn() }, look);
+    expect(await get("SELECT rule FROM video_team_tags WHERE video_id = 'newnewnewn1' AND team_number = 21229")).toEqual({ rule: "title:bare-name" });
   });
 
   it("adds and deactivates channels, each audited; a deactivated channel isn't read", async () => {

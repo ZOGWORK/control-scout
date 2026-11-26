@@ -1,7 +1,7 @@
 // Team profile + compare.
 import { all, get, kvGet } from "../db.js";
 import { dataVersion } from "../predict/engine.js";
-import { featuredFor } from "../videos/creatorVideos.js";
+import { creatorVersion, featuredFor } from "../videos/creatorVideos.js";
 import { registerCache } from "../caches.js";
 import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
 import type { CompareTeam, CompareView, MatchView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
@@ -171,7 +171,8 @@ registerCache("Team profiles", () => profiles.clear());
  * Callers must not change the object they get back (it's shared).
  */
 export async function cachedTeamProfile(number: number, season?: number): Promise<TeamProfile | null> {
-  const key = `${await dataVersion()}|${(await kvGet<string>("data:settled")) ?? ""}|${number}|${season ?? ""}`;
+  // The creator-video version too: a tag the owner removes takes the badge off at once (server/videos/creatorVideos.ts).
+  const key = `${await dataVersion()}|${(await kvGet<string>("data:settled")) ?? ""}|${await creatorVersion()}|${number}|${season ?? ""}`;
   const hit = profiles.get(key);
   if (hit && Date.now() - hit.at < PROFILE_TTL_MS) return hit.value;
   const value = teamProfile(number, season);
