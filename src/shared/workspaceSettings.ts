@@ -135,5 +135,6 @@ export const DEVICE_ONLY_KEYS = [
   "cs-install-demo", // automation opt-in that lets a driven browser see the nudge (npm run shots -- --install)
   "cs-connection-demo", // shows the Offline pill as offline or a Wi-Fi sign-in page, for screenshots (src/lib/connection.ts)
   "cs-recent-searches", // this device's recent searches, newest first, clearable (src/components/search/discover.tsx)
+  "cs-video-history", // signed out: what this device watched in Videos, capped (src/lib/videoHistory.ts)
   "cs-my-teams-collapsed", // the teams folded down on My teams (src/pages/MyTeamsPage.tsx)
 ] as const;
