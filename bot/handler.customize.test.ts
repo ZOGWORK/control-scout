@@ -100,7 +100,7 @@ describe("/config: how this server's answers read", () => {
       content: "https://www.youtube.com/watch?v=AAA",
       watch: [{ label: "Q1", url: "https://www.youtube.com/watch?v=AAA" }],
       next: ["4215 opr"],
-      checked: { searches: 2, unanswered: ["show me videos"] },
+      checked: { searches: 2, unanswered: ["videos"] },
     }));
     const settings = vi.fn(async () => ({ ...DEFAULT_SETTINGS, videos: false, extras: false }));
     const { i, calls } = command("ask", { question: "4215 videos" });
@@ -110,9 +110,10 @@ describe("/config: how this server's answers read", () => {
     expect(post.content).toBeUndefined();
     expect(JSON.stringify(post.components ?? [])).not.toContain("4215 opr");
     expect(JSON.stringify(post.components ?? [])).toContain(REPORT_PREFIX);
-    // The check line says what the answer checked, and the part it couldn't.
+    // The check line says what the answer checked. It does not blame a failed lookup for videos: this server turned
+    // them off, which is a choice, not a miss.
     expect(post.embeds[0].footer.text).toContain("✓ Checked 2 searches");
-    expect(post.embeds[0].footer.text).toContain("couldn't check: show me videos");
+    expect(post.embeds[0].footer.text).not.toContain("couldn't check");
   });
 
   it("an answer with clips keeps them, and its footer says what it checked", async () => {
@@ -121,13 +122,14 @@ describe("/config: how this server's answers read", () => {
       meta: { step: "deterministic" as const, refined: false, sentence: false },
       watch: [{ label: "Q1", url: "https://www.youtube.com/watch?v=AAA" }],
       next: ["4215 opr"],
-      checked: { searches: 1, unanswered: [] },
+      checked: { searches: 1, unanswered: ["who won decode"] },
     }));
     const h = createHandler(() => {}, lookups({ ask }));
     const { i, calls } = command("ask", { question: "4215 highlights" });
     await h(i);
     const post = calls[1].payload;
     expect(post.embeds[0].footer.text).toContain("✓ Checked 1 search");
+    expect(post.embeds[0].footer.text).toContain("couldn't check: who won decode");
     expect(JSON.stringify(post.components)).toContain("youtube.com");
   });
 });

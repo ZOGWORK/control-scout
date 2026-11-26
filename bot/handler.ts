@@ -361,7 +361,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       ...(prefs.extras ? {} : { next: [] }),
       ...(prefs.videos ? {} : { watch: [], content: undefined, chat: r.chat ? { ...r.chat, video: undefined } : undefined }),
     };
-    const check = checkLine(shown.checked);
+    // A server that turned videos off asked for no clips: a request for videos there isn't a failed lookup, so it isn't
+    // reported as one.
+    const checkedMeta = shown.checked
+      ? { ...shown.checked, unanswered: prefs.videos ? shown.checked.unanswered : shown.checked.unanswered.filter((u) => u !== "videos") }
+      : undefined;
+    const check = checkLine(checkedMeta);
     const embed = shown.embed;
     const checked = check
       ? { ...embed, footer: { ...(embed.footer ?? FOOTER), text: `${embed.footer?.text ?? FOOTER.text} · ${check}` } }

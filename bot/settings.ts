@@ -135,21 +135,22 @@ export type GuildSettingsPatch = Pick<GuildSettings, "quiet" | "reminders" | "pi
  * reset a style or a videos choice /config made. Read first, and only when something is missing.
  */
 export async function setGuildSettings(guild: string, s: GuildSettingsPatch, by: string | null = null, now = Date.now()): Promise<void> {
-  const missing = s.style === undefined || s.extras === undefined || s.videos === undefined;
-  const cur = missing
-    ? await get<{ style: string | null; extras: number; videos: number }>("SELECT style, extras, videos FROM discord_guild_settings WHERE guild_id = ?", [guild]).catch(() => null)
-    : null;
-  const style = s.style ?? styleOf(cur?.style ?? null);
-  const extras = s.extras ?? (cur ? Number(cur.extras) !== 0 : true);
-  const videos = s.videos ?? (cur ? Number(cur.videos) !== 0 : true);
+  // One statement, never a read followed by a write: a read that failed (or another write landing between the two)
+  // would turn "leave this alone" into "set it to the default" and erase a choice /config made. A column the patch
+  // doesn't name is left out of the update (`COALESCE` keeps the row's value), while `style` also has to be clearable:
+  // "default" writes a null, so the update takes a separate "was it named" flag.
+  const style = s.style === undefined ? null : s.style === "default" ? null : s.style;
+  const extras = s.extras === undefined ? null : s.extras ? 1 : 0;
+  const videos = s.videos === undefined ? null : s.videos ? 1 : 0;
   await run(
     `INSERT INTO discord_guild_settings (guild_id, quiet_start, quiet_end, reminders, ping_role, style, extras, videos, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, 1), COALESCE(?, 1), ?, ?)
      ON CONFLICT(guild_id) DO UPDATE SET quiet_start = excluded.quiet_start, quiet_end = excluded.quiet_end,
-       reminders = excluded.reminders, ping_role = excluded.ping_role, style = excluded.style, extras = excluded.extras,
-       videos = excluded.videos, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-    [guild, s.quiet?.start ?? null, s.quiet?.end ?? null, s.reminders ? 1 : 0, s.pingRole, style === "default" ? null : style,
-      extras ? 1 : 0, videos ? 1 : 0, new Date(now).toISOString(), by]);
+       reminders = excluded.reminders, ping_role = excluded.ping_role,
+       style = CASE WHEN ? THEN ? ELSE style END, extras = COALESCE(?, extras), videos = COALESCE(?, videos),
+       updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+    [guild, s.quiet?.start ?? null, s.quiet?.end ?? null, s.reminders ? 1 : 0, s.pingRole, style, extras, videos,
+      new Date(now).toISOString(), by, s.style === undefined ? 0 : 1, style, extras, videos]);
 }
 
 /**
