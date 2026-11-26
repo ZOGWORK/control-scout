@@ -166,6 +166,18 @@ describe("the creator-video intake", () => {
     expect(await get("SELECT rule FROM video_team_tags WHERE video_id = 'newnewnewn1' AND team_number = 21229")).toEqual({ rule: "title:bare-name" });
   });
 
+  it("moves the version when a retag fails partway, so cached team pages show what was written", async () => {
+    const ids = Array.from({ length: 250 }, (_, i) => `bulk${String(i).padStart(7, "0")}`);
+    for (const id of ids) await run("INSERT INTO creator_videos (video_id, channel_id, title, published_at, program, last_refreshed) VALUES (?, ?, 'FTC Team 7777 clip', '2026-11-01T00:00:00Z', 'unknown', 'x')", [id, FUN]);
+    const before = await creatorVersion();
+    let calls = 0;
+    const locked = async <T,>(fn: () => Promise<T>) => { if (++calls === 2) throw new Error("database busy"); return fn(); };
+    await expect(retagAll({ locked }, { team: () => ({ name: "Lucky Sevens" }), active: () => true, named: () => [] })).rejects.toThrow(/busy/);
+    expect(await creatorVersion()).not.toBe(before);
+    await run(`DELETE FROM video_team_tags WHERE video_id LIKE 'bulk%'`);
+    await run(`DELETE FROM creator_videos WHERE video_id LIKE 'bulk%'`);
+  });
+
   it("adds and deactivates channels, each audited; a deactivated channel isn't read", async () => {
     expect(await addCreatorChannel("not a channel", "owner@example.test", { apiKey: "test-key", fetchImpl: fakeFetch })).toMatchObject({ ok: false });
     expect(await addCreatorChannel("https://www.youtube.com/@another", "owner@example.test", { apiKey: "test-key", fetchImpl: fakeFetch })).toEqual({ ok: true, channelId: "UCabcdefghijklmnopqrstuv" });
@@ -173,6 +185,9 @@ describe("the creator-video intake", () => {
     expect(await deactivateCreatorChannel("UCabcdefghijklmnopqrstuv", "owner@example.test")).toEqual({ ok: true });
     expect(await deactivateCreatorChannel("UCabcdefghijklmnopqrstuv", "owner@example.test")).toMatchObject({ ok: false });
     expect((await all<any>("SELECT action FROM owner_audit WHERE action LIKE 'creatorChannel.%' ORDER BY id")).map((r) => r.action)).toEqual(["creatorChannel.add", "creatorChannel.deactivate"]);
+    // Added again with no API key (by its id): it stays named as it was, not renamed to its id.
+    expect(await addCreatorChannel(FUN, "owner@example.test", { apiKey: null })).toEqual({ ok: true, channelId: FUN });
+    expect(await get("SELECT title, active FROM creator_channels WHERE channel_id = ?", [FUN])).toEqual({ title: "FUN Robotics Network", active: 1 });
     await runCreatorIntake(log, opts(T0 + 31 * 864e5));
     expect(calls).not.toContain("playlistItems:UUabcdefghijklmnopqrstuv");
     const o = await ownerCreators();

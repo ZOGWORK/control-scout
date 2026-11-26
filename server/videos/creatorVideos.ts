@@ -269,8 +269,13 @@ export async function retagAll(c: Pick<Ctx, "locked">, look?: TagLookups): Promi
     const [v, n] = k.split("|");
     writes.push({ sql: "DELETE FROM video_team_tags WHERE video_id = ? AND team_number = ?", args: [v, Number(n)] });
   }
-  for (let i = 0; i < writes.length; i += 200) { const chunk = writes.slice(i, i + 200); await c.locked(() => db().batch(chunk, "write")); }
-  if (writes.length) await c.locked(() => tagsChanged());
+  let wrote = false;
+  try {
+    for (let i = 0; i < writes.length; i += 200) { const chunk = writes.slice(i, i + 200); await c.locked(() => db().batch(chunk, "write")); wrote = true; }
+  } finally {
+    // Any chunk committed moves the version, even when a later one failed: cached team pages show what's stored.
+    if (wrote) await c.locked(() => tagsChanged()).catch(() => forgetFeatured());
+  }
   return want.size;
 }
 
@@ -484,14 +489,15 @@ export async function addCreatorChannel(input: unknown, actor: string, opts: { a
   const handle = HANDLE.test(raw) ? raw : fromUrl?.[2] ?? null;
   if (!id && !handle) return { ok: false, error: "Paste the channel's address, its @handle or its id (UC… , 24 characters)." };
   const key = opts.apiKey === undefined ? env.youtubeApiKey : opts.apiKey;
-  let channelId = id, title = handle ?? id!, uploads = id ? uploadsOf(id) : "", resolvedHandle = handle;
+  // title: YouTube's, when it was asked; a channel added again without the key keeps the title it has.
+  let channelId = id, title: string | null = null, uploads = id ? uploadsOf(id) : "", resolvedHandle = handle;
   if (key) {
     try {
       const body = await api("channels", { part: "snippet,contentDetails", ...(id ? { id } : { forHandle: handle! }) }, key, opts.fetchImpl ?? fetch);
       const item = Array.isArray(body?.items) ? body.items[0] : null;
       if (!item) return { ok: false, error: "YouTube has no such channel." };
       channelId = String(item.id);
-      title = String(item?.snippet?.title ?? title).slice(0, 120);
+      title = item?.snippet?.title ? String(item.snippet.title).slice(0, 120) : null;
       resolvedHandle = item?.snippet?.customUrl ? String(item.snippet.customUrl) : resolvedHandle;
       uploads = String(item?.contentDetails?.relatedPlaylists?.uploads ?? uploadsOf(channelId));
     } catch (e) { return { ok: false, error: `Couldn't ask YouTube: ${(e as Error).message}` }; }
@@ -499,8 +505,9 @@ export async function addCreatorChannel(input: unknown, actor: string, opts: { a
   if (!channelId || !CHANNEL_ID.test(channelId)) return { ok: false, error: "That isn't a YouTube channel id." };
   const at = new Date(opts.now ?? Date.now()).toISOString();
   const was = await get<{ active: number }>("SELECT active FROM creator_channels WHERE channel_id = ?", [channelId]);
-  const put = await ownerWrite(() => run(`INSERT INTO creator_channels (channel_id, handle, title, uploads_playlist, active, added_by, added_at) VALUES (?, ?, ?, ?, 1, 'owner', ?)
-             ON CONFLICT(channel_id) DO UPDATE SET active = 1, handle = COALESCE(excluded.handle, creator_channels.handle), title = excluded.title, uploads_playlist = excluded.uploads_playlist`,
+  const put = await ownerWrite(() => run(`INSERT INTO creator_channels (channel_id, handle, title, uploads_playlist, active, added_by, added_at) VALUES (?1, ?2, COALESCE(?3, ?2, ?1), ?4, 1, 'owner', ?5)
+             ON CONFLICT(channel_id) DO UPDATE SET active = 1, handle = COALESCE(excluded.handle, creator_channels.handle),
+               title = COALESCE(?3, creator_channels.title), uploads_playlist = excluded.uploads_playlist`,
     [channelId, resolvedHandle, title, uploads, at]));
   if (put === BUSY) return { ok: false, error: BUSY };
   await recordAudit(actor, was ? "creatorChannel.reactivate" : "creatorChannel.add", { channelId, handle: resolvedHandle, title }, null, was ? { from: !!Number(was.active), to: true } : undefined);
