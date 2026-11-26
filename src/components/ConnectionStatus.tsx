@@ -82,7 +82,7 @@ export function ConnectionPill({ place }: { place: "phone" | "wide" }) {
   const text = pillText(conn, slow ? onScreen : onScreen ?? newestSaved(seasons, bundles, lite), undefined, slow);
   const portal = conn.internet === "portal";
   return (
-    <span role="status" className={cn("flex", place === "phone" ? "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden" : "max-md:hidden xl:pointer-events-none xl:absolute xl:right-full xl:top-1/2 xl:mr-2 xl:-translate-y-1/2")}>
+    <span role="status" className={cn("flex", place === "phone" ? "absolute left-1/2 top-[calc(50%+env(safe-area-inset-top)/2)] -translate-x-1/2 -translate-y-1/2 md:hidden" : "max-md:hidden xl:pointer-events-none xl:absolute xl:right-full xl:top-1/2 xl:mr-2 xl:-translate-y-1/2")}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button type="button" aria-label={slow ? `${text.long}. More about this` : `${text.long}. Show what's on this device`} data-connection-pill={portal ? "portal" : slow ? "slow" : "offline"}
