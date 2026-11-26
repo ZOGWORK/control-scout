@@ -60,6 +60,9 @@ export const PRIVATE_TABLES = [
   "discord_guilds", "discord_asks", "discord_answers",
   // The questions behind the bot's answer buttons (migration 110): a server's own words, deleted with its other data.
   "discord_button_questions",
+  // What each server asked of its posts, and how fast its people could ask (migration 111): server ids, a ping role and
+  // per-person counts, deleted with its other data.
+  "discord_guild_settings", "discord_person_usage",
   // The weekly email digest (migration 50): who turned it on, their unsubscribe link, and the per-week send log.
   "digest_prefs", "digest_sends",
   // The home page's hero lines (migration 55): owner settings, like feature_flags; who changed them is in owner_audit.
@@ -116,6 +119,8 @@ export const PUBLIC_TABLES = [
   "event_conferences", "conference_snapshots",
   // The bot's last-seen schedule per event (migration 110): public codes, match keys, times and team numbers.
   "discord_match_state",
+  // The bot's last-seen dates per event (migration 111): public codes and dates.
+  "discord_event_state",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero

@@ -55,6 +55,13 @@ function Usage({ u }: { u: OwnerDiscordUsage }) {
       <Stat label="Posts today" value={String(u.postsToday)} />
       <Stat label="Reported" value={String(u.reported)} hint={u.reportedPct == null ? "no answers yet" : `${u.reportedPct}% of ${u.answers} answers`} />
       <Stat label="Repeat asks" value={pct(u.repeatPct)} hint="same words twice, this week" />
+      {/* The follow tick's own health (bot/tickHealth.ts): a stopped tick looks like a quiet server in every number
+          above, so it gets its own: when it last finished, and what it couldn't send. */}
+      <Stat
+        label="Follow tick"
+        value={u.tickAt ? ago(u.tickAt) : "not yet"}
+        hint={u.tickError ? "the last tick failed" : u.tickFailed ? `${u.tickFailed} couldn't post` : "a minute at a time"}
+      />
     </div>
   );
 }

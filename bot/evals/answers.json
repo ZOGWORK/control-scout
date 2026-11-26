@@ -20,5 +20,7 @@
   { "question": "what is zog mode", "expect": "product" },
   { "question": "who are you", "expect": "smalltalk" },
   { "question": "hi bruno", "expect": "smalltalk" },
-  { "question": "thanks", "expect": "smalltalk" }
+  { "question": "thanks", "expect": "smalltalk" },
+  { "question": "who won the 1932 world championship", "expect": "refuse" },
+  { "question": "who won the 1987 world championship", "expect": "refuse" }
 ]

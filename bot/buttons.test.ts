@@ -76,19 +76,21 @@ describe("the components", () => {
   it("a row of ask buttons, then a row with the website and the videos", async () => {
     const b = new QuestionButtons();
     const rows = await answerComponents(reply({ next: ["4215 awards", "4215 opr", "4215 worlds", "4215 at worlds", "one too many"], watch: [{ label: "Q85", url: "https://youtu.be/A" }] }), b, 0, "g1");
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
     expect(rows[0].components).toHaveLength(4); // four at most: the fifth would pass Discord's row cap
     expect(rows[0].components[0]).toMatchObject({ type: 2, style: 2, label: "4215 awards" });
     expect(rows[1].components.map((c) => (c as { label?: string }).label)).toEqual(["Open on controlscout.org", "Q85"]);
+    // Every answer can be reported, whether or not it has anything to offer.
+    expect(rows[2].components[0]).toMatchObject({ type: 2, style: 2, custom_id: "report:answer", label: "Something's wrong" });
     // Each ask button's custom id is the store's, and gives the words back.
     const id = (rows[0].components[0] as { custom_id: string }).custom_id;
     expect(await buttonQuestion(b, id, 0)).toBe("4215 awards");
   });
 
-  it("nothing to offer, no row: no empty components on a message", async () => {
-    expect(await answerComponents(reply({ embed: { title: "x" } }), new QuestionButtons())).toEqual([]);
-    const only = await answerComponents(reply(), new QuestionButtons());
+  it("nothing to offer: only the report button, no empty rows", async () => {
+    const only = await answerComponents(reply({ embed: { title: "x" } }), new QuestionButtons());
     expect(only).toHaveLength(1);
     expect(only[0].components).toHaveLength(1);
+    expect(only[0].components[0]).toMatchObject({ custom_id: "report:answer" });
   });
 });

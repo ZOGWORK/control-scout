@@ -1,5 +1,5 @@
-// The interaction handler with stand-in interactions: deferred replies, the shared cache, no per-person pace, and
-// friendly errors for every failure (never the exception's words).
+// The interaction handler with stand-in interactions: deferred replies, the shared cache, the server cap and the
+// per-person pace, and friendly errors for every failure (never the exception's words).
 import { describe, expect, it, vi } from "vitest";
 import type { APIEmbed } from "discord.js";
 import { answered, createHandler, shownName, type Lookups, type Memory, type MentionMessage } from "./handler";
@@ -122,7 +122,7 @@ describe("commands", () => {
     expect(t.calls[1].payload.embeds[0].title).toBe("team 1");
   });
 
-  it("no per-person pace: two commands in a row from one person both answer", async () => {
+  it("without a pace lookup: two commands in a row from one person both answer", async () => {
     const l = lookups();
     const h = createHandler(() => {}, l);
     await h(command("team", { number: 1 }).i);
@@ -205,9 +205,9 @@ describe("AnswerCache", () => {
 
 describe("registration", () => {
   it("the commands, each one on the site's list; follow, unfollow and config need Manage Server, in servers only", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "next", "compare", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "config", "help"]);
+    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "next", "compare", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "settings", "config", "help"]);
     for (const c of COMMANDS) expect(BOT_COMMANDS.some((b) => b.usage.startsWith(`/${c.name}`)), c.name).toBe(true);
-    for (const name of ["follow", "unfollow", "config"]) {
+    for (const name of ["follow", "unfollow", "settings", "config"]) {
       const c = COMMANDS.find((x) => x.name === name)!;
       expect(c.default_member_permissions).toBe("32"); // Manage Server
       expect(c.contexts).toEqual([0]); // guild only
@@ -638,11 +638,12 @@ describe("the answer's buttons", () => {
     c.i.guildId = "g1";
     await h(c.i);
     const post = c.calls.at(-1)!.payload;
-    expect(post.components).toHaveLength(2);
+    expect(post.components).toHaveLength(3);
     expect(post.components[0].components[0]).toMatchObject({ type: 2, style: 2, label: "4215 awards" });
     expect(post.components[0].components[0].custom_id).toMatch(/^ask:/);
     expect(post.components[1].components.map((b: any) => b.label)).toEqual(["Open on controlscout.org", "Q85"]);
     expect(post.components[1].components[0].url).toBe("https://controlscout.org/search?q=4215");
+    expect(post.components[2].components[0]).toMatchObject({ custom_id: "report:answer", label: "Something's wrong" });
     // The click answers in the channel, as /ask would (with the make-up the channel needs to see).
     const b = button(post.components[0].components[0].custom_id);
     await h(b.i);

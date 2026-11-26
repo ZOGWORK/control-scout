@@ -17,8 +17,38 @@ an embed that links back to controlscout.org:
 | `/following` | What the server follows — teams and events — and where each posts (up to 10 in all) |
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below), with buttons for what to ask next |
 | `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👎 an answer to report it |
+| `/settings` | How this server gets its posts: quiet hours (UTC), whether match reminders are on, and a role to ping on them. Manage Server only, answered privately |
 | `/config` | What the bot is and can do here, read live: the release it runs, the account it is and how many servers it is in, the season, the site it talks to, chat on (or why it isn't) and the chat limit this server has, report filing, the follow posts, whether its commands are registered globally or only in the test server, and when it last reached Discord. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
+
+## /settings: what a server asks of its posts
+
+`bot/settings.ts` (migration 111, `discord_guild_settings`). A server with no row gets everything: no quiet hours, match
+reminders on, no ping. `/settings` shows that, and changing one thing carries the rest over rather than resetting them.
+
+- **quiet hours** are UTC (`22-7`, wrapping past midnight), because Discord gives the bot no server time zone and a
+guessed one would silence the wrong hours. Inside them nothing is posted, and a reminder that falls there is skipped,
+not sent late — which is what the command's own copy says.
+- **reminders off** keeps results, schedules, evening-befores, recaps and the season notice, and drops the 15-minute
+reminder, the on-deck post and schedule-change alerts.
+- **ping role** rides only on the reminder and the on-deck post, and only that role: the message mentions nobody else, so
+no `@everyone` or `@here` can ride along.
+
+**Team options autocomplete by number or name** (`bot/lookups.ts` `teamChoices`): `/team`, `/next`, `/compare`,
+`/follow team:` and `/unfollow team:` offer up to 25 teams as `4215 — Alpha`, from the same table they look up, so nobody
+has to know a team's number before they can ask about it. An exact number ranks first, then numbers that start with it,
+then names.
+
+**/following says what happens next**: each follow's next post and when ("next: reminder in 3 hours", "next: a recap
+after the day's last match", "next: nothing scheduled"), read from the same schedule the tick reads.
+
+Settings are read once a minute by the tick (one query, not one a channel) and a failed read posts as before rather than
+going silent. They go with the server's other rows when the bot is removed (`bot/forget.ts`).
+
+**Each person is paced too** (`bot/pacing.ts`, migration 111): six chats a UTC minute and thirty a UTC hour, per person
+per server, counted in `discord_person_usage` so a restart doesn't reset them. A server's cap (`bot/quota.ts`) bounds the
+whole server; without this, one member could spend it alone, or make the bot answer a channel in a loop. A report is not
+a chat and takes neither. The refusal is private, says which window, and points at the site, which has no such limit.
 
 ## /next
 
@@ -53,6 +83,13 @@ can't answer get "Sorry — I can't answer that yet", what was read, and questio
 buttons instead. An answer Bruno helped with carries **Bruno AI, from Control Point** in the footer above Control
 Scout's line; a deterministic one never does. Bruno off, unconfigured, failing or slow: the deterministic answer
 posts anyway.
+
+**Something's wrong** (`bot/buttons.ts`, `bot/handler.ts` `reportSubmitted`). Every answer carries one labelled button
+under it: a person who notices a wrong number says so in a modal ("what's wrong with this answer?") and the bot files the
+same `Discord type issue` a 👎 does, with the question, what produced the answer, the search step and the person's own
+words. The phrase is still there for a message, but the button is what most people will use. One issue per answer: a
+second report answers with the issue the first one opened. A report is not a chat: it takes neither the server's cap
+nor the person's pace.
 
 **The answer's buttons** (`bot/buttons.ts`). Every answer with something to offer carries one row of questions and
 one row of links: up to three questions to ask next (search's own suggestions for a question it couldn't answer, else
@@ -141,6 +178,16 @@ chat, so a server at its cap can still report a bug.
 Whether reporting is wired up is said once at startup (`report filing on: GITHUB_REPORT_TOKEN is set`, or `report
 filing off: …`), so the journal answers it — `journalctl -u control-scout-bot | grep 'report filing'` — without filing
 a test issue. It says whether the variable is set, never its value; a token added later shows on the next restart.
+
+**The schedule as it changes** (`bot/eventChanges.ts`): a followed match whose start moves, whose lineup changes, or
+that appears late (a playoff pairing) is posted once, and the on-deck post says where the event is up to — "2 unplayed
+matches before it (Q14 is on the field now)" — because the wall clock alone doesn't say whether the team should be at
+the field. A meet moved to another weekend posts once too: its dates are stored per event (`discord_event_state`) and
+compared, so a date change is announced rather than leaving the channel expecting the old weekend.
+
+**The tick's own health** (`bot/tickHealth.ts`): the last time it finished, how many posts it sent and how many failed,
+kept in `kv` and shown on the owner console beside the bot's other numbers. Without it a bot that is connected while its
+tick throws looks exactly like a quiet server.
 
 **What it is and can do, at startup** (`bot/config.ts`): nine lines starting `config:`, said once the database is open —
 

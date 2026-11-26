@@ -50,6 +50,11 @@ export interface OwnerDiscordUsage {
   reportedPct: number | null;
   /** Share of the week's asks whose exact words were asked more than once (0–100; null with no asks). */
   repeatPct: number | null;
+  /** When the follow tick last finished (bot/tickHealth.ts); null: none has run since this shipped. */
+  tickAt: string | null;
+  /** Sends the last tick couldn't make, and the error when it failed outright instead of finishing. */
+  tickFailed: number;
+  tickError: string | null;
 }
 
 /** A question the bot couldn't answer, most asked first: what people actually typed, which search never sees. */
