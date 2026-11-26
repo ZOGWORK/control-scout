@@ -32,8 +32,8 @@ export async function feedCreatorVideos(opts: { since?: string; limit: number })
   const tags = await all<{ video_id: string; team_number: number }>(`SELECT video_id, team_number FROM video_team_tags WHERE video_id IN (${ids.map(() => "?").join(",")})`, ids).catch(() => []);
   const byVideo = new Map<string, number[]>();
   for (const t of tags) { const k = String(t.video_id); const l = byVideo.get(k) ?? byVideo.set(k, []).get(k)!; if (!l.includes(Number(t.team_number))) l.push(Number(t.team_number)); }
-  // The channel's name, when the channels table has one (creator_channels, migration 114); else none is said.
-  const chans = await all<{ channel_id: string; name: string | null }>(`SELECT channel_id, name FROM creator_channels WHERE channel_id IN (${[...new Set(rows.map((r) => String(r.channel_id)))].map(() => "?").join(",")})`,
+  // The channel's title, when the channels table has it (creator_channels, migration 114); else none is said.
+  const chans = await all<{ channel_id: string; name: string | null }>(`SELECT channel_id, title name FROM creator_channels WHERE channel_id IN (${[...new Set(rows.map((r) => String(r.channel_id)))].map(() => "?").join(",")})`,
     [...new Set(rows.map((r) => String(r.channel_id)))]).catch(() => []);
   const chanName = new Map(chans.map((c) => [String(c.channel_id), c.name ? String(c.name) : null]));
   return rows.map((r) => ({
