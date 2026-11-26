@@ -374,8 +374,10 @@ async function readSeason(season: number, codes: string[], recheckOnly: Readonly
   const before = readFileSync(file, "utf8"), liveFile = join(DIR, `live-${season}.ts`);
   writeFileSync(liveFile, liveText(file));
   keepFile(file);
-  // An event with rows already (read before it finished, or one of its videos read) is read again whole (--all): the
-  // reader otherwise skips an event whose videos all have rows. The others read what isn't read yet.
+  // An event with rows already (read before it finished, or one of its videos read) is read again for its gaps only
+  // (--gaps): each match without a start looked for between the starts either side of it, which stand as read. Read
+  // whole (--all) it walked every match again for one gap, and its re-read starts came back seconds off the live ones.
+  // The others read what isn't read yet.
   const hasRows = new Set(fileRows(before).map((r) => r.code));
   const reading = codes.filter((c) => !recheckOnly.has(c));
   const again = reading.filter((c) => hasRows.has(c)), fresh = reading.filter((c) => !hasRows.has(c));
@@ -398,7 +400,7 @@ async function readSeason(season: number, codes: string[], recheckOnly: Readonly
   // eventLimitMs, 3 h at least). This one is a day, or the sum of its events' limits and an hour when that's more
   // (readCallMs), so it never cuts an event before the event's own limit does.
   const limits = await eventLimits(season);
-  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) await pass(["--codes", list.join(","), ...extra], readCallMs(list.map((c) => limits.get(c) ?? 0)), `read ${list.join(",")}`);
+  for (const [list, extra] of [[fresh, []], [again, ["--gaps"]]] as const) if (list.length) await pass(["--codes", list.join(","), ...extra], readCallMs(list.map((c) => limits.get(c) ?? 0)), `read ${list.join(",")}`);
   for (const p of ["--verify", "--bounds", "--recheck"]) await pass(["--codes", codes.join(","), p], 3 * 3600_000, p);
   const after = readFileSync(file, "utf8");
   writeFileSync(file, before);
