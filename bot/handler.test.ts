@@ -309,6 +309,10 @@ describe("follows", () => {
     await createHandler(() => {}, lookups())(i);
     const text = calls[1].payload.embeds[0].description as string;
     for (const c of BOT_COMMANDS) expect(text).toContain(c.usage);
+    // /config sets answers here too, not only the setup readout.
+    expect(text).toContain("style: short, default or detailed");
+    expect(text).toContain("extras: false");
+    expect(text).toContain("videos: false");
   });
 });
 
