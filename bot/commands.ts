@@ -12,19 +12,19 @@ export const COMMANDS: CommandDef[] = [
   {
     name: "team",
     description: "A team's season: record, OPR, world ranking, its next event and next match",
-    options: [{ type: ApplicationCommandOptionType.Integer, name: "number", description: "FTC team number", required: true, min_value: 1, max_value: 999999 }],
+    options: [{ type: ApplicationCommandOptionType.Integer, name: "number", description: "FTC team number or name", required: true, autocomplete: true, min_value: 1, max_value: 999999 }],
   },
   {
     name: "next",
     description: "A team's next match: when, with whom, and the win odds",
-    options: [{ type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number", required: true, min_value: 1, max_value: 999999 }],
+    options: [{ type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number or name", required: true, autocomplete: true, min_value: 1, max_value: 999999 }],
   },
   {
     name: "compare",
     description: "Two teams side by side: records, OPR and who wins the head-to-head",
     options: [
-      { type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number", required: true, min_value: 1, max_value: 999999 },
-      { type: ApplicationCommandOptionType.Integer, name: "other", description: "The team to compare it with", required: true, min_value: 1, max_value: 999999 },
+      { type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number or name", required: true, autocomplete: true, min_value: 1, max_value: 999999 },
+      { type: ApplicationCommandOptionType.Integer, name: "other", description: "The team to compare it with", required: true, autocomplete: true, min_value: 1, max_value: 999999 },
     ],
   },
   {
@@ -49,7 +49,7 @@ export const COMMANDS: CommandDef[] = [
     description: "Post here for a team's matches and results, or for a whole event",
     ...MANAGE,
     options: [
-      { type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number (or name an event instead)", min_value: 1, max_value: 999999 },
+      { type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number or name (or name an event instead)", autocomplete: true, min_value: 1, max_value: 999999 },
       { type: ApplicationCommandOptionType.String, name: "event", description: "Event name or code, instead of a team", autocomplete: true, max_length: 100 },
       { type: ApplicationCommandOptionType.Channel, name: "channel", description: "Where to post (this channel if left out)", channel_types: [ChannelType.GuildText, ChannelType.GuildAnnouncement] },
     ],
@@ -59,7 +59,7 @@ export const COMMANDS: CommandDef[] = [
     description: "Stop the automatic posts for a team or an event",
     ...MANAGE,
     options: [
-      { type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number", min_value: 1, max_value: 999999 },
+      { type: ApplicationCommandOptionType.Integer, name: "team", description: "FTC team number or name", autocomplete: true, min_value: 1, max_value: 999999 },
       { type: ApplicationCommandOptionType.String, name: "event", description: "Event name or code", autocomplete: true, max_length: 100 },
       { type: ApplicationCommandOptionType.Channel, name: "channel", description: "Only in this channel (every channel if left out)", channel_types: [ChannelType.GuildText, ChannelType.GuildAnnouncement] },
     ],
@@ -73,6 +73,16 @@ export const COMMANDS: CommandDef[] = [
     name: "ask",
     description: "Ask anything in plain words: the website's search answers it",
     options: [{ type: ApplicationCommandOptionType.String, name: "question", description: "Like the search box: who won decode, 4215 vs 6980, 4215 highlights", required: true, max_length: 500 }],
+  },
+  {
+    name: "settings",
+    description: "How this server gets its posts: quiet hours, match reminders, a role to ping",
+    ...MANAGE,
+    options: [
+      { type: ApplicationCommandOptionType.String, name: "quiet_hours", description: "UTC hours to stay silent, like 22-7, or off for none", max_length: 20 },
+      { type: ApplicationCommandOptionType.Boolean, name: "reminders", description: "A heads-up before each match (off: results and event posts only)" },
+      { type: ApplicationCommandOptionType.String, name: "ping_role", description: "Role to ping on a reminder: <@&id>, a role id, or none", max_length: 40 },
+    ],
   },
   {
     name: "config",

@@ -2933,6 +2933,45 @@ CREATE TABLE IF NOT EXISTS discord_match_state (
 CREATE INDEX IF NOT EXISTS discord_match_state_seen ON discord_match_state (seen_at);
 `,
   },
+  {
+    version: 111,
+    name: "discord bot: per-server alerts, per-person pace, event dates, tick health",
+    sql: `
+-- What one server asked of the bot's posts (bot/settings.ts, /settings): quiet hours in UTC (quiet_start..quiet_end,
+-- wrapping past midnight), whether match-day heads-ups are posted at all, and a role to ping on them. No row: every
+-- post, no quiet hours, no ping. Deleted with the server's other rows when the bot is removed (bot/forget.ts).
+CREATE TABLE IF NOT EXISTS discord_guild_settings (
+  guild_id TEXT PRIMARY KEY,
+  quiet_start INTEGER,
+  quiet_end INTEGER,
+  reminders INTEGER NOT NULL DEFAULT 1,
+  ping_role TEXT,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT
+);
+-- One person's chats in one server, counted in short windows (bot/pacing.ts): so one member can't spend a server's
+-- whole hourly allowance, or make the bot answer a channel in a loop. A Discord id and a count, kept with the server.
+CREATE TABLE IF NOT EXISTS discord_person_usage (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  window TEXT NOT NULL,
+  used INTEGER NOT NULL,
+  PRIMARY KEY (guild_id, user_id, window)
+);
+CREATE INDEX IF NOT EXISTS discord_person_usage_guild ON discord_person_usage (guild_id);
+-- An event's dates as the last tick saw them (bot/eventChanges.ts): a meet moved to another weekend is posted once, to
+-- the channels following it. Public dates only, pruned like the schedule state.
+CREATE TABLE IF NOT EXISTS discord_event_state (
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  start TEXT,
+  end TEXT,
+  seen_at TEXT NOT NULL,
+  PRIMARY KEY (season, code)
+);
+CREATE INDEX IF NOT EXISTS discord_event_state_seen ON discord_event_state (seen_at);
+`,
+  },
 ];
 
 export type Db = Client;

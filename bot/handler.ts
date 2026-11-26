@@ -2,16 +2,18 @@
 // allows 3 seconds for a first response; a cold event can take longer), and every failure becomes a
 // friendly embed, logged here with the command and its arguments. Autocomplete answers from a cached
 // event list and never throws.
-import { MessageFlags, PermissionFlagsBits, type APIActionRowComponent, type APIButtonComponent, type APIEmbed, type AutocompleteInteraction, type ButtonInteraction, type ChatInputCommandInteraction, type Interaction } from "discord.js";
+import { ComponentType, MessageFlags, PermissionFlagsBits, TextInputStyle, type APIActionRowComponent, type APIButtonComponent, type APIEmbed, type AutocompleteInteraction, type ButtonInteraction, type ChatInputCommandInteraction, type Interaction, type ModalSubmitInteraction } from "discord.js";
 import { AnswerCache } from "./guard.js";
 import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
 import { addFollow, followName, followingEmbed, listFollows, removeFollow, type FollowTarget } from "./follows.js";
-import { answerComponents, buttonQuestion, dbButtonStore, QuestionButtons } from "./buttons.js";
+import { REPORT_PREFIX, answerComponents, buttonQuestion, dbButtonStore, QuestionButtons } from "./buttons.js";
+import { guildSettings, parseQuiet, setGuildSettings, settingsEmbed, type GuildSettings } from "./settings.js";
+import { paceEmbed, takePersonChat, type Pace } from "./pacing.js";
 import { answerRow as answerRowOf, markReported, trackAnswer, type AnswerRow } from "./reactions.js";
 import { noteAsk, type AskRecord } from "./asks.js";
 import { SORRY_SENTENCE } from "../src/shared/search.js";
 import { BOT_COMMANDS } from "../src/shared/discord.js";
-import { eventChoices, eventCode, eventLookup, nextLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
+import { eventChoices, eventCode, eventLookup, nextLookup, predictLookup, rankChoices, rankTeamChoices, rankingsLookup, site, teamChoices, teamLookup } from "./lookups.js";
 import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
 import { ask as askSearch, chatPost, offeredQuestion, realAskDeps, recordsTurn, type AskDeps, type AskReply } from "./ask.js";
@@ -34,6 +36,13 @@ export interface Lookups {
   eventCode?: (input: string) => Promise<string>;
   rankings: () => Promise<APIEmbed>;
   choices: (typed: string) => Promise<{ name: string; value: string }[]>;
+  /** Team choices for autocomplete, by number or name: the option is an integer, so the value is the number as text. */
+  teamChoices?: (typed: string) => Promise<{ name: string; value: string }[]>;
+  /** What one server asked of its follow posts (/settings, bot/settings.ts); absent: the defaults. */
+  settings?: (guild: string) => Promise<GuildSettings>;
+  saveSettings?: (guild: string, s: Pick<GuildSettings, "quiet" | "reminders" | "pingRole">, by: string | null) => Promise<void>;
+  /** One person's pace in one server (bot/pacing.ts): six a minute, thirty an hour. Absent: nobody is paced. */
+  pace?: (guild: string, user: string) => Promise<Pace>;
   follow: (guild: string, channel: string, target: FollowTarget, by: string) => Promise<"added" | "already">;
   unfollow: (guild: string, target: FollowTarget, channel?: string | null) => Promise<number>;
   following: (guild: string) => Promise<APIEmbed>;
@@ -95,6 +104,10 @@ export const realLookups: Lookups = {
   eventCode,
   rankings: () => rankingsLookup(),
   choices: async (typed) => rankChoices(await eventChoices(), typed),
+  teamChoices: async (typed) => rankTeamChoices(await teamChoices(), typed),
+  settings: guildSettings,
+  saveSettings: (guild, s, by) => setGuildSettings(guild, s, by),
+  pace: takePersonChat,
   follow: addFollow,
   unfollow: removeFollow,
   following: async (guild) => followingEmbed(await listFollows(guild), site()),
@@ -257,6 +270,9 @@ export function describe(i: Pick<ChatInputCommandInteraction, "commandName" | "o
 /** The bot's own log lines a report carries (bot/report.ts): enough to see what it did for the message, no more. */
 export const REPORT_LOG_LINES = 20;
 
+/** The custom id of the modal an answer's "Something's wrong" button opens (bot/buttons.ts). */
+export const REPORT_MODAL = "report:answer";
+
 /** A report already filed for the same words in the same server, and when: a second "report this" answers the same
  *  issue rather than opening another. */
 const REPORT_REPEAT_MS = 10 * 60_000;
@@ -284,6 +300,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   const quota = lookups.quota;
   const mayChat = async (guild: string | null | undefined): Promise<Quota> =>
     !guild || !quota ? { ok: true } : quota(guild).catch((): Quota => ({ ok: true }));
+  // This person's pace in this server (bot/pacing.ts). A read that fails allows the chat, like the server cap does.
+  const mayPace = async (guild: string | null | undefined, user: string | null | undefined): Promise<Pace> =>
+    !guild || !user || !lookups.pace ? { ok: true } : lookups.pace(guild, user).catch((): Pace => ({ ok: true }));
 
   /**
    * /ask and a mention, logged with the question and how it was answered (never who asked). Cached by the whole
@@ -443,6 +462,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
           ? lookups.config(i.guildId)
           : Promise.reject(new Friendly("Couldn't read the config", "This bot couldn't read its own setup just now. Try again in a moment."));
       case "follow": case "unfollow": case "following": return manage(i);
+      case "settings": return serverSettings(i);
       default: return Promise.reject(new Friendly("Unknown command", "This command isn't one Control Scout knows. Try /help for the list."));
     }
   }
@@ -502,6 +522,43 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     };
   }
 
+  /**
+   * /settings (Manage Server): what this server asked of the bot's posts, and the one place it changes them
+   * (bot/settings.ts). No option given shows them; any given changes that one. Quiet hours are UTC, since Discord gives
+   * the bot no server time zone and a guessed one would silence the wrong hours.
+   */
+  async function serverSettings(i: ChatInputCommandInteraction): Promise<APIEmbed> {
+    const guild = i.guildId;
+    if (!guild) throw new Friendly("Servers only", "Post settings belong to a server: use this in one of its channels.");
+    if (!lookups.settings) throw new Friendly("Couldn't read the settings", "This bot couldn't read its own settings just now. Try again in a moment.");
+    const now = await lookups.settings(guild);
+    const quietText = i.options.getString("quiet_hours");
+    const reminders = i.options.getBoolean("reminders");
+    const roleText = (i.options.getString("ping_role") ?? "").trim();
+    // Nothing asked for: just show the settings as they are.
+    if (quietText == null && reminders == null && !roleText) return settingsEmbed(now, guild);
+    let quiet = now.quiet;
+    if (quietText != null) {
+      const parsed = parseQuiet(quietText);
+      if ("problem" in parsed) throw new Friendly("Quiet hours?", parsed.problem);
+      quiet = parsed.quiet;
+    }
+    let pingRole = now.pingRole;
+    if (roleText) {
+      if (/^(none|off|no)$/i.test(roleText)) pingRole = null;
+      else {
+        const m = /^(?:<@&)?(\d{15,22})>?$/.exec(roleText);
+        if (!m) throw new Friendly("Which role?", "Give a role as a mention (`@Scouts`) or its id, or `none` to ping nobody.");
+        // @everyone's role id is the server's own id, and `<@&server>` pings everyone: never accept it as "a role".
+        if (m[1] === guild) throw new Friendly("Which role?", "That's this server's @everyone role. Name the role to ping, or `none` to ping nobody.");
+        pingRole = m[1];
+      }
+    }
+    if (!lookups.saveSettings) throw new Friendly("Couldn't save the settings", "This bot couldn't save its settings just now. Try again in a moment.");
+    await lookups.saveSettings(guild, { quiet, reminders: reminders ?? now.reminders, pingRole }, i.user.id);
+    return settingsEmbed(await lookups.settings(guild), guild);
+  }
+
   async function command(i: ChatInputCommandInteraction): Promise<void> {
     // Switched off by the owner: a short, private note for whoever asked, and nothing else runs (follows are kept).
     if (lookups.enabled && !(await lookups.enabled("discordBot"))) {
@@ -510,7 +567,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     }
     
     // /config answers privately: it describes this bot's own setup, which a channel doesn't need to read.
-    await i.deferReply(i.commandName === "config" ? { flags: MessageFlags.Ephemeral } : undefined);
+    // /config and /settings answer privately: both describe this bot's setup, which a channel doesn't need to read.
+    await i.deferReply(i.commandName === "config" || i.commandName === "settings" ? { flags: MessageFlags.Ephemeral } : undefined);
     if (i.commandName === "ask" || i.commandName === "compare") {
       const question = i.commandName === "ask" ? i.options.getString("question", true) : compareQuestion(i);
       // A team compared with itself answers nothing: say so instead of asking search for it.
@@ -518,7 +576,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         await i.editReply({ embeds: [pride(errorEmbed("Two teams, please", "Pick two different numbers: `/compare team:4215 other:6980`."))] });
         return;
       }
-      // The server's chat limit (bot/quota.ts): said plainly, before any lookup.
+      // This person's own pace (bot/pacing.ts) before the server's cap (bot/quota.ts): a chat the pace refuses never
+      // happened, so it must not spend a slot of the server's allowance. Either is said plainly, before any lookup.
+      const fast = await mayPace(i.guildId, i.user.id);
+      if (!fast.ok) { await i.editReply({ embeds: [pride({ ...paceEmbed(fast), color: VOLT, footer: FOOTER })] }); return; }
       const over = await mayChat(i.guildId);
       if (!over.ok) { await i.editReply({ embeds: [pride(limitEmbed(over))] }); return; }
       // "Report this to ControlScout" in /ask: the same report a mention files (bot/report.ts), before the chat limit —
@@ -571,7 +632,13 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     let list: { name: string; value: string }[] = [];
     try {
       if (lookups.enabled && !(await lookups.enabled("discordBot"))) { await i.respond([]); return; }
-      list = await lookups.choices(String(i.options.getFocused() ?? ""));
+      // A team option answers with teams (by number or name); every other autocompleted option is an event.
+      const focused = i.options.getFocused(true) as { name: string; value: string | number };
+      const typed = String(focused.value ?? "");
+      const teamOption = focused.name === "number" || focused.name === "team" || focused.name === "other";
+      list = teamOption
+        ? await (lookups.teamChoices ?? (async () => []))(typed)
+        : await lookups.choices(typed);
     } catch (e) {
       logLine(`autocomplete /${i.commandName} failed: ${(e as Error)?.message ?? String(e)}`);
     }
@@ -621,6 +688,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       }
       // The server's chat limit, if one is set (none is, today): said in the channel, before the typing indicator goes up.
       // After the bare-mention help: that asks nothing of Control Scout, so it never uses a chat.
+      // The pace first: a chat it refuses must not spend a slot of the server's own allowance.
+      const fast = await mayPace(m.guildId, m.author.id);
+      if (!fast.ok) { await card({ ...paceEmbed(fast), color: VOLT, footer: FOOTER }); return; }
       const over = await mayChat(m.guildId);
       if (!over.ok) { await card(limitEmbed(over)); return; }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this message adds.
@@ -722,11 +792,17 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       await i.reply({ embeds: [pride(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works."))], flags: MessageFlags.Ephemeral });
       return;
     }
+    // "Something's wrong" under an answer: a report of that answer, asked in a modal rather than in a phrase nobody
+    // knows (bot/report.ts). It is not a chat, so it takes neither the server's cap nor the person's pace.
+    if (i.customId.startsWith(REPORT_PREFIX)) { await reportQuestion(i); return; }
     const question = await buttonQuestion(buttons, i.customId);
     if (question === null) {
       await i.reply({ content: "That button's question isn't kept any more (it is from before this bot kept them). Ask it with `/ask question:`.", flags: MessageFlags.Ephemeral });
       return;
     }
+    // The pace first: a button press it refuses must not spend a slot of the server's own allowance.
+    const fast = await mayPace(i.guildId, i.user.id);
+    if (!fast.ok) { await i.reply({ embeds: [pride({ ...paceEmbed(fast), color: VOLT, footer: FOOTER })], flags: MessageFlags.Ephemeral }); return; }
     const over = await mayChat(i.guildId);
     if (!over.ok) { await i.reply({ embeds: [pride(limitEmbed(over))], flags: MessageFlags.Ephemeral }); return; }
     await i.deferReply();
@@ -751,17 +827,72 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     }
   }
 
+  /** The modal behind an answer's "Something's wrong" button (bot/buttons.ts). */
+  async function reportQuestion(i: ButtonInteraction): Promise<void> {
+    if (!lookups.report) {
+      await i.reply({ content: "Reporting isn't set up on this bot right now. Everything on controlscout.org still works.", flags: MessageFlags.Ephemeral });
+      return;
+    }
+    await i.showModal({
+      title: "Something's wrong",
+      custom_id: REPORT_MODAL,
+      components: [{
+        type: ComponentType.ActionRow,
+        components: [{
+          type: ComponentType.TextInput, custom_id: "note", label: "What's wrong with this answer?",
+          style: TextInputStyle.Paragraph, required: true, max_length: 500,
+          placeholder: "A wrong number, a wrong team, out of date…",
+        }],
+      }],
+    }).catch((e) => logLine(`report modal failed: ${(e as Error)?.message ?? String(e)}`));
+  }
+
+  /**
+   * The report button's modal, filled in: the same issue a 👎 files (bot/report.ts), with the question the answer was
+   * written for, what produced it, and what the person typed — so a wrong answer can be reported by the people who
+   * notice it instead of only by someone who knows the report phrase.
+   */
+  async function reportSubmitted(i: ModalSubmitInteraction): Promise<void> {
+    if (i.customId !== REPORT_MODAL) return;
+    try {
+      const raw = i.message;
+      // Discord sends an id alone for a message it has no copy of (an answer from before the last restart).
+      const whole = raw && raw.partial && raw.fetch ? await raw.fetch().catch(() => raw) : raw;
+      const row = whole?.id ? await lookups.answerRow?.(whole.id).catch(() => null) : null;
+      if (!whole?.id || !row) {
+        await i.reply({ content: "That message isn't one of my answers, so there's nothing to report from it.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      await i.deferReply({ flags: MessageFlags.Ephemeral });
+      // Already reported (a 👎, or the button a moment ago): the same issue rather than another.
+      if (row.report) { await i.editReply({ embeds: [pride(reportedEmbed(row.report))] }); return; }
+      const note = i.fields.getTextInputValue("note").trim().slice(0, 500);
+      const said = (whole.content ?? "").trim();
+      const about = {
+        source: row.source, step: row.step, ms: row.ms,
+        url: whole.guildId && whole.channelId ? `https://discord.com/channels/${whole.guildId}/${whole.channelId}/${whole.id}` : null,
+      };
+      const opened = await reportIt(`answer:${whole.id}`,
+        { guild: whole.guildId ?? null, channel: whole.channelId ?? null, user: i.user.id, name: shownName(i.user, i.member), answer: about, note },
+        row.question ?? QUESTION_UNRECORDED, said ? [turn("bruno", said)] : [], (embed) => i.editReply({ embeds: [pride(embed)] }));
+      if (opened?.ok) await Promise.resolve(lookups.rememberReport?.(whole.id, opened)).catch(() => {});
+    } catch (e) {
+      logLine(`report modal failed: ${(e as Error)?.message ?? String(e)}`);
+    }
+  }
+
   async function handle(i: Interaction): Promise<void> {
     try {
       if (i.isChatInputCommand()) await command(i);
       else if (i.isAutocomplete()) await autocomplete(i);
       else if (i.isButton()) await pressed(i);
+      else if (i.isModalSubmit()) await reportSubmitted(i);
     } catch (e) {
       // Discord itself failed (the interaction expired, the network dropped): log it and stay up.
       logLine(`interaction failed: ${(e as Error)?.message ?? String(e)}`);
     }
   }
-  return Object.assign(handle, { mention, downvoted });
+  return Object.assign(handle, { mention, downvoted, reportSubmitted });
 }
 
 /** The parts of a discord.js Message a mention answer uses (a stand-in in tests). */

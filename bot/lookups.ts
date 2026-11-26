@@ -145,6 +145,48 @@ export function eventChoices(now = Date.now()): Promise<EventChoice[]> {
   return list;
 }
 
+/** A team as autocomplete offers it. */
+export interface TeamChoice { number: number; name: string | null }
+let teamList: { at: number; list: Promise<TeamChoice[]> } | null = null;
+/** Every team is a choice (the table is under 10,000 rows); filtered in memory per keystroke. */
+const TEAM_CHOICES_MAX = 10_000;
+
+/** The teams there are, one bounded read a minute: a number and the name people know it by. */
+export function teamChoices(now = Date.now()): Promise<TeamChoice[]> {
+  if (teamList && now - teamList.at < CHOICES_TTL_MS) return teamList.list;
+  const list = all<TeamChoice>("SELECT number, name FROM teams WHERE number BETWEEN 1 AND 30000 ORDER BY number LIMIT ?", [TEAM_CHOICES_MAX]);
+  teamList = { at: now, list };
+  list.catch(() => { if (teamList?.list === list) teamList = null; });
+  return list;
+}
+
+/**
+ * Up to 25 teams for what's typed, by number or name: an exact number first, then numbers that start with it, then names
+ * that start with it, then anything whose name or number contains it. Nothing typed: nothing offered (a list of random
+ * teams is worse than typing a number). The value is the number as a string, which is what an integer option accepts.
+ */
+export function rankTeamChoices(list: TeamChoice[], typed: string): { name: string; value: string }[] {
+  const q = typed.trim().toLowerCase();
+  if (!q) return [];
+  const score = (t: TeamChoice) => {
+    const n = String(t.number), name = (t.name ?? "").toLowerCase();
+    if (n === q) return -3;
+    if (n.startsWith(q)) return -2;
+    if (name.startsWith(q)) return -1;
+    if (name.includes(q) || n.includes(q)) return 0;
+    return null;
+  };
+  return list
+    .map((t) => ({ t, s: score(t) }))
+    .filter((x): x is { t: TeamChoice; s: number } => x.s != null)
+    .sort((a, b) => a.s - b.s || a.t.number - b.t.number)
+    .slice(0, 25)
+    .map(({ t }) => {
+      const label = `${t.number}${t.name ? ` — ${t.name}` : ""}`;
+      return { name: label.length > 100 ? `${label.slice(0, 99)}…` : label, value: String(t.number) };
+    });
+}
+
 /** Up to 25 choices for what's typed: a code match first, then events on now, then by start date. */
 export function rankChoices(list: EventChoice[], typed: string, now = Date.now()): { name: string; value: string }[] {
   const q = typed.trim().toLowerCase();

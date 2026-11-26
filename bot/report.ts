@@ -44,6 +44,8 @@ export interface Report {
   logs: string[];
   /** The answer a 👎 reported (absent for "report this to ControlScout", which names a message). */
   answer?: ReportAnswer;
+  /** What the person typed in the answer's "Something's wrong" modal, in their words (absent for a 👎 or the phrase). */
+  note?: string;
 }
 
 /** Reports one person, and one server, may file an hour: an issue is public and filed under the site's own token (and
@@ -75,6 +77,7 @@ export function reportBody(r: Report, now = Date.now()): string {
     `- **Server:** \`${r.guild ?? "unknown"}\``,
     `- **Channel:** \`${r.channel ?? "unknown"}\``,
     `- **Asked by:** ${quiet(clip(r.name ?? "a member", 100))} (\`${r.user}\`)`,
+    ...(r.note ? ["", "### What they said was wrong", quiet(clip(r.note, 800))] : []),
     ...(r.answer ? [
       "",
       "### The answer",

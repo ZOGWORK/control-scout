@@ -17,6 +17,7 @@ import { DEFAULT_LIMIT, chatWindows, clearGuildLimit, guildLimit, setGuildLimit 
 import { answerStats, askUsage, topUnanswered } from "../../bot/asks.js";
 import { guildNames } from "../../bot/guilds.js";
 import { postUsage } from "../../bot/follows.js";
+import { tickHealth } from "../../bot/tickHealth.js";
 import type { OwnerDiscordLimits, OwnerDiscordServer } from "../../src/shared/discordLimits.js";
 import { recordAudit } from "./audit.js";
 
@@ -65,6 +66,8 @@ export async function ownerDiscordLimits(now = Date.now()): Promise<OwnerDiscord
     answerStats(now).catch(() => ({ answers: 0, reported: 0, reportedPct: null, repeatPct: null })),
     topUnanswered(10, now).catch(() => []),
   ]);
+  // The follow tick's own last result (bot/tickHealth.ts): a tick that stopped looks like a quiet server otherwise.
+  const tick = await tickHealth().catch(() => null);
   const followed = new Map(follows.map((r) => [String(r.guild_id), { n: Number(r.n), stopped: Number(r.stopped) }]));
   const counted = new Map(usage.map((r) => [`${r.guild_id} ${r.window}`, Number(r.used)]));
   const asked = new Map(last.map((r) => [String(r.guild_id), String(r.at)]));
@@ -100,6 +103,9 @@ export async function ownerDiscordLimits(now = Date.now()): Promise<OwnerDiscord
       reported: quality.reported,
       reportedPct: quality.reportedPct,
       repeatPct: quality.repeatPct,
+      tickAt: tick?.at ?? null,
+      tickFailed: tick?.failed ?? 0,
+      tickError: tick?.error ?? null,
     },
     unanswered,
   };

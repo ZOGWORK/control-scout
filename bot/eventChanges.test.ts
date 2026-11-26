@@ -4,7 +4,8 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../server/db";
 import type { MatchView } from "../src/shared/api";
 import type { Follow } from "./follows";
-import { ALERT_WINDOW_MS, alertKey, alertLead, changedMatches, loadMatchState, onDeckDue, saveMatchState, type MatchState } from "./eventChanges";
+import { ALERT_WINDOW_MS, alertKey, alertLead, changedMatches, eventChanged, loadEventState, loadMatchState, onDeckDue, onDeckLead, saveEventState, saveMatchState, type MatchState } from "./eventChanges";
+import type { EventDetail } from "../src/shared/api";
 
 const NOW = Date.parse("2026-10-24T15:00:00Z");
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -68,6 +69,48 @@ describe("schedule changes", () => {
     expect(onDeckDue([f(1)], soon.map((x) => ({ ...x, startsAt: iso(NOW + 3 * 3600_000) })), NOW)).toEqual([]);
     expect(onDeckDue([f(1)], soon.slice(0, 2), NOW)).toEqual([]);
   });
+
+  it("the on-deck post says where the event is up to: how many unplayed matches are before it, and what's on the field", () => {
+    const q = (n: number, at: number) => m(n, at);
+    // Q1 is on the field (its time has passed), Q2 is next, the team's is Q3: two unplayed before it.
+    const schedule = [q(1, NOW - 5 * 60_000), q(2, NOW + 5 * 60_000), q(3, NOW + 25 * 60_000), q(4, NOW + 40 * 60_000)];
+    const [due] = onDeckDue([f(1)], schedule, NOW);
+    expect(due.match.label).toBe("Q3");
+    expect(due.ahead).toBe(2);
+    expect(due.nowPlaying?.label).toBe("Q1");
+    expect(onDeckLead(due.match, due.ahead, due.nowPlaying)).toContain("2 unplayed matches before it (Q1 is on the field now)");
+    // Nothing has started yet: no "on the field" claim, and one match before it reads as one.
+    const [early] = onDeckDue([f(1)], schedule.map((x) => ({ ...x, startsAt: iso(NOW + 10 * 60_000 + (x.number * 60_000)) })), NOW);
+    expect(early.nowPlaying).toBeNull();
+    expect(onDeckLead(early.match, early.ahead, early.nowPlaying)).not.toContain("on the field");
+    expect(onDeckLead(early.match, 1, null)).toContain("1 unplayed match before it");
+  });
+});
+
+describe("event dates", () => {
+  const detail = (start: string | null, end: string | null, teams: number[] = [1]): EventDetail => ({
+    season: 2025, event: { season: 2025, code: "X", name: "Austin Qualifier", start, end },
+    field: teams.map((team) => ({ team, name: `T${team}` })), matches: [],
+  }) as unknown as EventDetail;
+  const eventFollow = (channel = "c1"): Follow => ({ guild_id: "g", channel_id: channel, kind: "event", team: null, event: "X", season: 2025, created_at: iso(NOW - 864e5), failures: 0 });
+
+  it("a moved weekend posts once per watching channel; an unchanged one posts nothing", () => {
+    const ev = detail("2026-11-07", "2026-11-08");
+    const alerts = eventChanged([eventFollow(), eventFollow("c2")], ev, { start: "2026-10-31", end: "2026-11-01" });
+    expect(alerts.map((a) => a.channel)).toEqual(["c1", "c2"]);
+    expect(alerts[0].key).toBe("dates:2026-11-07:2026-11-08");
+    expect(eventChanged([eventFollow()], ev, { start: "2026-11-07", end: "2026-11-08" })).toEqual([]);
+  });
+
+  it("a team follow watching a team entered at the event hears about it too; an unrelated follow doesn't", () => {
+    const ev = detail("2026-11-07", "2026-11-08", [1, 2]);
+    expect(eventChanged([f(2)], ev, { start: "2026-10-31", end: "2026-11-01" })).toHaveLength(1);
+    expect(eventChanged([f(9)], ev, { start: "2026-10-31", end: "2026-11-01" })).toEqual([]);
+    // A stopped follow is never posted to.
+    expect(eventChanged([{ ...f(2), dropped_at: iso(NOW) }], ev, { start: "2026-10-31", end: "2026-11-01" })).toEqual([]);
+    // Another season's event follow is not this event's.
+    expect(eventChanged([{ ...eventFollow(), season: 2024 }], ev, { start: "2026-10-31", end: "2026-11-01" })).toEqual([]);
+  });
 });
 
 describe("the schedule state, on a database", () => {
@@ -101,5 +144,14 @@ describe("the schedule state, on a database", () => {
     await saveMatchState(2025, "X", [m(7, NOW + 600_000)], NOW);
     await saveMatchState(2025, "X", [m(7, NOW + 1_800_000)], NOW + 60_000, new Set(["qual:0:7"]));
     expect((await loadMatchState(2025, "X")).get("qual:0:7")?.startsAt).toBe(iso(NOW + 600_000));
+  });
+
+  it("round-trips an event's dates, and says nothing for a first sight", async () => {
+    await run("DELETE FROM discord_event_state");
+    expect(await loadEventState(2025, "X")).toBeNull();
+    await saveEventState(2025, "X", { event: { season: 2025, code: "X", name: "X", start: "2026-11-07", end: "2026-11-08" } } as never, NOW);
+    expect(await loadEventState(2025, "X")).toEqual({ start: "2026-11-07", end: "2026-11-08" });
+    await saveEventState(2025, "X", { event: { season: 2025, code: "X", name: "X", start: "2026-11-14", end: "2026-11-15" } } as never, NOW + 60_000);
+    expect(await loadEventState(2025, "X")).toEqual({ start: "2026-11-14", end: "2026-11-15" });
   });
 });

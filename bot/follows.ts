@@ -13,7 +13,8 @@ import { CURRENT_SEASON } from "../server/data/seasons.js";
 import { cachedEventDetail } from "../server/api/events.js";
 import { seasonStats, teamKnown } from "../server/api/teams.js";
 import { eventDue, eventRecapEmbed, eventScheduleEmbed, eveEmbed, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts.js";
-import { alertEmbed, alertKey, changedMatches, loadMatchState, onDeckDue, onDeckLead, saveMatchState } from "./eventChanges.js";
+import { alertEmbed, alertKey, changedMatches, eventChanged, eventChangeEmbed, loadEventState, loadMatchState, onDeckDue, onDeckLead, saveEventState, saveMatchState } from "./eventChanges.js";
+import { DEFAULT_SETTINGS, allSettings, allows, inQuietHours, pings, type GuildSettings } from "./settings.js";
 import type { EventDetail, MatchView } from "../src/shared/api.js";
 import { FOOTER, Friendly, VOLT, linkedAlliance, pride, preMatchEmbed, resultEmbed, teamLink, teamsOf } from "./views.js";
 
@@ -56,8 +57,13 @@ export interface Follow {
   drop_reason?: string | null;
 }
 
-/** The follows the console lists: a team (with its name) or an event, and where each posts. */
-export interface FollowRow { kind: "team" | "event"; team: number | null; event: string | null; channel_id: string; name: string | null; stopped: boolean }
+/** The follows the console lists: a team (with its name) or an event, where each posts, and what happens next. */
+export interface FollowRow {
+  kind: "team" | "event"; team: number | null; event: string | null; channel_id: string; name: string | null; stopped: boolean;
+  /** The next post this follow will make: its moment when one is known (a reminder's), else just what it is. Null: the
+   *  event is over, or nothing is scheduled yet. */
+  next: { at: number | null; what: string } | null;
+}
 
 export async function addFollow(guild: string, channel: string, target: FollowTarget, by: string, now = Date.now()): Promise<"added" | "already"> {
   if (target.kind === "team") {
@@ -95,15 +101,47 @@ export async function removeFollow(guild: string, target: FollowTarget, channel?
     : run("DELETE FROM discord_follows WHERE guild_id = ? AND target = ?", [guild, followKey(target)]);
 }
 
-export async function listFollows(guild: string): Promise<FollowRow[]> {
-  return (await all<any>(
-    `SELECT f.kind, f.team, f.event, f.channel_id, f.dropped_at, t.name FROM discord_follows f LEFT JOIN teams t ON t.number = f.team
-      WHERE f.guild_id = ? ORDER BY f.kind, COALESCE(f.team, 0), f.event, f.channel_id`, [guild],
-  )).map((r) => ({
+export async function listFollows(guild: string, now = Date.now()): Promise<FollowRow[]> {
+  const rows = await all<any>(
+    `SELECT f.kind, f.team, f.event, f.season, f.channel_id, f.dropped_at, t.name FROM discord_follows f LEFT JOIN teams t ON t.number = f.team
+      WHERE f.guild_id = ? ORDER BY f.kind, COALESCE(f.team, 0), f.event, f.channel_id`, [guild]);
+  const today = new Date(now).toISOString().slice(0, 10);
+  return Promise.all(rows.map(async (r) => ({
     kind: r.kind === "event" ? "event" as const : "team" as const,
     team: r.team == null ? null : Number(r.team), event: r.event ?? null, channel_id: String(r.channel_id), name: r.name ?? null,
     stopped: !!r.dropped_at,
-  }));
+    next: r.dropped_at ? null : r.kind === "event"
+      ? await nextEventPost(String(r.event), r.season == null ? null : Number(r.season), today)
+      : await nextTeamPost(Number(r.team), now),
+  })));
+}
+
+/** What a team follow posts next: the reminder for its next unplayed match at an event that isn't over (the match's
+ *  start less REMIND_MS), read from the same schedule the tick reads. Null: nothing scheduled yet. */
+async function nextTeamPost(team: number, now: number): Promise<FollowRow["next"]> {
+  const today = new Date(now).toISOString().slice(0, 10);
+  const r = await get<{ at: string | null }>(
+    `SELECT MIN(m.time) AS at FROM match_teams mt
+       JOIN matches m ON m.season = mt.season AND m.code = mt.code AND m.level = mt.level AND m.series = mt.series AND m.number = mt.number
+       JOIN events e ON e.season = m.season AND e.code = m.code
+      WHERE mt.season = ? AND mt.team = ? AND m.played = 0 AND m.time IS NOT NULL AND COALESCE(e.end, e.start) >= ?`,
+    [CURRENT_SEASON, team, today]).catch(() => null);
+  const at = r?.at ? Date.parse(r.at) : NaN;
+  if (!Number.isFinite(at) || at - REMIND_MS < now - RESULT_WINDOW_MS) return null;
+  return { at: at - REMIND_MS, what: "reminder" };
+}
+
+/** What an event follow posts next: its recap after today's last match, the evening before it starts, or nothing when
+ *  it is over or this season's follow has gone stale. */
+async function nextEventPost(code: string, season: number | null, today: string): Promise<FollowRow["next"]> {
+  const r = await get<{ start: string | null; end: string | null; quals: number }>(
+    `SELECT e.start, e.end, (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.level = 'qual') AS quals
+       FROM events e WHERE e.season = ? AND e.code = ?`, [CURRENT_SEASON, code]).catch(() => null);
+  if (!r) return season != null && season !== CURRENT_SEASON ? { at: null, what: "not this season's event (follow it again)" } : null;
+  if (r.end && r.end < today) return null;
+  if (Number(r.quals) > 0) return { at: null, what: "a recap after the day's last match" };
+  if (r.start && r.start > today) return { at: null, what: `the evening before it starts (${r.start})` };
+  return { at: null, what: "the schedule, once FIRST posts it" };
 }
 
 /** /following: the server's teams and events, and where each one posts. */
@@ -112,13 +150,16 @@ export function followingEmbed(rows: FollowRow[], site: string): APIEmbed {
     title: "What this server follows",
     description: rows.length
       ? rows.map((r) => (r.kind === "event"
-        ? `**Event ${r.event}** → <#${r.channel_id}>${r.stopped ? " — stopped (the channel refused posts); follow it again to restart" : ""}`
-        : `**${teamLink(r.team ?? 0, site)}**${r.name ? ` ${r.name}` : ""} → <#${r.channel_id}>${r.stopped ? " — stopped (the channel refused posts); follow it again to restart" : ""}`)).join("\n")
+        ? `**Event ${r.event}** → <#${r.channel_id}>${r.stopped ? " — stopped (the channel refused posts); follow it again to restart" : nextWords(r.next)}`
+        : `**${teamLink(r.team ?? 0, site)}**${r.name ? ` ${r.name}` : ""} → <#${r.channel_id}>${r.stopped ? " — stopped (the channel refused posts); follow it again to restart" : nextWords(r.next)}`)).join("\n")
       : "None yet. Use /follow team: for a team's matches and results, or /follow event: for a whole event.",
     color: VOLT,
     footer: { text: `Up to ${MAX_FOLLOWS_PER_SERVER} teams and events · ${FOOTER.text}` },
   };
 }
+
+/** A follow's next post as /following shows it: "next: reminder in 3 hours", or just what it is when it has no moment. */
+const nextWords = (n: FollowRow["next"]) => (!n ? " · next: nothing scheduled" : n.at ? ` · next: ${n.what} <t:${Math.floor(n.at / 1000)}:R>` : ` · next: ${n.what}`);
 
 /** The posts sent today (UTC), for the console's numbers: one count, not a stream. */
 export async function postUsage(now = Date.now()): Promise<number> {
@@ -207,7 +248,7 @@ export function postEmbed(d: Due, ev: Pick<EventDetail, "event" | "matches">, si
   return resultEmbed(ev.event.name, d.match, site, { next: nextMatch(ev.matches, d.match, d.teams) });
 }
 
-export type Send = (channel: string, embed: APIEmbed) => Promise<"ok" | "gone" | "error">;
+export type Send = (channel: string, embed: APIEmbed, opts?: { ping?: string | null }) => Promise<"ok" | "gone" | "error">;
 /** A direct message to one person: how a stopped follow reaches whoever set it up. */
 export type Dm = (user: string, text: string) => Promise<unknown>;
 
@@ -216,9 +257,35 @@ export type Dm = (user: string, text: string) => Promise<unknown>;
  * yesterday to tomorrow), and post what's due: per match (a reminder, a result) and per event (the evening
  * before, the schedule, the day's recap; bot/eventAlerts.ts).
  */
-export async function notifyTick(send: Send, site: string, log: (m: string) => void, now = Date.now(), dm?: Dm): Promise<number> {
+export interface TickResult {
+  /** Posts sent this tick. */
+  posted: number;
+  /** Sends Discord refused for a reason other than the channel being gone (the next tick retries them). */
+  failed: number;
+}
+
+/**
+ * The season notice: an event follow made in an earlier season, whose code is an event this season, is moved to this
+ * season's event and told once. A code repeats (AUSYQ1 names a different meet next season), so the tick only ever posts
+ * a current season's event — without this the follow would go silent for good rather than follow the new one.
+ */
+export interface Rollover { channel: string; guild: string; code: string; name: string; from: number }
+export function rolloverDue(follows: Follow[], names: Map<string, string>, season = CURRENT_SEASON): Rollover[] {
+  const out = new Map<string, Rollover>();
+  for (const f of follows) {
+    if ((f.kind ?? "team") !== "event" || !f.event || f.dropped_at) continue;
+    if (f.season == null || f.season === season) continue;
+    const name = names.get(f.event);
+    if (!name) continue;
+    const key = `${f.channel_id}|${f.event}`;
+    if (!out.has(key)) out.set(key, { channel: f.channel_id, guild: f.guild_id, code: f.event, name, from: f.season });
+  }
+  return [...out.values()];
+}
+
+export async function notifyTick(send: Send, site: string, log: (m: string) => void, now = Date.now(), dm?: Dm): Promise<TickResult> {
   // Switched off by the owner (the discordBot feature toggle): nothing is posted, every follow is kept.
-  if (!(await isEnabled("discordBot"))) return 0;
+  if (!(await isEnabled("discordBot"))) return { posted: 0, failed: 0 };
   const follows: Follow[] = (await all<any>("SELECT guild_id, channel_id, kind, team, event, season, created_at, created_by, failures, dropped_at, drop_reason FROM discord_follows"))
     .map((r) => ({
       guild_id: String(r.guild_id), channel_id: String(r.channel_id), kind: r.kind === "event" ? "event" as const : "team" as const,
@@ -226,9 +293,15 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
       created_at: String(r.created_at), failures: Number(r.failures), created_by: r.created_by ?? null,
       dropped_at: r.dropped_at ?? null, drop_reason: r.drop_reason ?? null,
     }));
-  if (!follows.length) return 0;
+  if (!follows.length) return { posted: 0, failed: 0 };
   // A stopped follow is kept for the record, never ticked: its channel refused posts until the follow was stopped.
   const active = follows.filter((f) => !f.dropped_at);
+  // What each channel's server asked of its posts (bot/settings.ts, /settings): quiet hours, no match heads-ups, a ping
+  // role. One read a minute; a failed read posts as before rather than going silent.
+  const configured = await allSettings().catch(() => new Map<string, GuildSettings>());
+  const settingsOf = new Map<string, GuildSettings>();
+  for (const f of active) settingsOf.set(f.channel_id, configured.get(f.guild_id) ?? DEFAULT_SETTINGS);
+  const settingsFor = (channel: string) => settingsOf.get(channel) ?? DEFAULT_SETTINGS;
   const teams = [...new Set(active.filter((f) => f.kind !== "event" && f.team != null).map((f) => f.team!))];
   // Only this season's event follows: a code repeats, and last season's follow must not post this season's event.
   const codes = [...new Set(active.filter((f) => f.kind === "event" && f.event && f.season === CURRENT_SEASON).map((f) => f.event!))];
@@ -249,10 +322,13 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
     found.push(...await all<{ code: string }>(`SELECT code FROM events WHERE season = ? AND code IN (${codes.map(() => "?").join(",")})`, [CURRENT_SEASON, ...codes]));
   }
   const events = [...new Map(found.map((e) => [e.code, e])).values()];
-  let posted = 0;
+  let posted = 0, failed = 0;
   // Claim, send, mark sent; a failure gives the claim back (and counts toward dropping a channel that's gone). False:
-  // nothing was sent, so a change-based alert's state must not advance past it.
+  // nothing was sent, so a change-based alert's state must not advance past it. A post this server's settings silence is
+  // not sent and not retried (true: nothing to come back to).
   const deliver = async (channel: string, code: string, key: string, kind: string, embed: () => Promise<APIEmbed> | APIEmbed): Promise<boolean> => {
+    const setting = settingsFor(channel);
+    if (!allows(setting, kind, now)) return true;
     const k = [channel, CURRENT_SEASON, code, key, kind];
     const t = new Date(now).toISOString();
     const claimed = (await run(
@@ -261,7 +337,8 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
         "UPDATE discord_posts SET claimed_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ? AND sent_at IS NULL AND claimed_at < ?",
         [t, ...k, new Date(now - CLAIM_STALE_MS).toISOString()]));
     if (!claimed) return true;
-    const r = await send(channel, pride(await embed()));
+    const r = await send(channel, pride(await embed()), { ping: pings(setting, kind) });
+    if (r !== "ok" && r !== "gone") failed++;
     if (r === "ok") {
       posted++;
       await run("UPDATE discord_posts SET sent_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ?", [new Date().toISOString(), ...k]);
@@ -289,9 +366,36 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
     }
     return false;
   };
+  // Season rollover: an event follow from an earlier season whose code is this season's event again follows this one,
+  // and the channel is told once. Stale codes with no event this season are left alone: there is nothing to follow.
+  const stale = [...new Set(active.filter((f) => f.kind === "event" && f.event && f.season != null && f.season !== CURRENT_SEASON).map((f) => f.event!))];
+  if (stale.length) {
+    const named = new Map((await all<{ code: string; name: string }>(
+      `SELECT code, name FROM events WHERE season = ? AND code IN (${stale.map(() => "?").join(",")})`, [CURRENT_SEASON, ...stale])).map((e) => [String(e.code), String(e.name)]));
+    for (const r of rolloverDue(active, named)) {
+      // Quiet hours wait: the channel has to be told it now follows this season's event, so the follow keeps its old
+      // season (and this is tried again next tick) rather than moving without a word.
+      if (inQuietHours(settingsFor(r.channel).quiet, now)) continue;
+      const moved = await deliver(r.channel, r.code, `season:${r.from}`, "rollover", () => ({
+        title: `Following ${r.name} again`,
+        description: `This channel followed event **${r.code}** in ${r.from + 1}–${String(r.from + 2).slice(2)}. ${r.code} names this season's ${r.name}, so these posts follow it from now on. \`/unfollow event:${r.code}\` stops them.`,
+        color: VOLT, footer: FOOTER,
+      }));
+      if (moved) await run("UPDATE discord_follows SET season = ? WHERE guild_id = ? AND channel_id = ? AND target = ?", [CURRENT_SEASON, r.guild, r.channel, `event:${r.code}`]);
+    }
+  }
   for (const ev of events) {
     const d = await cachedEventDetail(CURRENT_SEASON, ev.code);
     if (!d) continue;
+    // The event's own dates as the last tick saw them: a meet moved to another weekend is posted once.
+    const was = await loadEventState(CURRENT_SEASON, ev.code).catch(() => null);
+    let datesTold = true;
+    if (was) for (const a of eventChanged(active, d, was)) {
+      if (!(await deliver(a.channel, ev.code, a.key, "dates", () => eventChangeEmbed(d, a, site)))) datesTold = false;
+    }
+    // A channel that refused the alert keeps the dates it was told about, so the next tick sees the move again; a channel
+    // this server's settings silenced counts as told, like every other change alert.
+    if (datesTold) await saveEventState(CURRENT_SEASON, ev.code, d, now).catch((e) => log(`follows: couldn't record ${ev.code}'s dates (${(e as Error)?.message ?? String(e)})`));
     // The schedule as the last tick saw it: a moved match, a changed lineup or a new one is posted once. The first
     // sight of an event only records it (changedMatches returns nothing for an empty map).
     const prev = await loadMatchState(CURRENT_SEASON, ev.code).catch(() => null);
@@ -304,7 +408,7 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
         if (!(await deliver(a.channel, ev.code, alertKey(a), a.kind, () => alertEmbed(a, d.event.name, site, now)))) retry.add(a.match.key);
       }
       for (const c of onDeckDue(active, d.matches, now)) {
-        await deliver(c.channel, ev.code, c.match.key, "ondeck", () => preMatchEmbed(d.event.name, c.match, site, onDeckLead(c.match)));
+        await deliver(c.channel, ev.code, c.match.key, "ondeck", () => preMatchEmbed(d.event.name, c.match, site, onDeckLead(c.match, c.ahead, c.nowPlaying)));
       }
       await saveMatchState(CURRENT_SEASON, ev.code, d.matches, now, retry).catch((e) => log(`follows: couldn't record ${ev.code}'s schedule (${(e as Error)?.message ?? String(e)})`));
     }
@@ -330,5 +434,5 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
   }
   // The post log only needs to outlive an event's windows.
   await run("DELETE FROM discord_posts WHERE claimed_at < ?", [new Date(now - 14 * 864e5).toISOString()]);
-  return posted;
+  return { posted, failed };
 }
