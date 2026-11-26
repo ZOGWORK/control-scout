@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { get, run } from "../db.js";
 import { env } from "../env.js";
 import { codeEmail } from "./emailTemplate.js";
+import { liveWash } from "../wash.js";
 import { sha256 } from "./session.js";
 
 const CODE_TTL_MS = 10 * 60_000;
@@ -105,7 +106,9 @@ export async function startEmailSignIn(rawEmail: string): Promise<StartResult> {
      ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0, sent_count = excluded.sent_count, window_start = excluded.window_start`,
     [email, codeHash(email, code), new Date(now + CODE_TTL_MS).toISOString(), sent, windowStart],
   );
-  const { subject, text, html } = codeEmail(code, { minutes: CODE_TTL_MS / 60_000, siteUrl: env.appUrl, name });
+  // The email takes the site's wash as it is now (the owner's Appearance setting); a failed read uses the default.
+  const wash = await liveWash().then((r) => r.wash, () => undefined);
+  const { subject, text, html } = codeEmail(code, { minutes: CODE_TTL_MS / 60_000, siteUrl: env.appUrl, name, wash });
   try { await sendCode(email, subject, text, html); }
   catch (e) {
     console.warn(`[email] sign-in code not sent: ${(e as Error)?.name === "TimeoutError" ? "timeout" : (e as Error)?.message ?? "unknown"}`);
