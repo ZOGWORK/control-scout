@@ -279,9 +279,10 @@ export default function SearchPage() {
     return null;
   }, [v8, answer, hits, ax, topTeam, compares.length]);
   const standout = v8 ? standoutRows(answer?.stat) : null;
-  // v8: a team's highlights as video cards, first when the search asked for highlights (its answer lists every match:
-  // a "videos" block), else under the team's card.
-  const reel = v8 && answer?.stat?.intent === "team-highlights" ? (answer.stat.blocks.some((b) => b.kind === "videos") ? "lead" : "under") : null;
+  // v8: a team's highlights as video cards. A team's answer (its card) comes first, with its related searches, so the
+  // search reads as understood as that team; the videos follow them, then its standout matches (the owner, 11-26).
+  // Only an answer with no team card of its own would lead with the videos.
+  const reel = v8 && answer?.stat?.intent === "team-highlights" ? (answer.stat.blocks.some((b) => b.kind === "videos") && !teamAnswer ? "lead" : "under") : null;
   // Decided from what's known at first paint: a standing question about a found team may get its computed summary
   // once the team's numbers load, and that summary keeps his card lower down, so his card never leads it (it would
   // move when they arrived).
@@ -447,8 +448,8 @@ export default function SearchPage() {
               {sideColumn}
               <div className={cn("min-w-0 lg:col-start-1 lg:row-start-1", V8_STAGGER)} data-stagger>
                 {/* The answer, sized to the question: a team asked for by itself is its compact summary. */}
-                {/* A highlights search leads with the team's videos (./search/page/HighlightReel.tsx); a team searched alone
-                    shows its standout matches' clips under its card. */}
+                {/* A highlights search's videos (./search/page/HighlightReel.tsx) come after the team's card and its related
+                    searches; only an answer without a team card leads with them. */}
                 {reel === "lead" && <HighlightReel stat={answer!.stat!} className="mb-5" />}
                 {teamAnswer ? <V8TeamAnswer team={teamAnswer.number} name={teamAnswer.name} place={teamAnswer.place} summary={summaries.get(teamAnswer.number)} pending={!now.data && !now.error} stat={answer?.stat} />
                   : answer?.stat ? <StatAnswerCard stat={answer.stat} heading={title ?? undefined} explain={inStat ? answer.card : undefined} />
@@ -461,8 +462,8 @@ export default function SearchPage() {
                 {!answer?.stat && !answer?.card && !teamAnswer && <AnswerVideo className="mt-0 max-sm:mx-0" />}
                 {/* The privacy question, until it's answered: here under the answer, never floating over it. */}
                 <ConsentDock className="mt-4" />
-                {reel === "under" && <HighlightReel stat={answer!.stat!} className="mt-5" />}
                 <FollowChips lead={ax?.sorry ? [] : ax?.suggest} ask={askAside || !wide ? [] : follow.ask} related={follow.related} seeAll={follow.asked ?? query} className={answer?.stat || answer?.card || teamAnswer ? "mt-4" : "mb-1"} />
+                {reel === "under" && <HighlightReel stat={answer!.stat!} className="mt-5" />}
                 {/* Going deeper: plain rows, grouped, five each. */}
                 {standout && <RowGroup key={standout.rows.map((r) => r.href).join("|")} id="standout" title={standout.title} count={standout.rows.length}>{[<MatchRows key="m" rows={standout.rows} />]}</RowGroup>}
                 {!!compares.length && (
