@@ -70,7 +70,11 @@ export function pickShared<T extends SharedCandidate>(cands0: T[], ctx: { mine?:
 /** How many teams a shared name is, said one way by every reader: `total` is every team with a page by the name (the
  *  count "teams named <name>" gives, ../answers/teamsNamed.ts), `tied` the ones still left to ask about, each with its
  *  place. "Which "ultraviolet"? 6 teams have that name; 4 of them still play: …". */
-export function whichLine(typed: string, total: number, tied: string[]): string {
+export function whichLine(typed: string, total: number, tied: string[], scope?: { label: string; count: number; also?: string[] }): string {
   const n = Math.max(total, tied.length);
-  return `Which "${typed}"? ${n} teams have that name${tied.length < n ? `; ${tied.length} of them still play` : ""}: ${tied.join(", ")}`;
+  // An event or season the query names (server/api/query/sharedScope.ts): how many of them played it, "none" said as
+  // such, and the teams by a name like it that did ("; none of them played at Worlds (17324 Green Machines did)").
+  const also = scope?.also?.length ? ` (${scope.also.join(", ")} did)` : "";
+  const how = scope ? `; ${scope.count || "none"} of them played ${scope.label}${also}` : tied.length < n ? `; ${tied.length} of them still play` : "";
+  return `Which "${typed}"? ${n} teams have that name${how}: ${tied.join(", ")}`;
 }
