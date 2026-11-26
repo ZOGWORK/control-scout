@@ -931,6 +931,39 @@ How Scout keeps the two the same:
   guessed. Uploads are PNG, JPEG or WebP (what Control Point takes; a GIF can only arrive from Control Point). The type is read from the file's first bytes (never the client's word), with `nosniff` and a sandbox CSP.
 - Deleting the Scout account deletes Scout's copy, not the shared account's picture.
 
+## Scout's internal API: Control Point → Scout
+
+The other direction: routes Scout serves for Control Point, under Scout's own
+`/internal/*` (`server/internal.ts`). Public data only, read-only, nothing about
+any account or workspace.
+
+- Auth is the same as Control Point's: header `X-Internal-Key` must equal Scout's
+  `CONTROL_POINT_INTERNAL_KEY` (Control Point's `CONTROL_SCOUT_INTERNAL_KEY`, the
+  same secret), compared in constant time. If the key is unset or shorter than
+  32 characters, every Scout `/internal/*` route answers 404. Wrong or missing
+  key → 401. Answers are `Cache-Control: no-store`; the caller caches.
+- Control Point calls it at `CONTROL_SCOUT_URL` (Scout's public origin).
+
+| route | result |
+|---|---|
+| `GET /internal/teams/:n/videos` | `200 { featured: [{ series, videoId, season, title }], clips: [{ videoId, start, end, event, match, title }] }`. `400 { error: "invalid_team" }` when `:n` isn't a team number (1–999999). |
+
+- `featured`: the creator episodes the team is tagged in (`series` such as
+  `behind-the-bot`), from `featuredFor` in `server/videos/creatorVideos.ts`
+  (`creator_videos` and `video_team_tags`, migration 114). `season` is `null`
+  when unknown. Empty, never an error, when that data is missing.
+- `clips`: the team's latest match clips, newest first, at most 6, from its
+  latest 4 events with a played match where it was on the field. Each is what
+  every Scout surface plays for that match: FIRST's own video (`matches.video`),
+  else the match's place in the event's recording (`withClips`, the
+  `MatchView.clip` an event page gets). `start` and `end` are seconds into
+  `videoId`; `end` is `null` when the clip has no stop. `event` is the event's
+  name, `match` the match label (`Q12`, `P3`), and `title` is the two together
+  (`Q12 · New Jersey Championship`).
+- Control Point's team dashboard shows these for a workspace with an FTC team
+  number: a "Featured on Behind the Bot" badge and a row of latest clips,
+  cached a few minutes and hidden when Scout doesn't answer.
+
 ## Not in scope (yet)
 
 - Signing out of Control Point doesn't end Scout sessions (Scout sessions last
