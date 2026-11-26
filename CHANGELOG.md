@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.0.7 — 2026-11-26
+
+A Videos tab: match clips, streams and creator videos in one feed that plays in the app, picked for each person.
+
+### Highlights
+- [live] Videos: match clips, streams and Behind the Bot in one feed
+- [teams] Your teams' matches first, each card saying why it's there
+- [history] It learns what you finish or skip; "Not interested" hides one
+
+### Videos
+- **A new Videos page** (#2365; `/videos`, in the sidebar; a phone tab you can turn on in Settings): one feed, loaded as you scroll, with chips for All, Matches, Creators, Behind the Bot, My teams and This weekend. A card shows the clip's own frame and plays in place (youtube-nocookie, loaded only on a tap); a video that can't play on other sites opens on YouTube.
+- **Picked for each person** (`server/api/videosFeed.ts`): your teams' clips (the team you're on, My team, followed, shortlisted, scouted), this weekend's streams near you, top scores, close finishes, upsets the prediction engine called wrong, Behind the Bot and FUN videos tagged with your teams, and what others watched this week. Each scores by affinity × freshness × quality, with a weight per kind of video learned from what you finish or skip; at most 2 in a row from one event or channel and 3 from one pool, and about 1 in 7 an explore pick. With nothing to go on yet, it opens on this weekend, top plays, Behind the Bot and upsets.
+- **What you watched** (migration 115, `video_watch`): written at 5 seconds in, half way, the end and on "Not interested", for a signed-in account only, never shipped in the snapshot and deleted with the account. Signed out, it stays on the device (`cs-video-history`, at most 200) and is sent only with the feed request.
+
 ## 8.0.6 — 2026-11-26
 
 Teams that FUN filmed for Behind the Bot now say so on their page, and play the episode in place.
