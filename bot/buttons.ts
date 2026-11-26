@@ -23,6 +23,9 @@ export const ASK_PREFIX = "ask:";
 export const ROW_MAX = 5;
 /** The link button every card carries. */
 export const SITE_LABEL = "Open on controlscout.org";
+/** The button that reports an answer (bot/handler.ts opens a modal; bot/report.ts files it). */
+export const REPORT_PREFIX = "report:";
+export const REPORT_LABEL = "Something's wrong";
 
 /** A label that fits a button: one line, clipped with an ellipsis. */
 export const buttonLabel = (s: string) => {
@@ -114,5 +117,8 @@ export async function answerComponents(r: AskReply, buttons: QuestionButtons, no
     ...(r.watch ?? []).slice(0, 4).map((w) => ({ type: 2 as const, style: 5 as const, url: w.url, label: buttonLabel(w.label) })),
   ].slice(0, ROW_MAX);
   if (links.length) rows.push({ type: 1, components: links });
+  // Every answer can be reported, whether or not it offers a question or a link: the person who notices a wrong answer
+  // is the one who should be able to say so (a 👎 could be mistaken for a dislike, so this is a labelled button).
+  rows.push({ type: 1, components: [{ type: 2, style: 2, custom_id: `${REPORT_PREFIX}answer`, label: REPORT_LABEL }] });
   return rows;
 }

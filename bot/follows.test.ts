@@ -16,6 +16,8 @@ async function clearPosts() {
   for (const team of [18360, 4215]) await run("INSERT INTO discord_posts (channel_id, season, code, match_key, kind, claimed_at, sent_at) VALUES ('c1', ?, 'USTXAUQ', ?, 'schedule', ?, ?)", [S, `schedule:${team}`, iso(NOW), iso(NOW)]);
 }
 const iso = (ms: number) => new Date(ms).toISOString();
+/** The tick's count of posts sent, which is what these tests assert on (it also reports failed sends). */
+const sent = async (...a: Parameters<typeof notifyTick>) => (await notifyTick(...a)).posted;
 
 describe("dueNow", () => {
   const t = (n: number) => ({ number: n, surrogate: false, dq: false, onField: true });
@@ -121,7 +123,12 @@ describe("follows and the tick, on a database", () => {
   it("follow, list, unfollow; unknown teams and a full server are friendly errors", async () => {
     expect(await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5)).toBe("added");
     expect(await addFollow("g", "c1", { kind: "team", team: 18360 }, "u")).toBe("already");
-    expect(await listFollows("g")).toEqual([{ kind: "team", team: 18360, event: null, channel_id: "c1", name: "Gear Grinders", stopped: false }]);
+    expect(await listFollows("g", NOW)).toMatchObject([{ kind: "team", team: 18360, event: null, channel_id: "c1", name: "Gear Grinders", stopped: false }]);
+    // And its next post is there: the reminder for Q7, ten minutes out.
+    // Its moment is the match's start less the reminder (the fixture's time is venue-local, so only the shape is
+    // asserted here; the exact instant is the match's own).
+    expect((await listFollows("g", NOW))[0].next).toMatchObject({ what: "reminder" });
+    expect(Number((await listFollows("g", NOW))[0].next?.at)).toBeGreaterThan(0);
     await expect(addFollow("g", "c1", { kind: "team", team: 99999 }, "u")).rejects.toBeInstanceOf(Friendly);
     expect(await removeFollow("g", { kind: "team", team: 18360 })).toBe(1);
     expect(await listFollows("g")).toEqual([]);
@@ -130,36 +137,42 @@ describe("follows and the tick, on a database", () => {
   it("an event can be followed instead of a team: listed as the event, posted once its schedule is up, and unfollowed by code", async () => {
     expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u", NOW - 864e5)).toBe("added");
     expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u")).toBe("already");
-    expect(await listFollows("g")).toEqual([{ kind: "event", team: null, event: "USTXAUQ", channel_id: "c1", name: null, stopped: false }]);
+    expect(await listFollows("g", NOW)).toMatchObject([{ kind: "event", team: null, event: "USTXAUQ", channel_id: "c1", name: null, stopped: false }]);
+    expect((await listFollows("g", NOW))[0].next).toEqual({ at: null, what: "a recap after the day's last match" });
     await expect(addFollow("g", "c1", { kind: "event", event: "NOPE" }, "u")).rejects.toBeInstanceOf(Friendly);
     const send = vi.fn(async () => "ok" as const);
-    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
+    expect(await sent(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
     const [channel, embed] = send.mock.calls[0] as unknown as [string, { title: string; fields?: { name: string }[] }];
     expect(channel).toBe("c1");
     expect(embed.title).toBe("Schedule posted: Austin Qualifier");
     expect(embed.fields!.length).toBe(1);
-    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW + 60_000)).toBe(0);
+    expect(await sent(send, "https://controlscout.org", () => {}, NOW + 60_000)).toBe(0);
     expect(await removeFollow("g", { kind: "event", event: "USTXAUQ" })).toBe(1);
   });
 
-  it("an event follow belongs to the season it was made in: last season's code never posts this season's event", async () => {
+  it("an event follow belongs to the season it was made in, and is moved to this season's event once", async () => {
     expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u", NOW - 864e5)).toBe("added");
     // The row as a season rollover leaves it: the code exists this season too, and the follow is last season's.
     await run("UPDATE discord_follows SET season = season - 1 WHERE guild_id = 'g'");
     const send = vi.fn(async () => "ok" as const);
-    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW)).toBe(0);
-    expect(send).not.toHaveBeenCalled();
-    // Following the event again this season moves that follow to it, and its posts resume.
-    expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u", NOW)).toBe("already");
-    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
+    // It never posts last season's event silently: the channel is told once, and the follow moves to this season's.
+    expect(await sent(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
+    const [channel, embed] = send.mock.calls[0] as unknown as [string, { title: string; description: string }];
+    expect(channel).toBe("c1");
+    expect(embed.title).toBe("Following Austin Qualifier again");
+    expect(embed.description).toContain("this season's Austin Qualifier");
+    expect((await all<{ season: number }>("SELECT season FROM discord_follows"))[0].season).toBe(S);
+    // From then on it is this season's follow: the schedule posts on the next tick, and the notice never repeats.
+    expect(await sent(send, "https://controlscout.org", () => {}, NOW + 60_000)).toBe(1);
+    expect(await sent(send, "https://controlscout.org", () => {}, NOW + 120_000)).toBe(0);
   });
 
   it("posts the reminder once, even across ticks and with two followed teams in the match", async () => {
     await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5);
     await addFollow("g", "c1", { kind: "team", team: 4215 }, "u", NOW - 864e5);
     const send = vi.fn(async () => "ok" as const);
-    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
-    expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW + 60_000)).toBe(0);
+    expect(await sent(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
+    expect(await sent(send, "https://controlscout.org", () => {}, NOW + 60_000)).toBe(0);
     expect(send).toHaveBeenCalledTimes(1);
     const [channel, embed] = send.mock.calls[0] as unknown as [string, { title: string; description: string; color: number }];
     expect(channel).toBe("c1");
@@ -172,18 +185,18 @@ describe("follows and the tick, on a database", () => {
   it("posts a moved match once, after the schedule changes, and nothing on the tick after", async () => {
     await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5);
     const send = vi.fn(async () => "ok" as const);
-    expect(await notifyTick(send, "s", () => {}, NOW)).toBe(1); // the reminder, and the schedule recorded
+    expect(await sent(send, "s", () => {}, NOW)).toBe(1); // the reminder, and the schedule recorded
     await clearPosts();
     // FIRST moves Q7 back forty minutes.
     await run("UPDATE matches SET time = ? WHERE season = ? AND code = 'USTXAUQ' AND level = 'qual' AND series = 0 AND number = 7", [iso(NOW + 50 * 60_000).slice(0, 19), S]);
     clearAllCaches();
     // A failed post releases its claim and keeps the old schedule, so the next tick tries the move again.
-    expect(await notifyTick(vi.fn(async () => "error" as const), "s", () => {}, NOW + 60_000)).toBe(0);
-    expect(await notifyTick(send, "s", () => {}, NOW + 60_000)).toBe(1);
+    expect(await sent(vi.fn(async () => "error" as const), "s", () => {}, NOW + 60_000)).toBe(0);
+    expect(await sent(send, "s", () => {}, NOW + 60_000)).toBe(1);
     const [, moved] = send.mock.calls.at(-1) as unknown as [string, { description: string }];
     expect(moved.description.split("\n")[0]).toMatch(/^Moved: it was <t:\d+:t>, now <t:\d+:R>/);
     // Once: the next tick sees the new time as the state.
-    expect(await notifyTick(send, "s", () => {}, NOW + 120_000)).toBe(0);
+    expect(await sent(send, "s", () => {}, NOW + 120_000)).toBe(0);
     // Put the fixture's schedule back: the tests after this one expect Q7 ten minutes out.
     await run("UPDATE matches SET time = ? WHERE season = ? AND code = 'USTXAUQ' AND level = 'qual' AND series = 0 AND number = 7", [iso(NOW + 10 * 60_000).slice(0, 19), S]);
     clearAllCaches();
@@ -194,23 +207,23 @@ describe("follows and the tick, on a database", () => {
     const send = vi.fn(async () => "ok" as const);
     await setFlag("discordBot", false, "owner@example.com");
     try {
-      expect(await notifyTick(send, "s", () => {}, NOW)).toBe(0);
+      expect(await sent(send, "s", () => {}, NOW)).toBe(0);
       expect(send).not.toHaveBeenCalled();
-      expect(await listFollows("g")).toEqual([{ kind: "team", team: 18360, event: null, channel_id: "c1", name: "Gear Grinders", stopped: false }]);
+      expect(await listFollows("g", NOW)).toMatchObject([{ kind: "team", team: 18360, event: null, channel_id: "c1", name: "Gear Grinders", stopped: false }]);
     } finally { await setFlag("discordBot", true, "owner@example.com"); }
-    expect(await notifyTick(send, "s", () => {}, NOW)).toBe(1);
+    expect(await sent(send, "s", () => {}, NOW)).toBe(1);
   });
 
   it("a passing failure is tried again next tick; a channel that's gone stops the follow after repeated failures, and tells its creator", async () => {
     await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5);
     const flaky = vi.fn().mockResolvedValueOnce("error").mockResolvedValueOnce("ok");
-    await notifyTick(flaky, "s", () => {}, NOW);
-    expect(await notifyTick(flaky, "s", () => {}, NOW + 60_000)).toBe(1);
+    await sent(flaky, "s", () => {}, NOW);
+    expect(await sent(flaky, "s", () => {}, NOW + 60_000)).toBe(1);
 
     await clearPosts();
     const gone = vi.fn(async () => "gone" as const);
     const dm = vi.fn(async (_user: string, _text: string) => {});
-    for (let i = 0; i < MAX_FAILURES; i++) { await clearPosts(); await notifyTick(gone, "s", () => {}, NOW, dm); }
+    for (let i = 0; i < MAX_FAILURES; i++) { await clearPosts(); await sent(gone, "s", () => {}, NOW, dm); }
     const [row] = await all<{ dropped_at: string | null; drop_reason: string | null }>("SELECT dropped_at, drop_reason FROM discord_follows");
     // Kept, with why: the server can see it stopped, and following again revives it.
     expect(row.dropped_at).toBe(iso(NOW));
@@ -219,7 +232,7 @@ describe("follows and the tick, on a database", () => {
     expect(dm.mock.calls[0][0]).toBe("u");
     // A stopped follow is never ticked again, even when its channel comes back.
     await clearPosts();
-    expect(await notifyTick(vi.fn(async () => "ok" as const), "s", () => {}, NOW)).toBe(0);
+    expect(await sent(vi.fn(async () => "ok" as const), "s", () => {}, NOW)).toBe(0);
     expect(await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW)).toBe("added");
     expect((await all<{ dropped_at: string | null }>("SELECT dropped_at FROM discord_follows"))[0].dropped_at).toBeNull();
   });
@@ -231,7 +244,7 @@ describe("follows and the tick, on a database", () => {
     await run("UPDATE discord_follows SET failures = ? WHERE team = 18360", [MAX_FAILURES - 1]);
     const dm = vi.fn(async (_user: string, _text: string) => {});
     await clearPosts();
-    await notifyTick(vi.fn(async () => "gone" as const), "s", () => {}, NOW, dm);
+    await sent(vi.fn(async () => "gone" as const), "s", () => {}, NOW, dm);
     const rows = await all<{ team: number; dropped_at: string | null }>("SELECT team, dropped_at FROM discord_follows ORDER BY team");
     expect(rows.find((r) => r.team === 18360)!.dropped_at).toBe(iso(NOW));
     expect(rows.find((r) => r.team === 4215)!.dropped_at).toBeNull();
@@ -273,12 +286,12 @@ describe("review fixes, on a database", () => {
     // A stopped bot left a claim without sent_at.
     await run("INSERT INTO discord_posts (channel_id, season, code, match_key, kind, claimed_at) VALUES ('c1', ?, 'USTXAUQ', 'qual:0:7', 'reminder', ?)", [S, iso(NOW - 5 * 60_000)]);
     const ok = vi.fn(async () => "ok" as const);
-    expect(await notifyTick(ok, "s", () => {}, NOW)).toBe(1);
-    expect(await notifyTick(ok, "s", () => {}, NOW + 30_000)).toBe(0); // now marked sent
+    expect(await sent(ok, "s", () => {}, NOW)).toBe(1);
+    expect(await sent(ok, "s", () => {}, NOW + 30_000)).toBe(0); // now marked sent
 
     await clearPosts();
     const gone = vi.fn(async () => "gone" as const);
-    await notifyTick(gone, "s", () => {}, NOW);
-    expect(await notifyTick(ok, "s", () => {}, NOW + 60_000)).toBe(1); // access restored: retried while still due
+    await sent(gone, "s", () => {}, NOW);
+    expect(await sent(ok, "s", () => {}, NOW + 60_000)).toBe(1); // access restored: retried while still due
   });
 });

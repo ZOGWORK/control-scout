@@ -8,7 +8,7 @@ import type { OwnerDiscordLimits } from "../../shared/discordLimits";
 import { ApiError } from "../../lib/api";
 
 const GUILD = "111111111111111111";
-const USAGE = { servers: 1, asksToday: 3, asksWeek: 9, answeredPct: 89, chatPct: 67, medianMs: 1200, postsToday: 2, answers: 40, reported: 3, reportedPct: 8, repeatPct: 14 };
+const USAGE = { servers: 1, asksToday: 3, asksWeek: 9, answeredPct: 89, chatPct: 67, medianMs: 1200, postsToday: 2, answers: 40, reported: 3, reportedPct: 8, repeatPct: 14, tickAt: "2026-11-22T00:00:00Z", tickFailed: 0, tickError: null };
 const NO_CAP: OwnerDiscordLimits = {
   servers: [{ guild: GUILD, name: "Austin Robotics", perHour: 60, perDay: 300, custom: false, usedHour: 0, usedDay: 0, follows: 2, stoppedFollows: 0, lastAsk: null, updatedBy: null, updatedAt: null }],
   defaultLimit: { perHour: 60, perDay: 300 },

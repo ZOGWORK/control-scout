@@ -18,6 +18,9 @@ export async function forgetGuild(guild: string): Promise<number> {
   for (const channel of channels) gone += await run("DELETE FROM discord_posts WHERE channel_id = ?", [channel]);
   gone += await run("DELETE FROM discord_follows WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_limits WHERE guild_id = ?", [guild]);
+  // What the server asked of its posts and how fast its people could ask (bot/settings.ts, bot/pacing.ts).
+  gone += await run("DELETE FROM discord_guild_settings WHERE guild_id = ?", [guild]);
+  gone += await run("DELETE FROM discord_person_usage WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_chat_usage WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_guild_teams WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_people WHERE guild_id = ?", [guild]);

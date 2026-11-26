@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { kvSet, migrate, openDb, run, setDb } from "../server/db";
 import { clearAllCaches } from "../server/caches";
 import { CURRENT_SEASON as S } from "../server/data/seasons";
-import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups";
+import { eventChoices, eventLookup, predictLookup, rankChoices, rankTeamChoices, rankingsLookup, site, teamLookup } from "./lookups";
 import { Friendly } from "./views";
 
 const NOW = Date.parse("2026-10-20T15:00:00Z");
@@ -141,5 +141,34 @@ describe("autocomplete", () => {
 
   it("marks events on today as live", () => {
     expect(rankChoices([{ code: "X", name: "Today", start: "2026-10-20", end: "2026-10-20" }], "", NOW)[0].name).toBe("Today (X, live)");
+  });
+});
+
+describe("team choices", () => {
+  const teams = [
+    { number: 4215, name: "Alpha" }, { number: 42150, name: "Alpha Prime" }, { number: 18360, name: "Gear Grinders" },
+    { number: 6980, name: "Beta" }, { number: 23268, name: "Gamma Alpha" },
+  ];
+
+  it("offers nothing until something is typed: a list of random teams is worse than a number", () => {
+    expect(rankTeamChoices(teams, "  ")).toEqual([]);
+  });
+
+  it("puts an exact number first, then numbers that start with it, then names", () => {
+    expect(rankTeamChoices(teams, "4215").slice(0, 2)).toEqual([
+      { name: "4215 — Alpha", value: "4215" },
+      { name: "42150 — Alpha Prime", value: "42150" },
+    ]);
+    expect(rankTeamChoices(teams, "gear")).toEqual([{ name: "18360 — Gear Grinders", value: "18360" }]);
+    // A name anywhere is the last resort, so "alpha" finds the two that start with it before the one that doesn't.
+    expect(rankTeamChoices(teams, "alpha").map((c) => c.value)).toEqual(["4215", "42150", "23268"]);
+  });
+
+  it("keeps labels within Discord's 100 characters, and the value numeric for an integer option", () => {
+    const long = [{ number: 1, name: "A".repeat(200) }, { number: 2, name: null }];
+    const out = rankTeamChoices(long, "1");
+    expect(out[0].name.length).toBeLessThanOrEqual(100);
+    expect(out.map((c) => c.value)).toEqual(["1"]);
+    expect(rankTeamChoices([{ number: 2, name: null }], "2")).toEqual([{ name: "2", value: "2" }]);
   });
 });

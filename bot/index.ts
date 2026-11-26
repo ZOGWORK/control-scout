@@ -28,6 +28,7 @@ import { configEmbed, configLines, type Config } from "./config.js";
 import { chatSetup } from "./chatState.js";
 import { RELEASE } from "../server/release.js";
 import { beat } from "../server/uptime.js";
+import { noteTick } from "./tickHealth.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] [bot] ${m}`);
 
@@ -171,11 +172,15 @@ async function registerUntilDone(appId: string): Promise<void> {
 setInterval(() => { refreshForecasters().catch(() => {}); }, 15_000).unref();
 
 // Automatic posts for followed teams (bot/follows.ts): every minute once connected, one tick at a time.
-const send: Send = async (channelId, embed) => {
+const send: Send = async (channelId, embed, opts) => {
   try {
     const ch = await client.channels.fetch(channelId);
     if (!ch || !ch.isSendable()) return "gone";
-    await ch.send({ embeds: [embed] });
+    // A server's ping role rides only on the reminder and on-deck posts (bot/settings.ts), and only that role: the
+    // message mentions nobody else, so no @everyone or @here can ride along.
+    await ch.send(opts?.ping
+      ? { embeds: [embed], content: `<@&${opts.ping}>`, allowedMentions: { parse: [], roles: [opts.ping] } }
+      : { embeds: [embed] });
     return "ok";
   } catch (e) {
     // 10003 unknown channel, 50001 missing access, 50013 missing permissions: the channel is gone or closed to the bot.
@@ -195,8 +200,16 @@ setInterval(() => {
   if (ticking || !client.isReady()) return;
   ticking = true;
   notifyTick(send, site(), log, Date.now(), dm)
-    .then((n) => { if (n) log(`follows: posted ${n}`); })
-    .catch((e) => log(`follows: tick failed: ${(e as Error).message}`))
+    .then((r) => {
+      if (r.posted || r.failed) log(`follows: posted ${r.posted}${r.failed ? `, ${r.failed} failed` : ""}`);
+      // The panel's tick health (bot/tickHealth.ts): when, how many, and how many failed. Never awaited.
+      void noteTick(r).catch(() => {});
+    })
+    .catch((e) => {
+      const why = (e as Error).message;
+      log(`follows: tick failed: ${why}`);
+      void noteTick({ posted: 0, failed: 0, error: why }).catch(() => {});
+    })
     .finally(() => { ticking = false; });
 }, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
