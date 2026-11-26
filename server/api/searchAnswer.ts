@@ -63,7 +63,8 @@ import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
 import { eventPlace, normalise, mayRespell, parseQuery, respell } from "./query/parse.js";
 import { EVENT_FIT, parseContext } from "./query/context.js";
-import { pickShared, whichLine } from "./query/shared.js";
+import { pickShared, whichLine, type SharedPick } from "./query/shared.js";
+import { namedScope, playedIn, similarIn } from "./query/sharedScope.js";
 import { withPage } from "./answers/teamsNamed.js";
 import { asideWord, asksWhich, onlyOrdinary } from "./query/ordinary.js";
 import { LEXICON } from "./query/lexicon.js";
@@ -915,11 +916,23 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
   // The other teams named, settled: never one of the span's own teams (the parser may have settled the span itself).
   const settled = p.teams.filter((t) => !t.candidates || t.rule).map((t) => idx.team(t.number)).filter((t) => !!t);
   const prefer = opts.prefer ?? new Set<string>();
-  const picks = spans.map((sp) => {
+  // An event or season the query names beside the name ("green machine at worlds"): only the teams that played it
+  // can be the one meant (./query/sharedScope.ts). One is that team; several are picked among by the shared rules; none
+  // is said, the name's teams still listed to pick from.
+  const scope = await namedScope(p, opts.now);
+  const picks = await Promise.all(spans.map(async (sp) => {
     const own = new Set(sp.teams.map((t) => t.number));
     const others = settled.filter((t) => !own.has(t.number));
-    return { ...sp, r: pickShared(sp.teams, { mine: (n) => prefer.has(`team:${n}`), place: eventPlace(p, idx), others }) };
-  });
+    const ctx = { mine: (n: number) => prefer.has(`team:${n}`), place: eventPlace(p, idx), others };
+    const went = scope ? await playedIn(scope, sp.teams.map((t) => t.number)) : null;
+    const there = went ? sp.teams.filter((t) => went.has(t.number)) : sp.teams;
+    if (!scope || !went || there.length === sp.teams.length) return { ...sp, r: pickShared(sp.teams, ctx), there: null };
+    const label = scope.label;
+    if (there.length === 1) return { ...sp, r: { team: there[0], rule: `the only one that played ${label}` } as SharedPick<(typeof there)[number]>, there: { label, count: 1 } };
+    if (there.length) return { ...sp, r: pickShared(there, ctx), there: { label, count: there.length } };
+    const played = sp.teams.filter((t) => t.lastPlayed != null);
+    return { ...sp, r: { tied: played.length ? played : sp.teams } as SharedPick<(typeof there)[number]>, there: { label, count: 0 } };
+  }));
   // The query with each name's team number in its place; a name with none given stays as typed. Right to left by
   // position, so each name's place is still its own.
   const asked = (n: (number | null)[]) => {
@@ -943,12 +956,22 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
     // The other names: the team settled, else as typed (asked about next).
     const fixed = picks.map((x) => ("team" in x.r ? x.r.team.number : null));
     const at = picks.indexOf(tied);
-    const hits = (await Promise.all(choices.map(async (t) => (await search(String(t.number), 3, prefer, new Set(["team"]))).find((h) => h.kind === "team" && h.ref === String(t.number)))))
-      .filter((h): h is SearchHit => !!h).map((h) => ({ ...h, match: "exact" as const }));
+    const askedFor = (n: number) => asked(fixed.map((x, k) => (k === at ? n : x)));
+    // None of the name's teams played the event or season named: teams by a name like it that did ("green machine at
+    // worlds": 17324 Green Machines), each with the same question, ahead of the name's own teams.
+    const similar = tied.there?.count === 0 && scope ? await similarIn(scope, typedOf(tied), new Set(tied.teams.map((t) => t.number))) : [];
+    const hitOf = async (n: number) => (await search(String(n), 3, prefer, new Set(["team"]))).find((h) => h.kind === "team" && h.ref === String(n));
+    // Picking one asks the question about it ("8791 at worlds"), not only its page: unless the question is the name
+    // alone, or its team never played the event or season named (its page then says more than an empty answer).
+    const pickHref = (n: number, played: boolean) => (played && askedFor(n) !== String(n) ? { href: `/search?q=${encodeURIComponent(askedFor(n))}` } : {});
+    const own = (await Promise.all(choices.map((t) => hitOf(t.number))))
+      .filter((h): h is SearchHit => !!h).map((h) => ({ ...h, match: "exact" as const, ...pickHref(Number(h.ref), tied.there?.count !== 0) }));
+    const like = (await Promise.all(similar.map((t) => hitOf(t.number))))
+      .filter((h): h is SearchHit => !!h).map((h) => ({ ...h, match: "fuzzy" as const, matched: [typedOf(tied)], ...pickHref(Number(h.ref), true) }));
     return answer(q, {
-      hits, step: "deterministic",
-      understood: { kind: "names", label: whichLine(typedOf(tied), withPage(tied.teams).length, choices.map(shown)) },
-      suggest: choices.slice(0, 4).map((t) => asked(fixed.map((n, k) => (k === at ? t.number : n)))),
+      hits: [...own, ...like], step: "deterministic",
+      understood: { kind: "names", label: whichLine(typedOf(tied), withPage(tied.teams).length, choices.map(shown), tied.there ? { ...tied.there, also: similar.map((t) => `${t.number} ${cleanTeamName(t.number, t.name) ?? t.name}`) } : undefined) },
+      suggest: [...similar.map((t) => askedFor(t.number)), ...choices.map((t) => askedFor(t.number))].slice(0, 4),
     });
   }
   const numbers = picks.map((x) => ("team" in x.r ? x.r.team.number : 0));

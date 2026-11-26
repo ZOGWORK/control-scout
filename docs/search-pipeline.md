@@ -16,7 +16,7 @@ query ─▶ parse (server/api/query/parse.ts) ─▶ slots ─▶ execute (serv
 
 | Slot | Read from | Example |
 |---|---|---|
-| teams | a number the data holds, or a team's whole name (`names.ts`); a shared name is picked by Compare's rules (your team, played, newest season, the place named, the other team's region) | "4215", "bad wolf", "ultraviolet in nj" |
+| teams | a number the data holds, or a team's whole name (`names.ts`); a shared name is picked by Compare's rules (your team, played, newest season, the place named, the other team's region); with an event or season named beside it, only the teams that played it (`sharedScope.ts`): one is the team meant, several are asked about (each tap asks the same question about that team), none is said plainly, with any team by a name like it that did | "4215", "bad wolf", "ultraviolet in nj", "green machine at worlds" |
 | event | a run of words that names a stored event (`context.ts` `isEvent`, search's own index) | "east bergen conference", "nj championship" |
 | place | a region, a country or a town the data holds | "in California", "Romania", "from Oradell" |
 | time | a date, a window, a season, a game, a month, "ever" (`time.ts`) | "this week", "on Mar 15, 2026", "2024-25", "in march" |
