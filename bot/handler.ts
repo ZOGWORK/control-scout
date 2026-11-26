@@ -574,12 +574,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         await i.editReply({ embeds: [pride(errorEmbed("Two teams, please", "Pick two different numbers: `/compare team:4215 other:6980`."))] });
         return;
       }
-      // The server's chat limit (bot/quota.ts), then this person's own pace (bot/pacing.ts): said plainly, before any
-      // lookup.
-      const over = await mayChat(i.guildId);
-      if (!over.ok) { await i.editReply({ embeds: [pride(limitEmbed(over))] }); return; }
+      // This person's own pace (bot/pacing.ts) before the server's cap (bot/quota.ts): a chat the pace refuses never
+      // happened, so it must not spend a slot of the server's allowance. Either is said plainly, before any lookup.
       const fast = await mayPace(i.guildId, i.user.id);
       if (!fast.ok) { await i.editReply({ embeds: [pride({ ...paceEmbed(fast), color: VOLT, footer: FOOTER })] }); return; }
+      const over = await mayChat(i.guildId);
+      if (!over.ok) { await i.editReply({ embeds: [pride(limitEmbed(over))] }); return; }
       // "Report this to ControlScout" in /ask: the same report a mention files (bot/report.ts), before the chat limit —
       // a report is not a chat, and a server at its cap should still be able to report a bug.
       if (lookups.report && wantsReport(question)) {
@@ -686,10 +686,11 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       }
       // The server's chat limit, if one is set (none is, today): said in the channel, before the typing indicator goes up.
       // After the bare-mention help: that asks nothing of Control Scout, so it never uses a chat.
-      const over = await mayChat(m.guildId);
-      if (!over.ok) { await card(limitEmbed(over)); return; }
+      // The pace first: a chat it refuses must not spend a slot of the server's own allowance.
       const fast = await mayPace(m.guildId, m.author.id);
       if (!fast.ok) { await card({ ...paceEmbed(fast), color: VOLT, footer: FOOTER }); return; }
+      const over = await mayChat(m.guildId);
+      if (!over.ok) { await card(limitEmbed(over)); return; }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this message adds.
       const name = serverName(m.author, m.member);
       const lines = await serverLines(m.guildId, m.author.id, name);
@@ -797,10 +798,11 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       await i.reply({ content: "That button's question isn't kept any more (it is from before this bot kept them). Ask it with `/ask question:`.", flags: MessageFlags.Ephemeral });
       return;
     }
-    const over = await mayChat(i.guildId);
-    if (!over.ok) { await i.reply({ embeds: [pride(limitEmbed(over))], flags: MessageFlags.Ephemeral }); return; }
+    // The pace first: a button press it refuses must not spend a slot of the server's own allowance.
     const fast = await mayPace(i.guildId, i.user.id);
     if (!fast.ok) { await i.reply({ embeds: [pride({ ...paceEmbed(fast), color: VOLT, footer: FOOTER })], flags: MessageFlags.Ephemeral }); return; }
+    const over = await mayChat(i.guildId);
+    if (!over.ok) { await i.reply({ embeds: [pride(limitEmbed(over))], flags: MessageFlags.Ephemeral }); return; }
     await i.deferReply();
     const name = serverName(i.user, i.member);
     const lines = await serverLines(i.guildId, i.user.id, name);
