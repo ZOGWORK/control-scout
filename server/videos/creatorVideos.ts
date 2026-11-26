@@ -65,8 +65,10 @@ export async function seedCreatorChannels(now = Date.now(), again = false): Prom
 // ---- The run ----
 
 interface Channel { channelId: string; title: string; uploads: string; checkedAt: string | null }
-/** A channel's playlists as last read: title and YouTube's etag (a playlist whose etag is the same isn't read again). */
-type PlaylistInfo = Record<string, { title: string; etag: string }>;
+/** A channel's playlists as last read: title, YouTube's etag (a playlist whose etag is the same isn't read again) and
+ *  its videos. The members are kept, not only applied when read: a video stored on a later run (live then, or past
+ *  the run's units) still gets its playlists, and so its series. */
+type PlaylistInfo = Record<string, { title: string; etag: string; members?: string[] }>;
 const playlistKey = (channelId: string) => `creator:playlists:${channelId}`;
 
 export interface CreatorRun { units: number; channels: number; seen: number; refreshed: number; dropped: number; tagged: number; error: string | null }
@@ -90,9 +92,10 @@ function rowOf(item: any, channelId: string, now: number) {
 }
 const live = (item: any) => ["live", "upcoming"].includes(String(item?.snippet?.liveBroadcastContent ?? "none"));
 
-/** The channel's playlists, and the videos of each that changed since it was last read. Unchanged ones keep their
- *  membership as stored. Answers the playlists now, and the memberships read (playlist → its videos). */
-async function readPlaylists(ch: Channel, c: Ctx): Promise<{ info: PlaylistInfo; read: Map<string, Set<string>>; partial: Map<string, Set<string>>; gone: Set<string> }> {
+/** The channel's playlists, each one that changed since it was last read read again (its videos). An unchanged one
+ *  keeps the videos it had; one cut short (the run's units spent) keeps them too, with what was read added, and no
+ *  etag, so the next run reads it whole. */
+async function readPlaylists(ch: Channel, c: Ctx): Promise<PlaylistInfo> {
   const before = (await kvGet<PlaylistInfo>(playlistKey(ch.channelId))) ?? {};
   const info: PlaylistInfo = {};
   let token = "";
@@ -101,15 +104,13 @@ async function readPlaylists(ch: Channel, c: Ctx): Promise<{ info: PlaylistInfo;
     const body = await api("playlists", { part: "snippet", channelId: ch.channelId, maxResults: "50", ...(token ? { pageToken: token } : {}) }, c.key, c.fetchImpl);
     for (const p of Array.isArray(body?.items) ? body.items : []) {
       const id = String(p?.id ?? "");
-      if (id) info[id] = { title: String(p?.snippet?.title ?? "").slice(0, 200), etag: String(p?.etag ?? "") };
+      if (id) info[id] = { title: String(p?.snippet?.title ?? "").slice(0, 200), etag: String(p?.etag ?? ""), members: before[id]?.members ?? [] };
     }
     token = String(body?.nextPageToken ?? "");
     if (!token) break;
   }
-  const read = new Map<string, Set<string>>(), partial = new Map<string, Set<string>>();
   for (const [id, p] of Object.entries(info)) {
-    if (before[id]?.etag && before[id].etag === p.etag) continue;
-    // Not read (the run's units are spent): kept with no etag, so the next run reads it; its videos keep it meanwhile.
+    if (before[id]?.etag && before[id].etag === p.etag && before[id].members) continue;
     if (c.out.units >= c.maxUnits) { info[id] = { ...p, etag: "" }; continue; }
     const ids = new Set<string>();
     let t = "";
@@ -121,11 +122,9 @@ async function readPlaylists(ch: Channel, c: Ctx): Promise<{ info: PlaylistInfo;
       t = String(body?.nextPageToken ?? "");
       if (!t) { whole = true; break; }
     }
-    // Cut short: what was read is added, nothing is taken off, and it's read again next run.
-    if (whole) read.set(id, ids); else { info[id] = { ...p, etag: "" }; if (ids.size) partial.set(id, ids); }
+    info[id] = whole ? { ...p, members: [...ids] } : { ...p, etag: "", members: [...new Set([...(p.members ?? []), ...ids])] };
   }
-  const gone = new Set(Object.keys(before).filter((id) => !(id in info)));
-  return { info, read, partial, gone };
+  return info;
 }
 
 /** The channel's uploads not stored yet, newest first. The first full read goes back to its oldest upload; after it,
@@ -181,18 +180,16 @@ async function readVideos(ids: string[], ch: Channel, c: Ctx, refresh: boolean):
   }
 }
 
-/** Playlist memberships the run read, written onto each stored video of the channel: a read playlist's id is added
- *  where it holds the video and taken off where it doesn't, a playlist that's gone is taken off everywhere. */
-async function writeMemberships(ch: Channel, read: Map<string, Set<string>>, partial: Map<string, Set<string>>, gone: Set<string>, c: Ctx): Promise<void> {
-  if (!read.size && !partial.size && !gone.size) return;
+/** Each stored video of the channel given the playlists that hold it now (the kept members of every playlist the
+ *  channel has): new videos, playlists read again, and playlists gone all land here. Only changes are written. */
+async function writeMemberships(ch: Channel, info: PlaylistInfo, c: Ctx): Promise<void> {
+  const holds = new Map<string, string[]>();
+  for (const [p, x] of Object.entries(info)) for (const v of x.members ?? []) (holds.get(v) ?? holds.set(v, []).get(v)!).push(p);
   const rows = await all<{ video_id: string; playlist_ids: string | null }>("SELECT video_id, playlist_ids FROM creator_videos WHERE channel_id = ?", [ch.channelId]);
   const writes: { sql: string; args: (string | number | null)[] }[] = [];
   for (const r of rows) {
-    const was = parseIds(r.playlist_ids);
-    const next = new Set(was.filter((p) => !gone.has(p) && !read.has(p)));
-    for (const list of [read, partial]) for (const [p, ids] of list) if (ids.has(String(r.video_id))) next.add(p);
-    const now = [...next].sort();
-    if (now.join(",") !== [...was].sort().join(",")) writes.push({ sql: "UPDATE creator_videos SET playlist_ids = ? WHERE video_id = ?", args: [JSON.stringify(now), String(r.video_id)] });
+    const now = [...(holds.get(String(r.video_id)) ?? [])].sort();
+    if (now.join(",") !== parseIds(r.playlist_ids).sort().join(",")) writes.push({ sql: "UPDATE creator_videos SET playlist_ids = ? WHERE video_id = ?", args: [JSON.stringify(now), String(r.video_id)] });
   }
   for (let i = 0; i < writes.length; i += 200) { const chunk = writes.slice(i, i + 200); await c.locked(() => db().batch(chunk, "write")); }
 }
@@ -316,8 +313,8 @@ export async function runCreatorIntake(log: (s: string) => void, opts: { apiKey?
         const stale = await all<{ video_id: string }>("SELECT video_id FROM creator_videos WHERE channel_id = ? AND last_refreshed < ? ORDER BY last_refreshed LIMIT ?",
           [ch.channelId, new Date(now() - REFRESH_AFTER_MS).toISOString(), Math.max(0, c.maxUnits - out.units) * 50]);
         await readVideos(stale.map((r) => String(r.video_id)), ch, c, true);
-        await writeMemberships(ch, pl.read, pl.partial, pl.gone, c);
-        await locked(() => kvSet(playlistKey(ch.channelId), pl.info));
+        await writeMemberships(ch, pl, c);
+        await locked(() => kvSet(playlistKey(ch.channelId), pl));
         out.channels++;
         // A full read stands only when every upload page was read (the units didn't run out first).
         const whole = out.units < c.maxUnits;

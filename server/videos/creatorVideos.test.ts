@@ -169,4 +169,19 @@ describe("the creator-video intake", () => {
     expect(await creatorIfDue(log, last + 13 * 3600_000, { ...opts(last + 13 * 3600_000) })).not.toBeNull();
     expect(await runCreatorIntake(log, { apiKey: null })).toBeNull();
   });
+
+  it("gives a video stored after its playlist was read that playlist's series, the playlist unchanged", async () => {
+    // A premiere: in the Behind the Bot playlist (read now, its etag new) but upcoming, so not stored this run.
+    videos.push({ id: "premiere001", title: "13684 Infinity Tech | Behind the Bot | FTC BIOBUZZ Robot", published: "2026-12-20T15:00:00Z", live: "upcoming" });
+    lists[BTB] = { ...lists[BTB], etag: "e2", items: [...lists[BTB].items, "premiere001"] };
+    await runCreatorIntake(log, opts(T0 + 50 * 864e5));
+    expect(await get("SELECT 1 x FROM creator_videos WHERE video_id = 'premiere001'")).toBeUndefined();
+    // It aired; the playlist didn't change, so it isn't read again.
+    videos.find((v) => v.id === "premiere001")!.live = "none";
+    calls = [];
+    await runCreatorIntake(log, opts(T0 + 51 * 864e5));
+    expect(calls).not.toContain(`playlistItems:${BTB}`);
+    expect(await get("SELECT series, playlist_ids FROM creator_videos WHERE video_id = 'premiere001'")).toEqual({ series: "behind-the-bot", playlist_ids: JSON.stringify([BTB]) });
+    expect((await featuredFor(13684)).map((f) => f.videoId)).toContain("premiere001");
+  });
 });
