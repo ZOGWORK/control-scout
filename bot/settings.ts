@@ -26,12 +26,14 @@ export interface GuildSettings {
   extras: boolean;
   /** Whether an answer carries the clips its search found. */
   videos: boolean;
+  /** The channel questions are answered in with no mention (its id), or null: only mentions and /ask are answered. */
+  askChannel: string | null;
   updatedAt: string | null;
   updatedBy: string | null;
 }
 
 /** What a server has without a row: every post, no quiet hours, no ping. */
-export const DEFAULT_SETTINGS: GuildSettings = { quiet: null, reminders: true, pingRole: null, style: "default", extras: true, videos: true, updatedAt: null, updatedBy: null };
+export const DEFAULT_SETTINGS: GuildSettings = { quiet: null, reminders: true, pingRole: null, style: "default", extras: true, videos: true, askChannel: null, updatedAt: null, updatedBy: null };
 
 /** A style from what someone typed: "short", "detailed", "default", or empty for the default. Anything else is refused. */
 export function parseStyle(text: string): { style: Style } | { problem: string } {
@@ -86,8 +88,8 @@ export function inQuietHours(q: GuildSettings["quiet"], now = Date.now()): boole
 
 /** The server's settings as enforced; no row is the default, and a failed read must never silence the bot. */
 export async function guildSettings(guild: string): Promise<GuildSettings> {
-  const r = await get<{ quiet_start: number | null; quiet_end: number | null; reminders: number; ping_role: string | null; style: string | null; extras: number; videos: number; updated_at: string; updated_by: string | null }>(
-    "SELECT quiet_start, quiet_end, reminders, ping_role, style, extras, videos, updated_at, updated_by FROM discord_guild_settings WHERE guild_id = ?", [guild]);
+  const r = await get<{ quiet_start: number | null; quiet_end: number | null; reminders: number; ping_role: string | null; style: string | null; extras: number; videos: number; ask_channel: string | null; updated_at: string; updated_by: string | null }>(
+    "SELECT quiet_start, quiet_end, reminders, ping_role, style, extras, videos, ask_channel, updated_at, updated_by FROM discord_guild_settings WHERE guild_id = ?", [guild]);
   if (!r) return DEFAULT_SETTINGS;
   const start = r.quiet_start == null ? null : Number(r.quiet_start);
   const end = r.quiet_end == null ? null : Number(r.quiet_end);
@@ -98,6 +100,7 @@ export async function guildSettings(guild: string): Promise<GuildSettings> {
     style: styleOf(r.style),
     extras: Number(r.extras) !== 0,
     videos: Number(r.videos) !== 0,
+    askChannel: r.ask_channel ?? null,
     updatedAt: r.updated_at ?? null,
     updatedBy: r.updated_by ?? null,
   };
@@ -105,8 +108,8 @@ export async function guildSettings(guild: string): Promise<GuildSettings> {
 
 /** Every server's row, for the tick: one read a minute instead of one a channel. */
 export async function allSettings(): Promise<Map<string, GuildSettings>> {
-  const list = await all<{ guild_id: string; quiet_start: number | null; quiet_end: number | null; reminders: number; ping_role: string | null; style: string | null; extras: number; videos: number; updated_at: string; updated_by: string | null }>(
-    "SELECT guild_id, quiet_start, quiet_end, reminders, ping_role, style, extras, videos, updated_at, updated_by FROM discord_guild_settings");
+  const list = await all<{ guild_id: string; quiet_start: number | null; quiet_end: number | null; reminders: number; ping_role: string | null; style: string | null; extras: number; videos: number; ask_channel: string | null; updated_at: string; updated_by: string | null }>(
+    "SELECT guild_id, quiet_start, quiet_end, reminders, ping_role, style, extras, videos, ask_channel, updated_at, updated_by FROM discord_guild_settings");
   return new Map(list.map((r) => {
     const start = r.quiet_start == null ? null : Number(r.quiet_start);
     const end = r.quiet_end == null ? null : Number(r.quiet_end);
@@ -117,6 +120,7 @@ export async function allSettings(): Promise<Map<string, GuildSettings>> {
       style: styleOf(r.style),
       extras: Number(r.extras) !== 0,
       videos: Number(r.videos) !== 0,
+      askChannel: r.ask_channel ?? null,
       updatedAt: r.updated_at ?? null,
       updatedBy: r.updated_by ?? null,
     }] as [string, GuildSettings];
@@ -129,7 +133,7 @@ export type AnswerPrefs = Pick<GuildSettings, "style" | "extras" | "videos">;
  * What a write may leave alone. `/settings` names the posts' settings; `/config` names the answers' — neither touches
  * what it doesn't name.
  */
-export type GuildSettingsPatch = Partial<Pick<GuildSettings, "quiet" | "reminders" | "pingRole"> & AnswerPrefs>;
+export type GuildSettingsPatch = Partial<Pick<GuildSettings, "quiet" | "reminders" | "pingRole" | "askChannel"> & AnswerPrefs>;
 
 /**
  * Save a server's settings; `null` quiet is no quiet hours, and a failed write is the caller's to report.
@@ -146,30 +150,40 @@ export async function setGuildSettings(guild: string, s: GuildSettingsPatch, by:
   const style = s.style === undefined ? null : s.style === "default" ? null : s.style;
   const extras = s.extras === undefined ? null : s.extras ? 1 : 0;
   const videos = s.videos === undefined ? null : s.videos ? 1 : 0;
+  const ask = s.askChannel === undefined ? null : { set: 1, channel: s.askChannel };
   const styleSet = s.style === undefined ? 0 : 1;
   await run(
-    `INSERT INTO discord_guild_settings (guild_id, quiet_start, quiet_end, reminders, ping_role, style, extras, videos, updated_at, updated_by)
-     VALUES (?, ?, ?, COALESCE(?, 1), ?, ?, COALESCE(?, 1), COALESCE(?, 1), ?, ?)
+    `INSERT INTO discord_guild_settings (guild_id, quiet_start, quiet_end, reminders, ping_role, style, extras, videos, ask_channel, updated_at, updated_by)
+     VALUES (?, ?, ?, COALESCE(?, 1), ?, ?, COALESCE(?, 1), COALESCE(?, 1), ?, ?, ?)
      ON CONFLICT(guild_id) DO UPDATE SET
        quiet_start = CASE WHEN ? THEN ? ELSE quiet_start END, quiet_end = CASE WHEN ? THEN ? ELSE quiet_end END,
        reminders = COALESCE(?, reminders), ping_role = CASE WHEN ? THEN ? ELSE ping_role END,
        style = CASE WHEN ? THEN ? ELSE style END, extras = COALESCE(?, extras), videos = COALESCE(?, videos),
+       ask_channel = CASE WHEN ? THEN ? ELSE ask_channel END,
        updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-    [guild, quiet?.start ?? null, quiet?.end ?? null, reminders, ping?.role ?? null, style, extras, videos,
+    [guild, quiet?.start ?? null, quiet?.end ?? null, reminders, ping?.role ?? null, style, extras, videos, ask?.channel ?? null,
       new Date(now).toISOString(), by,
       quiet?.set ?? 0, quiet?.start ?? null, quiet?.set ?? 0, quiet?.end ?? null,
-      reminders, ping?.set ?? 0, ping?.role ?? null, styleSet, style, extras, videos]);
+      reminders, ping?.set ?? 0, ping?.role ?? null, styleSet, style, extras, videos,
+      ask?.set ?? 0, ask?.channel ?? null]);
 }
 
-/** /config's field: how this server asked its answers to read. */
-export function answerField(s: GuildSettings): { name: string; value: string } {
+/** /config's field: how this server asked its answers to read. `threaded: false`: the picked channel is one the bot can
+ *  post in but can't start a thread in, so the answers land in the channel (bot/handler.ts checks it). */
+export function answerField(s: GuildSettings, opts: { threaded?: boolean } = {}): { name: string; value: string } {
+  const where = s.askChannel
+    ? opts.threaded === false
+      ? `in <#${s.askChannel}>: a plain message there is answered, one per question, in the channel itself (it can't start a thread there)`
+      : `in <#${s.askChannel}>: a plain message there is answered, in its own thread, one per question`
+    : "off: mention the bot or use `/ask`";
   return {
     name: "How answers read here",
     value: [
       `**Style:** ${styleWords(s.style)}`,
       `**Follow-up suggestions:** ${s.extras ? "on: an answer offers the next questions as buttons" : "off"}`,
       `**Videos:** ${s.videos ? "on: an answer carries the clips its search found" : "off"}`,
-      "Change one with `/config style:short`, `/config extras:false` or `/config videos:false`.",
+      `**Questions without a mention:** ${where}`,
+      "Change one with `/config channel:#ask`, `/config style:short`, `/config extras:false` or `/config videos:false`.",
     ].join("\n"),
   };
 }
@@ -211,7 +225,7 @@ export function settingsEmbed(g: GuildSettings, guild: string): APIEmbed {
       `**Ping on reminders:** ${g.pingRole ? `<@&${g.pingRole}>` : "nobody (answers and posts never ping @everyone)."}`,
       "",
       "",
-      `Change the posts with \`/settings\`, and how answers read with \`/config\` (\`/config style:short\`, \`/config extras:false\`, \`/config videos:false\`). Settings are per server.${when}`,
+      `Change the posts with \`/settings\`, and how answers read with \`/config\` (\`/config channel:#ask\`, \`/config style:short\`, \`/config extras:false\`, \`/config videos:false\`). Settings are per server.${when}`,
     ].join("\n"),
     color: VOLT,
     footer: FOOTER,

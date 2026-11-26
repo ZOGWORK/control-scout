@@ -8,9 +8,11 @@
 export const DISCORD_CLIENT_ID: string | null = "1562258217873047562";
 
 /** The bot's only permissions: Send Messages (2048) + Embed Links (16384) + Use Application Commands (2^31) + Add
- *  Reactions (64), for the 👍 it puts on its answers, and Read Message History (65536), which reading back its own
- *  answers needs: the one-time sweep that takes its stale 👎s off them (bot/cleanup.ts). */
-export const DISCORD_PERMISSIONS = 2048 + 16384 + 64 + 65536 + 2 ** 31;
+ *  Reactions (64), for the 👍 it puts on its answers, Read Message History (65536), which reading back its own
+ *  answers needs: the one-time sweep that takes its stale 👎s off them (bot/cleanup.ts), and Create Public Threads
+ *  (2^35) + Send Messages in Threads (2^38), where an answer in a server's ask channel goes (bot/ambient.ts). 2^34 is
+ *  Manage Threads, a moderation permission, and is deliberately not asked for. */
+export const DISCORD_PERMISSIONS = 2048 + 16384 + 64 + 65536 + 2 ** 31 + 2 ** 35 + 2 ** 38;
 
 /** The OAuth2 invite: scopes bot + applications.commands, the minimal permissions; null without a client ID. */
 export function discordInviteUrl(clientId: string | null = DISCORD_CLIENT_ID): string | null {
@@ -33,6 +35,6 @@ export const BOT_COMMANDS: { usage: string; what: string; admin?: true }[] = [
   { usage: "/unfollow team: event:", what: "Stop those posts for a team or an event.", admin: true },
   { usage: "/following", what: "The teams and events this server follows, and where each one posts." },
   { usage: "/settings", what: "How this server gets its posts: quiet hours in UTC, whether match reminders are on, and a role to ping on them.", admin: true },
-  { usage: "/config", what: "What the bot is and can do here: the release it runs, which account it is and how many servers it is in, when it last reached Discord, the season, chat and this server's chat limit, report filing, follow posts and where its commands are registered. It also shapes this server's answers: style: short, default or detailed, extras: false to drop the follow-up buttons, videos: false to leave match videos out, or reset: true.", admin: true },
+  { usage: "/config", what: "What the bot is and can do here: the release it runs, which account it is and how many servers it is in, when it last reached Discord, the season, chat and this server's chat limit, report filing, follow posts and where its commands are registered. It also shapes this server's answers: channel: a channel where plain messages are answered with no mention, each question in its own thread, style: short, default or detailed, extras: false to drop the follow-up buttons, videos: false to leave match videos out, or reset: true.", admin: true },
   { usage: "/help", what: "This list." },
 ];

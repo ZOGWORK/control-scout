@@ -8,6 +8,7 @@ import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./v
 import { addFollow, followName, followingEmbed, listFollows, removeFollow, type FollowTarget } from "./follows.js";
 import { REPORT_PREFIX, answerComponents, buttonQuestion, dbButtonStore, QuestionButtons } from "./buttons.js";
 import { DEFAULT_SETTINGS, answerField, guildSettings, parseQuiet, parseStyle, setGuildSettings, settingsEmbed, styleLine, type GuildSettings, type GuildSettingsPatch } from "./settings.js";
+import { forgetAskChannels } from "./ambient.js";
 import { paceEmbed, takePersonChat, type Pace } from "./pacing.js";
 import { answerRow as answerRowOf, markReported, trackAnswer, type AnswerRow } from "./reactions.js";
 import { noteAsk, type AskRecord } from "./asks.js";
@@ -171,6 +172,18 @@ function canPost(i: ChatInputCommandInteraction, channelId: string): boolean {
   } catch { return true; }
 }
 
+/** Can the bot start a thread in this channel and answer in it? An ask channel where it can't still answers, in the
+ *  channel itself (bot/ambient.ts); this is what /config says it will do. Like canPost, an uncached channel says yes and
+ *  the first post finds out. */
+function canThread(i: ChatInputCommandInteraction, channelId: string): boolean {
+  try {
+    const ch = i.guild?.channels.cache.get(channelId);
+    const me = i.guild?.members.me;
+    if (!ch || !me || !("permissionsFor" in ch)) return true;
+    return !!ch.permissionsFor(me)?.has([PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.SendMessagesInThreads]);
+  } catch { return true; }
+}
+
 /** The name Discord shows for a person in a server: their nickname there, else their global display name, else their
  *  username (the @handle). `member.displayName` is discord.js's own answer — nickname first — and a raw member (an
  *  interaction's, before the guild is cached) only carries `nick`, so both are read. The name is what an answer calls
@@ -213,6 +226,16 @@ const brunoTurn = (text: string): BrunoChatTurn => {
 
 /** An answer pings nobody: not the asker, not @everyone, a role or a person named in Bruno's text. */
 export const NO_PINGS = { parse: [] as never[], repliedUser: false };
+
+/** What an answer posts in an ask channel's thread, and how. */
+export interface SendOpts { content?: string; embeds: APIEmbed[]; components?: AnswerComponents; allowedMentions: { parse: never[]; repliedUser: boolean } }
+
+/** The thread an ambient question's answer goes in: the question itself, as Discord caps a thread's name (100
+ *  characters), never blank. */
+export function threadName(q: string): string {
+  const name = q.replace(/\s+/g, " ").trim().slice(0, 100);
+  return name || "Question";
+}
 
 /** What a 👎 report says in place of the question when the answer predates answers keeping one (migration 105): the
  *  issue still shows the answer, just not what it was asked. */
@@ -565,9 +588,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
    * the bot no server time zone and a guessed one would silence the wrong hours.
    */
   /**
-   * /config: what this bot can do here, and how this server asked its answers to read — style, follow-up suggestions
-   * and videos, changed one at a time. No option given shows them; `reset` puts them back. Manage Server only, and
-   * private, since it describes the bot's own setup rather than a channel's (the handler defers it ephemerally).
+   * /config: what this bot can do here, and how this server asked its answers to read — a channel to answer plain
+   * messages in, style, follow-up suggestions and videos, changed one at a time. No option given shows them; `reset`
+   * puts them back. Manage Server only, and private, since it describes the bot's own setup rather than a channel's
+   * (the handler defers it ephemerally).
    */
   async function configCommand(i: ChatInputCommandInteraction): Promise<APIEmbed> {
     const guild = i.guildId;
@@ -582,11 +606,20 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const styleText = i.options.getString("style");
     const extras = i.options.getBoolean("extras");
     const videos = i.options.getBoolean("videos");
+    // The channel a server answers plain messages in, chosen here rather than by its name (bot/ambient.ts).
+    const picked = i.options.getChannel("channel")?.id ?? null;
     const reset = i.options.getBoolean("reset") === true;
     // Nothing asked for: show the setup and how this server's answers read today.
-    if (styleText == null && extras == null && videos == null && !reset) {
+    if (styleText == null && extras == null && videos == null && picked == null && !reset) {
       return { ...base, fields: [...(base.fields ?? []), answerField(now)] };
     }
+    // A channel it can't post in would answer nothing: refused up front, as /follow does. A channel where it can post but
+    // not start a thread is accepted, and the reply says the answers will land in the channel itself.
+    if (picked && !canPost(i, picked)) {
+      throw new Friendly("Can't post there", `Control Scout needs View Channel, Send Messages and Embed Links in <#${picked}> to answer there. Give its role those, or pick another channel.`);
+    }
+    const askChannel = picked ?? now.askChannel;
+    const threaded = !askChannel || canThread(i, askChannel);
     let style = now.style;
     if (styleText != null) {
       const parsed = parseStyle(styleText);
@@ -594,19 +627,21 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       style = parsed.style;
     }
     const next = reset
-      ? { ...now, style: "default" as const, extras: true, videos: true }
-      : { ...now, style, extras: extras ?? now.extras, videos: videos ?? now.videos };
+      ? { ...now, style: "default" as const, extras: true, videos: true, askChannel: null }
+      : { ...now, style, extras: extras ?? now.extras, videos: videos ?? now.videos, askChannel: picked ?? now.askChannel };
     if (!lookups.saveSettings) throw new Friendly("Couldn't save the settings", "This bot couldn't save its settings just now. Try again in a moment.");
     // Only the answers' settings: the posts' (quiet hours, reminders, ping role) are /settings', and a stale or failed
     // read above must never write them back as defaults.
-    await lookups.saveSettings(guild, { style: next.style, extras: next.extras, videos: next.videos }, i.user.id);
+    await lookups.saveSettings(guild, { style: next.style, extras: next.extras, videos: next.videos, askChannel: next.askChannel }, i.user.id);
+    // A new ask channel takes effect now, not after this process's minute-old read (bot/ambient.ts).
+    forgetAskChannels();
     // What was written is what this server now has: a write that failed threw, and re-reading would only add a second
     // read that a database blip could make disagree with the save that succeeded.
     const saved = next;
     return {
       ...base,
-      description: `${base.description ?? ""}\n\n**Saved.** Answers here read ${saved.style === "default" ? "the default way" : `\`${saved.style}\``}${saved.extras ? ", with follow-up suggestions" : ", with no follow-up suggestions"}${saved.videos ? " and clips" : " and no clips"}.`,
-      fields: [...(base.fields ?? []), answerField(saved)],
+      description: `${base.description ?? ""}\n\n**Saved.** Answers here read ${saved.style === "default" ? "the default way" : `\`${saved.style}\``}${saved.extras ? ", with follow-up suggestions" : ", with no follow-up suggestions"}${saved.videos ? " and clips" : " and no clips"}, and ${saved.askChannel ? `plain messages in <#${saved.askChannel}> are answered too, ${threaded ? "each in its own thread" : "in the channel itself: it can't start a thread there"}` : "only a mention or `/ask` is answered"}.`,
+      fields: [...(base.fields ?? []), answerField(saved, { threaded })],
     };
   }
 
@@ -736,31 +771,48 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
    * before it. Only a message from a person in a server that @mentions the bot itself or replies to its post:
    * never its own or another bot's, never @everyone or a role. Discord sends the text of a message that mentions
    * the bot without the privileged Message Content intent, so the bot never reads anything else (a reply that
-   * arrives without its text is left alone). `ambient`: a message in the server's #ask-control-scout channel, where
-   * no mention is needed (bot/ambient.ts); the channel check and the intent are bot/index.ts's.
+   * arrives without its text is left alone). `ambient`: a message in the one channel the server picked with
+   * `/config channel:`, where no mention is needed and the answer goes in a thread (bot/ambient.ts); the channel check
+   * and the intent are bot/index.ts's.
    */
   async function mention(m: MentionMessage, botId: string, ambient = false): Promise<void> {
     try {
       if (m.author.bot || !m.guildId) return;
       const replyTo = m.reference?.messageId && m.mentions?.repliedUser?.id === botId ? m.reference.messageId : null;
-      // Ambient: a message in the server's #ask-control-scout channel, which is the opt-in (bot/ambient.ts). Everything
-      // else still has to mention the bot or reply to one of its answers.
+      // Ambient: a message in the channel the server picked with /config channel:, which is the opt-in (bot/ambient.ts).
+      // Everything else still has to mention the bot or reply to one of its answers.
       if (!ambient && !new RegExp(`<@!?${botId}>`).test(m.content) && !(replyTo && m.content.trim())) return;
       // A command-looking line in the ask channel is somebody else's command, not a question for Control Scout.
       if (ambient && /^[/!]/.test(m.content.trim())) return;
       const q = m.content.replace(/<@[!&]?\d+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
       const history = replyTo ? await historyFor(replyTo) : [];
-      // Nobody is pinged by an answer (his text could name @everyone, a role or a person), reply or not.
-      const send = (post: AskPost) => m.reply({ ...post, allowedMentions: NO_PINGS })
-        // No Read Message History in that channel: a plain message instead of a reply.
-        .catch(() => m.channel.send?.({ ...post, allowedMentions: NO_PINGS }));
+      /**
+       * Where an answer goes. A mention is a reply to the message itself (a plain one when the channel can't be replied
+       * in). An ambient answer goes in a thread under the question, so a channel of questions stays a list of questions
+       * and the thread is where the follow-ups belong; if the question is already in a thread, or the bot can't start
+       * one (no Create Public Threads), it answers in the channel instead.
+       */
+      const send = async (post: AskPost): Promise<unknown> => {
+        // Nobody is pinged by an answer (his text could name @everyone, a role or a person), reply or not.
+        const payload = { ...post, allowedMentions: NO_PINGS };
+        if (ambient && !replyTo && !m.channel.isThread?.()) {
+          const thread = m.startThread ? await m.startThread({ name: threadName(q), autoArchiveDuration: 1440 }).catch(() => null) : null;
+          if (thread) return thread.send(payload);
+        }
+        return m.reply(payload)
+          // No Read Message History in that channel: a plain message instead of a reply.
+          .catch(() => m.channel.send?.(payload));
+      };
       const card = (embed: APIEmbed) => send({ embeds: [pride(embed)] });
+      // Nobody asked directly in an ask channel, so a refusal there (switched off, the person's pace, the server's cap)
+      // is silence rather than a notice under every message. A mention still gets the words.
+      const say = async (embed: APIEmbed): Promise<void> => { if (!ambient) await card(embed); };
       if (lookups.enabled && !(await lookups.enabled("discordBot"))) {
-        await card(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."));
+        await say(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."));
         return;
       }
       if (!q) {
-        await card({ title: "Ask me anything", description: "Write your question after the mention, like the website's search box:\n`@Control Scout who won decode` · `@Control Scout 4215 vs 6980`\nOr use `/ask question:`. Reply to my answer to keep talking.", color: VOLT, footer: FOOTER });
+        await say({ title: "Ask me anything", description: "Write your question after the mention, like the website's search box:\n`@Control Scout who won decode` · `@Control Scout 4215 vs 6980`\nOr use `/ask question:`. Reply to my answer to keep talking.", color: VOLT, footer: FOOTER });
         return;
       }
       // "Report this to ControlScout": a GitHub issue with the message, the thread before it and the bot's log lines.
@@ -775,9 +827,18 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // After the bare-mention help: that asks nothing of Control Scout, so it never uses a chat.
       // The pace first: a chat it refuses must not spend a slot of the server's own allowance.
       const fast = await mayPace(m.guildId, m.author.id);
-      if (!fast.ok) { await card({ ...paceEmbed(fast), color: VOLT, footer: FOOTER }); return; }
+      if (!fast.ok) {
+        // A person past their pace in an ask channel could be a loop: logged, not answered with a notice per message.
+        if (ambient) logLine(`ask channel: ${fast.window} pace reached, a message left unanswered`);
+        await say({ ...paceEmbed(fast), color: VOLT, footer: FOOTER });
+        return;
+      }
       const over = await mayChat(m.guildId);
-      if (!over.ok) { await card(limitEmbed(over)); return; }
+      if (!over.ok) {
+        if (ambient) logLine(`ask channel: the server's ${over.limited} cap is reached, a message left unanswered`);
+        await say(limitEmbed(over));
+        return;
+      }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this message adds.
       const name = serverName(m.author, m.member);
       const prefs = await prefsFor(m.guildId);
@@ -1000,5 +1061,16 @@ export interface MentionMessage {
   reference?: { messageId?: string } | null;
   mentions?: { repliedUser?: { id: string } | null };
   reply: (opts: { content?: string; embeds: APIEmbed[]; components?: AnswerComponents; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>;
-  channel: { send?: (opts: { content?: string; embeds: APIEmbed[]; components?: AnswerComponents; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>; sendTyping?: () => Promise<unknown> };
+  /** The message's channel: `id` and `parentId` are what bot/index.ts checks against the server's picked ask channel
+   *  (bot/ambient.ts), and `isThread` keeps an answer in a thread the question is already in. */
+  channel: {
+    id?: string | null;
+    parentId?: string | null;
+    isThread?: () => boolean;
+    send?: (opts: SendOpts) => Promise<unknown>;
+    sendTyping?: () => Promise<unknown>;
+  };
+  /** Discord's `Message#startThread`: where an ambient answer goes. Absent, or failing: the answer posts in the
+   *  channel, as a mention's does. */
+  startThread?: (opts: { name: string; autoArchiveDuration?: number }) => Promise<{ send: (opts: SendOpts) => Promise<unknown> } | null>;
 }

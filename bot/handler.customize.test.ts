@@ -22,6 +22,7 @@ function command(name: string, options: Record<string, string | number | boolean
       getString: (n: string) => options[n] as string | undefined,
       getBoolean: (n: string) => options[n] as boolean | undefined,
       getRole: () => null,
+      getChannel: (n: string) => (options[n] == null ? null : { id: String(options[n]) }),
     },
     isChatInputCommand: () => true,
     isAutocomplete: () => false,
@@ -69,7 +70,7 @@ describe("/config: how this server's answers read", () => {
     const short = command("config", { style: "short", videos: false });
     await h(short.i);
     // Only the answers' settings travel: quiet hours and the ping role belong to /settings and are never rewritten here.
-    expect(saveSettings).toHaveBeenCalledWith("g1", { style: "short", videos: false, extras: true }, "u1");
+    expect(saveSettings).toHaveBeenCalledWith("g1", { style: "short", videos: false, extras: true, askChannel: null }, "u1");
     expect(short.calls[1].payload.embeds[0].description).toContain("**Saved.**");
     expect(short.calls[1].payload.embeds[0].description).toContain("`short`");
 
@@ -82,7 +83,23 @@ describe("/config: how this server's answers read", () => {
     // reset puts all three back, and only this server's row changes.
     const reset = command("config", { reset: true });
     await h(reset.i);
-    expect(saveSettings).toHaveBeenLastCalledWith("g1", { style: "default", extras: true, videos: true }, "u1");
+    expect(saveSettings).toHaveBeenLastCalledWith("g1", { style: "default", extras: true, videos: true, askChannel: null }, "u1");
+  });
+
+  it("channel: answers plain messages there with no mention, each in a thread; reset takes it away", async () => {
+    const saveSettings = vi.fn(async () => {});
+    const h = createHandler(() => {}, lookups({ saveSettings }));
+    const pick = command("config", { channel: "111111111111111111" });
+    await h(pick.i);
+    expect(saveSettings).toHaveBeenCalledWith("g1", { style: "default", extras: true, videos: true, askChannel: "111111111111111111" }, "u1");
+    const embed = pick.calls[1].payload.embeds[0];
+    expect(embed.fields[0].value).toContain("**Questions without a mention:** in <#111111111111111111>");
+    expect(embed.fields[0].value).toContain("in its own thread");
+    expect(embed.description).toContain("each in its own thread");
+    // reset is how a server stops answering without a mention, along with the other answer settings.
+    const reset = command("config", { reset: true });
+    await h(reset.i);
+    expect(saveSettings).toHaveBeenLastCalledWith("g1", { style: "default", extras: true, videos: true, askChannel: null }, "u1");
   });
 
   it("a failed settings read refuses the change rather than writing defaults over the row", async () => {
