@@ -95,14 +95,16 @@ export async function startEmailSignIn(rawEmail: string): Promise<StartResult> {
       sent = prev.sent_count + 1; windowStart = prev.window_start;
     }
   }
+  // Greet the account by name when the address already has one (the note only ever goes to that address). Read before the
+  // code is stored, and a failed read just greets "there": it can never leave a stored code that was never sent.
+  const name = await get<{ display_name: string | null }>("SELECT display_name FROM users WHERE email = ?", [email])
+    .then((r) => r?.display_name ?? null, () => null);
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await run(
     `INSERT INTO email_codes (email, code_hash, expires_at, attempts, sent_count, window_start) VALUES (?, ?, ?, 0, ?, ?)
      ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0, sent_count = excluded.sent_count, window_start = excluded.window_start`,
     [email, codeHash(email, code), new Date(now + CODE_TTL_MS).toISOString(), sent, windowStart],
   );
-  // Greet the account by name when the address already has one (the note only ever goes to that address).
-  const name = (await get<{ display_name: string | null }>("SELECT display_name FROM users WHERE email = ?", [email]))?.display_name ?? null;
   const { subject, text, html } = codeEmail(code, { minutes: CODE_TTL_MS / 60_000, siteUrl: env.appUrl, name });
   try { await sendCode(email, subject, text, html); }
   catch (e) {

@@ -86,6 +86,21 @@ describe("development log mailer (MAIL_DEV_LOG=1)", () => {
     expect(html).not.toContain("<b>Scully");
   });
 
+  it("a failed name lookup still sends the code, greeting 'there'", async () => {
+    delete process.env.RESEND_API_KEY;
+    process.env.MAIL_DEV_LOG = "1";
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await run("ALTER TABLE users RENAME TO users_away");
+    try {
+      expect(await startEmailSignIn("fox@example.com")).toEqual({ ok: true });
+    } finally { await run("ALTER TABLE users_away RENAME TO users"); }
+    const lines = log.mock.calls.map((c) => String(c[0]));
+    const code = /\[mail\] code (\d{6})\b/.exec(lines.find((l) => l.startsWith("[mail] to fox@example.com"))!)?.[1];
+    const file = /^\[mail\] preview (.+)$/.exec(lines.find((l) => l.startsWith("[mail] preview "))!)?.[1];
+    expect(readFileSync(file!, "utf8")).toContain("Hey there,");
+    expect(await verifyEmailCode("fox@example.com", code!)).toEqual({ ok: true, email: "fox@example.com" });
+  });
+
   it("is ignored in production: no code is logged and sign-in stays off without a provider", async () => {
     delete process.env.RESEND_API_KEY;
     process.env.MAIL_DEV_LOG = "1";
