@@ -8,10 +8,13 @@ import { linkStart } from "../../src/shared/recording.js";
 import { youtubeId } from "../../src/shared/personal.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import { eventMatchSpan, seasonRecordings, withClips, type Recording } from "./recordings.js";
-import type { MatchClip } from "../../src/shared/api.js";
+import type { MatchClip, SearchVideoItem } from "../../src/shared/api.js";
+import { withStills } from "./storyboards.js";
 
 export interface FeaturedVideo { series: string; videoId: string; season: number | null; title: string }
-export interface TeamClip { videoId: string; start: number; end: number | null; event: string; match: string; title: string }
+/** `still`: a clip cut from a recording, its own frame (one tile of a YouTube storyboard sheet, storyboards.ts); none for
+ *  FIRST's own match video, whose thumbnail already is that match. */
+export interface TeamClip { videoId: string; start: number; end: number | null; event: string; match: string; title: string; still?: SearchVideoItem["still"] }
 export interface TeamVideos { featured: FeaturedVideo[]; clips: TeamClip[] }
 
 /** Most clips sent, and most of the team's latest events read for them (each is one read of its span). */
@@ -69,7 +72,7 @@ export async function latestClips(team: number, now = Date.now()): Promise<TeamC
     const m = await seasonRecordings(s).catch(() => new Map<string, Recording>());
     for (const e of events) if (e.season === s && m.has(e.code)) recs.set(`${s}:${e.code}`, m.get(e.code)!);
   }));
-  const out: (TeamClip & { order: number[] })[] = [];
+  const out: (TeamClip & { order: number[]; cut: boolean })[] = [];
   for (const [i, ev] of events.entries()) {
     // The event's played matches, marked where the team was on the field: a clip's place needs the whole event's span.
     const rows = await all<Row>(
@@ -87,14 +90,18 @@ export async function latestClips(team: number, now = Date.now()): Promise<TeamC
       const r = v.row;
       if (!r.mine) continue;
       const own = r.video ? youtubeId(r.video) : null;
-      const clip = own ? { videoId: own, start: linkStart(r.video!), end: null } : v.clip ? { videoId: v.clip.videoId, start: v.clip.t, end: v.clip.end ?? null } : null;
+      const clip = own ? { videoId: own, start: linkStart(r.video!), end: null, cut: false } : v.clip ? { videoId: v.clip.videoId, start: v.clip.t, end: v.clip.end ?? null, cut: true } : null;
       if (!clip) continue;
       out.push({ ...clip, event: r.name, match: r.label, title: `${r.label} · ${r.name}`, order: [-i, levelRank(r.level), r.series, r.number] });
     }
   }
   // Newest first: the latest event, then its playoffs before its qualification, the latest match first.
   out.sort((a, b) => { for (let k = 0; k < a.order.length; k++) if (a.order[k] !== b.order[k]) return b.order[k] - a.order[k]; return 0; });
-  return out.slice(0, MAX_CLIPS).map(({ order: _o, ...c }) => c);
+  const top = out.slice(0, MAX_CLIPS);
+  // A recording's clips would all show the recording's one thumbnail: each gets its own frame instead.
+  const items: SearchVideoItem[] = top.map((c) => ({ kind: c.cut ? "recording" : "match", videoId: c.videoId, t: c.start }));
+  await withStills(items, now).catch(() => {});
+  return top.map(({ order: _o, cut: _c, ...c }, i) => (items[i].still ? { ...c, still: items[i].still } : c));
 }
 
 export async function teamVideos(team: number, now = Date.now()): Promise<TeamVideos> {

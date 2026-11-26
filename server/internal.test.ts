@@ -22,6 +22,7 @@ import { kvSet, migrate, openDb, run, setDb } from "./db";
 import { clearAllCaches } from "./caches";
 import { createApp } from "./app";
 import { setFeaturedFor, MAX_CLIPS } from "./videos/teamVideos";
+import { forgetStoryboards } from "./videos/storyboards";
 
 const KEY = "k".repeat(40);
 const S = 2025;
@@ -50,6 +51,7 @@ beforeEach(async () => {
   clearAllCaches();
   await kvSet("data:version", "v1");
   recs.map = new Map();
+  forgetStoryboards();
   process.env.CONTROL_POINT_INTERNAL_KEY = KEY;
   setFeaturedFor(async () => []);
 });
@@ -101,6 +103,18 @@ describe("GET /internal/teams/:n/videos", () => {
       { videoId: "ccccccccccc", start: 100, end: 260, event: "New Jersey Championship", match: "Q1", title: "Q1 · New Jersey Championship" },
       { videoId: "aaaaaaaaaaa", start: 42, end: null, event: "OLD Qualifier", match: "Q1", title: "Q1 · OLD Qualifier" },
     ]);
+  });
+
+  it("a recording's clip gets its own frame (a storyboard tile); FIRST's own video keeps its thumbnail", async () => {
+    await event("E", "2025-11-01");
+    await match("E", 1, [100, 2, 3, 4]);
+    await match("E", 2, [100, 2, 3, 4], { video: "https://www.youtube.com/watch?v=aaaaaaaaaaa" });
+    recs.map.set("E", { videoId: "ccccccccccc", meta: null });
+    const spec = "https://i.ytimg.com/sb/ccccccccccc/storyboard3_L$L/$N.jpg?sqp=x|48#27#100#10#10#0#default#rs$A|80#45#1806#10#10#10000#M$M#rs$B|160#90#1806#5#5#10000#M$M#rs$C|320#180#1806#3#3#10000#M$M#rs$D";
+    await run("INSERT INTO video_storyboards (video_id, spec, read_at) VALUES (?, ?, ?)", ["ccccccccccc", spec, new Date().toISOString()]);
+    const clips = (await get("/internal/teams/100/videos", KEY)).body.clips;
+    expect(clips.map((c: { match: string; still?: unknown }) => [c.match, !!c.still])).toEqual([["Q2", false], ["Q1", true]]);
+    expect(clips[1].still).toMatchObject({ src: expect.stringContaining("i.ytimg.com/sb/ccccccccccc/"), cols: expect.any(Number), rows: expect.any(Number) });
   });
 
   it("a match with no video and no recording has no clip; at most six are sent", async () => {
