@@ -20,7 +20,7 @@ import type { CreatorProgram, CreatorSeries, CreatorVideo, FeaturedVideo } from 
 /** FUN Robotics Network (youtube.com/@funroboticsnetwork): the first creator channel, written once. */
 export const SEED_CHANNELS = [{ channelId: "UCuJUknE5JjilAfNnmbvr22Q", handle: "@funroboticsnetwork", title: "FUN Robotics Network" }];
 
-export const CREATOR_EVERY_MS = 12 * 3600_000;
+export const CREATOR_EVERY_MS = 4 * 3600_000;
 /** What one run may spend at most (10,000 a day, shared with the official watcher and the timing backfill). A first
  *  backfill of FUN (a few thousand uploads and their playlists) takes a few hundred. */
 const MAX_UNITS = 900;
