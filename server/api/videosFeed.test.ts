@@ -189,14 +189,17 @@ describe("GET /api/videos/feed", () => {
     await run(`CREATE TABLE IF NOT EXISTS creator_videos (video_id TEXT PRIMARY KEY, channel_id TEXT, title TEXT, description TEXT, published_at TEXT, duration_s INTEGER,
       playlist_ids TEXT, series TEXT, program TEXT, season INTEGER, embeddable INTEGER, last_refreshed TEXT)`);
     await run("CREATE TABLE IF NOT EXISTS video_team_tags (video_id TEXT, team_number INTEGER, rule TEXT)");
+    await run("CREATE TABLE IF NOT EXISTS creator_channels (channel_id TEXT PRIMARY KEY, handle TEXT, title TEXT NOT NULL, uploads_playlist TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, added_by TEXT, added_at TEXT NOT NULL)");
+    await run("INSERT INTO creator_channels (channel_id, title, uploads_playlist, added_at) VALUES ('UCfun', 'FUN Robotics Network', 'UUfun', ?)", [new Date().toISOString()]);
     await run("INSERT INTO creator_videos (video_id, channel_id, title, published_at, duration_s, series, program, embeddable) VALUES ('btb00000001', 'UCfun', 'Behind the Bot: 1111', ?, 900, 'behind-the-bot', 'ftc', 1)", [new Date().toISOString()]);
     await run("INSERT INTO creator_videos (video_id, channel_id, title, published_at, series, program, embeddable) VALUES ('frc00000001', 'UCfun', 'An FRC robot', ?, NULL, 'frc', 1)", [new Date().toISOString()]);
     await run("INSERT INTO video_team_tags (video_id, team_number, rule) VALUES ('btb00000001', 1111, 'cue')");
     clearAllCaches(); forgetCreatorTables();
     const btb = await feed("?filter=behindTheBot&my=1111");
     expect(btb.items.map((i) => [i.key, i.kind, i.reason, i.teams])).toEqual([["c:btb00000001", "creator", "Features your team, 1111", [1111]]]);
-    expect((await feed("?filter=creators")).items.map((i) => i.key)).toEqual(["c:btb00000001"]);
-    await run("DROP TABLE video_team_tags"); await run("DROP TABLE creator_videos");
+    const creators = (await feed("?filter=creators")).items;
+    expect(creators.map((i) => [i.key, i.channel])).toEqual([["c:btb00000001", "FUN Robotics Network"]]);
+    await run("DROP TABLE video_team_tags"); await run("DROP TABLE creator_videos"); await run("DROP TABLE creator_channels");
   });
 });
 
