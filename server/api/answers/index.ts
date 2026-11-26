@@ -31,7 +31,7 @@ import { reliabilityEvents, teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer, awardsTitle } from "./families/awards.js";
 import { championshipMatchesAnswer, eventScopeAnswer, matchLabelAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
-import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
+import { factAnswer, readTeamFact, seasonOf as factSeason, type FactEvent, type FactQuestion } from "./families/facts.js";
 import { leagueAskAnswer, readLeagueAsk } from "./families/league.js";
 import { conferenceAskAnswer, readConferenceAsk, readConferenceName } from "./families/conference.js";
 import { allConferences } from "../conferences.js";
@@ -535,6 +535,12 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const two = readTwoTeam(q);
   if (two) return twoTeamSearch(q, two, resolve, opts);
   let it = readStatQuestion(q);
+  // A fact kept event by event asked at the team's own last or first event ("schedule difficulty 4215 last meet"): that
+  // fact there. The event's words alone name only which event, never its own card.
+  if (it && (it.id === "last-event" || it.id === "first-event")) {
+    const f = readTeamFact(q);
+    if (f?.at) return factSearch(q, f, resolve, opts);
+  }
   // The event named beside the team, with no "at" ("what rank did 4215 get in the east bergen conference"). With none,
   // an event's own numbers aren't asked ("4215 auto opr" is the team's), and a forecast is for the next event.
   if (it?.eventInCore) {
@@ -846,11 +852,26 @@ async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { 
     step: guessed ? "did-you-mean" : "deterministic", weak: guessed && base.weak,
     ...(guessed && base.didYouMean ? { didYouMean: q.toLowerCase().includes(f.core) ? q.toLowerCase().replace(f.core, base.didYouMean) : base.didYouMean } : {}),
     understood: { kind: "question", label, ...(f.season != null ? { season: f.season } : {}) },
-    intent: { kind: `stat-${f.id}`, pattern: `[team] ${f.id}${f.region ? " [place]" : f.event ? " [event]" : ""}${f.season != null ? " [season]" : ""}`, met: true, understood: [`Team ${whoOf(team)}`, FACT_TITLES[f.id]] },
+    intent: { kind: `stat-${f.id}`, pattern: `[team] ${f.id}${f.region ? " [place]" : f.event || f.at ? " [event]" : ""}${f.season != null ? " [season]" : ""}`, met: true, understood: [`Team ${whoOf(team)}`, FACT_TITLES[f.id]] },
   };
   if (!opts.full) return answer;
-  const stat = await factAnswer(f, team, (words, season) => findEvent(words, season, { anyPlayed: true }));
+  const at = f.at ? await factEvent(f, team.number) : undefined;
+  const stat = await factAnswer(f, team, (words, season) => findEvent(words, season, { anyPlayed: true }), at);
   return stat ? { ...answer, understood: { ...answer.understood!, label: `${whoOf(team)} · ${stat.title}` }, stat } : null;
+}
+
+/** The one event an at-event fact is read at, picked as a stat answer picks it (teamPick): the team's own last or first
+ *  event (its first: of its latest season), or the event of the team's those words name, else that event by name, which
+ *  it didn't play (absent). Null: no event of the team's fits and none goes by that name. */
+async function factEvent(f: FactQuestion, team: number): Promise<FactEvent | null> {
+  const at = f.at!;
+  const season = f.season ?? (f.latest || at === THEIR_FIRST ? (await latestSeason(team))?.season ?? null : null);
+  const scope = { season: f.season, latest: !!f.latest, ever: false, championship: false, states: false, level: null, alliance: null, at };
+  const p = teamPick((await teamEventSet(team)).events, scope, season);
+  if (p) return { season: p.primary.season, code: p.primary.code, name: p.name, codes: p.events.map((e) => e.code) };
+  if (at === THEIR_LAST || at === THEIR_FIRST) return null;
+  const named = await findEvent(at, season, { anyPlayed: true, closest: true });
+  return named ? { season: Number(named.season), code: named.code, name: shortEvent(named.name, named.type ?? null), absent: true } : null;
 }
 
 /** "How much did 12345's OPR improve from last season to this season": one team's number in two seasons, or its rating
