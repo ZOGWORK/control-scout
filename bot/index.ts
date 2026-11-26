@@ -15,6 +15,8 @@ import { liveForecaster, refreshForecasters } from "../server/predict/engine.js"
 import { COMMANDS, sameCommands } from "./commands.js";
 import { createHandler, realLookups } from "./handler.js";
 import { notifyTick, type Send } from "./follows.js";
+import { isAskChannel } from "./ambient.js";
+import { welcomeEmbed } from "./welcome.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
 import { rememberGuild } from "./guilds.js";
@@ -64,8 +66,11 @@ for (const line of configLines(await configHere())) log(line);
  *  command can't disagree. Said once the database is open, since the chat switch and the follows live there. `guild`:
  *  the server /config was asked in, whose own chat limit is then part of the answer; the startup block has none. */
 async function configHere(guild?: string | null): Promise<Config> {
-  const follows = await get<{ n: number; g: number }>("SELECT COUNT(*) AS n, COUNT(DISTINCT guild_id) AS g FROM discord_follows")
-    .then((r) => ({ follows: Number(r?.n ?? 0), servers: Number(r?.g ?? 0) }))
+  // Stopped follows are kept (their row says why), so they are counted apart: the tick posts for neither, but the
+  // journal should say some exist rather than look healthy.
+  const follows = await get<{ n: number; g: number; stopped: number }>(
+    "SELECT COUNT(*) AS n, COUNT(DISTINCT guild_id) AS g, COALESCE(SUM(dropped_at IS NOT NULL), 0) AS stopped FROM discord_follows")
+    .then((r) => ({ follows: Number(r?.n ?? 0), servers: Number(r?.g ?? 0), stopped: Number(r?.stopped ?? 0) }))
     .catch(() => null);
   // The newest heartbeat (server/uptime.ts), written once a minute while connected: the last time it was connected, which
   // outlives a restart — the startup summary asks before this process has reached the gateway.
@@ -104,8 +109,14 @@ async function waitForSite(timeoutMs = 180_000): Promise<void> {
 // DirectMessageReactions (not privileged either) are what deliver a 👎 on an answer (bot/reactions.ts): a person adding
 // one deliberately is reporting that answer, and without these intents the bot would never hear it. Partials: a report
 // on an answer from before the bot's last restart still arrives (its message, channel and reaction may not be cached).
+// Message Content is privileged and only requested when the server's env says the portal switch is on (bot/ambient.ts):
+// asking for an intent the app isn't allowed makes login fail, so it can't be added before the portal is ready.
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessageReactions],
+  intents: [
+    GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.DirectMessageReactions,
+    ...(env.discordMessageContent ? [GatewayIntentBits.MessageContent] : []),
+  ],
   partials: [Partials.Message, Partials.Reaction, Partials.Channel],
 });
 // /config answers with the same summary the startup log prints (bot/config.ts), read live rather than from startup.
@@ -172,19 +183,30 @@ const send: Send = async (channelId, embed) => {
     return code === 10003 || code === 50001 || code === 50013 ? "gone" : "error";
   }
 };
+/** A stopped follow's creator is told by DM: the channel it posted in can't be posted in any more. */
+const dm = async (userId: string, text: string): Promise<void> => {
+  const user = await client.users.fetch(userId);
+  await user.send({ content: text });
+};
 // The /status page's heartbeat (server/uptime.ts): every minute while connected to Discord.
 setInterval(() => { if (client.isReady()) beat("bot").catch(() => {}); }, 60_000).unref();
 let ticking = false;
 setInterval(() => {
   if (ticking || !client.isReady()) return;
   ticking = true;
-  notifyTick(send, site(), log)
+  notifyTick(send, site(), log, Date.now(), dm)
     .then((n) => { if (n) log(`follows: posted ${n}`); })
     .catch((e) => log(`follows: tick failed: ${(e as Error).message}`))
     .finally(() => { ticking = false; });
 }, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
-client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m as never, client.user.id); });
+client.on(Events.MessageCreate, (m) => {
+  if (!client.user) return;
+  // In a channel named #ask-control-scout (and only when Message Content is enabled) a message needs no mention; every
+  // other channel still has to mention the bot or reply to it (bot/ambient.ts).
+  const ambient = env.discordMessageContent && isAskChannel(m.channel as never);
+  void handle.mention(m as never, client.user.id, ambient);
+});
 /** A 👎 added on purpose is a report (bot/handler.ts `downvoted`): the answer's question and words go to GitHub, and
  *  the person is told where the issue is. Only a message the bot posted has a row, so a 👎 anywhere else files nothing,
  *  and the bot adds no emoji of its own — so a 👍 somebody adds changes nothing, and the ones it did add are taken off
@@ -212,6 +234,14 @@ client.on(Events.GuildCreate, (g) => {
   self.servers = client.guilds.cache.size;
   log(`added to a server (${self.servers} now): ${g.id}`);
   void rememberGuild(g.id, g.name).catch(() => {});
+  // One short welcome with what to do next, in the system channel or the first one it can post in: an install that
+  // never finds /follow is a bot nobody uses (bot/welcome.ts).
+  const channel = (g.systemChannel?.isSendable()
+    ? g.systemChannel
+    : [...g.channels.cache.values()].find((c) => c.isTextBased() && c.isSendable())) as { send?: (p: { embeds: unknown[] }) => Promise<unknown> } | undefined;
+  if (channel?.send) {
+    void channel.send({ embeds: [welcomeEmbed()] }).catch((e) => log(`welcome: couldn't post in ${g.id} (${(e as Error)?.message ?? String(e)})`));
+  }
   // A server it is added back to still has the answers it posted there, 👎s and 👍s and all: swept on the way in, since
   // the row says the sweep is done and would otherwise skip it (bot/cleanup.ts; a pass that misses something there asks
   // for a full one on the next start).

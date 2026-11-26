@@ -2,7 +2,7 @@
 // grouped for the console, and the numbers beside them — on a database.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../server/db";
-import { KEEP_DAYS, askText, askUsage, noteAsk, prune, topUnanswered } from "./asks";
+import { KEEP_DAYS, answerStats, askText, askUsage, noteAsk, prune, topUnanswered } from "./asks";
 
 const NOW = Date.parse("2026-11-22T15:00:00Z");
 const at = (msAgo = 0) => new Date(NOW - msAgo).toISOString();
@@ -15,7 +15,21 @@ describe("what the bot was asked", () => {
     setDb(c);
     await migrate(c);
   });
-  beforeEach(async () => { await run("DELETE FROM discord_asks"); });
+  beforeEach(async () => { await run("DELETE FROM discord_asks"); await run("DELETE FROM discord_answers"); });
+
+  it("measures answer quality without a thumbs-up: reports per answer, and how often the same words are asked again", async () => {
+    await ask("who won decode");
+    await ask("who won decode");
+    await ask("4215 opr");
+    await run("INSERT INTO discord_answers (message_id, guild_id, report_number) VALUES ('m1', 'g1', 12), ('m2', 'g1', NULL), ('m3', 'g1', NULL), ('m4', 'g1', NULL)");
+    const s = await answerStats(NOW);
+    // Two distinct questions, one of them asked twice: half the week's questions were repeats.
+    expect(s).toEqual({ answers: 4, reported: 1, reportedPct: 25, repeatPct: 50 });
+    // Nothing recorded yet: no percentages, rather than a misleading 0%.
+    await run("DELETE FROM discord_asks");
+    await run("DELETE FROM discord_answers");
+    expect(await answerStats(NOW)).toEqual({ answers: 0, reported: 0, reportedPct: null, repeatPct: null });
+  });
 
   it("keeps the words, the step and the outcome, with personal data redacted and no user id", async () => {
     expect(askText("  Who   won DECODE? my address is alex@example.com ")).toBe("Who won DECODE? my address is [email]");

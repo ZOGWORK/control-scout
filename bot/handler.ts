@@ -6,7 +6,7 @@ import { MessageFlags, PermissionFlagsBits, type APIActionRowComponent, type API
 import { AnswerCache } from "./guard.js";
 import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
 import { addFollow, followName, followingEmbed, listFollows, removeFollow, type FollowTarget } from "./follows.js";
-import { answerComponents, buttonQuestion, QuestionButtons } from "./buttons.js";
+import { answerComponents, buttonQuestion, dbButtonStore, QuestionButtons } from "./buttons.js";
 import { answerRow as answerRowOf, markReported, trackAnswer, type AnswerRow } from "./reactions.js";
 import { noteAsk, type AskRecord } from "./asks.js";
 import { SORRY_SENTENCE } from "../src/shared/search.js";
@@ -18,7 +18,7 @@ import { ask as askSearch, chatPost, offeredQuestion, realAskDeps, recordsTurn, 
 import { takeChat, type Quota } from "./quota.js";
 import { channelSubject as readChannelSubject, keep as keepThread, keepChannelSubject, learn as learnMemory, recall as recallMemory, teamsAsked, thread as readThread } from "./memory.js";
 import { subjectKept } from "./subject.js";
-import { fileReport, wantsReport, type Filed, type Report } from "./report.js";
+import { fileReport, noteReport as postReportNote, wantsReport, type Filed, type Report } from "./report.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 
 export type Log = (m: string) => void;
@@ -46,13 +46,16 @@ export interface Lookups {
   noteAsk?: (r: AskRecord) => Promise<void>;
   /** An answer the bot posted, with the question it answered (bot/reactions.ts): the row says what the answer was for,
    *  so a 👎 on it can report that question. Nothing is added to the answer itself. */
-  trackAnswer?: (messageId: string, guild: string | null, question?: string) => Promise<void>;
+  trackAnswer?: (messageId: string, guild: string | null, question?: string, meta?: { source: string | null; step: string | null; ms: number | null }) => Promise<void>;
   /** The row for a message the bot posted, or null (bot/reactions.ts): a 👎 only reports a message that has one, so a
    *  reaction on somebody else's message files nothing. */
   answerRow?: (messageId: string) => Promise<AnswerRow | null>;
   /** Keeps the issue a 👎 on an answer opened, on the answer's row (bot/reactions.ts): a second 👎 later, or after a
    *  restart, answers with that issue instead of filing a duplicate. */
   rememberReport?: (messageId: string, issue: { number: number; url: string }) => Promise<void>;
+  /** A comment on an issue a 👎 already opened, when somebody else reports the same answer (bot/report.ts): triage sees
+   *  that more than one person hit it. */
+  noteReport?: (number: number, n: { user: string; name: string | null; guild: string | null; messageId?: string | null }) => Promise<boolean>;
   /** What a server teaches the bot (bot/memory.ts); absent: nothing is remembered. */
   memory?: Memory;
   /** Files a "Report this to ControlScout" as a GitHub issue (bot/report.ts); absent: reporting is off. */
@@ -97,9 +100,10 @@ export const realLookups: Lookups = {
   following: async (guild) => followingEmbed(await listFollows(guild), site()),
   ask: async (question, history, memory, guild, channelSubject) => askSearch(question, await (askDeps ??= realAskDeps()), site(), history, memory, guild ?? null, channelSubject ?? null),
   noteAsk: (r) => noteAsk(r),
-  trackAnswer: (id, guild, question) => trackAnswer(id, guild, question),
+  trackAnswer: (id, guild, question, meta) => trackAnswer(id, guild, question, meta),
   answerRow: (id) => answerRowOf(id),
   rememberReport: (id, issue) => markReported(id, issue),
+  noteReport: (n, r) => postReportNote(n, r),
   enabled: (flag) => isEnabled(flag),
   quota: takeChat,
   memory: { recall: recallMemory, learn: learnMemory, thread: readThread, keep: keepThread, channel: readChannelSubject, keepChannel: keepChannelSubject },
@@ -256,22 +260,27 @@ export const REPORT_LOG_LINES = 20;
 /** A report already filed for the same words in the same server, and when: a second "report this" answers the same
  *  issue rather than opening another. */
 const REPORT_REPEAT_MS = 10 * 60_000;
+/** How often a second 👎 on the same answer may add a comment to its issue: enough to show the report is shared, not a
+ *  feed a busy channel can write. */
+const REPORT_NOTE_MS = 3600_000;
 
 export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { ttlMs?: number } = {}) {
   // The last lines of the bot's own log, kept for a report: "Report this to ControlScout" files them with the issue.
   const recentLogs: string[] = [];
   const logLine: Log = (m) => { recentLogs.push(m); if (recentLogs.length > REPORT_LOG_LINES) recentLogs.shift(); log(m); };
   const filed = new Map<string, { at: number; number: number; url: string }>();
+  // When each answer's issue last got a "someone else reported this too" comment (bot/report.ts noteReport).
+  const noted = new Map<string, number>();
   // Reports being filed right now, by the same key: a second ask waits for the first instead of opening an issue too.
   const filing = new Map<string, Promise<Filed>>();
   const cache = new AnswerCache<APIEmbed>(opts.ttlMs ?? 60_000, 2000, (e) => e instanceof Friendly);
   // Nobody is paced per person: every message is answered (a person asking twice in a row gets both answers). Only the
   // same question within a minute is the answer already given, whoever asks.
   const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
-  // The questions behind the answers' buttons (bot/buttons.ts), kept an hour or until a restart.
-  const buttons = new QuestionButtons();
-  // The server's chat limit (bot/quota.ts): only a server given a cap has one, and a read that fails allows the chat —
-  // a database blip must never silence the bot.
+  // The questions behind the answers' buttons (bot/buttons.ts): kept in the database, so they work after a restart.
+  const buttons = new QuestionButtons(dbButtonStore());
+  // The server's chat limit (bot/quota.ts): the default ceiling unless the server has its own row, and a read that
+  // fails allows the chat — a database blip must never silence the bot.
   const quota = lookups.quota;
   const mayChat = async (guild: string | null | undefined): Promise<Quota> =>
     !guild || !quota ? { ok: true } : quota(guild).catch((): Quota => ({ ok: true }));
@@ -290,6 +299,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const k = [question, channelSubject ?? "", ...history.map((t) => `${t.role}:${t.text}`), ...memory].join("\u0000").trim().replace(/\s+/g, " ").toUpperCase();
     const r = await asks.get(k, () => { fresh = true; return lookups.ask(question, history, memory, guild, channelSubject); });
     const ms = Date.now() - t0;
+    // Kept on the answer's meta so its row (and a 👎 report) can say how long it took.
+    r.meta.ms = ms;
     // What the bot was asked (bot/asks.ts), once per question rather than once per reader: a cached repeat is the same
     // ask. Never who asked, never awaited, never able to fail an answer.
     if (fresh && lookups.noteAsk) {
@@ -306,8 +317,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   /** An answer as a post: Bruno's chat reply as text — with the records card beside it when search found the records
    *  the answer is about (`card`) — else the card with its video link as the text, and its buttons (bot/buttons.ts).
    *  `quote`: show the question (a slash command's reply doesn't; a reply to a message already does). */
-  const askPost = (question: string, r: AskReply, quote: boolean): AskPost => {
-    const components = answerComponents(r, buttons);
+  const askPost = async (question: string, r: AskReply, quote: boolean, guild: string | null = null): Promise<AskPost> => {
+    const components = await answerComponents(r, buttons, Date.now(), guild);
     const post: AskPost = r.chat
       ? { content: chatPost(question, r.chat, { quote }), embeds: r.chat.card && r.chat.by !== "scout" ? [pride(r.embed)] : [] }
       : { ...(r.content ? { content: r.content } : {}), embeds: [pride(r.embed)] };
@@ -315,10 +326,15 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   };
   /** An answer's row, with the question it answered (bot/reactions.ts): a 👎 on the answer later reports that question.
    *  Nothing is added to the post — there is no emoji on it any more — and a stand-in without a row changes nothing. */
-  function keepAnswer(sent: unknown, guild: string | null, question: string): void {
+  function keepAnswer(sent: unknown, guild: string | null, question: string, r?: AskReply): void {
     const m = sent as { id?: string } | undefined;
     if (!m?.id) return;
-    void Promise.resolve(lookups.trackAnswer?.(m.id, guild, question)).catch(() => {});
+    // What answered: his chat, the bot's own fallback, or the search card. A report says which, so triage knows where
+    // to look first.
+    const meta = r
+      ? { source: r.chat ? (r.chat.by === "scout" ? "scout" : "bruno") : "card", step: r.meta.step ?? null, ms: r.meta.ms ?? null }
+      : null;
+    void Promise.resolve(lookups.trackAnswer?.(m.id, guild, question, meta ?? undefined)).catch(() => {});
   }
   /** The thread a post of the bot's carries on, by its message id: every turn up to and including that answer. */
   const threads = new Map<string, BrunoChatTurn[]>();
@@ -524,7 +540,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         r = await askReply(question, describe(i), [], lines, i.guildId, await channelSubjectFor(i.channelId, []));
         // What was asked when a yes — or a no — answered the question Bruno offered (bot/ask.ts): the reply quotes
         // that, not the word.
-        post = askPost(quoted(question, r), r, true);
+        post = await askPost(quoted(question, r), r, true, i.guildId);
       } catch (e) {
         logLine(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
@@ -534,7 +550,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       if (r) {
         remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId);
         keepChannel(i.channelId, question, i.guildId);
-        keepAnswer(sent, i.guildId ?? null, quoted(question, r));
+        keepAnswer(sent, i.guildId ?? null, quoted(question, r), r);
       }
       return;
     }
@@ -568,13 +584,18 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
    * before it. Only a message from a person in a server that @mentions the bot itself or replies to its post:
    * never its own or another bot's, never @everyone or a role. Discord sends the text of a message that mentions
    * the bot without the privileged Message Content intent, so the bot never reads anything else (a reply that
-   * arrives without its text is left alone).
+   * arrives without its text is left alone). `ambient`: a message in the server's #ask-control-scout channel, where
+   * no mention is needed (bot/ambient.ts); the channel check and the intent are bot/index.ts's.
    */
-  async function mention(m: MentionMessage, botId: string): Promise<void> {
+  async function mention(m: MentionMessage, botId: string, ambient = false): Promise<void> {
     try {
       if (m.author.bot || !m.guildId) return;
       const replyTo = m.reference?.messageId && m.mentions?.repliedUser?.id === botId ? m.reference.messageId : null;
-      if (!new RegExp(`<@!?${botId}>`).test(m.content) && !(replyTo && m.content.trim())) return;
+      // Ambient: a message in the server's #ask-control-scout channel, which is the opt-in (bot/ambient.ts). Everything
+      // else still has to mention the bot or reply to one of its answers.
+      if (!ambient && !new RegExp(`<@!?${botId}>`).test(m.content) && !(replyTo && m.content.trim())) return;
+      // A command-looking line in the ask channel is somebody else's command, not a question for Control Scout.
+      if (ambient && /^[/!]/.test(m.content.trim())) return;
       const q = m.content.replace(/<@[!&]?\d+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
       const history = replyTo ? await historyFor(replyTo) : [];
       // Nobody is pinged by an answer (his text could name @everyone, a role or a person), reply or not.
@@ -615,7 +636,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const channelSubject = await channelSubjectFor(m.channelId, history);
       let r: AskReply;
       try {
-        r = await askReply(q, `@mention question=${q.toUpperCase().slice(0, 100)}`, history, lines, m.guildId ?? null, channelSubject);
+        r = await askReply(q, `${ambient ? "#ask" : "@mention"} question=${q.toUpperCase().slice(0, 100)}`, history, lines, m.guildId ?? null, channelSubject);
       } catch (e) {
         clearInterval(typing);
         logLine(`@mention ask failed: ${(e as Error)?.message ?? String(e)}`);
@@ -625,10 +646,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       clearInterval(typing);
       // The reply quotes the message it answers: no need to repeat the question (a "yes" becomes the question it
       // answered, so the thread carries on from 4215's record rather than from the word).
-      const sent = await send(askPost(quoted(q, r), r, false));
+      const sent = await send(await askPost(quoted(q, r), r, false, m.guildId ?? null));
       remember((sent as { id?: string } | undefined)?.id, history, quoted(q, r), r, m.guildId ?? null);
       keepChannel(m.channelId, q, m.guildId);
-      keepAnswer(sent, m.guildId ?? null, quoted(q, r));
+      keepAnswer(sent, m.guildId ?? null, quoted(q, r), r);
     } catch (e) {
       logLine(`mention failed: ${(e as Error)?.message ?? String(e)}`);
     }
@@ -657,12 +678,28 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // One issue per answer, kept on its row: a 👎 a day later, or after a restart, points at the issue the first one
       // filed instead of opening a duplicate (an hour's memory alone would forget it, bot/report.ts's limits aside).
       if (row.report) {
+        // Somebody else already reported this answer: say where, and (at most hourly) note it on the issue, so triage
+        // sees how many people hit it.
+        if (Date.now() - (noted.get(whole.id) ?? 0) > REPORT_NOTE_MS) {
+          noted.set(whole.id, Date.now());
+          if (noted.size > 500) noted.clear();
+          void lookups.noteReport?.(row.report.number, {
+            user: reporter.id,
+            name: shownName(reporter, { displayName: reporter.displayName ?? null }),
+            guild: whole.guildId ?? null,
+            messageId: whole.id,
+          }).catch(() => {});
+        }
         await post(reportedEmbed(row.report));
         return;
       }
       const said = (whole.content ?? "").trim();
+      const about = {
+        source: row.source, step: row.step, ms: row.ms,
+        url: whole.guildId && whole.channelId ? `https://discord.com/channels/${whole.guildId}/${whole.channelId}/${whole.id}` : null,
+      };
       const opened = await reportIt(`answer:${whole.id}`,
-        { guild: whole.guildId ?? null, channel: whole.channelId ?? null, user: reporter.id, name: shownName(reporter, { displayName: reporter.displayName ?? null }) },
+        { guild: whole.guildId ?? null, channel: whole.channelId ?? null, user: reporter.id, name: shownName(reporter, { displayName: reporter.displayName ?? null }), answer: about },
         row.question ?? QUESTION_UNRECORDED, said ? [turn("bruno", said)] : [], post);
       if (opened?.ok) {
         // The issue is filed either way; if the row can't keep it, a later 👎 may file the same report again, so it is
@@ -685,9 +722,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       await i.reply({ embeds: [pride(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works."))], flags: MessageFlags.Ephemeral });
       return;
     }
-    const question = buttonQuestion(buttons, i.customId);
+    const question = await buttonQuestion(buttons, i.customId);
     if (question === null) {
-      await i.reply({ content: "That question's button has expired (they last an hour). Ask it with `/ask question:`.", flags: MessageFlags.Ephemeral });
+      await i.reply({ content: "That button's question isn't kept any more (it is from before this bot kept them). Ask it with `/ask question:`.", flags: MessageFlags.Ephemeral });
       return;
     }
     const over = await mayChat(i.guildId);
@@ -700,7 +737,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     let r: AskReply | undefined;
     try {
               r = await askReply(question, `/ask question=${question.toUpperCase().slice(0, 100)}`, [], lines, i.guildId ?? null, await channelSubjectFor(i.channelId, []));
-                post = askPost(quoted(question, r), r, true);
+                post = await askPost(quoted(question, r), r, true, i.guildId ?? null);
       } catch (e) {
         logLine(`button ask failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
@@ -710,7 +747,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       if (r) {
               remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId ?? null);
       keepChannel(i.channelId, question, i.guildId);
-      keepAnswer(sent, i.guildId ?? null, quoted(question, r));
+      keepAnswer(sent, i.guildId ?? null, quoted(question, r), r);
     }
   }
 

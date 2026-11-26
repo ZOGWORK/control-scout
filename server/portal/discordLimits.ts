@@ -6,17 +6,17 @@
 //   PUT    /api/owner/discord/limits/:guild  {perHour, perDay} → OwnerDiscordLimits
 //   DELETE /api/owner/discord/limits/:guild  → OwnerDiscordLimits (back to the default)
 //
-// No server is capped by default: a cap exists only where it was set here (or by setGuildLimit). A server's row replaces
-// both windows, so a null there is no cap for that window, and clearing the row takes its cap away again. Either write
-// starts that server's counters afresh (bot/quota.ts), so a server given 20 an hour after 30 chats under an older cap
-// isn't refused at once. Every change is in the audit log with the cap it replaced.
+// Every server has the default ceiling (bot/quota.ts) unless a row of its own replaces it: a cap exists only where it was
+// set here (or by setGuildLimit). A server's row replaces both windows, so a null there is no cap for that window, and
+// clearing the row puts it back on the default. Either write starts that server's counters afresh (bot/quota.ts), so a
+// server given 20 an hour after 30 chats under an older cap isn't refused at once. Every change is in the audit log with
+// the cap it replaced.
 import type { Request, Response, Router } from "express";
 import { all } from "../db.js";
 import { DEFAULT_LIMIT, chatWindows, clearGuildLimit, guildLimit, setGuildLimit } from "../../bot/quota.js";
-import { askUsage, topUnanswered } from "../../bot/asks.js";
+import { answerStats, askUsage, topUnanswered } from "../../bot/asks.js";
 import { guildNames } from "../../bot/guilds.js";
 import { postUsage } from "../../bot/follows.js";
-import { reactionUsage } from "../../bot/reactions.js";
 import type { OwnerDiscordLimits, OwnerDiscordServer } from "../../src/shared/discordLimits.js";
 import { recordAudit } from "./audit.js";
 
@@ -43,9 +43,10 @@ const GUILDS = `
  *  old database, a locked table) still lists the servers: the panel never goes blank over a statistic. */
 export async function ownerDiscordLimits(now = Date.now()): Promise<OwnerDiscordLimits> {
   const w = chatWindows(now);
-  const [ids, follows, usage, last, rows, names, asks, posts, votes, unanswered] = await Promise.all([
+  const [ids, follows, usage, last, rows, names, asks, posts, quality, unanswered] = await Promise.all([
     all<{ guild_id: string }>(GUILDS),
-    all<{ guild_id: string; n: number }>("SELECT guild_id, COUNT(*) n FROM discord_follows GROUP BY guild_id"),
+    all<{ guild_id: string; n: number; stopped: number }>(
+      "SELECT guild_id, COUNT(*) n, COALESCE(SUM(dropped_at IS NOT NULL), 0) stopped FROM discord_follows GROUP BY guild_id"),
     all<{ guild_id: string; window: string; used: number }>("SELECT guild_id, window, used FROM discord_chat_usage WHERE window IN (?, ?)", [w.hour, w.day]),
     // The last time anyone asked it something there: a team it was asked about, a name, a thread, a channel's subject
     // (bot/memory.ts).
@@ -61,10 +62,10 @@ export async function ownerDiscordLimits(now = Date.now()): Promise<OwnerDiscord
     guildNames().catch(() => new Map<string, string>()),
     askUsage(now).catch(() => null),
     postUsage(now).catch(() => 0),
-    reactionUsage().catch(() => ({ up: 0, down: 0 })),
+    answerStats(now).catch(() => ({ answers: 0, reported: 0, reportedPct: null, repeatPct: null })),
     topUnanswered(10, now).catch(() => []),
   ]);
-  const followed = new Map(follows.map((r) => [String(r.guild_id), Number(r.n)]));
+  const followed = new Map(follows.map((r) => [String(r.guild_id), { n: Number(r.n), stopped: Number(r.stopped) }]));
   const counted = new Map(usage.map((r) => [`${r.guild_id} ${r.window}`, Number(r.used)]));
   const asked = new Map(last.map((r) => [String(r.guild_id), String(r.at)]));
   const own = new Map(rows.map((r) => [String(r.guild_id), r]));
@@ -77,7 +78,8 @@ export async function ownerDiscordLimits(now = Date.now()): Promise<OwnerDiscord
       guild, name: names.get(guild) ?? null, ...l,
       usedHour: counted.get(`${guild} ${w.hour}`) ?? 0,
       usedDay: counted.get(`${guild} ${w.day}`) ?? 0,
-      follows: followed.get(guild) ?? 0,
+      follows: followed.get(guild)?.n ?? 0,
+      stoppedFollows: followed.get(guild)?.stopped ?? 0,
       lastAsk: asked.get(guild) ?? null,
       updatedBy: row?.updated_by ?? null,
       updatedAt: row?.updated_at ?? null,
@@ -94,8 +96,10 @@ export async function ownerDiscordLimits(now = Date.now()): Promise<OwnerDiscord
       chatPct: asks?.chatPct ?? null,
       medianMs: asks?.medianMs ?? null,
       postsToday: posts,
-      votesUp: votes.up,
-      votesDown: votes.down,
+      answers: quality.answers,
+      reported: quality.reported,
+      reportedPct: quality.reportedPct,
+      repeatPct: quality.repeatPct,
     },
     unanswered,
   };

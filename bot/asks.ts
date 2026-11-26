@@ -92,6 +92,37 @@ export interface AskUsage {
 /** Midnight UTC today, as the stored timestamps are written. */
 const dayStart = (now: number) => `${new Date(now).toISOString().slice(0, 10)}T00:00:00.000Z`;
 
+/** The answer quality the console shows now that there is no 👍: what share of answers were reported, and what share
+ *  of the week's questions were asked more than once (a repeat is the person asking again because the first answer
+ *  didn't land). Both are counts over stored rows; no user id, no text. */
+export interface AnswerStats {
+  answers: number;
+  reported: number;
+  /** Reports per 100 answers (0–100; null with no answers). */
+  reportedPct: number | null;
+  /** Share of the week's asks whose exact words were asked more than once (0–100; null with no asks). */
+  repeatPct: number | null;
+}
+
+export async function answerStats(now = Date.now()): Promise<AnswerStats> {
+  const week = new Date(now - 7 * 86_400_000).toISOString();
+  const [all, repeats] = await Promise.all([
+    get<{ answers: number; reported: number }>(
+      "SELECT COUNT(*) AS answers, COALESCE(SUM(report_number IS NOT NULL), 0) AS reported FROM discord_answers"),
+    get<{ n: number; repeated: number }>(
+      `SELECT COUNT(*) AS n, COALESCE(SUM(c > 1), 0) AS repeated FROM (
+         SELECT COUNT(*) AS c FROM discord_asks WHERE asked_at >= ? GROUP BY lower(trim(question)))`,
+      [week]),
+  ]);
+  const answers = Number(all?.answers ?? 0), reported = Number(all?.reported ?? 0);
+  const n = Number(repeats?.n ?? 0), repeated = Number(repeats?.repeated ?? 0);
+  return {
+    answers, reported,
+    reportedPct: answers ? Math.round((reported / answers) * 100) : null,
+    repeatPct: n ? Math.round((repeated / n) * 100) : null,
+  };
+}
+
 export async function askUsage(now = Date.now()): Promise<AskUsage> {
   const week = new Date(now - 7 * 86_400_000).toISOString();
   const totals = await get<{ week: number; answered: number; chat: number; today: number }>(
