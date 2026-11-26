@@ -8,6 +8,7 @@ import type { BracketOdds } from "./bracketOdds";
 import type { MatchLives } from "./playoffLives";
 import type { StatAnswer, StatLink } from "./searchStat";
 import type { TeamTable } from "./teamTable";
+import type { FeaturedVideo } from "./creatorVideos";
 export type { BracketOdds, BracketSeriesView, BracketAllianceOdds, BracketSlotView } from "./bracketOdds";
 
 /** The strongest real history between a lineup's robots (engine 2.4 partnership memory):
@@ -493,6 +494,9 @@ export interface TeamProfile {
   highlights?: boolean;
   /** The team has a record-split page (/teams/<number>/record-split: server/teamRecordPage.ts). Absent: an older server. */
   recordSplit?: boolean;
+  /** The creator videos whose title names this team, newest first, every season's (server/videos/creatorVideos.ts):
+   *  a Behind the Bot one gives the header's badge. Absent: an older server or an offline pack. */
+  featured?: FeaturedVideo[];
 }
 
 /** GET /api/teams/:n/report-card: the predictability report card from live calls (null: no scored live call this season). */

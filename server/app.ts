@@ -33,6 +33,7 @@ import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
 import { cachedTeamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
+import { featuredTeamSet } from "./videos/creatorVideos.js";
 import { onboardingExamples } from "./api/onboardingExamples.js";
 import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, toEventInput } from "./api/events.js";
@@ -680,6 +681,13 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     if (!ex) throw new HttpError(404, `No FTC team ${req.query.team} in our data`);
     res.setHeader("Cache-Control", "public, max-age=600");
     return ex;
+  }));
+
+  // Every team featured on Behind the Bot (server/videos/creatorVideos.ts), for the small chip on team rows: one short
+  // list of numbers, the same for every visitor.
+  api.get("/featured-teams", h(async (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=300");
+    return { teams: [...(await featuredTeamSet())].sort((a, b) => a - b) };
   }));
 
   api.get("/teams/:number", h(async (req) => {
