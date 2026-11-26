@@ -226,7 +226,8 @@ export async function teamProfile(number: number, season?: number): Promise<Team
     region,
     highlights: !!highlights,
     recordSplit,
-    featured,
+    // Only when there is one: a team with none sends no more than before (hot-path sizes).
+    ...(featured.length ? { featured } : {}),
   };
 }
 
