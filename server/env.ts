@@ -135,7 +135,8 @@ export const env = {
   get discordDevGuildId() { return str("DISCORD_DEV_GUILD_ID"); },
   /** A channel in the DISCORD_DEV_GUILD_ID test server for `npm run bot:test-post` (bot/testPost.ts); never a live one. */
   get discordTestChannelId() { return str("DISCORD_TEST_CHANNEL_ID"); },
-  /** Enables Discord's privileged Message Content intent, which the ambient #ask-control-scout channel needs (bot/ambient.ts).
+  /** Enables Discord's privileged Message Content intent, which the channel a server picks with /config channel: needs to be
+   *  answered without a mention (bot/ambient.ts).
    *  Off unless "1": the portal switch has to be on first, and asking for an intent the app isn't allowed makes login fail. */
   get discordMessageContent() { return str("DISCORD_MESSAGE_CONTENT") === "1"; },
   get dataDir() { return str("DATA_DIR") ?? join(process.cwd(), ".data"); },

@@ -44,6 +44,9 @@ export interface Config {
   /** Where the slash commands are registered: a test server's id (DISCORD_DEV_GUILD_ID), or null for globally. */
   commands: { guild: string | null };
   chat: ChatSetup;
+  /** Whether Discord's privileged Message Content intent is on here (DISCORD_MESSAGE_CONTENT=1): only then does a
+   *  message without a mention reach the bot at all, which is what a server's /config channel: needs. */
+  mentionless: boolean;
   /** The chat limit where /config was asked (bot/quota.ts): no cap by default, or the server's own row. Absent in the
    *  startup block, which has no server to ask about; null when it couldn't be read. */
   limit?: LimitSetting | null;
@@ -87,6 +90,9 @@ export function configLines(c: Config, clock: Clock = JOURNAL): string[] {
     `config: site http://127.0.0.1:${c.sitePort} (its own API, on loopback)`,
     `config: slash commands ${c.commands.guild ? `in server ${c.commands.guild} only (DISCORD_DEV_GUILD_ID)` : "globally (no DISCORD_DEV_GUILD_ID)"}`,
     `config: chat ${c.chat.on ? "on: Control Point is configured and the discordBruno switch is on" : `off — ${c.chat.why}`}`,
+    c.mentionless
+      ? "config: questions without a mention on (Message Content is on): a server picks its channel with /config channel:"
+      : "config: questions without a mention off — DISCORD_MESSAGE_CONTENT isn't set, so Discord sends only messages that mention the bot or reply to it",
     // Only where there is a server to ask about: /config, not the startup block.
     ...(c.limit === undefined ? [] : [`config: ${limitLine(c.limit)}`]),
     `config: ${reportSetup().line}`,

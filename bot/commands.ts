@@ -86,9 +86,10 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     name: "config",
-    description: "This bot's setup, and how this server's answers read: style, follow-up suggestions, videos",
+    description: "This bot's setup, and how this server's answers read: an ask channel, style, follow-ups, videos",
     ...MANAGE,
     options: [
+      { type: ApplicationCommandOptionType.Channel, name: "channel", description: "Answer plain messages here without a mention, each in a thread", channel_types: [ChannelType.GuildText, ChannelType.GuildAnnouncement] },
       { type: ApplicationCommandOptionType.String, name: "style", description: "How long answers read here", choices: [
         { name: "Short: a line or two", value: "short" },
         { name: "Default: the site's own shape", value: "default" },
@@ -96,7 +97,7 @@ export const COMMANDS: CommandDef[] = [
       ] },
       { type: ApplicationCommandOptionType.Boolean, name: "extras", description: "Offer the next questions as buttons under an answer" },
       { type: ApplicationCommandOptionType.Boolean, name: "videos", description: "Include match clips in answers" },
-      { type: ApplicationCommandOptionType.Boolean, name: "reset", description: "Put the answer settings back to their defaults" },
+      { type: ApplicationCommandOptionType.Boolean, name: "reset", description: "Put the answer settings back to their defaults, and stop answering without a mention" },
     ],
   },
   {

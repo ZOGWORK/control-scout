@@ -20,6 +20,7 @@ function command(name: string, options: Record<string, string | number | boolean
       getString: (n: string) => options[n] as string | undefined,
       getBoolean: (n: string) => options[n] as boolean | undefined,
       getRole: () => null,
+      getChannel: () => null,
     },
     isChatInputCommand: () => true,
     isAutocomplete: () => false,

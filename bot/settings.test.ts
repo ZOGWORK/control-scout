@@ -88,11 +88,11 @@ describe("a server's settings, on a database", () => {
   });
 
   it("/settings says what the server gets, and how to change it", () => {
-    const e = settingsEmbed({ quiet: { start: 22, end: 7 }, reminders: false, pingRole: "123456789012345678", style: "default", extras: true, videos: true, updatedAt: "2026-11-22T00:00:00.000Z", updatedBy: "111111111111111111" }, "g1");
+    const e = settingsEmbed({ quiet: { start: 22, end: 7 }, reminders: false, pingRole: "123456789012345678", style: "default", extras: true, videos: true, askChannel: null, updatedAt: "2026-11-22T00:00:00.000Z", updatedBy: "111111111111111111" }, "g1");
     expect(e.description).toContain("Quiet hours:** 22:00–07:00 UTC");
     expect(e.description).toContain("Match reminders:** off");
     expect(e.description).toContain("<@&123456789012345678>");
-    expect(e.description).toContain("`/config style:short`");
+    expect(e.description).toContain("`/config channel:#ask`");
     expect(e.description).toContain("Last changed 2026-11-22 by <@111111111111111111>");
     // The default says so plainly instead of showing empty fields.
     expect(settingsEmbed(DEFAULT_SETTINGS, "g1").description).toContain("Quiet hours:** none");
@@ -131,5 +131,18 @@ describe("how a server wants its answers", () => {
     expect(field.value).toContain("**Style:** detailed");
     expect(field.value).toContain("**Videos:** off");
     expect(field.value).toContain("**Follow-up suggestions:** off");
+    // No channel until one is picked: the default is mentions and /ask only.
+    expect(field.value).toContain("**Questions without a mention:** off");
+
+    await setGuildSettings("g9", { askChannel: "111111111111111111" });
+    expect(await guildSettings("g9")).toMatchObject({ askChannel: "111111111111111111" });
+    expect(answerField(await guildSettings("g9")).value).toContain("in <#111111111111111111>");
+    // A channel it can post in but not start a thread in still answers, and /config says where.
+    expect(answerField(await guildSettings("g9"), { threaded: false }).value).toContain("it can't start a thread there");
+    // Cleared by naming none; a /settings write leaves it alone.
+    await setGuildSettings("g9", { quiet: { start: 1, end: 2 } });
+    expect(await guildSettings("g9")).toMatchObject({ askChannel: "111111111111111111" });
+    await setGuildSettings("g9", { askChannel: null });
+    expect(await guildSettings("g9")).toMatchObject({ askChannel: null });
   });
 });

@@ -15,7 +15,7 @@ import { liveForecaster, refreshForecasters } from "../server/predict/engine.js"
 import { COMMANDS, sameCommands } from "./commands.js";
 import { createHandler, realLookups } from "./handler.js";
 import { notifyTick, type Send } from "./follows.js";
-import { isAskChannel } from "./ambient.js";
+import { askChannel, inAskChannel } from "./ambient.js";
 import { welcomeEmbed } from "./welcome.js";
 import { forgetGuild } from "./forget.js";
 import { guildLimit } from "./quota.js";
@@ -85,6 +85,8 @@ async function configHere(guild?: string | null): Promise<Config> {
     release: RELEASE, bot: self.tag === null ? null : { tag: self.tag, servers: self.servers },
     season: CURRENT_SEASON, sitePort: env.port, commands: { guild: env.discordDevGuildId },
     chat: await chatSetup(), follows, discord: { since: gateway.since, last: gateway.since ?? lastConnected },
+    // Only this deployment knows it: the intent is asked for here, and a server's /config channel: is useless without it.
+    mentionless: env.discordMessageContent,
     // The limit is the asking server's, so only /config has one; a failed read says so rather than hiding the line.
     ...(guild ? { limit: await guildLimit(guild).catch(() => null) } : {}),
   };
@@ -214,11 +216,16 @@ setInterval(() => {
 }, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
 client.on(Events.MessageCreate, (m) => {
-  if (!client.user) return;
-  // In a channel named #ask-control-scout (and only when Message Content is enabled) a message needs no mention; every
-  // other channel still has to mention the bot or reply to it (bot/ambient.ts).
-  const ambient = env.discordMessageContent && isAskChannel(m.channel as never);
-  void handle.mention(m as never, client.user.id, ambient);
+  const me = client.user;
+  if (!me) return;
+  void (async () => {
+    // In the one channel a server picked with /config channel: — and only when Message Content is enabled — a message
+    // needs no mention; every other channel still has to mention the bot or reply to it (bot/ambient.ts). The pick is
+    // read once a minute per server, since every message in every channel passes through here.
+    const ambient = !!env.discordMessageContent && !!m.guildId
+      && inAskChannel(m.channel as never, await askChannel(m.guildId).catch(() => null));
+    await handle.mention(m as never, me.id, ambient);
+  })().catch((e) => log(`message: ${(e as Error)?.message ?? String(e)}`));
 });
 /** A 👎 added on purpose is a report (bot/handler.ts `downvoted`): the answer's question and words go to GitHub, and
  *  the person is told where the issue is. Only a message the bot posted has a row, so a 👎 anywhere else files nothing,
