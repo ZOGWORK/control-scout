@@ -137,6 +137,8 @@ describe("how a server wants its answers", () => {
     await setGuildSettings("g9", { askChannel: "111111111111111111" });
     expect(await guildSettings("g9")).toMatchObject({ askChannel: "111111111111111111" });
     expect(answerField(await guildSettings("g9")).value).toContain("in <#111111111111111111>");
+    // A channel it can post in but not start a thread in still answers, and /config says where.
+    expect(answerField(await guildSettings("g9"), { threaded: false }).value).toContain("it can't start a thread there");
     // Cleared by naming none; a /settings write leaves it alone.
     await setGuildSettings("g9", { quiet: { start: 1, end: 2 } });
     expect(await guildSettings("g9")).toMatchObject({ askChannel: "111111111111111111" });

@@ -487,12 +487,13 @@ code; you can also type a code yourself).
 ## Invite link
 
 ```
-https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=294205343808
+https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=311385212992
 ```
 
 - Scopes: `bot` and `applications.commands`.
-- Permissions `294205343808` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Read Message History
-  (65536) + Use Application Commands (2147483648) + Create Public Threads (2^34) + Send Messages in Threads (2^38).
+- Permissions `311385212992` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Read Message History
+  (65536) + Use Application Commands (2147483648) + Create Public Threads (2^35) + Send Messages in Threads (2^38).
+  Manage Threads (2^34) is a moderation permission and is never asked for.
   Nothing else: the bot manages nothing and joins voice. The thread permissions are where an answer in a server's ask
   channel goes; a server whose role can't start a thread still gets the answer in the channel. It reads a
   channel's recent messages once per server, to take its own old emoji off its answers (`bot/cleanup.ts`, above), and

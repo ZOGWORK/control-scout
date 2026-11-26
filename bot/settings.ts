@@ -168,15 +168,21 @@ export async function setGuildSettings(guild: string, s: GuildSettingsPatch, by:
       ask?.set ?? 0, ask?.channel ?? null]);
 }
 
-/** /config's field: how this server asked its answers to read. */
-export function answerField(s: GuildSettings): { name: string; value: string } {
+/** /config's field: how this server asked its answers to read. `threaded: false`: the picked channel is one the bot can
+ *  post in but can't start a thread in, so the answers land in the channel (bot/handler.ts checks it). */
+export function answerField(s: GuildSettings, opts: { threaded?: boolean } = {}): { name: string; value: string } {
+  const where = s.askChannel
+    ? opts.threaded === false
+      ? `in <#${s.askChannel}>: a plain message there is answered, one per question, in the channel itself (it can't start a thread there)`
+      : `in <#${s.askChannel}>: a plain message there is answered, in its own thread, one per question`
+    : "off: mention the bot or use `/ask`";
   return {
     name: "How answers read here",
     value: [
       `**Style:** ${styleWords(s.style)}`,
       `**Follow-up suggestions:** ${s.extras ? "on: an answer offers the next questions as buttons" : "off"}`,
       `**Videos:** ${s.videos ? "on: an answer carries the clips its search found" : "off"}`,
-      `**Questions without a mention:** ${s.askChannel ? `in <#${s.askChannel}>: a plain message there is answered, in its own thread, one per question` : "off: mention the bot or use `/ask`"}`,
+      `**Questions without a mention:** ${where}`,
       "Change one with `/config channel:#ask`, `/config style:short`, `/config extras:false` or `/config videos:false`.",
     ].join("\n"),
   };

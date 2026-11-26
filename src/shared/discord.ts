@@ -10,8 +10,9 @@ export const DISCORD_CLIENT_ID: string | null = "1562258217873047562";
 /** The bot's only permissions: Send Messages (2048) + Embed Links (16384) + Use Application Commands (2^31) + Add
  *  Reactions (64), for the 👍 it puts on its answers, Read Message History (65536), which reading back its own
  *  answers needs: the one-time sweep that takes its stale 👎s off them (bot/cleanup.ts), and Create Public Threads
- *  (2^34) + Send Messages in Threads (2^38), where an answer in a server's ask channel goes (bot/ambient.ts). */
-export const DISCORD_PERMISSIONS = 2048 + 16384 + 64 + 65536 + 2 ** 31 + 2 ** 34 + 2 ** 38;
+ *  (2^35) + Send Messages in Threads (2^38), where an answer in a server's ask channel goes (bot/ambient.ts). 2^34 is
+ *  Manage Threads, a moderation permission, and is deliberately not asked for. */
+export const DISCORD_PERMISSIONS = 2048 + 16384 + 64 + 65536 + 2 ** 31 + 2 ** 35 + 2 ** 38;
 
 /** The OAuth2 invite: scopes bot + applications.commands, the minimal permissions; null without a client ID. */
 export function discordInviteUrl(clientId: string | null = DISCORD_CLIENT_ID): string | null {

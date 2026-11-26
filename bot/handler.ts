@@ -172,6 +172,18 @@ function canPost(i: ChatInputCommandInteraction, channelId: string): boolean {
   } catch { return true; }
 }
 
+/** Can the bot start a thread in this channel and answer in it? An ask channel where it can't still answers, in the
+ *  channel itself (bot/ambient.ts); this is what /config says it will do. Like canPost, an uncached channel says yes and
+ *  the first post finds out. */
+function canThread(i: ChatInputCommandInteraction, channelId: string): boolean {
+  try {
+    const ch = i.guild?.channels.cache.get(channelId);
+    const me = i.guild?.members.me;
+    if (!ch || !me || !("permissionsFor" in ch)) return true;
+    return !!ch.permissionsFor(me)?.has([PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.SendMessagesInThreads]);
+  } catch { return true; }
+}
+
 /** The name Discord shows for a person in a server: their nickname there, else their global display name, else their
  *  username (the @handle). `member.displayName` is discord.js's own answer — nickname first — and a raw member (an
  *  interaction's, before the guild is cached) only carries `nick`, so both are read. The name is what an answer calls
@@ -601,10 +613,13 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     if (styleText == null && extras == null && videos == null && picked == null && !reset) {
       return { ...base, fields: [...(base.fields ?? []), answerField(now)] };
     }
-    // A channel it can't post in (or start a thread in) would answer nothing: refused up front, as /follow does.
+    // A channel it can't post in would answer nothing: refused up front, as /follow does. A channel where it can post but
+    // not start a thread is accepted, and the reply says the answers will land in the channel itself.
     if (picked && !canPost(i, picked)) {
-      throw new Friendly("Can't post there", `Control Scout needs View Channel, Send Messages, Embed Links and Create Public Threads in <#${picked}> to answer there. Give its role those, or pick another channel.`);
+      throw new Friendly("Can't post there", `Control Scout needs View Channel, Send Messages and Embed Links in <#${picked}> to answer there. Give its role those, or pick another channel.`);
     }
+    const askChannel = picked ?? now.askChannel;
+    const threaded = !askChannel || canThread(i, askChannel);
     let style = now.style;
     if (styleText != null) {
       const parsed = parseStyle(styleText);
@@ -625,8 +640,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const saved = next;
     return {
       ...base,
-      description: `${base.description ?? ""}\n\n**Saved.** Answers here read ${saved.style === "default" ? "the default way" : `\`${saved.style}\``}${saved.extras ? ", with follow-up suggestions" : ", with no follow-up suggestions"}${saved.videos ? " and clips" : " and no clips"}, and ${saved.askChannel ? `plain messages in <#${saved.askChannel}> are answered too, each in its own thread` : "only a mention or `/ask` is answered"}.`,
-      fields: [...(base.fields ?? []), answerField(saved)],
+      description: `${base.description ?? ""}\n\n**Saved.** Answers here read ${saved.style === "default" ? "the default way" : `\`${saved.style}\``}${saved.extras ? ", with follow-up suggestions" : ", with no follow-up suggestions"}${saved.videos ? " and clips" : " and no clips"}, and ${saved.askChannel ? `plain messages in <#${saved.askChannel}> are answered too, ${threaded ? "each in its own thread" : "in the channel itself: it can't start a thread there"}` : "only a mention or `/ask` is answered"}.`,
+      fields: [...(base.fields ?? []), answerField(saved, { threaded })],
     };
   }
 
