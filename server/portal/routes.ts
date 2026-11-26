@@ -42,6 +42,7 @@ import { StreamError, listStreams, setEventStream } from "./streams.js";
 import { commonsOwnerRoutes } from "../scout/commons.js";
 import { contributorOwnerRoutes } from "../videos/ownerRoutes.js";
 import { clipCoverageOwnerRoutes, eventRecordingOwnerRoutes, officialVideoOwnerRoutes } from "../videos/officialOwnerRoutes.js";
+import { creatorOwnerRoutes } from "../videos/creatorOwnerRoutes.js";
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);
@@ -123,6 +124,8 @@ export function ownerRouter(): Router {
   // Official event videos (server/videos/officialWatch.ts): the auto-watcher's review queue, runs and watched channels.
   officialVideoOwnerRoutes(r, h, actor, (s) => console.log(`[${new Date().toISOString()}] ${s}`));
   clipCoverageOwnerRoutes(r, h, actor);
+  // Creator channels (server/videos/creatorVideos.ts): FUN's videos, their automatic team tags, the intake's runs.
+  creatorOwnerRoutes(r, h, actor, (s) => console.log(`[${new Date().toISOString()}] ${s}`));
   // An event's recordings, corrected from its own page (server/videos/ownerRecordings.ts).
   eventRecordingOwnerRoutes(r, h, actor);
 
