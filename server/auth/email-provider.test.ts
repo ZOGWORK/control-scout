@@ -1,7 +1,8 @@
 // The Resend mailer's failure path: the provider's reason reaches the log
 // (trimmed, never the key or the address), and a failed send leaves no code.
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { all, migrate, openDb, setDb } from "../db";
+import { readFileSync } from "node:fs";
+import { all, migrate, openDb, run, setDb } from "../db";
 import { emailEnabled, emailSignInEnabled, setMailer, startEmailSignIn, verifyEmailCode } from "./email";
 
 const realFetch = globalThis.fetch;
@@ -68,6 +69,36 @@ describe("development log mailer (MAIL_DEV_LOG=1)", () => {
     expect(await verifyEmailCode("d@example.com", wrong)).toEqual({ ok: false, reason: "invalid" });
     expect(await verifyEmailCode("d@example.com", logged!)).toEqual({ ok: true, email: "d@example.com" });
     expect((await verifyEmailCode("d@example.com", logged!)).ok).toBe(false);
+  });
+
+  it("saves the email as it would have gone, greeting an existing account by its first name", async () => {
+    delete process.env.RESEND_API_KEY;
+    process.env.MAIL_DEV_LOG = "1";
+    await run("INSERT INTO users (email, display_name, created_at) VALUES (?, ?, ?)", ["dana@example.com", "Dana <b>Scully</b>", new Date().toISOString()]);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(await startEmailSignIn("dana@example.com")).toEqual({ ok: true });
+    const lines = log.mock.calls.map((c) => String(c[0]));
+    const code = /\[mail\] code (\d{6})\b/.exec(lines.find((l) => l.startsWith("[mail] to dana@example.com"))!)?.[1];
+    const file = /^\[mail\] preview (.+)$/.exec(lines.find((l) => l.startsWith("[mail] preview "))!)?.[1];
+    const html = readFileSync(file!, "utf8");
+    expect(html).toContain("Hey Dana,");
+    expect(html).toContain(`data-code="${code}"`);
+    expect(html).not.toContain("<b>Scully");
+  });
+
+  it("a failed name lookup still sends the code, greeting 'there'", async () => {
+    delete process.env.RESEND_API_KEY;
+    process.env.MAIL_DEV_LOG = "1";
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await run("ALTER TABLE users RENAME TO users_away");
+    try {
+      expect(await startEmailSignIn("fox@example.com")).toEqual({ ok: true });
+    } finally { await run("ALTER TABLE users_away RENAME TO users"); }
+    const lines = log.mock.calls.map((c) => String(c[0]));
+    const code = /\[mail\] code (\d{6})\b/.exec(lines.find((l) => l.startsWith("[mail] to fox@example.com"))!)?.[1];
+    const file = /^\[mail\] preview (.+)$/.exec(lines.find((l) => l.startsWith("[mail] preview "))!)?.[1];
+    expect(readFileSync(file!, "utf8")).toContain("Hey there,");
+    expect(await verifyEmailCode("fox@example.com", code!)).toEqual({ ok: true, email: "fox@example.com" });
   });
 
   it("is ignored in production: no code is logged and sign-in stays off without a provider", async () => {
