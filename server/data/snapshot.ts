@@ -24,6 +24,8 @@ export const PRIVATE_TABLES = [
   "contributor_video_reports", "contributor_video_likes", "contributor_videos", "contributor_invites", "verification_applications", "video_contributors", "team_members",
   // Profile pictures (migration 92): a person's own picture. Never shipped.
   "user_avatars",
+  // What each person watched in the Videos tab (migration 115). Never shipped.
+  "video_watch",
   // Owner-typed match starts (migration 97): who set each. Never shipped; the clips they give come from the live server.
   "manual_starts",
   // The clip autopilot's reads handed to the live server (migration 98): live and waiting rows, who decided. Never shipped.

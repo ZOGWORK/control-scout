@@ -2,9 +2,9 @@
 // menu the top-left button opens. People pick their own in Settings › Appearance; the choice is kept on this
 // device (it's about this phone's screen, not the account). Pure rules below, tested in tabBar.test.ts.
 import { useSyncExternalStore } from "react";
-import { BookOpen, Bookmark, CalendarDays, ClipboardList, House, ListOrdered, Scale, Settings, Sparkles, Star, Trophy, Users, type LucideIcon } from "lucide-react";
+import { BookOpen, Bookmark, CalendarDays, ClipboardList, House, ListOrdered, MonitorPlay, Scale, Settings, Sparkles, Star, Trophy, Users, type LucideIcon } from "lucide-react";
 
-export type TabId = "home" | "events" | "teams" | "rankings" | "powerRankings" | "predict" | "compare" | "myTeam" | "shortlist" | "scout" | "methodology" | "settings";
+export type TabId = "home" | "events" | "teams" | "rankings" | "powerRankings" | "predict" | "videos" | "compare" | "myTeam" | "shortlist" | "scout" | "methodology" | "settings";
 
 /** `label` fits under a tab; `name` (when it differs) is the page's full name, for Settings. */
 export interface TabDef { id: TabId; to: string; label: string; name?: string; icon: LucideIcon; end?: boolean }
@@ -17,6 +17,8 @@ export const TAB_OPTIONS: TabDef[] = [
   { id: "rankings", to: "/rankings", label: "Rankings", icon: ListOrdered },
   { id: "powerRankings", to: "/power-rankings", label: "Power", name: "Power rankings", icon: Trophy },
   { id: "predict", to: "/predict", label: "Predict", icon: Sparkles, end: true },
+  // Opt-in only: the owner hasn't decided whether it takes a default slot.
+  { id: "videos", to: "/videos", label: "Videos", icon: MonitorPlay },
   { id: "compare", to: "/compare", label: "Compare", icon: Scale },
   { id: "myTeam", to: "/my-team", label: "My team", icon: Star },
   { id: "shortlist", to: "/shortlist", label: "Shortlist", icon: Bookmark },
