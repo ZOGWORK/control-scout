@@ -4,8 +4,8 @@
 //
 // Candidates come from pools kept for POOL_TTL_MS, the same for everyone:
 //   weekend   this weekend's events' recordings and live streams (weekendEvents)
-//   creator   creator videos (FUN Robotics Network…) with their tagged teams (./videosFeed.creators.ts); Behind the
-//             Bot episodes are their own pool
+//   creator   creator videos (FUN Robotics Network…) with their tagged teams (creatorVideosFor, FTC only: see
+//             ./videosFeed.creators.ts); Behind the Bot episodes are their own pool
 //   record    the season's top scores, at events whose matches count for records (RECORD_TYPES, as searchHighScores);
 //             last season's after them while this one has fewer than 10 with a video
 //   close     finishes these 14 days decided by 3 points or fewer
@@ -209,7 +209,7 @@ async function creatorPool(): Promise<Candidate[]> {
     const at = v.publishedAt ? Date.parse(v.publishedAt) : NaN;
     return {
       item: {
-        key: `c:${v.videoId}`, kind: "creator", source: btb ? "behindTheBot" : "creator", videoId: v.videoId, t: 0, ...(v.embeddable ? {} : { youtubeOnly: true as const }),
+        key: `c:${v.videoId}`, kind: "creator", source: btb ? "behindTheBot" : "creator", videoId: v.videoId, t: 0,
         title: v.title, thumb: thumbnailUrl(v.videoId), teams: v.teams, published: Number.isFinite(at) ? new Date(at).toISOString() : null,
         reason: btb ? "Behind the Bot" : v.channel ? `New from ${v.channel}` : "New creator video", ...(v.channel ? { channel: v.channel } : {}), ...(v.series ? { series: v.series } : {}), ...(v.durationS ? { duration: v.durationS } : {}),
       },

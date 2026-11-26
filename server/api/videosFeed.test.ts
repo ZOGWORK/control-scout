@@ -9,7 +9,6 @@ import { createApp } from "../app";
 import { deleteUser, sha256 } from "../auth/session";
 import { clearAllCaches } from "../caches";
 import { CURRENT_SEASON } from "../data/seasons";
-import { forgetCreatorTables } from "./videosFeed.creators";
 import { cleanWatch, upsetPercent } from "./videosFeed";
 import { decodeHistory, encodeHistory, type FeedAnswer } from "../../src/shared/videosFeed";
 
@@ -47,7 +46,7 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(() => { server?.close(); });
-beforeEach(() => { clearAllCaches(); forgetCreatorTables(); });
+beforeEach(() => { clearAllCaches(); });
 
 let n = 0;
 async function account(state: { myTeam?: number | null; tracked?: number[] } = {}) {
@@ -181,25 +180,26 @@ describe("GET /api/videos/feed", () => {
     expect((await fetch(`${base}/api/videos/feed?cursor=12`, { headers: { "X-CS-Test": "1" } })).status).toBe(400);
   });
 
-  it("says so when a filter has nothing, and reads creator videos once their tables exist", async () => {
+  it("says so when a filter has nothing, and reads FTC creator videos with their tagged teams", async () => {
     const none = await feed("?filter=behindTheBot");
     expect(none.items).toEqual([]);
     expect(none.empty).toBe("No Behind the Bot episodes yet.");
-    // The intake's tables (migration 114, server/videos/creatorVideos.ts), as its contract has them.
-    await run(`CREATE TABLE IF NOT EXISTS creator_videos (video_id TEXT PRIMARY KEY, channel_id TEXT, title TEXT, description TEXT, published_at TEXT, duration_s INTEGER,
-      playlist_ids TEXT, series TEXT, program TEXT, season INTEGER, embeddable INTEGER, last_refreshed TEXT)`);
-    await run("CREATE TABLE IF NOT EXISTS video_team_tags (video_id TEXT, team_number INTEGER, rule TEXT)");
-    await run("CREATE TABLE IF NOT EXISTS creator_channels (channel_id TEXT PRIMARY KEY, handle TEXT, title TEXT NOT NULL, uploads_playlist TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, added_by TEXT, added_at TEXT NOT NULL)");
-    await run("INSERT INTO creator_channels (channel_id, title, uploads_playlist, added_at) VALUES ('UCfun', 'FUN Robotics Network', 'UUfun', ?)", [new Date().toISOString()]);
-    await run("INSERT INTO creator_videos (video_id, channel_id, title, published_at, duration_s, series, program, embeddable) VALUES ('btb00000001', 'UCfun', 'Behind the Bot: 1111', ?, 900, 'behind-the-bot', 'ftc', 1)", [new Date().toISOString()]);
-    await run("INSERT INTO creator_videos (video_id, channel_id, title, published_at, series, program, embeddable) VALUES ('frc00000001', 'UCfun', 'An FRC robot', ?, NULL, 'frc', 1)", [new Date().toISOString()]);
-    await run("INSERT INTO video_team_tags (video_id, team_number, rule) VALUES ('btb00000001', 1111, 'cue')");
-    clearAllCaches(); forgetCreatorTables();
+    // Rows as the intake (migration 114, server/videos/creatorVideos.ts) writes them; an FRC one and one that can't be
+    // embedded stay out.
+    const now = new Date().toISOString();
+    await run("INSERT INTO creator_channels (channel_id, title, uploads_playlist, added_at) VALUES ('UCfun', 'FUN Robotics Network', 'UUfun', ?)", [now]);
+    const vid = (id: string, title: string, series: string | null, program: string, embeddable: number) => run(
+      "INSERT INTO creator_videos (video_id, channel_id, title, published_at, duration_s, series, program, embeddable, last_refreshed) VALUES (?, 'UCfun', ?, ?, 900, ?, ?, ?, ?)", [id, title, now, series, program, embeddable, now]);
+    await vid("btb00000001", "Behind the Bot: 1111", "behind-the-bot", "ftc", 1);
+    await vid("frc00000001", "An FRC robot", null, "frc", 1);
+    await vid("noembed0001", "Pits and Parts", "pits-and-parts", "ftc", 0);
+    await run("INSERT INTO video_team_tags (video_id, team_number, rule) VALUES ('btb00000001', 1111, 'title:cue')");
+    clearAllCaches();
     const btb = await feed("?filter=behindTheBot&my=1111");
     expect(btb.items.map((i) => [i.key, i.kind, i.reason, i.teams])).toEqual([["c:btb00000001", "creator", "Features your team, 1111", [1111]]]);
     const creators = (await feed("?filter=creators")).items;
     expect(creators.map((i) => [i.key, i.channel])).toEqual([["c:btb00000001", "FUN Robotics Network"]]);
-    await run("DROP TABLE video_team_tags"); await run("DROP TABLE creator_videos"); await run("DROP TABLE creator_channels");
+    for (const t of ["video_team_tags", "creator_videos", "creator_channels"]) await run(`DELETE FROM ${t}`);
   });
 });
 
