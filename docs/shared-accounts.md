@@ -960,6 +960,10 @@ any account or workspace.
   `videoId`; `end` is `null` when the clip has no stop. `event` is the event's
   name, `match` the match label (`Q12`, `P3`), and `title` is the two together
   (`Q12 · New Jersey Championship`).
+- `still` (optional, on a clip cut from a recording): the clip's own frame, one
+  tile of a YouTube storyboard sheet, `{ src, col, row, cols, rows }`
+  (`server/videos/storyboards.ts`): show the sheet `cols` × `rows` times the
+  tile's size, offset to (`col`, `row`). Without it, use the video's thumbnail.
 - Control Point's team dashboard shows these for a workspace with an FTC team
   number: a "Featured on Behind the Bot" badge and a row of latest clips,
   cached a few minutes and hidden when Scout doesn't answer.
