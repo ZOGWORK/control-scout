@@ -18,6 +18,7 @@ function command(name: string, options: Record<string, string | number>, user = 
       data: Object.entries(options).map(([n, value]) => ({ name: n, value })),
       getInteger: (n: string) => options[n] as number,
       getString: (n: string) => options[n] as string,
+      getChannel: (n: string) => (options[n] == null ? null : { id: String(options[n]) }),
     },
     isChatInputCommand: () => true,
     isAutocomplete: () => false,
@@ -366,13 +367,20 @@ describe("@mention answers", () => {
   const BOT = "1562258217873047562";
   function msg(content: string, over: Partial<MentionMessage> = {}) {
     const sent: { kind: string; embeds: APIEmbed[] }[] = [];
+    const threads: { name: string; posts: { kind: string; embeds: APIEmbed[] }[] }[] = [];
     const m: MentionMessage = {
       author: { id: "u1", bot: false }, guildId: "g1", content,
       reply: vi.fn(async (o) => { sent.push({ kind: "reply", embeds: o.embeds }); }),
       channel: { send: vi.fn(async (o) => { sent.push({ kind: "send", embeds: o.embeds }); }), sendTyping: vi.fn(async () => {}) },
+      // Discord's Message#startThread: where an ambient answer goes.
+      startThread: vi.fn(async (o) => {
+        const thread = { name: o.name ?? "", posts: [] as { kind: string; embeds: APIEmbed[] }[] };
+        threads.push(thread);
+        return { send: async (p: { embeds: APIEmbed[] }) => { thread.posts.push({ kind: "thread", embeds: p.embeds }); } };
+      }),
       ...over,
     };
-    return { m, sent };
+    return { m, sent, threads };
   }
 
   it("\"@Control Scout who won decode\" answers as /ask does, as a reply, sharing /ask's cache", async () => {
@@ -395,17 +403,38 @@ describe("@mention answers", () => {
     expect(l.ask).not.toHaveBeenCalled();
   });
 
-  it("answers in #ask-control-scout without a mention, and ignores a command-looking line there", async () => {
+  it("answers a plain message in the server's ask channel in a thread, and ignores a command-looking line there", async () => {
     const l = lookups();
     const h = createHandler(() => {}, l);
-    const { m, sent } = msg("who won decode");
+    const { m, sent, threads } = msg("who won decode");
     await h.mention(m, BOT, true);
     expect(l.ask).toHaveBeenCalledWith("who won decode", [], [], "g1", null);
-    expect(sent[0].embeds[0].title).toBe("ask who won decode");
-    const { m: other, sent: otherSaid } = msg("/follow team:4215");
+    // No ping and no reply in the channel: the answer is a thread under the question, named after it.
+    expect(sent).toEqual([]);
+    expect(threads).toHaveLength(1);
+    expect(threads[0].name).toBe("who won decode");
+    expect(threads[0].posts[0].embeds[0].title).toBe("ask who won decode");
+    const { m: other, sent: otherSaid, threads: otherThreads } = msg("/follow team:4215");
     await h.mention(other, BOT, true);
     expect(l.ask).toHaveBeenCalledTimes(1);
     expect(otherSaid).toEqual([]);
+    expect(otherThreads).toEqual([]);
+  });
+
+  it("answers a follow-up already in a thread there, and stays quiet past a person's pace", async () => {
+    const h = createHandler(() => {}, lookups());
+    const inThread = msg("their record?", { channel: { isThread: () => true, send: vi.fn(async () => {}) } });
+    await h.mention(inThread.m, BOT, true);
+    // Already threaded: the answer replies in it instead of starting another.
+    expect(inThread.sent[0].kind).toBe("reply");
+    expect(inThread.threads).toEqual([]);
+    // The ask channel is paced like every other ask, and nobody asked directly: a refusal there is silence, not a
+    // notice under every message.
+    const paced = createHandler(() => {}, lookups({ pace: async () => ({ ok: false as const, window: "minute" as const, retryAfter: 30 }) }));
+    const { m, sent, threads } = msg("who won decode");
+    await paced.mention(m, BOT, true);
+    expect(sent).toEqual([]);
+    expect(threads).toEqual([]);
   });
 
   it("just the mention: how to ask; a reply it can't make: a plain message; back-to-back mentions: both answered; turned off: the note", async () => {

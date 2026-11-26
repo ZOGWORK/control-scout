@@ -34,6 +34,7 @@ const all = (over: Partial<Parameters<typeof configLines>[0]> = {}) =>
     commands: { guild: null }, chat: { on: true },
     follows: { follows: 3, servers: 2 }, discord: { since: CONNECTED_AT, last: CONNECTED_AT },
     ...over,
+    mentionless: over.mentionless ?? true,
   });
 
 describe("chat setup", () => {
@@ -71,7 +72,7 @@ describe("the startup summary", () => {
   it("says the release, the account and its servers, the season, the site, where commands register, the chat, report filing, the follow posts and the connection", () => {
     process.env.GITHUB_REPORT_TOKEN = "ghp-report-token";
     const lines = all();
-    expect(lines).toHaveLength(9);
+    expect(lines).toHaveLength(10);
     expect(lines.every((l) => l.startsWith("config: "))).toBe(true);
     expect(lines[0]).toBe(`config: release ${SHA}`);
     expect(lines[1]).toBe("config: bot Control Scout#1234 in 2 servers");
@@ -79,8 +80,9 @@ describe("the startup summary", () => {
     expect(lines[3]).toBe("config: site http://127.0.0.1:3000 (its own API, on loopback)");
     expect(lines[4]).toBe("config: slash commands globally (no DISCORD_DEV_GUILD_ID)");
     expect(lines[5]).toContain("chat on");
-    expect(lines[6]).toBe("config: report filing on: GITHUB_REPORT_TOKEN is set");
-    expect(lines[7]).toContain("3 follows in 2 servers");
+    expect(lines[6]).toContain("questions without a mention on");
+    expect(lines[7]).toBe("config: report filing on: GITHUB_REPORT_TOKEN is set");
+    expect(lines[8]).toContain("3 follows in 2 servers");
   });
 
   it("says the bot's tag and server count as the ready line does, and that it is not ready yet before the gateway says", () => {
@@ -91,26 +93,27 @@ describe("the startup summary", () => {
   });
 
   it("shows the asking server's chat limit after the chat line, saying whether it is the default or that server's own", () => {
-    // The startup block has no server to ask about, so it keeps its nine lines.
-    expect(all()).toHaveLength(9);
+    // The startup block has no server to ask about, so it keeps its ten lines.
+    expect(all()).toHaveLength(10);
     const lines = all({ limit: { perHour: null, perDay: null, custom: false } });
-    expect(lines).toHaveLength(10);
+    expect(lines).toHaveLength(11);
     expect(lines[5]).toContain("chat on");
-    expect(lines[6]).toBe("config: chat limit none (the default: no cap)");
-    expect(lines[7]).toContain("report filing");
-    expect(all({ limit: { perHour: 60, perDay: 200, custom: true } })[6]).toBe(
+    expect(lines[6]).toContain("questions without a mention");
+    expect(lines[7]).toBe("config: chat limit none (the default: no cap)");
+    expect(lines[8]).toContain("report filing");
+    expect(all({ limit: { perHour: 60, perDay: 200, custom: true } })[7]).toBe(
       "config: chat limit 60 an hour, 200 a day (set for this server)",
     );
     // The default every server has, as guildLimit returns it.
-    expect(all({ limit: { perHour: 60, perDay: 300, custom: false } })[6]).toBe(
+    expect(all({ limit: { perHour: 60, perDay: 300, custom: false } })[7]).toBe(
       "config: chat limit 60 an hour, 300 a day (the default: 60 an hour, 300 a day)",
     );
   });
 
   it("says a limit with one window, none at all, or one it couldn't read", () => {
-    expect(all({ limit: { perHour: 10, perDay: null, custom: true } })[6]).toBe("config: chat limit 10 an hour (set for this server)");
-    expect(all({ limit: { perHour: null, perDay: null, custom: true } })[6]).toBe("config: chat limit none (set for this server)");
-    expect(all({ limit: null })[6]).toBe("config: chat limit couldn't be read just now");
+    expect(all({ limit: { perHour: 10, perDay: null, custom: true } })[7]).toBe("config: chat limit 10 an hour (set for this server)");
+    expect(all({ limit: { perHour: null, perDay: null, custom: true } })[7]).toBe("config: chat limit none (set for this server)");
+    expect(all({ limit: null })[7]).toBe("config: chat limit couldn't be read just now");
   });
 
   it("says it is a development build when there is no RELEASE file", () => {
@@ -126,30 +129,30 @@ describe("the startup summary", () => {
   it("says why the chat is off, and that report filing is off", () => {
     const lines = all({ season: 2025, sitePort: 3100, chat: { on: false, why: CHAT_OFF_SWITCH }, follows: { follows: 0, servers: 0 } });
     expect(lines[5]).toBe(`config: chat off — ${CHAT_OFF_SWITCH}`);
-    expect(lines[6]).toContain("report filing off");
-    expect(lines[6]).toContain("GITHUB_REPORT_TOKEN is not set");
+    expect(lines[7]).toContain("report filing off");
+    expect(lines[7]).toContain("GITHUB_REPORT_TOKEN is not set");
   });
 
   it("counts one follow in one server, no follows, and follows it couldn't read, in words", () => {
-    expect(all({ follows: { follows: 1, servers: 1 } })[7]).toContain("1 follow in 1 server (");
-    expect(all({ follows: { follows: 0, servers: 0 } })[7]).toContain("nothing followed yet");
-    expect(all({ follows: null })[7]).toContain("couldn't be read");
-    expect(all({ follows: { follows: 3, servers: 2, stopped: 1 } })[7]).toContain("1 stopped because a channel refused posts");
+    expect(all({ follows: { follows: 1, servers: 1 } })[8]).toContain("1 follow in 1 server (");
+    expect(all({ follows: { follows: 0, servers: 0 } })[8]).toContain("nothing followed yet");
+    expect(all({ follows: null })[8]).toContain("couldn't be read");
+    expect(all({ follows: { follows: 3, servers: 2, stopped: 1 } })[8]).toContain("1 stopped because a channel refused posts");
   });
 
   it("says when it connected to Discord, in UTC and how long ago", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-22T14:00:00Z"));
-    expect(all()[8]).toBe("config: discord connected since 2026-11-22 13:54 UTC (6 minutes ago)");
+    expect(all()[9]).toBe("config: discord connected since 2026-11-22 13:54 UTC (6 minutes ago)");
   });
 
   it("says it is not connected now, with when it last was, or that it has never connected", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-22T16:00:00Z"));
-    expect(all({ discord: { since: null, last: CONNECTED_AT } })[8]).toBe(
+    expect(all({ discord: { since: null, last: CONNECTED_AT } })[9]).toBe(
       "config: discord not connected now (last connected 2 hours ago)",
     );
-    expect(all({ discord: { since: null, last: null } })[8]).toBe(
+    expect(all({ discord: { since: null, last: null } })[9]).toBe(
       "config: discord not connected yet (the gateway is still connecting)",
     );
   });
@@ -162,11 +165,11 @@ describe("the startup summary", () => {
     expect(ago(60_000, 0)).toBe("1 minute from now");
   });
 
-  it("/config says the same nine things, without the log's prefix, and no secret's value", () => {
+  it("/config says the same ten things, without the log's prefix, and no secret's value", () => {
     process.env.GITHUB_REPORT_TOKEN = "ghp-report-token";
     const c = {
       release: SHA, bot: { tag: "Control Scout#1234", servers: 2 }, season: 2025, sitePort: 3000,
-      commands: { guild: null }, chat: { on: true as const },
+      commands: { guild: null }, chat: { on: true as const }, mentionless: true,
       limit: { perHour: null, perDay: null, custom: false as const },
       follows: { follows: 3, servers: 2 }, discord: { since: CONNECTED_AT, last: CONNECTED_AT },
     };
@@ -178,8 +181,9 @@ describe("the startup summary", () => {
     expect(lines[1]).toBe("• bot Control Scout#1234 in 2 servers");
     expect(lines[2]).toContain("season 2025");
     expect(lines[4]).toContain("slash commands globally");
-    expect(lines[6]).toBe("• chat limit none (the default: no cap)");
-    expect(lines[8]).toContain("3 follows in 2 servers");
+    expect(lines[6]).toContain("questions without a mention on");
+    expect(lines[7]).toBe("• chat limit none (the default: no cap)");
+    expect(lines[9]).toContain("3 follows in 2 servers");
     expect(String(embed.description)).not.toContain("config:");
     expect(String(embed.description)).not.toContain("ghp-report-token");
   });
@@ -188,15 +192,15 @@ describe("the startup summary", () => {
     const lines = configLines(
       {
         release: SHA, bot: { tag: "Control Scout#1234", servers: 2 }, season: 2025, sitePort: 3000,
-        commands: { guild: null }, chat: { on: true },
+        commands: { guild: null }, chat: { on: true }, mentionless: true,
         follows: { follows: 0, servers: 0 }, discord: { since: CONNECTED_AT, last: CONNECTED_AT },
       },
       { abs: (at) => `<t:${Math.floor(at / 1000)}:t>`, rel: (at) => `<t:${Math.floor(at / 1000)}:R>` },
     );
-    expect(lines[8]).toBe(`config: discord connected since <t:${Math.floor(CONNECTED_AT / 1000)}:t> (<t:${Math.floor(CONNECTED_AT / 1000)}:R>)`);
+    expect(lines[9]).toBe(`config: discord connected since <t:${Math.floor(CONNECTED_AT / 1000)}:t> (<t:${Math.floor(CONNECTED_AT / 1000)}:R>)`);
     expect(String(configEmbed({
       release: SHA, bot: { tag: "Control Scout#1234", servers: 2 }, season: 2025, sitePort: 3000,
-      commands: { guild: null }, chat: { on: true },
+      commands: { guild: null }, chat: { on: true }, mentionless: false,
       follows: null, discord: { since: null, last: CONNECTED_AT },
     }).description)).toMatch(/not connected now \(last connected <t:\d+:R>\)/);
   });

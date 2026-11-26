@@ -2983,6 +2983,15 @@ ALTER TABLE discord_guild_settings ADD COLUMN extras INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE discord_guild_settings ADD COLUMN videos INTEGER NOT NULL DEFAULT 1;
 `,
   },
+  {
+    version: 113,
+    name: "discord bot: the one channel answered without a mention",
+    sql: `
+-- The channel a server picked with /config channel: (bot/ambient.ts), or NULL for none. Its threads count as it, so a
+-- question already in a thread is answered there.
+ALTER TABLE discord_guild_settings ADD COLUMN ask_channel TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

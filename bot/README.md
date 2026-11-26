@@ -18,7 +18,7 @@ an embed that links back to controlscout.org:
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below), with buttons for what to ask next |
 | `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👎 an answer to report it |
 | `/settings` | How this server gets its posts: quiet hours (UTC), whether match reminders are on, and a role to ping on them. Manage Server only, answered privately |
-| `/config` | What the bot is and can do here, read live, **and how this server's answers read**: `style:short`/`detailed`, `extras:false` for no follow-up buttons, `videos:false` for no clips, `reset:true` for the defaults. Private, Manage Server only |
+| `/config` | What the bot is and can do here, read live, **and how this server's answers read**: `channel:#ask` answers plain messages there with no mention, each question in its own thread, `style:short`/`detailed`, `extras:false` for no follow-up buttons, `videos:false` for no clips, `reset:true` for the defaults. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
 
 ## /config: how a server wants its answers
@@ -179,8 +179,10 @@ and none spends a website visitor's hourly report cap), so the phrasings people 
 website's search work list too; the bot flushes that queue once a minute from its own process. A greeting, an answer
 search gave, and a chat that answered it are not failed searches and are never filed.
 
-Pace: none per person — every message is answered, so two in a row get two answers. Only the same question within
-a minute is the answer already given (one lookup, whoever asks). Every ask is logged as the command, the step, whether Bruno helped
+Pace: each person has their own in each server (six a minute, thirty an hour, `bot/pacing.ts`), so two questions in
+a row are both answered while a loop is stopped; only the same question within a minute is the answer already given
+(one lookup, whoever asks). A message in the ask channel is paced the same way, and one past the pace is left
+unanswered rather than met with a notice per message. Every ask is logged as the command, the step, whether Bruno helped
 and the time, never who asked. The bot reads the site's search index and never writes it.
 
 **Per-server chat limits: a generous default, set lower where needed.** `bot/quota.ts` caps a server at `perHour`
@@ -413,13 +415,21 @@ server that mentions the bot itself, or replies to its post: not @everyone or a 
 messages that mention it (a reply pings it) without the Message Content intent, so the bot reads nothing else; a
 reply that arrives without its text is left alone.
 
-**One channel can be asked without a mention** (`bot/ambient.ts`). A server that makes a channel called
-`#ask-control-scout` gets a help desk: a message there is answered exactly as a mention would be (same cache, limit,
-memory and buttons), with no ping and no command. The channel name is the opt-in — creating or renaming one already
-needs Manage Server — and nothing is stored for it. This needs Discord's privileged **Message Content** intent, so it
-is off until the portal switch is on *and* `DISCORD_MESSAGE_CONTENT=1` is in the env: asking for an intent the app
-isn't allowed makes login fail, so it can't be enabled from code alone. Without both, the bot starts as before and
-reads nothing but mentions and replies. Name-looking commands (`/…`, `!…`) in that channel are ignored.
+**One channel can be asked without a mention** (`bot/ambient.ts`). An admin picks it with `/config channel:#ask`
+(Manage Server, stored in `discord_guild_settings.ask_channel`, migration 113), and then a plain message there is
+answered exactly as a mention would be — same cache, limit, pace, memory and buttons — with no ping and no command.
+Each answer goes in **a thread under the question** (named after it), so the channel stays a list of questions and the
+follow-ups belong to their thread; a message already in a thread is answered in it, and a channel where the bot can't
+start one (no Create Public Threads) gets the answer in the channel instead. A thread under the picked channel counts
+as the channel, so the pick covers it. If nobody asked directly, a refusal (the person's pace, the server's cap, the
+owner's switch) is silence rather than a notice under every message: it is logged, not posted.
+
+This needs Discord's privileged **Message Content** intent: without it Discord sends only messages that mention the
+bot or reply to it, so a picked channel has nothing to answer. It is off until the portal switch is on *and*
+`DISCORD_MESSAGE_CONTENT=1` is in the env (asking for an intent the app isn't allowed makes login fail), and the
+startup log and `/config` say which it is. Without both, the bot starts as before and reads nothing but mentions and
+replies. Name-looking commands (`/…`, `!…`) in the ask channel are ignored. Clearing the channel is
+`/config reset:true`, which puts every answer setting back.
 
 `event` and `code` autocomplete over events on now, coming up, or finished in the last 3 days (name or
 code; you can also type a code yourself).
@@ -449,9 +459,9 @@ code; you can also type a code yourself).
   An event follow also carries the season it was made in: codes repeat, so last season's `event:USTXAUQ` never ticks
   this season's event of the same code, and following that code again this season moves the follow forward.
 - **Load protection.** One answer per command and arguments for 60 seconds (`bot/guard.ts`): fifty people
-  asking for the same match cost one lookup. Nobody is paced per person: every command and every mention is
-  answered, however fast it follows the last. Autocomplete reads the event list once a minute and returns at
-  most 25 choices.
+  asking for the same match cost one lookup. Each person is paced in each server (six a minute, thirty an hour,
+  `bot/pacing.ts`), and a message in an ask channel is paced the same way. Autocomplete reads the event list once a
+  minute and returns at most 25 choices.
 - **Always answers.** Replies are deferred before any lookup, so nothing dies with "The application did
   not respond". Every failure is a short embed; unexpected ones (the database busy or down) say "Try
   again in a minute" and are logged with the command and arguments, never shown.
@@ -468,24 +478,26 @@ code; you can also type a code yourself).
    never paste it anywhere else). Leave **Public Bot** on so any team can add it. The bot asks for `Guilds`,
    `GuildMessages`, `GuildMessageReactions` and `DirectMessageReactions`, all non-privileged. The reaction intents are
    what deliver a 👎 on an answer (a report); without them the bot never hears it. **Message Content** (privileged) is
-   optional: turn it on here only if you want the ambient `#ask-control-scout` channel, and set
-   `DISCORD_MESSAGE_CONTENT=1` with it. Ask for it in code before the portal allows it and login fails, which is why
-   the env switch exists.
+   optional: turn it on here only if you want the channel a server picks with `/config channel:` to be answered
+   without a mention, and set `DISCORD_MESSAGE_CONTENT=1` with it. Ask for it in code before the portal allows it and
+   login fails, which is why the env switch exists.
 4. **Installation:** set the install link to "None" (the site's invite link is used instead), or to the
    same scopes and permissions as below.
 
 ## Invite link
 
 ```
-https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=2147567680
+https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=294205343808
 ```
 
 - Scopes: `bot` and `applications.commands`.
-- Permissions `2147567680` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Read Message History
-  (65536) + Use Application Commands (2147483648). Nothing else: the bot manages nothing and joins voice. It reads a
+- Permissions `294205343808` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Read Message History
+  (65536) + Use Application Commands (2147483648) + Create Public Threads (2^34) + Send Messages in Threads (2^38).
+  Nothing else: the bot manages nothing and joins voice. The thread permissions are where an answer in a server's ask
+  channel goes; a server whose role can't start a thread still gets the answer in the channel. It reads a
   channel's recent messages once per server, to take its own old emoji off its answers (`bot/cleanup.ts`, above), and
   otherwise only the messages that @mention it or reply to it — plus, with the optional Message Content intent, the one
-  channel a server names `#ask-control-scout`. Add Reactions is kept from when the bot put emoji on its answers: it adds
+  channel a server picks with `/config channel:`. Add Reactions is kept from when the bot put emoji on its answers: it adds
   none now, and removing its own old reactions is all it uses it for. A server that invited it before 8.0.2 has no Read
   Message History, so its old emoji stay until then (the bot logs which channels it can't read and asks again on every
   start). Nothing else changes for it.
@@ -498,7 +510,7 @@ https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applic
 | --- | --- |
 | `DISCORD_BOT_TOKEN` | Required. Missing or wrong: the bot logs one line and exits with code 78, which systemd doesn't restart. |
 | `DISCORD_DEV_GUILD_ID` | Optional. A test server's ID (Discord: Developer Mode → right-click the server → Copy Server ID). Commands register there instantly instead of globally (global registration can take up to an hour to appear). |
-| `DISCORD_MESSAGE_CONTENT` | Optional, `1` to enable. Requests Discord's privileged Message Content intent so a channel named `#ask-control-scout` can be answered without a mention (`bot/ambient.ts`). Turn the intent on in the developer portal first; asking for it while it is disallowed makes login fail. |
+| `DISCORD_MESSAGE_CONTENT` | Optional, `1` to enable. Requests Discord's privileged Message Content intent, without which Discord sends only messages that mention the bot or reply to it, so the channel a server picks with `/config channel:` can't be answered (`bot/ambient.ts`). Turn the intent on in the developer portal first; asking for it while it is disallowed makes login fail. The startup log and `/config` say whether it is on. |
 | `CONTROL_POINT_INTERNAL_URL`, `CONTROL_POINT_INTERNAL_KEY` | Required for Bruno's chat (and his query rewrite and one-sentence answer): `http://127.0.0.1:3000` on the VM, and the same secret as Control Point's `CONTROL_SCOUT_INTERNAL_KEY`. The bot reads the site's own `.env` (systemd `EnvironmentFile`), so when Control Point sign-in works on controlscout.org these are already set. Unset: every mention gets the card, and the log says `chat off: Control Point isn't configured`. |
 | `DATABASE_URL`, `DATA_DIR`, `CANONICAL_URL` … | The site's own settings, read from the same `.env` (links use `CANONICAL_URL`, controlscout.org in production). |
 
