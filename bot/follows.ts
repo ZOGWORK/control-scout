@@ -14,7 +14,7 @@ import { cachedEventDetail } from "../server/api/events.js";
 import { seasonStats, teamKnown } from "../server/api/teams.js";
 import { eventDue, eventRecapEmbed, eventScheduleEmbed, eveEmbed, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts.js";
 import { alertEmbed, alertKey, changedMatches, eventChanged, eventChangeEmbed, loadEventState, loadMatchState, onDeckDue, onDeckLead, saveEventState, saveMatchState } from "./eventChanges.js";
-import { DEFAULT_SETTINGS, allSettings, allows, pings, type GuildSettings } from "./settings.js";
+import { DEFAULT_SETTINGS, allSettings, allows, inQuietHours, pings, type GuildSettings } from "./settings.js";
 import type { EventDetail, MatchView } from "../src/shared/api.js";
 import { FOOTER, Friendly, VOLT, linkedAlliance, pride, preMatchEmbed, resultEmbed, teamLink, teamsOf } from "./views.js";
 
@@ -373,6 +373,9 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
     const named = new Map((await all<{ code: string; name: string }>(
       `SELECT code, name FROM events WHERE season = ? AND code IN (${stale.map(() => "?").join(",")})`, [CURRENT_SEASON, ...stale])).map((e) => [String(e.code), String(e.name)]));
     for (const r of rolloverDue(active, named)) {
+      // Quiet hours wait: the channel has to be told it now follows this season's event, so the follow keeps its old
+      // season (and this is tried again next tick) rather than moving without a word.
+      if (inQuietHours(settingsFor(r.channel).quiet, now)) continue;
       const moved = await deliver(r.channel, r.code, `season:${r.from}`, "rollover", () => ({
         title: `Following ${r.name} again`,
         description: `This channel followed event **${r.code}** in ${r.from + 1}–${String(r.from + 2).slice(2)}. ${r.code} names this season's ${r.name}, so these posts follow it from now on. \`/unfollow event:${r.code}\` stops them.`,
@@ -386,10 +389,13 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
     if (!d) continue;
     // The event's own dates as the last tick saw them: a meet moved to another weekend is posted once.
     const was = await loadEventState(CURRENT_SEASON, ev.code).catch(() => null);
+    let datesTold = true;
     if (was) for (const a of eventChanged(active, d, was)) {
-      await deliver(a.channel, ev.code, a.key, "dates", () => eventChangeEmbed(d, a, site));
+      if (!(await deliver(a.channel, ev.code, a.key, "dates", () => eventChangeEmbed(d, a, site)))) datesTold = false;
     }
-    await saveEventState(CURRENT_SEASON, ev.code, d, now).catch((e) => log(`follows: couldn't record ${ev.code}'s dates (${(e as Error)?.message ?? String(e)})`));
+    // A channel that refused the alert keeps the dates it was told about, so the next tick sees the move again; a channel
+    // this server's settings silenced counts as told, like every other change alert.
+    if (datesTold) await saveEventState(CURRENT_SEASON, ev.code, d, now).catch((e) => log(`follows: couldn't record ${ev.code}'s dates (${(e as Error)?.message ?? String(e)})`));
     // The schedule as the last tick saw it: a moved match, a changed lineup or a new one is posted once. The first
     // sight of an event only records it (changedMatches returns nothing for an empty map).
     const prev = await loadMatchState(CURRENT_SEASON, ev.code).catch(() => null);

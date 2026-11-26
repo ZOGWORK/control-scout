@@ -549,6 +549,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       else {
         const m = /^(?:<@&)?(\d{15,22})>?$/.exec(roleText);
         if (!m) throw new Friendly("Which role?", "Give a role as a mention (`@Scouts`) or its id, or `none` to ping nobody.");
+        // @everyone's role id is the server's own id, and `<@&server>` pings everyone: never accept it as "a role".
+        if (m[1] === guild) throw new Friendly("Which role?", "That's this server's @everyone role. Name the role to ping, or `none` to ping nobody.");
         pingRole = m[1];
       }
     }

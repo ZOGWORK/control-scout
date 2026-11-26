@@ -7,6 +7,8 @@ import { setFlag } from "../server/flags";
 import { CURRENT_SEASON as S } from "../server/data/seasons";
 import type { EventDetail, MatchView } from "../src/shared/api";
 import { MAX_FAILURES, REMIND_MS, addFollow, dueNow, listFollows, nextMatch, notifyTick, postEmbed, removeFollow, type Follow } from "./follows";
+import { setGuildSettings } from "./settings";
+import { loadEventState } from "./eventChanges";
 import { Friendly, PRIDE, embedBlocks } from "./views";
 
 const NOW = Date.parse("2026-10-24T15:00:00Z");
@@ -118,7 +120,14 @@ describe("follows and the tick, on a database", () => {
     for (const [i, t] of [18360, 4215, 16379, 21058].entries()) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station) VALUES (?, 'USTXAUQ', 'qual', 0, 7, ?, ?, ?)", [S, t, i < 2 ? "red" : "blue", (i % 2) + 1]);
     await kvSet("data:version", "v1");
   });
-  beforeEach(async () => { await run("DELETE FROM discord_follows"); await run("DELETE FROM discord_match_state"); await clearPosts(); clearAllCaches(); });
+  beforeEach(async () => {
+    await run("DELETE FROM discord_follows");
+    await run("DELETE FROM discord_match_state");
+    await run("DELETE FROM discord_event_state");
+    await run("DELETE FROM discord_guild_settings");
+    await clearPosts();
+    clearAllCaches();
+  });
 
   it("follow, list, unfollow; unknown teams and a full server are friendly errors", async () => {
     expect(await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5)).toBe("added");
@@ -165,6 +174,41 @@ describe("follows and the tick, on a database", () => {
     // From then on it is this season's follow: the schedule posts on the next tick, and the notice never repeats.
     expect(await sent(send, "https://controlscout.org", () => {}, NOW + 60_000)).toBe(1);
     expect(await sent(send, "https://controlscout.org", () => {}, NOW + 120_000)).toBe(0);
+  });
+
+  it("waits out quiet hours before telling a channel its event follow moved to this season", async () => {
+    expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u", NOW - 864e5)).toBe("added");
+    await run("UPDATE discord_follows SET season = season - 1 WHERE guild_id = 'g'");
+    const h = new Date(NOW).getUTCHours();
+    await setGuildSettings("g", { quiet: { start: h, end: (h + 2) % 24 }, reminders: true, pingRole: null }, "u", NOW);
+    const send = vi.fn(async () => "ok" as const);
+    // Quiet hours: nothing posts, and the follow keeps last season's row so the notice isn't lost.
+    expect(await sent(send, "https://controlscout.org", () => {}, NOW)).toBe(0);
+    expect(send).not.toHaveBeenCalled();
+    expect((await all<{ season: number }>("SELECT season FROM discord_follows"))[0].season).toBe(S - 1);
+    // Out of them the notice is the first thing the channel hears, and the follow moves to this season's event.
+    await setGuildSettings("g", { quiet: null, reminders: true, pingRole: null }, "u", NOW);
+    expect(await sent(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
+    expect(((send.mock.calls[0] as unknown[])[1] as { title: string }).title).toBe("Following Austin Qualifier again");
+    expect((await all<{ season: number }>("SELECT season FROM discord_follows"))[0].season).toBe(S);
+  });
+
+  it("keeps the dates it was told about when a moved meet's alert can't be sent, and tells it on the next tick", async () => {
+    expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u", NOW - 864e5)).toBe("added");
+    const send = vi.fn(async () => "ok" as const);
+    expect(await sent(send, "https://controlscout.org", () => {}, NOW)).toBe(1); // the schedule post, and the dates recorded
+    await run("UPDATE events SET end = '2027-07-01' WHERE season = ? AND code = 'USTXAUQ'", [S]);
+    clearAllCaches();
+    // The alert can't be sent: the event keeps the dates the channel was told about, so the move isn't lost.
+    await sent(vi.fn(async () => "error" as const), "https://controlscout.org", () => {}, NOW + 60_000);
+    expect((await loadEventState(S, "USTXAUQ"))?.end).toBe("2027-06-30");
+    const retry = vi.fn(async () => "ok" as const);
+    expect(await sent(retry, "https://controlscout.org", () => {}, NOW + 60_000)).toBeGreaterThan(0);
+    expect(retry.mock.calls.some((c) => ((c as unknown[])[1] as { title?: string }).title === "Dates changed: Austin Qualifier")).toBe(true);
+    expect((await loadEventState(S, "USTXAUQ"))?.end).toBe("2027-07-01");
+    // Put the fixture's dates back for the tests after this one.
+    await run("UPDATE events SET end = '2027-06-30' WHERE season = ? AND code = 'USTXAUQ'", [S]);
+    clearAllCaches();
   });
 
   it("posts the reminder once, even across ticks and with two followed teams in the match", async () => {

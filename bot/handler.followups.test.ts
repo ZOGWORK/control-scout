@@ -7,11 +7,11 @@ import { DEFAULT_SETTINGS } from "./settings";
 
 const ok = (title: string): APIEmbed => ({ title });
 
-function command(name: string, options: Record<string, string | number | boolean> = {}, user = "u1") {
+function command(name: string, options: Record<string, string | number | boolean> = {}, user = "u1", guild = "g1") {
   const calls: { kind: string; payload?: any }[] = [];
   const i = {
     commandName: name,
-    guildId: "g1",
+    guildId: guild,
     channelId: "c1",
     user: { id: user, globalName: "Sam" },
     options: {
@@ -81,6 +81,13 @@ describe("/settings", () => {
     const none = command("settings", { ping_role: "none" });
     await h(none.i);
     expect(saveSettings).toHaveBeenLastCalledWith("g1", { quiet: { start: 22, end: 7 }, reminders: true, pingRole: null }, "u1");
+
+    // @everyone's role id is the server's own id, and `<@&server>` pings everyone: refused, not saved.
+    const everyone = command("settings", { ping_role: "987654321098765432" }, "u1", "987654321098765432");
+    await h(everyone.i);
+    expect(everyone.calls[1].payload.embeds[0].title).toBe("Which role?");
+    expect(everyone.calls[1].payload.embeds[0].description).toContain("@everyone");
+    expect(saveSettings).toHaveBeenCalledTimes(3);
   });
 
   it("says it needs a server rather than quietly changing nothing", async () => {
