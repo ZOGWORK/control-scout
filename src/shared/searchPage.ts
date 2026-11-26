@@ -159,14 +159,17 @@ export function answerDescription(a: AnswerExtra): string | null {
 
 /** A shared name's reading ('Which "absolute zero"? 5 teams have that name; 3 of them still play: 12096 (…), …',
  *  ./query/shared.ts whichLine) said as a plain line for the names list it heads: "5 teams are named Absolute Zero;
- *  3 still play". The teams themselves are the list under it, so their numbers aren't said again. `names`: the found
+ *  3 still play" (or "3 teams are named Green Machine; none played at Worlds"). The teams themselves are the list under it, so their numbers aren't said again. `names`: the found
  *  teams' own spellings, to write the name as they do. Null: not such a reading. */
 export function namesSaid(label: string | null | undefined, names: string[] = []): string | null {
   if (!label || !/^Which "/.test(label)) return null;
   const spelled = (typed: string) => names.find((n) => n.toLowerCase() === typed.toLowerCase()) ?? `"${typed}"`;
   const parts = label.split(" · ").map((seg) => {
-    const m = /^Which "([^"]+)"\? (\d+) teams have that name(?:; (\d+) of them still play)?/.exec(seg);
-    return m ? `${m[2]} teams are named ${spelled(m[1])}${m[3] ? `; ${m[3]} still ${m[3] === "1" ? "plays" : "play"}` : ""}` : null;
+    // "; 3 of them still play", or an event or season the query names: "; none of them played at Worlds (…did)".
+    const m = /^Which "([^"]+)"\? (\d+) teams have that name(?:; (\d+) of them still play(?=: )|; (\d+|none) of them (played .+?)(?=: \d))?/.exec(seg);
+    if (!m) return null;
+    const how = m[3] ? `; ${m[3]} still ${m[3] === "1" ? "plays" : "play"}` : m[4] ? `; ${m[4]} ${m[5]}` : "";
+    return `${m[2]} teams are named ${spelled(m[1])}${how}`;
   });
   return parts.every((p) => p) ? parts.join(" · ") : null;
 }
