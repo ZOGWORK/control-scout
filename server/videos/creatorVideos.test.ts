@@ -221,4 +221,34 @@ describe("the creator-video intake", () => {
     expect(await get("SELECT series, playlist_ids FROM creator_videos WHERE video_id = 'premiere001'")).toEqual({ series: "behind-the-bot", playlist_ids: JSON.stringify([BTB]) });
     expect((await featuredFor(13684)).map((f) => f.videoId)).toContain("premiere001");
   });
+
+  it("reads past stored uploads after a run cut short, so none under them is skipped for good", async () => {
+    // 60 new uploads: the first videos.list (the newest 50) is stored, the second fails.
+    const ids = Array.from({ length: 60 }, (_, i) => `cut${String(i).padStart(8, "0")}`);
+    ids.forEach((id, i) => videos.push({ id, title: `Robot ${i} | FTC BIOBUZZ`, published: new Date(Date.parse("2027-03-01T00:00:00Z") - i * 3600_000).toISOString() }));
+    let n = 0;
+    const cut = (async (url: string, init?: RequestInit) => {
+      if (new URL(url).pathname.endsWith("/videos") && ++n === 2) return { ok: false, status: 500, json: async () => ({}) } as Response;
+      return fakeFetch(url, init);
+    }) as typeof fetch;
+    await runCreatorIntake(log, { ...opts(T0 + 52 * 864e5), fetchImpl: cut });
+    const stored = async () => Number((await get<{ n: number }>("SELECT COUNT(*) n FROM creator_videos WHERE video_id LIKE 'cut%'"))?.n);
+    expect(await stored()).toBe(50);
+    expect(await get("SELECT checked_at FROM creator_channels WHERE channel_id = ?", [FUN])).toEqual({ checked_at: null });
+    // Next run: the newest page is all stored, yet the 10 under it are read.
+    await runCreatorIntake(log, opts(T0 + 53 * 864e5));
+    expect(await stored()).toBe(60);
+    expect((await get<any>("SELECT checked_at FROM creator_channels WHERE channel_id = ?", [FUN]))?.checked_at).toBeTruthy();
+  });
+
+  it("keeps refreshing a deactivated channel's videos, and drops the ones YouTube no longer plays", async () => {
+    await run("UPDATE creator_channels SET active = 0 WHERE channel_id = ?", [FUN]);
+    videos = videos.filter((v) => v.id !== "cut00000059");
+    calls = [];
+    await runCreatorIntake(log, opts(T0 + 90 * 864e5));
+    expect(calls).not.toContain(`playlistItems:${UPLOADS}`);
+    expect(calls).toContain("videos");
+    expect(await get("SELECT 1 x FROM creator_videos WHERE video_id = 'cut00000059'")).toBeUndefined();
+    expect((await get<any>("SELECT COUNT(*) n FROM creator_videos WHERE last_refreshed < ?", [new Date(T0 + 80 * 864e5).toISOString()]))?.n).toBe(0);
+  });
 });
