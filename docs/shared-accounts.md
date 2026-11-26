@@ -948,10 +948,14 @@ any account or workspace.
 |---|---|
 | `GET /internal/teams/:n/videos` | `200 { featured: [{ series, videoId, season, title }], clips: [{ videoId, start, end, event, match, title }] }`. `400 { error: "invalid_team" }` when `:n` isn't a team number (1–999999). |
 
-- `featured`: the creator episodes the team is tagged in (`series` such as
-  `behind-the-bot`), from `featuredFor` in `server/videos/creatorVideos.ts`
-  (`creator_videos` and `video_team_tags`, migration 114). `season` is `null`
-  when unknown. Empty, never an error, when that data is missing.
+- `featured`: the creator videos whose **title** names the team (a mention in a
+  description is a tag, not a feature), newest first, at most 10: `featuredFor`
+  in `server/videos/creatorVideos.ts` (`creator_videos` and `video_team_tags`,
+  migration 114; docs/creator-videos.md), with the owner's tag removals and
+  videos that can't be embedded left out. Only videos in a series (`series`:
+  `behind-the-bot`, `pits-and-parts`, `top-25`, `funalysis`); Control Point's
+  badge shows `behind-the-bot`. `season` is `null` when unknown. Empty, never an
+  error, when they can't be read.
 - `clips`: the team's latest match clips, newest first, at most 6, from its
   latest 4 events with a played match where it was on the field. Each is what
   every Scout surface plays for that match: FIRST's own video (`matches.video`),

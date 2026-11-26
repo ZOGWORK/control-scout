@@ -10,6 +10,7 @@ import { localToUtcMs } from "../../src/shared/time.js";
 import { eventMatchSpan, seasonRecordings, withClips, type Recording } from "./recordings.js";
 import type { MatchClip, SearchVideoItem } from "../../src/shared/api.js";
 import { withStills } from "./storyboards.js";
+import { featuredFor } from "./creatorVideos.js";
 
 export interface FeaturedVideo { series: string; videoId: string; season: number | null; title: string }
 /** `still`: a clip cut from a recording, its own frame (one tile of a YouTube storyboard sheet, storyboards.ts); none for
@@ -21,37 +22,14 @@ export interface TeamVideos { featured: FeaturedVideo[]; clips: TeamClip[] }
 export const MAX_CLIPS = 6;
 const MAX_EVENTS = 4;
 
-// featuredFor lives in creatorVideos.ts (migration 114, built in parallel). Until it's on main it's loaded by name, so
-// a build without it (or a database without its tables) gives no episodes, never an error.
-// TODO(114): import { featuredFor } from "./creatorVideos.js" once that PR merges.
-const CREATOR_VIDEOS = "./creatorVideos.js";
-type FeaturedFor = (team: number) => Promise<unknown[]>;
-let featuredImpl: FeaturedFor | null = null;
-async function loadFeatured(): Promise<FeaturedFor> {
-  if (featuredImpl) return featuredImpl;
-  try {
-    const m = (await import(/* @vite-ignore */ CREATOR_VIDEOS)) as { featuredFor?: FeaturedFor };
-    featuredImpl = typeof m.featuredFor === "function" ? m.featuredFor : async () => [];
-  } catch { featuredImpl = async () => []; }
-  return featuredImpl;
-}
-/** Tests: stand in for creatorVideos.ts (null: load it again). */
-export function setFeaturedFor(f: FeaturedFor | null) { featuredImpl = f; }
+/** Most featured videos sent (a team is rarely in more than a few). */
+export const MAX_FEATURED = 10;
 
-const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
-
-/** The team's featured episodes, only the fields named in the contract, each checked; none when the module or its tables are missing. */
+/** The creator videos whose title names the team (featuredFor), newest first: those in a series (Behind the Bot, Pits
+ *  and Parts, …), the one thing the dashboard's badge says. None (never an error) when they can't be read. */
 export async function featured(team: number): Promise<FeaturedVideo[]> {
-  let rows: unknown[];
-  try { rows = await (await loadFeatured())(team); } catch { return []; }
-  if (!Array.isArray(rows)) return [];
-  return rows.flatMap((r) => {
-    const x = r as Record<string, unknown>;
-    const series = str(x?.series), videoId = str(x?.videoId), title = str(x?.title);
-    if (!series || !videoId || !/^[\w-]{11}$/.test(videoId) || !title) return [];
-    const season = typeof x.season === "number" && Number.isInteger(x.season) ? x.season : null;
-    return [{ series, videoId, season, title }];
-  });
+  const rows = await featuredFor(team).catch(() => []);
+  return rows.flatMap((r) => (r.series ? [{ series: r.series, videoId: r.videoId, season: r.season, title: r.title }] : [])).slice(0, MAX_FEATURED);
 }
 
 interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; video: string | null; timezone: string | null; name: string; start: string; mine: number }

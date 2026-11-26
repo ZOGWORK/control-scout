@@ -21,7 +21,7 @@ vi.mock("./videos/recordings.js", async (orig) => {
 import { kvSet, migrate, openDb, run, setDb } from "./db";
 import { clearAllCaches } from "./caches";
 import { createApp } from "./app";
-import { setFeaturedFor, MAX_CLIPS } from "./videos/teamVideos";
+import { MAX_CLIPS } from "./videos/teamVideos";
 import { forgetStoryboards } from "./videos/storyboards";
 
 const KEY = "k".repeat(40);
@@ -53,11 +53,9 @@ beforeEach(async () => {
   recs.map = new Map();
   forgetStoryboards();
   process.env.CONTROL_POINT_INTERNAL_KEY = KEY;
-  setFeaturedFor(async () => []);
 });
 afterEach(async () => {
   delete process.env.CONTROL_POINT_INTERNAL_KEY;
-  setFeaturedFor(null);
   if (server) { await new Promise((r) => server!.close(r)); server = null; }
 });
 
@@ -127,22 +125,27 @@ describe("GET /internal/teams/:n/videos", () => {
     expect(clips.map((c: { match: string }) => c.match)).toEqual(["Q9", "Q8", "Q7", "Q6", "Q5", "Q4"]);
   });
 
-  it("featured: creatorVideos' episodes, only the contract's fields, malformed rows dropped", async () => {
-    setFeaturedFor(async (t) => (t === 100 ? [
-      { series: "behind-the-bot", videoId: "ddddddddddd", season: 2025, title: "Behind the Bot: 100", description: "dropped" },
-      { series: "behind-the-bot", videoId: "not-an-id", season: 2025, title: "bad id" },
-      { series: "behind-the-bot", videoId: "eeeeeeeeeee", season: "2024", title: "Season unknown" },
-      null,
-    ] : []));
+  it("featured: the series videos whose title names the team (featuredFor), newest first", async () => {
+    const video = (id: string, title: string, series: string | null, published: string, embeddable = 1) =>
+      run("INSERT INTO creator_videos (video_id, channel_id, title, published_at, series, program, season, embeddable, last_refreshed) VALUES (?, 'UCfun', ?, ?, ?, 'ftc', 2025, ?, 'x')", [id, title, published, series, embeddable]);
+    const tag = (id: string, team: number, rule: string) => run("INSERT INTO video_team_tags (video_id, team_number, rule) VALUES (?, ?, ?)", [id, team, rule]);
+    await video("ddddddddddd", "100 Robots | Behind the Bot | FTC DECODE Robot", "behind-the-bot", "2026-11-01T00:00:00Z");
+    await video("eeeeeeeeeee", "Top 25 | 100 Robots", "top-25", "2026-11-10T00:00:00Z");
+    await video("fffffffffff", "Behind the Bot: 200 Others (100 in the description)", "behind-the-bot", "2026-11-12T00:00:00Z");
+    await video("ggggggggggg", "100 Robots at the qualifier", null, "2026-11-15T00:00:00Z");
+    await video("hhhhhhhhhhh", "100 Robots | Behind the Bot (private now)", "behind-the-bot", "2026-11-16T00:00:00Z", 0);
+    await video("iiiiiiiiiii", "100 Robots | Pits and Parts", "pits-and-parts", "2026-11-17T00:00:00Z");
+    await tag("ddddddddddd", 100, "title:cue");
+    await tag("eeeeeeeeeee", 100, "title:bare-name");
+    await tag("fffffffffff", 100, "description:cue"); // a passing mention, not a feature
+    await tag("ggggggggggg", 100, "title:cue"); // no series: nothing a badge can say
+    await tag("hhhhhhhhhhh", 100, "title:cue"); // can't be played here any more
+    await tag("iiiiiiiiiii", 100, "title:cue");
+    await run("INSERT INTO video_tag_removals (video_id, team_number, removed_by, removed_at) VALUES ('iiiiiiiiiii', 100, 'owner', 'x')"); // the owner said no
     expect((await get("/internal/teams/100/videos", KEY)).body.featured).toEqual([
-      { series: "behind-the-bot", videoId: "ddddddddddd", season: 2025, title: "Behind the Bot: 100" },
-      { series: "behind-the-bot", videoId: "eeeeeeeeeee", season: null, title: "Season unknown" },
+      { series: "top-25", videoId: "eeeeeeeeeee", season: 2025, title: "Top 25 | 100 Robots" },
+      { series: "behind-the-bot", videoId: "ddddddddddd", season: 2025, title: "100 Robots | Behind the Bot | FTC DECODE Robot" },
     ]);
-    expect((await get("/internal/teams/7/videos", KEY)).body.featured).toEqual([]);
-  });
-
-  it("featured: none (never an error) when creatorVideos throws, e.g. its tables are missing", async () => {
-    setFeaturedFor(async () => { throw new Error("no such table: creator_videos"); });
-    expect(await get("/internal/teams/100/videos", KEY)).toEqual({ status: 200, body: { featured: [], clips: [] } });
+    expect((await get("/internal/teams/200/videos", KEY)).body.featured).toEqual([]);
   });
 });
