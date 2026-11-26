@@ -207,7 +207,7 @@ describe("the creator-video intake", () => {
     expect(await get("SELECT checked_at, active FROM creator_channels WHERE channel_id = ?", [FUN])).toEqual({ checked_at: null, active: 1 });
   });
 
-  it("stops on a used-up quota, keeps what it read, and waits 12 hours between scheduled runs", async () => {
+  it("stops on a used-up quota, keeps what it read, and waits 4 hours between scheduled runs", async () => {
     quota = true;
     const out = await runCreatorIntake(log, opts(T0 + 32 * 864e5));
     expect(out?.error).toMatch(/quota/);
@@ -215,7 +215,7 @@ describe("the creator-video intake", () => {
     quota = false;
     const last = Date.parse((await get<{ started_at: string }>("SELECT started_at FROM creator_runs ORDER BY id DESC LIMIT 1"))!.started_at);
     expect(await creatorIfDue(log, last + 3600_000, { apiKey: "test-key", fetchImpl: fakeFetch, lockWaitMs: 0 })).toBeNull();
-    expect(await creatorIfDue(log, last + 13 * 3600_000, { ...opts(last + 13 * 3600_000) })).not.toBeNull();
+    expect(await creatorIfDue(log, last + 5 * 3600_000, { ...opts(last + 5 * 3600_000) })).not.toBeNull();
     expect(await runCreatorIntake(log, { apiKey: null })).toBeNull();
   });
 
