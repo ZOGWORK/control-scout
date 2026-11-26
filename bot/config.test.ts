@@ -101,6 +101,10 @@ describe("the startup summary", () => {
     expect(all({ limit: { perHour: 60, perDay: 200, custom: true } })[6]).toBe(
       "config: chat limit 60 an hour, 200 a day (set for this server)",
     );
+    // The default every server has, as guildLimit returns it.
+    expect(all({ limit: { perHour: 60, perDay: 300, custom: false } })[6]).toBe(
+      "config: chat limit 60 an hour, 300 a day (the default: 60 an hour, 300 a day)",
+    );
   });
 
   it("says a limit with one window, none at all, or one it couldn't read", () => {
@@ -130,6 +134,7 @@ describe("the startup summary", () => {
     expect(all({ follows: { follows: 1, servers: 1 } })[7]).toContain("1 follow in 1 server (");
     expect(all({ follows: { follows: 0, servers: 0 } })[7]).toContain("nothing followed yet");
     expect(all({ follows: null })[7]).toContain("couldn't be read");
+    expect(all({ follows: { follows: 3, servers: 2, stopped: 1 } })[7]).toContain("1 stopped because a channel refused posts");
   });
 
   it("says when it connected to Discord, in UTC and how long ago", () => {

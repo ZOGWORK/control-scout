@@ -47,20 +47,21 @@ export interface Config {
   /** The chat limit where /config was asked (bot/quota.ts): no cap by default, or the server's own row. Absent in the
    *  startup block, which has no server to ask about; null when it couldn't be read. */
   limit?: LimitSetting | null;
-  /** The follows the tick will post for; null when they couldn't be read (the database wasn't ready). */
-  follows: { follows: number; servers: number } | null;
+  /** The follows the tick will post for (and how many stopped because a channel kept refusing posts); null when they
+   *  couldn't be read (the database wasn't ready). */
+  follows: { follows: number; servers: number; stopped?: number } | null;
   /** Discord: when this process reached the gateway (null until it does), and the newest heartbeat it wrote
    *  (server/uptime.ts, once a minute while connected) — the last time it was connected, which outlives a restart. */
   discord: { since: number | null; last: number | null };
 }
 
 /** A chat limit in words: "30 an hour, 100 a day" (whichever it has), or "none", and where it came from — the server's
- *  own row, or the default, which caps nothing. */
+ *  own row, or the default ceiling every server has. */
 export function limitLine(l: LimitSetting | null): string {
   if (!l) return "chat limit couldn't be read just now";
   const caps = [l.perHour == null ? null : `${l.perHour} an hour`, l.perDay == null ? null : `${l.perDay} a day`]
     .filter(Boolean).join(", ");
-  return `chat limit ${caps || "none"} (${l.custom ? "set for this server" : "the default: no cap"})`;
+  return `chat limit ${caps || "none"} (${l.custom ? "set for this server" : `the default: ${caps || "no cap"}`})`;
 }
 
 /** The summary: one line each, all starting `config:` so one grep finds them all. */
@@ -68,6 +69,13 @@ export function configLines(c: Config, clock: Clock = JOURNAL): string[] {
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const follows = c.follows;
   const { since, last } = c.discord;
+  const followLine = follows === null
+    ? "on — the follows couldn't be read yet (a tick a minute while connected)"
+    : follows.follows === 0
+      ? "on — nothing followed yet (a tick a minute while connected)"
+      : `on — ${plural(follows.follows, "follow", "follows")} in ${plural(follows.servers, "server", "servers")}`
+        + (follows.stopped ? `; ${plural(follows.stopped, "stopped because a channel refused posts", "stopped because their channels refused posts")}` : "")
+        + " (a tick a minute while connected)";
   return [
     c.release
       ? `config: release ${c.release}`
@@ -82,11 +90,7 @@ export function configLines(c: Config, clock: Clock = JOURNAL): string[] {
     // Only where there is a server to ask about: /config, not the startup block.
     ...(c.limit === undefined ? [] : [`config: ${limitLine(c.limit)}`]),
     `config: ${reportSetup().line}`,
-    `config: follow posts ${follows === null
-      ? "on — the follows couldn't be read yet (a tick a minute while connected)"
-      : follows.follows === 0
-        ? "on — nothing followed yet (a tick a minute while connected)"
-        : `on — ${plural(follows.follows, "follow", "follows")} in ${plural(follows.servers, "server", "servers")} (a tick a minute while connected)`}`,
+    `config: follow posts ${followLine}`,
     since !== null
       ? `config: discord connected since ${clock.abs(since)} (${clock.rel(since)})`
       : last !== null

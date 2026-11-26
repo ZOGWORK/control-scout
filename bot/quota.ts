@@ -1,9 +1,9 @@
 // Per-server chat limits for the Discord bot: at most `perHour` chats an hour and `perDay` a day, counted in UTC windows so
-// a limit resets on the clock rather than an hour after a server's first ask. No server is capped by default — DEFAULT_LIMIT
-// is none in either window — and a server only gets a ceiling when the owner console, or setGuildLimit, gives it a row of
-// its own. A row replaces both windows (a null or zero there is no cap for that window), and clearGuildLimit deletes the
-// row to leave the server uncapped again. A server's two counters start with its limit: setting or clearing one deletes its
-// usage, so chats from before it are not counted against it.
+// a limit resets on the clock rather than an hour after a server's first ask. Every server has DEFAULT_LIMIT unless the
+// owner console, or setGuildLimit, gives it a row of its own: 60 an hour and 300 a day, a ceiling far above any team's
+// real use and far below an unbounded Control Point bill. A row replaces both windows (a null or zero there is no cap for
+// that window), and clearGuildLimit deletes the row to put the server back on the default. A server's two counters start
+// with its limit: setting or clearing one deletes its usage, so chats from before it are not counted against it.
 import { all, get, run } from "../server/db.js";
 
 /** A server's limit: null (or 0) is none. */
@@ -13,10 +13,9 @@ export interface LimitSetting extends GuildLimit { custom: boolean }
 /** Allowed, or refused with the seconds until the window that ran out starts afresh. */
 export type Quota = { ok: true } | { ok: false; limited: "hour" | "day"; retryAfter: number };
 
-/** What a server has without a row of its own: no cap in either window. The cap feature is built — the owner console
- *  sets one server at a time — but nothing caps every server, and an uncapped chat is allowed at once and writes no
- *  count (takeChat, below). */
-export const DEFAULT_LIMIT: GuildLimit = { perHour: null, perDay: null };
+/** What a server has without a row of its own: a generous ceiling, so no server is ever unbounded by accident. The
+ *  owner console sets a server's own row when it needs less (or more). */
+export const DEFAULT_LIMIT: GuildLimit = { perHour: 60, perDay: 300 };
 
 /** The two UTC windows a chat counts in, as their keys (the owner console reads them too). */
 export const chatWindows = (now = Date.now()) => {

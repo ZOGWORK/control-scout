@@ -20,6 +20,8 @@ describe("home suggestion spelling", () => {
   it.skipIf(!existsSync(data))("spells every team, event and place as the stored data does", async () => {
     const c = createClient({ url: `file:${data.replace(/\\/g, "/")}` });
     try {
+      // Another test's first boot may have created the file empty: it is a copy of the data only when it has the tables.
+      if (!(await c.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'teams'")).rows.length) return;
       const [teams, events] = await Promise.all([
         c.execute("SELECT number, name, school, city, state FROM teams"),
         c.execute("SELECT code, name, venue, city, state FROM events"),

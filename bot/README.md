@@ -57,10 +57,11 @@ posts anyway.
 **The answer's buttons** (`bot/buttons.ts`). Every answer with something to offer carries one row of questions and
 one row of links: up to three questions to ask next (search's own suggestions for a question it couldn't answer, else
 the answer's related ones), a link button to the same answer on controlscout.org, and a link button per video. A
-question lives in the bot's process for an hour, not in the button's custom id (Discord allows 100 characters, which
-is not a question), so a button clicked within the hour asks it as `/ask` would — same cache, same limit, same
-server memory — and one clicked later, or after a restart, says it has expired and names `/ask`. Follows are
-deliberately not buttons: a button would let anyone follow without Manage Server.
+question lives in `discord_button_questions` (migration 110), not in the button's custom id (Discord allows 100
+characters, which is not a question), so a button asks exactly what was offered — after a restart or a deploy too —
+as `/ask` would: same cache, same limit, same server memory. A button is kept for 30 days; one from an older bot, or
+one whose row couldn't be written, says its question isn't kept any more and names `/ask`. Follows are deliberately
+not buttons: a button would let anyone follow without Manage Server.
 
 **No thumbs.** The bot puts no emoji on its answers and counts nothing. It used to add a 👍 (counted on that answer
 alone, with no record of who clicked) and a 👎 (which filed the answer's question in the site's failed-search queue),
@@ -78,6 +79,12 @@ or after a restart, points at the same issue instead of filing a duplicate — a
 few an hour like any report. An answer from before the bot kept its question (migration 105) still files, and the issue
 says the question wasn't recorded. Discord sends only a message's id for an answer it has no copy of (one from before
 the last restart), so the bot fetches it first: the issue still shows the answer's words and the reporter's nickname.
+
+An issue is built to triage, not just to file: it carries the `discord` label beside `bug`/`auto-reported`, **what
+produced the answer** (Bruno's chat, the bot's own fallback, or the search card), the search step and how long it took
+(kept on the answer's row, migration 110), and a link straight to the Discord message. A second person's 👎 on the same
+answer adds one comment to that issue (at most hourly, `noteReport`), so "more than one person hit this" is visible
+without opening a duplicate. None of it adds a vote or who-clicked record.
 
 **The old emoji are taken off** (`bot/cleanup.ts`). Both reactions the bot used to add are still on the answers it
 posted between 7.9.2 and now, where they are buttons that do nothing: on the first connection after this ships the bot
@@ -108,16 +115,16 @@ Pace: none per person — every message is answered, so two in a row get two ans
 a minute is the answer already given (one lookup, whoever asks). Every ask is logged as the command, the step, whether Bruno helped
 and the time, never who asked. The bot reads the site's search index and never writes it.
 
-**Per-server chat limits: built, off by default.** `bot/quota.ts` caps a server at `perHour` chats a UTC hour and
-`perDay` a UTC day, counted in UTC windows, but no server has a cap until one is set: the default (`DEFAULT_LIMIT`) is
-none in either window, and an uncapped chat is allowed at once and writes nothing. A server with a row in
-`discord_limits` has that cap instead; a row replaces both windows, and a zero or a null there is no cap for that
-window, while `clearGuildLimit(guild)` deletes the row and leaves the server uncapped again. Both are the owner
-console's write (Product › Discord bot, `server/portal/discordLimits.ts`): it lists every server the bot knows with its
-cap and what it has used today, and sets or clears one server's cap, every change in the audit log. Either write
-deletes that server's usage, so its counters start with its cap: nothing it asked earlier counts against it. At a cap,
-`/ask` and a mention get a plain note with when it resets, while the site and the server's follow posts keep working.
-`/config` says which limit the server it was asked in has — `none` until the owner sets one.
+**Per-server chat limits: a generous default, set lower where needed.** `bot/quota.ts` caps a server at `perHour`
+chats a UTC hour and `perDay` a UTC day, counted in UTC windows. Every server has `DEFAULT_LIMIT` — 60 an hour and 300
+a day — so no server is ever unbounded by accident; a server with a row in `discord_limits` has its own cap instead. A
+row replaces both windows, and a zero or a null there is no cap for that window, while `clearGuildLimit(guild)` deletes
+the row and puts the server back on the default. Both are the owner console's write (Product › Discord bot,
+`server/portal/discordLimits.ts`): it lists every server the bot knows with its cap and what it has used today, and
+sets or clears one server's cap, every change in the audit log. Either write deletes that server's usage, so its
+counters start with its cap: nothing it asked earlier counts against it. At a cap, `/ask`, a mention and an ambient
+question get a plain note with when it resets, while the site and the server's follow posts keep working. `/config`
+says which limit the server it was asked in has.
 
 **"Report this to ControlScout"** (`bot/report.ts`): a message with those words — any case, `Control Scout` or
 `ControlScout` — files one GitHub issue titled `Discord type issue`, through the site's own GitHub path
@@ -149,8 +156,8 @@ config: follow posts on — 12 follows in 4 servers (a tick a minute while conne
 config: discord not connected now (last connected 2 minutes ago)
 ```
 
-`/config` adds a tenth line for the server it was asked in: `config: chat limit none (the default: no cap)` — or
-`config: chat limit 60 an hour, 300 a day (set for this server)`, or that the limit couldn't be read.
+`/config` adds a tenth line for the server it was asked in: `config: chat limit 60 an hour, 300 a day (the default: 60
+an hour, 300 a day)` — or `config: chat limit 10 an hour (set for this server)`, or that the limit couldn't be read.
 
 so `journalctl -u control-scout-bot | grep 'config:'` answers "what can this bot do here, and what is it missing?" in
 one look: the chat says `off —` with the reason ask.ts itself gives (Control Point unconfigured, or the switch off), the
@@ -186,7 +193,9 @@ only unreachable (`GuildDelete` with `available: false`, a Discord outage) is no
 The owner console's Discord bot panel lists each server by the name Discord shows (kept on join, on a rename and once
 at startup) beside its id, and shows the bot's own numbers: chats today and this week, the share answered and the share
 Bruno answered (the rest fell back to the card), the middle answer time, the follow posts sent today, and the totals
-the thumbs collected before they were removed. A name Discord hasn't sent since names were kept reads "Name not known
+answers that were reported, and how often the same words are asked again (bot/asks.ts `answerStats`; the old thumbs'
+counts stay readable but never move). A server whose follows stopped says how many. A name Discord hasn't sent since
+names were kept reads "Name not known
 yet" rather than a guess.
 
 **His name is Bruno, and he's a golden retriever in spirit.** `brunoPersona()` (`bot/productFacts.ts`) goes with every
@@ -326,6 +335,14 @@ server that mentions the bot itself, or replies to its post: not @everyone or a 
 messages that mention it (a reply pings it) without the Message Content intent, so the bot reads nothing else; a
 reply that arrives without its text is left alone.
 
+**One channel can be asked without a mention** (`bot/ambient.ts`). A server that makes a channel called
+`#ask-control-scout` gets a help desk: a message there is answered exactly as a mention would be (same cache, limit,
+memory and buttons), with no ping and no command. The channel name is the opt-in — creating or renaming one already
+needs Manage Server — and nothing is stored for it. This needs Discord's privileged **Message Content** intent, so it
+is off until the portal switch is on *and* `DISCORD_MESSAGE_CONTENT=1` is in the env: asking for an intent the app
+isn't allowed makes login fail, so it can't be enabled from code alone. Without both, the bot starts as before and
+reads nothing but mentions and replies. Name-looking commands (`/…`, `!…`) in that channel are ignored.
+
 `event` and `code` autocomplete over events on now, coming up, or finished in the last 3 days (name or
 code; you can also type a code yourself).
 
@@ -337,13 +354,18 @@ code; you can also type a code yourself).
   `rankings.ts`, the prediction engine) and reads the same database, so its numbers are the site's. It
   never calls the site over HTTP and never runs migrations; it writes only its own tables
   (`discord_follows`, `discord_posts` from migrations 35 and 104, `discord_guilds`, `discord_asks` and
-  `discord_answers` from 104, all created by the site's deploy), plus its `service_heartbeats` row
+  `discord_answers` from 104, `discord_button_questions` and `discord_match_state` from 110, all created by the site's
+  deploy), plus its `service_heartbeats` row
   once a minute while connected, which the site's /status page reads (`server/uptime.ts`, migration 86). Its missed
   records questions go into the site's `search_failures` through the site's own `noteBotSearch`.
 - **Automatic posts** (`bot/follows.ts`): every minute it reads the follows, the followed teams' matches at
   events on today, and posts what's due: a reminder within 15 minutes of a start, a result within 6 hours of
-  it. Only matches starting after the follow (no backlog). Each post is claimed in `discord_posts` before it's
-  sent, so nothing posts twice; a passing failure retries, a channel that's gone is dropped after 5 failures.
+  it, the match two away while it is close (`On deck`, `bot/eventChanges.ts`), and — compared with the schedule
+  the last tick stored in `discord_match_state` — a moved start, a changed lineup or a newly scheduled match
+  (a playoff pairing), each once. Only matches starting after the follow (no backlog). Each post is claimed in
+  `discord_posts` before it's sent, so nothing posts twice. A passing failure retries; after 5 refusals the follow
+  is *stopped*, not deleted: its row keeps the reason, `/following` and the console say it stopped, its creator is
+  DMed, and following the team again revives it (`addFollow`).
   A follow is a team (`team:4215`) or an event (`event:USTXAUQ`) by its `target` key, so the two never collide; an
   event follow posts the event's evening-before, schedule and day recaps, keyed `event:` and never a per-match post.
   An event follow also carries the season it was made in: codes repeat, so last season's `event:USTXAUQ` never ticks
@@ -365,10 +387,12 @@ code; you can also type a code yourself).
 2. **General Information:** copy the **Application ID**. This is the client ID: put it in
    `DISCORD_CLIENT_ID` in `src/shared/discord.ts` (it's public) and the FAQ answer and footer link appear.
 3. **Bot:** **Reset Token** and copy it into the server's env file as `DISCORD_BOT_TOKEN` (never commit it,
-   never paste it anywhere else). Leave **Public Bot** on so any team can add it. No privileged intents
-   are needed and none is switched on in the portal: the bot asks for `Guilds`, `GuildMessages`,
-   `GuildMessageReactions` and `DirectMessageReactions`, all of them non-privileged. The reaction intents are
-   what deliver a 👎 on an answer (a report); without them the bot never hears it.
+   never paste it anywhere else). Leave **Public Bot** on so any team can add it. The bot asks for `Guilds`,
+   `GuildMessages`, `GuildMessageReactions` and `DirectMessageReactions`, all non-privileged. The reaction intents are
+   what deliver a 👎 on an answer (a report); without them the bot never hears it. **Message Content** (privileged) is
+   optional: turn it on here only if you want the ambient `#ask-control-scout` channel, and set
+   `DISCORD_MESSAGE_CONTENT=1` with it. Ask for it in code before the portal allows it and login fails, which is why
+   the env switch exists.
 4. **Installation:** set the install link to "None" (the site's invite link is used instead), or to the
    same scopes and permissions as below.
 
@@ -381,11 +405,12 @@ https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applic
 - Scopes: `bot` and `applications.commands`.
 - Permissions `2147567680` = Send Messages (2048) + Embed Links (16384) + Add Reactions (64) + Read Message History
   (65536) + Use Application Commands (2147483648). Nothing else: the bot manages nothing and joins voice. It reads a
-  channel's recent messages once per server, to take its own old 👎s and 👍s off its answers (`bot/cleanup.ts`,
-  above), and otherwise only the messages that @mention it. Add Reactions is kept from when the bot put emoji on its
-  answers: it adds none now, and removing its own old reactions is all it uses it for. A server that invited it before
-  8.0.2 has no Read Message History, so its old emoji stay until then (the bot logs which channels it can't read and
-  asks again on every start). Nothing else changes for it.
+  channel's recent messages once per server, to take its own old emoji off its answers (`bot/cleanup.ts`, above), and
+  otherwise only the messages that @mention it or reply to it — plus, with the optional Message Content intent, the one
+  channel a server names `#ask-control-scout`. Add Reactions is kept from when the bot put emoji on its answers: it adds
+  none now, and removing its own old reactions is all it uses it for. A server that invited it before 8.0.2 has no Read
+  Message History, so its old emoji stay until then (the bot logs which channels it can't read and asks again on every
+  start). Nothing else changes for it.
 
 `discordInviteUrl()` in `src/shared/discord.ts` builds exactly this link.
 
@@ -395,6 +420,7 @@ https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applic
 | --- | --- |
 | `DISCORD_BOT_TOKEN` | Required. Missing or wrong: the bot logs one line and exits with code 78, which systemd doesn't restart. |
 | `DISCORD_DEV_GUILD_ID` | Optional. A test server's ID (Discord: Developer Mode → right-click the server → Copy Server ID). Commands register there instantly instead of globally (global registration can take up to an hour to appear). |
+| `DISCORD_MESSAGE_CONTENT` | Optional, `1` to enable. Requests Discord's privileged Message Content intent so a channel named `#ask-control-scout` can be answered without a mention (`bot/ambient.ts`). Turn the intent on in the developer portal first; asking for it while it is disallowed makes login fail. |
 | `CONTROL_POINT_INTERNAL_URL`, `CONTROL_POINT_INTERNAL_KEY` | Required for Bruno's chat (and his query rewrite and one-sentence answer): `http://127.0.0.1:3000` on the VM, and the same secret as Control Point's `CONTROL_SCOUT_INTERNAL_KEY`. The bot reads the site's own `.env` (systemd `EnvironmentFile`), so when Control Point sign-in works on controlscout.org these are already set. Unset: every mention gets the card, and the log says `chat off: Control Point isn't configured`. |
 | `DATABASE_URL`, `DATA_DIR`, `CANONICAL_URL` … | The site's own settings, read from the same `.env` (links use `CANONICAL_URL`, controlscout.org in production). |
 
@@ -410,7 +436,9 @@ It reads the local database (`.data/scout.db`, the same one `npm run dev` uses);
 so the shipped snapshot is restored. On ready it logs `ready as Control Scout#1234 in N servers` and
 whether the commands were registered or unchanged.
 
-Tests: `npx vitest run bot`.
+Tests: `npx vitest run bot`. The question bank the bot is judged against is `bot/evals/answers.json`:
+`npm run bot:eval` restores the shipped snapshot, replays every phrasing through the same `searchAnswer` the bot uses,
+and fails on a records question that gets a sorry.
 
 ### See every message in a test server
 

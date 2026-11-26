@@ -12,13 +12,15 @@ export interface OwnerDiscordServer {
   /** Its cap: a positive count an hour and a day, or null for no cap in that window. */
   perHour: number | null;
   perDay: number | null;
-  /** False: the default, which is no cap. True: the server has a row of its own. */
+  /** False: the default ceiling (bot/quota.ts). True: the server has a row of its own. */
   custom: boolean;
   /** Chats counted in the current UTC hour and day (bot/quota.ts). */
   usedHour: number;
   usedDay: number;
   /** Teams and events followed in the server (bot/follows.ts). */
   follows: number;
+  /** Follows that stopped because their channel kept refusing posts, kept so the server can see why. */
+  stoppedFollows: number;
   /** When someone there last asked the bot something (bot/memory.ts); null: never. */
   lastAsk: string | null;
   /** Who set the server's own cap last, and when; null while it has the default. */
@@ -40,9 +42,14 @@ export interface OwnerDiscordUsage {
   medianMs: number | null;
   /** Follow posts sent today (UTC). */
   postsToday: number;
-  /** 👍 on the bot's answers (bot/reactions.ts), and the 👎 counted before it was removed: counts, never who clicked. */
-  votesUp: number;
-  votesDown: number;
+  /** Answers the bot has posted, and how many a person reported with a 👎 (bot/asks.ts answerStats): the quality signal
+   *  now that there is no 👍. */
+  answers: number;
+  reported: number;
+  /** Reports per 100 answers (0–100; null with no answers). */
+  reportedPct: number | null;
+  /** Share of the week's asks whose exact words were asked more than once (0–100; null with no asks). */
+  repeatPct: number | null;
 }
 
 /** A question the bot couldn't answer, most asked first: what people actually typed, which search never sees. */
@@ -62,7 +69,7 @@ export interface OwnerDiscordAsk {
 /** GET /api/owner/discord/limits: what the Discord bot panel shows. */
 export interface OwnerDiscordLimits {
   servers: OwnerDiscordServer[];
-  /** What a server without a row of its own gets: no cap in either window. */
+  /** What a server without a row of its own gets: the default ceiling (bot/quota.ts). */
   defaultLimit: { perHour: number | null; perDay: number | null };
   usage: OwnerDiscordUsage;
   /** Up to 10 questions the bot couldn't answer, most asked first (bot/asks.ts). */

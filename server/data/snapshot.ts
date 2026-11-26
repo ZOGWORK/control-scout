@@ -58,6 +58,8 @@ export const PRIVATE_TABLES = [
   // The bot's own record of its servers (migration 104): server names, the questions it was asked, and the thumbs on its
   // answers. Server ids and people's words, so never shipped.
   "discord_guilds", "discord_asks", "discord_answers",
+  // The questions behind the bot's answer buttons (migration 110): a server's own words, deleted with its other data.
+  "discord_button_questions",
   // The weekly email digest (migration 50): who turned it on, their unsubscribe link, and the per-week send log.
   "digest_prefs", "digest_sends",
   // The home page's hero lines (migration 55): owner settings, like feature_flags; who changed them is in owner_audit.
@@ -112,6 +114,8 @@ export const PUBLIC_TABLES = [
   // New Jersey's conferences read from public event names, and FIRST's public league standings kept the week before
   // each conference tournament (migration 94).
   "event_conferences", "conference_snapshots",
+  // The bot's last-seen schedule per event (migration 110): public codes, match keys, times and team numbers.
+  "discord_match_state",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero

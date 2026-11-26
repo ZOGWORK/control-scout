@@ -2890,6 +2890,49 @@ ALTER TABLE discord_answers ADD COLUMN report_number INTEGER;
 ALTER TABLE discord_answers ADD COLUMN report_url TEXT;
 `,
   },
+  {
+    version: 110,
+    name: "discord bot: triage, follow health, durable buttons, schedule state",
+    sql: `
+-- What answered, for a 👎 report's triage (bot/reactions.ts, bot/report.ts): bruno (his chat), scout (the bot's own
+-- fallback), or card (the website's search card). step is the search step the answer came from, ms how long it took.
+-- No user id and no message text: the answer's words are already on GitHub only when a person reports them.
+ALTER TABLE discord_answers ADD COLUMN source TEXT;
+ALTER TABLE discord_answers ADD COLUMN step TEXT;
+ALTER TABLE discord_answers ADD COLUMN ms INTEGER;
+-- A follow whose channel kept refusing posts (bot/follows.ts) is stopped rather than deleted: its row keeps the
+-- reason and when, so the server's /following and the owner console can say it stopped, and following it again
+-- revives it. Rows with dropped_at are never ticked.
+ALTER TABLE discord_follows ADD COLUMN dropped_at TEXT;
+ALTER TABLE discord_follows ADD COLUMN drop_reason TEXT;
+-- The questions behind an answer's ask buttons (bot/buttons.ts), so they work after a restart instead of ending with
+-- the process. A custom id, the words it stands for, and when it was made; old rows are pruned. Not shipped in the
+-- data snapshot: a question belongs to the message it was offered under.
+CREATE TABLE IF NOT EXISTS discord_button_questions (
+  id TEXT PRIMARY KEY,
+  question TEXT NOT NULL,
+  guild_id TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS discord_button_questions_age ON discord_button_questions (created_at);
+CREATE INDEX IF NOT EXISTS discord_button_questions_guild ON discord_button_questions (guild_id);
+-- The schedule of each event as the last tick saw it (bot/eventChanges.ts): a followed match whose time or lineup
+-- changes, or a new one that appears (a playoff match), is posted once. Public schedule data (codes, match keys,
+-- times, team numbers), pruned with the rest of the post log.
+CREATE TABLE IF NOT EXISTS discord_match_state (
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  match_key TEXT NOT NULL,
+  starts_at TEXT,
+  red TEXT NOT NULL,
+  blue TEXT NOT NULL,
+  level TEXT NOT NULL,
+  seen_at TEXT NOT NULL,
+  PRIMARY KEY (season, code, match_key)
+);
+CREATE INDEX IF NOT EXISTS discord_match_state_seen ON discord_match_state (seen_at);
+`,
+  },
 ];
 
 export type Db = Client;

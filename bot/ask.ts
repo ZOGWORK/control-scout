@@ -100,7 +100,9 @@ const CHAT_FACTS_CHARS = 7500;
 const CHAT_FACT_CHARS = 400;
 
 /** What one ask did, for the log (never who asked). */
-export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentence: boolean; chat?: boolean }
+export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentence: boolean; chat?: boolean;
+  /** How long the whole ask took, filled in by the handler (bot/handler.ts) for the answer's row and a report. */
+  ms?: number }
 /**
  * `content`: the main video's YouTube link as the message's text, so Discord shows it as a player under the answer.
  * `chat`: a chat reply, posted as text (chatPost); `card`: post `embed` with it too, when the records search found for
