@@ -3062,6 +3062,26 @@ CREATE TABLE IF NOT EXISTS creator_runs (
 );
 `,
   },
+  {
+    version: 115,
+    name: "videos feed: what each person watched",
+    sql: `
+-- The Videos tab (server/api/videosFeed.ts): one row per person and feed item ("m:2025:USNJQ1:qual:1:12", "c:<videoId>"),
+-- written at 5 s in, at half way, at the end and on "not interested". kind: what it's learned as (match, stream,
+-- creator, behindTheBot). Personal: never shipped (PRIVATE_TABLES), deleted with the account (deleteUser).
+CREATE TABLE IF NOT EXISTS video_watch (
+  user_id INTEGER NOT NULL,
+  item_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  watched_s INTEGER NOT NULL DEFAULT 0,
+  completed INTEGER NOT NULL DEFAULT 0,
+  hidden INTEGER NOT NULL DEFAULT 0,
+  at TEXT NOT NULL,
+  PRIMARY KEY (user_id, item_key)
+);
+CREATE INDEX IF NOT EXISTS video_watch_at ON video_watch (at);
+`,
+  },
 ];
 
 export type Db = Client;

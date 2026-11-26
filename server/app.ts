@@ -1,5 +1,6 @@
 // HTTP API. Browsing, search and predictions need no account, ever; only
 // /api/me/* (personal data) does.
+import { createHash } from "node:crypto";
 import type { ServerResponse } from "node:http";
 import express, { type NextFunction, type Request, type Response } from "express";
 import compression from "compression";
@@ -53,6 +54,8 @@ import { eventClipCoverage } from "./videos/coverage.js";
 import { answerVideo } from "./api/answers/video.js";
 import { matchViews } from "./api/matches.js";
 import { teamNextMatch, weekendEvents } from "./api/weekend.js";
+import { cleanWatch, recordWatch, videoFeed } from "./api/videosFeed.js";
+import { decodeHistory, FEED_FILTERS, isFeedFilter } from "../src/shared/videosFeed.js";
 import { eventListAnswer, matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
@@ -732,6 +735,36 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     const w = String(req.query.which ?? "this");
     if (w !== "this" && w !== "next" && w !== "last") throw new HttpError(400, "which must be this, next or last");
     return weekendEvents({ which: w, region: typeof req.query.region === "string" ? req.query.region.slice(0, 80) : null, today: typeof req.query.today === "string" ? req.query.today : null });
+  }));
+
+  // The Videos tab's feed (server/api/videosFeed.ts): ?filter= one of FEED_FILTERS, ?cursor= the last page's next.
+  // Signed in, it's the account's; signed out, the device sends its own: ?my= My team, ?teams= followed and
+  // shortlisted teams, ?h= its watch history (src/shared/videosFeed.ts encodeHistory). Personal, so never cached.
+  api.get("/videos/feed", limiter(60), h(async (req, res) => {
+    const filter = req.query.filter == null || req.query.filter === "" ? "all" : String(req.query.filter);
+    if (!isFeedFilter(filter)) throw bad(`filter must be one of ${FEED_FILTERS.map((f) => f.id).join(", ")}`);
+    const cursor = typeof req.query.cursor === "string" && req.query.cursor ? req.query.cursor : null;
+    if (cursor && !/^\d{1,4}$/.test(cursor)) throw bad("cursor must be one the feed gave");
+    const user = await currentUser(req).catch(() => null);
+    const n = (x: unknown) => { const v = Number(x); return Number.isInteger(v) && v > 0 && v <= 999_999 ? v : null; };
+    const teams = typeof req.query.teams === "string" ? [...new Set(req.query.teams.split(",").slice(0, 30).map(n).filter((v): v is number => v != null))] : [];
+    const hints = user ? { myTeam: null, teams: [], history: [] } : { myTeam: n(req.query.my), teams, history: decodeHistory(req.query.h) };
+    // The kept list and explore draw: per account, or per device's teams (its history moves with every watch, so a
+    // page read after one still continues the same list).
+    const viewer = user ? `u:${user.id}` : `d:${createHash("sha256").update(JSON.stringify([hints.myTeam, hints.teams])).digest("base64url").slice(0, 16)}`;
+    res.setHeader("Cache-Control", "private, no-store");
+    return videoFeed({ viewer, userId: user?.id ?? null, hints, filter, cursor });
+  }));
+  // A watch of a feed item (at 5 s, half way, the end, or "not interested"): kept for a signed-in account only (a
+  // signed-out device keeps its own). JSON only, like every write from the app.
+  api.post("/videos/watch", limiter(120), h(async (req, res) => {
+    if (!req.is("application/json")) { res.status(415).json({ error: "Send JSON" }); return; }
+    const user = await currentUser(req);
+    if (!user) { res.status(401).json({ error: "Sign in to keep your watch history." }); return; }
+    const w = cleanWatch(req.body);
+    if (!w) throw bad("Send { key, kind, watchedS, completed?, hidden? }");
+    await recordWatch(user.id, w);
+    return { ok: true };
   }));
 
   // A team's next match this weekend, or what it has instead (server/api/weekend.ts): the team page's Upcoming, the
