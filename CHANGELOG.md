@@ -21,13 +21,13 @@ Teams that FUN filmed for Behind the Bot now say so on their page, and play the 
 
 ### Highlights
 - [teams] A "Featured on Behind the Bot" badge on a team's page plays its episode
-- [teams] A Featured in section lists the FUN videos that name a team
+- [teams] A Featured in section lists FUN videos whose title names a team
 - [rankings] A Behind the Bot chip marks featured teams in rankings and search
 
 ### Teams
-- **FUN's channel is read every 12 hours** (`server/videos/creatorVideos.ts`): uploads and playlists are read from the channel's own lists, never YouTube search, so a full backfill stays well under 1,000 quota units and a quiet day costs a handful. Each video gets its series (Behind the Bot, Pits and Parts, Top 25, FUNalysis) from its playlist, its program (FTC, FRC, VEX or unknown) and its season, and is re-read every 30 days. Every run's quota use is logged. (#2364)
-- **Teams are tagged from the title and description** (`server/videos/creatorTags.ts`): a number after "#", "Team" or "FTC", a number beside the team's own name, or a title part that is one active team's name. VEX numbers like "1234A", years, prices and only-FRC or only-VEX videos never tag a team; on 206 real FUN videos that is 130 tags and none wrong. (#2364)
-- **The team page shows it**: a badge in the header (v8 and classic) plays the episode in the in-app player, and a collapsible Featured in section lists every tagged video. A team with none carries no extra bytes. (#2364)
+- **FUN's channel is read every 12 hours** (`server/videos/creatorVideos.ts`): uploads and playlists are read from the channel's own lists, never YouTube search, so a full backfill stays well under 1,000 quota units and a quiet day costs a handful. Each video gets its series (Behind the Bot, Pits and Parts, Top 25, FUNalysis) from its playlist, its program (FTC, FRC, VEX or unknown) and its season, and is re-read every 30 days. Every run's quota use is logged.
+- **Teams are tagged from the title and description** (`server/videos/creatorTags.ts`): a number after "#", "Team" or "FTC", a number beside the team's own name, or a title part that is one active team's name. VEX numbers like "1234A", years, prices and only-FRC or only-VEX videos never tag a team; on 206 real FUN videos that is 130 tags and none wrong.
+- **The team page shows it**: a badge in the header (v8 and classic) plays the episode in the in-app player, and a collapsible Featured in section lists every video whose title names the team. A team with none carries no extra bytes.
 - **Owner panel "Creator videos"**: add or turn off a channel, run the intake now, and remove a wrong tag, which stays removed on every later run and leaves the cached team page at once. Every action is audited. (#2364)
 
 ## 8.0.5 — 2026-11-25
