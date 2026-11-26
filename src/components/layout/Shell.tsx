@@ -37,7 +37,7 @@ import { useFlag } from "../../lib/flags";
 import { PAGE_FRAME } from "../../shared/boot";
 import { isV8, useIsV8 } from "../../lib/v8";
 import { OwnerOnlyClassicLook } from "../../lib/ownerLook";
-import { TOP_PATCH, TOP_PATCH_IMAGE, Wash, washSize } from "./Wash";
+import { TopPatch, Wash, washSize } from "./Wash";
 
 /** `children`: a row that opens to its own pages instead of being one (How it works: Predictions, FTC One Search).
  *  `sub`: a row that is a page itself, with a small arrow beside it that shows its sub-pages (Rankings: Region
@@ -287,7 +287,7 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
   return (
     // Held in place while the page scrolls under it. Its rows fit the screen's height (index.css --nav-row); the nav still scrolls on one under 768 px.
     // Above the page (z-20 over main's z-10), so the account panel can open out over it.
-    <aside aria-label="Sidebar" className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex", rail ? "w-[60px]" : "w-[232px]")}>
+    <aside aria-label="Sidebar" className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col pt-[env(safe-area-inset-top)] self-start border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex", rail ? "w-[60px]" : "w-[232px]")}>
       <div className={cn("flex h-(--header-h) shrink-0 items-center gap-2.5 px-3.5", rail && "justify-center px-0")}>
         <Link to="/" className="flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label="Control Scout home">
           <BrandMark className="size-7" />
@@ -325,7 +325,7 @@ function V8Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: bool
   const label = !wide ? "Show page names" : rail ? "Expand sidebar" : "Collapse sidebar";
   return (
     <aside aria-label="Sidebar" data-v8-sidebar data-rail={rail ? "" : undefined}
-      className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-line bg-card transition-[width] duration-200 ease-out motion-reduce:transition-none md:flex", rail ? "w-16" : "w-[15.5rem]")}>
+      className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col pt-[env(safe-area-inset-top)] self-start border-r border-line bg-card transition-[width] duration-200 ease-out motion-reduce:transition-none md:flex", rail ? "w-16" : "w-[15.5rem]")}>
       <div className={cn("flex shrink-0 items-center gap-1 pb-2 pt-3", rail ? "flex-col px-0" : "h-14 pl-4 pr-2.5")}>
         {!rail && (
           <Link to="/" aria-label="Control Scout home" className="mr-auto flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
@@ -449,15 +449,11 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="relative flex min-w-0 flex-1 flex-col">
             {/* The top wash sits under the bar; a separate glow marks the page's end below. */}
             {!bare && v8 && <Wash size={washSize(loc.pathname)} rise />}
-            {/* The top patch (#2147, #2144): Safari 26 on an iPhone paints the strip behind the clock from the page, a
-                black band with the page blurred under it as you scroll, unless a fixed bar touches the top: then it
-                fills the strip with that bar's solid colour. v8 has no such bar, so this thin one stands in, in the
-                wash's own colour where it starts, so the strip runs on into the wash with no band or blur. Not
-                pointer-events-none: Safari finds it by a hit test. */}
-            {!bare && v8 && <div aria-hidden data-top-patch className="fixed inset-x-0 top-0 z-50 h-1.5 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-24 before:bg-inherit md:hidden"
-              style={{ backgroundColor: TOP_PATCH, backgroundImage: TOP_PATCH_IMAGE }} />}
-            {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). */}
-            {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-1 border-b border-line bg-primary px-3 sm:px-6 md:gap-3 lg:px-8 v8:relative v8:h-14 v8:border-transparent v8:bg-transparent">
+            {/* The phone's top edge: the strip behind the clock, seamless with the wash (Wash.tsx TopPatch). */}
+            {!bare && v8 && <TopPatch />}
+            {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). Installed on
+                an iPhone the page runs under the clock (index.html, black-translucent): the bar's buttons start below it. */}
+            {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-[calc(var(--header-h)+env(safe-area-inset-top))] shrink-0 items-center gap-1 border-b border-line bg-primary px-3 pt-[env(safe-area-inset-top)] sm:px-6 md:gap-3 lg:px-8 v8:relative v8:h-[calc(3.5rem+env(safe-area-inset-top))] v8:border-transparent v8:bg-transparent">
               {/* Phones: the menu (every page) top left with search beside it, the logo centred, and the bell right. On a
                   touch screen the menu and search buttons are 44px boxes (side by side, a widened tap area would overlap). */}
               <div className="flex items-center gap-0.5 md:hidden">
@@ -468,7 +464,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 <GlobalSearch part="button" />
               </div>
               {/* v8 Home has its own big mark above the search box, so the bar leaves the centred one out there. */}
-              {offline ? <ConnectionPill place="phone" /> : !(v8 && isHomePath(loc.pathname)) && <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>}
+              {offline ? <ConnectionPill place="phone" /> : !(v8 && isHomePath(loc.pathname)) && <Link to="/" className="tap-44 absolute left-1/2 top-[calc(50%+env(safe-area-inset-top)/2)] -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>}
               <p className="hidden truncate text-sm text-text-muted md:block v8:md:hidden"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
               {/* Far right, against the bar's edge: connection, clock · weather, Report a bug, the light/dark switch and the

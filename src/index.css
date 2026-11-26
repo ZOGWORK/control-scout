@@ -520,6 +520,25 @@ a.underline:visited:where(.text-accent-text), .prose-links a:visited { color: co
   background-image: radial-gradient(1200px 320px at 50% -120px, color-mix(in srgb, var(--color-accent) 5%, transparent), transparent 70%);
   background-attachment: local;
 }
+/* Not in v8: there the wash is the top's only colour. The glow started hard at the top bar's lower edge, a faint
+   step across the wash (the bar's height above it read as a darker strip). */
+html[data-v8] .m-canvas { background-image: none; }
+
+/* Installed on the home screen (index.html: black-translucent), the page runs under the clock and the wash shows
+   there. The top patch (Wash.tsx TopPatch) is then only the clock's strip: see-through at the top of the page,
+   turning into the page's colour as it scrolls (--top-cover) and easing out below the strip, so the content scrolls
+   away under it with no hard edge. The wash's top fade only matches Safari's 6px patch, so it goes. */
+@media (display-mode: standalone) {
+  [data-top-fade] { display: none; }
+  [data-top-patch] {
+    display: block;
+    height: calc(env(safe-area-inset-top) + 0.75rem);
+    background-color: transparent !important;
+    background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-background) var(--top-cover, 0%), transparent) calc(100% - 0.75rem), transparent) !important;
+    pointer-events: none;
+  }
+  [data-top-patch]::before { display: none; }
+}
 
 /* A warm, grainy horizon at the end of v8 pages (its colours: --glow-a/b/c, the owner's Appearance tab, src/shared/wash.ts). Anchored to the content, not
    the viewport: it enters naturally near the footer without scroll listeners,
