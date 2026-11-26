@@ -100,3 +100,7 @@ dialog (`AnswerClip`, `src/components/search/page/AnswerVideo.tsx`).
 - "highlights" or "video" with a one-match question ("<team> best auto highlights") asks to watch that match, so it
   gets the same answer (`WATCH` in `server/api/query/intents.ts`). "<team> highlights" alone stays the team's
   highlights page.
+- A watch word joined onto the end of a question with "and" or "&" ("what is the best team rn and videos") is the
+  question with the watch word after it (`watchJoined` in `server/api/searchAnswer.ts`), read by the same rules: an
+  answer that takes the videos plays them, else they go and the question is answered. Never when the words before
+  already ask to watch, or the joined words are part of a team's or event's name.

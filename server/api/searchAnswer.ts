@@ -447,6 +447,10 @@ async function rewriteOnce(said: string, opts: AnswerOptions, letters: string[])
   if (stray) { letters.push(...stray.letters); return stray.rest; }
   const full = await inFull(said);
   if (full !== said) return full;
+  // Videos asked for after the question with "and" ("… best team right now and videos"): the question with them after
+  // it, which the watch rules read (an answer that takes them plays them, else they go and the question is answered).
+  const joined = watchJoined(said);
+  if (joined !== said && !(await inAName())(joinedWords(said))) return joined;
   // A season written with both years ("2025-2026"): written as search reads one ("2025-26").
   // Numbers said as words after a word that takes one ("opr over eighty") in digits (./query/lexicon.ts spelledNumbers).
   // A season written with a comma ("2025, 26", "season 25, 26") is the same season: consecutive years only, the
@@ -511,6 +515,23 @@ function aboutEvent(a: SearchAnswer, e: { code: string; name: string }): boolean
 const WATCH_PHRASES = LEXICON.filter((e) => e.syms.length === 1 && (e.syms[0].k === "withvideo" || e.syms[0].k === "videos" || (e.syms[0].k === "highlights" && e.words[0].startsWith("highlight")))).map((e) => e.words);
 const escRe = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const WATCH_RE = new RegExp(`(?:^|\\s)(?:${WATCH_PHRASES.map((ws) => ws.map(escRe).join("\\s+")).join("|")})(?=\\s|[?!.,]|$)`, "gi");
+
+/** A question's last words joining it to a watch phrase with "and" or "&" ("… and videos", "… & clips"). */
+const WATCH_JOINED_RE = new RegExp(`^(.*\\S)\\s+(and|&)\\s+(${WATCH_PHRASES.map((ws) => ws.map(escRe).join("\\s+")).join("|")})(\\s*[?!.]*)$`, "i");
+
+/** `q` with the "and" (or "&") that joins a watch phrase onto its end taken out ("what is the best team right now and
+ *  videos" → "what is the best team right now videos"): asking also to watch is the question with the watch words after
+ *  it. `q` itself when it ends in no such phrase, or when the words before already ask to watch ("highlights and
+ *  clips"), so one watch phrase is never read as two. */
+export function watchJoined(q: string): string {
+  const m = WATCH_JOINED_RE.exec(q.trim());
+  return m && !hasWatchWord(m[1]) ? `${m[1]} ${m[3]}${m[4]}` : q;
+}
+/** The words `watchJoined` joins ("and videos"), checked against the names before they're taken apart. */
+function joinedWords(q: string): string {
+  const m = WATCH_JOINED_RE.exec(q.trim());
+  return m ? `${m[2]} ${m[3]}` : "";
+}
 
 /** "Highlights" (or its phrases) said: src/shared/query/lexicon.ts's highlights words. */
 const HIGHLIGHT_SAID = /\b(?:highlights?|highlight reels?|best moments|top moments|best plays|top plays|standout (?:matches|moments))\b/i;
