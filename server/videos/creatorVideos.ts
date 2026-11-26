@@ -127,11 +127,12 @@ async function readPlaylists(ch: Channel, c: Ctx): Promise<PlaylistInfo> {
   return info;
 }
 
-/** The channel's uploads not stored yet, newest first. The first full read goes back to its oldest upload; after it,
- *  reading stops at the first page holding a stored video. */
-async function newUploads(ch: Channel, c: Ctx): Promise<string[]> {
+/** The channel's uploads not stored yet, newest first, and whether the list was read to where it should stop (not cut
+ *  short by the run's units). Until a channel is caught up (checked_at) the read goes back to its oldest upload; after
+ *  it, reading stops at the first page holding a stored video. */
+async function newUploads(ch: Channel, c: Ctx): Promise<{ ids: string[]; whole: boolean }> {
   const fresh: string[] = [];
-  let token = "";
+  let token = "", whole = false;
   for (let page = 0; page < MAX_PAGES && c.out.units < c.maxUnits; page++) {
     c.out.units++;
     const body = await api("playlistItems", { part: "contentDetails", playlistId: ch.uploads, maxResults: "50", ...(token ? { pageToken: token } : {}) }, c.key, c.fetchImpl);
@@ -140,9 +141,9 @@ async function newUploads(ch: Channel, c: Ctx): Promise<string[]> {
     if (ids.length) for (const r of await all<{ video_id: string }>(`SELECT video_id FROM creator_videos WHERE video_id IN (${ids.map(() => "?").join(",")})`, ids)) known.add(String(r.video_id));
     for (const id of ids) if (!known.has(id)) fresh.push(id);
     token = String(body?.nextPageToken ?? "");
-    if (!token || (ch.checkedAt && known.size)) break;
+    if (!token || (ch.checkedAt && known.size)) { whole = true; break; }
   }
-  return fresh;
+  return { ids: fresh, whole };
 }
 
 const INSERT_VIDEO = `INSERT INTO creator_videos (video_id, channel_id, title, description, published_at, duration_s, playlist_ids, series, program, season, embeddable, last_refreshed)
@@ -156,13 +157,14 @@ const dropWrites = (id: string) => [
 
 /** videos.list for these ids (50 a unit): stored or refreshed when they play, dropped when they don't. Live and
  *  upcoming ones are left for a later run. */
-async function readVideos(ids: string[], ch: Channel, c: Ctx, refresh: boolean): Promise<void> {
+async function readVideos(ids: string[], ch: Pick<Channel, "channelId">, c: Ctx, refresh: boolean): Promise<boolean> {
+  let complete = true;
   for (let i = 0; i < ids.length; i += 50) {
-    if (c.out.units >= c.maxUnits) return;
+    if (c.out.units >= c.maxUnits) return false;
     const part = ids.slice(i, i + 50);
     c.out.units++;
     const body = await api("videos", { part: "snippet,contentDetails,status", id: part.join(","), maxResults: "50" }, c.key, c.fetchImpl);
-    if (!Array.isArray(body?.items)) continue; // not a well-formed answer: nothing is dropped on it
+    if (!Array.isArray(body?.items)) { complete = false; continue; } // not a well-formed answer: nothing is dropped on it
     const byId = new Map<string, any>(body.items.map((it: any) => [String(it?.id ?? ""), it]));
     const writes: { sql: string; args: (string | number | null)[] }[] = [];
     for (const id of part) {
@@ -178,6 +180,15 @@ async function readVideos(ids: string[], ch: Channel, c: Ctx, refresh: boolean):
     }
     if (writes.length) await c.locked(() => db().batch(writes, "write"));
   }
+  return complete;
+}
+
+/** The 30-day refresh of one channel's videos (watched or not: YouTube's limit holds either way), the oldest reads
+ *  first, as many as the run's units allow. */
+async function refreshStale(ch: Pick<Channel, "channelId">, c: Ctx): Promise<void> {
+  const stale = await all<{ video_id: string }>("SELECT video_id FROM creator_videos WHERE channel_id = ? AND last_refreshed < ? ORDER BY last_refreshed LIMIT ?",
+    [ch.channelId, new Date(c.now() - REFRESH_AFTER_MS).toISOString(), Math.max(0, c.maxUnits - c.out.units) * 50]);
+  await readVideos(stale.map((r) => String(r.video_id)), ch, c, true);
 }
 
 /** Each stored video of the channel given the playlists that hold it now (the kept members of every playlist the
@@ -316,21 +327,25 @@ export async function runCreatorIntake(log: (s: string) => void, opts: { apiKey?
       try {
         const pl = await readPlaylists(ch, c);
         const fresh = await newUploads(ch, c);
-        await readVideos(fresh, ch, c, false);
-        // The 30-day refresh: the oldest reads first, as many as the run's units allow.
-        const stale = await all<{ video_id: string }>("SELECT video_id FROM creator_videos WHERE channel_id = ? AND last_refreshed < ? ORDER BY last_refreshed LIMIT ?",
-          [ch.channelId, new Date(now() - REFRESH_AFTER_MS).toISOString(), Math.max(0, c.maxUnits - out.units) * 50]);
-        await readVideos(stale.map((r) => String(r.video_id)), ch, c, true);
+        // Not caught up until every new upload is stored: a run cut short here (quota, an error, the units) leaves the
+        // channel to be read back to its oldest upload next time, so the uploads under the stored ones aren't skipped.
+        if (fresh.ids.length && ch.checkedAt) await locked(() => run("UPDATE creator_channels SET checked_at = NULL WHERE channel_id = ?", [ch.channelId]));
+        const stored = await readVideos(fresh.ids, ch, c, false);
+        await refreshStale(ch, c);
         await writeMemberships(ch, pl, c);
         await locked(() => kvSet(playlistKey(ch.channelId), pl));
         out.channels++;
-        // A full read stands only when every upload page was read (the units didn't run out first).
-        const whole = out.units < c.maxUnits;
-        await locked(() => run("UPDATE creator_channels SET checked_at = CASE WHEN ? THEN ? ELSE checked_at END, last_error = NULL WHERE channel_id = ?", [whole ? 1 : 0, new Date(now()).toISOString(), ch.channelId]));
+        const caughtUp = fresh.whole && stored;
+        await locked(() => run("UPDATE creator_channels SET checked_at = CASE WHEN ? THEN ? ELSE checked_at END, last_error = NULL WHERE channel_id = ?", [caughtUp ? 1 : 0, new Date(now()).toISOString(), ch.channelId]));
       } catch (e) {
         if (e instanceof QuotaError || e instanceof LockBusy || isBusy(e)) throw e;
         await locked(() => run("UPDATE creator_channels SET last_error = ? WHERE channel_id = ?", [String((e as Error).message).slice(0, 300), ch.channelId]));
       }
+    }
+    // Channels no longer watched: their stored videos are still refreshed (and dropped when YouTube no longer plays them).
+    for (const r of await all<{ channel_id: string }>("SELECT channel_id FROM creator_channels WHERE active = 0 ORDER BY channel_id")) {
+      if (out.units >= c.maxUnits) break;
+      await refreshStale({ channelId: String(r.channel_id) }, c);
     }
   } catch (e) {
     out.error = e instanceof LockBusy || isBusy(e) ? "database busy (the data sync was writing): stopped, tried again next check" : String((e as Error).message ?? e).slice(0, 300);
