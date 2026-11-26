@@ -78,3 +78,19 @@ export function useVideoClock(frame: RefObject<HTMLIFrameElement | null>, key: u
   };
   return { clock, seek };
 }
+
+/** What the player says of the whole video: where it is, how long it is and whether it ended (playerState 0). The
+ *  Videos tab's watch reports read it (components/FeedCard.tsx). Pure, for tests. */
+export interface VideoProgress { t: number; duration: number | null; ended: boolean }
+export function readProgress(data: unknown, prev: VideoProgress | null): VideoProgress | null {
+  let d: unknown = data;
+  if (typeof d === "string") { try { d = JSON.parse(d); } catch { return null; } }
+  const o = d as { event?: string; info?: { currentTime?: unknown; duration?: unknown; playerState?: unknown } } | null;
+  if (!o || o.event !== "infoDelivery" || !o.info) return null;
+  const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : null);
+  const t = num(o.info.currentTime) ?? prev?.t;
+  if (t == null) return null;
+  const duration = num(o.info.duration) ?? prev?.duration ?? null;
+  const state = num(o.info.playerState);
+  return { t, duration: duration && duration > 0 ? duration : null, ended: state == null ? prev?.ended ?? false : state === 0 };
+}
