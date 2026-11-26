@@ -54,7 +54,9 @@ describe("top patch", () => {
     const css = readFileSync("src/index.css", "utf8");
     const standalone = css.slice(css.indexOf("@media (display-mode: standalone)"));
     expect(standalone).toMatch(/\[data-top-fade\] \{ display: none; \}/);
-    expect(standalone).toMatch(/height: calc\(env\(safe-area-inset-top\)/);
+    // Sized by the inset alone: an installed desktop app (standalone, no inset) draws no strip over its top bar.
+    const height = standalone.match(/\[data-top-patch\] \{[^}]*?height: ([^;]+);/)?.[1];
+    expect(height).toBe("calc(env(safe-area-inset-top) * 1.25)");
     expect(readFileSync("src/components/layout/Shell.tsx", "utf8")).toMatch(/v8:h-\[calc\(3\.5rem\+env\(safe-area-inset-top\)\)\]/);
   });
 

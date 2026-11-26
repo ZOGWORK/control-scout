@@ -526,15 +526,17 @@ html[data-v8] .m-canvas { background-image: none; }
 
 /* Installed on the home screen (index.html: black-translucent), the page runs under the clock and the wash shows
    there. The top patch (Wash.tsx TopPatch) is then only the clock's strip: see-through at the top of the page,
-   turning into the page's colour as it scrolls (--top-cover) and easing out below the strip, so the content scrolls
+   turning into the page's colour as it scrolls (--top-cover) and easing out just below the strip, so the content scrolls
    away under it with no hard edge. The wash's top fade only matches Safari's 6px patch, so it goes. */
 @media (display-mode: standalone) {
   [data-top-fade] { display: none; }
   [data-top-patch] {
     display: block;
-    height: calc(env(safe-area-inset-top) + 0.75rem);
+    /* Sized by the inset alone (its soft edge a quarter of it), so an installed desktop app, with no inset, draws
+       nothing here; an iPhone or iPad gets the clock's strip. */
+    height: calc(env(safe-area-inset-top) * 1.25);
     background-color: transparent !important;
-    background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-background) var(--top-cover, 0%), transparent) calc(100% - 0.75rem), transparent) !important;
+    background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-background) var(--top-cover, 0%), transparent) 80%, transparent) !important;
     pointer-events: none;
   }
   [data-top-patch]::before { display: none; }
