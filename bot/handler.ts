@@ -379,7 +379,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     };
     const components = await answerComponents(shown, buttons, Date.now(), guild);
     const post: AskPost = shown.chat
-      ? { content: withCheck(chatPost(question, shown.chat, { quote })), embeds: shown.chat.card && shown.chat.by !== "scout" ? [pride(checked)] : [] }
+      ? { content: withCheck(chatPost(question, shown.chat, { quote })), embeds: shown.chat.card && shown.chat.by !== "scout" ? [pride(embed)] : [] }
       : { ...(shown.content ? { content: withCheck(shown.content) } : {}), embeds: [pride(checked)] };
     return components.length ? { ...post, components } : post;
   };

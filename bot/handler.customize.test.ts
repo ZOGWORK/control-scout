@@ -127,6 +127,22 @@ describe("/config: how this server's answers read", () => {
     expect(post.embeds[0].footer.text).not.toContain("couldn't check");
   });
 
+  it("a chat answer with a card carries the check line once, in its text", async () => {
+    const ask = vi.fn(async (q: string) => ({
+      embed: ok("4215"),
+      meta: { step: "deterministic" as const, refined: false, sentence: false },
+      chat: { text: "4215 is from Hillsborough, NJ.", card: true },
+      checked: { searches: 2, unanswered: [] },
+    }));
+    const h = createHandler(() => {}, lookups({ ask }));
+    const { i, calls } = command("ask", { question: "where is 4215 from" });
+    await h(i);
+    const post = calls[1].payload;
+    expect(post.content).toContain("✓ Checked 2 searches");
+    // The card rides beside the words; it must not repeat the same line in its footer.
+    expect(post.embeds[0].footer?.text ?? "").not.toContain("Checked");
+  });
+
   it("an answer with clips keeps them, and its footer says what it checked", async () => {
     const ask = vi.fn(async (q: string) => ({
       embed: ok("4215"),
