@@ -108,16 +108,19 @@ describe("the embed, step by step", () => {
     expect(lines).not.toContain("*2025–26 matches*");
   });
 
-  it("shows the question as asked above every answer (and the sorry), and offers up to 2 questions to ask next as buttons", () => {
+  it("shows the question as asked above every answer (and the sorry), and offers the next questions as buttons", () => {
     expect(askEmbed("who  won decode", base(), null, SITE).author).toEqual({ name: "Asked: who won decode" });
     expect(askEmbed("x", base({ step: "recovery", hits: [], sorry: { understood: [], suggest: [] } }), null, SITE).author!.name).toBe("Asked: x");
-    const a = base({ suggest: ["4215 awards", "4215 opr", "4215 worlds"] });
+    const a = base({ suggest: ["4215 awards", "4215 opr", "4215 worlds"], card: { kind: "info", title: "Hank's Tanks", team: { number: 4215, name: "Hank's Tanks" }, lines: [] } });
     const e = askEmbed("4215", a, null, SITE);
     // Not copy-paste text in the card: the answer's buttons carry them (bot/handler.ts, bot/buttons.ts).
     expect(e.description).not.toContain("Ask next");
-    expect(askNext(a)).toEqual(["4215 awards", "4215 opr"]);
+    // A team answer always has two more worth asking: where it is from, and its videos (the row holds four).
+    expect(askNext(a)).toEqual(["4215 awards", "4215 opr", "where is 4215 from?", "show me 4215 videos"]);
+    // An answer that names no team keeps its own suggestions, at most three.
+    expect(askNext(base({ suggest: ["a", "b", "c", "d"] }))).toEqual(["a", "b", "c"]);
     // An answer's related questions come first, then search's suggestions, deduplicated.
-    expect(askNext(base({ suggest: ["x"], stat: { blocks: [{ kind: "related", title: "More", queries: ["x", "y", "z"] }] } as never }))).toEqual(["x", "y"]);
+    expect(askNext(base({ suggest: ["x"], stat: { blocks: [{ kind: "related", title: "More", queries: ["x", "y", "z"] }] } as never }))).toEqual(["x", "y", "z"]);
   });
 
   it("a yes-or-no question leads with its verdict", () => {
@@ -225,6 +228,26 @@ describe("videos", () => {
     expect(r.content).toBe("https://www.youtube.com/watch?v=AAA&t=90s");
     expect((await ask("23268", deps(base()), SITE)).content).toBeUndefined();
   });
+  it("a message that asks for videos gets them, even when its own answer has none", async () => {
+    const q = "where is Exodus from and show me videos";
+    const place = base({ q, card: { kind: "info", title: "Exodus", team: { number: 30030, name: "Exodus" }, lines: [] } });
+    const clips = base({ q: "where is Exodus" });
+    // Only the subject's search finds clips: the message's own answer has none, so the video task is what turns them up.
+    const d = deps(place, {
+      search: vi.fn(async (s: string) => (s === q ? place : clips)),
+      video: vi.fn(async (a) => (a === clips ? v : undefined)),
+    });
+    const r = await ask(q, d, SITE);
+    expect(r.watch).toEqual([{ label: "Q85", url: "https://www.youtube.com/watch?v=AAA&t=90s" }, { label: "Q18", url: "https://www.youtube.com/watch?v=BBB" }]);
+    expect(r.content).toBe("https://www.youtube.com/watch?v=AAA&t=90s");
+    // What it checked says so: one search, nothing left unanswered.
+    expect(r.checked).toEqual({ searches: 1, unanswered: [] });
+  });
+  it("says videos weren't found, rather than posting a video task with nothing", async () => {
+    const r = await ask("4215 highlights", deps(base()), SITE);
+    expect(r.watch).toBeUndefined();
+    expect(r.checked?.unanswered).toEqual(["videos"]);
+  });
 });
 
 describe("a chat with Bruno", () => {
@@ -251,7 +274,7 @@ describe("a chat with Bruno", () => {
   it("a message that asks several things: each part's facts go with the message's own, and its answer is the card", async () => {
     const q = "what is like the best team rn, where are they from and what is their auto opr";
     const board = base({ q: "what is the best team", hits: [], card: { kind: "high-scores", title: "Top teams by OPR", lines: [{ text: "23268 Ultraviolet", detail: "Hillsborough, NJ · OPR 157.9" }] } });
-    const lookups = vi.fn(async () => ({ facts: ["#1 23268 Ultraviolet (Hillsborough, NJ): OPR 157.9, Auto OPR 40"], answer: board }));
+    const lookups = vi.fn(async () => ({ facts: ["#1 23268 Ultraviolet (Hillsborough, NJ): OPR 157.9, Auto OPR 40"], answer: board, parts: [] }));
     const d = chatDeps({ text: "23268 Ultraviolet, from Hillsborough, NJ: 157.9 OPR, 40 on Auto.", search: true }, { lookups });
     const r = await ask(q, d, SITE);
     expect(lookups).toHaveBeenCalledWith(q);
@@ -272,7 +295,7 @@ describe("a chat with Bruno", () => {
   it("a part whose answer has nothing to show never replaces the message's card and links", async () => {
     const q = "what is the best team and who won decode";
     const sorry = base({ q: "who won decode", hits: [], step: "recovery", sorry: { understood: [], suggest: [] } });
-    const d = chatDeps({ text: "23268 is top.", search: true }, { lookups: vi.fn(async () => ({ facts: [], answer: sorry })) });
+    const d = chatDeps({ text: "23268 is top.", search: true }, { lookups: vi.fn(async () => ({ facts: [], answer: sorry, parts: [] })) });
     const r = await ask(q, d, SITE);
     expect(r.embed.title).toBe("4215 | Team 4215");
     expect(r.chat?.card).toBe(true);

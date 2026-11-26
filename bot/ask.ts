@@ -116,7 +116,10 @@ export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string;   
   resolved?: string;
   /** The question a "no" declined: the bot says so in its own words, quoting what was turned down. Kept apart from
    *  `resolved` so a decline counts as handled and keeps the offer thread, while a scout fallback does neither. */
-  declined?: string }
+  declined?: string;
+  /** What the answer actually checked: the searches behind it and the parts of the message they didn't answer, said on
+   *  the post so a reader can see what was verified and what wasn't. */
+  checked?: { searches: number; unanswered: string[] } }
 
 /** Whether an answer has records to show — a card, a stat or results, never the sorry a message-level search gives
  *  when it can't read the whole question. A chat beside no records posts its words alone. */
@@ -245,7 +248,7 @@ export async function realAskDeps(): Promise<AskDeps> {
     // part's facts go to him with the message's own. One part: nothing extra, since the message's facts are its own.
     lookups: async (q) => {
       const parts = splitAsk(q);
-      if (parts.length < 2) return { facts: [] };
+      if (parts.length < 2) return { facts: [], parts: [] };
       return lookupFacts(parts, {
         search: (p) => searchAnswer(p, { learn: false, limit: SEARCH_PAGE_LIMIT }).catch(() => null),
         facts: (a) => answerFacts(a),
@@ -336,8 +339,12 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
       const shown = part ?? answer;
       const pageQ = part ? part.q : q;
       const keep = reply.search && showsRecords(shown);
-      const video = reply.search && deps.video ? await deps.video(shown).catch(() => undefined) : undefined;
+      // A message that asked for videos gets them even when the chat didn't name them, and one that names a team its
+      // search couldn't answer for still gets its clips (videoFor searches the subject without the video words).
+      const wanted = reply.search || asksVideo(q);
+      const video = wanted ? await videoFor(q, shown, deps) : undefined;
       const watch = videoLinks(video);
+      const parts = talked.looked?.parts ?? [];
       // A reply that says it couldn't find the records is a failed search too, even though it was said politely: the
       // site's queue learns the phrasing, and the answer still posts (an empty answer is filed further down).
       if (recordsMiss(q) && CANT.test(reply.text)) deps.miss?.(q, answer, guild);
@@ -346,6 +353,7 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
         meta: { step: answer.step, refined: false, sentence: false, chat: true },
         chat: { text: reply.text, ...(keep ? { card: true } : {}), ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(pageQ, site) } : {}) },
         next: askNext(shown),
+        checked: { searches: 1 + parts.length, unanswered: [...parts.filter((p) => !p.answered).map((p) => p.q), ...(asksVideo(q) && !watch.length ? ["videos"] : [])] },
         ...(watch.length ? { watch } : {}),
       };
     }
@@ -376,13 +384,14 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
     next: askNext(answer),
   };
   const sentence = !chatting && deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
-  const video = deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
+  const video = await videoFor(q, answer, deps);
   const watch = videoLinks(video);
   return {
     embed: askEmbed(q, answer, sentence, site, video),
     meta: { step: answer.step, refined, sentence: !!sentence },
     ...(watch[0] ? { content: watch[0].url } : {}),
     next: askNext(answer),
+    checked: { searches: 1 + (answer.clauses?.length ?? 0), unanswered: asksVideo(q) && !watch.length ? ["videos"] : [] },
     ...(watch.length ? { watch } : {}),
   };
 }
@@ -518,10 +527,10 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
  *  second place?" has the records it's about), then his reply — with the lookups he asks for and one correction round
  *  where the message is about the records (talk). */
-async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[], deps: AskDeps, memory: string[] = [], records = false): Promise<{ reply: ChatReply | null; card?: SearchAnswer } | null> {
+async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[], deps: AskDeps, memory: string[] = [], records = false): Promise<{ reply: ChatReply | null; card?: SearchAnswer; looked?: Lookup } | null> {
   // The message's own facts, then its parts' (bot/tools.ts): a question with several parts has each one's records.
   const own = await deps.facts!(answer);
-  const looked = deps.lookups ? await deps.lookups(q).catch(() => ({ facts: [] } as Lookup)) : { facts: [] };
+        const looked: Lookup = deps.lookups ? await deps.lookups(q).catch(() => ({ facts: [], parts: [] })) : { facts: [], parts: [] };
   const facts = [...own, ...looked.facts.filter((f) => !own.includes(f))];
   // The part's own answer, when one answered: it is the card the post shows beside his words.
   const card = looked.answer;
@@ -539,7 +548,7 @@ async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[
     const rest = fit([...facts.slice(now.length), ...earlier.slice(then.length)], CHAT_FACTS - kept.length, CHAT_FACTS_CHARS - chars(kept));
     packet = [...now, ...rest.filter((f) => facts.includes(f)), ...then, ...rest.filter((f) => !facts.includes(f))];
   }
-  return { reply: await talk(q, packet, history, deps, memory, records), card };
+  return { reply: await talk(q, packet, history, deps, memory, records), card, looked };
 }
 
 /** Characters `lines` take as sent (one line each). */
@@ -575,6 +584,28 @@ export function chatPost(q: string, chat: NonNullable<AskReply["chat"]>, opts: {
   ].filter((x): x is string => !!x);
   const text = lines.join("\n");
   return text.length > 2000 ? `${text.slice(0, 1999)}…` : text;
+}
+
+/** Whether a message asks to see a video: "show me videos", "4215 highlights", "any clips?". */
+export const asksVideo = (q: string) => /\b(?:videos?|clips?|highlights?|footage|recordings?)\b/i.test(q);
+
+/** A video request's subject: the words that ask for a video, taken out ("show me 4215's clips" is "4215's"). */
+export function videoSubject(q: string): string {
+  return q.replace(/\b(?:videos?|clips?|highlights?|footage|recordings?|watch|show|pull|see|play)\b/gi, " ")
+    .replace(/\b(?:me|us|you|can|could|also|please|some|any|the|of|for|from|and|too|a)\b/gi, " ")
+    .replace(/\s+/g, " ").replace(/^[^\w]+|[^\w]+$/g, "").trim().slice(0, 120);
+}
+
+/** The videos for a message: its own answer's, else (when the message asked for videos) the subject's, searched without
+ *  the words that asked for them — "where is Exodus from and show me videos" still finds Exodus's clips. */
+async function videoFor(q: string, a: SearchAnswer, deps: AskDeps): Promise<SearchVideo | undefined> {
+  if (!deps.video) return undefined;
+  const own = await deps.video(a).catch(() => undefined);
+  if (own || !asksVideo(q)) return own;
+  const subject = videoSubject(q);
+  if (!subject || subject.toUpperCase() === q.trim().toUpperCase()) return undefined;
+  const answer = await deps.search(subject).catch(() => null);
+  return answer ? deps.video(answer).catch(() => undefined) : undefined;
 }
 
 /** The answer's videos as links, the main one first, then the listed matches' clips: at most 3. */
@@ -750,5 +781,15 @@ export function askNext(a: SearchAnswer): string[] {
   const cant = !!a.sorry || (a.step === "recovery" && !a.card && !a.stat);
   const related = a.stat?.blocks.flatMap((b) => (b.kind === "related" ? b.queries : [])) ?? [];
   const all = cant ? [...(a.sorry?.suggest ?? []), ...(a.suggest ?? []), ...related] : [...related, ...(a.suggest ?? [])];
-  return all.filter((x, i, l): x is string => !!x && l.indexOf(x) === i).slice(0, cant ? 3 : 2);
+  const asked = all.filter((x, i, l): x is string => !!x && l.indexOf(x) === i);
+  // An answer about a team always has one more thing worth asking: where it's from, and its videos. Only offered when
+  // the answer doesn't already, so they never push out the answer's own suggestions.
+  const team = a.card?.team?.number ?? a.stat?.team?.number ?? null;
+  if (!team) return asked.slice(0, 3);
+  const extra: string[] = [];
+  if (!asked.some((q) => /\b(?:where|based|hometown|city|from)\b/i.test(q))) extra.push(`where is ${team} from?`);
+  if (!asked.some((q) => /\b(?:video|clip|highlight|footage)\b/i.test(q))) extra.push(`show me ${team} videos`);
+  // The button row holds four (bot/buttons.ts): its own first two suggestions, then the two a team always has, then the
+  // rest, so a long suggestion list never hides where the team is from or its videos.
+  return [...asked.slice(0, 2), ...extra, ...asked.slice(2)].slice(0, 4);
 }

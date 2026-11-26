@@ -131,4 +131,14 @@ describe("the facts of the parts", () => {
     // The second part's own line is in the packet: the first part's 40 can't crowd it out.
     expect(facts.facts).toContain(many("another question")[0]);
   });
+  it("says which parts search answered, so the post can say what it couldn't", async () => {
+    const answered = { q: "what is the best team", hits: [], pages: [], step: "deterministic" as const, weak: false } as unknown as SearchAnswer;
+    const look = await lookupFacts(["what is the best team", "who won decode"], {
+      search: async (q) => (q === "what is the best team" ? answered : null),
+      facts: async () => [],
+    });
+    expect(look.parts).toEqual([{ q: "what is the best team", answered: true }, { q: "who won decode", answered: false }]);
+    // One part: nothing extra to search, and nothing to report.
+    expect((await lookupFacts(["only this"], { search: async () => answered, facts: async () => [] })).parts).toEqual([]);
+  });
 });

@@ -2972,6 +2972,17 @@ CREATE TABLE IF NOT EXISTS discord_event_state (
 CREATE INDEX IF NOT EXISTS discord_event_state_seen ON discord_event_state (seen_at);
 `,
   },
+  {
+    version: 112,
+    name: "discord bot: how a server wants its answers",
+    sql: `
+-- How a server asked its answers to read (/config, bot/settings.ts): style is "default", "short" or "detailed";
+-- extras, whether an answer offers the next questions; videos, whether it carries clips. No row: the defaults.
+ALTER TABLE discord_guild_settings ADD COLUMN style TEXT;
+ALTER TABLE discord_guild_settings ADD COLUMN extras INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE discord_guild_settings ADD COLUMN videos INTEGER NOT NULL DEFAULT 1;
+`,
+  },
 ];
 
 export type Db = Client;

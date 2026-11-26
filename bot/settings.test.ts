@@ -2,7 +2,7 @@
 // defaults a server without a row gets, and the words /settings shows.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../server/db";
-import { DEFAULT_SETTINGS, allSettings, allows, guildSettings, inQuietHours, parseQuiet, pings, quietWords, setGuildSettings, settingsEmbed } from "./settings";
+import { DEFAULT_SETTINGS, allSettings, allows, answerField, guildSettings, inQuietHours, parseQuiet, parseStyle, pings, quietWords, setGuildSettings, settingsEmbed, styleLine } from "./settings";
 
 /** 23:30 UTC: inside a 22–7 window, outside a 9–17 one. */
 const NIGHT = Date.parse("2026-11-22T23:30:00Z");
@@ -88,14 +88,48 @@ describe("a server's settings, on a database", () => {
   });
 
   it("/settings says what the server gets, and how to change it", () => {
-    const e = settingsEmbed({ quiet: { start: 22, end: 7 }, reminders: false, pingRole: "123456789012345678", updatedAt: "2026-11-22T00:00:00.000Z", updatedBy: "111111111111111111" }, "g1");
+    const e = settingsEmbed({ quiet: { start: 22, end: 7 }, reminders: false, pingRole: "123456789012345678", style: "default", extras: true, videos: true, updatedAt: "2026-11-22T00:00:00.000Z", updatedBy: "111111111111111111" }, "g1");
     expect(e.description).toContain("Quiet hours:** 22:00–07:00 UTC");
     expect(e.description).toContain("Match reminders:** off");
     expect(e.description).toContain("<@&123456789012345678>");
-    expect(e.description).toContain("`/settings quiet_hours:22-7`");
+    expect(e.description).toContain("`/config style:short`");
     expect(e.description).toContain("Last changed 2026-11-22 by <@111111111111111111>");
     // The default says so plainly instead of showing empty fields.
     expect(settingsEmbed(DEFAULT_SETTINGS, "g1").description).toContain("Quiet hours:** none");
     expect(settingsEmbed(DEFAULT_SETTINGS, "g1").description).toContain("Match reminders:** on");
+  });
+});
+
+describe("how a server wants its answers", () => {
+  beforeAll(async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+  });
+  beforeEach(async () => { await run("DELETE FROM discord_guild_settings"); });
+
+  it("reads a style, or refuses one it can't, and a server without a row gets the defaults", async () => {
+    expect(parseStyle("short")).toEqual({ style: "short" });
+    expect(parseStyle("Brief")).toEqual({ style: "short" });
+    expect(parseStyle("detailed")).toEqual({ style: "detailed" });
+    expect(parseStyle("auto")).toEqual({ style: "default" });
+    expect(parseStyle("huge")).toHaveProperty("problem");
+    expect(styleLine(DEFAULT_SETTINGS)).toBe("");
+    expect(styleLine({ ...DEFAULT_SETTINGS, style: "short" })).toContain("one or two lines");
+    expect(styleLine({ ...DEFAULT_SETTINGS, style: "detailed" })).toContain("reasoning");
+
+    const untouched = await guildSettings("nobody");
+    expect(untouched).toMatchObject({ style: "default", extras: true, videos: true });
+    await setGuildSettings("g9", { quiet: null, reminders: true, pingRole: null, style: "detailed", extras: false, videos: false });
+    expect(await guildSettings("g9")).toMatchObject({ style: "detailed", extras: false, videos: false, reminders: true });
+    // /settings carries the posts' settings only, so a write from it leaves the answer settings as they were.
+    await setGuildSettings("g9", { quiet: { start: 22, end: 7 }, reminders: false, pingRole: null });
+    expect(await guildSettings("g9")).toMatchObject({ quiet: { start: 22, end: 7 }, style: "detailed", extras: false, videos: false });
+
+    const field = answerField(await guildSettings("g9"));
+    expect(field.name).toBe("How answers read here");
+    expect(field.value).toContain("**Style:** detailed");
+    expect(field.value).toContain("**Videos:** off");
+    expect(field.value).toContain("**Follow-up suggestions:** off");
   });
 });

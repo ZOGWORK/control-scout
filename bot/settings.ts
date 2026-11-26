@@ -9,6 +9,9 @@ import type { APIEmbed } from "discord.js";
 import { all, get, run } from "../server/db.js";
 import { FOOTER, VOLT } from "./views.js";
 
+/** How long an answer to this server's questions reads. */
+export type Style = "default" | "short" | "detailed";
+
 /** A server's settings, as enforced. */
 export interface GuildSettings {
   /** UTC hours the server asked for silence, start..end wrapping past midnight; null: no quiet hours. */
@@ -17,12 +20,37 @@ export interface GuildSettings {
   reminders: boolean;
   /** A role to ping on a match reminder (its id), or null. Never @everyone or @here. */
   pingRole: string | null;
+  /** How its answers read (/config): the default shapes, or shorter or longer than them. */
+  style: Style;
+  /** Whether an answer offers the next questions as buttons. */
+  extras: boolean;
+  /** Whether an answer carries the clips its search found. */
+  videos: boolean;
   updatedAt: string | null;
   updatedBy: string | null;
 }
 
 /** What a server has without a row: every post, no quiet hours, no ping. */
-export const DEFAULT_SETTINGS: GuildSettings = { quiet: null, reminders: true, pingRole: null, updatedAt: null, updatedBy: null };
+export const DEFAULT_SETTINGS: GuildSettings = { quiet: null, reminders: true, pingRole: null, style: "default", extras: true, videos: true, updatedAt: null, updatedBy: null };
+
+/** A style from what someone typed: "short", "detailed", "default", or empty for the default. Anything else is refused. */
+export function parseStyle(text: string): { style: Style } | { problem: string } {
+  const t = String(text ?? "").trim().toLowerCase();
+  if (!t || t === "default" || t === "auto") return { style: "default" };
+  if (t === "short" || t === "brief" || t === "concise") return { style: "short" };
+  if (t === "detailed" || t === "long" || t === "full") return { style: "detailed" };
+  return { problem: "Answer style is `short`, `detailed` or `default`." };
+}
+
+/** A stored style, or the default when the row has none (or something unreadable was written by hand). */
+const styleOf = (text: string | null): Style => {
+  const p = parseStyle(text ?? "");
+  return "style" in p ? p.style : "default";
+};
+
+/** The style in words, for /config. */
+export const styleWords = (s: Style) =>
+  s === "short" ? "short: one or two lines, the number first" : s === "detailed" ? "detailed: the reasoning too, and the sources" : "default: the site's own shape";
 
 /** A UTC hour, 0–23, or null when the text isn't one. */
 const hour = (v: string): number | null => {
@@ -58,8 +86,8 @@ export function inQuietHours(q: GuildSettings["quiet"], now = Date.now()): boole
 
 /** The server's settings as enforced; no row is the default, and a failed read must never silence the bot. */
 export async function guildSettings(guild: string): Promise<GuildSettings> {
-  const r = await get<{ quiet_start: number | null; quiet_end: number | null; reminders: number; ping_role: string | null; updated_at: string; updated_by: string | null }>(
-    "SELECT quiet_start, quiet_end, reminders, ping_role, updated_at, updated_by FROM discord_guild_settings WHERE guild_id = ?", [guild]);
+  const r = await get<{ quiet_start: number | null; quiet_end: number | null; reminders: number; ping_role: string | null; style: string | null; extras: number; videos: number; updated_at: string; updated_by: string | null }>(
+    "SELECT quiet_start, quiet_end, reminders, ping_role, style, extras, videos, updated_at, updated_by FROM discord_guild_settings WHERE guild_id = ?", [guild]);
   if (!r) return DEFAULT_SETTINGS;
   const start = r.quiet_start == null ? null : Number(r.quiet_start);
   const end = r.quiet_end == null ? null : Number(r.quiet_end);
@@ -67,6 +95,9 @@ export async function guildSettings(guild: string): Promise<GuildSettings> {
     quiet: start != null && end != null ? { start, end } : null,
     reminders: Number(r.reminders) !== 0,
     pingRole: r.ping_role ?? null,
+    style: styleOf(r.style),
+    extras: Number(r.extras) !== 0,
+    videos: Number(r.videos) !== 0,
     updatedAt: r.updated_at ?? null,
     updatedBy: r.updated_by ?? null,
   };
@@ -74,8 +105,8 @@ export async function guildSettings(guild: string): Promise<GuildSettings> {
 
 /** Every server's row, for the tick: one read a minute instead of one a channel. */
 export async function allSettings(): Promise<Map<string, GuildSettings>> {
-  const list = await all<{ guild_id: string; quiet_start: number | null; quiet_end: number | null; reminders: number; ping_role: string | null; updated_at: string; updated_by: string | null }>(
-    "SELECT guild_id, quiet_start, quiet_end, reminders, ping_role, updated_at, updated_by FROM discord_guild_settings");
+  const list = await all<{ guild_id: string; quiet_start: number | null; quiet_end: number | null; reminders: number; ping_role: string | null; style: string | null; extras: number; videos: number; updated_at: string; updated_by: string | null }>(
+    "SELECT guild_id, quiet_start, quiet_end, reminders, ping_role, style, extras, videos, updated_at, updated_by FROM discord_guild_settings");
   return new Map(list.map((r) => {
     const start = r.quiet_start == null ? null : Number(r.quiet_start);
     const end = r.quiet_end == null ? null : Number(r.quiet_end);
@@ -83,21 +114,74 @@ export async function allSettings(): Promise<Map<string, GuildSettings>> {
       quiet: start != null && end != null ? { start, end } : null,
       reminders: Number(r.reminders) !== 0,
       pingRole: r.ping_role ?? null,
+      style: styleOf(r.style),
+      extras: Number(r.extras) !== 0,
+      videos: Number(r.videos) !== 0,
       updatedAt: r.updated_at ?? null,
       updatedBy: r.updated_by ?? null,
     }] as [string, GuildSettings];
   }));
 }
 
-/** Save a server's settings; `null` quiet is no quiet hours, and a failed write is the caller's to report. */
-export async function setGuildSettings(guild: string, s: Pick<GuildSettings, "quiet" | "reminders" | "pingRole">, by: string | null = null, now = Date.now()): Promise<void> {
+/** The response settings, for a caller that only reads them (bot/ask.ts's style line, the handler's filters). */
+export type AnswerPrefs = Pick<GuildSettings, "style" | "extras" | "videos">;
+/**
+ * What a write may leave alone. `/settings` names the posts' settings; `/config` names the answers' — neither touches
+ * what it doesn't name.
+ */
+export type GuildSettingsPatch = Partial<Pick<GuildSettings, "quiet" | "reminders" | "pingRole"> & AnswerPrefs>;
+
+/**
+ * Save a server's settings; `null` quiet is no quiet hours, and a failed write is the caller's to report.
+ *
+ * A patch leaves every column it doesn't name alone, in one statement and with no read before the write: a read that
+ * failed (or another write landing between the two) must never turn "leave this alone" into "set it to the default",
+ * which is how a /config write could erase a server's quiet hours and the other way round. `quiet`, `ping role` and
+ * `style` can also be cleared, so each takes a "was it named" flag beside its value (null alone would mean both).
+ */
+export async function setGuildSettings(guild: string, s: GuildSettingsPatch, by: string | null = null, now = Date.now()): Promise<void> {
+  const quiet = s.quiet === undefined ? null : { set: 1, start: s.quiet?.start ?? null, end: s.quiet?.end ?? null };
+  const reminders = s.reminders === undefined ? null : s.reminders ? 1 : 0;
+  const ping = s.pingRole === undefined ? null : { set: 1, role: s.pingRole };
+  const style = s.style === undefined ? null : s.style === "default" ? null : s.style;
+  const extras = s.extras === undefined ? null : s.extras ? 1 : 0;
+  const videos = s.videos === undefined ? null : s.videos ? 1 : 0;
+  const styleSet = s.style === undefined ? 0 : 1;
   await run(
-    `INSERT INTO discord_guild_settings (guild_id, quiet_start, quiet_end, reminders, ping_role, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(guild_id) DO UPDATE SET quiet_start = excluded.quiet_start, quiet_end = excluded.quiet_end,
-       reminders = excluded.reminders, ping_role = excluded.ping_role, updated_at = excluded.updated_at,
-       updated_by = excluded.updated_by`,
-    [guild, s.quiet?.start ?? null, s.quiet?.end ?? null, s.reminders ? 1 : 0, s.pingRole, new Date(now).toISOString(), by]);
+    `INSERT INTO discord_guild_settings (guild_id, quiet_start, quiet_end, reminders, ping_role, style, extras, videos, updated_at, updated_by)
+     VALUES (?, ?, ?, COALESCE(?, 1), ?, ?, COALESCE(?, 1), COALESCE(?, 1), ?, ?)
+     ON CONFLICT(guild_id) DO UPDATE SET
+       quiet_start = CASE WHEN ? THEN ? ELSE quiet_start END, quiet_end = CASE WHEN ? THEN ? ELSE quiet_end END,
+       reminders = COALESCE(?, reminders), ping_role = CASE WHEN ? THEN ? ELSE ping_role END,
+       style = CASE WHEN ? THEN ? ELSE style END, extras = COALESCE(?, extras), videos = COALESCE(?, videos),
+       updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+    [guild, quiet?.start ?? null, quiet?.end ?? null, reminders, ping?.role ?? null, style, extras, videos,
+      new Date(now).toISOString(), by,
+      quiet?.set ?? 0, quiet?.start ?? null, quiet?.set ?? 0, quiet?.end ?? null,
+      reminders, ping?.set ?? 0, ping?.role ?? null, styleSet, style, extras, videos]);
+}
+
+/** /config's field: how this server asked its answers to read. */
+export function answerField(s: GuildSettings): { name: string; value: string } {
+  return {
+    name: "How answers read here",
+    value: [
+      `**Style:** ${styleWords(s.style)}`,
+      `**Follow-up suggestions:** ${s.extras ? "on: an answer offers the next questions as buttons" : "off"}`,
+      `**Videos:** ${s.videos ? "on: an answer carries the clips its search found" : "off"}`,
+      "Change one with `/config style:short`, `/config extras:false` or `/config videos:false`.",
+    ].join("\n"),
+  };
+}
+
+/**
+ * What a server asked its answers to be, as the chat reads it: one line, sent with the chat's facts so the model shapes
+ * its reply (bot/ask.ts). Empty for the default, so a server that changed nothing sends nothing extra.
+ */
+export function styleLine(s: AnswerPrefs): string {
+  if (s.style === "short") return "This server asked for short answers: the number or the verdict first, one or two lines, the detail in a link at most.";
+  if (s.style === "detailed") return "This server asked for detailed answers: explain the reasoning, name the records you used, and keep the numbers exact.";
+  return "";
 }
 
 /**
@@ -126,7 +210,8 @@ export function settingsEmbed(g: GuildSettings, guild: string): APIEmbed {
       `**Match reminders:** ${g.reminders ? "on: a heads-up before each match, on-deck and schedule changes." : "off: results and event posts only."}`,
       `**Ping on reminders:** ${g.pingRole ? `<@&${g.pingRole}>` : "nobody (answers and posts never ping @everyone)."}`,
       "",
-      `Change it with \`/settings\`, for example \`/settings quiet_hours:22-7\` or \`/settings reminders:off\`. Settings are per server and never change what \`/ask\` answers.${when}`,
+      "",
+      `Change the posts with \`/settings\`, and how answers read with \`/config\` (\`/config style:short\`, \`/config extras:false\`, \`/config videos:false\`). Settings are per server.${when}`,
     ].join("\n"),
     color: VOLT,
     footer: FOOTER,

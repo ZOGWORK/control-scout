@@ -72,7 +72,9 @@ describe("commands", () => {
   it("/config without the lookup says it couldn't read it, rather than failing", async () => {
     const { i, calls } = command("config", {});
     await createHandler(() => {}, lookups({ config: undefined }))(i);
-    expect(calls[1].payload.embeds[0].title).toBe("Couldn't read the config");
+    // Still an answer, saying what is missing, rather than a failed interaction: /config is also where a server
+    // customizes its answers, and that half still works.
+    expect(calls[1].payload.embeds[0].description).toContain("couldn't read its own setup");
   });
 
   it("the same command and arguments within a minute cost one lookup, whoever asks", async () => {
