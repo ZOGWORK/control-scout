@@ -3,6 +3,7 @@
 // in the URL (?season=&region=&week=&page=), so a link reproduces the view. Rules and definitions:
 // src/shared/rankings.ts. No charts on this route: it is linked around and must stay light.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FeaturedChip } from "../components/FeaturedVideos";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, ListOrdered, MapPin, Minus, Search, Star, TrendingDown, TrendingUp, Trophy, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
@@ -328,6 +329,7 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
                     <span className="flex items-baseline gap-2">
                       <span className={cn("font-mono font-semibold tabular-nums group-hover:text-accent-text", "v8:font-sans", !me && V8_NUM)}>{r.team}</span>
                       <span className={cn("truncate group-hover:text-accent-text", "v8:text-text-muted v8:group-hover:text-text-base", me && "v8:text-text-base")}>{r.name ?? ""}</span>
+                      <FeaturedChip team={r.team} className="self-center" />
                     </span>
                     <span className={cn("block truncate text-xs text-text-muted md:hidden", V8_CAPTION)}>{homeOf(r)}</span>
                   </Link>
