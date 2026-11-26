@@ -68,7 +68,8 @@ describe("/config: how this server's answers read", () => {
     // One option changes one thing; the other two are carried over rather than reset.
     const short = command("config", { style: "short", videos: false });
     await h(short.i);
-    expect(saveSettings).toHaveBeenCalledWith("g1", expect.objectContaining({ style: "short", videos: false, extras: true, reminders: true }), "u1");
+    // Only the answers' settings travel: quiet hours and the ping role belong to /settings and are never rewritten here.
+    expect(saveSettings).toHaveBeenCalledWith("g1", { style: "short", videos: false, extras: true }, "u1");
     expect(short.calls[1].payload.embeds[0].description).toContain("**Saved.**");
     expect(short.calls[1].payload.embeds[0].description).toContain("`short`");
 
@@ -81,7 +82,17 @@ describe("/config: how this server's answers read", () => {
     // reset puts all three back, and only this server's row changes.
     const reset = command("config", { reset: true });
     await h(reset.i);
-    expect(saveSettings).toHaveBeenLastCalledWith("g1", expect.objectContaining({ style: "default", extras: true, videos: true }), "u1");
+    expect(saveSettings).toHaveBeenLastCalledWith("g1", { style: "default", extras: true, videos: true }, "u1");
+  });
+
+  it("a failed settings read refuses the change rather than writing defaults over the row", async () => {
+    const settings = vi.fn(async () => { throw new Error("database busy"); });
+    const saveSettings = vi.fn(async () => {});
+    const h = createHandler(() => {}, lookups({ settings, saveSettings }));
+    const change = command("config", { style: "detailed" });
+    await h(change.i);
+    expect(change.calls[1].payload.embeds[0].title).toBe("Couldn't read the settings");
+    expect(saveSettings).not.toHaveBeenCalled();
   });
 
   it("the server's style rides with the chat, so the reply is written that way", async () => {

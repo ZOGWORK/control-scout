@@ -575,7 +575,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       ? await lookups.config(guild).catch(() => configUnreadable())
       : configUnreadable();
     if (!guild || !lookups.settings) return base;
-    const now = await lookups.settings(guild).catch(() => DEFAULT_SETTINGS);
+    // Never with a default in place of an unreadable row: a change written against defaults would erase what is stored.
+    let now: GuildSettings;
+    try { now = await lookups.settings(guild); }
+    catch { throw new Friendly("Couldn't read the settings", "This bot couldn't read its own settings just now, so it won't change them blind. Try again in a moment."); }
     const styleText = i.options.getString("style");
     const extras = i.options.getBoolean("extras");
     const videos = i.options.getBoolean("videos");
@@ -594,7 +597,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       ? { ...now, style: "default" as const, extras: true, videos: true }
       : { ...now, style, extras: extras ?? now.extras, videos: videos ?? now.videos };
     if (!lookups.saveSettings) throw new Friendly("Couldn't save the settings", "This bot couldn't save its settings just now. Try again in a moment.");
-    await lookups.saveSettings(guild, next, i.user.id);
+    // Only the answers' settings: the posts' (quiet hours, reminders, ping role) are /settings', and a stale or failed
+    // read above must never write them back as defaults.
+    await lookups.saveSettings(guild, { style: next.style, extras: next.extras, videos: next.videos }, i.user.id);
     // What was written is what this server now has: a write that failed threw, and re-reading would only add a second
     // read that a database blip could make disagree with the save that succeeded.
     const saved = next;

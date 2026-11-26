@@ -125,38 +125,42 @@ export async function allSettings(): Promise<Map<string, GuildSettings>> {
 
 /** The response settings, for a caller that only reads them (bot/ask.ts's style line, the handler's filters). */
 export type AnswerPrefs = Pick<GuildSettings, "style" | "extras" | "videos">;
-/** What a write must say, and what it may leave to the defaults: /settings carries the posts' settings only. */
-export type GuildSettingsPatch = Pick<GuildSettings, "quiet" | "reminders" | "pingRole"> & Partial<AnswerPrefs>;
+/**
+ * What a write may leave alone. `/settings` names the posts' settings; `/config` names the answers' — neither touches
+ * what it doesn't name.
+ */
+export type GuildSettingsPatch = Partial<Pick<GuildSettings, "quiet" | "reminders" | "pingRole"> & AnswerPrefs>;
 
 /**
  * Save a server's settings; `null` quiet is no quiet hours, and a failed write is the caller's to report.
  *
- * A patch leaves what it doesn't name alone: /settings carries the posts' settings only, so writing from it must not
- * reset a style or a videos choice /config made. Read first, and only when something is missing.
+ * A patch leaves every column it doesn't name alone, in one statement and with no read before the write: a read that
+ * failed (or another write landing between the two) must never turn "leave this alone" into "set it to the default",
+ * which is how a /config write could erase a server's quiet hours and the other way round. `quiet`, `ping role` and
+ * `style` can also be cleared, so each takes a "was it named" flag beside its value (null alone would mean both).
  */
 export async function setGuildSettings(guild: string, s: GuildSettingsPatch, by: string | null = null, now = Date.now()): Promise<void> {
-  // One statement, never a read followed by a write: a read that failed (or another write landing between the two)
-  // would turn "leave this alone" into "set it to the default" and erase a choice /config made. A column the patch
-  // doesn't name is left out of the update (`COALESCE` keeps the row's value), while `style` also has to be clearable:
-  // "default" writes a null, so the update takes a separate "was it named" flag.
+  const quiet = s.quiet === undefined ? null : { set: 1, start: s.quiet?.start ?? null, end: s.quiet?.end ?? null };
+  const reminders = s.reminders === undefined ? null : s.reminders ? 1 : 0;
+  const ping = s.pingRole === undefined ? null : { set: 1, role: s.pingRole };
   const style = s.style === undefined ? null : s.style === "default" ? null : s.style;
   const extras = s.extras === undefined ? null : s.extras ? 1 : 0;
   const videos = s.videos === undefined ? null : s.videos ? 1 : 0;
+  const styleSet = s.style === undefined ? 0 : 1;
   await run(
     `INSERT INTO discord_guild_settings (guild_id, quiet_start, quiet_end, reminders, ping_role, style, extras, videos, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, 1), COALESCE(?, 1), ?, ?)
-     ON CONFLICT(guild_id) DO UPDATE SET quiet_start = excluded.quiet_start, quiet_end = excluded.quiet_end,
-       reminders = excluded.reminders, ping_role = excluded.ping_role,
+     VALUES (?, ?, ?, COALESCE(?, 1), ?, ?, COALESCE(?, 1), COALESCE(?, 1), ?, ?)
+     ON CONFLICT(guild_id) DO UPDATE SET
+       quiet_start = CASE WHEN ? THEN ? ELSE quiet_start END, quiet_end = CASE WHEN ? THEN ? ELSE quiet_end END,
+       reminders = COALESCE(?, reminders), ping_role = CASE WHEN ? THEN ? ELSE ping_role END,
        style = CASE WHEN ? THEN ? ELSE style END, extras = COALESCE(?, extras), videos = COALESCE(?, videos),
        updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-    [guild, s.quiet?.start ?? null, s.quiet?.end ?? null, s.reminders ? 1 : 0, s.pingRole, style, extras, videos,
-      new Date(now).toISOString(), by, s.style === undefined ? 0 : 1, style, extras, videos]);
+    [guild, quiet?.start ?? null, quiet?.end ?? null, reminders, ping?.role ?? null, style, extras, videos,
+      new Date(now).toISOString(), by,
+      quiet?.set ?? 0, quiet?.start ?? null, quiet?.set ?? 0, quiet?.end ?? null,
+      reminders, ping?.set ?? 0, ping?.role ?? null, styleSet, style, extras, videos]);
 }
 
-/**
- * What a server asked its answers to be, as the chat reads it: one line, sent with the chat's facts so the model shapes
- * its reply (bot/ask.ts). Empty for the default, so a server that changed nothing sends nothing extra.
- */
 /** /config's field: how this server asked its answers to read. */
 export function answerField(s: GuildSettings): { name: string; value: string } {
   return {
@@ -170,6 +174,10 @@ export function answerField(s: GuildSettings): { name: string; value: string } {
   };
 }
 
+/**
+ * What a server asked its answers to be, as the chat reads it: one line, sent with the chat's facts so the model shapes
+ * its reply (bot/ask.ts). Empty for the default, so a server that changed nothing sends nothing extra.
+ */
 export function styleLine(s: AnswerPrefs): string {
   if (s.style === "short") return "This server asked for short answers: the number or the verdict first, one or two lines, the detail in a link at most.";
   if (s.style === "detailed") return "This server asked for detailed answers: explain the reasoning, name the records you used, and keep the numbers exact.";
