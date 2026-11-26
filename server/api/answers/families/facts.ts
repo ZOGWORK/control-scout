@@ -13,11 +13,11 @@ import { scheduleRankText, scheduleWord } from "../../../../src/shared/scheduleD
 import { all, get } from "../../../db.js";
 import { isEnabled } from "../../../flags.js";
 import { ATTENDED, LEAGUE_RANKED, seasonStats, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
-import { readScope } from "../read.js";
+import { THEIR_FIRST, THEIR_LAST, readScope } from "../read.js";
 import { currentSeason, seasonDay, seasonWhy, teamSeason } from "../season.js";
 import { seasonOfDate } from "../../query/time.js";
 import { ratingKpis } from "./oprRating.js";
-import { eventHref, matchHref, shortEvent, teamHref } from "../matchSet.js";
+import { eventHref, matchHref, matchRow, shortEvent, teamHref, teamLinks, teamMatches } from "../matchSet.js";
 import { leagueStandings, teamLeagueStanding } from "../../leagues.js";
 import { leagueHref, leagueTitle } from "../../../../src/shared/leagues.js";
 
@@ -47,7 +47,21 @@ export interface FactQuestion {
   oldestFirst?: boolean;
   /** "events in March": a season's events with a day in that month (0-based), its year the season's. */
   month?: number;
+  /** One event of the team's, for a fact kept event by event (AT_EVENT): the event's words ("at the nj championship"),
+   *  or its own last or first event (THEIR_LAST, THEIR_FIRST: "last meet", "at their first event"). */
+  at?: string;
 }
+
+/** The facts kept event by event, so one event can be asked about: schedule difficulty is each event's own figure. */
+const AT_EVENT: ReadonlySet<FactId> = new Set(["schedule"]);
+
+/** "Last meet", "at their most recent event", "in its first competition": the team's own latest or earliest event, as
+ *  the stat answers read it (read.ts readStatQuestion). */
+const OWN_EVENT = /\s(?:(?:at|in|during|from)\s+)?(?:(?:their|its|the)\s+)?(?:(last|latest|most\s+recent|newest|previous)|first|debut|earliest)\s+(?:event|competition|tournament|meet)(?=\s)/;
+
+/** The event an at-event fact is read at, as the answer layer found it: one of the team's (`codes`: its divisions and
+ *  finals read as one), or an event of that name it didn't play (`absent`). */
+export interface FactEvent { season: number; code: string; name: string; codes?: string[]; absent?: boolean }
 
 const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 /** "In March", "during june 2026": a month, the year optional ("May" only after "in" or "during", as it's a word too). */
@@ -102,14 +116,19 @@ export function readTeamFact(raw: string): FactQuestion | null {
   const mo = MONTH.exec(typed);
   const month = mo ? MONTH_NAMES.findIndex((n) => n.startsWith(mo[1].slice(0, 3))) : -1;
   const monthSeason = mo?.[2] ? Number(mo[2]) - (month >= 8 ? 0 : 1) : null;
-  const q = (mo ? typed.replace(mo[0], " ") : typed).replace(OLDEST_FIRST, " ").replace(/\b(events?)\s+played\b/, "$1");
+  // The team's own last or first event ("last meet"): read off before the rules, so "last event" is never its events list.
+  const own = OWN_EVENT.exec(typed);
+  const q = (mo ? typed.replace(mo[0], " ") : typed).replace(OLDEST_FIRST, " ").replace(/\b(events?)\s+played\b/, "$1").replace(OWN_EVENT, " ");
   for (const r of RULES) {
     const m = r.re.exec(q);
     if (!m) continue;
     const what = m.groups?.what?.trim() ?? "";
     // The fact's own words go; the season, if named, is read from what's left ("12345 events in 2025-26").
     const { scope, rest } = readScope(q.replace(m[0], " "));
-    if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
+    if (scope.championship || scope.states || scope.level || scope.alliance || scope.ever) return null;
+    // One event, named or the team's own last or first: only a fact kept event by event is read there.
+    const at = own ? (own[1] ? THEIR_LAST : THEIR_FIRST) : scope.at ?? undefined;
+    if (at && (!AT_EVENT.has(r.id) || (own && scope.at))) return null;
     let region: Region | null = null, world = false, event: string | null = null, country: FactQuestion["country"];
     if (r.id === "opr-vs-average") {
       if (/^(?:world(?:wide)?|global|everyone|all\s+teams|the\s+world)$/.test(what)) world = true;
@@ -148,9 +167,9 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // A bare year with nothing else naming a team is the team's number ("2024 reliability").
     const more = { ...(country ? { country } : {}), ...(r.id === "events-season" || r.id === "events-place" ? listed : {}), ...(mo ? { month } : {}) };
     // The month's own year stays its season ("2024 events in march 2024"): the bare year was the team's.
-    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: mo ? (monthSeason ?? lastMonthSeason(month)) : null, region, world, event, ...more };
+    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: mo ? (monthSeason ?? lastMonthSeason(month)) : null, region, world, event, ...more, ...(at ? { at } : {}) };
     if (!core) return null;
-    return { id: r.id, core, season: scope.season, region, world, event, ...more, ...(scope.latest && scope.season == null ? { latest: true } : {}), ...(scope.future ? { future: scope.future } : {}) };
+    return { id: r.id, core, season: scope.season, region, world, event, ...more, ...(at ? { at } : {}), ...(scope.latest && scope.season == null ? { latest: true } : {}), ...(scope.future ? { future: scope.future } : {}) };
   }
   return null;
 }
@@ -175,8 +194,10 @@ export async function newestLeagueSeason(team: number): Promise<number | null> {
 }
 
 /** The answer, or null when it has nothing to stand on (the question is left to search). */
-export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words: string, season: number | null) => Promise<{ season: number; code: string; name: string; type: string | null } | null>): Promise<StatAnswer | null> {
+export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words: string, season: number | null) => Promise<{ season: number; code: string; name: string; type: string | null } | null>, atEvent?: FactEvent | null): Promise<StatAnswer | null> {
   const base = (intent: string, title: string, scope: string[], definition: string, source: string) => ({ family: "stat" as const, intent, title, team, scope, definition, source, blocks: [] as StatBlock[] });
+  // One event's figure ("schedule difficulty 12345 last meet"): read at that event, in its own season.
+  if (f.at && f.id === "schedule") return scheduleAt(f, team, atEvent ?? null, base);
   // The next match needs no played season (a rookie's first event).
   if (f.id === "next-match") {
     const m = await get<any>(`SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, mt.alliance FROM match_teams mt JOIN matches m ON m.season = mt.season AND m.code = mt.code AND m.level = mt.level AND m.series = mt.series AND m.number = mt.number
@@ -379,4 +400,41 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   }
   if (!r) return { ...b, none: `${who(team)} played no league meets in ${S}.` };
   return { ...b, headline: { value: `#${r.rank}${r.n && r.n >= r.rank ? ` of ${r.n}` : ""}`, label: `${r.league ? `${r.league} league` : "League"} after ${shortEvent(r.name, r.type)}`, sub: dateRange(r.start) ?? undefined, href: eventHref(season, r.code, team.number) } };
+}
+
+type Base = (intent: string, title: string, scope: string[], definition: string, source: string) => StatAnswer & { blocks: StatBlock[] };
+
+/** Schedule difficulty at one event: the team's last or first one, or the one named. The verdict, where it sits in the
+ *  field, its opponents' and partners' ratings against the field's, and the qualification matches it's read from. */
+async function scheduleAt(f: FactQuestion, team: Team, at: FactEvent | null, base: Base): Promise<StatAnswer | null> {
+  const own = f.at === THEIR_LAST ? "Most recent event" : f.at === THEIR_FIRST ? "First event" : null;
+  const rule = "Schedule difficulty: the average prediction rating of the team's qualification opponents minus its partners', each against the field's (+ = harder). Rank 1 is the hardest schedule at the event.";
+  if (!(await isEnabled("scheduleDifficulty").catch(() => false))) return null;
+  if (!at) {
+    // An event named that search can't find is left to search; the team's own last or first with none played is said.
+    if (!own) return null;
+    return { ...base("schedule", "Schedule difficulty", [own], rule, "From the posted qualification schedules"), none: `${who(team)} has no event with matches on record${f.season != null ? ` in ${seasonLabel(f.season)}` : ""}.` };
+  }
+  const S = seasonLabel(at.season);
+  const b = base("schedule", `Schedule difficulty at ${at.name}`, [S, ...(own ? [own] : [])], rule, `From the posted qualification schedule of ${at.name}`);
+  if (at.absent) return { ...b, none: `${who(team)} didn't play at ${at.name}.` };
+  const codes = new Set(at.codes ?? [at.code]);
+  const row = (await teamSchedule(at.season, team.number)).filter((x) => x.full && codes.has(x.code)).pop();
+  if (!row?.full) return { ...b, none: `No schedule difficulty for ${who(team)} at ${at.name}: it needs a posted qualification schedule and a field of 6 or more rated teams.` };
+  const s = row.full;
+  const sign = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${dp(Math.abs(v))}`;
+  const verdict = s.difficulty > 0 ? "Harder than an average draw there" : s.difficulty < 0 ? "Easier than an average draw there" : "An average draw there";
+  const href = eventHref(at.season, row.code, team.number);
+  // The matches it's read from: the team's qualification matches there that have a result.
+  const ms = (await teamMatches(team.number)).filter((m) => m.season === at.season && m.code === row.code && m.level === "qual");
+  const links = await teamLinks(ms.flatMap((m) => [...m.partners, ...m.opponents, team.number]));
+  return { ...b, headline: { value: scheduleWord(s.z), label: `${scheduleRankText(s)} at ${at.name}`, sub: `${verdict} · ${s.matches} qualification match${s.matches === 1 ? "" : "es"}`, href },
+    blocks: [
+      { kind: "kpis", items: [
+        { label: "Opponents", value: sign(s.opponents), sub: "rating vs the field's" },
+        { label: "Partners", value: sign(s.partners), sub: "rating vs the field's" },
+        { label: "Difficulty", value: sign(s.difficulty), sub: "opponents − partners" },
+      ] },
+      ...(ms.length ? [{ kind: "matches" as const, title: "Qualification matches", rows: ms.map((m) => matchRow(m, links, team.number)) }] : []),
+    ] };
 }
