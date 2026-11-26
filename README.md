@@ -55,41 +55,18 @@ package, so predictions can never be better in one app than the other.
 | Database | SQLite through `@libsql/client` | A local file in development and on a single box; the same client talks to Turso if hosting ever needs a networked database. Zero ops. |
 | Web | React 19 · Vite · Tailwind v4 · Radix (shadcn-style components copied into `src/components/ui`) · Motion · Recharts | Control Point's exact UI stack and theme tokens, so the two apps feel like family. |
 | Predictions | `packages/predict-engine` (pure TS) | Runs identically on the server and in the browser — offline predictions from the lite pack need no server. |
-| Deploy | Plain Node on the Oracle VM (Dockerfile too) | Portable: the VM or a Mac mini cluster are all just "run the app". |
+| Deploy | Plain Node on the Oracle VM | The live site runs on the Oracle VM next to Control Point. |
 
-## Run it locally
+## Use it
 
-```bash
-npm install
-cp .env.example .env        # add FIRST Events API credentials (optional but recommended)
-npm run seed:scout          # optional: import a local FTC Scout cache for instant history
-npm run sync                # pull events/teams/matches from FIRST (resumable)
-npm run stats               # compute OPR + ratings + calibration ledger
-npm run packs               # optional: build the offline packs served at /packs
-npm run dev                 # API on :3000, web on :5173
-```
+Control Scout runs at [controlscout.org](https://controlscout.org) — free forever, no account needed for core features.
 
-`npm test` runs every test; `npm run lint` type-checks.
-
-`npm run sync` needs FIRST credentials (it lists events from FIRST, and falls
-back to FTC Scout per event when FIRST has no data for one). Without them, the
-app still starts but shows empty states until data arrives via `seed:scout` or
-a copied database. Without a Resend key, sign-in is hidden and everything
-personal stays on the device.
-
-### Tools
-
-| Command | What it does |
-|---|---|
-| `npm run shots -- /teams/18360 --both` | Screenshots for PRs (real servers, 2x, waits for data). See [AGENTS.md](AGENTS.md). |
-| `npm run audit` | The self-audit sweep: every route at desktop + mobile, console, overflow, labels, loading and API-down states ([docs/self-audit.md](docs/self-audit.md)). |
-| `npm run db:export` | A consistent single-file copy of the database (for moving it to a server). |
+Contributing? Local setup is in [AGENTS.md](AGENTS.md#local-setup).
 
 ## Hosting
 
 * Runs on the Oracle VM next to Control Point:
-  [docs/deploy.md](docs/deploy.md) (deploys, rollback, alerts). A `Dockerfile`
-  runs anywhere else. (Render was retired on 2026-10-14.)
+  [docs/deploy.md](docs/deploy.md) (deploys, rollback, alerts). (Render was retired on 2026-10-14.)
 
 ## How data flows
 
