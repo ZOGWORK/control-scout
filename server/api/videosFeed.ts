@@ -6,9 +6,11 @@
 //   weekend   this weekend's events' recordings and live streams (weekendEvents)
 //   creator   creator videos (FUN Robotics Network…) with their tagged teams (./videosFeed.creators.ts); Behind the
 //             Bot episodes are their own pool
-//   record    the season's top scores, at events whose matches count for records (RECORD_TYPES, as searchHighScores)
+//   record    the season's top scores, at events whose matches count for records (RECORD_TYPES, as searchHighScores);
+//             last season's after them while this one has fewer than 10 with a video
 //   close     finishes these 14 days decided by 3 points or fewer
 //   upset     matches these 21 days the prediction engine's live call got wrong at 75% or more
+//   recent    the season's newest matches with a video, whatever the event
 //   popular   what most people watched these 7 days (video_watch); every pool's items are lifted by it too
 // and one per person: the clips of the teams they're tied to (on the team, My team, followed, shortlisted, scouted),
 // kept per team. A match is a candidate only when it has a video to play (seasonClipKeys, the Play buttons' check).
@@ -23,7 +25,7 @@ import { membershipOf } from "../videos/membership.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
 import { weekendEvents } from "./weekend.js";
 import { feedCreatorVideos } from "./videosFeed.creators.js";
-import { isCold, kindWeights, mixFeed, reasonFor, scoreOf, type Candidate, type Profile, type Tie, type WatchRow } from "./videosFeed.rank.js";
+import { isCold, kindWeights, mixFeed, reasonFor, scoreOf, tieOf, type Candidate, type Profile, type Tie, type WatchRow } from "./videosFeed.rank.js";
 import { linkStart } from "../../src/shared/recording.js";
 import { thumbnailUrl, watchHref } from "../../src/shared/stream.js";
 import { youtubeId } from "../../src/shared/personal.js";
@@ -135,12 +137,25 @@ const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 // Pools (the same for everyone)
 // ---------------------------------------------------------------------------
 
+/** The season's top scores; early in a season with few videos yet, last season's after them. */
 async function recordPool(season: number): Promise<MatchPick[]> {
+  const now = await seasonTop(season, "this season");
+  return now.length >= 10 || !SEASON_NUMBERS.includes(season - 1) ? now : [...now, ...(await seasonTop(season - 1, "last season")).slice(0, 25 - now.length)];
+}
+async function seasonTop(season: number, which: string): Promise<MatchPick[]> {
   const rows = await all<RefRow & { top: number }>(
     `SELECT m.code, m.level, m.series, m.number, MAX(COALESCE(m.red_np, 0), COALESCE(m.blue_np, 0)) top FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
      WHERE m.season = ? AND m.played = 1 AND e.type IN (${RECORD_TYPES.map(() => "?").join(",")}) ORDER BY top DESC LIMIT 200`, [season, ...RECORD_TYPES]);
   const kept = await withVideo(season, rows, 25);
-  return kept.map((r, i) => ({ ...ref(season, r), source: "record", quality: i === 0 ? 1.4 : 1.15, reason: i === 0 ? `Season high: ${r.top} points` : `Top score this season: ${r.top}` }));
+  return kept.map((r, i) => ({ ...ref(season, r), source: "record", quality: i === 0 ? 1.4 : 1.15, reason: i === 0 ? `${which === "this season" ? "Season" : "Last season's"} high: ${r.top} without penalties` : `Top score ${which}: ${r.top} without penalties` }));
+}
+
+/** The newest matches of the season with a video, whatever the event: so the feed always has this season's play. */
+async function recentPool(season: number, now: number): Promise<MatchPick[]> {
+  const rows = await all<RefRow & { time: string | null }>(
+    "SELECT code, level, series, number, time FROM matches WHERE season = ? AND played = 1 AND time IS NOT NULL ORDER BY time DESC LIMIT 600", [season]);
+  const kept = await withVideo(season, rows, 40);
+  return kept.map((r) => ({ ...ref(season, r), source: "recent", quality: 0.9, reason: r.time && Date.parse(`${r.time.slice(0, 10)}T00:00:00Z`) >= now - 3 * DAY ? "Just played" : "Recent match" }));
 }
 
 async function closePool(season: number, now: number): Promise<MatchPick[]> {
@@ -217,18 +232,18 @@ export interface Pools { candidates: Candidate[]; weekend: Set<string>; popular:
 let poolCache: { at: number; v: Promise<Pools> } | null = null;
 async function readPools(now: number): Promise<Pools> {
   const season = CURRENT_SEASON;
-  const [records, close, upsets, weekend, creators, popular] = await Promise.all([
-    recordPool(season).catch(() => []), closePool(season, now).catch(() => []), upsetPool(season, now).catch(() => []),
+  const [records, recent, close, upsets, weekend, creators, popular] = await Promise.all([
+    recordPool(season).catch(() => []), recentPool(season, now).catch(() => []), closePool(season, now).catch(() => []), upsetPool(season, now).catch(() => []),
     weekendPool(now), creatorPool(), popularity(now),
   ]);
   // Popular match clips not in another pool, as their own.
-  const picked = new Set([...records, ...close, ...upsets].map(refKey));
+  const picked = new Set([...records, ...recent, ...close, ...upsets].map(refKey));
   const popularPicks: MatchPick[] = [];
   for (const [k, n] of popular) {
     const r = parseMatchKey(k);
     if (r && !picked.has(k) && n >= 2 && popularPicks.length < 30) popularPicks.push({ ...r, source: "popular", quality: 1, reason: "Popular this week" });
   }
-  const candidates = [...weekend.items, ...creators, ...(await matchCandidates([...records, ...close, ...upsets, ...popularPicks]))];
+  const candidates = [...weekend.items, ...creators, ...(await matchCandidates([...records, ...recent, ...close, ...upsets, ...popularPicks]))];
   return { candidates, weekend: weekend.events, popular };
 }
 export function pools(now = Date.now()): Promise<Pools> {
@@ -359,7 +374,9 @@ export async function videoFeed(opts: { viewer: string; userId: number | null; h
     for (const c of seen.values()) {
       if (!inFilter(c, opts.filter, p, pool.weekend)) continue;
       const score = scoreOf({ ...c, popularity: pool.popular.get(c.item.key) ?? 0 }, p, weights, now);
-      if (score != null) scored.push({ c: { ...c, item: { ...c.item, reason: reasonFor(c, p) } }, score });
+      if (score == null) continue;
+      const reason = reasonFor(c, p);
+      scored.push({ c: { ...c, item: { ...c.item, reason, ...(tieOf(c.item, p) ? { personal: true as const } : {}) } }, score });
     }
     const items = mixFeed(scored, `${opts.viewer}|${isoDay(now)}`).map((c) => c.item);
     list = { at: now, items, cold: isCold(p) };

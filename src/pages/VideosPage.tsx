@@ -104,7 +104,7 @@ export default function VideosPage() {
     if (f === "all") q.delete("filter"); else q.set("filter", f);
     setSp(q, { replace: true });
   };
-  const summary = feed.coldStart ? "This weekend, top plays, upsets and Behind the Bot. Follow a team to make it yours." : "Picked for you from your teams and what you watch.";
+  const summary = feed.coldStart ? "The best of FTC right now, from every event. Follow a team to make it yours." : "Picked for you from your teams and what you watch.";
 
   return (
     <div data-videos-page>
