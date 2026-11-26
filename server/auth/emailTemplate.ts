@@ -1,32 +1,32 @@
-// The sign-in code email, in the v8 site's look: the near-black page, the warm wash across the top (orange, rose,
-// purple: the site's live wash), the white mark, a rounded card with hairline lines, and the code big in mono.
-// It reads as a short note from a person ("Hey Sam, here's your code"), not a system notice.
+// The sign-in code email: a dark card in the site's own colours. Its one accent is the site's wash (the owner's
+// Appearance setting, server/wash.ts liveWash), read when the email is sent: a soft glow behind the greeting, the mark's
+// tile, and the tint around the code. Change the wash and every email sent after it follows; one already sent keeps
+// its colours. Type is IBM Plex Sans and Plex Mono where the client loads web fonts (Apple Mail, iOS), Helvetica
+// Neue / Arial and Menlo / Consolas elsewhere.
 //
-// Email-client rules it keeps: table layout and inline styles only (Gmail's apps drop most <style>); the wash and the
-// glow at the bottom are hosted JPEGs (public/email/, drawn by scripts/email-art.ts) set as cell backgrounds over a
-// solid colour, so Outlook and image-blocking clients get the same layout in flat colours; the mark is a PNG (WebP
-// doesn't show in Outlook) with alt text, and the name sits beside it in text. The email is dark in every client
-// (color-scheme dark): Apple Mail shows it as drawn in Light and Dark. Clients that recolour everything themselves
-// (Gmail's apps in dark mode) still get solid, high-contrast text: nothing important is grey on grey.
+// Email-client rules it keeps: table layout and inline styles only (Gmail's apps drop most <style>). Gradients are CSS
+// on cells that also carry a solid colour, so a client that drops gradients (Outlook, some Gmail views) shows the same
+// layout flat: the glow becomes the card, the tile and the code panel keep a solid tint. The mark is the one image, a
+// PNG with alt text, and the name sits beside it in text. The email is dark in every client (color-scheme dark).
 //
 // The code is one run of text, so selecting it copies "483625" (separate tiles copied as six cells). The plain-text
 // part, the subject and the preheader carry the same code, so it shows in a notification and code autofill reads it.
+import { DEFAULT_WASH, type WashSettings } from "../../src/shared/wash.js";
 
-/** The v8 dark tokens (src/index.css html[data-v8]) and the live wash (Sunset, src/shared/wash.ts WASH_PRESETS). */
-const C = {
-  page: "#0a0a0b", card: "#0e0e10", panel: "#141416", line: "#232328", text: "#f4f4f5", body: "#d4d4d8", muted: "#a1a1aa",
-  accent: "#a3b6e0", washA: "#d0784a", washB: "#c2557a", washC: "#7c4fa8",
-  /** The header where its image doesn't load (Outlook, images off): the card itself, so no hard band ends under it. */
-  washFlat: "#0e0e10",
-  chip: "#1d1a24", chipLine: "#2e2838", chipText: "#e9d5ff",
-};
-const FONT = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-const DISPLAY = "'Space Grotesk',Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-const MONO = "'JetBrains Mono','SFMono-Regular',Menlo,Consolas,'Liberation Mono','Courier New',monospace";
-/** Who the note is from. */
-export const SIGNER = "Sushil";
+/** The v8 dark tokens (src/index.css html[data-v8]). */
+const C = { page: "#0a0a0b", card: "#0e0e10", line: "#1f1f24", text: "#f4f4f5", body: "#c9c9d1", muted: "#8e8e98" };
+const FONT = "'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif";
+const MONO = "'IBM Plex Mono','SFMono-Regular',Menlo,Consolas,'Liberation Mono','Courier New',monospace";
+const FONTS_URL = "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+/** "#rrggbb" at an opacity, as rgba(). A colour that isn't #rrggbb falls back to the default wash's middle colour. */
+export function rgba(hex: string, alpha: number): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex) ?? /^#([0-9a-f]{6})$/i.exec(DEFAULT_WASH.b)!;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
 
 /** The name to greet: the first word of the account's name, or null (greet "there"). A word that reads like a link,
  *  an address or markup, or is too long to be a first name, isn't used: the name is typed by whoever owns the
@@ -37,83 +37,65 @@ export function greetingName(displayName: string | null | undefined): string | n
   return first;
 }
 
-export function codeEmail(code: string, opts: { minutes?: number; siteUrl?: string; name?: string | null } = {}): { subject: string; text: string; html: string } {
+export function codeEmail(code: string, opts: { minutes?: number; siteUrl?: string; name?: string | null; wash?: WashSettings } = {}): { subject: string; text: string; html: string } {
   const minutes = opts.minutes ?? 10;
   const site = (opts.siteUrl ?? "https://controlscout.org").replace(/\/$/, "");
   const host = site.replace(/^https?:\/\//, "");
+  // Only #rrggbb reaches the markup: anything else falls back to the default wash's colour in that place.
+  const hex = (v: string | undefined, d: string) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : d);
+  const w = { a: hex(opts.wash?.a, DEFAULT_WASH.a), b: hex(opts.wash?.b, DEFAULT_WASH.b), c: hex(opts.wash?.c, DEFAULT_WASH.c) };
   const hey = `Hey ${greetingName(opts.name) ?? "there"}`;
   const subject = `${code} is your Control Scout code`;
-  const preheader = `${hey}, your sign-in code is ${code}. It works for ${minutes} minutes.`;
+  const preheader = `${hey}, your sign-in code is ${code}. It expires in ${minutes} minutes.`;
   const text = [
     `${hey},`,
     "",
     `Here's your Control Scout sign-in code: ${code}`,
     "",
-    `Type it into the sign-in box and you're in. It works for ${minutes} minutes, and one account covers Control Scout and Control Point.`,
+    `It expires in ${minutes} minutes.`,
     "",
-    "Didn't ask for this? Just ignore it: nobody can sign in without the code, and it runs out on its own.",
+    "Didn't ask for this? You can ignore this email. Nobody can sign in without the code.",
     "",
-    "Happy scouting,",
-    `${SIGNER}, Control Scout`,
-    "",
-    `Control Scout · FTC match predictions · ${host}`,
+    `Control Scout · ${host}`,
   ].join("\n");
 
   const e = esc;
-  const art = (file: string) => e(`${site}/email/${file}`);
-  // Letter-spacing spreads the digits without adding characters; the left padding balances the space after the last one.
-  const codeCell = `<td class="cs-code" data-code="${e(code)}" align="center" style="padding:2px 0 0 10px;font-family:${MONO};font-size:40px;line-height:48px;font-weight:700;letter-spacing:10px;color:${C.text};-webkit-user-select:all;user-select:all;mso-line-height-rule:exactly">${e(code)}</td>`;
-  // The three wash colours as a thin rule along the panel's foot: the site's gradient, in plain cells every client draws.
-  const washRule = ([C.washA, C.washB, C.washC] as const)
-    .map((c, i) => `<td width="${i === 1 ? 34 : 33}%" height="3" style="height:3px;background:${c};font-size:0;line-height:0">&nbsp;</td>`).join("");
-  const dot = (c: string) => `<span style="display:inline-block;width:6px;height:6px;border-radius:3px;background:${c};vertical-align:middle;margin-right:4px"></span>`;
   const table = `role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"`;
+  // The glow: the wash's three colours across, fading down into the card. Flat (no gradients): just the card.
+  const glow = `background-color:${C.card};background-image:linear-gradient(180deg,${rgba(C.card, 0)} 0%,${C.card} 100%),linear-gradient(90deg,${rgba(w.a, 0.42)} 0%,${rgba(w.b, 0.42)} 50%,${rgba(w.c, 0.42)} 100%)`;
+  const tile = `background-color:${w.b};background-image:linear-gradient(135deg,${w.a} 0%,${w.c} 100%)`;
+  const panel = `background-color:${C.page};background-image:linear-gradient(135deg,${rgba(w.a, 0.12)} 0%,${rgba(w.c, 0.1)} 100%);border:1px solid ${rgba(w.b, 0.45)}`;
 
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="x-apple-disable-message-reformatting">
 <meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"><title>${e(subject)}</title>
+<link href="${FONTS_URL}" rel="stylesheet">
 <style>:root{color-scheme:dark;supported-color-schemes:dark}
-@media (max-width:480px){.cs-pad{padding-left:22px!important;padding-right:22px!important}.cs-code{font-size:34px!important;letter-spacing:7px!important;padding-left:7px!important}.cs-hey{font-size:26px!important}.cs-gap{padding-top:52px!important}}</style></head>
+@media (max-width:480px){.cs-pad{padding-left:24px!important;padding-right:24px!important}.cs-code{font-size:32px!important;letter-spacing:6px!important}}</style></head>
 <body style="margin:0;padding:0;background:${C.page};-webkit-text-size-adjust:100%">
 <div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;mso-hide:all">${e(preheader)}${"&#8199;&#847;".repeat(40)}</div>
-<table ${table} bgcolor="${C.page}" style="background:${C.page}"><tr><td align="center" style="padding:28px 10px 32px">
-  <table ${table} bgcolor="${C.card}" style="max-width:560px;background:${C.card};border:1px solid ${C.line};border-radius:20px;overflow:hidden;border-collapse:separate">
-    <tr><td data-wash background="${art("code-wash.jpg")}" bgcolor="${C.washFlat}" valign="top" style="background-color:${C.washFlat};background-image:url('${art("code-wash.jpg")}');background-size:100% 100%;background-position:center top;background-repeat:no-repeat;border-radius:19px 19px 0 0">
-      <table ${table}><tr><td class="cs-pad" style="padding:24px 32px 0">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-          <td width="26" style="width:26px;line-height:0;vertical-align:middle"><img src="${art("mark-white.png")}" width="26" height="26" alt="Control Scout" style="display:block;width:26px;height:26px;border:0;outline:none;text-decoration:none;color:${C.text};font-family:${FONT};font-size:10px"></td>
-          <td style="padding-left:10px;vertical-align:middle;font-family:${DISPLAY};font-size:16px;line-height:20px;font-weight:700;letter-spacing:-0.2px;color:#ffffff">Control Scout</td>
-        </tr></table>
-      </td></tr>
-      <tr><td class="cs-pad cs-gap" style="padding:64px 32px 4px">
-        <h1 class="cs-hey" style="margin:0;font-family:${DISPLAY};font-size:30px;line-height:1.2;font-weight:700;letter-spacing:-0.5px;color:#ffffff">${e(hey)},</h1>
-        <p style="margin:8px 0 0;font-family:${FONT};font-size:16px;line-height:1.55;color:${C.body}">here's your code to sign in to Control Scout.</p>
+<table ${table} bgcolor="${C.page}" style="background:${C.page}"><tr><td align="center" style="padding:40px 12px">
+  <table ${table} bgcolor="${C.card}" style="max-width:480px;background:${C.card};border:1px solid ${C.line};border-radius:18px;border-collapse:separate;overflow:hidden">
+    <tr><td data-glow class="cs-pad" bgcolor="${C.card}" style="${glow};border-radius:17px 17px 0 0;padding:28px 36px 8px">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td data-tile width="28" height="28" align="center" valign="middle" bgcolor="${w.b}" style="width:28px;height:28px;border-radius:8px;${tile}"><img src="${e(`${site}/email/mark-white.png`)}" width="16" height="16" alt="Control Scout" style="display:block;width:16px;height:16px;border:0;outline:none;text-decoration:none;color:${C.text};font-family:${FONT};font-size:9px"></td>
+        <td style="padding-left:10px;vertical-align:middle;font-family:${FONT};font-size:14px;line-height:20px;font-weight:600;letter-spacing:0.1px;color:${C.text}">Control Scout</td>
+      </tr></table>
+      <p style="margin:44px 0 0;font-family:${FONT};font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.2px;color:${C.text}">${e(hey)},</p>
+      <p style="margin:4px 0 0;font-family:${FONT};font-size:15px;line-height:24px;color:${C.body}">Here's your code to sign in to Control Scout.</p>
+    </td></tr>
+    <tr><td class="cs-pad" style="padding:20px 36px 0">
+      <table ${table} style="border-collapse:separate"><tr><td data-panel bgcolor="${C.page}" style="${panel};border-radius:12px;padding:20px 24px 18px">
+        <div class="cs-code" data-code="${e(code)}" style="font-family:${MONO};font-size:36px;line-height:44px;font-weight:600;letter-spacing:8px;color:${C.text};-webkit-user-select:all;user-select:all;mso-line-height-rule:exactly">${e(code)}</div>
+        <div style="margin-top:6px;font-family:${FONT};font-size:13px;line-height:20px;color:${C.muted}">Expires in ${minutes} minutes.</div>
       </td></tr></table>
     </td></tr>
-    <tr><td class="cs-pad" style="padding:22px 32px 0">
-      <table ${table} bgcolor="${C.panel}" style="background:${C.panel};border:1px solid ${C.line};border-radius:16px;overflow:hidden;border-collapse:separate">
-        <tr><td align="center" style="padding:20px 16px 2px;font-family:${FONT};font-size:11px;line-height:14px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:${C.muted}">${dot(C.washA)}${dot(C.washB)}${dot(C.washC)}&nbsp;Your sign-in code</td></tr>
-        <tr><td align="center" style="padding:6px 12px 0"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>${codeCell}</tr></table></td></tr>
-        <tr><td align="center" style="padding:12px 16px 20px;font-family:${FONT}">
-          <span style="display:inline-block;padding:5px 12px;border-radius:999px;background:${C.chip};border:1px solid ${C.chipLine};color:${C.chipText};font-size:12px;line-height:16px;font-weight:600">Works for ${minutes} minutes</span>
-        </td></tr>
-        <tr><td style="font-size:0;line-height:0"><table ${table} style="border-collapse:collapse"><tr>${washRule}</tr></table></td></tr>
-      </table>
-    </td></tr>
-    <tr><td class="cs-pad" style="padding:24px 32px 0;font-family:${FONT};font-size:15px;line-height:1.6;color:${C.body}">
-      <p style="margin:0">Type it into the sign-in box and you're in. One account covers Control Scout and Control Point, so you're signed in to both.</p>
-      <p style="margin:18px 0 0">Happy scouting,<br><span style="font-family:${DISPLAY};font-size:17px;line-height:26px;font-weight:700;color:${C.text}">${e(SIGNER)}</span><span style="color:${C.muted}"> &middot; Control Scout</span></p>
-    </td></tr>
-    <tr><td data-glow background="${art("code-glow.jpg")}" bgcolor="${C.card}" style="background-color:${C.card};background-image:url('${art("code-glow.jpg")}');background-size:100% 100%;background-position:center bottom;background-repeat:no-repeat;border-radius:0 0 19px 19px">
-      <table ${table}><tr><td class="cs-pad" style="padding:24px 32px 72px">
-        <table ${table} style="border-top:1px solid ${C.line}"><tr><td style="padding-top:16px;font-family:${FONT};font-size:13px;line-height:1.6;color:${C.muted}">
-          <strong style="color:${C.body};font-weight:600">Didn't ask for this?</strong> Just ignore it: nobody can sign in without the code, and it runs out on its own.
-        </td></tr></table>
-      </td></tr></table>
+    <tr><td class="cs-pad" style="padding:32px 36px 32px">
+      <table ${table} style="border-top:1px solid ${C.line}"><tr><td style="padding-top:20px;font-family:${FONT};font-size:13px;line-height:20px;color:${C.muted}">Didn't ask for this? You can ignore this email. Nobody can sign in without the code.</td></tr></table>
     </td></tr>
   </table>
-  <p style="margin:18px 0 0;font-family:${FONT};font-size:12px;line-height:18px;color:${C.muted}">Control Scout &middot; FTC match predictions &middot; <a href="${e(site)}" style="color:${C.accent};text-decoration:none">${e(host)}</a></p>
+  <p style="margin:20px 0 0;font-family:${FONT};font-size:12px;line-height:18px;color:${C.muted}">Control Scout &middot; <a href="${e(site)}" style="color:${C.muted};text-decoration:underline">${e(host)}</a></p>
 </td></tr></table>
 </body></html>`;
   return { subject, text, html };
