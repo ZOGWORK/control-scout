@@ -132,7 +132,7 @@ const rejectedAt = (row: { videoId: string; code: string }) => (label: string, t
 const T: any = await import(process.env.TESSERACT_JS ?? "tesseract.js");
 const createWorker = T.createWorker ?? T.default?.createWorker;
 
-type Read = { label: string | null; start: number | null; at: number; text: string; why?: string; division?: "own" | "other" | null };
+type Read = { label: string | null; start: number | null; at: number; text: string; why?: string; division?: "own" | "other" | null; stuck?: true };
 
 /** The video's event, when its divisions share a stream: its division's name and its siblings'. Each read says whose
  *  overlay it saw; a sibling's is never this event's match, and a start stands only when a read of it showed this
@@ -410,14 +410,19 @@ async function frameLabel(page: Page, text: string, ctx: { own: string; others: 
 /** Go to second t. Playing (a timer read needs the clock running), the frame read is about a second on by the time
  *  it's taken (LTCMP 2024 Q20: asked 8948, read 8948.9, the overlay already in). `still`: paused at t, so the frame
  *  read is t's own (a clip opening's check: the second the clip opens at is the frame read). */
-async function seek(page: Page, t: number, still = false) {
-  await page.evaluate(([t, still]) => new Promise((r) => {
+/** Whether the seek landed: the player said it had (seeked) and has the frame there to show. One that didn't (a
+ *  stretch of a long stream YouTube won't play: 2024 USMSCMP's last hour, each seek there 35 s for nothing) shows the
+ *  frame from before. */
+async function seek(page: Page, t: number, still = false): Promise<boolean> {
+  const seeked = await page.evaluate(([t, still]) => new Promise<boolean>((r) => {
     const v = document.querySelector("video")!;
     if (still) v.pause(); else void v.play().catch(() => {});
-    v.addEventListener("seeked", r, { once: true }); v.currentTime = t as number; setTimeout(r, 15000);
+    v.addEventListener("seeked", () => r(true), { once: true }); v.currentTime = t as number; setTimeout(() => r(false), 15000);
   }), [t, still] as const);
   await page.waitForFunction((still) => document.querySelector("video")!.readyState >= (still ? 2 : 3), still, { timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(900);
+  // Landed: at the second asked for (seeked, or there anyway) with a frame to show.
+  return page.evaluate(([t, seeked]) => { const v = document.querySelector("video")!; return (seeked || Math.abs(v.currentTime - (t as number)) <= 1) && v.readyState >= 2; }, [t, seeked] as const);
 }
 
 /** Zoom the player onto one half of a split stream (splitZoomCss), or back to the whole frame (null). */
@@ -495,6 +500,8 @@ async function findShrunk(page: Page, length: number): Promise<string | null> {
 /** The most a frame read may take (seconds): a page that stops answering (a frozen player, OCR that never returns)
  *  fails its video with that reason instead of holding the run forever. */
 const READ_LIMIT_S = 120;
+/** Seeks in a row that didn't land (seek) before a match's search stops: where the video won't play, each costs 35 s. */
+const STUCK_READS = 2;
 /** Frames read on each player page (each point a read looks at, confirming reads included): what a video's budget
  *  counts. Per page, so lanes reading side by side never spend each other's budget. */
 const pageReads = new WeakMap<Page, number>();
@@ -551,9 +558,11 @@ function stopIfDark(): void {
 /** labelOnly: the overlay's match alone, not its timer (a clip opening's check). */
 async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Read> {
   if (ocrBroken) throw new Error(ocrBroken);
-  await seek(page, Math.max(0, t), labelOnly);
-  if (labelOnly) await hideTitle(page);
+  const landed = await seek(page, Math.max(0, t), labelOnly);
   const at = await now(page);
+  // A seek that didn't land shows the frame from before: nothing is read off it.
+  if (!landed) return { label: null, start: null, at, text: "", why: "the seek didn't land (the video won't play there)", stuck: true };
+  if (labelOnly) await hideTitle(page);
   const shot = await page.screenshot();
   if (reads++ % SHADE_EVERY === 0) {
     const dark = await nearBlack(page, shot).catch(() => null);
@@ -1124,16 +1133,20 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     // Where the reads either side put the video, each in turn: where they disagree (a gap where the video lost time),
     // the match sits at one of them, and the nearest read alone may be the wrong side (CAONMIQ 2025's M10, at M9's
     // distance while its tie M11 sits 345 s earlier, was looked for only at M11's).
+    // Seeks in a row that didn't land where it should be: a stretch the video won't play, looked at no longer.
+    let stuck = 0;
     for (const dist of sides(i)) {
-      for (let k = 0; k < TRIES && reads() < budget; k++) {
+      for (let k = 0; k < TRIES && reads() < budget && stuck < STUCK_READS; k++) {
         // Into the match (its timer running), then either side of where it should be.
         const t = ms[i].epoch + dist + [45, 100, -40, 160, -120, 240, -240][k];
         if (t < 0 || t > length) continue;
         const r = await readAt(page, t);
+        stuck = r.stuck ? stuck + 1 : 0;
         await note(r);
         if (seen.has(i)) { missed = 0; return seen.get(i)!; }
       }
     }
+    if (stuck >= STUCK_READS) log(`    ${ms[i].label}: the video won't play where it should be (${STUCK_READS} seeks there didn't land): left`);
     missed++;
     return null;
   }
