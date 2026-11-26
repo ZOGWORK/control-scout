@@ -86,8 +86,18 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     name: "config",
-    description: "This bot's own setup: release, account and servers, Discord connection, chat, reports, follows",
+    description: "This bot's setup, and how this server's answers read: style, follow-up suggestions, videos",
     ...MANAGE,
+    options: [
+      { type: ApplicationCommandOptionType.String, name: "style", description: "How long answers read here", choices: [
+        { name: "Short: a line or two", value: "short" },
+        { name: "Default: the site's own shape", value: "default" },
+        { name: "Detailed: the reasoning too", value: "detailed" },
+      ] },
+      { type: ApplicationCommandOptionType.Boolean, name: "extras", description: "Offer the next questions as buttons under an answer" },
+      { type: ApplicationCommandOptionType.Boolean, name: "videos", description: "Include match clips in answers" },
+      { type: ApplicationCommandOptionType.Boolean, name: "reset", description: "Put the answer settings back to their defaults" },
+    ],
   },
   {
     name: "help",

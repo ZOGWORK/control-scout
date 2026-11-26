@@ -7,7 +7,7 @@ import { AnswerCache } from "./guard.js";
 import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
 import { addFollow, followName, followingEmbed, listFollows, removeFollow, type FollowTarget } from "./follows.js";
 import { REPORT_PREFIX, answerComponents, buttonQuestion, dbButtonStore, QuestionButtons } from "./buttons.js";
-import { guildSettings, parseQuiet, setGuildSettings, settingsEmbed, type GuildSettings } from "./settings.js";
+import { DEFAULT_SETTINGS, answerField, guildSettings, parseQuiet, parseStyle, setGuildSettings, settingsEmbed, styleLine, type GuildSettings, type GuildSettingsPatch } from "./settings.js";
 import { paceEmbed, takePersonChat, type Pace } from "./pacing.js";
 import { answerRow as answerRowOf, markReported, trackAnswer, type AnswerRow } from "./reactions.js";
 import { noteAsk, type AskRecord } from "./asks.js";
@@ -40,7 +40,7 @@ export interface Lookups {
   teamChoices?: (typed: string) => Promise<{ name: string; value: string }[]>;
   /** What one server asked of its follow posts (/settings, bot/settings.ts); absent: the defaults. */
   settings?: (guild: string) => Promise<GuildSettings>;
-  saveSettings?: (guild: string, s: Pick<GuildSettings, "quiet" | "reminders" | "pingRole">, by: string | null) => Promise<void>;
+  saveSettings?: (guild: string, s: GuildSettingsPatch, by: string | null) => Promise<void>;
   /** One person's pace in one server (bot/pacing.ts): six a minute, thirty an hour. Absent: nobody is paced. */
   pace?: (guild: string, user: string) => Promise<Pace>;
   follow: (guild: string, channel: string, target: FollowTarget, by: string) => Promise<"added" | "already">;
@@ -336,11 +336,46 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   /** An answer as a post: Bruno's chat reply as text — with the records card beside it when search found the records
    *  the answer is about (`card`) — else the card with its video link as the text, and its buttons (bot/buttons.ts).
    *  `quote`: show the question (a slash command's reply doesn't; a reply to a message already does). */
-  const askPost = async (question: string, r: AskReply, quote: boolean, guild: string | null = null): Promise<AskPost> => {
-    const components = await answerComponents(r, buttons, Date.now(), guild);
-    const post: AskPost = r.chat
-      ? { content: chatPost(question, r.chat, { quote }), embeds: r.chat.card && r.chat.by !== "scout" ? [pride(r.embed)] : [] }
-      : { ...(r.content ? { content: r.content } : {}), embeds: [pride(r.embed)] };
+  const configUnreadable = (): APIEmbed => ({
+    title: "What this bot can do here",
+    description: "This bot couldn't read its own setup just now. Try again in a moment.",
+    color: VOLT,
+    footer: FOOTER,
+  });
+  /** How a server asked its answers to read (/config): videos and follow-up suggestions, per server. */
+  async function prefsFor(guild: string | null | undefined): Promise<GuildSettings> {
+    return guild && lookups.settings ? lookups.settings(guild).catch(() => DEFAULT_SETTINGS) : DEFAULT_SETTINGS;
+  }
+  /** The line under an answer saying what it checked: the searches behind it, and the parts they couldn't answer. */
+  const checkLine = (c: AskReply["checked"]): string => {
+    if (!c) return "";
+    const searches = c.searches === 1 ? "1 search" : `${c.searches} searches`;
+    const missed = c.unanswered.length ? ` · couldn't check: ${c.unanswered.slice(0, 2).map((q) => q.trim().slice(0, 40)).join(", ")}` : "";
+    return `✓ Checked ${searches} against Control Scout${missed}`;
+  };
+  const askPost = async (question: string, r: AskReply, quote: boolean, guild: string | null = null, prefs: GuildSettings = DEFAULT_SETTINGS): Promise<AskPost> => {
+    // The server's own answer settings: videos off drops the clips and their links, extras off drops the next questions
+    // (never the website link or the report button). A copy, since the answer itself is cached and shared.
+    const shown: AskReply = {
+      ...r,
+      ...(prefs.extras ? {} : { next: [] }),
+      ...(prefs.videos ? {} : { watch: [], content: undefined, chat: r.chat ? { ...r.chat, video: undefined } : undefined }),
+    };
+    const check = checkLine(shown.checked);
+    const embed = shown.embed;
+    const checked = check
+      ? { ...embed, footer: { ...(embed.footer ?? FOOTER), text: `${embed.footer?.text ?? FOOTER.text} · ${check}` } }
+      : embed;
+    // The check line rides under the text, inside Discord's 2,000 characters: the answer is cut instead of the post
+    // being refused.
+    const withCheck = (text: string) => {
+      const tail = check ? `\n-# ${check}` : "";
+      return `${text.slice(0, 2000 - tail.length)}${tail}`;
+    };
+    const components = await answerComponents(shown, buttons, Date.now(), guild);
+    const post: AskPost = shown.chat
+      ? { content: withCheck(chatPost(question, shown.chat, { quote })), embeds: shown.chat.card && shown.chat.by !== "scout" ? [pride(checked)] : [] }
+      : { ...(shown.content ? { content: withCheck(shown.content) } : {}), embeds: [pride(checked)] };
     return components.length ? { ...post, components } : post;
   };
   /** An answer's row, with the question it answered (bot/reactions.ts): a 👎 on the answer later reports that question.
@@ -457,10 +492,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       case "event": return cache.get(key, () => lookups.event(i.options.getString("code", true)));
       case "rankings": return cache.get(key, () => lookups.rankings());
       case "help": return Promise.resolve(helpEmbed());
-      case "config":
-        return lookups.config
-          ? lookups.config(i.guildId)
-          : Promise.reject(new Friendly("Couldn't read the config", "This bot couldn't read its own setup just now. Try again in a moment."));
+      case "config": return configCommand(i);
       case "follow": case "unfollow": case "following": return manage(i);
       case "settings": return serverSettings(i);
       default: return Promise.reject(new Friendly("Unknown command", "This command isn't one Control Scout knows. Try /help for the list."));
@@ -527,6 +559,47 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
    * (bot/settings.ts). No option given shows them; any given changes that one. Quiet hours are UTC, since Discord gives
    * the bot no server time zone and a guessed one would silence the wrong hours.
    */
+  /**
+   * /config: what this bot can do here, and how this server asked its answers to read — style, follow-up suggestions
+   * and videos, changed one at a time. No option given shows them; `reset` puts them back. Manage Server only, and
+   * private, since it describes the bot's own setup rather than a channel's (the handler defers it ephemerally).
+   */
+  async function configCommand(i: ChatInputCommandInteraction): Promise<APIEmbed> {
+    const guild = i.guildId;
+    const base: APIEmbed = lookups.config
+      ? await lookups.config(guild).catch(() => configUnreadable())
+      : configUnreadable();
+    if (!guild || !lookups.settings) return base;
+    const now = await lookups.settings(guild).catch(() => DEFAULT_SETTINGS);
+    const styleText = i.options.getString("style");
+    const extras = i.options.getBoolean("extras");
+    const videos = i.options.getBoolean("videos");
+    const reset = i.options.getBoolean("reset") === true;
+    // Nothing asked for: show the setup and how this server's answers read today.
+    if (styleText == null && extras == null && videos == null && !reset) {
+      return { ...base, fields: [...(base.fields ?? []), answerField(now)] };
+    }
+    let style = now.style;
+    if (styleText != null) {
+      const parsed = parseStyle(styleText);
+      if ("problem" in parsed) throw new Friendly("Answer style?", parsed.problem);
+      style = parsed.style;
+    }
+    const next = reset
+      ? { ...now, style: "default" as const, extras: true, videos: true }
+      : { ...now, style, extras: extras ?? now.extras, videos: videos ?? now.videos };
+    if (!lookups.saveSettings) throw new Friendly("Couldn't save the settings", "This bot couldn't save its settings just now. Try again in a moment.");
+    await lookups.saveSettings(guild, next, i.user.id);
+    // What was written is what this server now has: a write that failed threw, and re-reading would only add a second
+    // read that a database blip could make disagree with the save that succeeded.
+    const saved = next;
+    return {
+      ...base,
+      description: `${base.description ?? ""}\n\n**Saved.** Answers here read ${saved.style === "default" ? "the default way" : `\`${saved.style}\``}${saved.extras ? ", with follow-up suggestions" : ", with no follow-up suggestions"}${saved.videos ? " and clips" : " and no clips"}.`,
+      fields: [...(base.fields ?? []), answerField(saved)],
+    };
+  }
+
   async function serverSettings(i: ChatInputCommandInteraction): Promise<APIEmbed> {
     const guild = i.guildId;
     if (!guild) throw new Friendly("Servers only", "Post settings belong to a server: use this in one of its channels.");
@@ -592,7 +665,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this question adds.
       const name = serverName(i.user, i.member);
-      const lines = await serverLines(i.guildId, i.user.id, name);
+      const prefs = await prefsFor(i.guildId);
+      // The server's own answer style rides with the chat's lines: it shapes the reply and is part of the cache key.
+      const lines = [...await serverLines(i.guildId, i.user.id, name), styleLine(prefs)].filter(Boolean);
       learnAsk(i.guildId, i.user.id, name, question);
       let post: AskPost;
       let r: AskReply | undefined;
@@ -601,7 +676,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         r = await askReply(question, describe(i), [], lines, i.guildId, await channelSubjectFor(i.channelId, []));
         // What was asked when a yes — or a no — answered the question Bruno offered (bot/ask.ts): the reply quotes
         // that, not the word.
-        post = await askPost(quoted(question, r), r, true, i.guildId);
+        post = await askPost(quoted(question, r), r, true, i.guildId, prefs);
       } catch (e) {
         logLine(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
@@ -695,7 +770,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       if (!over.ok) { await card(limitEmbed(over)); return; }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this message adds.
       const name = serverName(m.author, m.member);
-      const lines = await serverLines(m.guildId, m.author.id, name);
+      const prefs = await prefsFor(m.guildId);
+      const lines = [...await serverLines(m.guildId, m.author.id, name), styleLine(prefs)].filter(Boolean);
       learnAsk(m.guildId, m.author.id, name, q);
       // Typing lasts about 10 s and a model reply can take 45: keep it up while the chat is written.
       void m.channel.sendTyping?.().catch(() => {});
@@ -716,7 +792,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       clearInterval(typing);
       // The reply quotes the message it answers: no need to repeat the question (a "yes" becomes the question it
       // answered, so the thread carries on from 4215's record rather than from the word).
-      const sent = await send(await askPost(quoted(q, r), r, false, m.guildId ?? null));
+      const sent = await send(await askPost(quoted(q, r), r, false, m.guildId ?? null, prefs));
       remember((sent as { id?: string } | undefined)?.id, history, quoted(q, r), r, m.guildId ?? null);
       keepChannel(m.channelId, q, m.guildId);
       keepAnswer(sent, m.guildId ?? null, quoted(q, r), r);
@@ -807,13 +883,14 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     if (!over.ok) { await i.reply({ embeds: [pride(limitEmbed(over))], flags: MessageFlags.Ephemeral }); return; }
     await i.deferReply();
     const name = serverName(i.user, i.member);
-    const lines = await serverLines(i.guildId, i.user.id, name);
+    const prefs = await prefsFor(i.guildId);
+    const lines = [...await serverLines(i.guildId, i.user.id, name), styleLine(prefs)].filter(Boolean);
     learnAsk(i.guildId, i.user.id, name, question);
     let post: AskPost;
     let r: AskReply | undefined;
     try {
               r = await askReply(question, `/ask question=${question.toUpperCase().slice(0, 100)}`, [], lines, i.guildId ?? null, await channelSubjectFor(i.channelId, []));
-                post = await askPost(quoted(question, r), r, true, i.guildId ?? null);
+                post = await askPost(quoted(question, r), r, true, i.guildId ?? null, prefs);
       } catch (e) {
         logLine(`button ask failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
