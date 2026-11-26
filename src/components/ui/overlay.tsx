@@ -133,10 +133,10 @@ export const SheetTrigger = D.Trigger;
 export const SheetClose = D.Close;
 
 const sides = {
-  right: 'inset-y-0 right-0 h-full w-full sm:max-w-md border-l rounded-l-2xl',
-  left: 'inset-y-0 left-0 h-full w-full sm:max-w-md border-r rounded-r-2xl',
+  right: 'inset-y-0 right-0 h-full w-full sm:max-w-md border-l rounded-l-2xl pt-[calc(1.5rem+env(safe-area-inset-top))]',
+  left: 'inset-y-0 left-0 h-full w-full sm:max-w-md border-r rounded-r-2xl pt-[calc(1.5rem+env(safe-area-inset-top))]',
   bottom: 'inset-x-0 bottom-0 max-h-[90dvh] border-t rounded-t-2xl pb-[env(safe-area-inset-bottom)]',
-  top: 'inset-x-0 top-0 max-h-[90dvh] border-b rounded-b-2xl',
+  top: 'inset-x-0 top-0 max-h-[90dvh] border-b rounded-b-2xl pt-[calc(1.5rem+env(safe-area-inset-top))]',
 } as const;
 // v8: a sheet slides in by its own size from its edge on the drawer curve (380ms in, 240ms out); reduced motion fades.
 const v8Drawer = 'v8:duration-[380ms] v8:data-[state=closed]:duration-[240ms] v8:ease-drawer';
@@ -163,7 +163,7 @@ export function SheetContent({ className, children, side = 'right', returnFocus:
         {...returnFocus}
       >
         <PortalContainer.Provider value={el}>{children}</PortalContainer.Provider>
-        <D.Close className="absolute right-4 top-4 rounded-full p-1.5 text-text-muted transition-colors hover:bg-text-base/[0.08] hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+        <D.Close className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] rounded-full p-1.5 text-text-muted transition-colors hover:bg-text-base/[0.08] hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
           <X className="size-4" />
           <span className="sr-only">Close</span>
         </D.Close>
