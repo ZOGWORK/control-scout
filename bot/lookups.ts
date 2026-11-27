@@ -47,7 +47,7 @@ export async function eventCode(input: string): Promise<string> {
   const r = await get<{ code: string }>(
     "SELECT code FROM events WHERE season = ? AND (code = ? COLLATE NOCASE OR name = ? COLLATE NOCASE) ORDER BY code = ? COLLATE NOCASE DESC LIMIT 1",
     [CURRENT_SEASON, q, q, q]);
-  if (!r) throw new Friendly("Event not found", `No ${seasonInfo(CURRENT_SEASON).label} event matches "${q.slice(0, 40)}". Pick one from the list as you type.`);
+  if (!r) throw new Friendly("Event not found", `No ${seasonInfo(CURRENT_SEASON).label} event matches "${q}". Pick one from the list as you type.`);
   return String(r.code);
 }
 
