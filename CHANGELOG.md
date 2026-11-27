@@ -15,6 +15,38 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.1.0 — 2026-11-26
+
+The Behind the Bot badge is an arcade plate now: pixel letters, purple and white, with a silver shine that sweeps across.
+
+### Highlights
+- [teams] Behind the Bot is a retro arcade badge, purple and white
+- [teams] A faint silver shine sweeps across it now and then
+- [teams] It sits just above the team's card, clear of its edge
+
+### Teams
+- **An arcade Behind the Bot badge** (#2374; `src/components/FeaturedVideos.tsx`): pixel lettering (Silkscreen, self-hosted in `public/fonts`, Open Font License) in soft white on deep purple, a white count block ("×4"), stepped corners and a hard shadow (no glow). Tabbing to it shows a focus ring. It stands straight, just above the Standing card's top edge at the right rather than over its border, and opens the team's episodes as before. A faint silver band sweeps across it every 7 seconds, then rests (`btb-shine` in `src/index.css`, transform only, none with reduced motion). No red or orange.
+- **More room above the card** when a team has the badge, so on a phone it doesn't crowd the note above it.
+
+## 8.0.9 — 2026-11-26
+
+Videos open on a page of their own, with more to watch beside them, and a team's Behind the Bot episodes are one small badge: "Behind the Bot ×4".
+
+### Highlights
+- [live] Tap a video and it plays big, with more to watch beside it
+- [teams] Behind the Bot is one badge on the team's card, ×4 for four
+- [live] Behind the Bot goes on and on: the next episode is always there
+- [teams] The team page fits a phone with a double-digit record
+
+### Videos
+- **A watch page** (#2368; `/watch/<video>`, `src/pages/WatchPage.tsx`): the video plays big (youtube-nocookie), with its title, channel, date, the teams in it and its description, and Up next beside it (under it on a phone). For a creator video Up next is the rest of its series, newest first, loaded a page at a time as you scroll until there are no more (`GET /api/videos/up-next/:videoId`, `server/api/upNext.ts`, keyset by publish time); for a match clip it's your own Videos feed. The watch is still reported at 5 s, half way and the end, so the feed keeps learning (`src/lib/useWatchReports.ts`).
+- **Feed cards open the watch page** instead of playing inside the card, and the feed has more room: wider gaps, roomier cards, the play mark only on hover. A video that only plays on YouTube still opens there.
+- **No red or orange in the videos**: reason chips, the Live mark and the play mark use blues, violets and greens; Behind the Bot uses the app's accent.
+
+### Teams
+- **One Behind the Bot badge** (`src/components/FeaturedVideos.tsx`): instead of one pill per episode under the team's name, a single "Behind the Bot ×4" tab on the top edge of the Standing card (a sticker under the actions on the classic look). It opens the watch page on the newest episode, with the team's own episodes first in Up next, then its other FUN videos, then the rest of Behind the Bot. Featured in's videos open the watch page too.
+- **The team page fits a phone** with a long record (38-13-1): the top grid's column can now shrink, so the Standing card no longer pushes past the screen.
+
 ## 8.0.8 — 2026-11-26
 
 Control Point's team dashboard can now show a team's Behind the Bot episode and its latest match clips, read from Control Scout.

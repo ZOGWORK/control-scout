@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
-// A team featured on Behind the Bot: the header's badge shows for a Behind the Bot episode only (one per episode, with
-// its season when there are several) and plays it in the app's dialog; Featured in lists every video whose title names
-// the team; the row chip shows only for a featured team.
+// A team featured on Behind the Bot: one badge under the team's actions, for Behind the Bot episodes only, counting
+// them ("×4") when there are several and opening the watch page on the newest with the team's own first; Featured in
+// lists every video whose title names the team, each opening the watch page; the row chip shows only for a featured team.
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { prime } from "../lib/api";
 import type { FeaturedVideo } from "../shared/creatorVideos";
 import { FeaturedBadge, FeaturedChip, FeaturedSection } from "./FeaturedVideos";
-import { VideoDialog } from "./VideoDialog";
 
 const BTB: FeaturedVideo = { series: "behind-the-bot", videoId: "qcqcqcqcqc1", season: 2026, title: "21229 Quality Control | Behind the Bot | FTC BIOBUZZ Robot" };
 const SNAP: FeaturedVideo = { series: null, videoId: "snapsnapsn1", season: 2026, title: "Turret | 21229 Quality Control | FTC BIOBUZZ Snapshot" };
@@ -16,32 +15,44 @@ const SNAP: FeaturedVideo = { series: null, videoId: "snapsnapsn1", season: 2026
 beforeAll(() => { Element.prototype.scrollIntoView = () => {}; });
 afterEach(cleanup);
 
+function Where() { const l = useLocation(); return <p data-where>{l.pathname + l.search}</p>; }
+const atRoot = (ui: React.ReactNode) => (
+  <MemoryRouter initialEntries={["/teams/21229"]}>
+    <Routes><Route path="/teams/:n" element={ui} /><Route path="/watch/:id" element={<Where />} /></Routes>
+  </MemoryRouter>
+);
+
 describe("Featured on Behind the Bot", () => {
-  it("shows the badge for a Behind the Bot episode only, and plays it in the app", () => {
-    const { rerender } = render(<MemoryRouter><FeaturedBadge featured={[SNAP]} /><VideoDialog /></MemoryRouter>);
+  it("shows one badge, just \"Behind the Bot\", for Behind the Bot only, and opens the watch page on the newest with the team's own first", () => {
+    const { rerender } = render(atRoot(<FeaturedBadge featured={[SNAP]} team={21229} />));
     expect(document.querySelector("[data-featured-badge]")).toBeNull();
-    rerender(<MemoryRouter><FeaturedBadge featured={[BTB, SNAP]} /><VideoDialog /></MemoryRouter>);
-    const badge = screen.getByRole("button", { name: /Featured on Behind the Bot/ });
-    expect(badge.textContent).toBe("Featured on Behind the Bot");
+    rerender(atRoot(<FeaturedBadge featured={[BTB, SNAP]} team={21229} />));
+    const badge = screen.getByRole("link", { name: /Behind the Bot/ });
+    expect(badge.textContent).toBe("Behind the Bot");
+    expect(document.querySelector("[data-featured-count]")).toBeNull();
     fireEvent.click(badge);
-    const frame = document.querySelector("[data-video-dialog] iframe");
-    expect(frame?.getAttribute("src")).toContain(BTB.videoId);
+    expect(document.querySelector("[data-where]")?.textContent).toBe(`/watch/${BTB.videoId}?team=21229`);
   });
 
-  it("names each episode's season when the team was on Behind the Bot in more than one", () => {
-    render(<FeaturedBadge featured={[BTB, { ...BTB, videoId: "olderolder1", season: 2025 }]} />);
-    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Featured on Behind the Bot · 2026–27", "Featured on Behind the Bot · 2025–26"]);
+  it("counts the episodes on one badge when the team was on Behind the Bot more than once", () => {
+    render(atRoot(<FeaturedBadge featured={[BTB, { ...BTB, videoId: "olderolder1", season: 2025 }, { ...BTB, videoId: "oldestolde1", season: 2023 }, { ...BTB, videoId: "firstfirst1", season: 2022 }]} team={21229} />));
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(document.querySelector("[data-featured-count]")?.textContent).toBe("×4");
+    expect(screen.getByRole("link").getAttribute("aria-label")).toBe("Behind the Bot, 4 episodes: watch them");
+    expect(screen.getByRole("link").textContent).toBe("Behind the Bot×4");
   });
 
-  it("lists every featured video in Featured in, closed at first", () => {
-    render(<MemoryRouter><FeaturedSection featured={[BTB, SNAP]} /></MemoryRouter>);
+  it("lists every featured video in Featured in, closed at first, each opening the watch page", () => {
+    render(atRoot(<FeaturedSection featured={[BTB, SNAP]} team={21229} />));
     fireEvent.click(screen.getByRole("button", { name: /Featured in/ }));
     expect([...document.querySelectorAll("[data-featured-video]")].map((e) => e.getAttribute("data-featured-video"))).toEqual([BTB.videoId, SNAP.videoId]);
     expect(screen.getByText("Behind the Bot")).toBeTruthy();
+    fireEvent.click(document.querySelector(`[data-featured-video="${SNAP.videoId}"]`)!);
+    expect(document.querySelector("[data-where]")?.textContent).toBe(`/watch/${SNAP.videoId}?team=21229`);
   });
 
   it("draws nothing with no featured video", () => {
-    render(<MemoryRouter><FeaturedBadge featured={undefined} /><FeaturedSection featured={[]} /></MemoryRouter>);
+    render(<MemoryRouter><FeaturedBadge featured={undefined} team={1} /><FeaturedSection featured={[]} team={1} /></MemoryRouter>);
     expect(document.body.textContent).toBe("");
   });
 
