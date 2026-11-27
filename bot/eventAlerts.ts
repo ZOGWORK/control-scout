@@ -103,8 +103,9 @@ const clock = (m: MatchView, zone: string | null) => {
 const eventUrl = (d: EventDetail, site: string) => `${site}/events/${d.event.season}/${encodeURIComponent(d.event.code)}`;
 /** Discord's cap on one field's value. */
 export const FIELD_MAX = 1024;
-/** Schedule lines per team before "…and N more" (the character cap can cut sooner). */
-export const SCHEDULE_MAX = 15;
+/** Schedule lines per team: every match it has, with no cap of ours (Discord's field and embed caps apply as the
+ *  list wraps into continuation fields). */
+export const SCHEDULE_MAX = Infinity;
 
 /** One post's budget across all its fields (Discord's limit for a whole message is 6,000). */
 export const EMBED_FIELDS_MAX = 5000;
@@ -134,10 +135,10 @@ export function packLines(lines: string[], cap = Infinity, max = FIELD_MAX, tota
   return out;
 }
 
-/** A team as the schedule names it: "10243 Gear Grinders" (the name clipped to 18 characters). */
+/** A team as the schedule names it: "10243 Gear Grinders", its whole name. */
 const named = (d: EventDetail, n: number) => {
   const name = d.field.find((f) => f.team === n)?.name?.trim();
-  return name ? `${n} ${name.length > 18 ? `${name.slice(0, 17)}…` : name}` : String(n);
+  return name ? `${n} ${name}` : String(n);
 };
 
 /** A team's first unplayed qualification match (on one venue day, when given): "Q3 · 9:00 AM". */
@@ -154,7 +155,9 @@ const num1 = (x: number | null) => (x == null ? "—" : (Math.round(x * 10) / 10
 
 export function eveEmbed(due: EventDue, d: EventDetail, seasons: TeamSeason[], site: string): APIEmbed {
   const e = d.event;
-  const strongest = d.field.filter((f) => f.rating).sort((a, b) => b.rating!.np - a.rating!.np || a.team - b.team).slice(0, 3);
+  // Every rated team there, whole; Discord's 1,024 to a field wraps the list into continuation fields.
+  const strongest = d.field.filter((f) => f.rating).sort((a, b) => b.rating!.np - a.rating!.np || a.team - b.team)
+    .map((f) => `${teamLink(f.team, site)}${f.name ? ` ${f.name}` : ""} · ${f.rating!.np.toFixed(1)}`);
   return {
     title: `Tomorrow: ${e.name}`,
     url: eventUrl(d, site),
@@ -170,7 +173,7 @@ export function eveEmbed(due: EventDue, d: EventDetail, seasons: TeamSeason[], s
         const first = firstOn(d, s.team, null);
         return { name: `${s.team}${s.name ? ` ${s.name}` : ""}`, value: `Season OPR **${num1(s.opr)}**${s.worldRank ? ` · #${s.worldRank.toLocaleString("en-US")} world` : ""}${first ? `\nFirst match: ${first}` : ""}` };
       }),
-      ...(strongest.length ? [{ name: "Strongest there", value: strongest.map((f) => `${teamLink(f.team, site)}${f.name ? ` ${f.name}` : ""} · ${f.rating!.np.toFixed(1)}`).join("\n") }] : []),
+      ...(strongest.length ? packLines(strongest).map((value, i) => ({ name: i ? "\u200b" : "Strongest there", value })) : []),
     ],
     footer: { text: `${d.matches.some((m) => m.level === "qual") ? "" : "The schedule posts here once FIRST publishes it · "}${FOOTER.text}` },
   };
@@ -255,21 +258,19 @@ export function eventRecapEmbed(d: EventDetail, today: string, site: string): AP
   const right = calls.filter((m) => (favouriteOf(m.prediction!)!.side === "red") === (m.red.score!.total > m.blue.score!.total)).length;
   // The meet's own standing, not FIRST's league-wide running one, and only the teams that played here (the same rule
   // as a team's recap): a team ranked 2nd at the meet must not be shown, or left out, by its 18th in the league.
+  // Every team with a standing, whole: the meet's own order, never the first five.
   const top = eventRoster(d.field)
     .map((f) => ({ f, s: eventStanding(f) }))
     .filter(({ s }) => s.rank != null)
     .sort((a, b) => a.s.rank! - b.s.rank! || a.f.team - b.f.team)
-    .slice(0, 5);
+    .map(({ f, s }) => `**${s.rank}.** [${f.team}](${site}/teams/${f.team})${f.name ? ` ${f.name}` : ""}${s.wins != null ? ` · ${s.wins}–${s.losses ?? 0}–${s.ties ?? 0}` : ""}`);
   return {
     title: `Day recap: ${d.event.name}`,
     url: eventUrl(d, site),
     color: VOLT,
     fields: [
       { name: "Today", value: `${played.length} of ${todays.length} match${todays.length === 1 ? "" : "es"} scored${calls.length ? ` · calls: ${right} of ${calls.length} right` : ""}`, inline: true },
-      ...(top.length ? [{
-        name: "Top 5 now",
-        value: top.map(({ f, s }) => `**${s.rank}.** [${f.team}](${site}/teams/${f.team})${f.name ? ` ${f.name}` : ""}${s.wins != null ? ` · ${s.wins}–${s.losses ?? 0}–${s.ties ?? 0}` : ""}`).join("\n"),
-      }] : []),
+      ...(top.length ? packLines(top).map((value, i) => ({ name: i ? "\u200b" : "Standings now", value })) : []),
     ],
     footer: FOOTER,
   };

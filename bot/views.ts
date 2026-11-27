@@ -224,6 +224,42 @@ export function callLine(p: MatchView["prediction"]): string {
 const unix = (iso: string) => Math.floor(Date.parse(iso) / 1000);
 const matchTitle = (m: MatchView, eventName: string) => clip(`${m.label} · ${eventName}`, 256);
 
+/** Discord's own caps: 1,024 characters to a field, 25 fields and 6,000 characters to a whole embed. */
+const FIELD_MAX = 1024;
+const FIELDS_MAX = 25;
+export const EMBED_CHARS_MAX = 6000;
+
+/**
+ * Rows as field values Discord takes: whole rows, 1,024 characters to a field, the list continuing in a blank-named
+ * field so it reads as one. A list longer than one field is posted whole, up to `budget` (what the embed's other parts
+ * leave of Discord's 6,000); past that, the last field says how many it left out rather than the card being refused.
+ */
+function packFields(name: string, rows: string[], budget = Infinity): APIEmbedField[] {
+  // A row that starts a field brings its name with it (the list's own, then a blank one), and a list that doesn't fit
+  // ends with "…and N more": both count against the budget, so they are paid for as the rows go in.
+  const reserve = 20;
+  const out: APIEmbedField[] = [];
+  let cur = "", used = 0, kept = 0;
+  for (const r of rows) {
+    const row = r.length > FIELD_MAX ? `${r.slice(0, FIELD_MAX - 1)}…` : r;
+    const enters = !cur;
+    const add = (enters ? (out.length ? 1 : name.length) : 1) + row.length;
+    if (used + add + reserve > budget) break;
+    if (cur && cur.length + 1 + row.length > FIELD_MAX) { out.push({ name: out.length ? "\u200b" : name, value: cur }); cur = row; }
+    else cur = cur ? `${cur}\n${row}` : row;
+    used += add;
+    kept++;
+  }
+  if (!kept) return [];
+  if (kept < rows.length) {
+    const tail = `…and ${rows.length - kept} more`;
+    if (cur.length + 1 + tail.length <= FIELD_MAX) cur = `${cur}\n${tail}`;
+    else { out.push({ name: out.length ? "\u200b" : name, value: cur }); cur = tail; }
+  }
+  if (cur) out.push({ name: out.length ? "\u200b" : name, value: cur });
+  return out.slice(0, FIELDS_MAX);
+}
+
 export interface ResultOptions {
   /** The followed team's next unplayed match at the event (named when the post is about more than one team).
    *  No next match, no line: never invented. */
@@ -300,12 +336,12 @@ export function embedReadChars(e: APIEmbed): number {
 
 const STATUS: Record<string, string> = { upcoming: "Upcoming", live: "🔴 Live", finished: "Finished" };
 
-/** The top five by OPR at the event; before it has any, by the season OPR the teams bring to it. */
+/** The event's teams by OPR, every one of them; before it has any, by the season OPR the teams bring to it. */
 export function topByOpr(field: FieldRow[]): { rows: { team: number; name: string | null; opr: number }[]; season: boolean } {
   const pick = (v: (f: FieldRow) => number | null | undefined) => field
     .map((f) => ({ team: f.team, name: f.name, opr: v(f) }))
     .filter((r): r is { team: number; name: string | null; opr: number } => r.opr != null && Number.isFinite(r.opr))
-    .sort((a, b) => b.opr - a.opr || a.team - b.team).slice(0, 5);
+    .sort((a, b) => b.opr - a.opr || a.team - b.team);
   const event = pick((f) => f.opr.np);
   return event.length ? { rows: event, season: false } : { rows: pick((f) => f.seasonOpr), season: true };
 }
@@ -324,26 +360,35 @@ export function winningAlliance(d: Pick<EventDetail, "awards" | "alliances">): {
 
 export function eventEmbed(d: EventDetail, site: string): APIEmbed {
   const e = d.event;
+  const title = clip(e.name, 256);
+  const description = [dates(e.start, e.end), place(e.city, e.state, e.country), e.code].filter(Boolean).join(" · ");
   const fields: APIEmbedField[] = [
     { name: "Status", value: STATUS[e.status] ?? e.status, inline: true },
     { name: "Matches played", value: e.matchesTotal ? `${e.matchesPlayed} of ${e.matchesTotal}` : "Schedule not posted yet", inline: true },
     { name: "Teams", value: String(d.field.length || e.teams), inline: true },
   ];
+  // A finished event's winning alliance comes after the list but shares the same embed, so it is built first and its
+  // real length comes out of the list's budget.
+  const win = e.status === "finished"
+    ? (() => { const w = winningAlliance(d); return { name: "Winning alliance", value: w ? `${w.alliance ? `Alliance ${w.alliance}: ` : ""}${linkedAlliance(w.teams, site)}` : "Not posted yet (it comes with the awards)" }; })()
+    : null;
   const top = topByOpr(d.field);
   if (top.rows.length) {
-    fields.push({
-      name: top.season ? "Top 5 by season OPR" : "Top 5 by OPR",
-      value: top.rows.map((r, i) => `${i + 1}. [${r.team}](${site}/teams/${r.team}) ${clip(r.name ?? "", 40)} · **${one(r.opr)}**`).join("\n"),
-    });
+    // Every team at the event, by OPR: the list continues in the next field, inside what Discord's 6,000-character
+    // embed has left after its title, description, footer and the fields above and below (a big event says how many
+    // it couldn't hold rather than the card being refused).
+    const head = title.length + description.length + FOOTER.text.length
+      + fields.reduce((n, f) => n + f.name.length + f.value.length, 0)
+      + (win ? win.name.length + win.value.length : 0);
+    fields.push(...packFields(top.season ? "By season OPR" : "By OPR",
+      top.rows.map((r, i) => `${i + 1}. [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${one(r.opr)}**`),
+    EMBED_CHARS_MAX - head));
   }
-  if (e.status === "finished") {
-    const w = winningAlliance(d);
-    fields.push({ name: "Winning alliance", value: w ? `${w.alliance ? `Alliance ${w.alliance}: ` : ""}${linkedAlliance(w.teams, site)}` : "Not posted yet (it comes with the awards)" });
-  }
+  if (win) fields.push(win);
   return {
-    title: clip(e.name, 256),
+    title,
     url: `${site}/events/${e.season}/${encodeURIComponent(e.code)}`,
-    description: [dates(e.start, e.end), place(e.city, e.state, e.country), e.code].filter(Boolean).join(" · "),
+    description,
     color: VOLT,
     fields,
     footer: FOOTER,
@@ -355,11 +400,26 @@ export function eventEmbed(d: EventDetail, site: string): APIEmbed {
 // ---------------------------------------------------------------------------
 
 export function rankingsEmbed(rows: RankingRow[], seasonLabel: string, site: string): APIEmbed {
+  const lines = rows.map((r) => `**${r.rank}.** \`${movement(r.move).padEnd(3)}\` [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${r.rating.toFixed(1)}**`);
   return {
     title: `World rankings · ${seasonLabel}`,
     url: `${site}/rankings`,
-    description: rows.slice(0, 10).map((r) => `**${r.rank}.** \`${movement(r.move).padEnd(3)}\` [${r.team}](${site}/teams/${r.team}) ${clip(r.name ?? "", 40)} · **${r.rating.toFixed(1)}**`).join("\n"),
+    // The whole page, never the first ten: only Discord's own 4,096-character description can end the list.
+    description: descriptionOf(lines),
     color: VOLT,
     footer: { text: `Movement vs last week · rating = points a robot adds per match · ${FOOTER.text}` },
   };
+}
+
+/** `lines` as an embed description, whole lines, inside Discord's own 4,096 characters. */
+function descriptionOf(lines: string[], max = 4096): string {
+  const kept: string[] = [];
+  let size = 0;
+  for (const l of lines) {
+    const add = (kept.length ? 1 : 0) + l.length;
+    if (size + add > max) break;
+    kept.push(l);
+    size += add;
+  }
+  return kept.join("\n");
 }
