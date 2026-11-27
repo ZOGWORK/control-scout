@@ -106,10 +106,9 @@ so and links the event to watch, and a team with nothing scheduled this season g
 the only one /ask reads. The website's `brunoSearch` and `brunoAnswers` only ever affect /search, so Bruno can
 answer in Discord while the website stays search-only.
 
-**Nothing is cut.** The whole answer is posted: the embed carries the headline and every block — every row of every
-list, every card line, every result — up to Discord's own description limit, and whatever is left follows as plain
-text in the channel under it (an answer bigger than one card, below). There is no "more on the website". The embed
-also carries Bruno's sentence quoted, and a link to the same answer on controlscout.org. Questions it
+**Nothing is cut.** The whole answer is posted: every row, every card line and every result it takes to say it, up to
+Discord's own limits (an answer bigger than one card, below). There is no "more on the website". The embed also
+carries Bruno's sentence quoted, and a link to the same answer on controlscout.org. Questions it
 can't answer get "Sorry — I can't answer that yet", what was read, and questions that work as copyable
 buttons instead. An answer Bruno helped with carries **Bruno AI, from Control Point** in the footer above Control
 Scout's line; a deterministic one never does. Bruno off, unconfigured, failing or slow: the deterministic answer
@@ -123,7 +122,7 @@ second report answers with the issue the first one opened. A report is not a cha
 nor the person's pace.
 
 **The answer's buttons** (`bot/buttons.ts`). Every answer with something to offer carries one row of questions and
-one row of links: up to three questions to ask next (search's own suggestions for a question it couldn't answer, else
+one row of links: up to four questions to ask next (search's own suggestions for a question it couldn't answer, else
 the answer's related ones), a link button to the same answer on controlscout.org, and a link button per video. A
 question lives in `discord_button_questions` (migration 110), not in the button's custom id (Discord allows 100
 characters, which is not a question), so a button asks exactly what was offered — after a restart or a deploy too —
