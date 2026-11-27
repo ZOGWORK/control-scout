@@ -202,6 +202,11 @@ const TIMERS = [
   { where: "bottom" as const, clip: { x: 580, y: 647, width: 120, height: 48 }, loose: true },
   // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
   { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
+  // A taller off-season bar ("FIRST IN SHOW", AUMPOS 2023, APOC): its timer large in a white box right of the middle
+  // (x 651–804, y 602–710), a gamepad icon under the digits. Every crop above cut its digits ("1:19" at 10936 s read
+  // nothing on all 58 quals, the match named on each frame). Only the digits' row, as FIRST AGE's (the icon breaks the
+  // read). After the others, so a standard bar is read by its own crop first.
+  { where: "bottom" as const, clip: { x: 655, y: 606, width: 146, height: 64 }, loose: true },
   TOP_BAR_TIMER,
   // FTC Live's audience display streamed whole (USMAWEQ 2025, MA FTC): the timer large in a white card over the middle
   // of the frame under "Field 2", the bar along the bottom naming the match. Last, so no other layout's field or
