@@ -1,8 +1,8 @@
 // The answer's buttons: a question lives in a store, not in the custom id (100 characters is not a question); it
-// outlives the process in the database and expires after 30 days; the components carry a long answer's whole and at
-// most four ask buttons, then the website link, the videos and the report button.
+// outlives the process in the database and expires after 30 days; the components carry at most four ask buttons, then
+// the website link, the videos and the report button.
 import { describe, expect, it } from "vitest";
-import { ASK_PREFIX, FULL_LABEL, FULL_PREFIX, LABEL_MAX, QUESTIONS_MAX, QUESTION_TTL_MS, FullAnswers, QuestionButtons, answerComponents, buttonLabel, buttonQuestion, fullText, textChunks, type ButtonStore } from "./buttons";
+import { ASK_PREFIX, LABEL_MAX, QUESTIONS_MAX, QUESTION_TTL_MS, QuestionButtons, answerComponents, buttonLabel, buttonQuestion, textChunks, type ButtonStore } from "./buttons";
 import type { AskReply } from "./ask";
 
 const reply = (over: Partial<AskReply> = {}): AskReply => ({
@@ -87,33 +87,12 @@ describe("the components", () => {
     expect(await buttonQuestion(b, id, 0)).toBe("4215 awards");
   });
 
-  it("a long answer offers the whole of it first, inside Discord's five to a row", async () => {
+  it("offers at most four questions to ask next, inside Discord's five to a row", async () => {
     const b = new QuestionButtons();
-    const f = new FullAnswers();
-    const rows = await answerComponents(reply({ full: "1. one\n10. ten", next: ["a", "b", "c", "d", "e"] }), b, 0, "g1", f);
-    expect(rows).toHaveLength(3);
-    expect(rows[0].components).toHaveLength(4); // the whole, then three questions: the row's fifth is the reserve
-    expect(rows[0].components[0]).toMatchObject({ type: 2, style: 1, label: FULL_LABEL });
-    const id = (rows[0].components[0] as { custom_id: string }).custom_id;
-    expect(id.startsWith(FULL_PREFIX)).toBe(true);
-    expect(await fullText(f, id, 0)).toBe("1. one\n10. ten");
-    // The question buttons under it still ask their own.
-    expect(await buttonQuestion(b, (rows[0].components[1] as { custom_id: string }).custom_id, 0)).toBe("a");
-    // Without the whole there is no such button: a short answer says nothing it doesn't mean.
-    const short = await answerComponents(reply({ next: ["a"] }), new QuestionButtons(), 0, "g1", new FullAnswers());
-    expect(short[0].components).toHaveLength(1);
-    expect(short[0].components[0]).toMatchObject({ style: 2, label: "a" });
-  });
-
-  it("the whole is kept where the questions are: it outlives a restart, and expires with them", async () => {
-    const store = memoryStore();
-    const id = await new FullAnswers(store).put("**Top OPR**\n1. one", 1_000, "g1");
-    expect(store.rows.get(id)).toEqual({ question: "**Top OPR**\n1. one", at: 1_000, guild: "g1" });
-    // A fresh process has no cache, but the same store: a button under an old answer still opens it.
-    expect(await new FullAnswers(store).get(id, 2_000)).toBe("**Top OPR**\n1. one");
-    expect(await new FullAnswers(store).get(id, 1_000 + QUESTION_TTL_MS + 1)).toBeNull();
-    expect(await fullText(new FullAnswers(), id)).toBeNull();
-    expect(await fullText(new FullAnswers(), "ask:whatever", 0)).toBeNull();
+    const rows = await answerComponents(reply({ next: ["a", "b", "c", "d", "e"] }), b, 0, "g1");
+    expect(rows[0].components).toHaveLength(4);
+    // Each one asks its own question.
+    expect(await buttonQuestion(b, (rows[0].components[0] as { custom_id: string }).custom_id, 0)).toBe("a");
   });
 
   it("splits a long answer into messages Discord takes, on its own lines", () => {
