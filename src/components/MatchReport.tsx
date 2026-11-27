@@ -35,6 +35,7 @@ import { levelPct, rangeCoverageLine } from "../shared/scoreRange";
 import { useRangeCoverage } from "../lib/rangeCoverage";
 import { matchBasis } from "../shared/predictionBasis";
 import { PredictionBasis } from "./PredictionBasis";
+import { fixed } from "../shared/format";
 
 type Side = "red" | "blue";
 const SIDE: Record<Side, { name: string; text: string; card: string; edge: string }> = {
@@ -560,7 +561,7 @@ function OprSplitBar({ opr }: { opr: OprSplit | null }) {
   );
 }
 
-const avg = (x: { avg: number }) => (Number.isInteger(x.avg) ? String(x.avg) : x.avg.toFixed(1));
+const avg = (x: { avg: number }) => (Number.isInteger(x.avg) ? String(x.avg) : fixed(x.avg));
 
 /** The workspace's take on one team: nothing without a workspace (OPR-only), else consensus or a way to start. */
 /** The public reliability estimate (match data only), with what it rests on. */

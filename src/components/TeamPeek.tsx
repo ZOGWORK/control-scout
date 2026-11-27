@@ -12,11 +12,11 @@ import { Badge } from "./ui/basic";
 import { ErrorState } from "./states";
 import { dateRange, oddsPct, seasonLabel } from "../lib/format";
 import { cn } from "./cn";
-import { place } from "../shared/format";
+import { place, fixed } from "../shared/format";
 
 const rankRange = (a: number, b: number) => (Math.round(a) === Math.round(b) ? `#${Math.round(a)}` : `#${Math.round(a)}–${Math.round(b)}`);
 const record = (w: number | null, l: number | null, t: number | null) => (w == null ? "—" : `${w}-${l ?? 0}-${t ?? 0}`);
-const num = (v: number | null | undefined, d = 1) => (v == null ? "—" : v.toFixed(d));
+const num = (v: number | null | undefined, d = 1) => (v == null ? "—" : fixed(v, d));
 
 export function TeamPeek({ team, season, eventName, row, status, settled = false, over = false, open, onOpenChange, onShowOutlook }: {
   team: number | null;
