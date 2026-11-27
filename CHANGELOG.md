@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.2.0 — 2026-11-27
+
+A team's best scores now show the points without penalties next to each match, so the list's order makes sense and Bruno doesn't mix up the two numbers.
+
+### Highlights
+- [fixes] Best-score lists show points without penalties per match
+- [fixes] Bruno knows which score ranks a list and which it shows
+- [fixes] The Discord bot's text and card agree on a team's best score
+
+### Discord bot and Bruno
+- **Points without penalties beside each match** (#2403; `bot/ask.ts` matchRow, `server/api/searchBrunoAnswer.ts` npNote): a team's best scores are ranked by its own points without penalties, but rows showed only the official score, so "306 above 313" looked wrong. When a foul changed a row's score, the row now ends "(296 without penalties)", on the Discord card and in Bruno's facts.
+- **Bruno gets the counting rule** (`statFacts`): a stat answer's facts end with its "How it's counted" line, so Bruno can see what ranks a list and what it shows. On "4215 highest score at worlds" the bot's text said 313 while the card said 306 (the audit's Q55).
+
 ## 8.1.9 — 2026-11-27
 
 Videos is in the phone's tab bar now, where My team was. My team is still one tap away in the menu.
