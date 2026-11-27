@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView, TeamProfile } from "../src/shared/api";
 import {
-  PRIDE, VOLT, dates, embedBlocks, embedReadChars, eventEmbed, movement, preMatchEmbed, predictEmbed, rankingsEmbed, pride, resultEmbed,
+  PRIDE, VOLT, dates, embedBlocks, embedReadChars, eventEmbed, movement, packFields, preMatchEmbed, predictEmbed, rankingsEmbed, pride, resultEmbed,
   startsText, storyLine, teamEmbed, topByOpr, verdict, winningAlliance, type TeamCard,
 } from "./views";
 import fixture from "./fixtures/usnjnem3-2026-11-07.json";
@@ -275,6 +275,7 @@ describe("eventEmbed", () => {
     const size = (e.title?.length ?? 0) + (e.description?.length ?? 0) + (e.footer?.text.length ?? 0)
       + e.fields!.reduce((n, f) => n + f.name.length + f.value.length, 0);
     expect(size).toBeLessThanOrEqual(6000);
+    expect(e.fields!.length).toBeLessThanOrEqual(25);
     for (const f of e.fields!) expect(f.value.length).toBeLessThanOrEqual(1024);
     // Nothing is dropped and nothing is summarised: the card holds what Discord takes, and every other team is its `rest`,
     // in the order it was ranked, continuing the card's own numbering.
@@ -284,6 +285,18 @@ describe("eventEmbed", () => {
     expect(inCard.length + under.length).toBe(600);
     expect(under[0]).toMatch(new RegExp(`^${inCard.length + 1}\\. \\[`));
     expect(under.at(-1)).toContain("[600]");
+  });
+
+  it("a card that already has fields still comes to 25 in all, the rest under the card", () => {
+    // Rows long enough to each need a field of their own, under no character budget: only Discord's 25-field cap
+    // decides. Two fields are the card's own (its status row and the winning alliance added after the list).
+    const rows = Array.from({ length: 30 }, (_, i) => `**${i + 1}.** ${"x".repeat(1000)}`);
+    const { fields, rest } = packFields("By OPR", rows, Infinity, 2);
+    expect(fields).toHaveLength(23);
+    expect(2 + fields.length).toBeLessThanOrEqual(25);
+    expect(fields.flatMap((f) => f.value.split("\n")).length + rest.length).toBe(30);
+    expect(rest.at(-1)).toContain("**30.**");
+    for (const f of fields) expect(f.value.length).toBeLessThanOrEqual(1024);
   });
 
   it("a finished event names its winning alliance", () => {
