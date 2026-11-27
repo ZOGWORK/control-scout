@@ -74,16 +74,18 @@ export async function runCycle(log: Log) {
   // packs:last without the pack files, so also require a readable manifest.
   // CS_PACKS=off: hosts with a throwaway disk (Render free) skip packs; /download says none are built.
   // A new engine version rebuilds them right away: its ratings carry state older packs lack.
+  // Read before the build, and stamped after it: a result that lands while the build runs has to read as new data on the
+  // next cycle (one extra build), not as already packed.
+  const dataAt = await dataVersion();
   const packs = packsDue({
     lastBuiltAt: await kvGet<string>("packs:last"), builtFrom: await kvGet<string>("packs:data"),
-    dataVersion: await dataVersion(), now: Date.now(), eventDay: await eventDayNow(),
+    dataVersion: dataAt, now: Date.now(), eventDay: await eventDayNow(),
     present: packsPresent(), packsEngine: packsEngine(), engine: ENGINE_VERSION,
   });
   if (process.env.CS_PACKS !== "off" && packs.due) {
     try {
       await buildPacks((m) => log(`  ${m}`), { only: packs.scope === "current" ? [CURRENT_SEASON] : null });
-      // Read after the build: data that moved while it ran is new data for the next cycle to pack.
-      await kvSet("packs:data", await dataVersion());
+      await kvSet("packs:data", dataAt);
       await kvSet("packs:last", new Date().toISOString());
     } catch (e) { log(`  packs: ${(e as Error).message}`); } // e.g. a manual build holds the lock
   }
