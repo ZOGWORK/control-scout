@@ -9,7 +9,7 @@ an embed that links back to controlscout.org:
 | `/next team:` | The team's next match: when it starts, its alliance and partner, and the call (win odds, predicted score, confidence). Says plainly when nothing is scheduled yet |
 | `/compare team: other:` | Two teams side by side: records and OPR, and who wins the head-to-head |
 | `/predict event: match:` | The lineup, the favourite's win chance (or "Even call"), the predicted score and its confidence for a qualification match. Once it's played: the score, and the call against it (called, upset, or an even call) |
-| `/event code:` | Dates, place, status, matches played, top 5 by OPR, and the winning alliance once it's over |
+| `/event code:` | Dates, place, status, matches played, every team by OPR, and the winning alliance once it's over |
 | `/rankings` | The world top 10 by rating, with movement since last week |
 | `/follow team: channel:` | Automatic posts in a channel: the evening before each event, the schedule once posted, 15 minutes before each match, each result, and a recap at the end of each day. Manage Server only |
 | `/follow event: channel:` | The same for a whole event instead of a team: the evening before it starts, its schedule once posted (a line per competition day), and a recap at the end of each day. Manage Server only |
@@ -552,7 +552,7 @@ For `tick`, sync the meet first: `npm run sync -- --event 2026:USNJNEM3`.
 ## How the messages read
 
 - **One story, told once, in the description.** Fields only for lists (schedule lines, the eve's teams,
-  the top 5). Every team number in a description or list value is a link to its page (field names can't
+  the event's teams by OPR). Every team number in a description or list value is a link to its page (field names can't
   hold links; the schedule's lines name each team as `10243 Gear Grinders` instead, in a monospace match/time
   column, and a long schedule continues in the next field).
 - **Result:** the score line (winner bold), then the story: `Called it ✅ — Red 68% (predicted 72–58), won by
@@ -567,9 +567,11 @@ For `tick`, sync the meet first: `npm run sync -- --event 2026:USNJNEM3`.
   in plain words once. No win bars.
 - **Footer:** `Control Scout • controlscout.org`, plus the call's kind only when it isn't live: `Replayed call`
   or `From today's ratings`.
-- **Budgets** (tested on the real Q16/Q17): a result is at most 4 blocks (title + description lines + fields)
-  and 600 characters as read; a reminder 3 blocks and 400; a field never past Discord's 1,024 characters
-  (a schedule continues in the next field, at most 15 matches, then `…and N more`).
+- **Budgets: Discord's own, and no others.** A field never past 1,024 characters, an embed 25 fields: a long
+  schedule, an event's teams by OPR or a meet's standings continues in the next field, every match and every team
+  kept (no count of ours, no `…and N more` of ours). A result's shape is one story in the description (4 blocks and
+  600 characters as read on the real Q16/Q17 — its design, not a cut); a reminder 3 and 400. Ranking rows are posted
+  whole, up to Discord's 4,096-character description.
 
 ## On the VM
 

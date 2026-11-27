@@ -246,9 +246,37 @@ describe("eventEmbed", () => {
     opr: { np: opr, auto: null, teleop: null, endgame: null, pen: null }, avgNp: null, rating: null, seasonOpr,
   });
 
-  it("top five by event OPR; before the event, by season OPR (and says so)", () => {
-    expect(topByOpr([row(1, 50), row(2, 70), row(3, null), row(4, 10), row(5, 20), row(6, 30), row(7, 40)]).rows.map((r) => r.team)).toEqual([2, 1, 7, 6, 5]);
+  it("every team by event OPR; before the event, by season OPR (and says so)", () => {
+    expect(topByOpr([row(1, 50), row(2, 70), row(3, null), row(4, 10), row(5, 20), row(6, 30), row(7, 40)]).rows.map((r) => r.team)).toEqual([2, 1, 7, 6, 5, 4]);
     expect(topByOpr([row(1, null, 12), row(2, null, 30)])).toMatchObject({ season: true, rows: [{ team: 2 }, { team: 1 }] });
+  });
+
+  it("the event card lists every team it has an OPR for, not five", () => {
+    const d = {
+      event: { season: 2025, code: "X", name: "Qualifier", status: "live", start: "2026-03-01", end: "2026-03-02", city: null, state: null, country: null, matchesPlayed: 1, matchesTotal: 10, teams: 7 },
+      field: Array.from({ length: 7 }, (_, i) => row(i + 1, 70 - i)),
+      alliances: [], awards: [],
+    } as unknown as EventDetail;
+    const lines = eventEmbed(d, SITE).fields!.find((f) => f.name === "By OPR")!.value.split("\n");
+    expect(lines).toHaveLength(7);
+    expect(lines[6]).toContain("[7]");
+  });
+
+  it("a huge event stays inside Discord's 6,000 characters and says how many it left out", () => {
+    const d = {
+      event: { season: 2025, code: "X", name: "Championship", status: "finished", start: "2026-04-29", end: "2026-05-02", city: "Houston", state: "TX", country: "USA", matchesPlayed: 400, matchesTotal: 400, teams: 600 },
+      field: Array.from({ length: 600 }, (_, i) => row(i + 1, 90 - i / 10)),
+      // A real winner, so the winning-alliance field is the long one (four linked teams), not the "not posted" line.
+      alliances: [{ number: 3, name: null, captain: 1, pick1: 2, pick2: 3, backup: 4 }],
+      awards: [1, 2, 3, 4].map((team) => ({ type: "Winner", placement: 1, team, name: null })),
+    } as unknown as EventDetail;
+    const e = eventEmbed(d, SITE);
+    expect(e.fields!.find((f) => f.name === "Winning alliance")!.value).toContain("Alliance 3:");
+    const size = (e.title?.length ?? 0) + (e.description?.length ?? 0) + (e.footer?.text.length ?? 0)
+      + e.fields!.reduce((n, f) => n + f.name.length + f.value.length, 0);
+    expect(size).toBeLessThanOrEqual(6000);
+    expect(e.fields!.map((f) => f.value).join("\n")).toMatch(/…and \d+ more/);
+    for (const f of e.fields!) expect(f.value.length).toBeLessThanOrEqual(1024);
   });
 
   it("a finished event names its winning alliance", () => {
@@ -278,11 +306,11 @@ describe("winningAlliance", () => {
 });
 
 describe("rankingsEmbed", () => {
-  it("ten rows, linked, with movement and the rating to one place", () => {
+  it("every row of the page, linked, with movement and the rating to one place", () => {
     const rows = Array.from({ length: 12 }, (_, i) => ({ rank: i + 1, team: 100 + i, name: `Team ${i}`, state: null, country: null, rating: 80 - i, move: i === 0 ? 2 : null, dRating: null, trend: null }));
     const e = rankingsEmbed(rows, "2026–27", SITE);
     const lines = e.description!.split("\n");
-    expect(lines).toHaveLength(10);
+    expect(lines).toHaveLength(12);
     expect(lines[0]).toBe(`**1.** \`↑2 \` [100](${SITE}/teams/100) Team 0 · **80.0**`);
     expect(e.url).toBe(`${SITE}/rankings`);
   });

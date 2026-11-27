@@ -140,18 +140,18 @@ describe("an event follow", () => {
     expect(eventDue([{ ...fe("X"), season: 2026 }], d, local("2026-10-24", "10:00")).map((x) => x.kind)).toContain("schedule");
   });
 
-  it("the event's top five at a league meet: the meet's own standing and record, not the league's", () => {
+  it("the event's standings at a league meet: every team, the meet's own standing and record, not the league's", () => {
     const meet = (rank: number, wins: number) => ({ rank, rs: 2, tb: [], wins, losses: 0, ties: 0, played: 1 });
     const d = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7)], { status: "live" },
       [row(1, { rank: 18, wins: 9, losses: 4, ties: 0, meet: meet(2, 1) }), row(2, { rank: 2, wins: 10, losses: 3, ties: 0, meet: meet(1, 1) }), row(3), row(4)]);
-    const top = eventRecapEmbed(d, "2026-10-24", SITE).fields!.find((x) => x.name === "Top 5 now")!.value.split("\n");
+    const top = eventRecapEmbed(d, "2026-10-24", SITE).fields!.find((x) => x.name === "Standings now")!.value.split("\n");
     expect(top[0]).toMatch(/^\*\*1\.\*\* \[2\].*1–0–0$/);
     expect(top[1]).toMatch(/^\*\*2\.\*\* \[1\].*1–0–0$/);
     // The league's 10–3 and 9–4 never appear as the meet's record.
     expect(top.join("\n")).not.toMatch(/10–3|9–4/);
   });
 
-  it("the event's recap: the day's matches, the calls, and the top five as it stands", () => {
+  it("the event's recap: the day's matches, the calls, and the standings as they are", () => {
     const d = detail([
       q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7),
       q(2, local("2026-10-24", "11:00"), [1, 3], [2, 4], [70, 90], 0.6),
@@ -159,7 +159,7 @@ describe("an event follow", () => {
     const e = eventRecapEmbed(d, "2026-10-24", SITE);
     expect(e.title).toBe("Day recap: Austin Qualifier");
     expect(e.fields![0]).toEqual({ name: "Today", value: "2 of 2 matches scored · calls: 1 of 2 right", inline: true });
-    expect(e.fields![1].name).toBe("Top 5 now");
+    expect(e.fields![1].name).toBe("Standings now");
     expect(e.fields![1].value).toMatch(/\*\*1\.\*\* \[2\]\(https:\/\/controlscout\.org\/teams\/2\).*2–0–0/);
     expect(e.fields![1].value).not.toMatch(/\[3\]/); // no rank posted: not ranked by a guess
   });
@@ -204,20 +204,21 @@ describe("the posts", () => {
 });
 
 describe("the redesign's rules for event posts", () => {
-  it("a long schedule with team names continues across fields, none past 1,024 characters, and says how many it left out", () => {
+  it("a long schedule with team names continues across fields, none past 1,024 characters, and keeps every match", () => {
     // A long event: 20 quals for team 1, five-digit partners and opponents with long names on every line.
     const ms = Array.from({ length: 20 }, (_, i) => q(i + 1, local("2026-10-24", `${String(9 + Math.floor(i / 6)).padStart(2, "0")}:${String((i * 10) % 60).padStart(2, "0")}`), [1, 23545 + i], [23314 + i, 18902 + i]));
     const nums = [1, ...ms.flatMap((m) => [...m.red.teams, ...m.blue.teams].map((x) => x.number))];
     const field = [...new Set(nums)].map((n) => row(n, { name: `Robotics Team Number ${n}` }));
     const e = scheduleEmbed({ channel: "c1", teams: [1], kind: "schedule", key: "schedule:1" }, detail(ms, {}, field), SITE);
     expect(e.fields!.length).toBeGreaterThan(1);
-    expect(e.fields![0].name).toBe("1 Robotics Team Num…: 20 qualification matches");
+    expect(e.fields![0].name).toBe("1 Robotics Team Number 1: 20 qualification matches");
     expect(e.fields!.slice(1).every((f) => f.name === "​")).toBe(true);
     for (const f of e.fields!) expect(f.value.length).toBeLessThanOrEqual(FIELD_MAX);
     const all = e.fields!.map((f) => f.value).join("\n");
-    expect(all).toMatch(/with 23545 Robotics Team Num… vs 23314 Robotics Team Num… & 18902 Robotics Team Num…/);
-    expect(all).toMatch(/\n…and 5 more$/);
-    expect(all.split("\n").filter((l) => l.startsWith("`Q")).length).toBe(SCHEDULE_MAX);
+    expect(all).toMatch(/with 23545 Robotics Team Number 23545 vs 23314 Robotics Team Number 23314 & 18902 Robotics Team Number 18902/);
+    // No cap of ours: all twenty, and nothing left out.
+    expect(all).not.toMatch(/…and \d+ more/);
+    expect(all.split("\n").filter((l) => l.startsWith("`Q")).length).toBe(ms.length);
     expect(JSON.stringify(e).length).toBeLessThan(6000);
   });
 
