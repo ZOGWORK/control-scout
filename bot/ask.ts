@@ -422,6 +422,19 @@ const CANT = /\b(?:(?:couldn't|could not|can't|cannot) find|not (?:in|among) the
 /** The searches Bruno asks for in his reply (`LOOKUP: …`), taken from it: the lookup is the bot's to run, never part of
  *  what posts. */
 const LOOKUP = /^[ \t]*lookup\s*:\s*(.+)$/gim;
+/** What a step's lookups say to the chat: the searches that ran (never one the clock stopped before it ran), each
+ *  reported whether it found anything — a search that didn't run must not read as proof the records are missing. */
+export function lookupNoteFor(step: number, runs: { r: string; facts: string[]; ok: boolean }[]): string {
+  const label = runs.map((x) => x.r).join(" · ").slice(0, 120);
+  const failed = runs.filter((x) => !x.ok).map((x) => x.r);
+  if (runs.some((x) => x.facts.length)) {
+    return `Looked up ${label} (step ${step}): the facts below include what that search found.${failed.length ? ` The search for ${failed.join(" · ").slice(0, 80)} failed to run: that is not an empty result.` : ""}`;
+  }
+  return failed.length
+    ? `Looked up ${label} (step ${step}): the search failed to run. That is not an empty result: don't say the records don't exist, say you couldn't check it.`
+    : `Looked up ${label} (step ${step}): the search found nothing. Don't ask for it again; try different words, or say what's missing.`;
+}
+
 /** A reply split into what he said and the searches he asked for: every one of them (no cap), and the text with the
  *  `LOOKUP:` lines taken out. */
 export function lookupAsked(text: string): { text: string; queries: string[] } {
@@ -480,17 +493,9 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
       try { runs.push({ r, facts: await factsFor(r), ok: true }); } catch { runs.push({ r, facts: [], ok: false }); }
     }
     if (!runs.length) break;
-    const failed = runs.filter((x) => !x.ok).map((x) => x.r);
     const found = runs.flatMap((x) => x.facts).filter((f) => f && !packet.includes(f));
-    const label = fresh.join(" · ").slice(0, 120);
-    // What the step found is said either way: an empty search that came back as silence is one he asks for again, and
-    // a search that didn't run must not be reported as proof the records are missing.
-    const note = found.length
-      ? `Looked up ${label} (step ${step}): the facts below include what that search found.${failed.length ? ` The search for ${failed.join(" · ").slice(0, 80)} failed to run: that is not an empty result.` : ""}`
-      : failed.length
-        ? `Looked up ${label} (step ${step}): the search failed to run. That is not an empty result: don't say the records don't exist, say you couldn't check it.`
-        : `Looked up ${label} (step ${step}): the search found nothing. Don't ask for it again; try different words, or say what's missing.`;
-    console.info(`[bot] chat lookup: ${fresh.join(" | ").slice(0, 160)} (${found.length} facts${failed.length ? `, ${failed.length} failed` : ""})`);
+    const note = lookupNoteFor(step, runs);
+    console.info(`[bot] chat lookup: ${runs.map((x) => x.r).join(" | ").slice(0, 160)} (${found.length} facts${runs.some((x) => !x.ok) ? ", some failed" : ""})`);
     packet = fit([note, ...packet, ...found], CHAT_FACTS, CHAT_FACTS_CHARS);
     const next = await talkOnce(packet);
     if (!next) break;
