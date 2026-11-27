@@ -5,13 +5,13 @@ import { request, type Server } from "node:http";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gunzipSync } from "node:zlib";
+import { brotliDecompressSync, gunzipSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "./db";
 import { rebuildSearch } from "./stats/job";
 import { createApp } from "./app";
 import { clearAllCaches } from "./caches";
-import { CACHED_PAGE, drawPage, pageBody, pageKey } from "./pageCache";
+import { CACHED_PAGE, FROZEN_PAGE_TTL_MS, drawPage, pageBody, pageKey, pageTtlMs } from "./pageCache";
 import { keptCounts } from "./api/searchReads";
 
 describe("which pages are kept", () => {
@@ -140,9 +140,27 @@ describe("what a kept page holds", () => {
     expect(Buffer.isBuffer(page.gz)).toBe(true);
     const html = gunzipSync(page.gz).toString();
     expect(html).toContain(`<div id="root">`);
-    const zipped = await pageBody(page, true), plain = await pageBody(page, false);
-    expect(zipped).toEqual({ body: page.gz, gzip: true });
-    expect(plain.gzip).toBe(false);
+    const zipped = await pageBody(page, "gzip"), plain = await pageBody(page, null), brotli = await pageBody(page, "br");
+    expect(zipped).toEqual({ body: page.gz, encoding: "gzip" });
+    expect(plain.encoding).toBe(null);
     expect(plain.body.toString()).toBe(html);
+    expect(brotli.encoding).toBe("br");
+    expect(brotliDecompressSync(brotli.body).toString()).toBe(html);
+    expect(zipped.body.length).toBeLessThan(plain.body.length);
+  });
+});
+
+describe("how long a page is kept", () => {
+  const live = 30_000;
+  it("keeps a frozen season's page longer: nothing in it can change between syncs", () => {
+    expect(pageTtlMs("/events/2021/2021CTMEET", {}, live)).toBe(FROZEN_PAGE_TTL_MS);
+    expect(pageTtlMs("/teams/4215", { season: "2022" }, live)).toBe(FROZEN_PAGE_TTL_MS);
+  });
+  it("keeps a current-season page for the live time", () => {
+    expect(pageTtlMs("/events/2026/BRFOQ", {}, live)).toBe(live);
+    expect(pageTtlMs("/teams/4215", { season: "2025" }, live)).toBe(live);
+    expect(pageTtlMs("/teams/4215", {}, live)).toBe(live);
+    expect(pageTtlMs("/", {}, live)).toBe(live);
+    expect(pageTtlMs("/search", { q: "4215" }, live)).toBe(live);
   });
 });

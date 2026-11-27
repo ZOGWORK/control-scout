@@ -279,6 +279,13 @@ cat > "$SITE_CONF" <<EOF
 # part), in a log of its own beside the usual access.log, which keeps its format for whatever reads it. Rotated
 # with the rest of /var/log/nginx/*.log. A second or slower: grep ' rt=[1-9]' /var/log/nginx/control-scout-timing.log
 log_format cs_timed '\$remote_addr [\$time_local] "\$request" \$status \$body_bytes_sent "\$http_user_agent" rt=\$request_time urt=\$upstream_response_time';
+# One kept-alive connection per nginx worker to the app. proxy_pass alone talks HTTP/1.0 to it with
+# Connection: close, so every proxied request (a page's several API calls included) opened a new loopback
+# connection; an upstream with keepalive and HTTP/1.1 reuses them.
+upstream control_scout {
+  server 127.0.0.1:$APP_PORT;
+  keepalive 32;
+}
 server {
   listen 80;
   server_name $ALL_DOMAINS;
@@ -312,7 +319,9 @@ server {
     proxy_read_timeout 1h;
   }
   location / {
-    proxy_pass http://127.0.0.1:$APP_PORT;
+    proxy_pass http://control_scout;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
     proxy_set_header Host \$host;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto \$scheme;

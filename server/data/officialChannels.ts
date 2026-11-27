@@ -116,4 +116,37 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UCT6yIFUf6Wr_klDFpdmLsGg", title: "Overcharged (Rose City League)", region: "state=OR;name=\\bRose City\\b", words: "oregon" },
   { channelId: "UC2MP84F_QCCnbLqHBFBxxeQ", title: "Leo RHS Robotics (SOAR League)", region: "state=OR;name=\\bSOAR\\b", words: "oregon" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
+  // The channels FIRST's own event pages lead to for regions no watched channel covered (2026-11-27): each one's videos
+  // were found as the livestream of FIRST's event pages (the link itself, or the short link it redirects through), and
+  // ids are from the YouTube Data API. Each holds only its own region's events; the watcher's title rules do the rest.
+  // FIRST in Michigan streams every Michigan event on its numbered AV channels (@fimvideo1 to @fimvideo12; fimav.us/live
+  // links redirect to them), and re-uploads its 2021–2024 Twitch streams on The Orange Alliance (@theorangealliance).
+  // Its main channel (@FIRSTinMichigan) is FRC only. Its numbered channels carry FRC too: FRC titles are set aside.
+  { channelId: "UCGaAkLZcsB5f8VqY5wP7Sqw", title: "FIRST in Michigan 1", region: "state=MI", words: "michigan" },
+  { channelId: "UCZr2X6KmlaHNgeufpopYwAw", title: "FIRST in Michigan 2", region: "state=MI", words: "michigan" },
+  { channelId: "UCkc2ktK7zNYJYz_-InEU3fg", title: "FIRST in Michigan 3", region: "state=MI", words: "michigan" },
+  { channelId: "UCS_w31FWAsFtFkODX138bbA", title: "FIRST in Michigan 4", region: "state=MI", words: "michigan" },
+  { channelId: "UCwI8QJxwz1W8DzmGLMBdooQ", title: "FIRST in Michigan 5", region: "state=MI", words: "michigan" },
+  { channelId: "UCO3zuHQCzGfpBZqgeaJv52g", title: "FIRST in Michigan 6", region: "state=MI", words: "michigan" },
+  { channelId: "UC25Vjn2HeKKJg_n9MOxAdlw", title: "FIRST in Michigan 7", region: "state=MI", words: "michigan" },
+  { channelId: "UCOWM469TaHwAJ1gP_tssWaA", title: "FIRST in Michigan 8", region: "state=MI", words: "michigan" },
+  { channelId: "UCt490I7C8Slly4x1eIgVsJw", title: "FIRST in Michigan 9", region: "state=MI", words: "michigan" },
+  { channelId: "UCovuyCz_bJVhoGDV4AZMzVw", title: "FIRST in Michigan 10", region: "state=MI", words: "michigan" },
+  { channelId: "UCkE7HoGuSXnvtckddKESkWQ", title: "FIRST in Michigan 11", region: "state=MI", words: "michigan" },
+  { channelId: "UCcqmDHOTBOuSAdfP2V9pMcw", title: "FIRST in Michigan 12", region: "state=MI", words: "michigan" },
+  { channelId: "UCktZZel5mlxe94nxEhAkytg", title: "The Orange Alliance (Michigan)", region: "state=MI", words: "michigan" },
+  // Washington's short links (ftcwa.live/<league>) redirect to this channel's broadcast of each league meet ("WA Salk
+  // League Meet 2 - BioBuzz"); each link moves on to the next season's meet, so only the channel keeps last season's.
+  { channelId: "UCyDSbngDnW3ugJfXPXYjA9Q", title: "Jason Cheng (Washington league streams)", region: "state=WA", words: "washington wa biobuzz", titlePattern: "washington (state )?championships?" },
+  { channelId: "UCJ9bEunueYwsxLQDq9UqFVQ", title: "Illinois FTC Streams", region: "state=IL", words: "illinois" },
+  { channelId: "UCyTMmdrAKfJLbTDMmbzm_Mg", title: "FTC Vermillion League (Minnesota)", region: "state=MN", words: "minnesota" },
+  { channelId: "UCj1YSrNIfooAucIOFpciZHQ", title: "Carolina Robotics Boosters", region: "state=NC", words: "carolina" },
+  { channelId: "UCMmmPHs2j9IIQKhAyfkCeSw", title: "KSS Robotics (Northeast Ohio)", region: "state=OH", words: "ohio" },
+  { channelId: "UC1qJHmuAXfEoPkc6j346Q1A", title: "VW Qualifier (Ohio)", region: "state=OH", words: "ohio" },
+  { channelId: "UCmoGHXAZID5sAf0SIWVQ_Mw", title: "MA FTC", region: "state=MA", words: "massachusetts" },
+  { channelId: "UCObwvX6kjppRtlnao0F5IlA", title: "Three Sisters League (Oregon)", region: "state=OR", words: "oregon" },
+  // Kentucky FIRST Robotics: Kentucky's own events and Run for the Robots, its Premier Event, a division at a time.
+  { channelId: "UCeG7fGClF3lO2DOHoxIpJqg", title: "Kentucky FIRST Robotics", region: "state=KY", words: "kentucky" },
+  { channelId: "UC8ccUqFD6wNYYVaFcM5rBXg", title: "UBett Robotics (Iowa)", region: "state=IA", words: "iowa" },
+  { channelId: "UCnSd7SAxUFyL_DcA4PSf5fQ", title: "Orlando Robotics League", region: "state=FL", words: "florida" },
 ];

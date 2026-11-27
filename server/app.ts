@@ -70,7 +70,7 @@ import { rangeCoverageNow, trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
 import { CSP_REPORT_PATH, cspHeaderName, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
-import { CACHED_PAGE, drawPage, pageBody, pageKey } from "./pageCache.js";
+import { CACHED_PAGE, drawPage, pageBody, pageKey, pageTtlMs } from "./pageCache.js";
 import { keptPage, PAGE_TTL_MS } from "./api/searchReads.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { indexNowKeyRoute } from "./indexNow.js";
@@ -1404,7 +1404,9 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // is drawn as it always was and nothing is kept.
       // Per cookie too on a page with a Lite twin, kept or drawn: with Lite on, a page load goes to the twin (server/lite/routes.ts).
       const vary = pageVary(req.path, req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "");
-      const page = req.method === "GET" && CACHED_PAGE.test(req.path) ? await keptPage(pageKey(req.path, query), () => drawPage(file, req.path, query)).catch(() => null) : null;
+      // A frozen season's page (2019–2022) is kept longer: nothing in it can change between syncs.
+      const ttl = pageTtlMs(req.path, query, PAGE_TTL_MS);
+      const page = req.method === "GET" && CACHED_PAGE.test(req.path) ? await keptPage(pageKey(req.path, query), () => drawPage(file, req.path, query), ttl).catch(() => null) : null;
       if (page) {
         // A search is counted on every visit, the kept page's too (server/api/searchIntents.ts: what people ask for).
         void recordIntent(page.intent).catch(() => {});
@@ -1413,11 +1415,13 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
         // The same for everyone (no personal data in these pages): a browser revalidates every time (the ETag makes it
         // a cheap 304), and a shared cache such as Cloudflare's may keep a found page for as long as this server does.
         // Never a search page: each of its visits reaches this server, so it is counted.
-        const shared = /^\/search$/i.test(req.path) ? "" : `, s-maxage=${PAGE_TTL_MS / 1000}`;
+        const shared = /^\/search$/i.test(req.path) ? "" : `, s-maxage=${ttl / 1000}`;
         if (page.status === 200) res.setHeader("Cache-Control", `public, max-age=0, must-revalidate${shared}`);
-        // Only the gzip is kept (server/pageCache.ts): sent as is, or unzipped for a client that takes no gzip.
-        const { body, gzip } = await pageBody(page, !!req.acceptsEncodings("gzip"));
-        if (gzip) res.setHeader("Content-Encoding", "gzip");
+        // Both encodings are kept (server/pageCache.ts): Brotli where it's taken (about a fifth smaller), else the
+        // gzip, else the HTML unzipped from it.
+        const takes = req.acceptsEncodings("br", "gzip");
+        const { body, encoding } = await pageBody(page, takes === "br" ? "br" : takes === "gzip" ? "gzip" : null);
+        if (encoding) res.setHeader("Content-Encoding", encoding);
         res.status(page.status).type("html").send(body);
         return;
       }
