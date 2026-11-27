@@ -144,8 +144,10 @@ export async function teamDossier(team: number, now = Date.now()): Promise<strin
   return out;
 }
 
-/** A number that counts something ("top 5", "100 points", "last 3 matches"), never a team. */
-const COUNT_AFTER = /^\s*(?:%|(?:pts?|points?|matches|games|events?|teams|seasons?|wins?|losses|min(?:ute)?s?|seconds?|secs?|hours?|days?|weeks?|times|percent|place|th|st|nd|rd)\b)/i;
+/** A number that is an amount or a place ("100 points", "50%", "100th"), never a team. A number before a word a team
+ *  has ("4215 wins vs 6980", "4215 matches this season") is still the team: a count of those ("last 3 matches") is too
+ *  short to be read as one, and "top 50 teams" is caught by the word before it. */
+const COUNT_AFTER = /^(?:\s*(?:%|(?:pts?|points?|percent|min(?:ute)?s?|seconds?|secs?|hours?)\b)|(?:th|st|nd|rd)\b)/i;
 const COUNT_BEFORE = /\b(?:top|best|worst|last|bottom|at\s+least|more\s+than|less\s+than|ranked)\s*$/i;
 
 /**
