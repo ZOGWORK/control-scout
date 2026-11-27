@@ -7,6 +7,7 @@ import { cleanup, render, within, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import type { AccountUser } from "./personal";
 import { yoursRow, yoursRowActive } from "./yoursRow";
+import { TAB_KEY } from "./tabBar";
 
 const h = vi.hoisted(() => ({ user: null as AccountUser | null }));
 vi.mock("./personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}, state: { myTeam: null, settings: { theme: "dark" } }, update: () => true, syncReady: false }) }));
@@ -74,6 +75,8 @@ describe("in the app shell", () => {
   const shell = (url = "/") => render(<MemoryRouter initialEntries={[url]}><Shell><Routes><Route path="*" element={<Where />} /></Routes></Shell></MemoryRouter>);
   const sidebar = () => within(screen.getAllByRole("navigation", { name: "Main" })[0]);
   const tabs = () => within(screen.getAllByRole("navigation", { name: "Main" })[1]);
+  // My team left the default tab bar for Videos (8.1.9); a bar that has it back must link it the same way.
+  beforeEach(() => { localStorage.setItem(TAB_KEY, JSON.stringify(["home", "events", "predict", "myTeam", "scout"])); });
 
   it("signed out: My team links to the followed-team page, in the sidebar and the tab bar", () => {
     shell();
