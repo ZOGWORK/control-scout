@@ -2,6 +2,7 @@
 // (pages/WatchPage.tsx: the video big, more to watch beside it), which reports the watch (lib/useWatchReports.ts). A
 // video that can't play on other sites opens on YouTube (lib/streamSeek.ts playInDialog). "Not interested" takes it
 // out of the feed.
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { EyeOff, Play, Radio } from "lucide-react";
 import { playInDialog, YOUTUBE_ONLY_NOTE } from "../lib/streamSeek";
@@ -37,6 +38,16 @@ export interface WatchState { item: FeedItem; filter?: string }
 
 export function FeedCard({ item, signedIn, filter, onHide }: { item: FeedItem; signedIn: boolean; filter?: string; onHide: (key: string) => void }) {
   const kind = watchKindOf(item);
+  // "Not interested": the card fades and settles back for 150 ms, then leaves the list (at once with reduced motion).
+  const [leaving, setLeaving] = useState(false);
+  const hide = () => {
+    if (leaving) return;
+    void reportWatch({ key: item.key, kind, watchedS: 0, hidden: true }, signedIn);
+    const still = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (still) { onHide(item.key); return; }
+    setLeaving(true);
+    window.setTimeout(() => onHide(item.key), 150);
+  };
   const when = shortDate(item.published);
   const meta = [item.event?.name ?? item.channel ?? null, when].filter(Boolean).join(" · ");
   const length = item.end != null && item.end > item.t ? item.end - item.t : item.end == null ? item.duration ?? null : null;
@@ -53,7 +64,7 @@ export function FeedCard({ item, signedIn, filter, onHide }: { item: FeedItem; s
   );
   const box = "group/play relative block aspect-video w-full overflow-hidden rounded-xl bg-black outline-none transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.985] motion-reduce:transition-none motion-reduce:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
   return (
-    <article className="group/card flex min-w-0 flex-col" data-feed-card={item.key}>
+    <article className={cn("group/card flex min-w-0 flex-col transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none", leaving && "pointer-events-none scale-[0.97] opacity-0")} data-feed-card={item.key} data-leaving={leaving || undefined}>
       {item.youtubeOnly ? (
         <button type="button" className={cn(box, "cursor-pointer")} aria-label={`Play ${item.title} (${YOUTUBE_ONLY_NOTE.toLowerCase()})`}
           onClick={() => { playInDialog({ videoId: item.videoId, t: item.t, end: item.end, label: item.title, youtubeOnly: true }); void reportWatch({ key: item.key, kind, watchedS: 5 }, signedIn); }}>
@@ -70,8 +81,8 @@ export function FeedCard({ item, signedIn, filter, onHide }: { item: FeedItem; s
           : <p className="line-clamp-2 text-[0.9375rem] font-semibold leading-5 text-text-base">{item.title}</p>}
         <div className="mt-auto flex items-center gap-2">
           {meta && (item.event ? <Link to={item.event.href} className="min-w-0 flex-1 truncate text-xs text-text-muted hover:text-text-base">{meta}</Link> : <p className="min-w-0 flex-1 truncate text-xs text-text-muted">{meta}</p>)}
-          <button type="button" onClick={() => { void reportWatch({ key: item.key, kind, watchedS: 0, hidden: true }, signedIn); onHide(item.key); }}
-            className="-mr-1 ml-auto inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-faint hover:bg-ink/[0.06] hover:text-text-base" aria-label={`Not interested in ${item.title}`} title="Not interested">
+          <button type="button" onClick={hide}
+            className="-mr-1 ml-auto inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-faint transition-[color,background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink/[0.06] hover:text-text-base active:scale-[0.92] motion-reduce:transition-none motion-reduce:active:scale-100" aria-label={`Not interested in ${item.title}`} title="Not interested">
             <EyeOff className="size-4" aria-hidden />
           </button>
         </div>
