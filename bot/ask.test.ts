@@ -1,7 +1,7 @@
 // /ask: the website's search answer as one embed, Bruno only where the site would use him, credited only then.
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
-import { BRUNO_CREDIT, CHAT_TIMEOUT_MS, DESCRIPTION_MAX, affirmative, answerPost, ask, askEmbed, askNext, chatContext, chatPost, declined, fitLines, lookupNoteFor, offeredQuestion, videoLinks, type AskDeps } from "./ask";
+import { BRUNO_CREDIT, CHAT_TIMEOUT_MS, DESCRIPTION_MAX, affirmative, answerPost, ask, askEmbed, askNext, blockLines, chatContext, chatPost, declined, fitLines, lookupNoteFor, offeredQuestion, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 import { SORRY_SENTENCE } from "../src/shared/search";
 import { NO_CHAT, NO_REPLY } from "./smallTalk";
@@ -919,5 +919,18 @@ describe("a chat first", () => {
     expect(r.chat?.by).toBeUndefined();
     expect(d.refine).not.toHaveBeenCalled();
     expect(d.bruno).not.toHaveBeenCalled();
+  });
+});
+
+describe("a best-scores list on the card (the audit's Q55)", () => {
+  // Ranked by points without penalties: Q136's 296 above Q9's 283, though Q9's official 313 is the higher. With the
+  // official scores alone the card read 306 above 313, and the chat beside it called the lower one the highest.
+  const row = (label: string, own: number, ownNp: number | null) => ({ label, href: `/m/${label}`, event: { label: "Worlds · Edison Division", href: "/events/2023/FTCCMP1EDIS" }, season: "2023–24", date: "Apr 19, 2024", alliance: "red" as const, own, opp: 200, ownNp, result: "W" as const });
+  it("shows a row's points without penalties beside its official score when fouls changed it", () => {
+    const lines = blockLines({ kind: "matches", title: "Best scores by points without penalties", rows: [row("Q136", 306, 296), row("Q9", 313, 283), row("Q34", 261, 261), row("Q2", 250, null)] } as never, "https://x.test");
+    expect(lines[1]).toBe("[Q136](https://x.test/m/Q136) **306**–200 W (296 without penalties) · [Worlds · Edison Division](https://x.test/events/2023/FTCCMP1EDIS) (2023–24)");
+    expect(lines[2]).toContain("**313**–200 W (283 without penalties) · ");
+    expect(lines[3]).toContain("**261**–200 W · ");
+    expect(lines[4]).toContain("**250**–200 W · ");
   });
 });
