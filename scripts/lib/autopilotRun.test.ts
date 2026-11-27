@@ -341,6 +341,21 @@ describe("nothingRead", () => {
     expect(nothingRead({ starts: {}, missing: { Q1: P, Q2: N } })).toBe(true);
     expect(nothingRead({ starts: {}, missing: { Q1: P, Q2: "its frames didn't confirm a start" } })).toBe(false);
   });
+  it("is also a read whose own edges show matches yet placed at most one of five or more (2025 FRCMP on a lane)", () => {
+    const R = "no frame read of it, and no agreeing reads on both sides";
+    const miss = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`Q${i + 1}`, R]));
+    const opensOn = { at: 2390, label: "Q1", clear: true }, endsOn = { at: 27986, label: "M10", clear: true, fromEnd: 890 };
+    expect(nothingRead({ starts: {}, missing: miss(55), opensOn, endsOn })).toBe(true);
+    // One start of 29, ends on FTC Live's "24 of 24 played" (2024 NLTHQ).
+    expect(nothingRead({ starts: { Q18: 8625 }, missing: miss(28), endsOn: { at: 19613, played: 24, of: 24, fromEnd: 3 } })).toBe(true);
+    // Two placed (a start and a review entry): a read, kept.
+    expect(nothingRead({ starts: { Q2: 900 }, review: { Q3: { t: 1300, why: "x" } }, missing: miss(20), opensOn })).toBe(false);
+    // Edges that show no match (blank, "0 played"): what the video shows, kept as read.
+    expect(nothingRead({ starts: {}, missing: miss(20), opensOn: { at: 3, played: 0, of: 40 }, endsOn: { at: 900, clear: true } })).toBe(false);
+    expect(nothingRead({ starts: {}, missing: miss(20) })).toBe(false);
+    // Fewer than five missing: too few to tell a failed read from a short one.
+    expect(nothingRead({ starts: {}, missing: miss(4), opensOn })).toBe(false);
+  });
   it("makes its event a failed read: not shipped, not counted as tried", () => {
     expect(readOutcome({ rows: 0, opened: 0, waiting: 0, tooBig: 0, readFailed: true, changed: 1 })).toBe("read failed");
   });

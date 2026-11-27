@@ -14,7 +14,7 @@
 import { all, busyTurn } from "../db.js";
 import { WHY, videoCheck } from "./coverage.js";
 import { frameRow } from "../data/frameTimings.js";
-import { SAME_S, secondLookDue } from "../data/frameRowRules.js";
+import { SAME_S, nothingRead, secondLookDue } from "../data/frameRowRules.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import type { CoverageFrames, CoverageMatch, CoverageReason, FrameQueueSummary } from "../../src/shared/api.js";
@@ -57,6 +57,13 @@ const lacksEdges = (m: CoverageMatch, code: string) => {
   return !!row && Object.keys(row.starts).length > 0 && (!row.opensOn || !row.endsOn);
 };
 
+/** Whether a match's video row is a failed read that went live before the server refused such rows (nothingRead: its
+ *  edges show matches, yet it placed none): no read of the video at all, so its matches are still to read. */
+const failedRead = (m: CoverageMatch, code: string) => {
+  const row = m.videoId ? frameRow(m.videoId, code) : null;
+  return !!row && nothingRead(row);
+};
+
 /** Whether a match's video row holds its review entry due the second look (secondLookDue), not rejected by the owner. */
 const recheckDue = (m: CoverageMatch, code: string, rejected?: Rejected) => {
   const row = m.videoId ? frameRow(m.videoId, code) : null;
@@ -70,7 +77,7 @@ function matchState(m: CoverageMatch, checked: string | null, last: string | nul
   const between = reason === "between-recordings" && !!m.video;
   if (!between && (!m.videoId || UNREADABLE.has(reason))) return "unreadable";
   if (reason === FACTS_PENDING) return "facts";
-  if (!checked) return "unread";
+  if (!checked || failedRead(m, code)) return "unread";
   // Read on or before the UTC day the event's last day ends on: matches played after that read may not be in it. The
   // queue only reads after that day (frameStatus), so a read it makes settles: never read twice for this.
   // No last day known: the event may still be on, so no read of it is taken as after it.

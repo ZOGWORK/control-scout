@@ -419,12 +419,12 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
   // An event another PR took up while this one was read waits for it: no read handed over to race it.
   const other = othersHold();
   // Each read keeps the starts the owner approved on the live row (carryApproved: the server does the same).
-  const { carryApproved } = await import("../server/data/frameRowRules.js");
+  const { carryApproved, sawButPlacedNone } = await import("../server/data/frameRowRules.js");
   for (const r of read.changed.map((x) => carryApproved(x, live.get(rowKey(x))))) {
     const held = other.get(`${season}/${r.code}`);
-    // The player showed nothing, or the video couldn't be played (nothingRead): a failed read, never a row that marks
-    // every match read. The server refuses it too.
-    if (nothingRead(r)) { blind.push(r); log(`  ${r.code} ${r.videoId}: left out, no frame of the video could be read (the player showed nothing, or the video couldn't be played): a failed read, the event read again later`); continue; }
+    // The player showed nothing, the video couldn't be played, or its edges showed matches and none was placed
+    // (nothingRead): a failed read, never a row that marks every match read. The server refuses it too.
+    if (nothingRead(r)) { blind.push(r); log(`  ${r.code} ${r.videoId}: left out, ${sawButPlacedNone(r) ? "its first or last frames show matches, yet the read placed none" : "no frame of the video could be read (the player showed nothing, or the video couldn't be played)"}: a failed read, the event read again later`); continue; }
     if (held != null) { heldOther.push(r); log(`  ${r.code} ${r.videoId}: waits, #${held} (another open PR) carries ${r.code}`); continue; }
     const problems = rowProblems(r, live.get(rowKey(r)), order.get(r.code));
     send.push(r);
