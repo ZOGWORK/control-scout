@@ -224,6 +224,26 @@ export function callLine(p: MatchView["prediction"]): string {
 const unix = (iso: string) => Math.floor(Date.parse(iso) / 1000);
 const matchTitle = (m: MatchView, eventName: string) => clip(`${m.label} · ${eventName}`, 256);
 
+/** Discord's own caps: 1,024 characters to a field, 25 fields to an embed. */
+const FIELD_MAX = 1024;
+const FIELDS_MAX = 25;
+
+/**
+ * Rows as field values Discord takes: whole rows, 1,024 characters to a field, the list continuing in a blank-named
+ * field so it reads as one. A list longer than one field is posted whole, never cut to the first few rows.
+ */
+function packFields(name: string, rows: string[]): APIEmbedField[] {
+  const out: APIEmbedField[] = [];
+  let cur = "";
+  for (const r of rows) {
+    const row = r.length > FIELD_MAX ? `${r.slice(0, FIELD_MAX - 1)}…` : r;
+    if (cur && cur.length + 1 + row.length > FIELD_MAX) { out.push({ name: out.length ? "\u200b" : name, value: cur }); cur = row; }
+    else cur = cur ? `${cur}\n${row}` : row;
+  }
+  if (cur) out.push({ name: out.length ? "\u200b" : name, value: cur });
+  return out.slice(0, FIELDS_MAX);
+}
+
 export interface ResultOptions {
   /** The followed team's next unplayed match at the event (named when the post is about more than one team).
    *  No next match, no line: never invented. */
@@ -300,12 +320,12 @@ export function embedReadChars(e: APIEmbed): number {
 
 const STATUS: Record<string, string> = { upcoming: "Upcoming", live: "🔴 Live", finished: "Finished" };
 
-/** The top five by OPR at the event; before it has any, by the season OPR the teams bring to it. */
+/** The event's teams by OPR, every one of them; before it has any, by the season OPR the teams bring to it. */
 export function topByOpr(field: FieldRow[]): { rows: { team: number; name: string | null; opr: number }[]; season: boolean } {
   const pick = (v: (f: FieldRow) => number | null | undefined) => field
     .map((f) => ({ team: f.team, name: f.name, opr: v(f) }))
     .filter((r): r is { team: number; name: string | null; opr: number } => r.opr != null && Number.isFinite(r.opr))
-    .sort((a, b) => b.opr - a.opr || a.team - b.team).slice(0, 5);
+    .sort((a, b) => b.opr - a.opr || a.team - b.team);
   const event = pick((f) => f.opr.np);
   return event.length ? { rows: event, season: false } : { rows: pick((f) => f.seasonOpr), season: true };
 }
@@ -331,10 +351,9 @@ export function eventEmbed(d: EventDetail, site: string): APIEmbed {
   ];
   const top = topByOpr(d.field);
   if (top.rows.length) {
-    fields.push({
-      name: top.season ? "Top 5 by season OPR" : "Top 5 by OPR",
-      value: top.rows.map((r, i) => `${i + 1}. [${r.team}](${site}/teams/${r.team}) ${clip(r.name ?? "", 40)} · **${one(r.opr)}**`).join("\n"),
-    });
+    // Every team at the event, by OPR, whole: a list longer than Discord's 1,024-to-a-field continues in the next field.
+    fields.push(...packFields(top.season ? "By season OPR" : "By OPR",
+      top.rows.map((r, i) => `${i + 1}. [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${one(r.opr)}**`)));
   }
   if (e.status === "finished") {
     const w = winningAlliance(d);
@@ -355,11 +374,26 @@ export function eventEmbed(d: EventDetail, site: string): APIEmbed {
 // ---------------------------------------------------------------------------
 
 export function rankingsEmbed(rows: RankingRow[], seasonLabel: string, site: string): APIEmbed {
+  const lines = rows.map((r) => `**${r.rank}.** \`${movement(r.move).padEnd(3)}\` [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${r.rating.toFixed(1)}**`);
   return {
     title: `World rankings · ${seasonLabel}`,
     url: `${site}/rankings`,
-    description: rows.slice(0, 10).map((r) => `**${r.rank}.** \`${movement(r.move).padEnd(3)}\` [${r.team}](${site}/teams/${r.team}) ${clip(r.name ?? "", 40)} · **${r.rating.toFixed(1)}**`).join("\n"),
+    // The whole page, never the first ten: only Discord's own 4,096-character description can end the list.
+    description: descriptionOf(lines),
     color: VOLT,
     footer: { text: `Movement vs last week · rating = points a robot adds per match · ${FOOTER.text}` },
   };
+}
+
+/** `lines` as an embed description, whole lines, inside Discord's own 4,096 characters. */
+function descriptionOf(lines: string[], max = 4096): string {
+  const kept: string[] = [];
+  let size = 0;
+  for (const l of lines) {
+    const add = (kept.length ? 1 : 0) + l.length;
+    if (size + add > max) break;
+    kept.push(l);
+    size += add;
+  }
+  return kept.join("\n");
 }
