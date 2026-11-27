@@ -699,7 +699,10 @@ function lineOf(l: SearchCardLine, site: string): string {
 
 function matchRow(r: StatMatchRow, site: string): string {
   const score = r.result === "W" ? `**${r.own}**–${r.opp}` : r.result === "L" ? `${r.own}–**${r.opp}**` : `${r.own}–${r.opp}`;
-  return `${r.rank ? `${r.rank}. ` : ""}${link(r.label, r.href, site)} ${score} ${r.result} · ${statLink(r.event, site)} (${r.season})${r.unofficial ? ` · *${md(r.unofficial)}*` : ""}`;
+  // Its own points without penalties too, when fouls changed its score (the site's match box shows them first): a list
+  // ranked by them read out of order with the official scores alone, 306 above 313 (the audit's Q55).
+  const np = r.ownNp != null && r.ownNp !== r.own ? ` (${r.ownNp} without penalties)` : "";
+  return `${r.rank ? `${r.rank}. ` : ""}${link(r.label, r.href, site)} ${score} ${r.result}${np} · ${statLink(r.event, site)} (${r.season})${r.unofficial ? ` · *${md(r.unofficial)}*` : ""}`;
 }
 
 /** One stat block as lines: every row of its lists, and every link it carries. */
