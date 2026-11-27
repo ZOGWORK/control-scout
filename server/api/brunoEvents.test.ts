@@ -51,9 +51,9 @@ describe("which events a message names", () => {
     }
   });
 
-  it("keeps Worlds out of 'NJ States teams never at Worlds', and reads 'Worlds 2025' by the year it was played", async () => {
+  it("keeps Worlds out of 'NJ States teams never at Worlds', and reads 'Worlds <year>' by the year it was played (years from the season, so the test outlives it)", async () => {
     expect((await namedEvents("which teams at nj states have never been to worlds", NOW)).map(key)).toEqual([`${LAST}:USNJCMP`, `${NOW_S}:USNJCMP`]);
-    expect((await namedEvents("how many teams in new jersey: worlds 2025 against worlds 2026", NOW)).map(key).sort()).toEqual([`${BEFORE}:FTCCMP1`, `${LAST}:FTCCMP1`].sort());
+    expect((await namedEvents(`how many teams in new jersey: worlds ${NOW_S - 1} against worlds ${NOW_S}`, NOW)).map(key).sort()).toEqual([`${BEFORE}:FTCCMP1`, `${LAST}:FTCCMP1`].sort());
     expect((await namedEvents("how did hypno do at worlds", NOW)).map(key)).toEqual([`${LAST}:FTCCMP1`]);
   });
 
@@ -83,7 +83,7 @@ describe("an event's block", () => {
   });
 
   it("counts Worlds' teams by US state or country, first", async () => {
-    const [w] = (await namedEvents("worlds 2025", NOW)).filter((e) => e.season === BEFORE);
+    const [w] = (await namedEvents(`worlds ${NOW_S - 1}`, NOW)).filter((e) => e.season === BEFORE);
     const d = await eventDossier(w);
     expect(d[1]).toContain("by home: US state, or country outside the USA: New Jersey 2; Romania 1.");
   });
