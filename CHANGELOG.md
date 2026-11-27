@@ -27,6 +27,19 @@ Ask the Discord bot about a team "at worlds" and its answer is now drawn from th
 ### Discord bot and Bruno
 - **A named team's Worlds** (#2404; `server/api/brunoEvents.ts` worlds): "worlds" without a year used to attach the latest Worlds' 300-team block, even for a team that only played an earlier one ("4215 highest score at worlds"). Now the bot attaches the Worlds the named teams played, at most two with the latest first, or the latest Worlds when none of them went. A year said beside "worlds" still decides.
 
+## 8.2.0 — 2026-11-27
+
+A team's best scores now show the points without penalties next to each match, so the list's order makes sense and Bruno doesn't mix up the two numbers.
+
+### Highlights
+- [fixes] Best-score lists show points without penalties per match
+- [fixes] Bruno knows which score ranks a list and which it shows
+- [fixes] The Discord bot's text and card agree on a team's best score
+
+### Discord bot and Bruno
+- **Points without penalties beside each match** (#2403; `bot/ask.ts` matchRow, `server/api/searchBrunoAnswer.ts` npNote): a team's best scores are ranked by its own points without penalties, but rows showed only the official score, so "306 above 313" looked wrong. When a foul changed a row's score, the row now ends "(296 without penalties)", on the Discord card and in Bruno's facts.
+- **Bruno gets the counting rule** (`statFacts`): a stat answer's facts end with its "How it's counted" line, so Bruno can see what ranks a list and what it shows. On "4215 highest score at worlds" the bot's text said 313 while the card said 306 (the audit's Q55).
+
 ## 8.1.9 — 2026-11-27
 
 Videos is in the phone's tab bar now, where My team was. My team is still one tap away in the menu.

@@ -477,6 +477,33 @@ describe("a leaderboard in Bruno's facts", () => {
   });
 });
 
+describe("a best-scores list in Bruno's facts (the audit's Q55)", () => {
+  // 4215 at Worlds 2023–24: Q136 306 official (296 without penalties) ranks above Q9 313 official (283 without).
+  const row = (label: string, own: number, ownNp: number | null, opp: number) => ({ label, href: `/m/${label}`, event: { label: "Worlds · Edison Division" }, season: "2023–24", date: "Apr 19, 2024", alliance: "red", own, opp, ownNp, result: "W" });
+  const stat = {
+    family: "superlative", intent: "highest-score", title: "Highest score at Worlds", scope: [], team: { number: 4215, name: "Hypnotic Robotics" },
+    headline: { value: "306 points", label: "Q136 at Worlds · Edison Division (official score, penalties included)", sub: "2023–24 · 296 without penalties" },
+    blocks: [{ kind: "matches", title: "Best scores by points without penalties", rows: [row("Q136", 306, 296, 251), row("Q9", 313, 283, 189), row("Q34", 261, 261, 112), row("Q2", 200, null, 150)] }],
+    definition: "The highest score is picked by the alliance's own points, without penalties, and shown at the official score.",
+    source: "From 12 match records at 1 event, 2023–24",
+  };
+
+  it("says each row's points without penalties when fouls changed them, so the ranking reads in order", () => {
+    const f = statFacts(stat as never);
+    expect(f).toContain("- Q136: 306-251 won (296 without penalties), Worlds · Edison Division (2023–24)");
+    expect(f).toContain("- Q9: 313-189 won (283 without penalties), Worlds · Edison Division (2023–24)");
+    // No fouls (or none on record): the official score is the whole story.
+    expect(f).toContain("- Q34: 261-112 won, Worlds · Edison Division (2023–24)");
+    expect(f).toContain("- Q2: 200-150 won, Worlds · Edison Division (2023–24)");
+  });
+
+  it("ends with the rule the numbers follow, after the source", () => {
+    const f = statFacts(stat as never);
+    expect(f.slice(-2)).toEqual(["Source: From 12 match records at 1 event, 2023–24", `How it's counted: ${stat.definition}`]);
+    expect(statFacts({ ...stat, definition: "" } as never).at(-1)).toBe("Source: From 12 match records at 1 event, 2023–24");
+  });
+});
+
 describe("a forecast in Bruno's facts", () => {
   it("is never 0% or 100% unless decided, as the page shows it", () => {
     const f = (p: number, decided?: boolean) => statFacts({ family: "x", intent: "x", title: "Advance", scope: [], blocks: [{ kind: "chance", label: "Advances", p, who: "4215", decided }] } as never)[1];
