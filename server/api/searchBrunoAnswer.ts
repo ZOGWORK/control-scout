@@ -24,6 +24,8 @@ import { mineAnswer } from "./searchMine.js";
 import { pickedQuery, pickedSeasonOf } from "./searchPageAnswer.js";
 import { MINE } from "../../src/shared/searchMine.js";
 import { searchVersion } from "./searchReads.js";
+// The site's own rounding (half up), so a number here reads as it does on every card: 0.15 is 0.2, never 0.1.
+import { opr } from "./brunoDossier.js";
 
 export const BRUNO_ANSWER_TIMEOUT_MS = 12_000;
 /** At most this many facts, and this much text in all: a small, fast prompt. */
@@ -150,7 +152,7 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
     const s = await get<{ season: number; opr_np: number | null; rank_np: number | null; ranked_teams: number | null; wins: number | null; losses: number | null; ties: number | null }>(
       "SELECT season, opr_np, rank_np, ranked_teams, wins, losses, ties FROM team_season_stats WHERE team = ? ORDER BY season DESC LIMIT 1", [team]);
     if (s) {
-      const bits = [s.wins != null && s.losses != null ? `record ${s.wins}-${s.losses}-${s.ties ?? 0}` : "", s.opr_np != null ? `OPR ${s.opr_np.toFixed(1)}` : "", s.rank_np != null && s.ranked_teams ? `OPR rank ${s.rank_np} of ${s.ranked_teams}` : ""].filter(Boolean);
+      const bits = [s.wins != null && s.losses != null ? `record ${s.wins}-${s.losses}-${s.ties ?? 0}` : "", s.opr_np != null ? `OPR ${opr(s.opr_np)}` : "", s.rank_np != null && s.ranked_teams ? `OPR rank ${s.rank_np} of ${s.ranked_teams}` : ""].filter(Boolean);
       if (bits.length) facts.push(`Team ${team} in ${seasonLabel(s.season)}: ${bits.join(", ")}.`);
     }
     // The team's own meets, newest first, each with its phase OPRs (team_event_stats): "what did they get in auto OPR at
@@ -163,7 +165,7 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
         ORDER BY COALESCE(e.start, '') DESC, s.season DESC LIMIT 3`, [team]);
     for (const m of meets) {
       const said = ([["Auto OPR", m.opr_auto], ["TeleOp OPR", m.opr_teleop], ["Endgame OPR", m.opr_endgame], ["OPR", m.opr_np]] as const)
-        .filter(([, v]) => v != null).map(([label, v]) => `${label} ${(v as number).toFixed(1)}`);
+        .filter(([, v]) => v != null).map(([label, v]) => `${label} ${opr(v as number)}`);
       if (said.length) facts.push(`Team ${team} at ${m.name ?? m.code} (${seasonLabel(m.season)}${m.start ? `, ${m.start.slice(0, 10)}` : ""}): ${said.join(", ")}.`);
     }
   }
