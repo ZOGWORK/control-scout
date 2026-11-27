@@ -54,6 +54,26 @@ export interface BuiltFile {
 }
 export interface Manifest { format: number; version: string; builtAt: string; engineVersion: string; dataAsOf: string | null; lite: BuiltFile | null; full: BuiltFile[] }
 
+/** A release's place in time: its day, then its number that day ("2026-11-27-10" is after "2026-11-27-9"). */
+const releaseOrder = (v: string): [string, number] => {
+  const at = v.lastIndexOf("-");
+  return [v.slice(0, at), Number(v.slice(at + 1))];
+};
+
+/**
+ * The releases (file-name form, "2026-11-27-10") to delete: all but the newest `keep`, never the one just published.
+ * Ordered by day, then by the day's number: sorted as text, the 10th build of a day ("…-10") came before the 9th,
+ * so it was pruned the moment it was published and every pack URL its manifest named answered 404 (2026-11-27).
+ */
+export function prunedReleases(versions: readonly string[], keep: number, published: string): string[] {
+  const current = published.replace(/\./g, "-");
+  const newestFirst = [...versions].sort((a, b) => {
+    const [da, na] = releaseOrder(a), [db, nb] = releaseOrder(b);
+    return da === db ? nb - na : da < db ? 1 : -1;
+  });
+  return newestFirst.slice(keep).filter((v) => v !== current);
+}
+
 async function nextVersion(dir: string): Promise<string> {
   const day = new Date().toISOString().slice(0, 10);
   const prev = existsSync(join(dir, "latest.json")) ? (JSON.parse(readFileSync(join(dir, "latest.json"), "utf8")) as Manifest).version : "";
@@ -409,8 +429,8 @@ async function buildPacksUnlocked(log: (m: string) => void, o: { lockHeld?: bool
   renameSync(join(dir, "latest.json.tmp"), join(dir, "latest.json"));
   // Keep the newest KEEP_VERSIONS releases.
   for (const f of readdirSync(dir)) if (f.endsWith(".tmp")) { try { rmSync(join(dir, f)); } catch { /* in use */ } }
-  const versions = [...new Set(readdirSync(dir).map((f) => /^scout-pack-(\d{4}-\d{2}-\d{2}-\d+)-/.exec(f)?.[1]).filter(Boolean) as string[])].sort().reverse();
-  for (const old of versions.slice(KEEP_VERSIONS)) for (const f of readdirSync(dir)) if (f.startsWith(`scout-pack-${old}-`)) rmSync(join(dir, f));
+  const versions = [...new Set(readdirSync(dir).map((f) => /^scout-pack-(\d{4}-\d{2}-\d{2}-\d+)-/.exec(f)?.[1]).filter(Boolean) as string[])];
+  for (const old of prunedReleases(versions, KEEP_VERSIONS, version)) for (const f of readdirSync(dir)) if (f.startsWith(`scout-pack-${old}-`)) rmSync(join(dir, f));
   log(`manifest ${version}: lite ${(lite.bytes / 1e6).toFixed(2)} MB, ${full.length} full packs (${(full.reduce((s, f) => s + f.bytes, 0) / 1e6).toFixed(1)} MB)`);
   return manifest;
 }
