@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.2.4 — 2026-11-27
+
+Simulate the rankings answers right after a sync instead of waiting for the ratings to rebuild.
+
+### Highlights
+- [speed] Simulate the rankings no longer waits for a ratings rebuild
+- [rankings] The simulation uses the same ratings the event page shows
+- [fixes] A simulation is kept per ratings build, so a new build re-runs it
+
+### Speed
+- **Simulated rankings read the last finished ratings build** (`server/projections/rankingSim.ts`): the Rankings tab's Simulate the rankings called `forecasterFor`, the build for the newest data version. After a sync moved that version, the first click waited for the whole window to be replayed into new ratings before its 2.5 s simulation budget even started. On an event day the version moves up to four times an hour. It now reads `liveForecaster`, like every other page: the last finished build at once, with the new one building in the background. The kept answer is keyed by the build it used (`liveVersion`), read together with it so a build that lands while the click waits its turn can't mislabel it. This was finding F3 in `docs/engine/research-2026-11/precompute-check.md`. `server/projections/rankingSim.ratings.test.ts` fails on the old code: the click waited on a rebuild that never finished.
+
 ## 8.2.3 — 2026-11-27
 
 A first visit pays for the page it opened, not for every page the app has.

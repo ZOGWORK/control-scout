@@ -8,7 +8,7 @@ Ratings come from `server/predict/engine.ts`. `ScoutForecaster.rebuild` replays 
 
 OPR is solved by least squares (`solveOpr`, `solveLeastSquares`) only in background jobs: the stats job, the live lane's per-event refresh and records (`server/stats/job.ts`, `server/data/live.ts`, `server/stats/records.ts`). Those jobs write `team_event_stats`, `team_season_stats` and the records tables, which requests read.
 
-A rebuild can be **started** by a page request when the data version has moved. For pages using `liveForecaster` it runs off the response path: the request is answered from the previous build. The one request path that uses `forecasterFor` instead, and so waits for the rebuild, is the simulated rankings (F3).
+A rebuild can be **started** by a page request when the data version has moved. For pages using `liveForecaster` it runs off the response path: the request is answered from the previous build. The simulated rankings used `forecasterFor` instead, and so waited for the rebuild (F3); they now use `liveForecaster` like every other page.
 
 ## Endpoints
 
@@ -48,7 +48,7 @@ What is left: the **first** ask for a given start day after each data version st
 
 `finalView` in `server/api/disagreements.ts` calls `replayTo` (the season up to the event's last match) when its kv entry is missing or stale. The result is persisted with a fingerprint of everything the replay reads, so each finished event replays once per change to its inputs, not per visit. A data change before the event, such as a corrected earlier result, invalidates every later event's entry. Moving it fully off the request path would mean computing these in the stats job, which already runs weekly replays (`server/stats/rankings.ts`). Listed, not changed here.
 
-**F3: simulated rankings wait for a rebuild after a sync.**
+**F3: simulated rankings wait for a rebuild after a sync (fixed).** `simulatedRankings` now reads `liveForecaster`, keyed by the build it used (`liveVersion`, read together with it); `server/projections/rankingSim.ratings.test.ts` checks it never waits on a rebuild and is kept per build. What follows is the finding as written.
 
 `simulatedRankings` (`server/projections/rankingSim.ts`) calls `forecasterFor(season)`, the build for the current data version, instead of `liveForecaster`. After a sync moves the version, the first click waits for the full window replay before its 2.5 s simulation budget starts. The wait is one rebuild per version, shared by every caller and also started by the background refresh, and the click is only offered before an event's quals start. Even so, it is a request waiting on rating computation. The likely fix is `liveForecaster` (key the kept answer by `liveVersion` alone), with a test. Listed, not changed here.
 
