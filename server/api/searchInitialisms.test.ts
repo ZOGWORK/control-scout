@@ -21,6 +21,9 @@ beforeAll(async () => {
   await run("INSERT INTO teams (number, name, city, state, country) VALUES (9999, 'BOB', 'Laurel', 'MD', 'USA')");
   // A team whose name starts like the initialism (live: "CRI matches" opened Critical Mass's matches).
   await run("INSERT INTO teams (number, name, city, state, country) VALUES (207, 'Critical Mass', 'Englewood', 'NJ', 'USA')");
+  // A team whose name's first word is an initialism (live: "kas laputa's highest score" read KAS as the KZ Astana
+  // Scrimmage and answered for that event).
+  await run("INSERT INTO teams (number, name, city, state, country) VALUES (19908, 'MTI Laputa', 'Taipei', NULL, 'Chinese Taipei')");
   // One event code, renamed between seasons (both are "MTI"); another event sharing the initialism, an older one.
   // [season, code, name, teams, held (month-day of the year after the season starts)]
   const events: [number, string, string, number[], string?][] = [
@@ -48,6 +51,15 @@ beforeAll(async () => {
 });
 
 describe("an event by its initialism", () => {
+  it("a word of a team's name typed in full is the team's, never an event's initialism", async () => {
+    for (const q of ["mti laputa highest score", "show me mti laputa's highest score", "highest score mti laputa"]) {
+      const a = await ask(q);
+      expect(a.understood?.label, q).toContain("MTI Laputa (19908)");
+      expect(JSON.stringify(a), q).not.toContain("Tech Invitational");
+    }
+    // The initialism alone is still the event.
+    expect((await ask("mti highlights")).stat?.title).toMatch(/^Highlights at Multinational Tech Invitational, /);
+  });
   it("is made from its name's significant words, and from a short form it states", () => {
     expect(eventInitialisms("Multinational Tech Invitational")).toEqual(["mti"]);
     expect(eventInitialisms("Festival of the Robots")).toEqual(["fr"]);
