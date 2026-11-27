@@ -6,6 +6,7 @@ import { clearAllCaches } from "../server/caches";
 import { CURRENT_SEASON as S } from "../server/data/seasons";
 import { eventChoices, eventLookup, nextLookup, predictLookup, rankChoices, rankTeamChoices, rankingsLookup, site, teamLookup } from "./lookups";
 import { Friendly } from "./views";
+import { embedProblems } from "./limits";
 
 const NOW = Date.parse("2026-10-20T15:00:00Z");
 
@@ -122,6 +123,15 @@ describe("rankingsLookup", () => {
     const e = await friendly(rankingsLookup(NOW));
     expect(e.title).toBe("Rankings haven't started");
     expect(e.detail).toMatch(/start once teams have played 3 matches; the next events start Oct 25\.$/);
+  });
+});
+
+describe("Discord's limits", () => {
+  it("every card these commands build is one Discord takes", async () => {
+    // The real cards, from the same lookups the commands call: a change that pushes one past a limit fails here rather
+    // than posting a card Discord refuses.
+    const cards = [await teamLookup(18360, Date.parse("2026-10-18T09:00:00Z")), await eventLookup("USTXAUQ"), await predictLookup("USTXAUQ", 3)];
+    for (const c of cards) expect(embedProblems(c)).toEqual([]);
   });
 });
 
