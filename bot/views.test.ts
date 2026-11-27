@@ -262,7 +262,7 @@ describe("eventEmbed", () => {
     expect(lines[6]).toContain("[7]");
   });
 
-  it("a huge event stays inside Discord's 6,000 characters and says how many it left out", () => {
+  it("a huge event stays inside Discord's 6,000 characters and posts the rest of its teams under the card", () => {
     const d = {
       event: { season: 2025, code: "X", name: "Championship", status: "finished", start: "2026-04-29", end: "2026-05-02", city: "Houston", state: "TX", country: "USA", matchesPlayed: 400, matchesTotal: 400, teams: 600 },
       field: Array.from({ length: 600 }, (_, i) => row(i + 1, 90 - i / 10)),
@@ -275,8 +275,15 @@ describe("eventEmbed", () => {
     const size = (e.title?.length ?? 0) + (e.description?.length ?? 0) + (e.footer?.text.length ?? 0)
       + e.fields!.reduce((n, f) => n + f.name.length + f.value.length, 0);
     expect(size).toBeLessThanOrEqual(6000);
-    expect(e.fields!.map((f) => f.value).join("\n")).toMatch(/…and \d+ more/);
     for (const f of e.fields!) expect(f.value.length).toBeLessThanOrEqual(1024);
+    // Nothing is dropped and nothing is summarised: the card holds what Discord takes, and every other team is its `rest`,
+    // in the order it was ranked, continuing the card's own numbering.
+    expect(e.fields!.map((f) => f.value).join("\n")).not.toMatch(/…and \d+ more/);
+    const inCard = e.fields!.filter((f) => f.name === "By OPR" || f.name === "\u200b").flatMap((f) => f.value.split("\n"));
+    const under = e.rest!.split("\n");
+    expect(inCard.length + under.length).toBe(600);
+    expect(under[0]).toMatch(new RegExp(`^${inCard.length + 1}\\. \\[`));
+    expect(under.at(-1)).toContain("[600]");
   });
 
   it("a finished event names its winning alliance", () => {
@@ -313,5 +320,17 @@ describe("rankingsEmbed", () => {
     expect(lines).toHaveLength(12);
     expect(lines[0]).toBe(`**1.** \`↑2 \` [100](${SITE}/teams/100) Team 0 · **80.0**`);
     expect(e.url).toBe(`${SITE}/rankings`);
+    expect(e.rest).toBeUndefined();
+  });
+
+  it("a page past Discord's 4,096-character description posts the rest under the card", () => {
+    const rows = Array.from({ length: 120 }, (_, i) => ({ rank: i + 1, team: 100 + i, name: `Team ${i}`, state: null, country: null, rating: 80 - i / 10, move: null, dRating: null, trend: null }));
+    const e = rankingsEmbed(rows, "2026–27", SITE);
+    expect(e.description!.length).toBeLessThanOrEqual(4096);
+    const inCard = e.description!.split("\n");
+    const under = e.rest!.split("\n");
+    expect(inCard.length + under.length).toBe(120);
+    expect(under[0]).toMatch(new RegExp(`^\\*\\*${inCard.length + 1}\\.\\*\\*`));
+    expect(under.at(-1)).toContain("[219]");
   });
 });

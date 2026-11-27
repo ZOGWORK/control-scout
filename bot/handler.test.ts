@@ -163,6 +163,19 @@ describe("commands", () => {
     expect(second.calls[1].payload.embeds[0].title).toBe("USTXAUQ");
   });
 
+  it("a card bigger than one embed posts what didn't fit under it, in the channel", async () => {
+    const rest = "51. [51](https://controlscout.org/teams/51) T51 · **1.0**\n600. [600](https://controlscout.org/teams/600) T600 · **0.1**";
+    const l = lookups({ event: vi.fn(async () => ({ title: "Championship", rest })) });
+    const h = createHandler(() => {}, l);
+    const { i, calls } = command("event", { code: "FTCCMP1" });
+    await h(i);
+    expect(calls.map((c) => c.kind)).toEqual(["defer", "edit", "followUp"]);
+    // The embed itself carries no `rest` (Discord would refuse the key), and the follow-up is public, like the card.
+    expect(calls[1].payload.embeds[0].rest).toBeUndefined();
+    expect(calls[2].payload).toMatchObject({ content: rest });
+    expect(calls[2].payload.flags).toBeUndefined();
+  });
+
   it("Discord failing (an expired interaction) is logged, never thrown", async () => {
     const log = vi.fn();
     const h = createHandler(log, lookups());
