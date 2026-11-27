@@ -25,14 +25,26 @@ function serviceWorker(): Plugin {
       // The web-vitals chunk runs only for visitors who allowed usage statistics (src/lib/vitals.ts): fetched (and
       // then cached) when it's first used, never downloaded up front for everyone.
       const optional = Object.values(bundle).filter((b) => b.type === "chunk" && b.name === "web-vitals").map((b) => `/${b.fileName}`);
-      // What the app opens with, not every page it has: the entry's chunks (and the chunks they import statically),
-      // plus the CSS. A page's own chunk is a dynamic entry (EventPage, SearchPage, ScoutPage, OwnerPage, What's
-      // new's CHANGELOG…): the worker saves those as each page is first fetched (sw.template.js), so a first visit
-      // no longer downloads all 161 chunks (~5.5 MB, most of them never opened). The atlas's topology JSON and the
-      // SQLite wasm are assets, not chunks: neither is precached here.
-      const shell = Object.values(bundle)
-        .filter((b) => (b.type === "chunk" ? !b.isDynamicEntry : b.fileName.endsWith(".css")))
-        .map((b) => `/${b.fileName}`);
+      // What the app opens with, not every page it has: the chunks the entry imports statically, then the CSS those
+      // chunks need. Every other chunk belongs to a page loaded on demand (EventPage, SearchPage, ScoutPage,
+      // OwnerPage, What's new's CHANGELOG…), and the worker saves each as that page is first fetched
+      // (sw.template.js): a first visit no longer downloads all 161 chunks (~5.5 MB, most never opened). Shared
+      // chunks two lazy pages import are left out too, which a "not a dynamic entry" test would keep. The atlas's
+      // topology JSON and the SQLite wasm are assets, not chunks: neither is precached here.
+      const chunks = Object.values(bundle).filter((b) => b.type === "chunk");
+      const byName = new Map(chunks.map((c) => [c.fileName, c]));
+      const opening = new Set<string>();
+      const queue = chunks.filter((c) => c.isEntry);
+      for (let c = queue.pop(); c; c = queue.pop()) {
+        if (opening.has(c.fileName)) continue;
+        opening.add(c.fileName);
+        for (const i of c.imports) { const next = byName.get(i); if (next) queue.push(next); }
+      }
+      const entryCss = new Set(chunks.filter((c) => opening.has(c.fileName)).flatMap((c) => [...(c.viteMetadata?.importedCss ?? [])]));
+      const shell = [
+        ...[...opening].map((f) => `/${f}`),
+        ...Object.values(bundle).filter((b) => b.type === "asset" && entryCss.has(b.fileName)).map((b) => `/${b.fileName}`),
+      ];
       const built = shell.filter((f) => !offline.includes(f) && !optional.includes(f));
       // The brand images the shell shows (sidebar logo, the bare mark on the 404 page, home wordmark, favicon): offline too,
       // the new look's and the classic look's (public/legacy/) alike.
