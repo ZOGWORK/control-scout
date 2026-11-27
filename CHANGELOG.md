@@ -25,7 +25,7 @@ Videos is in the phone's tab bar now, where My team was. My team is still one ta
 - [appearance] A tab bar you set up yourself stays as you left it
 
 ### Phone tab bar
-- **Videos takes My team's slot by default** (#PR; `src/lib/tabBar.ts` DEFAULT_TABS, `server/bootShell.ts` first paint): Home, Events, Predict, Videos, Scout. A device on the default stores nothing, so it moves to the new bar; one that picked its own tabs keeps them. My team stays in the menu and can be put back in Settings › Appearance.
+- **Videos takes My team's slot by default** (#2400; `src/lib/tabBar.ts` DEFAULT_TABS, `server/bootShell.ts` first paint): Home, Events, Predict, Videos, Scout. A device on the default stores nothing, so it moves to the new bar; one that picked its own tabs keeps them. My team stays in the menu and can be put back in Settings › Appearance.
 
 ## 8.1.8 — 2026-11-27
 
