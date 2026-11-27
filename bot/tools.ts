@@ -7,14 +7,6 @@
 // search can't answer adds nothing.
 import type { SearchAnswer } from "../src/shared/api.js";
 
-/** The parts of one message read at most: the first asks, the rest are its follow-ups ("and their auto opr"). */
-export const MAX_PARTS = 3;
-/** How many of the parts' fact lines a chat gets, and how much text: the message's own facts come first and its packet
- *  holds 40 lines (bot/ask.ts's CHAT_FACTS), so the parts must not crowd it out. Wide enough that each part's share
- *  takes its answer's own rows, after the lines every answer starts with (its title, its heading). */
-export const LOOKUP_LINES = 18;
-export const LOOKUP_CHARS = 2400;
-
 /** Words that say nothing about the question ("what is like the best team rn" is "what is the best team"). Short on
  *  purpose: a word dropped here is one search no longer reads. */
 const FILLER = /\b(?:like|rn|right\s+now|please|pls|plz|bro|tho|though|btw|tbh|actually|anyway)\b/gi;
@@ -35,13 +27,13 @@ export function plainAsk(q: string): string {
   return q.replace(FILLER, " ").replace(/\s+/g, " ").replace(/^[\s,;:?.!-]+|[\s,;:?.!-]+$/g, "");
 }
 
-/** The parts of a message that each ask something, in order, at most MAX_PARTS. A message that asks one thing is one
- *  part, whole: parts are only split where another question starts. */
+/** The parts of a message that each ask something, in order: every one of them, however many the message asks. A
+ *  message that asks one thing is one part, whole: parts are only split where another question starts. */
 export function splitAsk(q: string): string[] {
   const text = plainAsk(q);
   if (!text) return [];
   const parts = text.split(SPLIT).map(plainAsk).filter((p) => /\w/.test(p));
-  return parts.length > 1 ? parts.slice(0, MAX_PARTS) : [text];
+  return parts.length > 1 ? parts : [text];
 }
 
 /** A part that names nothing by itself: every word is its frame ("who is by", "where from"). A number is a name, so
@@ -124,10 +116,11 @@ export interface Lookup {
 }
 
 /**
- * The facts of a message's parts, each part searched on its own: the parts in the order asked, no line twice, and at
- * most LOOKUP_LINES lines and LOOKUP_CHARS characters. A part search can't answer contributes nothing. Parts that name
- * what they ask about are searched together; a follow-up waits for the earlier part's answer and asks its question
- * with that subject in it (resolveAsk).
+ * The facts of a message's parts, each part searched on its own: the parts in the order asked, no line twice, and every
+ *  line every part found — no cap here. What the chat can hold is Control Point's own packet cap, applied once in
+ *  bot/ask.ts (CHAT_FACTS), so the parts are never cut before it. A part search can't answer contributes nothing. Parts
+ *  that name what they ask about are searched together; a follow-up waits for the earlier part's answer and asks its
+ *  question with that subject in it (resolveAsk).
  */
 export async function lookupFacts(parts: string[], deps: {
   search: (q: string) => Promise<SearchAnswer | null>;
@@ -135,11 +128,12 @@ export async function lookupFacts(parts: string[], deps: {
 }): Promise<Lookup> {
   if (parts.length < 2) return { facts: [], parts: [] };
   const answers: (SearchAnswer | null)[] = new Array(parts.length).fill(null);
-  await Promise.all(parts.map(async (p, i) => {
-    // A follow-up can't be searched until the part it leans on has answered: it's read below, in order.
-    if (i > 0 && needsSubject(p)) return;
-    answers[i] = await deps.search(p).catch(() => null);
-  }));
+  // One part at a time: every part is searched, however many there are, and a message can't put dozens of searches on
+  // the database at once. (A follow-up waits for the part it leans on anyway; it's read separately, below.)
+  for (let i = 0; i < parts.length; i++) {
+    if (i > 0 && needsSubject(parts[i])) continue;
+    answers[i] = await deps.search(parts[i]).catch(() => null);
+  }
   for (let i = 1; i < parts.length; i++) {
     if (!needsSubject(parts[i])) continue;
     answers[i] = await deps.search(resolveAsk(parts, i, answers)).catch(() => null);
@@ -147,24 +141,15 @@ export async function lookupFacts(parts: string[], deps: {
   const lines = await Promise.all(answers.map((a) => (a ? deps.facts(a).catch(() => [] as string[]) : [])));
   const out: string[] = [];
   const seen = new Set<string>();
-  let size = 0;
-  const take = (ls: string[], room: number) => {
-    for (const f of ls) {
-      if (room <= 0) return;
-      if (!f || seen.has(f)) continue;
-      // Bounded: a broad part's answer is 40 lines of its own, and the message's facts come first in the packet.
-      if (out.length >= LOOKUP_LINES || size + f.length + 1 > LOOKUP_CHARS) return;
-      seen.add(f);
-      out.push(f);
-      size += f.length + 1;
-      room--;
-    }
-  };
-  // Each part keeps a share first, so a board of 25 rows can't fill the packet before the follow-up's one line; what's
-  // left is filled in the order asked.
-  const share = Math.max(1, Math.ceil(LOOKUP_LINES / lines.length));
-  for (const ls of lines) take(ls, share);
-  for (const ls of lines) take(ls, Number.POSITIVE_INFINITY);
+  // Every part's own facts, uncut (the packet's cap is applied once, on the chat), taken a line at a time from each
+  // part in turn: each part's first line comes before any part's second, so a packet that has to trim still hears from
+  // every part rather than only the first.
+  for (let i = 0; i < Math.max(0, ...lines.map((ls) => ls.length)); i++) for (const ls of lines) {
+    const f = ls[i];
+    if (!f || seen.has(f)) continue;
+    seen.add(f);
+    out.push(f);
+  }
   // The part whose answer has something to show: a card or a stat first, then results that aren't search's sorry.
   const shown = answers.find((a): a is SearchAnswer => !!a && !!(a.card || a.stat))
     ?? answers.find((a): a is SearchAnswer => !!a && !a.sorry && !(a.step === "recovery" && !a.card && !a.stat) && !!a.hits.length);
