@@ -26,7 +26,7 @@ Videos open on a page of their own, with more to watch beside them, and a team's
 - [teams] The team page fits a phone with a double-digit record
 
 ### Videos
-- **A watch page** (`/watch/<video>`, `src/pages/WatchPage.tsx`): the video plays big (youtube-nocookie), with its title, channel, date, the teams in it and its description, and Up next beside it (under it on a phone). For a creator video Up next is the rest of its series, newest first, loaded a page at a time as you scroll until there are no more (`GET /api/videos/up-next/:videoId`, `server/api/upNext.ts`, keyset by publish time); for a match clip it's your own Videos feed. The watch is still reported at 5 s, half way and the end, so the feed keeps learning (`src/lib/useWatchReports.ts`).
+- **A watch page** (#2368; `/watch/<video>`, `src/pages/WatchPage.tsx`): the video plays big (youtube-nocookie), with its title, channel, date, the teams in it and its description, and Up next beside it (under it on a phone). For a creator video Up next is the rest of its series, newest first, loaded a page at a time as you scroll until there are no more (`GET /api/videos/up-next/:videoId`, `server/api/upNext.ts`, keyset by publish time); for a match clip it's your own Videos feed. The watch is still reported at 5 s, half way and the end, so the feed keeps learning (`src/lib/useWatchReports.ts`).
 - **Feed cards open the watch page** instead of playing inside the card, and the feed has more room: wider gaps, roomier cards, the play mark only on hover. A video that only plays on YouTube still opens there.
 - **No red or orange in the videos**: reason chips, the Live mark and the play mark use blues, violets and greens; Behind the Bot uses the app's accent.
 
