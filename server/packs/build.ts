@@ -367,10 +367,20 @@ export function carriedSeason(dir: string, version: string, f: BuiltFile): Built
   return { ...f, name, url: `/packs/${name}`, gz };
 }
 
-/** A hard link, else a copy: a filesystem without links still gets its pack. */
+/** A hard link, else a copy: a filesystem without links still gets its pack. Made under a temporary name and renamed
+ *  into place, as buildFull does: a link or copy that dies part-way (a full disk) leaves nothing a later build, reusing
+ *  this version's name, could publish as the manifest's file with the old hash. */
 function linkOrCopy(from: string, to: string) {
   if (existsSync(to)) return;
-  try { linkSync(from, to); } catch { copyFileSync(from, to); }
+  const part = `${to}.${process.pid}.part`;
+  rmSync(part, { force: true });
+  try {
+    try { linkSync(from, part); } catch { copyFileSync(from, part); }
+    renameSync(part, to);
+  } catch (e) {
+    try { rmSync(part, { force: true }); } catch { /* Windows may hold it for a moment; the next build replaces it */ }
+    throw e;
+  }
 }
 
 async function buildPacksUnlocked(log: (m: string) => void, o: { lockHeld?: boolean; only?: readonly number[] | null }): Promise<Manifest> {
