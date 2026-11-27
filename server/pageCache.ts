@@ -13,17 +13,36 @@
 // largest thing the web process kept alive (about 260 MB of the heap, measured on the VM 2026-11-22 on a copy of its
 // data under its own traffic and a live result a minute). The gzip is about a sixth of the page and is what nearly
 // every visitor is sent (Cloudflare asks for it); the rare client that takes no gzip gets it unzipped on the way out.
-import { gunzip, gzip } from "node:zlib";
+import { brotliCompress, brotliDecompress, constants as zlibConstants, gunzip, gzip } from "node:zlib";
 import { promisify } from "node:util";
 import { renderPage } from "./seo.js";
 import { buildCsp, inlineScriptHashes } from "./securityHeaders.js";
+import { isLegacy } from "./data/seasons.js";
 import type { SearchIntentNote } from "../src/shared/api.js";
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
+const brotliAsync = promisify(brotliCompress);
+const unbrotliAsync = promisify(brotliDecompress);
+/** Brotli's quality for a page: 5 is close to gzip's time for text this size and about a fifth smaller. */
+const BROTLI_OPTIONS = { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } };
 
 /** Addresses whose drawn page is kept: team pages, event pages, search results and home (query included in the key). */
 export const CACHED_PAGE = /^\/(?:teams\/\d+|events\/\d+\/[^/]+|search)?$/i;
+
+/** A frozen season (2019–2022: held for history only) cannot change between syncs, so its pages are kept longer
+ *  than a live one's: the same bytes are drawn twice as often as they need to be otherwise (0.4–1 s of this
+ *  process's one thread each time, server/api/searchReads.ts). */
+export const FROZEN_PAGE_TTL_MS = 5 * 60_000;
+
+/** How long the page at `path` is kept: a frozen season's for `FROZEN_PAGE_TTL_MS`, anything else's for `liveMs`
+ *  (a live event's page must never lag its API by more than that). */
+export function pageTtlMs(path: string, query: Record<string, unknown>, liveMs: number): number {
+  const event = /^\/events\/(\d{4})\//i.exec(path);
+  if (event) return isLegacy(Number(event[1])) ? FROZEN_PAGE_TTL_MS : liveMs;
+  const team = /^\/teams\/\d+$/i.test(path) ? Number(query.season) : NaN;
+  return Number.isInteger(team) && isLegacy(team) ? FROZEN_PAGE_TTL_MS : liveMs;
+}
 
 export interface KeptPage {
   status: 200 | 404;
@@ -31,6 +50,8 @@ export interface KeptPage {
   csp: string;
   /** The HTML gzipped (compression's default level): all that's kept of it. pageBody gives a visitor what it takes. */
   gz: Buffer;
+  /** The same HTML as Brotli (quality 5): about a fifth smaller, sent to the visitors and caches that take it. */
+  br: Buffer;
   /** A search page's intent, counted by the route on every visit to the kept page (server/seoMeta.ts PageMeta.intent). */
   intent?: SearchIntentNote;
 }
@@ -51,11 +72,15 @@ export function pageKey(path: string, query: Record<string, unknown>): string {
 export async function drawPage(file: string, path: string, query: Record<string, unknown>): Promise<KeptPage> {
   const page = await renderPage(file, path, query);
   const csp = buildCsp(inlineScriptHashes(page.html));
-  const gz = await gzipAsync(page.html);
-  return { status: page.status, csp, gz, ...(page.intent ? { intent: page.intent } : {}) };
+  const [gz, br] = await Promise.all([gzipAsync(page.html), brotliAsync(page.html, BROTLI_OPTIONS)]);
+  return { status: page.status, csp, gz, br, ...(page.intent ? { intent: page.intent } : {}) };
 }
 
-/** A kept page's body for a visitor: the gzip as kept when it takes gzip, else the HTML unzipped from it. */
-export async function pageBody(page: KeptPage, takesGzip: boolean): Promise<{ body: Buffer; gzip: boolean }> {
-  return takesGzip ? { body: page.gz, gzip: true } : { body: await gunzipAsync(page.gz), gzip: false };
+/** A kept page's body for a visitor: Brotli when it takes Brotli, else the gzip when it takes gzip, else the HTML
+ *  unzipped from the gzip. A client that takes neither gets plain HTML (compression leaves it alone: it's already
+ *  encoded or unencoded, never re-encoded). */
+export async function pageBody(page: KeptPage, encoding: "br" | "gzip" | null): Promise<{ body: Buffer; encoding: "br" | "gzip" | null }> {
+  if (encoding === "br") return { body: page.br, encoding };
+  if (encoding === "gzip") return { body: page.gz, encoding };
+  return { body: await gunzipAsync(page.gz), encoding: null };
 }
