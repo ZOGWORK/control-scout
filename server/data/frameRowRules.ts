@@ -38,6 +38,13 @@ export const leadText = (lead: number): string => (lead >= 0 ? `${lead} s before
 export const NOTHING_READ = "no frame of the video could be read";
 /** The start of the reason a match is missing when its video couldn't be played at all (scripts/video-frames.ts). */
 export const PLAY_FAILED = "the video couldn't be played";
+/** The start of the reason a match is missing when YouTube's embedded player refuses its video for good (a content
+ *  owner blocks it on other sites, embedding is off, it's age-restricted: scripts/lib/videoFrames.ts embedRefusal). Not
+ *  PLAY_FAILED: no later read plays it either, so the row settles the video (read, never queued again) and the owner
+ *  sees why (USIABALLT 2024's FEoSIhRlU3g, blocked by a content claim, was read and refused on every run). */
+export const EMBED_REFUSED = "the video won't play outside YouTube";
+/** Whether a row says its video's embedded player refuses it (EMBED_REFUSED) for this match. */
+export const embedRefused = (r: Pick<FrameTiming, "missing"> | null | undefined, label: string): boolean => !!r?.missing?.[label]?.startsWith(EMBED_REFUSED);
 
 /** The review reason that pulls a live clip: a frame at its opening names another match. */
 const PULLED = /^its clip's first frame shows (.+), not (.+)$/;
