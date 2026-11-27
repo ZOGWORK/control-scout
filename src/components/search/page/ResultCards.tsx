@@ -16,6 +16,7 @@ import { V8_SOFT, V8_STATUS } from "./v8tone";
 import { RecordText, better } from "./answerCells";
 import { compareSides, compareTeams, eventFacts, teamParts } from "./results";
 import { eventName } from "./records";
+import { fixed } from "../../../shared/format";
 
 /** "View event →": where the card goes, as part of the card's own link. */
 function Cta({ children }: { children: string }) {
@@ -100,7 +101,7 @@ export function TeamBadges({ summary, className }: { summary: SeasonSummary | un
   const { s, season } = summary;
   const badges: { label: string; value: string }[] = [];
   if (s.record) badges.push({ label: seasonLabel(season), value: s.record });
-  if (s.opr != null) badges.push({ label: "OPR", value: s.opr.toFixed(1) });
+  if (s.opr != null) badges.push({ label: "OPR", value: fixed(s.opr) });
   if (s.oprRank != null && s.of) badges.push({ label: "OPR rank", value: `#${nf.format(s.oprRank)} of ${nf.format(s.of)}` });
   else if (s.lastEvent) badges.push({ label: "Last event", value: s.lastEvent.name });
   if (!badges.length) return null;
@@ -195,9 +196,9 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
   const sides = nums.map((n) => ({ n, s: (useNow ? now : before)?.find((x) => x.team === n) ?? now?.find((x) => x.team === n) }));
   const rows: [string, (s: TeamSummary) => string | null][] = [
     ["Record", (s) => s.record],
-    ["OPR", (s) => (s.opr != null ? s.opr.toFixed(1) : null)],
+    ["OPR", (s) => (s.opr != null ? fixed(s.opr) : null)],
     ["OPR rank", (s) => (s.oprRank != null && s.of ? `#${nf.format(s.oprRank)} of ${nf.format(s.of)}` : null)],
-    ["Prediction rating", (s) => (s.rating != null ? `${s.rating.toFixed(1)}${s.ratingSd != null ? ` ±${s.ratingSd.toFixed(1)}` : ""}` : null)],
+    ["Prediction rating", (s) => (s.rating != null ? `${fixed(s.rating)}${s.ratingSd != null ? ` ±${s.ratingSd.toFixed(1)}` : ""}` : null)],
   ];
   const shown = rows.filter(([, f]) => sides.some(({ s }) => s && f(s) != null));
   return (

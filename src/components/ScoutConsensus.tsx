@@ -15,8 +15,9 @@ import { agoShort, int } from "../lib/format";
 import type { ConsensusNumber, ConsensusTag, TeamConsensus } from "../shared/consensus";
 import type { Reliability } from "../shared/reliability";
 import { BlendedTile } from "./Reliability";
+import { fixed } from "../shared/format";
 
-const avg = (x: ConsensusNumber) => (Number.isInteger(x.avg) ? String(x.avg) : x.avg.toFixed(1));
+const avg = (x: ConsensusNumber) => (Number.isInteger(x.avg) ? String(x.avg) : fixed(x.avg));
 const entriesLine = (c: TeamConsensus) =>
   `${int(c.entries)} ${c.entries === 1 ? "entry" : "entries"} by ${int(c.scouts)} ${c.scouts === 1 ? "scout" : "scouts"}${c.lastUpdated ? ` · updated ${agoShort(c.lastUpdated)}` : ""}`;
 

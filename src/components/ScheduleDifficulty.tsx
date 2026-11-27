@@ -14,6 +14,7 @@ import { SCHEDULE_STAT_KEYS } from "../shared/statCatalog";
 import { Section } from "./page";
 import { cn } from "./cn";
 import { useFlag } from "../lib/flags";
+import { fixed } from "../shared/format";
 
 const WORD_TONE: Record<ReturnType<typeof scheduleWord>, { chip: string; bar: string; text: string }> = {
   Hard: { chip: "bg-danger/15 text-danger-text", bar: "bg-danger", text: "text-danger-text" },
@@ -26,7 +27,7 @@ const WORD_TONE: Record<ReturnType<typeof scheduleWord>, { chip: string; bar: st
 /** What the measurement on past seasons found (docs/schedule-difficulty.md), said once under the card. */
 const EVIDENCE = "Across the 2023–2025 seasons (43,000 team finishes), a schedule one step harder than average (one standard deviation) cost a team about 2 places in the final qualification ranking against its rating.";
 
-const signedPts = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : "±"}${Math.abs(x).toFixed(1)}`;
+const signedPts = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : "±"}${fixed(Math.abs(x))}`;
 
 function WordChip({ z, className }: { z: number; className?: string }) {
   const w = scheduleWord(z);

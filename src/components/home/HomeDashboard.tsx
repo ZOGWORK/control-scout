@@ -27,6 +27,7 @@ import { cn } from "../cn";
 import { V8_NUM } from "../../lib/v8";
 import { v8Rank } from "../../lib/v8colour";
 import { V8_PHASE } from "../../lib/records/describe";
+import { fixed } from "../../shared/format";
 
 /** How many example searches show under the field. */
 export const EXAMPLE_COUNT = 4;
@@ -385,7 +386,7 @@ function LastEvent({ team, season, t, loaded }: { team: number; season: number; 
       <dl className="mt-3 grid grid-cols-3 gap-3">
         <Stat label="Rank" value={ev.rank != null ? ordinal(ev.rank) : null} />
         <Stat label="Record" value={ev.record} />
-        <Stat label="OPR" value={src.opr != null ? src.opr.toFixed(1) : null} sub={src.oprRank != null && src.of ? `#${src.oprRank} of ${src.of}` : undefined} />
+        <Stat label="OPR" value={src.opr != null ? fixed(src.opr) : null} sub={src.oprRank != null && src.of ? `#${src.oprRank} of ${src.of}` : undefined} />
       </dl>
       {t?.nextEvent && <p className="mt-3 truncate text-xs text-text-muted">Next event: {t.nextEvent.name}</p>}
     </div>

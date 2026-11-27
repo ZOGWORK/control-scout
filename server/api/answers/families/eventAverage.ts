@@ -2,7 +2,7 @@
 // versus <event>"): the mean alliance score over the played matches there (its divisions' too), with and without
 // penalties. Each event by name, its newest season with a played match unless a season is named.
 import type { StatAnswer } from "../../../../src/shared/searchStat.js";
-import { seasonLabel } from "../../../../src/shared/format.js";
+import { seasonLabel, fixed } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { all } from "../../../db.js";
 import { eventHref } from "../matchSet.js";
@@ -49,7 +49,7 @@ async function averages(e: EventRow): Promise<Avg> {
   return { matches: Number(r?.matches ?? 0), avg: r?.avg ?? null, np: r?.np ?? null, npMatches: Number(r?.npMatches ?? 0), high: r?.high ?? null };
 }
 
-const one = (x: number | null) => (x == null ? "—" : x.toFixed(1));
+const one = (x: number | null) => (x == null ? "—" : fixed(x));
 /** The non-penalty average, with how many matches it covers when that's fewer than all of them. */
 const npOf = (r: Avg) => (r.np != null && r.npMatches < r.matches ? `${one(r.np)} (${r.npMatches} of ${r.matches})` : one(r.np));
 
@@ -100,7 +100,7 @@ export async function eventAverageAnswer(qn: EventAverageQuestion, find: FindEve
   return {
     family: "event", intent: "event-average-score-vs", title: eventAverageTitle(evs), scope, definition, source,
     ...(a.matches && b.matches ? { headline: {
-      value: lead == null ? "Even" : `+${gap!.toFixed(1)} points`,
+      value: lead == null ? "Even" : `+${fixed(gap!)} points`,
       label: lead == null ? "Both events average the same alliance score" : `${evs[lead].name} averages more per alliance`,
       sub: evs.map((e, i) => `${e.name} ${one(rows[i].avg)}`).join(" · "),
     } } : { none: `${evs.filter((_, i) => !rows[i].matches).map(label).join(" and ")} ha${evs.filter((_, i) => !rows[i].matches).length > 1 ? "ve" : "s"} no played matches on record yet.` }),

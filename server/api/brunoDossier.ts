@@ -13,11 +13,11 @@
 // in every answer and every card.
 import { all, get } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
-import { seasonLabel } from "../../src/shared/format.js";
+import { seasonLabel, fixed } from "../../src/shared/format.js";
 import { featuredFor } from "../videos/creatorVideos.js";
 
 /** One decimal, half up, as every Control Scout page and card shows an OPR (0.15 → "0.2", 5.55 → "5.6"). */
-export const opr = (v: number | null | undefined): string => (v == null || !Number.isFinite(v) ? "–" : (Math.round(v * 10) / 10).toFixed(1));
+export const opr = (v: number | null | undefined): string => (v == null || !Number.isFinite(v) ? "–" : fixed(v));
 /** A count with thousands separators, as the site writes a rank's field ("#612 of 8,308"). */
 const n = (v: number) => v.toLocaleString("en-US");
 /** "this season", "last season", or the season's label: what each line is about, said where it's read. */

@@ -24,6 +24,7 @@ import { cn } from "../components/cn";
 import { Move, Pager, SeasonPick, TrendBadge, WeekPick, weekLabel } from "./RankingsPage";
 import { MoverCards } from "../components/rankings/MoverCards";
 import { useIsV8, V8_NUM } from "../lib/v8";
+import { fixed } from "../shared/format";
 import {
   Disclosure, RankingsTabs, V8_CAPTION, V8_CARD_LINK, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_NOTE, V8_RANK, V8_ROW, V8_TH, V8_UP, v8Medal,
 } from "../components/rankings/v8";
@@ -32,7 +33,7 @@ const SORT_LABEL: Record<RegionSort, string> = { rank: "Rank", rating: "Rating",
 const th = cn("h-11 whitespace-nowrap bg-card px-2 align-bottom pb-2 text-[11px] font-bold uppercase tracking-wider text-text-muted shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] max-sm:px-1.5 sm:px-3", V8_TH);
 const td = "px-2 py-2.5 max-sm:px-1.5 sm:px-3 v8:py-1.5";
 const record = (r: Pick<RegionRow, "wins" | "losses" | "ties">) => (r.wins == null || r.losses == null ? "—" : `${r.wins}-${r.losses}-${r.ties ?? 0}`);
-const one = (v: number | null) => (v == null ? "—" : v.toFixed(1));
+const one = (v: number | null) => (v == null ? "—" : fixed(v));
 
 export default function RegionRankingsPage() {
   const { country = "", state } = useParams();
@@ -223,7 +224,7 @@ function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRanking
                   </Link>
                 </td>
                 <td className={cn(td, "text-right tabular-nums")}>
-                  <span className={cn("font-semibold v8:font-medium", V8_NUM)}>{r.rating.toFixed(1)}</span>
+                  <span className={cn("font-semibold v8:font-medium", V8_NUM)}>{fixed(r.rating)}</span>
                   {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px] v8:text-[0.6875rem] v8:leading-3", r.dRating > 0 ? cn("text-success", V8_UP) : cn("text-danger", V8_DOWN))}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
                 </td>
                 {stats && <td className={cn(td, "text-right tabular-nums", sort === "events" && "max-sm:hidden")}>{one(r.opr)}</td>}
