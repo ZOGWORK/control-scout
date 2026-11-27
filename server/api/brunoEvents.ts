@@ -101,11 +101,18 @@ async function byName(q: string): Promise<EventRow[]> {
   return out;
 }
 
+/** The years a message says beside "worlds": "worlds 2025", "2025 worlds", "worlds in 2025". A number anywhere else
+ *  is a team ("how did 2024 do at worlds" is team 2024), never a year. */
+function worldsYears(q: string): number[] {
+  const W = String.raw`(?:worlds|world\s+championships?|first\s+championship|world\s+champs?)`;
+  return [...q.matchAll(new RegExp(String.raw`\b${W}\s+(?:in\s+|of\s+)?(20\d{2})\b|\b(20\d{2})(?:'s)?\s+${W}\b`, "gi"))].map((m) => Number(m[1] ?? m[2]));
+}
+
 /** The FIRST Championships a message means: one per year it says beside "worlds" ("Worlds 2025" is the 2024–25
  *  season's, played in April 2025), or the latest played one. */
 async function worlds(q: string, now: number): Promise<EventRow[]> {
   const rows = await all<EventRow>(`SELECT ${EVENT_COLS} FROM events WHERE type = 'FIRSTChampionship' AND division_code IS NULL ORDER BY season DESC`);
-  const years = [...q.matchAll(/\b(20\d{2})\b/g)].map((m) => Number(m[1]));
+  const years = worldsYears(q);
   if (years.length) return rows.filter((e) => years.some((y) => Number((e.start ?? "").slice(0, 4)) === y));
   return latestAndNext(rows, now).then((r) => r.slice(0, 1));
 }
@@ -119,7 +126,7 @@ export async function namedEvents(q: string, now = Date.now()): Promise<EventRow
   // "Teams at NJ States who have never been to Worlds" asks about NJ States: Worlds is what each team's line says, not
   // an event to list. A Worlds said with its year, or without a state championship, is one.
   const saysWorlds = /\b(?:worlds|world\s+championship|first\s+championship|world\s+champs?)\b/i.test(q);
-  if (saysWorlds && (!champs || /\b20\d{2}\b/.test(q))) add(await worlds(q, now));
+  if (saysWorlds && (!champs || worldsYears(q).length)) add(await worlds(q, now));
   if (state) {
     if (/\bnext\b[^.?!]{0,30}\b(?:meet|event|qualifier|competition|tournament)\b/i.test(q)) {
       add(await all<EventRow>(`SELECT ${EVENT_COLS} FROM events WHERE state = ? AND country = 'USA' AND type NOT IN ${NOT_PLAYED_TYPES} AND division_code IS NULL AND COALESCE(end, start) >= ? ORDER BY start LIMIT 1`, [state, today(now)]));
