@@ -88,7 +88,8 @@ play next? It reads the team's events that aren't over, earliest first — every
 takes the first unplayed match the team is in, in schedule order: qualifications before playoffs, then series and number, so a match whose time
 FIRST hasn't posted yet still counts. The answer is the same pre-match card the follow reminders post: the lineup, the
 favourite's win chance, the predicted score and its confidence. No schedule with the team on it isn't a guess — it says
-so and links the event to watch, and a team with nothing scheduled this season gets a link to its page. It shows the same call `/predict` does, so the owner's `livePredictions` switch turns it off with `/predict` (`bot/handler.ts`).
+so and links the event to watch, and every other event it is entered in (the answer read them all), so a wait reads as
+long as it is; a team with nothing scheduled this season gets a link to its page. It shows the same call `/predict` does, so the owner's `livePredictions` switch turns it off with `/predict` (`bot/handler.ts`).
 
 ## /ask
 

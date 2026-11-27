@@ -103,8 +103,11 @@ export async function nextLookup(number: number, now = Date.now()): Promise<APIE
     const later = ahead[finished + 1];
     throw new Friendly("No more matches", `${number} has no unplayed match left at ${eventLink(ahead[finished])}${later ? `; its next event is ${eventLink(later)}` : ""}.`);
   }
-  const later = ahead.find((e) => e !== first);
-  throw new Friendly("No match scheduled", `No schedule with ${number} at ${eventLink(first)} yet. The bot answers with the match as soon as FIRST publishes it${later ? `, and ${number} is entered in ${eventLink(later)}` : ""}.`);
+  // Every event after the first that it is entered in, not just the next one: the answer already read them all, and a
+  // list of two events is how long a wait looks.
+  const later = ahead.slice(1).map(eventLink);
+  const also = later.length ? `, and ${number} is entered in ${later.length === 1 ? later[0] : `${later.slice(0, -1).join(", ")} and ${later.at(-1)}`}` : "";
+  throw new Friendly("No match scheduled", `No schedule with ${number} at ${eventLink(first)} yet. The bot answers with the match as soon as FIRST publishes it${also}.`);
 }
 
 export async function eventLookup(code: string): Promise<APIEmbed> {
