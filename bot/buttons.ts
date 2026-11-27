@@ -26,10 +26,6 @@ export const SITE_LABEL = "Open on controlscout.org";
 /** The button that reports an answer (bot/handler.ts opens a modal; bot/report.ts files it). */
 export const REPORT_PREFIX = "report:";
 export const REPORT_LABEL = "Something's wrong";
-/** The whole of a long answer, behind its own button: the id's prefix, the button's label, and how many are kept at once. */
-export const FULL_PREFIX = "full:";
-export const FULL_LABEL = "Show the full answer";
-export const ANSWERS_MAX = 500;
 /** Discord's cap on one message's text, less the room a split on a line needs. */
 export const CHUNK_MAX = 1_900;
 
@@ -109,20 +105,9 @@ export class QuestionButtons extends KeptText {
   constructor(store: ButtonStore | null = null) { super(ASK_PREFIX, QUESTIONS_MAX, store); }
 }
 
-/** The whole of a long answer, behind its "Show the full answer" button: kept where questions are, so it too survives a
- *  restart, and pruned with them. A few more at once than questions, since the text is a few kilobytes, not a phrase. */
-export class FullAnswers extends KeptText {
-  constructor(store: ButtonStore | null = null) { super(FULL_PREFIX, ANSWERS_MAX, store); }
-}
-
 /** The question a clicked button offers, or null: not one of ours (a follow button, an older bot's id), or expired. */
 export async function buttonQuestion(buttons: QuestionButtons, customId: string, now = Date.now()): Promise<string | null> {
   return customId.startsWith(ASK_PREFIX) ? buttons.get(customId, now) : null;
-}
-
-/** The whole answer a "Show the full answer" button carries, or null: not that button, or gone (pruned, expired). */
-export async function fullText(fulls: FullAnswers, customId: string, now = Date.now()): Promise<string | null> {
-  return customId.startsWith(FULL_PREFIX) ? fulls.get(customId, now) : null;
 }
 
 /** A long answer as Discord messages: whole lines until one message is near its 2000-character cap, and a line too long
@@ -142,20 +127,16 @@ export function textChunks(text: string, max = CHUNK_MAX): string[] {
 }
 
 /**
- * The components for an answer: one row of buttons — "Show the full answer" first when the embed is only the start of
- * it, then the questions to ask next (askNext offers at most three; four is this row's reserve) — a row of link buttons
- * for the website and the videos, and the report button. Empty only when there is nothing at all to offer, so a message
- * never carries an empty row.
+ * The components for an answer: one row of questions to ask next (askNext offers at most three; four is this row's
+ * reserve), a row of link buttons for the website and the videos, and the report button. Empty only when there is
+ * nothing at all to offer, so a message never carries an empty row.
  */
-export async function answerComponents(r: AskReply, buttons: QuestionButtons, now = Date.now(), guild: string | null = null, fulls?: FullAnswers): Promise<APIActionRowComponent<APIButtonComponent>[]> {
+export async function answerComponents(r: AskReply, buttons: QuestionButtons, now = Date.now(), guild: string | null = null): Promise<APIActionRowComponent<APIButtonComponent>[]> {
   const rows: APIActionRowComponent<APIButtonComponent>[] = [];
-  // The rest of a long answer first: it's the one thing a reader of a ten-row board wants that the embed can't show.
-  const whole = r.full && fulls
-    ? [{ type: 2 as const, style: 1 as const, custom_id: await fulls.put(r.full, now, guild), label: FULL_LABEL }]
-    : [];
-  const ask = [...whole, ...(await Promise.all((r.next ?? []).slice(0, ROW_MAX - 1 - whole.length).map(async (q) => ({
+  // Four at most: the row's fifth is the reserve (it used to hold a "Show the full answer" button).
+  const ask = (await Promise.all((r.next ?? []).slice(0, ROW_MAX - 1).map(async (q) => ({
     type: 2 as const, style: 2 as const, custom_id: await buttons.put(q, now, guild), label: buttonLabel(q),
-  }))))].slice(0, ROW_MAX);
+  })))).slice(0, ROW_MAX);
   if (ask.length) rows.push({ type: 1, components: ask });
   const links = [
     ...(r.embed.url ? [{ type: 2 as const, style: 5 as const, url: r.embed.url, label: SITE_LABEL }] : []),

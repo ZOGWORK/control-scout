@@ -106,10 +106,10 @@ so and links the event to watch, and a team with nothing scheduled this season g
 the only one /ask reads. The website's `brunoSearch` and `brunoAnswers` only ever affect /search, so Bruno can
 answer in Discord while the website stays search-only.
 
-**Short by design.** The answer only: a stat's headline alone when it has one ("who won decode" is one line: the
-champions and the finals scores), else its first block cut at 3 rows; a card's headline and 3 lines; 3 top results.
-About 500 characters as read at most. Everything else (more blocks, the source) is behind the link. The embed also
-carries Bruno's sentence quoted, and a link to the same answer on controlscout.org. Questions it
+**Nothing is cut.** The whole answer is posted: the embed carries the headline and every block — every row of every
+list, every card line, every result — up to Discord's own description limit, and whatever is left follows as plain
+text in the channel under it (an answer bigger than one card, below). There is no "more on the website". The embed
+also carries Bruno's sentence quoted, and a link to the same answer on controlscout.org. Questions it
 can't answer get "Sorry — I can't answer that yet", what was read, and questions that work as copyable
 buttons instead. An answer Bruno helped with carries **Bruno AI, from Control Point** in the footer above Control
 Scout's line; a deterministic one never does. Bruno off, unconfigured, failing or slow: the deterministic answer
@@ -132,12 +132,11 @@ one whose row couldn't be written, says its question isn't kept any more and nam
 not buttons: a button would let anyone follow without Manage Server.
 
 **An answer bigger than one card.** A complex question — a ten-team board, a three-team compare, a message that asks
-several things — has more to say than a card holds: one block, three rows, 500 characters as read. When there is more,
-the answer carries **Show the full answer** first: pressing it posts the whole of it, for that reader only (an
-ephemeral message, split at Discord's 2,000 characters: every block with its own title, every list up to 25 rows,
-every card line), so the rest of the answer doesn't need the website. The text is kept beside the questions, in the
-same store, so it survives a restart and is pruned with them, and a short answer never carries the button — when it is
-there, there is more.
+several things — has more to say than one Discord message holds. There is no cap of ours on it: the embed carries the
+answer up to Discord's own description limit (whole lines, every block with its own title, every row of every list),
+and whatever doesn't fit follows in the channel under it as plain text, split at Discord's 2,000 characters. Nothing
+says "more on the website", and there is no button to press for the rest: every row, every part, every card line and
+every result is posted.
 
 **No thumbs.** The bot puts no emoji on its answers and counts nothing. It used to add a 👍 (counted on that answer
 alone, with no record of who clicked) and a 👎 (which filed the answer's question in the site's failed-search queue),

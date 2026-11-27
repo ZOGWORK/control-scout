@@ -6,7 +6,7 @@ import { ComponentType, MessageFlags, PermissionFlagsBits, TextInputStyle, type 
 import { AnswerCache } from "./guard.js";
 import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
 import { addFollow, followName, followingEmbed, listFollows, removeFollow, type FollowTarget } from "./follows.js";
-import { REPORT_PREFIX, answerComponents, buttonQuestion, dbButtonStore, fullText, FullAnswers, textChunks, QuestionButtons } from "./buttons.js";
+import { REPORT_PREFIX, answerComponents, buttonQuestion, dbButtonStore, textChunks, QuestionButtons } from "./buttons.js";
 import { DEFAULT_SETTINGS, answerField, guildSettings, parseQuiet, parseStyle, setGuildSettings, settingsEmbed, styleLine, type GuildSettings, type GuildSettingsPatch } from "./settings.js";
 import { forgetAskChannels } from "./ambient.js";
 import { paceEmbed, takePersonChat, type Pace } from "./pacing.js";
@@ -270,7 +270,9 @@ export type AnswerComponents = APIActionRowComponent<APIButtonComponent>[];
 
 /** What one answer posts: Bruno's chat reply as text (with the records card beside it when the site's search found
  *  some), or the card (with its video link as the text), and its buttons. */
-export interface AskPost { content?: string; embeds: APIEmbed[]; components?: AnswerComponents }
+export interface AskPost { content?: string; embeds: APIEmbed[]; components?: AnswerComponents;
+  /** The part of the answer the embed couldn't hold: posted as messages under it, so nothing is left to a link. */
+  rest?: string }
 
 /** Whether an answer answered: a card, a stat, or Bruno's own words. The bot's "I couldn't" fallback (by: "scout") and
  *  a sorry card are the two that didn't, and a decline did (its words are the bot's, but it handled what was asked);
@@ -318,8 +320,6 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
   // The questions behind the answers' buttons (bot/buttons.ts): kept in the database, so they work after a restart.
   const buttons = new QuestionButtons(dbButtonStore());
-  // The whole of the answers that were too long for one card (bot/buttons.ts), kept where the questions are.
-  const fulls = new FullAnswers(dbButtonStore());
   // The server's chat limit (bot/quota.ts): the default ceiling unless the server has its own row, and a read that
   // fails allows the chat — a database blip must never silence the bot.
   const quota = lookups.quota;
@@ -402,10 +402,14 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const tail = check ? `\n-# ${check}` : "";
       return `${text.slice(0, 2000 - tail.length)}${tail}`;
     };
-    const components = await answerComponents(shown, buttons, Date.now(), guild, fulls);
-    const post: AskPost = shown.chat
-      ? { content: withCheck(chatPost(question, shown.chat, { quote })), embeds: shown.chat.card && shown.chat.by !== "scout" ? [pride(embed)] : [] }
-      : { ...(shown.content ? { content: withCheck(shown.content) } : {}), embeds: [pride(checked)] };
+    const components = await answerComponents(shown, buttons, Date.now(), guild);
+    const post: AskPost = {
+      ...(shown.chat
+        ? { content: withCheck(chatPost(question, shown.chat, { quote })), embeds: shown.chat.card && shown.chat.by !== "scout" ? [pride(embed)] : [] }
+        : { ...(shown.content ? { content: withCheck(shown.content) } : {}), embeds: [pride(checked)] }),
+      // The rest of the answer, when Discord's embed couldn't hold it: posted under the answer by the caller.
+      ...(shown.rest ? { rest: shown.rest } : {}),
+    };
     return components.length ? { ...post, components } : post;
   };
   /** An answer's row, with the question it answered (bot/reactions.ts): a 👎 on the answer later reports that question.
@@ -728,7 +732,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         logLine(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
       }
-      const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
+      const { rest, ...edit } = post;
+      const sent = await i.editReply({ ...edit, allowedMentions: NO_PINGS });
+      // The rest of a long answer, in the channel under it: every row, every part, every result.
+      for (const c of rest ? textChunks(rest) : []) await i.followUp({ content: c, embeds: [], allowedMentions: NO_PINGS });
       // Only an answer gets a row: the failure notice above is not one.
       if (r) {
         remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId);
@@ -796,14 +803,22 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
        */
       const send = async (post: AskPost): Promise<unknown> => {
         // Nobody is pinged by an answer (his text could name @everyone, a role or a person), reply or not.
-        const payload = { ...post, allowedMentions: NO_PINGS };
+        const { rest, ...body } = post;
+        const payload = { ...body, allowedMentions: NO_PINGS };
+        let sent: unknown;
+        let at: { send?: (o: SendOpts) => Promise<unknown> } | null = null;
         if (ambient && !replyTo && !m.channel.isThread?.()) {
           const thread = m.startThread ? await m.startThread({ name: threadName(q), autoArchiveDuration: 1440 }).catch(() => null) : null;
-          if (thread) return thread.send(payload);
+          if (thread) { sent = await thread.send(payload); at = thread; }
         }
-        return m.reply(payload)
+        if (!at) {
           // No Read Message History in that channel: a plain message instead of a reply.
-          .catch(() => m.channel.send?.(payload));
+          sent = await m.reply(payload).catch(() => m.channel.send?.(payload));
+          at = m.channel;
+        }
+        // The part of the answer the embed couldn't hold goes in the channel under it: nothing is cut.
+        for (const c of rest ? textChunks(rest) : []) await at?.send?.({ content: c, embeds: [], allowedMentions: NO_PINGS });
+        return sent;
       };
       const card = (embed: APIEmbed) => send({ embeds: [pride(embed)] });
       // Nobody asked directly in an ask channel, so a refusal there (switched off, the person's pace, the server's cap)
@@ -941,15 +956,6 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       await i.reply({ embeds: [pride(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works."))], flags: MessageFlags.Ephemeral });
       return;
     }
-    // A "Show the full answer" button (bot/buttons.ts): the rest of a long answer, for the one who clicked. It asks
-    // nothing, so it takes neither the server's cap nor the person's pace; the answer is already in the channel.
-    const whole = await fullText(fulls, i.customId);
-    if (whole !== null) {
-      const [first, ...rest] = textChunks(whole);
-      await i.reply({ content: first, flags: MessageFlags.Ephemeral, allowedMentions: NO_PINGS });
-      for (const c of rest) await i.followUp({ content: c, flags: MessageFlags.Ephemeral, allowedMentions: NO_PINGS });
-      return;
-    }
     // "Something's wrong" under an answer: a report of that answer, asked in a modal rather than in a phrase nobody
     // knows (bot/report.ts). It is not a chat, so it takes neither the server's cap nor the person's pace.
     if (i.customId.startsWith(REPORT_PREFIX)) { await reportQuestion(i); return; }
@@ -977,7 +983,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         logLine(`button ask failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
       }
-      const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
+      const { rest, ...edit } = post;
+      const sent = await i.editReply({ ...edit, allowedMentions: NO_PINGS });
+      // The rest of a long answer, in the channel under it: every row, every part, every result.
+      for (const c of rest ? textChunks(rest) : []) await i.followUp({ content: c, embeds: [], allowedMentions: NO_PINGS });
       // Only an answer gets a row: the failure notice above is not one.
       if (r) {
               remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId ?? null);
