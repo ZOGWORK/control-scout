@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 8.1.4 — 2026-11-27
+## 8.1.5 — 2026-11-27
 
 The Discord bot knows events: NJ States, the next NJ meet, Worlds and any event by its name, with every team there.
 
@@ -28,6 +28,24 @@ The Discord bot knows events: NJ States, the next NJ meet, Worlds and any event 
 ### Discord bot
 - **What Bruno knows about each named event** (#2392; `server/api/brunoEvents.ts`, `bot/ask.ts`): an event a message names (by its own name, as "NJ States" or "the New Jersey championship", as "the next NJ meet", or as "Worlds" with the year it was played) brings a labelled block: what and when it is, its matches and scores, every team there (divisions read whole) with its event OPR, phases, rank and record, or before it's played each team's season OPR so far (a league meet nobody has entered yet is read by its league's teams), who there has played at Worlds and who never has, and for Worlds where its teams are from. Search resolves none of these, so the audit's Q68, Q74, Q76, Q85, Q87, Q88 and Q92 had nothing to answer from.
 - **An offer only when it adds something** (`bot/productFacts.ts`): a replay of the audit ended 15 of 18 answers with "Also want their record?", even under a record. Now at most one offer, for a next step the answer lacks, worded for that answer, and often none.
+
+## 8.1.4 — 2026-11-27
+
+The Discord bot does what it is asked: it answers "@Control Scout" picked as its role, follows, watches and reminds from a mention, remembers your team, and no longer stops anyone after 30 questions.
+
+### Highlights
+- [alerts] "@Control Scout" works however you pick it from the @ list
+- [alerts] "Remind me when 4215 plays next" pings you 15 minutes before
+- [alerts] "Follow 4215" and "watch the next event 4215 is in" just work
+- [alerts] "My team is 4215" is remembered: "how did my team do" means it
+- [alerts] No more "one at a time": ask as much as you like
+
+### Discord bot
+- **The bot's role is a mention of it** (#2386; `bot/handler.ts`, `bot/index.ts`): Discord's @ list offers the bot's managed role beside the bot, and a message that picked the role was dropped in silence (the audit's 10:13 PM "@Control Scout what is 4215's opr", twice). It is answered now; a role mention Discord sends without its words says how to ask instead of saying nothing.
+- **Actions from a mention or /ask** (`bot/actions.ts`): "follow 4215", "unfollow 4215" and "watch the next event 4215 is in" run the same follow as `/follow` (Manage Server, as `/follow` needs; anyone else is told so and offered a reminder), and a question after the request ("…and tell me when they play next") is answered after it. The chat used to answer these with a paragraph about the team.
+- **Personal reminders** (`bot/reminders.ts`, migration 118 `discord_reminders`): "remind me when 4215 plays next" pings only that person, in that channel, 15 minutes before 4215's next match; the reply names the match, or says none is scheduled yet and keeps checking. "Stop reminding me about 4215" cancels. Sent once, never twice across a restart.
+- **Your team** (`bot/memory.ts`, migration 118 `discord_people.team`): "my team is 4215" / "we're team 4215" is kept for that person in that server, and "how did my team do", "our OPR" and "how did we do" are asked as 4215. "Forget my team" clears it. Before, the chat replied "Got it, I'll remember!" and kept nothing.
+- **No per-person pace, no default server cap** (`bot/quota.ts`; `bot/pacing.ts` removed): the audit was stopped at 10:57 PM by "That's 30 questions in an hour" after the server cap had been lifted. Nobody is paced now, and a server has no cap unless the owner console gives it one.
 
 ## 8.1.3 — 2026-11-27
 

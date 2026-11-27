@@ -3131,6 +3131,28 @@ CREATE INDEX IF NOT EXISTS video_notes_by_time ON video_notes (user_id, updated_
 CREATE INDEX IF NOT EXISTS video_notes_by_item ON video_notes (user_id, item_key);
 `,
   },
+  {
+    version: 118,
+    name: "discord bot: a person's own team, personal match reminders",
+    sql: `
+-- "@Control Scout my team is 4215" (bot/actions.ts): the team a person says is theirs in that server, so "how did my
+-- team do" means it. Null: they never said.
+ALTER TABLE discord_people ADD COLUMN team INTEGER;
+-- "@Control Scout remind me when 4215 plays next" (bot/reminders.ts): one person's reminder, posted in the channel it
+-- was asked in with that person (and nobody else) pinged, 15 minutes before the team's next match. sent_match is the
+-- match it was sent for, so a restart never sends it twice; a sent reminder is done and deleted a day later.
+CREATE TABLE IF NOT EXISTS discord_reminders (
+  guild_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  sent_at TEXT,
+  sent_match TEXT,
+  PRIMARY KEY (guild_id, user_id, team)
+);
+`,
+  },
 ];
 
 export type Db = Client;
