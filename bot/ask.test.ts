@@ -469,17 +469,17 @@ describe("a no to the question he offered", () => {
 
 describe("a follow-up's facts", () => {
   it("a broad new answer doesn't crowd out the earlier question's records: both get a share, inside the caps", async () => {
-    const many = (p: string) => Array.from({ length: 40 }, (_, i) => `${p} fact ${i}`);
+    const many = (p: string) => Array.from({ length: 116 }, (_, i) => `${p} fact ${i}`);
     const search = vi.fn(async (q: string) => base({ q }));
     const facts = vi.fn(async (a: SearchAnswer) => many(a.q === "who won decode" ? "earlier" : "new"));
     const chat = vi.fn(async () => ({ text: "ok", search: false }));
     await ask("and second?", deps(base({ q: "and second?" }), { search, facts, chat }), SITE, [{ role: "user", text: "who won decode" }, { role: "bruno", text: "30030 won." }]);
     const sent = (chat.mock.calls[0] as unknown[])[1] as string[];
-    expect(sent).toHaveLength(40);
-    expect(sent.filter((f) => f.startsWith("new"))).toHaveLength(20);
-    expect(sent.filter((f) => f.startsWith("earlier"))).toHaveLength(20);
+    expect(sent).toHaveLength(116);
+    expect(sent.filter((f) => f.startsWith("new"))).toHaveLength(58);
+    expect(sent.filter((f) => f.startsWith("earlier"))).toHaveLength(58);
     expect(sent[0]).toBe("new fact 0");
-    expect(sent[20]).toBe("earlier fact 0");
+    expect(sent[58]).toBe("earlier fact 0");
   });
 });
 
@@ -550,6 +550,20 @@ describe("a chat that looks something up, and one that got a number wrong", () =
     const r = await ask("26000 opr", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
     expect(factsFor).toHaveBeenCalledTimes(1);
     expect(r.chat!.text).toBe("I couldn't find that one.");
+  });
+
+  it("a reply that gives up without looking anything up gets the message dug for it once (the audit's Q84)", async () => {
+    const chat = vi.fn()
+      .mockResolvedValueOnce({ text: "I couldn't find auto and endgame data for 7149 in 2024-25.", search: false })
+      .mockResolvedValueOnce({ text: "7149 had **36.5** auto and **7.2** endgame in 2024–25.", search: true });
+    const factsFor = vi.fn(async (q: string) => [`Team 7149 in 2024–25 (${q}): Auto 36.5, Endgame 7.2.`]);
+    const r = await ask("what were 7149's auto and endgame opr in 2024-25", deps(base({ q: "7149" }), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+    expect(factsFor).toHaveBeenCalled();
+    expect(chat).toHaveBeenCalledTimes(2);
+    const second = ((chat.mock.calls[1] as unknown[])[1] as string[]).join(" ");
+    expect(second).toContain("you hadn't looked anything up");
+    expect(second).toContain("Auto 36.5");
+    expect(r.chat!.text).toContain("36.5");
   });
 
   it("a lookup that failed to run is not reported as an empty search", async () => {
