@@ -194,7 +194,8 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   - it is a finished live broadcast of at least 45 minutes, public and embeddable, and not blocked in 50 or more countries;
     or a full-length upload dated by its title (one date: "January 17, 2026", "1/17/26", "12_17_23", "Tournament
     12/13" read against when it went up), or, with no date in its title, one that went up within 14 days of a one-day
-    event whose whole name its title says and that joins no two names ("Meet 1 & Tournament");
+    event (one date, or matches on one day only: FIRST in Michigan lists its qualifiers from the Friday set-up day)
+    whose whole name its title says and that joins no two names ("Meet 1 & Tournament");
   - it fits exactly one event of the channel's region on its broadcast date at the venue (an upload: that date);
   - the title agrees on the division, designators, date, weekday and day number. Taken one at a time, a title's
     "Day N" must be the event's own day N: its Nth day from its first, or the Nth day it played a match (RONR4LT
@@ -212,7 +213,8 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   - a title that isn't a competition stream: webinars, kickoffs, coach calls and Coaches Corners, program calls,
     meetings (a council, a committee, a legislature), keynotes and conference sessions, Robot in 30 Hours and robot
     reveals, recaps, ranking and prediction shows, gaming-league streams, FRC (by name or by its games: REBUILT,
-    REEFSCAPE, CRESCENDO, …), FLL, FGC, VEX, drones, simulators (UrSim, xRC);
+    REEFSCAPE, CRESCENDO, …), FLL, FGC, VEX, drones, simulators (UrSim, xRC), and a pit display stream (the pit's
+    rankings screen, beside the day's matches stream);
   - a team's robot video: "Snapshot", "Reveal" or "Robot showcase" beside a team number (3 to 5 digits, not a year)
     in a title that names no event ("Compact Differential Swerve Drive | 23334 Axiom | FTC BIOBUZZ Snapshot"). The
     title settles it, so it needs no facts;

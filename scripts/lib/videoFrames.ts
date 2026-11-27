@@ -216,13 +216,34 @@ export const splitZoomCss = (side: SplitSide): string =>
   `video { transform-origin: ${side === "left" ? "0" : "100%"} 50% !important; transform: scale(2) !important; }`;
 /** The half a split stream shows this event on, from its bar's row read zoomed to each half at a few seconds of the
  *  video (overlayEvent: "own" where the row names this event or its match total): a half named this event's at two
- *  reads or more while the other half never was. Null: neither (not a split stream), or both (two meets alike). */
-export function splitSide(reads: readonly { side: SplitSide; event: "own" | "other" | null }[]): SplitSide | null {
+ *  reads or more while the other half never was. "both": each half named this event's at two reads or more and no
+ *  read on either naming another event: one event's two fields side by side, each half its own bar and its own
+ *  matches (RoboticsFun's FiT-Central streams, letterboxed: USTXTBSQLM 2024 "Qualification 25 of 30" on the left,
+ *  "Qualification 26 of 30" on the right), read a half at a time. Null: neither (not a split stream), or both halves
+ *  named this event's with another event's read too (two meets alike, one of them misread as this one). */
+export type SplitPick = SplitSide | "both";
+export function splitSide(reads: readonly { side: SplitSide; event: "own" | "other" | null }[]): SplitPick | null {
   const own = (side: SplitSide) => reads.filter((r) => r.side === side && r.event === "own").length;
   const [l, r] = [own("left"), own("right")];
   if (l >= 2 && r === 0) return "left";
   if (r >= 2 && l === 0) return "right";
+  if (l >= 2 && r >= 2 && !reads.some((x) => x.event === "other")) return "both";
   return null;
+}
+/** A two-field stream's second half read as a gap read of the first (placeVideo's `gap`): what the first half placed
+ *  stands, with its checked openings and medium fills, so the second half's reads only look for the matches still
+ *  without a start, and the two halves' starts are judged together (in played order, a match apart). The first half's
+ *  own gap (a --gaps re-read) is under it: a start it kept and the first half didn't read again still stands. */
+export function halfGap(first: Judged, under?: Gap): Gap {
+  const starts: Record<string, number> = { ...(under?.starts ?? {}) }, opens: Record<string, number> = { ...(under?.opens ?? {}) };
+  const medium = new Set(under?.medium ?? []);
+  for (const [l, p] of first.placed) {
+    starts[l] = p.t;
+    if (p.confidence === "medium") medium.add(l); else medium.delete(l);
+    const o = first.opens.get(l);
+    if (o != null) opens[l] = o; else delete opens[l];
+  }
+  return { starts, opens, medium };
 }
 
 /**
