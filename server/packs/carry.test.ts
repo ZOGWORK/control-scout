@@ -16,7 +16,7 @@ describe("carriedSeason", () => {
     writeFileSync(join(d, "scout-pack-2026-11-27-1-2025.db.gz"), "gzipped");
     const entry = {
       name: "scout-pack-2026-11-27-1-2025.db", url: "/packs/scout-pack-2026-11-27-1-2025.db", bytes: 14, sha256: "abc",
-      seasons: [2025], kind: "full" as const, contents: "Every DECODE event.", stats: { matches: 3, events: 1 },
+      seasons: [2025], kind: "full" as const, contents: "Every DECODE event.", stats: { matches: 3, events: 1 }, dataAsOf: "2026-11-27T09:00:00.000Z",
       gz: { name: "scout-pack-2026-11-27-1-2025.db.gz", url: "/packs/scout-pack-2026-11-27-1-2025.db.gz", bytes: 7, sha256: "def" },
     };
     const carried = carriedSeason(d, "2026-11-27.2", entry);
@@ -30,6 +30,8 @@ describe("carriedSeason", () => {
     expect(carried.gz!.sha256).toBe("def");
     expect(carried.stats).toEqual({ matches: 3, events: 1 });
     expect(carried.contents).toBe("Every DECODE event.");
+    // Its own data time too: a carried current-season file never claims the newer release's.
+    expect(carried.dataAsOf).toBe("2026-11-27T09:00:00.000Z");
     // A hard link where the filesystem has them: same inode, no second copy of the bytes.
     expect(statSync(join(d, carried.name)).ino).toBe(statSync(join(d, entry.name)).ino);
   });
