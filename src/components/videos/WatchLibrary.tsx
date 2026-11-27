@@ -13,18 +13,19 @@ import { cn } from "../cn";
 
 const PRESS = "transition-[color,background-color,border-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100";
 
-/** This video's place in the library, read again whenever the library changes. */
+/** This video's place in the library, read again whenever the library changes. Kept with the video it's for, so the
+ *  next video never shows the last one's notes or lists while its own are read. */
 export function useItemState(item: FeedItem | null, signedIn: boolean, ready: boolean) {
   const v = useLibraryVersion();
-  const [s, set] = useState<LibraryItemState | null>(null);
+  const [s, set] = useState<{ key: string; state: LibraryItemState } | null>(null);
   const key = item?.key;
   useEffect(() => {
     if (!key || !ready) return;
     let live = true;
-    void itemState(signedIn, key).then((x) => { if (live) set(x); }).catch(() => {});
+    void itemState(signedIn, key).then((x) => { if (live) set({ key, state: x }); }).catch(() => {});
     return () => { live = false; };
   }, [key, signedIn, ready, v]);
-  return s && key ? s : null;
+  return s && key && s.key === key ? s.state : null;
 }
 
 /** Save and Watch later: each a toggle, answered at once and set right if the server says no. */
@@ -116,10 +117,14 @@ function NoteRow({ note, signedIn, seek, onGone }: { note: VideoNote; signedIn: 
   const [leaving, setLeaving] = useState(false);
   const box = useRef<HTMLTextAreaElement | null>(null);
   useEffect(() => { if (editing) box.current?.focus(); }, [editing]);
+  const [failed, setFailed] = useState(false);
   const save = async () => {
     const t = text.trim();
     if (!t) return;
-    if (t !== note.body) await editNote(signedIn, note.id, t).catch(() => setText(note.body));
+    if (t !== note.body) {
+      try { await editNote(signedIn, note.id, t); } catch { setFailed(true); return; }
+    }
+    setFailed(false);
     setEditing(false);
   };
   const remove = () => {
@@ -141,7 +146,8 @@ function NoteRow({ note, signedIn, seek, onGone }: { note: VideoNote; signedIn: 
               className="block w-full resize-y rounded-lg border border-line bg-card px-2 py-1 text-sm leading-6 text-text-base outline-none focus:border-ink/25" aria-label="Edit note" />
             <div className="mt-1.5 flex gap-2">
               <Button size="sm" onClick={() => void save()} disabled={!text.trim()}>Save</Button>
-              <Button size="sm" variant="ghost" onClick={() => { setText(note.body); setEditing(false); }}>Cancel</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setText(note.body); setFailed(false); setEditing(false); }}>Cancel</Button>
+              {failed && <p className="self-center text-xs text-text-muted" role="alert">Couldn't save that change. Try again.</p>}
             </div>
           </div>
         ) : <>

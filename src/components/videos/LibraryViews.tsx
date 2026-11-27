@@ -82,12 +82,17 @@ export function LibraryListView({ list, signedIn, cols }: { list: LibraryList; s
     void setInList(signedIn, list, e.item, false).catch(() => setGone((g) => { const n = new Set(g); n.delete(e.item.key); return n; }));
   };
   const [clearing, setClearing] = useState(false);
+  const [clearFailed, setClearFailed] = useState(false);
 
   return (
     <section aria-label={LIBRARY_LABEL[list]} data-library-list={list}>
       {list === "history" && shown.length > 0 && (
-        <div className="-mt-4 mb-6 flex justify-end">
-          <Button variant="ghost" size="sm" disabled={clearing} onClick={() => { setClearing(true); void clearList(signedIn, "history").finally(() => setClearing(false)); }}>Clear history</Button>
+        <div className="-mt-4 mb-6 flex items-center justify-end gap-3">
+          {clearFailed && <p className="text-xs text-text-muted" role="alert">Couldn't clear your history. Try again.</p>}
+          <Button variant="ghost" size="sm" disabled={clearing} onClick={() => {
+            setClearing(true); setClearFailed(false);
+            void clearList(signedIn, "history").catch(() => setClearFailed(true)).finally(() => setClearing(false));
+          }}>Clear history</Button>
         </div>
       )}
       {pages.error && !pages.items.length ? <ErrorState error={pages.error as Error} onRetry={pages.retry} />
