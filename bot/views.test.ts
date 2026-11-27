@@ -266,9 +266,12 @@ describe("eventEmbed", () => {
     const d = {
       event: { season: 2025, code: "X", name: "Championship", status: "finished", start: "2026-04-29", end: "2026-05-02", city: "Houston", state: "TX", country: "USA", matchesPlayed: 400, matchesTotal: 400, teams: 600 },
       field: Array.from({ length: 600 }, (_, i) => row(i + 1, 90 - i / 10)),
-      alliances: [], awards: [],
+      // A real winner, so the winning-alliance field is the long one (four linked teams), not the "not posted" line.
+      alliances: [{ number: 3, name: null, captain: 1, pick1: 2, pick2: 3, backup: 4 }],
+      awards: [1, 2, 3, 4].map((team) => ({ type: "Winner", placement: 1, team, name: null })),
     } as unknown as EventDetail;
     const e = eventEmbed(d, SITE);
+    expect(e.fields!.find((f) => f.name === "Winning alliance")!.value).toContain("Alliance 3:");
     const size = (e.title?.length ?? 0) + (e.description?.length ?? 0) + (e.footer?.text.length ?? 0)
       + e.fields!.reduce((n, f) => n + f.name.length + f.value.length, 0);
     expect(size).toBeLessThanOrEqual(6000);

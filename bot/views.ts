@@ -235,12 +235,16 @@ export const EMBED_CHARS_MAX = 6000;
  * leave of Discord's 6,000); past that, the last field says how many it left out rather than the card being refused.
  */
 function packFields(name: string, rows: string[], budget = Infinity): APIEmbedField[] {
+  // A row that starts a field brings its name with it (the list's own, then a blank one), and a list that doesn't fit
+  // ends with "…and N more": both count against the budget, so they are paid for as the rows go in.
+  const reserve = 20;
   const out: APIEmbedField[] = [];
   let cur = "", used = 0, kept = 0;
   for (const r of rows) {
     const row = r.length > FIELD_MAX ? `${r.slice(0, FIELD_MAX - 1)}…` : r;
-    const add = (cur ? 1 : 0) + row.length;
-    if (used + add > budget) break;
+    const enters = !cur;
+    const add = (enters ? (out.length ? 1 : name.length) : 1) + row.length;
+    if (used + add + reserve > budget) break;
     if (cur && cur.length + 1 + row.length > FIELD_MAX) { out.push({ name: out.length ? "\u200b" : name, value: cur }); cur = row; }
     else cur = cur ? `${cur}\n${row}` : row;
     used += add;
@@ -363,21 +367,24 @@ export function eventEmbed(d: EventDetail, site: string): APIEmbed {
     { name: "Matches played", value: e.matchesTotal ? `${e.matchesPlayed} of ${e.matchesTotal}` : "Schedule not posted yet", inline: true },
     { name: "Teams", value: String(d.field.length || e.teams), inline: true },
   ];
+  // A finished event's winning alliance comes after the list but shares the same embed, so it is built first and its
+  // real length comes out of the list's budget.
+  const win = e.status === "finished"
+    ? (() => { const w = winningAlliance(d); return { name: "Winning alliance", value: w ? `${w.alliance ? `Alliance ${w.alliance}: ` : ""}${linkedAlliance(w.teams, site)}` : "Not posted yet (it comes with the awards)" }; })()
+    : null;
   const top = topByOpr(d.field);
   if (top.rows.length) {
     // Every team at the event, by OPR: the list continues in the next field, inside what Discord's 6,000-character
     // embed has left after its title, description, footer and the fields above and below (a big event says how many
     // it couldn't hold rather than the card being refused).
-    const head = title.length + description.length + FOOTER.text.length + fields.reduce((n, f) => n + f.name.length + f.value.length, 0);
-    const reserved = e.status === "finished" ? 80 : 0;
+    const head = title.length + description.length + FOOTER.text.length
+      + fields.reduce((n, f) => n + f.name.length + f.value.length, 0)
+      + (win ? win.name.length + win.value.length : 0);
     fields.push(...packFields(top.season ? "By season OPR" : "By OPR",
       top.rows.map((r, i) => `${i + 1}. [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${one(r.opr)}**`),
-    EMBED_CHARS_MAX - head - reserved));
+    EMBED_CHARS_MAX - head));
   }
-  if (e.status === "finished") {
-    const w = winningAlliance(d);
-    fields.push({ name: "Winning alliance", value: w ? `${w.alliance ? `Alliance ${w.alliance}: ` : ""}${linkedAlliance(w.teams, site)}` : "Not posted yet (it comes with the awards)" });
-  }
+  if (win) fields.push(win);
   return {
     title,
     url: `${site}/events/${e.season}/${encodeURIComponent(e.code)}`,
