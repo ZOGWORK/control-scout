@@ -176,7 +176,9 @@ function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][nu
   const n = t.number, sub = t.surrogate || !t.onField;
   const me = n === highlight, picked = snack?.team === n;
   // Touch screens: 44px tall, the row growing with it (src/index.css tap-44: stacked rows grow rather than overlap).
-  const cls = cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 text-left v8:py-px leading-tight outline-none pointer-coarse:min-h-[44px] pointer-coarse:justify-center focus-visible:ring-2 focus-visible:ring-ring/60",
+  // Its own container (chip): a team's logo shows only while the chip has room for it beside the number (a 5-digit
+  // number, the logo and the gap: 3.75rem), so a narrow box never runs one number into the next.
+  const cls = cn("@container/chip [&_[data-team-logo]]:@max-[3.75rem]/chip:hidden flex min-w-0 flex-col rounded-md px-1.5 py-0.5 text-left v8:py-px leading-tight outline-none pointer-coarse:min-h-[44px] pointer-coarse:justify-center focus-visible:ring-2 focus-visible:ring-ring/60",
     side === "blue" && "@min-[330px]:items-end @min-[330px]:text-right",
     picked ? (side === "red" ? "bg-red-alliance/30 ring-1 ring-red-alliance/70" : "bg-blue-alliance/30 ring-1 ring-blue-alliance/70")
       : me ? "bg-accent/15 ring-1 ring-accent/60 v8:bg-accent/[0.14] v8:ring-accent/70" : "still-hover:bg-text-base/[0.06]");
@@ -340,8 +342,10 @@ function MatchRowClassic({ m, highlight, showEvent, eventName, open, onToggle, o
         // Wide rows: label | red | blue | the call | report. Fixed tracks either side, so every row lines up.
         "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_11.5rem_2rem]",
         // v8, compact: no report button (the open details link to it, and the match report is a tap away), half the
-        // padding, and the call on one line in a wider last track: label | red | blue | call.
-        "v8:grid-cols-[minmax(min-content,1fr)_auto] v8:gap-y-1 v8:py-1.5 v8:@3xl:grid-cols-[6.5rem_minmax(0,1fr)_minmax(0,1fr)_20rem]",
+        // padding: label | red | blue | call. The call's track is 14rem until the row is wide (@6xl), so a mid-width row
+        // (an event's Up next) gives the alliances the room; there a played call's chips wrap under the pick. From
+        // @6xl it's 20rem, the pick and its chips on one line.
+        "v8:grid-cols-[minmax(min-content,1fr)_auto] v8:gap-y-1 v8:py-1.5 v8:@3xl:grid-cols-[6.5rem_minmax(0,1fr)_minmax(0,1fr)_14rem] v8:@6xl:grid-cols-[6.5rem_minmax(0,1fr)_minmax(0,1fr)_20rem]",
         onToggle ? "cursor-pointer still-hover:bg-accent/[0.07]" : "still-hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]",
         // v8: a plain white fill on hover and while open, never an accent tint.
         "v8:still-hover:bg-ink/[0.03]", open && "v8:bg-ink/[0.035]")}
