@@ -4,6 +4,7 @@
 // Every row is a link; the keyboard walks them in this order.
 import type { SearchAnswer, SearchHit, SearchPageLink } from "./api.js";
 import { SEARCH_GROUPS } from "./search.js";
+import { fixed } from "./format";
 
 export type SectionId = SearchHit["kind"] | "ai" | "closest" | "pages" | "browse";
 
@@ -39,7 +40,7 @@ function rowsOf(h: SearchHit, prefix: string): AnswerRow[] {
     { key: `${prefix}${keyOf(h)}`, hit: h },
     ...events.map((e): AnswerRow => ({
       key: `${prefix}${keyOf(h)}@${e.season}:${e.code}`, sub: true,
-      hit: { kind: "team", ref: h.ref, atEvent: `${e.season}:${e.code}`, title: e.name, subtitle: e.opr != null ? `Event OPR ${e.opr.toFixed(1)}` : "No OPR at this event", season: e.season },
+      hit: { kind: "team", ref: h.ref, atEvent: `${e.season}:${e.code}`, title: e.name, subtitle: e.opr != null ? `Event OPR ${fixed(e.opr)}` : "No OPR at this event", season: e.season },
     })),
   ];
 }

@@ -3,7 +3,7 @@
 // unless a season is named; its divisions count as the event.
 import type { StatAnswer } from "../../../../src/shared/searchStat.js";
 import { VERSUS } from "../../../../src/shared/search.js";
-import { seasonLabel } from "../../../../src/shared/format.js";
+import { seasonLabel, fixed } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { all, get } from "../../../db.js";
 import { eventHref, teamHref } from "../matchSet.js";
@@ -72,7 +72,7 @@ async function factsOf(e: EventRow): Promise<Facts> {
   };
 }
 
-const one = (x: number | null) => (x == null ? "—" : x.toFixed(1));
+const one = (x: number | null) => (x == null ? "—" : fixed(x));
 
 type Field = { rated: number; field: number | null; top: number | null; topTeam: number | null };
 /** Each event's field from its teams' OPR rows alone (no match scan): a team counted once at its best OPR there, the

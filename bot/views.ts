@@ -10,6 +10,7 @@ import { tierWord } from "../src/shared/tierWords.js";
 import { matchReportHref } from "../src/shared/matchReport.js";
 import { eventOver } from "../src/shared/eventDay.js";
 import { LIMITS } from "./limits.js";
+import { fixed } from "../src/shared/format.js";
 
 /** Volt (the site's accent, --color-accent) for answers; the site's danger red for errors. */
 export const VOLT = 0xffc700;
@@ -414,7 +415,7 @@ export function eventEmbed(d: EventDetail, site: string): SpilledEmbed {
 // ---------------------------------------------------------------------------
 
 export function rankingsEmbed(rows: RankingRow[], seasonLabel: string, site: string): SpilledEmbed {
-  const lines = rows.map((r) => `**${r.rank}.** \`${movement(r.move).padEnd(3)}\` [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${r.rating.toFixed(1)}**`);
+  const lines = rows.map((r) => `**${r.rank}.** \`${movement(r.move).padEnd(3)}\` [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${fixed(r.rating)}**`);
   const { text, rest } = descriptionOf(lines);
   return {
     title: `World rankings · ${seasonLabel}`,

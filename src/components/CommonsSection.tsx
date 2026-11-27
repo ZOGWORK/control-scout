@@ -17,8 +17,9 @@ import type { ApiError } from "../lib/api";
 import { int } from "../lib/format";
 import { REPORT_NOTE_MAX, REPORT_REASONS, REPORT_REASON_LABEL, type CommonsAnswer, type CommonsEntry, type CommonsReportReason } from "../shared/commons";
 import type { ConsensusNumber } from "../shared/consensus";
+import { fixed } from "../shared/format";
 
-const avg = (x: ConsensusNumber) => (Number.isInteger(x.avg) ? String(x.avg) : x.avg.toFixed(1));
+const avg = (x: ConsensusNumber) => (Number.isInteger(x.avg) ? String(x.avg) : fixed(x.avg));
 
 const AGE_STYLE: Record<PitAgeTone, string> = {
   fresh: "border-success/40 bg-success/10 text-success",

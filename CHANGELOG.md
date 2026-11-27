@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 8.1.5 — 2026-11-27
+## 8.1.6 — 2026-11-27
 
 The Discord bot knows events: NJ States, the next NJ meet, Worlds and any event by its name, with every team there.
 
@@ -28,6 +28,18 @@ The Discord bot knows events: NJ States, the next NJ meet, Worlds and any event 
 ### Discord bot
 - **What Bruno knows about each named event** (#2392; `server/api/brunoEvents.ts`, `bot/ask.ts`): an event a message names (by its own name, as "NJ States" or "the New Jersey championship", as "the next NJ meet", or as "Worlds" with the year it was played) brings a labelled block: what and when it is, its matches and scores, every team there (divisions read whole) with its event OPR, phases, rank and record, or before it's played each team's season OPR so far (a league meet nobody has entered yet is read by its league's teams), who there has played at Worlds and who never has, and for Worlds where its teams are from. Search resolves none of these, so the audit's Q68, Q74, Q76, Q85, Q87, Q88 and Q92 had nothing to answer from.
 - **An offer only when it adds something** (`bot/productFacts.ts`): a replay of the audit ended 15 of 18 answers with "Also want their record?", even under a record. Now at most one offer, for a next step the answer lacks, worded for that answer, and often none.
+
+## 8.1.5 — 2026-11-27
+
+One number per fact: every page, card and the Discord bot round a stat the same way.
+
+### Highlights
+- [fixes] A stat ending in 5 rounds up: 6980's auto is 0.2 on every page
+- [fixes] The team page, compare card and Discord bot agree to the decimal
+- [rankings] Ratings and OPRs in rankings round the same way too
+
+### Fixes
+- **One rounding** (#2393; `src/shared/format.ts` `fixed`): stats are stored to two places, so one in ten sits on a half (an Auto OPR of 0.15, an Endgame of 5.55), and `toFixed` reads the binary 0.1499… and rounds down. 6980's team page showed Auto OPR 0.1 while the compare card showed 0.2, and the Discord bot quoted both (the 2026-11-26 audit's "one number per fact"). `num`, `pct` and every stat display that called `toFixed` itself (team stats, rankings, event tables, search cards, answer families, the bot's views) now use one half-up `fixed`.
 
 ## 8.1.4 — 2026-11-27
 

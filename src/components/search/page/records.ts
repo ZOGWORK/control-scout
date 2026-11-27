@@ -3,6 +3,7 @@
 // detail "2021–22 · Apr 19–23, 2022 · Houston, TX", results "Ranked #20", "4-4-0 in quals", "OPR 124.8"), the stats
 // a banner shows (computed here, for any team, never typed in), and a team's season standing for "how good is X".
 import type { SearchCard, SearchCardLine, TeamSummary } from "../../../shared/api";
+import { fixed } from "../../../shared/format";
 
 export interface Appearance {
   /** "rec-2021": the anchor its card on the page carries (the timeline jumps to it). */
@@ -94,7 +95,7 @@ export function appearanceStats(apps: Appearance[], where?: string): Stat[] {
   if (games.length) {
     const [w, l, t] = games.reduce((s, g) => s.map((v, i) => v + g[i]), [0, 0, 0]);
     const rate = winRate(`${w}-${l}-${t}`);
-    if (rate != null) out.push({ label: where ? `Win rate at ${where}` : "Win rate", value: `${rate.toFixed(1)}%`, note: `${w}–${l}–${t} in quals` });
+    if (rate != null) out.push({ label: where ? `Win rate at ${where}` : "Win rate", value: `${fixed(rate)}%`, note: `${w}–${l}–${t} in quals` });
   }
   const counts = new Map<string, number>();
   for (const a of apps) if (a.division) counts.set(a.division, (counts.get(a.division) ?? 0) + 1);
