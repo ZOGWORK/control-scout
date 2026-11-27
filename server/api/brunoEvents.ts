@@ -15,7 +15,7 @@ import { all } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import { fixed } from "../../src/shared/format.js";
 import { regionNamed, stateName } from "../../src/shared/regions.js";
-import { opr, seasonWord, splitLine } from "./brunoDossier.js";
+import { namedTeams, opr, seasonWord, splitLine } from "./brunoDossier.js";
 
 interface EventRow { season: number; code: string; name: string; type: string | null; division_code: string | null; league: string | null; region: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null }
 const EVENT_COLS = "season, code, name, type, division_code, league, region, city, state, country, start, end";
@@ -109,12 +109,26 @@ function worldsYears(q: string): number[] {
   return [...q.matchAll(new RegExp(String.raw`\b${W}\s+(?:in\s+|of\s+)?(20\d{2})\b|\b(20\d{2})(?:'s)?\s+${W}\b`, "gi"))].map((m) => Number(m[1] ?? m[2]));
 }
 
+/** At most this many of a named team's own Worlds a message brings (its latest first). */
+const TEAM_WORLDS = 2;
+
 /** The FIRST Championships a message means: one per year it says beside "worlds" ("Worlds 2025" is the 2024–25
- *  season's, played in April 2025), or the latest played one. */
+ *  season's, played in April 2025); else the ones the teams it names played ("4215 highest score at worlds" is the
+ *  2023–24 Worlds 4215 was at, not 300 teams of a later one it never saw: the audit's Q55 replay); else the latest. */
 async function worlds(q: string, now: number): Promise<EventRow[]> {
   const rows = await all<EventRow>(`SELECT ${EVENT_COLS} FROM events WHERE type = 'FIRSTChampionship' AND division_code IS NULL ORDER BY season DESC`);
   const years = worldsYears(q);
   if (years.length) return rows.filter((e) => years.some((y) => Number((e.start ?? "").slice(0, 4)) === y));
+  const teams = await namedTeams(q).catch(() => [] as number[]);
+  if (teams.length) {
+    // A division's teams are the championship's: its row names its parent in division_code.
+    const went = await all<{ season: number; code: string }>(
+      `SELECT DISTINCT e.season, COALESCE(e.division_code, e.code) code FROM event_teams t JOIN events e ON e.season = t.season AND e.code = t.code
+        WHERE t.team IN (${teams.map(() => "?").join(", ")}) AND e.type = 'FIRSTChampionship'`, teams);
+    const theirs = rows.filter((e) => went.some((w) => w.season === e.season && w.code === e.code));
+    // None of them has been: the latest Worlds is the field a "could they make it" is measured against.
+    if (theirs.length) return theirs.slice(0, TEAM_WORLDS);
+  }
   return latestAndNext(rows, now).then((r) => r.slice(0, 1));
 }
 

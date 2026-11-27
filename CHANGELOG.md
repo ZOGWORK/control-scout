@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 8.2.0 — 2026-11-27
+## 8.2.2 — 2026-11-27
 
 Offline predictions at an event are this morning's, not yesterday's: the packs are rebuilt as results come in.
 
@@ -29,6 +29,32 @@ Offline predictions at an event are this morning's, not yesterday's: the packs a
 - **Packs rebuilt when the data moves, and on an event day at the sync's pace** (`server/packs/due.ts`, `server/data/cycle.ts`): the packs were rebuilt at most once a day, while an event day syncs every 15 minutes. A phone that saved the lite pack on Friday morning predicted Saturday's matches — and the rest of the weekend's — from Friday morning's ratings; the offline note's data time was the giveaway. The build's cadence is now its own tested rule: 23 hours when no event is running; on a day with an event, the packs are rebuilt as soon as a sync has brought new data — the data version since the last build is the test, not a clock measured from its finish, so a build that takes minutes doesn't push the next one out a whole cycle — and a cycle that found nothing new builds nothing. The same rule still rebuilds everything at once when nothing has been built here, when a file a manifest names is missing (an imported database carries `packs:last` without the files), or when the engine version moved. `server/packs/due.test.ts` covers each case, and `server/data/cadence.ts` now holds the one answer for whether a remote database keeps the cycle in the server process (`childCycle`), which `server/data/jobs.ts` and the sync interval both read. (#2401)
 - **An event-day build doesn't rewrite the finished seasons** (`server/packs/build.ts` `carriedSeason`, `buildPacks({ only })`): rebuilding meant writing out every season's pack, about 90 MB, minutes of work each time. A build asked for the current season now names the last release's frozen packs under its own version with a hard link (a copy where the filesystem has no links), so every manifest still lists files with its own version's names, pruning an old release takes away no file a newer one lists, and the bytes exist once. `server/packs/carry.test.ts` checks the names, the bytes, the hashes and that the two names share one inode.
 - **A page left open asks again mid-session** (`src/lib/packSync.tsx`, `src/lib/packPolicy.ts` `liteRecheckDue`): the lite pack was checked once, after the page went quiet, and then only on reconnect or a new visit — a tab open all weekend at a venue kept Friday's pack. It now asks at most every ten minutes while it is on screen (hidden tabs ask when they come back), under the same rules as before: a returning visitor or a device with a pack, never on Save-Data or a slow connection, never when the owner has offline packs paused, and only the person's own Download brings back a pack they deleted. The stored pack keeps answering until the newer one is verified and saved whole, so a failed check changes nothing.
+
+
+## 8.2.1 — 2026-11-27
+
+Ask the Discord bot about a team "at worlds" and its answer is now drawn from the Worlds that team actually played.
+
+### Highlights
+- [fixes] "4215 at worlds" reads the Worlds 4215 played
+- [fixes] A team that went twice gets both, latest first
+- [fixes] A team that never went still gets the latest Worlds
+
+### Discord bot and Bruno
+- **A named team's Worlds** (#2404; `server/api/brunoEvents.ts` worlds): "worlds" without a year used to attach the latest Worlds' 300-team block, even for a team that only played an earlier one ("4215 highest score at worlds"). Now the bot attaches the Worlds the named teams played, at most two with the latest first, or the latest Worlds when none of them went. A year said beside "worlds" still decides.
+
+## 8.2.0 — 2026-11-27
+
+A team's best scores now show the points without penalties next to each match, so the list's order makes sense and Bruno doesn't mix up the two numbers.
+
+### Highlights
+- [fixes] Best-score lists show points without penalties per match
+- [fixes] Bruno knows which score ranks a list and which it shows
+- [fixes] The Discord bot's text and card agree on a team's best score
+
+### Discord bot and Bruno
+- **Points without penalties beside each match** (#2403; `bot/ask.ts` matchRow, `server/api/searchBrunoAnswer.ts` npNote): a team's best scores are ranked by its own points without penalties, but rows showed only the official score, so "306 above 313" looked wrong. When a foul changed a row's score, the row now ends "(296 without penalties)", on the Discord card and in Bruno's facts.
+- **Bruno gets the counting rule** (`statFacts`): a stat answer's facts end with its "How it's counted" line, so Bruno can see what ranks a list and what it shows. On "4215 highest score at worlds" the bot's text said 313 while the card said 306 (the audit's Q55).
 
 ## 8.1.9 — 2026-11-27
 
