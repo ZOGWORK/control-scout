@@ -18,6 +18,7 @@ import { EventMarker, RankPill, RecordText, TAP } from "./answerCells";
 import { GLANCE_TONE as G } from "../../../lib/textTones";
 import { teamFill } from "../../../lib/textTones";
 import { AnswerSeason, useSeasonPick } from "./SeasonPick";
+import { TeamLogo } from "../../TeamLogo";
 
 export { TAP };
 /** A secondary action on an answer: underlined text, gold only on hover; the page's one primary action is the button. */
@@ -116,7 +117,7 @@ function TeamHeader({ who, profile, season }: { who: Who; profile?: TeamProfile 
     <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-4 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:p-6" data-answer-team={who.number}>
       <div className="min-w-0">
         <Link to={`/teams/${who.number}${season != null ? `?season=${season}` : ""}`} className="group block max-w-full rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
-          <span className="block font-display text-4xl font-semibold leading-none tracking-tight text-foreground transition-colors group-hover:text-accent-text v8:text-accent v8:group-hover:text-accent-hover">{who.number}</span>
+          <span className="block font-display text-4xl font-semibold leading-none tracking-tight text-foreground transition-colors group-hover:text-accent-text v8:text-accent v8:group-hover:text-accent-hover"><TeamLogo team={who.number} size={32} className="mr-2.5 rounded-md align-[0.05em]" />{who.number}</span>
           <span className="mt-1.5 block break-words text-lg text-foreground/90">{name ?? "Name not on file"}</span>
         </Link>
         {/* While the team's facts are read: their line's place, held. */}

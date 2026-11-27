@@ -75,6 +75,9 @@ export const PRIVATE_TABLES = [
   "abuse_daily", "owner_settings",
   // The owner's per-workspace feature toggles (migration 53): workspace ids and the owner's email.
   "workspace_flag_overrides",
+  // FIRST's team pictures (migration 116): public, but binary and refetched daily by the data cycle, so kept out of the
+  // shipped snapshot for its size.
+  "team_logos",
 ];
 
 /**

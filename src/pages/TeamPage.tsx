@@ -57,6 +57,7 @@ import { predictHref } from "../shared/predictUrl";
 import { useIsV8 } from "../lib/v8";
 import { V8_PHASE } from "../lib/records/describe";
 import { btbEpisodes, FeaturedBadge, FeaturedSection } from "../components/FeaturedVideos";
+import { TeamLogo } from "../components/TeamLogo";
 
 /** v8 (docs/design/v8-revamp-brief.md): a small label, sentence case and faint (the uppercase tracked eyebrows today). */
 const V8_LABEL = "v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint";
@@ -196,6 +197,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
           <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 size-64 rounded-full bg-accent opacity-[0.12] blur-3xl" />
           <p className="relative text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">FTC team · {seasonLabel(p.season)}</p>
           {/* The heading is the number and name together (what people search for), styled as two lines. */}
+          <TeamLogo team={t.number} size={40} className="relative mt-3 block rounded-md" />
           <h1 className="relative mt-1">
             <span className="block w-fit font-display text-5xl font-semibold leading-none tracking-tight sm:text-6xl">{t.number}</span>
             {t.name && <span className="mt-2 block break-words font-sans text-xl font-normal tracking-normal text-foreground/90"><span className="sr-only"> </span>{t.name}</span>}
@@ -903,6 +905,7 @@ function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s:
             <p className="text-xs text-text-faint" data-eyebrow>FTC team</p>
             {/* The heading is the number and name together (what people search for). */}
             <h1 className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <TeamLogo team={t.number} size={40} className="self-center rounded-md" />
               <span className="font-display text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums text-accent sm:text-[3.25rem]" data-team-number>{t.number}</span>
               {t.name && <span className="min-w-0 break-words font-sans text-xl font-semibold tracking-tight text-text-base sm:text-[1.375rem]"><span className="sr-only"> </span>{t.name}</span>}
             </h1>

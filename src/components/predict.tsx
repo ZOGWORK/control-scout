@@ -30,6 +30,7 @@ import { hasTeamPage } from "../shared/teamPages";
 import { Spacer, useVirtualRows } from "./ui/windowing";
 import { usePersonal } from "../lib/personal";
 import { myTeamsOf } from "../lib/myTeams";
+import { WithTeamLogo } from "./TeamLogo";
 
 const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Gauge; blurb: string }> = {
   provisional: { label: TIER_WORD.provisional, cls: "border-warning/40 bg-warning/10 text-warning", icon: CircleDashed, blurb: "Mostly prior-season data — treat as a rough guess." },
@@ -181,7 +182,7 @@ function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][nu
       : me ? "bg-accent/15 ring-1 ring-accent/60 v8:bg-accent/[0.14] v8:ring-accent/70" : "still-hover:bg-text-base/[0.06]");
   const body = (
     <>
-      <span className={cn("tabular font-mono text-[0.8125rem]", me ? "font-bold text-accent-text" : picked ? "font-bold text-text-base" : sub ? "text-text-muted" : "text-text-base v8:text-accent")}>{n}</span>
+      <WithTeamLogo team={n} size={14}><span className={cn("tabular font-mono text-[0.8125rem]", me ? "font-bold text-accent-text" : picked ? "font-bold text-text-base" : sub ? "text-text-muted" : "text-text-base v8:text-accent")}>{n}</span></WithTeamLogo>
       {/* The space keeps number and name apart in the text, so the button's label ("207 Critical Mass: …") contains it (WCAG 2.5.3). */}
       {t.name && <>{" "}<span className={cn("block max-w-full truncate text-[11px] italic v8:text-[0.75rem] v8:not-italic", picked || me ? "text-text-base" : "text-text-muted v8:text-text-base")} data-team-name>{t.name}</span></>}
       {sub && <span className="sr-only"> (surrogate)</span>}
