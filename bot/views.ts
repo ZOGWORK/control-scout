@@ -9,6 +9,7 @@ import { oddsPct } from "../src/shared/share.js";
 import { tierWord } from "../src/shared/tierWords.js";
 import { matchReportHref } from "../src/shared/matchReport.js";
 import { eventOver } from "../src/shared/eventDay.js";
+import { LIMITS } from "./limits.js";
 
 /** Volt (the site's accent, --color-accent) for answers; the site's danger red for errors. */
 export const VOLT = 0xffc700;
@@ -227,7 +228,7 @@ const matchTitle = (m: MatchView, eventName: string) => clip(`${m.label} · ${ev
 /** Discord's own caps: 1,024 characters to a field, 25 fields and 6,000 characters to a whole embed. */
 const FIELD_MAX = 1024;
 const FIELDS_MAX = 25;
-export const EMBED_CHARS_MAX = 6000;
+export const EMBED_CHARS_MAX = LIMITS.embed;
 
 /** An embed with what Discord's limits kept out of it (`rest`): the caller posts those lines in the channel under it. */
 export interface SpilledEmbed extends APIEmbed { rest?: string }

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 8.1.3 — 2026-11-27
+## 8.1.4 — 2026-11-27
 
 The Discord bot does what it is asked: it answers "@Control Scout" picked as its role, follows, watches and reminds from a mention, remembers your team, and no longer stops anyone after 30 questions.
 
@@ -32,6 +32,23 @@ The Discord bot does what it is asked: it answers "@Control Scout" picked as its
 - **Personal reminders** (`bot/reminders.ts`, migration 118 `discord_reminders`): "remind me when 4215 plays next" pings only that person, in that channel, 15 minutes before 4215's next match; the reply names the match, or says none is scheduled yet and keeps checking. "Stop reminding me about 4215" cancels. Sent once, never twice across a restart.
 - **Your team** (`bot/memory.ts`, migration 118 `discord_people.team`): "my team is 4215" / "we're team 4215" is kept for that person in that server, and "how did my team do", "our OPR" and "how did we do" are asked as 4215. "Forget my team" clears it. Before, the chat replied "Got it, I'll remember!" and kept nothing.
 - **No per-person pace, no default server cap** (`bot/quota.ts`; `bot/pacing.ts` removed): the audit was stopped at 10:57 PM by "That's 30 questions in an hour" after the server cap had been lifted. Nobody is paced now, and a server has no cap unless the owner console gives it one.
+
+## 8.1.3 — 2026-11-27
+
+The Discord bot gives one number per fact, says which season every number is from, and keeps looking before it says it can't find something.
+
+### Highlights
+- [alerts] The bot's numbers match the site's cards, to the decimal
+- [alerts] Every number says its season: "this season" means 2026–27
+- [alerts] Comparisons, trends and scouting reports use every season
+- [alerts] It looks things up before saying it couldn't find them
+
+### Discord bot
+- **What Bruno knows about each named team** (#2391; `server/api/brunoDossier.ts`, `bot/ask.ts`): every team a message names (or the answer is about) brings a labelled block: this season's record and OPR or "no matches played yet", every earlier season, this season's and last season's events in order with that event's OPR, record and rank, every match at its latest event with partners and opponents, what's next, Worlds and Behind the Bot. The audit's Q43 compared 4215 with nothing for 19666; Q58 gave 2025–26 numbers for "this season".
+- **One number per fact** (`server/api/searchBrunoAnswer.ts`): the chat's facts round half up as every card does (6980's auto 0.15 is 0.2 in both, 4215's endgame 5.55 is 5.6), not `toFixed`'s 0.1 and 5.5.
+- **Bigger packet** (`bot/ask.ts`): up to 116 fact lines of 590 characters, 38,000 in all, a 12-turn thread and a 2,000-character message, inside Control Point's new contract (ZOGWORK/control-point#370). A longer thread used to refuse the whole chat, and the card posted instead.
+- **Digging** (`bot/ask.ts`): a records reply that says it couldn't find something without asking for a single lookup gets every part of the message searched for it once, and answers again from what that found (the audit's Q84).
+- **How to answer** (`bot/productFacts.ts`): every number's season, teams compared in the same season, a comparison, trend or scouting report in short labelled lines as long as it needs, and an offer at the end only about the same team.
 
 ## 8.1.2 — 2026-11-26
 

@@ -48,7 +48,9 @@ below).
 **Every answer says what it checked.** The post carries `✓ Checked N searches against Control Scout`, and when a part
 of the message couldn't be answered (or videos were asked for and none found) it says that too: `couldn't check: …`.
 It comes from the parts search actually ran (`bot/tools.ts` `Lookup.parts`) or the answer's own clauses, never from a
-second guess. Every part it couldn't answer is named, whole, not the first two.
+second guess. Every part it couldn't answer is named, whole, not the first two. A search Bruno asked for that the
+loop's clock stopped before it ran is named there as well, `… (out of time)`: the one limit left that can shorten an
+answer says so on the answer instead of only in the journal.
 
 **A team answer always has two more things to ask** (`askNext`): where it's from and its videos, after the answer's own
 suggestions, within the button row's five — Discord's own five to a row. A suggestion already covered by the answer isn't repeated.
@@ -88,7 +90,8 @@ play next? It reads the team's events that aren't over, earliest first — every
 takes the first unplayed match the team is in, in schedule order: qualifications before playoffs, then series and number, so a match whose time
 FIRST hasn't posted yet still counts. The answer is the same pre-match card the follow reminders post: the lineup, the
 favourite's win chance, the predicted score and its confidence. No schedule with the team on it isn't a guess — it says
-so and links the event to watch, and a team with nothing scheduled this season gets a link to its page. It shows the same call `/predict` does, so the owner's `livePredictions` switch turns it off with `/predict` (`bot/handler.ts`).
+so and links the event to watch, and every other event it is entered in (the answer read them all), so a wait reads as
+long as it is; a team with nothing scheduled this season gets a link to its page. It shows the same call `/predict` does, so the owner's `livePredictions` switch turns it off with `/predict` (`bot/handler.ts`).
 
 ## /ask
 
@@ -330,7 +333,8 @@ asking for the same one again), a search already run is never run twice, and the
 asking for another. The whole loop runs on one wall-clock budget (`AGENT_BUDGET_MS`, two minutes): each call is
 given only the time left (never more than its own `CHAT_TIMEOUT_MS` ceiling), and once there isn't time for another
 call worth starting the loop stops and posts the words he already said (`[bot] chat out of time at step N`, in the
-journal), so a slow model can't hold a channel for minutes. A reply that is only a `LOOKUP:` line is a step, not an
+journal; the answer's check line names the searches that didn't run, `… (out of time)`), so a slow model can't hold a
+channel for minutes. A reply that is only a `LOOKUP:` line is a step, not an
 empty answer. The `LOOKUP:` line is the bot's instruction, never something a reader sees. A records answer naming a number the facts don't have is also no longer an instant card: it is
 sent back once with those numbers named (`[bot] chat repaired`), and only a second refusal posts the card. A reply that
 says it couldn't find the records is filed in the site's failed-search queue like an empty answer, so the phrasing is
@@ -451,8 +455,10 @@ code; you can also type a code yourself).
   deploy), plus its `service_heartbeats` row
   once a minute while connected, which the site's /status page reads (`server/uptime.ts`, migration 86). Its missed
   records questions go into the site's `search_failures` through the site's own `noteBotSearch`.
-- **Automatic posts** (`bot/follows.ts`): every minute it reads the follows, the followed teams' matches at
-  events on today, and posts what's due: a reminder within 15 minutes of a start, a result within 6 hours of
+- **Automatic posts** (`bot/follows.ts`): every minute it reads the follows and every event a followed team is
+  entered in that isn't over (one with no dates yet, and one that ended with a match still unplayed, included —
+  FIRST often posts a meet's schedule weeks ahead, and a window around today would hold that post back), and posts
+  what's due: a reminder within 15 minutes of a start, a result within 6 hours of
   it, the match two away while it is close (`On deck`, `bot/eventChanges.ts`), and — compared with the schedule
   the last tick stored in `discord_match_state` — a moved start, a changed lineup or a newly scheduled match
   (a playoff pairing), each once. Only matches starting after the follow (no backlog). Each post is claimed in
@@ -570,7 +576,9 @@ For `tick`, sync the meet first: `npm run sync -- --event 2026:USNJNEM3`.
   the card can't hold is posted in the channel under it (`rest`, `spillOf` in `bot/views.ts`) — every match, every
   team and every ranking row kept, no count of ours, no `…and N more` of ours. A result's shape is one story in the
   description (4 blocks and 600 characters as read on the real Q16/Q17 — its design, not a cut); a reminder 3 and 400.
-  Ranking rows are posted whole, up to Discord's 4,096-character description, the rest under the card.
+  Ranking rows are posted whole, up to Discord's 4,096-character description, the rest under the card. The numbers
+  themselves are stated once, in `bot/limits.ts`, and `embedProblems` is what the tests that build the bot's real cards
+  assert (commands, event alerts, the 600-team event): a card Discord would refuse fails a test, not a reader's post.
 
 ## On the VM
 

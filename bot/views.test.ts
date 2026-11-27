@@ -5,6 +5,7 @@ import {
   startsText, storyLine, teamEmbed, topByOpr, verdict, winningAlliance, type TeamCard,
 } from "./views";
 import fixture from "./fixtures/usnjnem3-2026-11-07.json";
+import { embedProblems } from "./limits";
 
 const SITE = "https://controlscout.org";
 
@@ -272,11 +273,8 @@ describe("eventEmbed", () => {
     } as unknown as EventDetail;
     const e = eventEmbed(d, SITE);
     expect(e.fields!.find((f) => f.name === "Winning alliance")!.value).toContain("Alliance 3:");
-    const size = (e.title?.length ?? 0) + (e.description?.length ?? 0) + (e.footer?.text.length ?? 0)
-      + e.fields!.reduce((n, f) => n + f.name.length + f.value.length, 0);
-    expect(size).toBeLessThanOrEqual(6000);
-    expect(e.fields!.length).toBeLessThanOrEqual(25);
-    for (const f of e.fields!) expect(f.value.length).toBeLessThanOrEqual(1024);
+    // The card as Discord reads it: every part inside its own limit, and the whole inside the 6,000 (bot/limits.ts).
+    expect(embedProblems(e)).toEqual([]);
     // Nothing is dropped and nothing is summarised: the card holds what Discord takes, and every other team is its `rest`,
     // in the order it was ranked, continuing the card's own numbering.
     expect(e.fields!.map((f) => f.value).join("\n")).not.toMatch(/…and \d+ more/);
@@ -339,7 +337,7 @@ describe("rankingsEmbed", () => {
   it("a page past Discord's 4,096-character description posts the rest under the card", () => {
     const rows = Array.from({ length: 120 }, (_, i) => ({ rank: i + 1, team: 100 + i, name: `Team ${i}`, state: null, country: null, rating: 80 - i / 10, move: null, dRating: null, trend: null }));
     const e = rankingsEmbed(rows, "2026–27", SITE);
-    expect(e.description!.length).toBeLessThanOrEqual(4096);
+    expect(embedProblems(e)).toEqual([]);
     const inCard = e.description!.split("\n");
     const under = e.rest!.split("\n");
     expect(inCard.length + under.length).toBe(120);
