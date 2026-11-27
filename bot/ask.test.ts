@@ -557,17 +557,16 @@ describe("a chat that looks something up, and one that got a number wrong", () =
     expect(r.chat!.text).toBe("26000's auto OPR is **45.2**.");
   });
 
-  it("stops at the step budget, and the last step is told to answer from what it has", async () => {
+  it("looks up as many times as he needs (no step cap), until he answers", async () => {
     let asked = 0;
-    const chat = vi.fn(async (_q: string, packet: string[]) => ({
-      text: packet.some((l) => l.startsWith("Lookups are done")) ? "That's all I can find." : `One more.\nLOOKUP: search ${++asked}`,
-      search: false,
-    }));
+    const chat = vi.fn(async () => (asked < 6
+      ? { text: `One more.\nLOOKUP: search ${++asked}`, search: false }
+      : { text: "That's all I can find.", search: false }));
     const factsFor = vi.fn(async (q: string) => [`facts for ${q}`]);
-    const r = await ask("a question one search can't settle", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
-    // The first reply plus one per step, and the last one carries the instruction instead of another search.
-    expect(chat).toHaveBeenCalledTimes(4);
-    expect(((chat.mock.calls[3] as unknown[])[1] as string[])[0]).toContain("Lookups are done");
+    const r = await ask("a question several searches settle", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+    // The first reply, one per lookup, and the answer after the sixth.
+    expect(chat).toHaveBeenCalledTimes(7);
+    expect(factsFor).toHaveBeenCalledTimes(6);
     expect(r.chat!.text).toBe("That's all I can find.");
   });
 
