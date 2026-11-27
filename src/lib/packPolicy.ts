@@ -83,8 +83,8 @@ export function liteRecheckDue(lastAt: number, now: number, visible: boolean): b
 /** The least time between two background downloads of the lite pack. An event day publishes a new one at the sync's
  *  pace (every 15 minutes while results arrive), and each is the whole pack (about 4.4 MB): a phone left open at a
  *  venue, asking every LITE_RECHECK_MS, fetched it nearly every time, some 26 MB an hour of the venue's Wi-Fi. A pack
- *  saved within the hour now stays until it's older. The results that came in since are folded in on the device
- *  (offline/predict.ts, liteLearned), and the person's own Update still fetches the newest at once. */
+ *  saved within the hour now stays until it's older. The results that came in since are still folded into the device's
+ *  own event estimate (lib/localProjection/run.ts, liteLearned), and the person's own Update fetches the newest at once. */
 export const LITE_BACKGROUND_EVERY_MS = 60 * 60_000;
 
 /** May a background check replace the saved lite pack with the published one? Always when none is saved, or when the
