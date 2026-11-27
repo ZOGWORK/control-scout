@@ -689,6 +689,17 @@ describe("the answer's buttons", () => {
     expect(b.calls[1].payload.allowedMentions).toEqual({ parse: [], repliedUser: false });
   });
 
+  it("a chunk Discord refuses is logged, not thrown: the answer and what the bot keeps of it still stand", async () => {
+    const ask = vi.fn(async (q: string) => ({ ...card(q), rest: "1. one" }));
+    const h = createHandler(() => {}, lookups({ ask }));
+    const c = command("ask", { question: "top opr" });
+    c.i.guildId = "g1";
+    c.i.followUp = vi.fn(async () => { throw new Error("rate limited"); }) as never;
+    await expect(h(c.i)).resolves.toBeUndefined();
+    expect(c.i.followUp).toHaveBeenCalledTimes(1);
+    expect(c.calls.map((x) => x.kind)).toEqual(["defer", "edit"]);
+  });
+
   it("a long answer posts the rest of it in the channel, under the answer", async () => {
     const rest = "1. one\n10. ten";
     const ask = vi.fn(async (q: string) => ({ ...card(q), rest }));
