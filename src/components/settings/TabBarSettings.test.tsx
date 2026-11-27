@@ -17,7 +17,7 @@ const sw = (name: string) => screen.getByRole("switch", { name });
 describe("Phone tab bar settings", () => {
   it("shows the default, says it's kept on this device and that the menu has every page", () => {
     render(<TabBarSettings />);
-    expect(preview()).toEqual(["Home", "Events", "Predict", "My team", "Scout"]);
+    expect(preview()).toEqual(["Home", "Events", "Predict", "Videos", "Scout"]);
     expect(screen.getByText(/Kept on this device only/)).toBeTruthy();
     expect(screen.getByText(/always in the menu behind the top-left button/)).toBeTruthy();
   });
@@ -26,11 +26,11 @@ describe("Phone tab bar settings", () => {
     render(<TabBarSettings />);
     expect((sw("Teams") as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(sw("Events"));
-    expect(preview()).toEqual(["Home", "Predict", "My team", "Scout"]);
+    expect(preview()).toEqual(["Home", "Predict", "Videos", "Scout"]);
     expect((sw("Teams") as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(sw("Teams"));
-    expect(preview()).toEqual(["Home", "Predict", "My team", "Scout", "Teams"]);
-    expect(JSON.parse(localStorage.getItem(TAB_KEY)!)).toEqual(["home", "predict", "myTeam", "scout", "teams"]);
+    expect(preview()).toEqual(["Home", "Predict", "Videos", "Scout", "Teams"]);
+    expect(JSON.parse(localStorage.getItem(TAB_KEY)!)).toEqual(["home", "predict", "videos", "scout", "teams"]);
   });
 
   it("two pages left: their switches are locked on", () => {
@@ -44,7 +44,7 @@ describe("Phone tab bar settings", () => {
   it("the arrows move a page, and do nothing at the ends", () => {
     render(<TabBarSettings />);
     fireEvent.click(screen.getByRole("button", { name: "Move Scout left" }));
-    expect(preview()).toEqual(["Home", "Events", "Predict", "Scout", "My team"]);
+    expect(preview()).toEqual(["Home", "Events", "Predict", "Scout", "Videos"]);
     fireEvent.click(screen.getByRole("button", { name: "Move Home left" }));
     expect(preview()[0]).toBe("Home");
     expect(screen.getByRole("status").textContent).toBe("Scout moved to place 4 of 5.");
@@ -54,7 +54,7 @@ describe("Phone tab bar settings", () => {
     localStorage.setItem(TAB_KEY, JSON.stringify(["teams", "rankings"]));
     render(<TabBarSettings />);
     fireEvent.click(screen.getByRole("button", { name: /Reset to default/ }));
-    expect(preview()).toEqual(["Home", "Events", "Predict", "My team", "Scout"]);
+    expect(preview()).toEqual(["Home", "Events", "Predict", "Videos", "Scout"]);
     expect(localStorage.getItem(TAB_KEY)).toBeNull();
   });
 });
