@@ -12,7 +12,9 @@ export { oddsPct } from "./share.js";
  */
 export const fixed = (x: number, digits = 1): string => {
   const f = 10 ** digits;
-  return (Math.round(Number((x * f).toPrecision(12))) / f).toFixed(digits);
+  // The size rounded, the sign put back: -0.15 reads -0.2, the mirror of 0.15 (Math.round alone gives -0.1).
+  const r = Math.round(Math.abs(Number((x * f).toPrecision(12)))) / f;
+  return (x < 0 && r !== 0 ? -r : r).toFixed(digits);
 };
 
 export const pct = (p: number | null | undefined, digits = 0) => (p == null || !Number.isFinite(p) ? "—" : `${fixed(p * 100, digits)}%`);

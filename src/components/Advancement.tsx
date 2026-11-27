@@ -258,7 +258,7 @@ function Outlook({ fc, team, name, onPeek }: { fc: Shown; team: number | null; n
       <section aria-labelledby="rank-h">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
           <h3 id="rank-h" className="text-base font-semibold">Likely quals rank</h3>
-          <span className="text-sm tabular-nums text-muted-foreground"><span className="font-medium text-foreground">{rankRange(me.rank.p10, me.rank.p90)}</span>{me.rank.p10 !== me.rank.p90 && ` · avg ${me.rank.mean.toFixed(1)}`} of {n}</span>
+          <span className="text-sm tabular-nums text-muted-foreground"><span className="font-medium text-foreground">{rankRange(me.rank.p10, me.rank.p90)}</span>{me.rank.p10 !== me.rank.p90 && ` · avg ${fixed(me.rank.mean)}`} of {n}</span>
         </div>
         <div className="flex gap-[3px]" role="img" aria-label={`Likely rank ${rankRange(me.rank.p10, me.rank.p90)} of ${n}`}>
           {Array.from({ length: n }, (_, i) => {
@@ -274,13 +274,13 @@ function Outlook({ fc, team, name, onPeek }: { fc: Shown; team: number | null; n
         <section aria-labelledby="pts-h">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
             <h3 id="pts-h" className="text-base font-semibold">Expected advancement points</h3>
-            <span className="text-sm text-muted-foreground">Total <span className="font-medium tabular-nums text-foreground">{p.total != null ? p.total.toFixed(1) : "—"}</span></span>
+            <span className="text-sm text-muted-foreground">Total <span className="font-medium tabular-nums text-foreground">{p.total != null ? fixed(p.total) : "—"}</span></span>
           </div>
           <div className="flex h-3 overflow-hidden rounded-full bg-muted">
             {parts.map((x, i) => <m.div key={x.k} className={x.cls} title={`${x.k}: ${fixed(x.v)}`} initial={{ width: 0 }} animate={{ width: `${(x.v / sum) * 100}%` }} transition={{ duration: 0.6, ease, delay: 0.1 + i * 0.08 }} />)}
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-            {parts.map((x) => <div key={x.k} className="min-w-0"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={cn("size-2 shrink-0 rounded-full", x.cls)} />{x.k}</dt><dd className="mt-0.5 font-display text-xl font-semibold tabular-nums">{x.v.toFixed(1)}</dd></div>)}
+            {parts.map((x) => <div key={x.k} className="min-w-0"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={cn("size-2 shrink-0 rounded-full", x.cls)} />{x.k}</dt><dd className="mt-0.5 font-display text-xl font-semibold tabular-nums">{fixed(x.v)}</dd></div>)}
           </dl>
           <p className="mt-3 text-xs text-muted-foreground">Average over all simulations. Award odds come from each team's award history and robot strength — judging can't be seen in match data. <Link to="/methodology#advancement" className="underline">How the simulator works</Link></p>
         </section>
