@@ -12,7 +12,7 @@ import type { BonusModelSource, RatingBookData } from "@control-scout/predict-en
 import type { LitePairs } from "../shared/litePairs";
 import type { RecentRow } from "../shared/predictView";
 import type { LiteLearned } from "../shared/liteLearned";
-import { PACK_META_KEY, packStatus, type PackMeta } from "./packPolicy";
+import { PACK_META_KEY, liteRefreshDue, packStatus, type PackMeta } from "./packPolicy";
 import { offlineNow } from "./connection";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { ChecksumError, download, dropPartial, finishDownload, partialDownloads, sha256Of, type DownloadOwner } from "./offline/download";
@@ -252,6 +252,9 @@ export function syncLite(opts: { allowed?: () => boolean } = {}): Promise<PackMe
       const m = await fetchManifest({ signal: ctrl.signal }).finally(() => clearTimeout(timer));
       const have = packStatus();
       if (!m.lite || (have && have.version === m.version)) return have;
+      // In the background, a pack saved within the hour is replaced only for a new engine (packPolicy.ts
+      // liteRefreshDue): an event day publishes one every 15 minutes. Get it / Update (no `allowed`) always fetches it.
+      if (opts.allowed && !liteRefreshDue(have, m, Date.now())) return have;
       if (opts.allowed && !opts.allowed()) return have;
       // Deleted on purpose: only the person's own Download brings it back (an explicit request has no `allowed`).
       if (opts.allowed && liteDeleted()) return have;

@@ -1,4 +1,4 @@
-// When the lite pack (about 1.6 MB) may download by itself. A first visit
+// When the lite pack (about 4.4 MB) may download by itself. A first visit
 // never pays for it: it goes to returning visitors (a second session on this
 // device, someone with a My team / tracked teams / shortlist, or a device that
 // already has a pack to keep current), and never on Save-Data or a 2g/3g
@@ -78,4 +78,20 @@ export const LITE_RECHECK_MS = 10 * 60_000;
 /** Is the mid-session check due? Hidden tabs never ask (they ask again as they come back). */
 export function liteRecheckDue(lastAt: number, now: number, visible: boolean): boolean {
   return visible && now - lastAt >= LITE_RECHECK_MS;
+}
+
+/** The least time between two background downloads of the lite pack. An event day publishes a new one at the sync's
+ *  pace (every 15 minutes while results arrive), and each is the whole pack (about 4.4 MB): a phone left open at a
+ *  venue, asking every LITE_RECHECK_MS, fetched it nearly every time, some 26 MB an hour of the venue's Wi-Fi. A pack
+ *  saved within the hour now stays until it's older. The results that came in since are folded in on the device
+ *  (offline/predict.ts, liteLearned), and the person's own Update still fetches the newest at once. */
+export const LITE_BACKGROUND_EVERY_MS = 60 * 60_000;
+
+/** May a background check replace the saved lite pack with the published one? Always when none is saved, or when the
+ *  published one comes from another engine (its ratings carry state the saved one lacks); otherwise once the saved one
+ *  is LITE_BACKGROUND_EVERY_MS old. A saved time in the future (the clock moved back) counts as old. */
+export function liteRefreshDue(have: Pick<PackMeta, "savedAt" | "engineVersion"> | null, published: { engineVersion: string }, now: number): boolean {
+  if (!have || have.engineVersion !== published.engineVersion) return true;
+  const age = now - have.savedAt;
+  return !(age >= 0 && age < LITE_BACKGROUND_EVERY_MS);
 }
