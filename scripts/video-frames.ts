@@ -41,7 +41,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, EmbedRefused, embedRefusal, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, type SplitPick, halfGap, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, EmbedRefused, embedRefusal, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, foundBox, sampleFinds, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS, gapOf, type Gap } from "./lib/videoFrames";
@@ -452,7 +452,7 @@ async function splitRow(page: Page, t: number): Promise<string> {
 }
 /** The half of a split stream this event is on (splitSide): its bar's row read zoomed to each half, paused at each of
  *  SPLIT_SAMPLES. The player is left zoomed to the whole frame. */
-async function findSplit(page: Page, length: number): Promise<SplitSide | null> {
+async function findSplit(page: Page, length: number): Promise<SplitPick | null> {
   const own = pageEvent.get(page);
   if (!own) return null;
   const reads: { side: SplitSide; event: "own" | "other" | null }[] = [];
@@ -1675,7 +1675,22 @@ async function doCode(code: string): Promise<void> {
         const pg = page;
         await splitChecked(async () => {
           const side = await findSplit(pg, m.length!);
-          if (side) {
+          if (side === "both") {
+            // One event's two fields side by side: each half read in turn, the right as a gap read of the left (halfGap),
+            // so its reads look only for the matches the left half didn't place. The edges are read on the whole frame
+            // (splitHalf stays null): one half's first or last match says nothing of the other field's.
+            log("    a split stream: this event's on both halves (two fields), each read zoomed to it");
+            const halves = new Set<string>();
+            await zoom(pg, "left");
+            const left = await placeVideo(pg, mine, offset, m.length!, log, halves, live, liveMedium, gap);
+            await zoom(pg, "right");
+            const both = await placeVideo(pg, mine, offset, m.length!, log, halves, live, liveMedium, halfGap(left, gap));
+            await zoom(pg, null);
+            // The right half's read that placed nothing new (it read nothing there) still keeps the left half's.
+            j = both.placed.size || both.review.size ? both : left;
+            unread.clear();
+            for (const l of halves) if (j.placed.has(l)) unread.add(l);
+          } else if (side) {
             splitHalf = side;
             log(`    a split stream: this event's on its ${side} half, read zoomed to it`);
             await zoom(pg, side);
