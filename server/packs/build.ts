@@ -46,6 +46,9 @@ export interface BuiltFile {
   name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string;
   /** Full packs: the same file gzipped (the app's download; the .db stays for analysts). */
   gz?: BuiltGz;
+  /** Full packs: when the server last synced before this file was built (null: unknown). Kept when the file is carried
+   *  into a later release; files from before this was added fall back to the manifest's. */
+  dataAsOf?: string | null;
   /** Full packs: played matches and events with any played match, so the app can say what a release adds. */
   stats?: { matches: number; events: number };
 }
@@ -114,6 +117,9 @@ export async function buildLite(version: string, dir: string, log: (m: string) =
 export async function buildFull(season: number, version: string, dir: string, log: (m: string) => void, o: { lockHeld?: boolean } = {}): Promise<BuiltFile | null> {
   const n = await all<{ c: number }>("SELECT COUNT(*) c FROM matches WHERE season = ?", [season]);
   if (!Number(n[0]?.c)) return null;
+  // When the server last synced, read before any row: the file's own data time (a carried file keeps it, so a saved copy
+  // never claims a newer release's). Read first, it can only be older than the rows, never newer.
+  const dataAsOf = (await kvGet<{ at: string }>("sync:last"))?.at ?? null;
   const name = `scout-pack-${version.replace(/\./g, "-")}-${season}.db`;
   // The pack is labelled with the data version its rows are from (the ranking's asOf offline). Writers move
   // data:version BEFORE they write and data:settled once they're done, but the live lane stores rows before it moves
@@ -183,7 +189,7 @@ export async function buildFull(season: number, version: string, dir: string, lo
   log(`full ${season}: ${rows + teams} rows → ${(buf.length / 1e6).toFixed(1)} MB (${(gz.length / 1e6).toFixed(2)} MB gz)`);
   return { name, url: `/packs/${name}`, bytes: buf.length, sha256: sha256(buf), seasons: [season], kind: "full",
     gz: { name: `${name}.gz`, url: `/packs/${name}.gz`, bytes: gz.length, sha256: sha256(gz) },
-    stats: played,
+    stats: played, dataAsOf,
     contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
 }
 
