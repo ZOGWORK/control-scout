@@ -100,7 +100,7 @@ export function LibraryListView({ list, signedIn, cols }: { list: LibraryList; s
         : (
           <>
             <div className={grid(cols)}>
-              {shown.map((e) => <FeedCard key={e.item.key} item={e.item} signedIn={signedIn} remove={REMOVE[list]} onHide={() => remove(e)} />)}
+              {shown.map((e) => <FeedCard key={e.item.key} item={e.item} signedIn={signedIn} remove={REMOVE[list]} inList={list} onHide={() => remove(e)} />)}
             </div>
             {pages.loading && <div className={shown.length ? "mt-10" : ""}><Skeleton cols={cols} /></div>}
             {!!pages.error && pages.items.length > 0 && <div className="py-4 text-center"><Button variant="outline" onClick={pages.retry}>Couldn't load more. Try again</Button></div>}

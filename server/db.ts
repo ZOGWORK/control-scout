@@ -3153,6 +3153,15 @@ CREATE TABLE IF NOT EXISTS discord_reminders (
 );
 `,
   },
+  {
+    version: 119,
+    name: "videos feed: show more like this",
+    sql: `
+-- "Show more like this" on a feed card (server/api/videosFeed.rank.ts kindWeights): counts for the video's kind more
+-- than a finish does, without marking the video itself as seen.
+ALTER TABLE video_watch ADD COLUMN more INTEGER NOT NULL DEFAULT 0;
+`,
+  },
 ];
 
 export type Db = Client;
