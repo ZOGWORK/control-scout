@@ -414,6 +414,17 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   };
   /** An answer's row, with the question it answered (bot/reactions.ts): a 👎 on the answer later reports that question.
    *  Nothing is added to the post — there is no emoji on it any more — and a stand-in without a row changes nothing. */
+  /**
+   * The part of an answer the embed couldn't hold, in the channel under it. A chunk Discord refuses (a rate limit, a
+   * channel it can't post in) is logged, never thrown: the answer is already posted, and what the bot remembers of it
+   * must still be kept.
+   */
+  async function postRest(rest: string | undefined, send: (content: string) => Promise<unknown> | undefined): Promise<void> {
+    for (const c of rest ? textChunks(rest) : []) {
+      try { await send(c); } catch (e) { logLine(`answer rest failed: ${(e as Error)?.message ?? String(e)}`); return; }
+    }
+  }
+
   function keepAnswer(sent: unknown, guild: string | null, question: string, r?: AskReply): void {
     const m = sent as { id?: string } | undefined;
     if (!m?.id) return;
@@ -735,7 +746,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const { rest, ...edit } = post;
       const sent = await i.editReply({ ...edit, allowedMentions: NO_PINGS });
       // The rest of a long answer, in the channel under it: every row, every part, every result.
-      for (const c of rest ? textChunks(rest) : []) await i.followUp({ content: c, embeds: [], allowedMentions: NO_PINGS });
+      await postRest(rest, (c) => i.followUp({ content: c, embeds: [], allowedMentions: NO_PINGS }));
       // Only an answer gets a row: the failure notice above is not one.
       if (r) {
         remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId);
@@ -817,7 +828,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
           at = m.channel;
         }
         // The part of the answer the embed couldn't hold goes in the channel under it: nothing is cut.
-        for (const c of rest ? textChunks(rest) : []) await at?.send?.({ content: c, embeds: [], allowedMentions: NO_PINGS });
+        await postRest(rest, (c) => at?.send?.({ content: c, embeds: [], allowedMentions: NO_PINGS }));
         return sent;
       };
       const card = (embed: APIEmbed) => send({ embeds: [pride(embed)] });
@@ -986,7 +997,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const { rest, ...edit } = post;
       const sent = await i.editReply({ ...edit, allowedMentions: NO_PINGS });
       // The rest of a long answer, in the channel under it: every row, every part, every result.
-      for (const c of rest ? textChunks(rest) : []) await i.followUp({ content: c, embeds: [], allowedMentions: NO_PINGS });
+      await postRest(rest, (c) => i.followUp({ content: c, embeds: [], allowedMentions: NO_PINGS }));
       // Only an answer gets a row: the failure notice above is not one.
       if (r) {
               remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId ?? null);
