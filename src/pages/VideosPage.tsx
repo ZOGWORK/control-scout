@@ -11,6 +11,7 @@ import { useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { sentHistory } from "../lib/videoHistory";
 import { FeedCard } from "../components/FeedCard";
+import { feedPath } from "../lib/feedPath";
 import { ErrorState } from "../components/states";
 import { Button } from "../components/ui/button";
 import { Spacer, useVirtualRows } from "../components/ui/windowing";
@@ -28,19 +29,7 @@ const subscribeCols = (cb: () => void) => {
 };
 const useCols = () => useSyncExternalStore(subscribeCols, colsNow, () => 1);
 
-/** The feed's address: the filter and cursor; signed out, the device's own teams and history too. */
-export function feedPath(filter: FeedFilter, cursor: string | null, device: { myTeam: number | null; teams: number[]; history: string } | null): string {
-  const q = new URLSearchParams();
-  if (filter !== "all") q.set("filter", filter);
-  if (cursor) q.set("cursor", cursor);
-  if (device) {
-    if (device.myTeam) q.set("my", String(device.myTeam));
-    if (device.teams.length) q.set("teams", device.teams.slice(0, 30).join(","));
-    if (device.history) q.set("h", device.history);
-  }
-  const s = q.toString();
-  return `/api/videos/feed${s ? `?${s}` : ""}`;
-}
+export { feedPath };
 
 interface Feed { items: FeedItem[]; next: string | null; loading: boolean; error: unknown; empty?: string; coldStart: boolean }
 const START: Feed = { items: [], next: null, loading: true, error: null, coldStart: false };
@@ -87,7 +76,7 @@ export default function VideosPage() {
   const shown = feed.items.filter((i) => !hidden.has(i.key));
   const cols = useCols();
   const rows = useMemo(() => { const out: FeedItem[][] = []; for (let i = 0; i < shown.length; i += cols) out.push(shown.slice(i, i + cols)); return out; }, [shown, cols]);
-  const vr = useVirtualRows<HTMLDivElement>(rows.length, cols === 1 ? 360 : 330, { key: (i) => rows[i][0].key, cache: `videos|${filter}|${cols}` });
+  const vr = useVirtualRows<HTMLDivElement>(rows.length, cols === 1 ? 380 : 350, { key: (i) => rows[i][0].key, cache: `videos|${filter}|${cols}` });
 
   // The next page as the reader nears the end.
   const end = useRef<HTMLDivElement | null>(null);
@@ -108,11 +97,11 @@ export default function VideosPage() {
 
   return (
     <div data-videos-page>
-      <header className="mb-4">
+      <header className="mb-6 mt-2 sm:mt-4">
         <h1 className="text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">Videos</h1>
         <p className="mt-1 text-sm text-text-muted" data-videos-summary>{feed.loading && !feed.items.length ? "Match clips, streams and creator videos, all played here." : summary}</p>
       </header>
-      <div role="tablist" aria-label="Show" className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" data-videos-filters>
+      <div role="tablist" aria-label="Show" className="-mx-4 mb-8 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" data-videos-filters>
         {FEED_FILTERS.map((f) => (
           <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} onClick={() => pick(f.id)}
             className={cn("h-9 shrink-0 rounded-full border px-3.5 text-sm font-medium transition-colors duration-150 active:scale-[0.97] motion-reduce:active:scale-100",
@@ -133,14 +122,14 @@ export default function VideosPage() {
           {vr.rows(rows).map(({ item: row, rowProps, gapBefore }) => (
             <div key={row[0].key}>
               {gapBefore > 0 && <Spacer as="div" height={gapBefore} />}
-              <div {...rowProps} className={cn("grid gap-4 pb-4", cols === 3 ? "grid-cols-3" : cols === 2 ? "grid-cols-2" : "grid-cols-1")}>
-                {row.map((i) => <FeedCard key={i.key} item={i} signedIn={signedIn} onHide={(k) => setHidden((h) => new Set(h).add(k))} />)}
+              <div {...rowProps} className={cn("grid gap-x-6 pb-10", cols === 3 ? "grid-cols-3" : cols === 2 ? "grid-cols-2" : "grid-cols-1")}>
+                {row.map((i) => <FeedCard key={i.key} item={i} signedIn={signedIn} filter={filter} onHide={(k) => setHidden((h) => new Set(h).add(k))} />)}
               </div>
             </div>
           ))}
           <Spacer as="div" height={vr.paddingBottom} />
-          {feed.loading && <div className={cn("grid gap-4", cols === 3 ? "grid-cols-3" : cols === 2 ? "grid-cols-2" : "grid-cols-1")} aria-busy data-skeleton>
-            {Array.from({ length: cols * 2 }, (_, i) => <div key={i} className="aspect-[4/3] animate-pulse rounded-xl bg-ink/[0.05] motion-reduce:animate-none" />)}
+          {feed.loading && <div className={cn("grid gap-x-6 gap-y-10", cols === 3 ? "grid-cols-3" : cols === 2 ? "grid-cols-2" : "grid-cols-1")} aria-busy data-skeleton>
+            {Array.from({ length: cols * 2 }, (_, i) => <div key={i} className="space-y-3"><div className="aspect-video animate-pulse rounded-xl bg-ink/[0.05] motion-reduce:animate-none" /><div className="h-4 w-3/4 animate-pulse rounded bg-ink/[0.05] motion-reduce:animate-none" /></div>)}
           </div>}
           {!!feed.error && feed.items.length > 0 && <div className="py-4 text-center"><Button variant="outline" onClick={() => void load(feed.next)}>Couldn't load more. Try again</Button></div>}
           <div ref={end} aria-hidden className="h-px" />
