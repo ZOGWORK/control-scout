@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.2.8 — 2026-11-27
+
+Fixes offline packs vanishing after a day's tenth build: the newest release is kept, not deleted.
+
+### Highlights
+- [fixes] A day's tenth offline pack build no longer deletes itself
+- [offline] Predictions and season packs download again on busy event days
+- [fixes] Old releases are pruned oldest first, by day and build number
+
+### Fixes
+- **The newest offline release was pruned as it was published** (`server/packs/build.ts` `prunedReleases`): a build keeps the newest three releases and deletes the rest, but it sorted their names as text, and "2026-11-27-10" sorts before "-7", "-8" and "-9". From a day's 10th build on, the release just published was deleted along with every file in it, while `latest.json` still named it. On 27 Nov release `.10` (23:23Z) left every pack URL answering 404, the lite pack included. The next cycle would then have read the packs as missing and rebuilt all of them, about 180 MB, only to delete them again. Event days only reached ten builds a day once the packs began following the sync (8.2.2). Releases are now ordered by day and then by the day's build number, and the one just published is never pruned. `server/packs/prune.test.ts` covers the 10th build, a new day's first, 100+ builds, and a stray newer-looking release.
+
 ## 8.2.7 — 2026-11-27
 
 Simulate the rankings answers right after a sync instead of waiting for the ratings to rebuild.
