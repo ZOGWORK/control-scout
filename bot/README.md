@@ -40,17 +40,17 @@ A write from `/settings` (posts) never resets these, and the other way round: a 
 
 **A video is a task, not a keyword** (`bot/ask.ts` `asksVideo`). "Where is Exodus from and show me videos" is answered
 in parts: the team and its town from search, then — when the message's own answer has no clip — the same request
-without the video words searched for the team, whose answer's clips are posted as the player and up to three Watch
-links. If nothing has a clip, the answer says so rather than leaving the request silently unanswered (the check line
+without the video words searched for the team, whose answer's clips are posted as the player and every Watch link
+the answer has. If nothing has a clip, the answer says so rather than leaving the request silently unanswered (the check line
 below).
 
 **Every answer says what it checked.** The post carries `✓ Checked N searches against Control Scout`, and when a part
 of the message couldn't be answered (or videos were asked for and none found) it says that too: `couldn't check: …`.
 It comes from the parts search actually ran (`bot/tools.ts` `Lookup.parts`) or the answer's own clauses, never from a
-second guess.
+second guess. Every part it couldn't answer is named, whole, not the first two.
 
 **A team answer always has two more things to ask** (`askNext`): where it's from and its videos, after the answer's own
-suggestions, within the button row's four. A suggestion already covered by the answer isn't repeated.
+suggestions, within the button row's five — Discord's own five to a row. A suggestion already covered by the answer isn't repeated.
 
 ## /settings: what a server asks of its posts
 
@@ -122,7 +122,7 @@ second report answers with the issue the first one opened. A report is not a cha
 nor the person's pace.
 
 **The answer's buttons** (`bot/buttons.ts`). Every answer with something to offer carries one row of questions and
-one row of links: up to four questions to ask next (search's own suggestions for a question it couldn't answer, else
+one row of links: up to five questions to ask next (Discord's five to a row) (search's own suggestions for a question it couldn't answer, else
 the answer's related ones), a link button to the same answer on controlscout.org, and a link button per video. A
 question lives in `discord_button_questions` (migration 110), not in the button's custom id (Discord allows 100
 characters, which is not a question), so a button asks exactly what was offered — after a restart or a deploy too —
@@ -377,7 +377,8 @@ now" — with nothing searched, since the word alone is no more a question than 
 own post still takes the record up; a no with a question after it ("no, what about 6980") is asked as typed.
 
 Replying to his answer
-carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each, and keeps them in the
+carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each, every turn kept whole
+up to Discord's own 2,000 characters, and keeps them in the
 database, so a restart carries on where the conversation was: `bot/memory.ts`). `/ask` answers the same way, with the question quoted. Every number in his reply must be in the facts, the
 message or the thread, or the website's answer card posts instead, as it does when Bruno is off (`discordBruno`),
 unconfigured, slow (45 s: a model reply takes about 11 s on the live deployment, and a structured explanation longer)

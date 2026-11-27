@@ -29,6 +29,19 @@ const answer = (stat: StatAnswer): SearchAnswer => ({ q: "top opr", hits: [], pa
 const hit: SearchHit = { kind: "team", ref: "4215", title: "4215 | Hypnotic Robotics", subtitle: "Oradell, NJ", season: 2025 };
 
 describe("an answer bigger than one post", () => {
+  it("a table's every column is posted, not the first four", () => {
+    const stat: StatAnswer = {
+      family: "leaderboard", intent: "opr-top", title: "Table", scope: [],
+      blocks: [{
+        kind: "table", title: "Quals", columns: ["a", "b", "c", "d", "e", "f"].map((key) => ({ key, label: key.toUpperCase() })),
+        rows: [{ cells: { a: "A", b: "B", c: "C", d: "D", e: "E", f: "F" } }],
+      }],
+      definition: "d", source: "s",
+    };
+    const post = answerPost("table", answer(stat), null, SITE);
+    expect(post.embed.description).toContain("A · B · C · D · E · F");
+  });
+
   it("posts a board whole in the embed when Discord can hold it, with nothing left over", () => {
     const post = answerPost("top opr", answer(board(10)), null, SITE);
     // No cap of ours: all ten rows, and the block the card used to leave to the website.

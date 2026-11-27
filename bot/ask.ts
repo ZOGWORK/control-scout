@@ -567,18 +567,18 @@ function fit(lines: string[], max: number, maxChars: number): string[] {
 /**
  * A chat reply as the message's text: the question quoted when asked (a slash command's reply doesn't show it),
  * Bruno's words, the answer's video (Discord plays it under the text) and a small line crediting him, with the
- * website link Discord shows no preview for.
+ * website link Discord shows no preview for. Written whole: the handler splits it into the messages Discord's 2,000
+ * characters a message take (bot/handler.ts), rather than cutting the answer.
  */
 export function chatPost(q: string, chat: NonNullable<AskReply["chat"]>, opts: { quote: boolean }): string {
   const question = q.trim().replace(/\s+/g, " ");
   const lines = [
-    opts.quote ? `> **${md(question.length > 200 ? `${question.slice(0, 199)}…` : question)}**` : null,
+    opts.quote ? `> **${md(question)}**` : null,
     chat.text,
     chat.video ?? null,
     `-# ${chat.by === "scout" ? "Control Scout" : "Bruno AI"} · ${chat.page ? `[more on controlscout.org](<${chat.page}>)` : "controlscout.org"}`,
   ].filter((x): x is string => !!x);
-  const text = lines.join("\n");
-  return text.length > 2000 ? `${text.slice(0, 1999)}…` : text;
+  return lines.join("\n");
 }
 
 /** Whether a message asks to see a video: "show me videos", "4215 highlights", "any clips?". */
@@ -603,14 +603,15 @@ async function videoFor(q: string, a: SearchAnswer, deps: AskDeps): Promise<Sear
   return answer ? deps.video(answer).catch(() => undefined) : undefined;
 }
 
-/** The answer's videos as links, the main one first, then the listed matches' clips: at most 3. */
+/** The answer's videos as links, the main one first, then the listed matches' clips: every one the answer has. The
+ *  buttons hold what Discord's row does (bot/buttons.ts), and the embed's line holds them all. */
 export function videoLinks(v: SearchVideo | undefined): { label: string; url: string }[] {
   if (!v) return [];
   const first = v.main ?? v.watch;
   const items = [...(first ? [first] : []), ...Object.entries(v.rows ?? {}).filter(([href]) => href !== v.mainRow).map(([, i]) => i)];
   const seen = new Set<string>();
   return items.filter((i) => i.kind !== "contributor" && !seen.has(`${i.videoId}:${i.t}`) && seen.add(`${i.videoId}:${i.t}`))
-    .slice(0, 3).map((i) => ({ label: i.match ?? (i.kind === "stream" ? "Stream" : "Recording"), url: watchUrl(i.videoId, i.t) }));
+    .map((i) => ({ label: i.match ?? (i.kind === "stream" ? "Stream" : "Recording"), url: watchUrl(i.videoId, i.t) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -645,7 +646,7 @@ export function blockLines(b: StatBlock, site: string): string[] {
     case "record": return [...head(b.title), `${b.wins}–${b.losses}–${b.ties} (W–L–T)${b.split ? ` · quals ${b.split.quals.wins}–${b.split.quals.losses}–${b.split.quals.ties}, playoffs ${b.split.playoffs.wins}–${b.split.playoffs.losses}–${b.split.playoffs.ties}` : ""}`];
     case "matches": return [...head(b.title), ...b.rows.map((r) => matchRow(r, site))];
     case "table": {
-      const cols = b.columns.slice(0, 4);
+      const cols = b.columns;
       const list = b.rows.map((r) => {
         const [first, ...rest] = cols.map((c) => r.cells[c.key]).map((v) => (v == null ? "—" : String(v)));
         const sides = r.teams ? ` · ${teams(r.teams.red, site)} vs ${teams(r.teams.blue, site)}` : "";
@@ -790,9 +791,12 @@ export const asked = (q: string) => {
   return { name: t.length > 256 ? `${t.slice(0, 255)}…` : t };
 };
 
+/** How many questions an answer offers as buttons: Discord's five to a row (bot/buttons.ts). */
+export const NEXT_MAX = 5;
+
 /**
- * The questions the answer offers as buttons (bot/buttons.ts): up to 3 that work for a question it couldn't answer
- * (search's own suggestions), else up to 2 of the answer's related questions. Deduplicated, in the site's order.
+ * The questions the answer offers as buttons (bot/buttons.ts): up to five that work for a question it couldn't answer
+ * (search's own suggestions), else the answer's related questions. Deduplicated, in the site's order.
  */
 export function askNext(a: SearchAnswer): string[] {
   const cant = !!a.sorry || (a.step === "recovery" && !a.card && !a.stat);
@@ -802,11 +806,11 @@ export function askNext(a: SearchAnswer): string[] {
   // An answer about a team always has one more thing worth asking: where it's from, and its videos. Only offered when
   // the answer doesn't already, so they never push out the answer's own suggestions.
   const team = a.card?.team?.number ?? a.stat?.team?.number ?? null;
-  if (!team) return asked.slice(0, 3);
+  if (!team) return asked.slice(0, NEXT_MAX);
   const extra: string[] = [];
   if (!asked.some((q) => /\b(?:where|based|hometown|city|from)\b/i.test(q))) extra.push(`where is ${team} from?`);
   if (!asked.some((q) => /\b(?:video|clip|highlight|footage)\b/i.test(q))) extra.push(`show me ${team} videos`);
-  // The button row holds four (bot/buttons.ts): its own first two suggestions, then the two a team always has, then the
-  // rest, so a long suggestion list never hides where the team is from or its videos.
-  return [...asked.slice(0, 2), ...extra, ...asked.slice(2)].slice(0, 4);
+  // The button row holds five (bot/buttons.ts): its own first two suggestions, then the two a team always has, then
+  // the rest, so a long suggestion list never hides where the team is from or its videos.
+  return [...asked.slice(0, 2), ...extra, ...asked.slice(2)].slice(0, NEXT_MAX);
 }

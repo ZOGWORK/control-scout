@@ -26,6 +26,13 @@ describe("the words that ask for a report", () => {
 });
 
 describe("the issue's body", () => {
+  it("keeps the message and the thread whole, never clipped short", () => {
+    const long = "x".repeat(1900);
+    const body = reportBody(report({ message: `report this ${long}`, thread: [{ role: "bruno", text: long }] }));
+    expect(body).toContain(`report this ${long}`);
+    expect(body).toContain(`Control Scout:** ${long}`);
+  });
+
   it("has the message, the thread before it, where it happened and the bot's log lines", () => {
     const body = reportBody(report(), Date.parse("2026-11-22T06:00:00Z"));
     expect(body).toContain("### The message that asked for it");
