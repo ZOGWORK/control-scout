@@ -688,6 +688,23 @@ describe("the answer's buttons", () => {
     expect(b.calls[1].payload.allowedMentions).toEqual({ parse: [], repliedUser: false });
   });
 
+  it("a long answer's Show the full answer posts the rest privately, and asks nothing", async () => {
+    const full = "**Top OPR**\n1. one\n10. ten";
+    const ask = vi.fn(async (q: string) => ({ ...card(q), full }));
+    const h = createHandler(() => {}, lookups({ ask }));
+    const c = command("ask", { question: "top opr" });
+    c.i.guildId = "g1";
+    await h(c.i);
+    const first = c.calls.at(-1)!.payload.components[0].components[0];
+    expect(first).toMatchObject({ type: 2, style: 1, label: "Show the full answer" });
+    const b = button(first.custom_id);
+    await h(b.i);
+    expect(b.calls).toHaveLength(1);
+    expect(b.calls[0].payload).toMatchObject({ content: full, flags: 64 });
+    // Opening the rest is not a question: no search, no chat, no pace.
+    expect(ask).toHaveBeenCalledTimes(1);
+  });
+
   it("an expired button (an hour old, or from before a restart) says so instead of guessing", async () => {
     const ask = vi.fn(async (q: string) => card(q));
     const b = button("ask:never-made");

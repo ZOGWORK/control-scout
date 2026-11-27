@@ -131,6 +131,14 @@ as `/ask` would: same cache, same limit, same server memory. A button is kept fo
 one whose row couldn't be written, says its question isn't kept any more and names `/ask`. Follows are deliberately
 not buttons: a button would let anyone follow without Manage Server.
 
+**An answer bigger than one card.** A complex question — a ten-team board, a three-team compare, a message that asks
+several things — has more to say than a card holds: one block, three rows, 500 characters as read. When there is more,
+the answer carries **Show the full answer** first: pressing it posts the whole of it, for that reader only (an
+ephemeral message, split at Discord's 2,000 characters: every block with its own title, every list up to 25 rows,
+every card line), so the rest of the answer doesn't need the website. The text is kept beside the questions, in the
+same store, so it survives a restart and is pruned with them, and a short answer never carries the button — when it is
+there, there is more.
+
 **No thumbs.** The bot puts no emoji on its answers and counts nothing. It used to add a 👍 (counted on that answer
 alone, with no record of who clicked) and a 👎 (which filed the answer's question in the site's failed-search queue),
 and the pair read as like/dislike rather than "report this": a 👍 on a good answer and a 👎 on a fine one both meant
