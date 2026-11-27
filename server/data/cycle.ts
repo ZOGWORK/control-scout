@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { hasFirst } from "../env.js";
 import { all, kvGet, kvSet } from "../db.js";
 import { buildPacks } from "../packs/build.js";
-import { packsDue } from "../packs/due.js";
+import { CURRENT_PACK_DATA, CURRENT_PACK_LAST, onlySeasons, packsDue } from "../packs/due.js";
 import { dataVersion } from "../predict/engine.js";
 import { eventDayNow } from "./cadence.js";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
@@ -68,8 +68,8 @@ export async function runCycle(log: Log) {
   }, { ttlMs: 5 * 60_000, waitMs: 5 * 60_000, pollMs: 2000 });
   // Offline packs: rebuilt once a day, and on an event day as soon as a sync has brought new data (packs/due.ts) — a
   // phone at a venue predicts from the lite pack, and a pack built yesterday morning is yesterday's ratings. An
-  // event-day build rebuilds the lite pack and the current season's, carrying the frozen seasons' files forward instead
-  // of rewriting them.
+  // event-day build rebuilds the lite pack, and the current season's full pack at most hourly; the other full packs'
+  // files are carried forward instead of rewritten.
   // The timestamp alone isn't enough: an imported database carries
   // packs:last without the pack files, so also require a readable manifest.
   // CS_PACKS=off: hosts with a throwaway disk (Render free) skip packs; /download says none are built.
@@ -79,19 +79,31 @@ export async function runCycle(log: Log) {
   const dataAt = await dataVersion();
   const packs = packsDue({
     lastBuiltAt: await kvGet<string>("packs:last"), builtFrom: await kvGet<string>("packs:data"),
+    currentBuiltAt: await kvGet<string>(CURRENT_PACK_LAST), currentFrom: await kvGet<string>(CURRENT_PACK_DATA),
     dataVersion: dataAt, now: Date.now(), eventDay: await eventDayNow(),
     present: packsPresent(), packsEngine: packsEngine(), engine: ENGINE_VERSION,
   });
   if (process.env.CS_PACKS !== "off" && packs.due) {
     try {
-      await buildPacks((m) => log(`  ${m}`), { only: packs.scope === "current" ? [CURRENT_SEASON] : null });
-      await kvSet("packs:data", dataAt);
-      await kvSet("packs:last", new Date().toISOString());
+      await buildPacks((m) => log(`  ${m}`), { only: onlySeasons(packs.scope, CURRENT_SEASON) });
+      await stampPacks(dataAt, packs.scope !== "lite");
     } catch (e) { log(`  packs: ${(e as Error).message}`); } // e.g. a manual build holds the lock
   }
   // Team logos (server/teamLogos.ts): FIRST's pictures, refreshed daily whether or not the owner's switch is on, so
   // turning it on shows them at once. Light: one stylesheet per season, then only pictures that changed.
   await refreshTeamLogosIfDue([CURRENT_SEASON, CURRENT_SEASON - 1], (m) => log(`  ${m}`));
+}
+
+/** After a pack build from `dataAt` (read before it started): the lite pack's stamps, and the current season's full
+ *  pack's when the build rebuilt it rather than carried it (packs/due.ts reads both). */
+export async function stampPacks(dataAt: string, currentRebuilt: boolean): Promise<void> {
+  const at = new Date().toISOString();
+  await kvSet("packs:data", dataAt);
+  await kvSet("packs:last", at);
+  if (currentRebuilt) {
+    await kvSet(CURRENT_PACK_DATA, dataAt);
+    await kvSet(CURRENT_PACK_LAST, at);
+  }
 }
 
 /** Backfill runs where the cycle has its own process (the VM); CS_BACKFILL=on|off overrides. */
