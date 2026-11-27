@@ -638,6 +638,8 @@ describe("a chat that looks something up, and one that got a number wrong", () =
       expect(factsFor).toHaveBeenCalledTimes(1);
       expect(chat).toHaveBeenCalledTimes(1);
       expect(r.chat!.text).toBe("Working.");
+      // The search the clock stopped is said on the answer, as not checked rather than as no records.
+      expect(r.checked?.unanswered).toContain("two (out of time)");
     } finally { vi.useRealTimers(); }
   });
 
@@ -656,6 +658,7 @@ describe("a chat that looks something up, and one that got a number wrong", () =
       expect(chat).toHaveBeenCalledTimes(1);
       expect(r.chat!.text).toBe("Let me check that.");
       expect(r.chat!.text).not.toContain("LOOKUP");
+      expect(r.checked?.unanswered).toContain("26000 opr (out of time)");
     } finally { vi.useRealTimers(); }
   });
 
