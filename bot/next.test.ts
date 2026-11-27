@@ -24,6 +24,17 @@ describe("/next's match", () => {
     expect(aheadEvents([tonight], Date.parse("2026-11-25T06:00:00Z"))).toEqual([]);
   });
 
+  it("looks past three events with nothing for the team, so a later event's match isn't hidden", () => {
+    // A team is in more than three of its events at once: a meet with no schedule posted yet (A), one it is on the
+    // roster of but not the field of (B), one that was called off (C). Its next match is at D, and a cap of three
+    // would answer "nothing scheduled" over it.
+    const now = Date.parse("2026-11-01T12:00:00Z");
+    const rows = ["A", "B", "C", "D", "E"].map((code, i) => ({ season: 2025, code, name: `Event ${code}`, start: `2026-11-0${i + 2}`, end: `2026-11-0${i + 2}`, timezone: null }));
+    expect(aheadEvents(rows, now).map((e) => e.code)).toEqual(["A", "B", "C", "D", "E"]);
+    const details = aheadEvents(rows, now).map((r) => event(r.code, [match(1, [r.code === "D" ? 4215 : 6980])]));
+    expect(nextPlaying(details, 4215)?.event.event.code).toBe("D");
+  });
+
   it("keeps an event with no date published yet, after the dated ones", () => {
     const dated = { start: "2026-11-24", end: "2026-11-24", timezone: null };
     const undated = { start: null, end: null, timezone: null };
