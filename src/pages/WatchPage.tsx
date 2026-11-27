@@ -219,14 +219,19 @@ function WatchBody() {
       ...(creator.channel ? { channel: creator.channel } : {}), ...(creator.series ? { series: creator.series } : {}), ...(creator.durationS ? { duration: creator.durationS } : {}) }
     : null, [fromFeed, creator]);
   const lib = useItemState(card, !!user, ready);
-  const { clock, seek } = useVideoClock(frame, `${videoId}:${t}:${end ?? ""}`);
+  const playing = `${videoId}:${t}:${end ?? ""}`;
+  const { clock, seek } = useVideoClock(frame, playing);
+  // The clock is this video's only once it has been reset for it (moving from one watch page to the next keeps the
+  // last video's time for a render): until then it says nothing about this one.
+  const fresh = useRef<string | null>(null);
+  useEffect(() => { if (!clock) fresh.current = playing; }, [clock, playing]);
   // 5 s in, it's on the person's History (once per visit).
   const kept = useRef<string | null>(null);
   useEffect(() => {
-    if (!card || !ready || !clock || clock.t < (card.t ?? 0) + 5 || kept.current === card.key) return;
+    if (!card || !ready || !clock || fresh.current !== playing || clock.t < (card.t ?? 0) + 5 || kept.current === card.key) return;
     kept.current = card.key;
     void setInList(!!user, "history", card, true).catch(() => {});
-  }, [card, clock, ready, user]);
+  }, [card, clock, ready, user, playing]);
 
   const [more, setMore] = useState(false);
   useEffect(() => setMore(false), [videoId]);
