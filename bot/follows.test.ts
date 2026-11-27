@@ -159,6 +159,33 @@ describe("follows and the tick, on a database", () => {
     expect(await removeFollow("g", { kind: "event", event: "USTXAUQ" })).toBe(1);
   });
 
+  it("posts a meet's schedule as soon as FIRST posts it, even weeks before the event", async () => {
+    // A window around today held the schedule post back until the event was nearly here — and an event with no date
+    // published at all never posted one. Both are the same read, so it is no longer windowed.
+    const start = iso(NOW + 30 * 864e5).slice(0, 10);
+    // Its end is far ahead so the real clock doesn't call it finished (as USTXAUQ's is): the start is what makes it weeks out.
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, source) VALUES (?, 'FAROUT', 'Far Out Qualifier', 'Qualifier', ?, '2027-06-30', 'UTC', 0, 0, 'test')", [S, start]);
+    await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'FAROUT', 18360)", [S]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'FAROUT', 'qual', 0, 1, 'Q1', ?, 0, 'test')", [S, `${start}T10:00:00`]);
+    for (const [i, t] of [18360, 4215].entries()) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station) VALUES (?, 'FAROUT', 'qual', 0, 1, ?, ?, ?)", [S, t, i % 2 ? "blue" : "red", (i % 2) + 1]);
+    clearAllCaches();
+    try {
+      expect(await addFollow("g", "c1", { kind: "team", team: 18360 }, "u", NOW - 864e5)).toBe("added");
+      const send = vi.fn(async () => "ok" as const);
+      expect(await sent(send, "https://controlscout.org", () => {}, NOW)).toBeGreaterThan(0);
+      const titles = (send.mock.calls as unknown as [string, { title: string }][]).map(([, e]) => e.title);
+      expect(titles).toContain("Schedule posted: Far Out Qualifier");
+    } finally {
+      await run("DELETE FROM match_teams WHERE season = ? AND code = 'FAROUT'", [S]);
+      await run("DELETE FROM matches WHERE season = ? AND code = 'FAROUT'", [S]);
+      await run("DELETE FROM event_teams WHERE season = ? AND code = 'FAROUT'", [S]);
+      await run("DELETE FROM events WHERE season = ? AND code = 'FAROUT'", [S]);
+      await run("DELETE FROM discord_follows");
+      await run("DELETE FROM discord_posts");
+      clearAllCaches();
+    }
+  });
+
   it("an event follow belongs to the season it was made in, and is moved to this season's event once", async () => {
     expect(await addFollow("g", "c1", { kind: "event", event: "USTXAUQ" }, "u", NOW - 864e5)).toBe("added");
     // The row as a season rollover leaves it: the code exists this season too, and the follow is last season's.

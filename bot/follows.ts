@@ -306,17 +306,23 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
   // Only this season's event follows: a code repeats, and last season's follow must not post this season's event.
   const codes = [...new Set(active.filter((f) => f.kind === "event" && f.event && f.season === CURRENT_SEASON).map((f) => f.event!))];
   const day = (n: number) => new Date(now + n * 864e5).toISOString().slice(0, 10);
-  // The events to look at: the followed teams' events on around today (entered, or with matches, from yesterday to
-  // tomorrow), and every event a server follows by code. A stale event's posts are keyed by day (bot/eventAlerts.ts),
-  // so nothing old ever repeats.
+  // The events to look at: every event a followed team is entered in that isn't over, and every event a server follows
+  // by code. Not a window around today: FIRST often posts a meet's schedule weeks before it, and a window would hold
+  // that post back until the event was nearly here — and an event with no date published, or one that has ended with a
+  // match still unplayed (moved), would never be looked at at all. What actually posts is still decided by each post's
+  // own moment (bot/eventAlerts.ts: the evening before, the day of, fifteen minutes before a match), and a stale
+  // event's posts are keyed by day, so nothing old ever repeats.
   const found: { code: string }[] = [];
   if (teams.length) {
     const ph = teams.map(() => "?").join(",");
     found.push(...await all<{ code: string }>(
-      `SELECT e.code FROM events e WHERE e.season = ? AND e.start <= ? AND COALESCE(e.end, e.start) >= ?
+      `SELECT e.code FROM events e WHERE e.season = ?
+         AND (e.start IS NULL OR COALESCE(e.end, e.start) >= ?
+           OR EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 0
+                        AND (m.time IS NULL OR substr(m.time, 1, 10) >= ?)))
          AND (EXISTS (SELECT 1 FROM event_teams et WHERE et.season = e.season AND et.code = e.code AND et.team IN (${ph}))
            OR EXISTS (SELECT 1 FROM match_teams mt WHERE mt.season = e.season AND mt.code = e.code AND mt.team IN (${ph})))`,
-      [CURRENT_SEASON, day(2), day(-1), ...teams, ...teams]));
+      [CURRENT_SEASON, day(-1), day(-1), ...teams, ...teams]));
   }
   if (codes.length) {
     found.push(...await all<{ code: string }>(`SELECT code FROM events WHERE season = ? AND code IN (${codes.map(() => "?").join(",")})`, [CURRENT_SEASON, ...codes]));
