@@ -306,6 +306,16 @@ describe("a chat with Bruno", () => {
     expect(r.next).toEqual([]);
   });
 
+  it("a part search couldn't read is \"couldn't check\" only when his reply says something was missing", async () => {
+    // The audit's Q88 after the event blocks went live: he answered from them, and the footer still said "couldn't check".
+    const q = "who should i watch at the next nj meet and why";
+    const parts = [{ q: "who should i watch at the next nj meet", answered: false }, { q: "why", answered: false }];
+    const answered = await ask(q, chatDeps({ text: "Watch 38038: 46.7 OPR this season.", search: true }, { lookups: vi.fn(async () => ({ facts: [], parts })) }), SITE);
+    expect(answered.checked).toEqual({ searches: 3, unanswered: [] });
+    const missing = await ask(q, chatDeps({ text: "I couldn't find the next NJ meet.", search: false }, { lookups: vi.fn(async () => ({ facts: [], parts })) }), SITE);
+    expect(missing.checked?.unanswered).toEqual(["who should i watch at the next nj meet", "why"]);
+  });
+
   it("a part whose answer has nothing to show never replaces the message's card and links", async () => {
     const q = "what is the best team and who won decode";
     const sorry = base({ q: "who won decode", hits: [], step: "recovery", sorry: { understood: [], suggest: [] } });

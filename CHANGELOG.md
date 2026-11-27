@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.1.7 — 2026-11-27
+
+The Discord bot's "checked" line agrees with its answer.
+
+### Highlights
+- [alerts] "Couldn't check" only shows when the answer says something was missing
+- [alerts] An answer from the team and event facts no longer says it couldn't check
+- [alerts] Out-of-time searches and missing videos are still said plainly
+
+### Discord bot
+- **The check line agrees with the answer** (#2394; `bot/ask.ts`): a part of a message search couldn't read on its own ("who should I watch at the next NJ meet") is listed as "couldn't check" only when the reply says something was missing. Answered from the team and event blocks, it was checked: the footer under that answer said otherwise (the audit's Q77, and Q88 after 8.1.6 went live).
+
 ## 8.1.6 — 2026-11-27
 
 The Discord bot knows events: NJ States, the next NJ meet, Worlds and any event by its name, with every team there.
