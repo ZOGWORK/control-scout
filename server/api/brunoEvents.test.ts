@@ -62,6 +62,9 @@ describe("which events a message names", () => {
     expect((await namedEvents("compare the lake erie league meet v the new jersey championship", NOW)).map(key)).toContain(`${NOW_S}:USOHLEM1`);
     expect(await namedEvents("what is 4215's opr", NOW)).toEqual([]);
     expect(await namedEvents("is ohio good at robotics", NOW)).toEqual([]);
+    // Everyday words are not state codes (Loopy on #2392); a code typed as one is.
+    for (const q of ["who won in championship", "show me events", "red or blue teams", "oh championship"]) expect(await namedEvents(q, NOW)).toEqual([]);
+    expect((await namedEvents("who won NJ states", NOW)).map(key)).toEqual([`${LAST}:USNJCMP`, `${NOW_S}:USNJCMP`]);
   });
 });
 
