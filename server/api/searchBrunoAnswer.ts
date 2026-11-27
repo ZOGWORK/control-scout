@@ -8,7 +8,7 @@
 // Streamed to a page that asks for it (?stream=1): the answer shows as he writes it, each part checked the same way
 // before it's sent (previewOf), and ends at the same answer; the model call, prompt and cache are the same.
 import type { SearchAnswer, SearchCardLine, SearchHit } from "../../src/shared/api.js";
-import type { LeaderboardRow, StatAnswer, StatBlock, StatLink } from "../../src/shared/searchStat.js";
+import type { LeaderboardRow, StatAnswer, StatBlock, StatLink, StatMatchRow } from "../../src/shared/searchStat.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { SEARCH_PAGE_LIMIT, isBrunoQuestion } from "../../src/shared/search.js";
 import { brunoAvailable, brunoSearchAnswer, brunoSearchAnswerStream } from "../auth/controlPoint.js";
@@ -81,13 +81,18 @@ const phaseFacts = (b: Extract<StatBlock, { kind: "leaderboard" }>, r: Leaderboa
   return said.length ? `, ${said.join(" · ")}` : "";
 };
 
+/** A match row's own points without penalties, when fouls changed its score. A list ranked by them (a team's best
+ *  scores) reads in their order: with only the official scores beside it, "306 above 313" read as a mistake, and
+ *  Bruno called the lower one the highest official score (the audit's Q55). */
+export const npNote = (r: Pick<StatMatchRow, "own" | "ownNp">): string => (r.ownNp != null && r.ownNp !== r.own ? ` (${r.ownNp} without penalties)` : "");
+
 /** One stat block as plain lines: the same rows the page shows, every number as the page has it. */
 function blockFacts(b: StatBlock): string[] {
   const title = "title" in b && b.title ? [`${b.title}:`] : [];
   switch (b.kind) {
     case "kpis": return [b.items.map((k) => `${k.label} ${k.value}${k.sub ? ` (${k.sub})` : ""}`).join("; ")];
     case "record": return [...title, `- record ${b.wins}-${b.losses}-${b.ties} (W-L-T)${b.split ? `; quals ${b.split.quals.wins}-${b.split.quals.losses}-${b.split.quals.ties}, playoffs ${b.split.playoffs.wins}-${b.split.playoffs.losses}-${b.split.playoffs.ties}` : ""}`];
-    case "matches": return [...title, ...b.rows.map((r) => `- ${r.label}: ${r.own}-${r.opp} ${r.result === "W" ? "won" : r.result === "L" ? "lost" : "tied"}, ${r.event.label} (${r.season})${r.partners?.length ? `, with ${names(r.partners)}` : ""}${r.opponents?.length ? `, vs ${names(r.opponents)}` : ""}`)];
+    case "matches": return [...title, ...b.rows.map((r) => `- ${r.label}: ${r.own}-${r.opp} ${r.result === "W" ? "won" : r.result === "L" ? "lost" : "tied"}${npNote(r)}, ${r.event.label} (${r.season})${r.partners?.length ? `, with ${names(r.partners)}` : ""}${r.opponents?.length ? `, vs ${names(r.opponents)}` : ""}`)];
     case "table": return [...title, ...b.rows.map((r) => `- ${b.columns.map((c) => `${c.label} ${r.cells[c.key] ?? "-"}`).join(", ")}${r.teams ? `; red ${names(r.teams.red)} vs blue ${names(r.teams.blue)}` : ""}`)];
     // Where the team is and its OPR phases, so "where are they from, and their auto opr" is answered by the board itself.
     case "leaderboard": return [...title, ...b.rows.map((r) => `- #${r.rank} ${r.team.label}${r.location ? ` (${r.location})` : ""}: ${b.stat.label} ${r.display}${r.record ? `, record ${r.record}` : ""}${phaseFacts(b, r)}`), b.note];
@@ -114,6 +119,8 @@ export function statFacts(s: StatAnswer): string[] {
   if (s.none) out.push(s.none);
   for (const b of s.blocks) out.push(...blockFacts(b));
   if (s.source) out.push(`Source: ${s.source}`);
+  // The rule the numbers follow, as the page's "how it's counted" says it: which score ranks a list, which one it shows.
+  if (s.definition) out.push(`How it's counted: ${s.definition}`);
   return out.filter(Boolean);
 }
 
