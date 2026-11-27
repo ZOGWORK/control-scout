@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.2.4 — 2026-11-27
+
+A phone left open at an event fetches the predictions pack once an hour, not every ten minutes.
+
+### Highlights
+- [offline] A page open at a venue fetches the predictions pack at most hourly
+- [speed] About 4 MB an hour of venue Wi-Fi per phone, down from about 26 MB
+- [offline] Update on the Download page still gets the newest pack at once
+
+### Offline
+- **The background check replaces a saved predictions pack at most hourly** (`src/lib/packPolicy.ts` `liteRefreshDue`, `src/lib/packs.ts` `syncLite`): since 8.2.2 an event day publishes a new lite pack each time a sync brings results, as often as every 15 minutes, and a tab open at a venue asks every 10 minutes. Each new release is the whole pack (4.4 MB: every season's ratings and every team's name), so a phone left open at a venue downloaded it nearly every check, about 26 MB an hour. A background check now leaves a pack saved within the hour in place and checks again later. Results that came in since are still folded in on the device, as they were between builds (`liteLearned`). It downloads at once when nothing is saved, or when the published pack comes from another engine version, whose ratings carry state the saved one lacks. A saved time in the future (a clock moved back) counts as old. The person's own Get it / Update never waits. `src/lib/packPolicy.test.ts` covers the rule, and `src/lib/packs.test.ts` a tab's hour at a venue: the 15-minute build is skipped, the hour's taken, and Update fetches the newest at once. The comments that still called the pack "about 1.6 MB" now say 4.4 MB.
+
 ## 8.2.3 — 2026-11-27
 
 A first visit pays for the page it opened, not for every page the app has.
