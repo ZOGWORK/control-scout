@@ -587,6 +587,22 @@ describe("a chat that looks something up, and one that got a number wrong", () =
     expect(r.chat!.text).toBe("Done.");
   });
 
+  it("stops a step's lookups when the budget runs out, instead of searching for facts it can't use", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chat = vi.fn().mockResolvedValueOnce({ text: "Working.\nLOOKUP: one\nLOOKUP: two", search: false });
+      const factsFor = vi.fn(async () => {
+        // The first search used every second of the loop's budget.
+        vi.setSystemTime(Date.now() + AGENT_BUDGET_MS);
+        return ["fact"];
+      });
+      const r = await ask("a question", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+      expect(factsFor).toHaveBeenCalledTimes(1);
+      expect(chat).toHaveBeenCalledTimes(1);
+      expect(r.chat!.text).toBe("Working.");
+    } finally { vi.useRealTimers(); }
+  });
+
   it("stops when the reply's time budget is spent, instead of holding the channel for another step", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
