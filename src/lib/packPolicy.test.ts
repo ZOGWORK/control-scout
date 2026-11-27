@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LITE_RECHECK_MS, SEEN_KEY, SESSION_KEY, constrained, followsTeams, liteRecheckDue, noteVisit, shouldSyncLite, type SyncSignals } from "./packPolicy";
+import { LITE_BACKGROUND_EVERY_MS, LITE_RECHECK_MS, SEEN_KEY, SESSION_KEY, constrained, followsTeams, liteRecheckDue, liteRefreshDue, noteVisit, shouldSyncLite, type SyncSignals } from "./packPolicy";
 
 class Mem {
   m = new Map<string, string>();
@@ -90,5 +90,25 @@ describe("liteRecheckDue", () => {
   });
   it("the first check of a session is never held back by the rule", () => {
     expect(liteRecheckDue(0, t, true)).toBe(true);
+  });
+});
+
+describe("liteRefreshDue", () => {
+  const t = Date.parse("2026-11-28T15:00:00Z");
+  const saved = (ago: number, engineVersion = "3.4.0") => ({ savedAt: t - ago, engineVersion });
+  const published = { engineVersion: "3.4.0" };
+  it("an event day's 15-minute builds don't each download: a pack saved within the hour stays", () => {
+    for (const ago of [0, 15 * 60_000, 45 * 60_000, LITE_BACKGROUND_EVERY_MS - 1]) expect(liteRefreshDue(saved(ago), published, t)).toBe(false);
+  });
+  it("an hour on, the newer pack downloads", () => {
+    expect(liteRefreshDue(saved(LITE_BACKGROUND_EVERY_MS), published, t)).toBe(true);
+    expect(liteRefreshDue(saved(5 * LITE_BACKGROUND_EVERY_MS), published, t)).toBe(true);
+  });
+  it("no pack yet, or a pack from another engine: at once", () => {
+    expect(liteRefreshDue(null, published, t)).toBe(true);
+    expect(liteRefreshDue(saved(60_000, "3.3.9"), published, t)).toBe(true);
+  });
+  it("a saved time in the future (the clock moved back) never holds the pack back", () => {
+    expect(liteRefreshDue(saved(-10 * 60_000), published, t)).toBe(true);
   });
 });
