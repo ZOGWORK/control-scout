@@ -572,7 +572,9 @@ For `tick`, sync the meet first: `npm run sync -- --event 2026:USNJNEM3`.
   the card can't hold is posted in the channel under it (`rest`, `spillOf` in `bot/views.ts`) — every match, every
   team and every ranking row kept, no count of ours, no `…and N more` of ours. A result's shape is one story in the
   description (4 blocks and 600 characters as read on the real Q16/Q17 — its design, not a cut); a reminder 3 and 400.
-  Ranking rows are posted whole, up to Discord's 4,096-character description, the rest under the card.
+  Ranking rows are posted whole, up to Discord's 4,096-character description, the rest under the card. The numbers
+  themselves are stated once, in `bot/limits.ts`, and `embedProblems` is what the tests that build the bot's real cards
+  assert (commands, event alerts, the 600-team event): a card Discord would refuse fails a test, not a reader's post.
 
 ## On the VM
 
