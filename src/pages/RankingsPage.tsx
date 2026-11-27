@@ -29,6 +29,7 @@ import {
   Disclosure, RankingsTabs, V8_CAPTION, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_RANK, V8_NEW, V8_ROW, V8_TH, V8_UP, v8Medal, v8Trend,
 } from "../components/rankings/v8";
 import { TeamLogo } from "../components/TeamLogo";
+import { fixed } from "../shared/format";
 
 // v8: the filter row's buttons are plain hairline pills; a filter that's on is white text on white/10% (no accent).
 export const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-10 v8:transition-[color,background-color,border-color,scale] v8:duration-150 v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
@@ -338,7 +339,7 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
                 </td>
                 <td className={cn(td, "max-w-[14rem] truncate text-text-muted max-md:hidden")}>{homeOf(r)}</td>
                 <td className={cn(td, "text-right tabular-nums")}>
-                  <span className={cn("font-semibold v8:font-medium", V8_NUM)}>{r.rating.toFixed(1)}</span>
+                  <span className={cn("font-semibold v8:font-medium", V8_NUM)}>{fixed(r.rating)}</span>
                   {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px] v8:text-[0.6875rem]", r.dRating > 0 ? cn("text-success", V8_UP) : cn("text-danger", V8_DOWN))}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
                 </td>
                 {swing && <td className={cn(td, "text-right tabular-nums")} title={swingTitle(r.swing)}>{swingText(r.swing)}</td>}

@@ -32,6 +32,7 @@ import { cn } from "./cn";
 import { hasTeamPage } from "../shared/teamPages";
 import { rowIcon, rpIcon } from "./BreakdownIcons";
 import { useIsV8 } from "../lib/v8";
+import { fixed } from "../shared/format";
 
 type Side = "red" | "blue";
 const SIDES: Side[] = ["red", "blue"];
@@ -549,9 +550,9 @@ export function BonusRows({ season, odds, actual, tier }: {
           <RowLabel icon={Sigma} label="Expected RP">
             <Link to="/methodology#bonus" className="tap-44 shrink-0 text-xs text-text-muted underline">How</Link>
           </RowLabel>
-          <span className={sideValue("red")}>{odds.rpRed.toFixed(1)}</span>
+          <span className={sideValue("red")}>{fixed(odds.rpRed)}</span>
           <span className={middleCell()}>{odds.rpRed === odds.rpBlue ? "Even" : `${odds.rpRed > odds.rpBlue ? "Red" : "Blue"} +${Math.abs(odds.rpRed - odds.rpBlue).toFixed(1)}`}</span>
-          <span className={sideValue("blue")}>{odds.rpBlue.toFixed(1)}</span>
+          <span className={sideValue("blue")}>{fixed(odds.rpBlue)}</span>
         </li>
       )}
     </>

@@ -12,6 +12,7 @@ import { eventRoster, eventStanding } from "../src/shared/eventStanding.js";
 import { oddsPct, tierWords } from "../src/shared/share.js";
 import { FOOTER, VOLT, dates, favouriteOf, linkedAlliance, teamLink, teamsOf as sideTeams } from "./views.js";
 import type { Follow } from "./follows.js";
+import { fixed } from "../src/shared/format.js";
 
 export type EventKind = "eve" | "schedule" | "recap";
 /** One post: a channel, the followed teams it's about, what kind, and its key in discord_posts (match_key). */
@@ -157,7 +158,7 @@ export function eveEmbed(due: EventDue, d: EventDetail, seasons: TeamSeason[], s
   const e = d.event;
   // Every rated team there, whole; Discord's 1,024 to a field wraps the list into continuation fields.
   const strongest = d.field.filter((f) => f.rating).sort((a, b) => b.rating!.np - a.rating!.np || a.team - b.team)
-    .map((f) => `${teamLink(f.team, site)}${f.name ? ` ${f.name}` : ""} · ${f.rating!.np.toFixed(1)}`);
+    .map((f) => `${teamLink(f.team, site)}${f.name ? ` ${f.name}` : ""} · ${fixed(f.rating!.np)}`);
   return {
     title: `Tomorrow: ${e.name}`,
     url: eventUrl(d, site),

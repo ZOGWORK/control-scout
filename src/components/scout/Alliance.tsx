@@ -25,6 +25,7 @@ import { toast } from "../ui/sonner";
 import { Meter, StatTile, TONES, type Tone } from "../StatTile";
 import { cn } from "../cn";
 import { EventPicker } from "./EventPicker";
+import { fixed } from "../../shared/format";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${int(n)} ${n === 1 ? one : many}`;
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Couldn't reach the server. Try again.");
@@ -247,7 +248,7 @@ function Coverage({ data, tone }: { data: AllianceShared; tone: Tones }) {
   );
 }
 
-const avg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+const avg = (n: number) => (Number.isInteger(n) ? String(n) : fixed(n));
 
 /** One consensus over every team's entries at the event, for the most scouted teams. */
 function SharedConsensus({ workspaceId, data }: { workspaceId: string; data: AllianceShared }) {

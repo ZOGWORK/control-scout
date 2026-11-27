@@ -26,6 +26,7 @@ import { oddsTabBasis } from "../lib/eventRankingNotes";
 import { eventStanding } from "../shared/eventStanding";
 import { forecastTier } from "../shared/forecastTier";
 import { V8_NUM } from "../lib/v8";
+import { fixed } from "../shared/format";
 export { forecastTier };
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
@@ -276,7 +277,7 @@ function Outlook({ fc, team, name, onPeek }: { fc: Shown; team: number | null; n
             <span className="text-sm text-muted-foreground">Total <span className="font-medium tabular-nums text-foreground">{p.total != null ? p.total.toFixed(1) : "—"}</span></span>
           </div>
           <div className="flex h-3 overflow-hidden rounded-full bg-muted">
-            {parts.map((x, i) => <m.div key={x.k} className={x.cls} title={`${x.k}: ${x.v.toFixed(1)}`} initial={{ width: 0 }} animate={{ width: `${(x.v / sum) * 100}%` }} transition={{ duration: 0.6, ease, delay: 0.1 + i * 0.08 }} />)}
+            {parts.map((x, i) => <m.div key={x.k} className={x.cls} title={`${x.k}: ${fixed(x.v)}`} initial={{ width: 0 }} animate={{ width: `${(x.v / sum) * 100}%` }} transition={{ duration: 0.6, ease, delay: 0.1 + i * 0.08 }} />)}
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
             {parts.map((x) => <div key={x.k} className="min-w-0"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={cn("size-2 shrink-0 rounded-full", x.cls)} />{x.k}</dt><dd className="mt-0.5 font-display text-xl font-semibold tabular-nums">{x.v.toFixed(1)}</dd></div>)}
@@ -409,8 +410,8 @@ function FieldDetails({ id, t, row, fc, season, isTeam, onPick, onPrefetch, onPe
   // At a league meet, the meet's own rank and record (FIRST's are the league's running standing).
   const now = row ? eventStanding(row) : null;
   if (now?.rank != null) facts.push(["Rank now", `#${now.rank}${now.wins != null ? ` · ${now.wins}-${now.losses ?? 0}-${now.ties ?? 0}` : ""}`]);
-  if (row?.opr.np != null) facts.push(["OPR here", row.opr.np.toFixed(1)]);
-  else if (row?.seasonOpr != null) facts.push(["Season OPR", row.seasonOpr.toFixed(1)]);
+  if (row?.opr.np != null) facts.push(["OPR here", fixed(row.opr.np)]);
+  else if (row?.seasonOpr != null) facts.push(["Season OPR", fixed(row.seasonOpr)]);
   return (
     <m.div id={id} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} transition={{ duration: 0.2, ease }} className="overflow-hidden bg-accent/[0.03] v8:bg-transparent">
       <div className="space-y-3 border-t border-border/60 px-4 pb-4 pt-3 max-sm:px-3">

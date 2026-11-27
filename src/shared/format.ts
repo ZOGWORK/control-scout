@@ -4,9 +4,20 @@
 // Win odds: one rule for the app, the share cards and the light pages (src/shared/share.ts).
 export { oddsPct } from "./share.js";
 
-export const pct = (p: number | null | undefined, digits = 0) => (p == null || !Number.isFinite(p) ? "—" : `${(p * 100).toFixed(digits)}%`);
+/**
+ * A number to `digits` places, half up: one rounding for every page, card, share image and Discord answer. Stats are
+ * stored to two places (an Auto OPR of 0.15, an Endgame of 5.55), so one value in ten sits on a half, where
+ * `toFixed` reads the binary 0.1499… and rounds down: 6980's auto read 0.1 on its stat card and 0.2 on the compare
+ * card, and the Discord bot quoted both (the 2026-11-26 audit). `toPrecision(12)` drops that binary noise first.
+ */
+export const fixed = (x: number, digits = 1): string => {
+  const f = 10 ** digits;
+  return (Math.round(Number((x * f).toPrecision(12))) / f).toFixed(digits);
+};
 
-export const num = (x: number | null | undefined, digits = 1) => (x == null || !Number.isFinite(x) ? "—" : x.toFixed(digits).replace(/\.0+$/, ""));
+export const pct = (p: number | null | undefined, digits = 0) => (p == null || !Number.isFinite(p) ? "—" : `${fixed(p * 100, digits)}%`);
+
+export const num = (x: number | null | undefined, digits = 1) => (x == null || !Number.isFinite(x) ? "—" : fixed(x, digits).replace(/\.0+$/, ""));
 export const int = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? "—" : Math.round(x).toLocaleString());
 
 /** A name as its owner: "Hypnotic Robotics'" for a name ending in s, "Bad Wolf's" (and "4215's") otherwise. */

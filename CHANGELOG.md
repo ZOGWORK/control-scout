@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.1.4 — 2026-11-27
+
+One number per fact: every page, card and the Discord bot round a stat the same way.
+
+### Highlights
+- [fixes] A stat ending in 5 rounds up everywhere: 6980's auto is 0.2 on every page
+- [fixes] The team page, compare card and Discord bot agree to the decimal
+- [rankings] Ratings and OPRs in rankings round the same way too
+
+### Fixes
+- **One rounding** (#2393; `src/shared/format.ts` `fixed`): stats are stored to two places, so one in ten sits on a half (an Auto OPR of 0.15, an Endgame of 5.55), and `toFixed` reads the binary 0.1499… and rounds down. 6980's team page showed Auto OPR 0.1 while the compare card showed 0.2, and the Discord bot quoted both (the 2026-11-26 audit's "one number per fact"). `num`, `pct` and every stat display that called `toFixed` itself (team stats, rankings, event tables, search cards, answer families, the bot's views) now use one half-up `fixed`.
+
 ## 8.1.3 — 2026-11-27
 
 The Discord bot gives one number per fact, says which season every number is from, and keeps looking before it says it can't find something.
