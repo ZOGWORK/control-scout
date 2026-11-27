@@ -19,6 +19,7 @@ describe("parseAction", () => {
     expect(parseAction("watch 4215's next event")).toMatchObject({ kind: "watchEvent", team: 4215 });
     expect(parseAction("follow event USNJCMP")).toMatchObject({ kind: "watchEvent", team: null, event: "USNJCMP" });
     expect(parseAction("ping me before 23314's next match")).toMatchObject({ kind: "remind", team: 23314 });
+    expect(parseAction("tell me when 4215 plays next")).toMatchObject({ kind: "remind", team: 4215 });
     expect(parseAction("remind me about 4215")).toMatchObject({ kind: "remind", team: 4215 });
     expect(parseAction("stop reminding me about 4215")).toMatchObject({ kind: "cancelRemind", team: 4215 });
     expect(parseAction("cancel my reminders")).toMatchObject({ kind: "cancelRemind", team: null });
@@ -35,6 +36,9 @@ describe("parseAction", () => {
       "how many teams follow 4215's lead",
       "who should i watch at the next nj meet and why",
       "compare 4215 and 23314 and tell me which one to watch at their next event",
+      "tell me about 4215",
+      "tell me about 4215's opr",
+      "tell me of 4215's best match",
       "did 4215 follow up with a win",
       "follow the leader 2025",
       "what was my team's record",

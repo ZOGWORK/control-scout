@@ -47,9 +47,10 @@ const RULES: { re: RegExp; make: (m: RegExpMatchArray) => Action | null }[] = [
     re: new RegExp(`${POLITE}(?:stop\\s+reminding\\s+me|cancel\\s+(?:my\\s+|the\\s+)?reminders?|don'?t\\s+remind\\s+me)(?:\\s+(?:about|for|of)\\s+${TEAM})?\\b(.*)$`, "i"),
     make: (m) => ({ kind: "cancelRemind", team: team(m[1]), rest: restOf(m[2]) }),
   },
-  // "remind me when 4215 plays next", "ping me before 4215's next match", "remind me about 4215"
+  // "remind me when 4215 plays next", "ping me before 4215's next match", "remind me about 4215", "tell me when 4215
+  // plays". "Tell me about 4215" is a question, never a reminder: "tell" only reminds with when/before/once.
   {
-    re: new RegExp(`${POLITE}(?:remind|ping|notify|alert|tell)\\s+me\\s+(?:when|before|about|of|for|once)\\s+(?:team\\s+)?${TEAM}(?:'s)?\\b(?:\\s+(?:plays?|is\\s+(?:up|on|playing)|has\\s+(?:a|its|their)\\s+(?:next\\s+)?match|next(?:\\s+match)?|(?:next\\s+)?match(?:es)?|goes\\s+on))*(.*)$`, "i"),
+    re: new RegExp(`${POLITE}(?:(?:remind|ping|notify|alert)\\s+me\\s+(?:when|before|about|of|for|once)|tell\\s+me\\s+(?:when|before|once))\\s+(?:team\\s+)?${TEAM}(?:'s)?\\b(?:\\s+(?:plays?|is\\s+(?:up|on|playing)|has\\s+(?:a|its|their)\\s+(?:next\\s+)?match|next(?:\\s+match)?|(?:next\\s+)?match(?:es)?|goes\\s+on))*(.*)$`, "i"),
     make: (m) => { const t = team(m[1]); return t ? { kind: "remind", team: t, rest: restOf(m[2]) } : null; },
   },
   // "watch the next event 4215 is in", "watch 4215's next event", "follow USNJCMP", "watch event USNJCMP"

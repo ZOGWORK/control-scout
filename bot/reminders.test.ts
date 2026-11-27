@@ -6,9 +6,9 @@ import { addReminder, cancelReminders, reminderDue, reminderPost, reminderTick }
 import type { NextMatch } from "./next";
 
 const NOW = Date.parse("2026-12-05T15:00:00Z");
-const next = (startsAt: string | null, played = false): NextMatch => ({
+const next = (startsAt: string | null, label: string | boolean = "Q12", played = typeof label === "boolean" ? label : false): NextMatch => ({
   event: { event: { season: 2026, code: "USNJNEM", name: "Northeast League Meet" } },
-  match: { label: "Q12", level: "qual", series: 0, number: 12, played, startsAt, red: { teams: [{ number: 4215 }, { number: 6980 }] }, blue: { teams: [{ number: 1 }, { number: 2 }] } },
+  match: { label: typeof label === "string" ? label : "Q12", level: "qual", series: 0, number: Number(String(typeof label === "string" ? label : "Q12").slice(1)), played, startsAt, red: { teams: [{ number: 4215 }, { number: 6980 }] }, blue: { teams: [{ number: 1 }, { number: 2 }] } },
 }) as never;
 
 describe("reminders", () => {
@@ -48,5 +48,10 @@ describe("reminders", () => {
     await addReminder("g1", "c1", "u1", 4215, NOW + 120_000);
     const rows = await all<{ user_id: string; sent_at: string | null }>("SELECT user_id, sent_at FROM discord_reminders ORDER BY user_id");
     expect(rows.map((r) => [r.user_id, r.sent_at == null])).toEqual([["u1", true], ["u2", false]]);
+    // ...and the match it was already sent for is never sent twice: only a later one is.
+    expect(await reminderTick(send, "s", NOW + 180_000, soon)).toBe(0);
+    const after = async () => next("2026-12-05T15:40:00Z", "Q14");
+    expect(await reminderTick(send, "s", Date.parse("2026-12-05T15:30:00Z"), after)).toBe(1);
+    expect(sent.filter((x) => x === "c1:u1")).toHaveLength(2);
   });
 });
