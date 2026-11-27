@@ -34,9 +34,10 @@ const POLITE = String.raw`^(?:(?:hey|hi|yo)\s+)?(?:bruno[,\s]+)?(?:(?:can|could|
 const RULES: { re: RegExp; make: (m: RegExpMatchArray) => Action | null }[] = [
   // "forget my team", "i'm not on 4215 any more"
   { re: new RegExp(`${POLITE}(?:forget|clear|reset)\\s+(?:that\\s+)?my\\s+team\\b(.*)$`, "i"), make: (m) => ({ kind: "forgetMyTeam", rest: restOf(m[1]) }) },
-  // "remember that my team is 4215", "my team is 4215", "set my team to 4215"
+  // "remember that my team is 4215", "my team is 4215", "set my team to 4215" — the number ends the clause, so "our team
+  // is 12 points behind 6980" or "my team is 5 minutes from our match" is a question, never a team to keep.
   {
-    re: new RegExp(`${POLITE}(?:remember\\s+(?:that\\s+)?|note\\s+(?:that\\s+)?|fyi\\s+)?(?:my\\s+team\\s+(?:is|=)|our\\s+team\\s+is|set\\s+my\\s+team\\s+(?:to|as))\\s+${TEAM}\\b(.*)$`, "i"),
+    re: new RegExp(`${POLITE}(?:remember\\s+(?:that\\s+)?|note\\s+(?:that\\s+)?|fyi\\s+)?(?:my\\s+team\\s+(?:is|=)|our\\s+team\\s+is|set\\s+my\\s+team\\s+(?:to|as))\\s+${TEAM}(?=\\s*(?:$|[,;.!?]|(?:and|so|btw|now)\\b))(.*)$`, "i"),
     make: (m) => { const t = team(m[1]); return t ? { kind: "myTeam", team: t, rest: restOf(m[2]) } : null; },
   },
   // "we're team 4215", "i'm on team 4215", "we are 4215." — the word "team", or a number that ends the clause, so
