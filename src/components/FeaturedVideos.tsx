@@ -1,9 +1,9 @@
 // A team featured in a creator video (src/shared/creatorVideos.ts, server/videos/creatorVideos.ts): the public
-// Behind the Bot badge ("Behind the Bot ×4": a tab on the Standing card's top edge, a retro sticker on classic), the page's Featured in
+// Behind the Bot badge ("Behind the Bot ×4": a small arcade plate just above the Standing card, shining now and then), the page's Featured in
 // section listing each video, and the small chip on team rows (search results, event team lists, rankings). Everyone
 // sees them, signed in or not, and every tap opens the app's watch page (pages/WatchPage.tsx), never a jump to YouTube.
 import { Link } from "react-router-dom";
-import { Clapperboard, Play, Tv } from "lucide-react";
+import { Clapperboard, Play } from "lucide-react";
 import { Section } from "./page";
 import { cn } from "./cn";
 import { useApi } from "../lib/api";
@@ -19,42 +19,28 @@ const episodes = (featured: readonly FeaturedVideo[] | undefined) => (featured ?
 export const btbEpisodes = (featured: readonly FeaturedVideo[] | undefined) => episodes(featured);
 
 /**
- * The team's Behind the Bot badge: "Behind the Bot ×4" when the team was on it four times (no count for one), opening
- * the watch page on the newest episode with the team's other episodes first in Up next, then the rest of the series.
- * `tab` (v8): a notch on the top edge of the Standing card, in the card's own colour so it reads as part of it, with
- * the accent along its top; `patch` (classic): the same lettering as a small retro sticker under the actions.
+ * The team's Behind the Bot badge: an arcade-style plate, "Behind the Bot ×4" (no count for one), purple with white
+ * pixel lettering and a white count and stepped corners and a hard shadow, with a silver shine sweeping across now and
+ * then (index.css btb-shine; still with reduced motion). It opens the watch page on the newest episode, the team's
+ * other episodes first in Up next, then the rest of the series.
  */
-export function FeaturedBadge({ featured, team, variant = "patch", className }: { featured: readonly FeaturedVideo[] | undefined; team: number; variant?: "tab" | "patch"; className?: string }) {
+export function FeaturedBadge({ featured, team, className }: { featured: readonly FeaturedVideo[] | undefined; team: number; className?: string }) {
   const list = episodes(featured);
   if (!list.length) return null;
   const n = list.length;
   const label = `Behind the Bot${n > 1 ? `, ${n} episodes` : ""}: watch ${n > 1 ? "them" : "it"}`;
-  const words = (
-    <>
-      <Tv className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden />
-      <span className="font-mono text-[0.6875rem] font-bold uppercase leading-none tracking-[0.14em]">Behind the Bot</span>
-      {n > 1 && <span className="rounded-[3px] bg-accent px-1 py-px font-mono text-[0.6875rem] font-black leading-4 tabular-nums text-accent-ink" data-featured-count>×{n}</span>}
-    </>
-  );
-  if (variant === "tab") {
-    return (
-      <Link to={watchHref(list[0].videoId, { team })} data-featured-badge={n} aria-label={label} title={label}
-        className={cn(
-          "group inline-flex h-7 items-center gap-1.5 rounded-t-[9px] border border-b-0 border-line border-t-2 border-t-accent bg-card px-2.5 text-accent-text outline-none",
-          "origin-bottom transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-accent/[0.08] active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none motion-reduce:active:scale-100",
-          className)}>
-        {words}
-      </Link>
-    );
-  }
   return (
     <Link to={watchHref(list[0].videoId, { team })} data-featured-badge={n} aria-label={label} title={label}
       className={cn(
-        "inline-flex select-none items-center gap-1.5 rounded-[6px] border-2 border-accent bg-accent/[0.08] px-2 py-1 text-accent-text outline-none",
-        "shadow-[2px_2px_0_0_var(--color-accent)] transition-[transform,box-shadow] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:-translate-x-px hover:-translate-y-px hover:shadow-[3px_3px_0_0_var(--color-accent)]",
-        "active:translate-x-[2px] active:translate-y-[2px] active:shadow-none focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none motion-reduce:hover:translate-x-0 motion-reduce:hover:translate-y-0",
+        "group tap-44 inline-flex outline-none [filter:drop-shadow(2px_2px_0_#1e0b4b)]",
+        "transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:translate-x-px active:translate-y-px motion-reduce:transition-none motion-reduce:active:translate-x-0 motion-reduce:active:translate-y-0",
+        "focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className)}>
-      {words}
+      <span className="relative inline-flex h-[22px] items-center gap-1.5 overflow-hidden bg-[#5b21b6] pl-1.5 pr-[3px] text-[#e4dcfb] [clip-path:polygon(3px_0,calc(100%-3px)_0,100%_3px,100%_calc(100%-3px),calc(100%-3px)_100%,3px_100%,0_calc(100%-3px),0_3px)]">
+        <span className="font-pixel text-[12px] uppercase leading-none tracking-[0.06em]">Behind the Bot</span>
+        {n > 1 && <span className="bg-[#e4dcfb] px-[3px] py-[2px] font-pixel text-[11px] leading-none text-[#4c1d95]" data-featured-count>×{n}</span>}
+        <span aria-hidden className="btb-shine pointer-events-none absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+      </span>
     </Link>
   );
 }

@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.1.0 — 2026-11-26
+
+The Behind the Bot badge is an arcade plate now: pixel letters, purple and white, with a silver shine that sweeps across.
+
+### Highlights
+- [teams] Behind the Bot is a retro arcade badge, purple and white
+- [teams] A faint silver shine sweeps across it now and then
+- [teams] It sits just above the team's card, clear of its edge
+
+### Teams
+- **An arcade Behind the Bot badge** (#2374; `src/components/FeaturedVideos.tsx`): pixel lettering (Silkscreen, self-hosted in `public/fonts`, Open Font License) in soft white on deep purple, a white count block ("×4"), stepped corners and a hard shadow (no glow). Tabbing to it shows a focus ring. It stands straight, just above the Standing card's top edge at the right rather than over its border, and opens the team's episodes as before. A faint silver band sweeps across it every 7 seconds, then rests (`btb-shine` in `src/index.css`, transform only, none with reduced motion). No red or orange.
+- **More room above the card** when a team has the badge, so on a phone it doesn't crowd the note above it.
+
 ## 8.0.9 — 2026-11-26
 
 Videos open on a page of their own, with more to watch beside them, and a team's Behind the Bot episodes are one small badge: "Behind the Bot ×4".
