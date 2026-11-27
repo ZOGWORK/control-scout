@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.1.8 — 2026-11-27
+
+Every video in the feed has a ⋮ menu now: save it, put it on Watch later, ask for more like it, or say you're not interested.
+
+### Highlights
+- [live] A ⋮ menu on every video: Watch later, Save, more like this
+- [live] "Show more like this" tunes your Videos feed
+- [live] Saving from the menu says so, with Undo
+
+### Videos
+- **A ⋮ menu on feed cards** (#2396; `src/components/FeedCard.tsx`): Save to Watch later, Save, Show more like this, and Not interested, instead of the eye button. In Watch later, Saved and History it offers "Remove from …" instead, and leaves out the list you're in. Saving says so in a toast with Undo.
+- **Show more like this** (migration 119: `video_watch.more`; `server/api/videosFeed.rank.ts`): the feed counts it for that kind of video more than a finished one, without counting the video itself as watched. A signed-out device keeps it on the device like the rest of its history.
+
 ## 8.1.7 — 2026-11-27
 
 The Discord bot's "checked" line agrees with its answer.
