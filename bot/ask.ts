@@ -84,7 +84,10 @@ export interface AskDeps {
 /** Bruno's chat reply; `search`: the facts answer the message, so the answer's video and page go with it. `unknown`:
  *  numbers in his text that neither the facts, the message nor the thread have — a record claim in a records answer,
  *  an explanation's own numbers in a chat (see ask, below). */
-export interface ChatReply { text: string; search: boolean; unknown?: string[] }
+export interface ChatReply { text: string; search: boolean; unknown?: string[];
+  /** The searches the reply asked for that the clock stopped before they ran (`talk`, below): the answer's check line
+   *  names them, so a shorter answer never reads as a complete one. */
+  skipped?: string[] }
 /** Facts sent with a chat, at most (Control Point's caps: 40 lines of at most 400 characters, 8,000 in all). One
  *  longer line and it refuses the whole packet with a 400, so every line is cut to its cap (clip, below). */
 const CHAT_FACTS = 40;
@@ -348,7 +351,8 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
         meta: { step: answer.step, refined: false, sentence: false, chat: true },
         chat: { text: reply.text, ...(keep ? { card: true } : {}), ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(pageQ, site) } : {}) },
         next: askNext(shown),
-        checked: { searches: 1 + parts.length, unanswered: [...parts.filter((p) => !p.answered).map((p) => p.q), ...(asksVideo(q) && !watch.length ? ["videos"] : [])] },
+        // A search the loop's clock stopped before it ran is said too, as what it is: not checked, not missing records.
+        checked: { searches: 1 + parts.length, unanswered: [...parts.filter((p) => !p.answered).map((p) => p.q), ...(reply.skipped ?? []).map((r) => `${r} (out of time)`), ...(asksVideo(q) && !watch.length ? ["videos"] : [])] },
         ...(watch.length ? { watch } : {}),
       };
     }
@@ -467,6 +471,8 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
   let spoken: ChatReply | null = null;
   // What he has already looked up, so a repeated search is not run again (it answers the same way it did).
   const tried = new Set<string>();
+  // The searches the clock stopped before they ran, for the answer's check line.
+  const skipped: string[] = [];
   let reply = await talkOnce(packet);
   for (let step = 1; reply; step++) {
     const asked = lookupAsked(reply.text);
@@ -476,14 +482,14 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
     const fresh = asked.queries.filter((r) => !tried.has(r.toLowerCase()));
     if (!fresh.length) break;
     // Out of time: facts for a reply there's no budget left to write would only hold the channel longer.
-    if (room() < MIN_CALL_MS) { console.info(`[bot] chat out of time at step ${step}: posting what he said`); break; }
+    if (room() < MIN_CALL_MS) { skipped.push(...fresh); console.info(`[bot] chat out of time at step ${step}: posting what he said`); break; }
     // A lookup that threw is not a lookup that found nothing — told they are the same, he says the records don't
     // exist when the search was never reachable — so a failed search is counted apart from an empty one. One at a
     // time, in the order asked: every search a reply asks for runs, without all of them hitting the database at once,
     // and none runs once the budget has no time left to write from what it finds.
     const runs: { r: string; facts: string[]; ok: boolean }[] = [];
-    for (const r of fresh) {
-      if (room() < MIN_CALL_MS) { console.info(`[bot] chat out of time at step ${step}: posting what he said`); break; }
+    for (const [i, r] of fresh.entries()) {
+      if (room() < MIN_CALL_MS) { skipped.push(...fresh.slice(i)); console.info(`[bot] chat out of time at step ${step}: posting what he said`); break; }
       tried.add(r.toLowerCase());
       try { runs.push({ r, facts: await factsFor(r), ok: true }); } catch { runs.push({ r, facts: [], ok: false }); }
     }
@@ -516,7 +522,7 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
       reply = { ...next, text: said };
     }
   }
-  return reply;
+  return reply && skipped.length ? { ...reply, skipped } : reply;
 }
 
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and

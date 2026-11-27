@@ -47,7 +47,9 @@ below).
 **Every answer says what it checked.** The post carries `✓ Checked N searches against Control Scout`, and when a part
 of the message couldn't be answered (or videos were asked for and none found) it says that too: `couldn't check: …`.
 It comes from the parts search actually ran (`bot/tools.ts` `Lookup.parts`) or the answer's own clauses, never from a
-second guess. Every part it couldn't answer is named, whole, not the first two.
+second guess. Every part it couldn't answer is named, whole, not the first two. A search Bruno asked for that the
+loop's clock stopped before it ran is named there as well, `… (out of time)`: the one limit left that can shorten an
+answer says so on the answer instead of only in the journal.
 
 **A team answer always has two more things to ask** (`askNext`): where it's from and its videos, after the answer's own
 suggestions, within the button row's five — Discord's own five to a row. A suggestion already covered by the answer isn't repeated.
@@ -332,7 +334,8 @@ asking for the same one again), a search already run is never run twice, and the
 asking for another. The whole loop runs on one wall-clock budget (`AGENT_BUDGET_MS`, two minutes): each call is
 given only the time left (never more than its own `CHAT_TIMEOUT_MS` ceiling), and once there isn't time for another
 call worth starting the loop stops and posts the words he already said (`[bot] chat out of time at step N`, in the
-journal), so a slow model can't hold a channel for minutes. A reply that is only a `LOOKUP:` line is a step, not an
+journal; the answer's check line names the searches that didn't run, `… (out of time)`), so a slow model can't hold a
+channel for minutes. A reply that is only a `LOOKUP:` line is a step, not an
 empty answer. The `LOOKUP:` line is the bot's instruction, never something a reader sees. A records answer naming a number the facts don't have is also no longer an instant card: it is
 sent back once with those numbers named (`[bot] chat repaired`), and only a second refusal posts the card. A reply that
 says it couldn't find the records is filed in the site's failed-search queue like an empty answer, so the phrasing is
