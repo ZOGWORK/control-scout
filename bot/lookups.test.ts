@@ -174,6 +174,30 @@ describe("team choices", () => {
 });
 
 describe("nextLookup", () => {
+  it("names every event it is entered in when none of them has a schedule for it", async () => {
+    // Three events and no schedule with the team in any of them: the answer says all three, not the first and one more.
+    const codes = ["N1", "N2", "N3"];
+    try {
+      for (const [i, code] of codes.entries()) {
+        await run(
+          "INSERT INTO events (season, code, name, type, start, end, remote, hybrid, source) VALUES (?, ?, ?, 'Qualifier', ?, ?, 0, 0, 'test')",
+          [S, code, `Spring Meet ${i + 1}`, `2026-12-1${i}`, `2026-12-1${i}`],
+        );
+        await run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, 21058)", [S, code]);
+      }
+      clearAllCaches();
+      const e = await friendly(nextLookup(21058, Date.parse("2026-11-01T12:00:00Z")));
+      expect(e.title).toBe("No match scheduled");
+      expect(e.detail).toMatch(/No schedule with 21058 at \[Spring Meet 1\]\(.*N1\) yet\./);
+      expect(e.detail).toContain("[Spring Meet 2]");
+      expect(e.detail).toContain("and [Spring Meet 3]");
+    } finally {
+      await run("DELETE FROM event_teams WHERE season = ? AND code IN ('N1','N2','N3')", [S]);
+      await run("DELETE FROM events WHERE season = ? AND code IN ('N1','N2','N3')", [S]);
+      clearAllCaches();
+    }
+  });
+
   it("finds the next match at the fourth event on, past three with nothing scheduled", async () => {
     // A team entered in more than three upcoming events, none of the first three giving it a match: a meet whose
     // schedule FIRST hasn't posted, one it is on the roster of but not the field of, one called off. A cap of three
