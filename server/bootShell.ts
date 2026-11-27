@@ -188,7 +188,7 @@ interface Item { to: string; label: string; end?: boolean; children?: Item[]; su
 const PRIMARY: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/rankings", label: "Rankings", end: true, sub: [{ to: "/rankings/regions", label: "Region rankings" }, { to: "/leagues", label: "Leagues" }, { to: "/power-rankings", label: "Power rankings" }] }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
 const MORE: Item[] = [{ to: "/compare", label: "Compare" }, { to: "/shortlist", label: "Shortlist" }, { to: "/download", label: "Offline" }, { to: "/methodology", label: "How it works", children: [{ to: "/methodology", label: "Predictions" }, { to: "/how-it-works/search", label: "FTC One Search" }] }];
 // The phone tab bar's default (src/lib/tabBar.ts DEFAULT_TABS); a device with its own choice gets it once the app loads.
-const TABS: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
+const TABS: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/predict", label: "Predict", end: true }, { to: "/videos", label: "Videos" }, { to: "/scout", label: "Scout" }];
 
 // Like react-router's NavLink: case-insensitive, a prefix at a segment boundary unless `end`.
 const active = (path: string, it: Item) => {

@@ -17,7 +17,6 @@ export const TAB_OPTIONS: TabDef[] = [
   { id: "rankings", to: "/rankings", label: "Rankings", icon: ListOrdered },
   { id: "powerRankings", to: "/power-rankings", label: "Power", name: "Power rankings", icon: Trophy },
   { id: "predict", to: "/predict", label: "Predict", icon: Sparkles, end: true },
-  // Opt-in only: the owner hasn't decided whether it takes a default slot.
   { id: "videos", to: "/videos", label: "Videos", icon: MonitorPlay },
   { id: "compare", to: "/compare", label: "Compare", icon: Scale },
   { id: "myTeam", to: "/my-team", label: "My team", icon: Star },
@@ -27,7 +26,9 @@ export const TAB_OPTIONS: TabDef[] = [
   { id: "settings", to: "/settings", label: "Settings", icon: Settings },
 ];
 
-export const DEFAULT_TABS: TabId[] = ["home", "events", "predict", "myTeam", "scout"];
+/** Videos took My team's place (owner, 11-27); My team stays in the menu and in Settings. A device on the default
+ *  stores nothing (saveTabs), so it follows this; one with its own choice keeps it. */
+export const DEFAULT_TABS: TabId[] = ["home", "events", "predict", "videos", "scout"];
 /** Five fit a 320 px phone with readable labels; two is the least that's still a bar. */
 export const MAX_TABS = 5;
 export const MIN_TABS = 2;

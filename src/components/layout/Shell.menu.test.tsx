@@ -156,9 +156,9 @@ describe("the phone's top bar and tab bar", () => {
     expect(home.getAttribute("href")).toBe("/");
   });
 
-  it("by default: Home, Events, Predict, My team, Scout, with no More tab", () => {
+  it("by default: Home, Events, Predict, Videos, Scout, with no More tab", () => {
     shell();
-    expect(tabNames()).toEqual(["Home", "Events", "Predict", "My team", "Scout"]);
+    expect(tabNames()).toEqual(["Home", "Events", "Predict", "Videos", "Scout"]);
     expect(within(tabBar()).queryByRole("button", { name: "More" })).toBeNull();
   });
 
