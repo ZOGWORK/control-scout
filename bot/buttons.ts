@@ -127,14 +127,14 @@ export function textChunks(text: string, max = CHUNK_MAX): string[] {
 }
 
 /**
- * The components for an answer: one row of questions to ask next (askNext offers at most three; four is this row's
- * reserve), a row of link buttons for the website and the videos, and the report button. Empty only when there is
- * nothing at all to offer, so a message never carries an empty row.
+ * The components for an answer: one row of questions to ask next (askNext offers up to Discord's five), a row of link
+ * buttons for the website and the videos, and the report button. Empty only when there is nothing at all to offer, so
+ * a message never carries an empty row.
  */
 export async function answerComponents(r: AskReply, buttons: QuestionButtons, now = Date.now(), guild: string | null = null): Promise<APIActionRowComponent<APIButtonComponent>[]> {
   const rows: APIActionRowComponent<APIButtonComponent>[] = [];
-  // Four at most: the row's fifth is the reserve (it used to hold a "Show the full answer" button).
-  const ask = (await Promise.all((r.next ?? []).slice(0, ROW_MAX - 1).map(async (q) => ({
+  // Every question the answer offers, up to Discord's five to a row.
+  const ask = (await Promise.all((r.next ?? []).slice(0, ROW_MAX).map(async (q) => ({
     type: 2 as const, style: 2 as const, custom_id: await buttons.put(q, now, guild), label: buttonLabel(q),
   })))).slice(0, ROW_MAX);
   if (ask.length) rows.push({ type: 1, components: ask });

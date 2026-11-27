@@ -77,7 +77,7 @@ describe("the components", () => {
     const b = new QuestionButtons();
     const rows = await answerComponents(reply({ next: ["4215 awards", "4215 opr", "4215 worlds", "4215 at worlds", "one too many"], watch: [{ label: "Q85", url: "https://youtu.be/A" }] }), b, 0, "g1");
     expect(rows).toHaveLength(3);
-    expect(rows[0].components).toHaveLength(4); // four at most: the fifth would pass Discord's row cap
+    expect(rows[0].components).toHaveLength(5); // Discord's five to a row, all of them questions
     expect(rows[0].components[0]).toMatchObject({ type: 2, style: 2, label: "4215 awards" });
     expect(rows[1].components.map((c) => (c as { label?: string }).label)).toEqual(["Open on controlscout.org", "Q85"]);
     // Every answer can be reported, whether or not it has anything to offer.
@@ -87,10 +87,10 @@ describe("the components", () => {
     expect(await buttonQuestion(b, id, 0)).toBe("4215 awards");
   });
 
-  it("offers at most four questions to ask next, inside Discord's five to a row", async () => {
+  it("offers every question it has, up to Discord's five to a row", async () => {
     const b = new QuestionButtons();
-    const rows = await answerComponents(reply({ next: ["a", "b", "c", "d", "e"] }), b, 0, "g1");
-    expect(rows[0].components).toHaveLength(4);
+    const rows = await answerComponents(reply({ next: ["a", "b", "c", "d", "e", "f"] }), b, 0, "g1");
+    expect(rows[0].components).toHaveLength(5);
     // Each one asks its own question.
     expect(await buttonQuestion(b, (rows[0].components[0] as { custom_id: string }).custom_id, 0)).toBe("a");
   });

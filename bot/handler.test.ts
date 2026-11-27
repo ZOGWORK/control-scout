@@ -589,15 +589,15 @@ describe("a chat with Bruno in Discord", () => {
   });
 
   it("a long answer keeps the question it ends with, so a later yes still finds it", async () => {
-    // The thread clips a turn at 600 characters; the offer sits at the end, where the clip cuts first — and the clipped
-    // head mentions 4215's record without asking about it, so the sentence has to be kept, not its words.
-    const ask = vi.fn().mockResolvedValue({ embed: ok("board"), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: `4215's record came up. ${"x".repeat(700)}. Also want 4215's record?` } });
+    // The thread clips a turn at Discord's 2,000 characters; the offer sits at the end, where the clip cuts first — and
+    // the clipped head mentions 4215's record without asking about it, so the sentence has to be kept, not its words.
+    const ask = vi.fn().mockResolvedValue({ embed: ok("board"), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: `4215's record came up. ${"x".repeat(2500)}. Also want 4215's record?` } });
     const h = createHandler(() => {}, lookups({ ask }));
     await h.mention(message(`<@${BOT}> bio buzz world record`, {}, "m1").m, BOT);
     await h.mention(message("yes", { reference: { messageId: "m1" }, mentions: { repliedUser: { id: BOT } } }, "m2").m, BOT);
     const history = ask.mock.calls[1][1] as { role: string; text: string }[];
     expect(history.at(-1)?.text).toMatch(/Also want 4215's record\?$/);
-    expect(history.at(-1)!.text.length).toBeLessThanOrEqual(600);
+    expect(history.at(-1)!.text.length).toBeLessThanOrEqual(2000);
   });
 
   it("a reply to his answer carries the thread on, even without a mention; replies to others or with no text are left alone", async () => {
@@ -687,6 +687,32 @@ describe("the answer's buttons", () => {
     expect(b.calls.map((x) => x.kind)).toEqual(["defer", "edit"]);
     expect(b.calls[1].payload.embeds[0].title).toBe("ask 4215 awards");
     expect(b.calls[1].payload.allowedMentions).toEqual({ parse: [], repliedUser: false });
+  });
+
+  it("a chat longer than one message posts whole, in the messages Discord takes", async () => {
+    const words = `${"word ".repeat(1200)}END`.trim();
+    const ask = vi.fn(async (q: string) => ({ embed: ok(`ask ${q}`), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: words } }));
+    const h = createHandler(() => {}, lookups({ ask }));
+    const c = command("ask", { question: "explain the drivetrain" });
+    c.i.guildId = "g1";
+    await h(c.i);
+    const more = c.calls.filter((x) => x.kind === "followUp");
+    expect(more.length).toBeGreaterThan(0);
+    const whole = [c.calls[1].payload.content, ...more.map((x) => x.payload.content)].join("\n");
+    // Nothing is cut to fit one message: the answer's last word is posted, and every message is Discord's own size.
+    expect(whole).toContain("END");
+    for (const p of [c.calls[1].payload, ...more.map((x) => x.payload)]) expect(p.content.length).toBeLessThanOrEqual(2000);
+  });
+
+  it("says every part it couldn't check, whole, not the first two", async () => {
+    const ask = vi.fn(async (q: string) => ({ ...card(q), checked: { searches: 3, unanswered: ["where is 4215 from and what is their auto opr", "show me 4215 videos from worlds", "and their record at decode"] } }));
+    const h = createHandler(() => {}, lookups({ ask }));
+    const c = command("ask", { question: "4215" });
+    c.i.guildId = "g1";
+    await h(c.i);
+    const footer = c.calls[1].payload.embeds[0].footer.text as string;
+    expect(footer).toContain("where is 4215 from and what is their auto opr");
+    expect(footer).toContain("and their record at decode");
   });
 
   it("a chunk Discord refuses is logged, not thrown: the answer and what the bot keeps of it still stand", async () => {

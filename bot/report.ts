@@ -70,14 +70,15 @@ export function reportBody(r: Report, now = Date.now()): string {
     "_Reported from Discord by Control Scout itself, at a member's request._",
     "",
     "### The message that asked for it",
-    quiet(clip(r.message, 1500)),
-    ...(thread.length ? ["", "### The thread before it", ...thread.map((t) => `- **${t.role === "user" ? "Person" : "Control Scout"}:** ${quiet(clip(t.text, 1200))}`)] : []),
+    // The message and the thread whole (Discord's own 2,000 characters each): a report cut short is worse than a long one.
+    quiet(r.message),
+    ...(thread.length ? ["", "### The thread before it", ...thread.map((t) => `- **${t.role === "user" ? "Person" : "Control Scout"}:** ${quiet(t.text)}`)] : []),
     "",
     "### Where",
     `- **Server:** \`${r.guild ?? "unknown"}\``,
     `- **Channel:** \`${r.channel ?? "unknown"}\``,
     `- **Asked by:** ${quiet(clip(r.name ?? "a member", 100))} (\`${r.user}\`)`,
-    ...(r.note ? ["", "### What they said was wrong", quiet(clip(r.note, 800))] : []),
+    ...(r.note ? ["", "### What they said was wrong", quiet(r.note)] : []),
     ...(r.answer ? [
       "",
       "### The answer",
@@ -95,7 +96,8 @@ export function reportBody(r: Report, now = Date.now()): string {
     "",
     `_Repo: ${GITHUB_REPO}_`,
   ];
-  return lines.join("\n").slice(0, 60_000);
+  // GitHub's own issue body limit (65,536 characters): nothing is cut short of it.
+  return lines.join("\n").slice(0, 65_000);
 }
 
 /** How an answer's source reads in an issue. */
