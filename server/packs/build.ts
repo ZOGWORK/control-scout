@@ -340,17 +340,53 @@ export async function withPackLock<T>(dir: string, fn: () => Promise<T>): Promis
   try { return await fn(); } finally { holding = false; rmSync(lock, { force: true }); }
 }
 
-/** `lockHeld`: the caller holds the data lock for the whole build (buildFull). */
-export async function buildPacks(log: (m: string) => void = () => {}, o: { lockHeld?: boolean } = {}): Promise<Manifest> {
+/** `lockHeld`: the caller holds the data lock for the whole build (buildFull).
+ *  `only`: rebuild these seasons' full packs and carry every other season's from the last release (event-day builds,
+ *  packs/due.ts): a frozen season's pack's bytes never change, so rewriting 90 MB of them all weekend is waste. */
+export async function buildPacks(log: (m: string) => void = () => {}, o: { lockHeld?: boolean; only?: readonly number[] | null } = {}): Promise<Manifest> {
   return withPackLock(packsDir(), () => buildPacksUnlocked(log, o));
 }
 
-async function buildPacksUnlocked(log: (m: string) => void, o: { lockHeld?: boolean }): Promise<Manifest> {
+/** The manifest on disk, or null (none yet, or unreadable). */
+function readManifest(dir: string): Manifest | null {
+  try { return JSON.parse(readFileSync(join(dir, "latest.json"), "utf8")) as Manifest; } catch { return null; }
+}
+
+/** A full pack carried into a new release: the same bytes under the new version's name, as a hard link (no copy, no
+ *  extra space). Every manifest names its own files, so pruning an old release never takes away a file a newer one
+ *  still lists. */
+export function carriedSeason(dir: string, version: string, f: BuiltFile): BuiltFile {
+  const name = `scout-pack-${version.replace(/\./g, "-")}-${f.seasons[0]}.db`;
+  linkOrCopy(join(dir, f.name), join(dir, name));
+  let gz = f.gz;
+  if (f.gz) {
+    const gzName = `${name}.gz`;
+    linkOrCopy(join(dir, f.gz.name), join(dir, gzName));
+    gz = { ...f.gz, name: gzName, url: `/packs/${gzName}` };
+  }
+  return { ...f, name, url: `/packs/${name}`, gz };
+}
+
+/** A hard link, else a copy: a filesystem without links still gets its pack. */
+function linkOrCopy(from: string, to: string) {
+  if (existsSync(to)) return;
+  try { linkSync(from, to); } catch { copyFileSync(from, to); }
+}
+
+async function buildPacksUnlocked(log: (m: string) => void, o: { lockHeld?: boolean; only?: readonly number[] | null }): Promise<Manifest> {
   const dir = packsDir();
   const version = await nextVersion(dir);
+  const prev = readManifest(dir);
   const lite = await buildLite(version, dir, log);
   const full: BuiltFile[] = [];
-  for (const s of [...SEASON_NUMBERS].sort((a, b) => b - a)) { const f = await buildFull(s, version, dir, log, o); if (f) full.push(f); }
+  for (const s of [...SEASON_NUMBERS].sort((a, b) => b - a)) {
+    // Not asked for this time, and last release's files are still here: carried rather than rebuilt.
+    const carry = o.only && !o.only.includes(s)
+      ? prev?.full?.find((f) => f.seasons.includes(s) && existsSync(join(dir, f.name)) && (!f.gz || existsSync(join(dir, f.gz.name))))
+      : undefined;
+    if (carry) { log(`full ${s}: carried from ${carry.name}`); full.push(carriedSeason(dir, version, carry)); continue; }
+    const f = await buildFull(s, version, dir, log, o); if (f) full.push(f);
+  }
   const sync = await kvGet<{ at: string }>("sync:last");
   const manifest: Manifest = { format: PACK_FORMAT, version, builtAt: new Date().toISOString(), engineVersion: ENGINE_VERSION, dataAsOf: sync?.at ?? null, lite, full };
   writeFileSync(join(dir, "latest.json.tmp"), JSON.stringify(manifest, null, 2));

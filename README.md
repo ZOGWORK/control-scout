@@ -93,7 +93,9 @@ replace FTC New Jersey's provisional list (`server/data/registrations.ts`).
   prediction for every not-yet-played match into the **calibration ledger**
   before the match happens, and scores it afterwards.
 * **Packs**: a lite pack (team ratings, < 10 MB) runs predictions fully offline;
-  per-season full packs hold every event, match and team.
+  per-season full packs hold every event, match and team. On an event day they are rebuilt at the sync's own pace
+  (every 15 minutes on the VM) rather than once a day, so a phone at a venue predicts from ratings that know this
+  morning's matches; a page left open asks for the newer pack while it is on screen.
   **Downloaded online, run only offline:** returning visitors get the lite pack
   in the background (`src/lib/packSync.tsx`, rules in `src/lib/packPolicy.ts`)
   and "Save offline" stores a season, but both only store bytes. Nothing opens,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SEEN_KEY, SESSION_KEY, constrained, followsTeams, noteVisit, shouldSyncLite, type SyncSignals } from "./packPolicy";
+import { LITE_RECHECK_MS, SEEN_KEY, SESSION_KEY, constrained, followsTeams, liteRecheckDue, noteVisit, shouldSyncLite, type SyncSignals } from "./packPolicy";
 
 class Mem {
   m = new Map<string, string>();
@@ -74,5 +74,21 @@ describe("shouldSyncLite", () => {
   it("no connection info at all: decided by the visit alone", () => {
     expect(shouldSyncLite({ ...base, connection: undefined, returning: true })).toBe(true);
     expect(shouldSyncLite({ ...base, connection: undefined })).toBe(false);
+  });
+});
+
+describe("liteRecheckDue", () => {
+  const t = Date.parse("2026-11-28T15:00:00Z");
+  it("a tab open at a venue asks again every ten minutes, so a midday build is picked up without a reload", () => {
+    expect(liteRecheckDue(t, t + LITE_RECHECK_MS - 1, true)).toBe(false);
+    expect(liteRecheckDue(t, t + LITE_RECHECK_MS, true)).toBe(true);
+    expect(liteRecheckDue(t, t + 3 * LITE_RECHECK_MS, true)).toBe(true);
+  });
+  it("a hidden tab asks nothing; it asks when it comes back (if the ten minutes are up)", () => {
+    expect(liteRecheckDue(t, t + 60 * 60_000, false)).toBe(false);
+    expect(liteRecheckDue(t, t + 60 * 60_000, true)).toBe(true);
+  });
+  it("the first check of a session is never held back by the rule", () => {
+    expect(liteRecheckDue(0, t, true)).toBe(true);
   });
 });

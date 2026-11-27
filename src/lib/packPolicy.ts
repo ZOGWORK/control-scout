@@ -69,3 +69,13 @@ export function shouldSyncLite(s: SyncSignals): boolean {
   if (!s.online || constrained(s.connection)) return false;
   return s.hasPack || s.returning || s.follows;
 }
+
+/** How often a page left open asks whether a newer pack is out. The server rebuilds the packs at the sync's pace on an
+ *  event day (about every 15 minutes), so a tab open all weekend gets that day's ratings without a reload. Ten minutes
+ *  is the most it asks, and only while it's on screen: the answer is one small manifest, but it isn't a poll. */
+export const LITE_RECHECK_MS = 10 * 60_000;
+
+/** Is the mid-session check due? Hidden tabs never ask (they ask again as they come back). */
+export function liteRecheckDue(lastAt: number, now: number, visible: boolean): boolean {
+  return visible && now - lastAt >= LITE_RECHECK_MS;
+}
