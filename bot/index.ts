@@ -15,6 +15,7 @@ import { liveForecaster, refreshForecasters } from "../server/predict/engine.js"
 import { COMMANDS, sameCommands } from "./commands.js";
 import { createHandler, realLookups } from "./handler.js";
 import { notifyTick, type Send } from "./follows.js";
+import { reminderTick, type RemindSend } from "./reminders.js";
 import { askChannel, inAskChannel } from "./ambient.js";
 import { welcomeEmbed } from "./welcome.js";
 import { forgetGuild } from "./forget.js";
@@ -214,6 +215,27 @@ setInterval(() => {
     })
     .finally(() => { ticking = false; });
 }, 60_000).unref();
+// A person's own match reminders (bot/reminders.ts): the same minute, its own tick, pinging only the person who asked.
+const remindSend: RemindSend = async (channelId, userId, post) => {
+  try {
+    const ch = await client.channels.fetch(channelId);
+    if (!ch || !ch.isSendable()) return "gone";
+    await ch.send({ content: post.content, embeds: [post.embed], allowedMentions: { parse: [], users: [userId] } });
+    return "ok";
+  } catch (e) {
+    const code = (e as { code?: number }).code;
+    return code === 10003 || code === 50001 || code === 50013 ? "gone" : "error";
+  }
+};
+let reminding = false;
+setInterval(() => {
+  if (reminding || !client.isReady()) return;
+  reminding = true;
+  reminderTick(remindSend, site())
+    .then((n) => { if (n) log(`reminders: sent ${n}`); })
+    .catch((e) => log(`reminders: tick failed: ${(e as Error).message}`))
+    .finally(() => { reminding = false; });
+}, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
 client.on(Events.MessageCreate, (m) => {
   const me = client.user;
@@ -224,7 +246,10 @@ client.on(Events.MessageCreate, (m) => {
     // read once a minute per server, since every message in every channel passes through here.
     const ambient = !!env.discordMessageContent && !!m.guildId
       && inAskChannel(m.channel as never, await askChannel(m.guildId).catch(() => null));
-    await handle.mention(m as never, me.id, ambient);
+    // The bot's own role in this server (the managed role Discord gives every bot, named like it): Discord's @ picker
+    // offers it beside the bot itself, and "@Control Scout" picked as the role is a mention of the bot all the same.
+    const selfRole = m.guild?.members.me?.roles.botRole?.id ?? null;
+    await handle.mention(m as never, me.id, ambient, selfRole);
   })().catch((e) => log(`message: ${(e as Error)?.message ?? String(e)}`));
 });
 /** A 👎 added on purpose is a report (bot/handler.ts `downvoted`): the answer's question and words go to GitHub, and

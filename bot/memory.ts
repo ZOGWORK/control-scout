@@ -57,6 +57,20 @@ export async function recall(guild: string, user: string): Promise<{ teams: numb
   return { teams: rows.map((r) => Number(r.team)), name: person?.name ?? null };
 }
 
+/** The team a person said is theirs in this server ("@Control Scout my team is 4215", migration 118), or null. */
+export async function myTeam(guild: string, user: string): Promise<number | null> {
+  const r = await get<{ team: number | null }>("SELECT team FROM discord_people WHERE guild_id = ? AND user_id = ?", [guild, user]);
+  return r?.team == null ? null : Number(r.team);
+}
+
+/** Keep the team a person says is theirs (null forgets it). Their row is made if this is the first thing they said. */
+export async function keepMyTeam(guild: string, user: string, name: string | null, team: number | null, now = Date.now()): Promise<void> {
+  await run(
+    `INSERT INTO discord_people (guild_id, user_id, name, asks, last_at, team) VALUES (?, ?, ?, 0, ?, ?)
+     ON CONFLICT(guild_id, user_id) DO UPDATE SET team = excluded.team, last_at = excluded.last_at`,
+    [guild, user, name ?? "", new Date(now).toISOString(), team]);
+}
+
 /** A reply thread's turns, by the id of the answer that started it. Empty: unknown, or too old to keep. */
 export async function thread(root: string, now = Date.now()): Promise<BrunoChatTurn[]> {
   const row = await get<{ turns: string; updated_at: string }>("SELECT turns, updated_at FROM discord_threads WHERE root_id = ?", [root]);
