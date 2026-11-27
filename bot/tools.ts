@@ -128,11 +128,12 @@ export async function lookupFacts(parts: string[], deps: {
 }): Promise<Lookup> {
   if (parts.length < 2) return { facts: [], parts: [] };
   const answers: (SearchAnswer | null)[] = new Array(parts.length).fill(null);
-  await Promise.all(parts.map(async (p, i) => {
-    // A follow-up can't be searched until the part it leans on has answered: it's read below, in order.
-    if (i > 0 && needsSubject(p)) return;
-    answers[i] = await deps.search(p).catch(() => null);
-  }));
+  // One part at a time: every part is searched, however many there are, and a message can't put dozens of searches on
+  // the database at once. (A follow-up waits for the part it leans on anyway; it's read separately, below.)
+  for (let i = 0; i < parts.length; i++) {
+    if (i > 0 && needsSubject(parts[i])) continue;
+    answers[i] = await deps.search(parts[i]).catch(() => null);
+  }
   for (let i = 1; i < parts.length; i++) {
     if (!needsSubject(parts[i])) continue;
     answers[i] = await deps.search(resolveAsk(parts, i, answers)).catch(() => null);

@@ -120,6 +120,22 @@ describe("the facts of the parts", () => {
     expect((await lookupFacts(["what is the best team", "who is by"], { search: async (q) => answer(q), facts: async () => [] })).answer).toBeUndefined();
   });
 
+  it("searches the parts one at a time, however many a message has", async () => {
+    let active = 0, most = 0;
+    const asked: string[] = [];
+    await lookupFacts(["a question", "another question", "a third question", "a fourth question"], {
+      search: async (q) => {
+        active++; most = Math.max(most, active); asked.push(q);
+        await new Promise((r) => setTimeout(r, 1));
+        active--;
+        return answer(q);
+      },
+      facts: async () => [],
+    });
+    expect(asked).toEqual(["a question", "another question", "a third question", "a fourth question"]);
+    expect(most).toBe(1);
+  });
+
   it("keeps every part's facts, with no line or character cap of its own", async () => {
     const many = (p: string) => Array.from({ length: 40 }, (_, i) => `${p} ${i} ${"x".repeat(100)}`);
     const facts = await lookupFacts(["a question", "another question"], {

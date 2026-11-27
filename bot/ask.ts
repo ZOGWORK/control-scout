@@ -471,10 +471,12 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
     if (room() < MIN_CALL_MS) { console.info(`[bot] chat out of time at step ${step}: posting what he said`); break; }
     for (const r of fresh) tried.add(r.toLowerCase());
     // A lookup that threw is not a lookup that found nothing — told they are the same, he says the records don't
-    // exist when the search was never reachable — so a failed search is counted apart from an empty one.
-    const runs = await Promise.all(fresh.map(async (r) => {
-      try { return { r, facts: await factsFor(r), ok: true }; } catch { return { r, facts: [] as string[], ok: false }; }
-    }));
+    // exist when the search was never reachable — so a failed search is counted apart from an empty one. One at a
+    // time, in the order asked: every search a reply asks for runs, without all of them hitting the database at once.
+    const runs: { r: string; facts: string[]; ok: boolean }[] = [];
+    for (const r of fresh) {
+      try { runs.push({ r, facts: await factsFor(r), ok: true }); } catch { runs.push({ r, facts: [], ok: false }); }
+    }
     const failed = runs.filter((x) => !x.ok).map((x) => x.r);
     const found = runs.flatMap((x) => x.facts).filter((f) => f && !packet.includes(f));
     const label = fresh.join(" · ").slice(0, 120);
