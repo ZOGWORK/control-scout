@@ -21,7 +21,8 @@ import { loadManualStarts } from "./videos/manualStarts.js";
 import { loadAutoReads, startAutoReadsInbox } from "./videos/autoReads.js";
 import { packsDir } from "./packs/routes.js";
 import { backfillDue } from "./data/cycle.js";
-import { childCycle, cycleRunning, runDataCycle } from "./data/jobs.js";
+import { eventDayNow, eventDaySyncMinutes } from "./data/cadence.js";
+import { cycleRunning, runDataCycle } from "./data/jobs.js";
 import { flushMetrics } from "./metrics.js";
 import { flushSearchFailures, startSearchFailureJobs } from "./searchFailures.js";
 import { flushAbuse } from "./moderation.js";
@@ -198,24 +199,15 @@ setInterval(() => {
   flushSearchFailures().catch((e) => log(`search-failures: ${(e as Error).message}`));
 }, 60_000).unref();
 
-/** Is any event running today ±1 day? (event days sync often; other days daily) */
-async function eventDay(): Promise<boolean> {
-  const d = (n: number) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
-  const r = await all("SELECT 1 FROM events WHERE season = ? AND start <= ? AND COALESCE(end, start) >= ? AND type NOT IN ('Kickoff','Workshop','DemoExhibition') LIMIT 1", [CURRENT_SEASON, d(1), d(-1)]);
-  return r.length > 0;
-}
-
 // On event days, sync often enough that a freshly published schedule gets its
-// pre-match (live) predictions logged before the first matches start: every
-// 15 min where the cycle runs in a child process (the VM), hourly where it
-// runs in the server process (Render's 0.15 CPU would stall pages).
-// EVENT_DAY_SYNC_MINUTES overrides either.
-// The same test cycle() uses: the child process needs a local database file.
-const configuredMinutes = Number(process.env.EVENT_DAY_SYNC_MINUTES);
-const eventDayMinutes = Number.isFinite(configuredMinutes) && configuredMinutes >= 1 ? configuredMinutes : (childCycle() ? 15 : 60);
+// pre-match (live) predictions logged before the first matches start: the
+// cadence eventDaySyncMinutes names (15 min where the cycle runs in a child
+// process, the VM; hourly in the server process, Render's 0.15 CPU would stall
+// pages; EVENT_DAY_SYNC_MINUTES overrides). The offline packs follow the same
+// pace on an event day (server/packs/due.ts).
 // The first cycle STARTUP_CYCLE_MS after boot, then the regular schedule, which never starts one before it
 // (server/warm.ts scheduleCycles).
-scheduleCycles({ cycle, eventDay, backfillDue, eventDayMinutes });
+scheduleCycles({ cycle, eventDay: eventDayNow, backfillDue, eventDayMinutes: eventDaySyncMinutes() });
 // Entry photos (docs/r2-photos.md): every 15 min release uploads that never finished; once a day (after
 // 08:00 UTC, one server only) expire photos of events that ended over 2 days ago, total the bucket and
 // check the free-tier guardrails. Nothing without R2 configured; off with the rest of the schedule.
