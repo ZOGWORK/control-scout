@@ -32,6 +32,13 @@ describe("when the offline packs are rebuilt", () => {
     expect(packsDue(base({ dataVersion: null }))).toEqual({ due: true, scope: "current" });
   });
 
+  it("a result that lands while a build runs is still new data on the next cycle", () => {
+    // The cycle reads the version before building and stamps that one; here the build was asked for v42 and v43 landed
+    // while it ran, so the next cycle must rebuild the current season's pack rather than consider it packed.
+    expect(packsDue(base({ builtFrom: "v41", dataVersion: "v42" }))).toEqual({ due: true, scope: "current" });
+    expect(packsDue(base({ builtFrom: "v42", dataVersion: "v43" }))).toEqual({ due: true, scope: "current" });
+  });
+
   it("any other day, once a day, and every season's pack is rebuilt", () => {
     expect(packsDue(base({ eventDay: false, now: at("2026-11-28T07:59:00.000Z"), dataVersion: "v99" }))).toEqual({ due: false, scope: "all" });
     expect(packsDue(base({ eventDay: false, now: at("2026-11-28T08:00:00.000Z") }))).toEqual({ due: true, scope: "all" });
