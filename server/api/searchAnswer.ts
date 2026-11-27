@@ -58,7 +58,7 @@ import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
 import { chatAnswer } from "./answers/chat.js";
 import { whenEventAnswer } from "./answers/whenEvent.js";
-import { fold, names } from "./query/names.js";
+import { fold, names, type Names } from "./query/names.js";
 import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
 import { eventPlace, normalise, mayRespell, parseQuery, respell } from "./query/parse.js";
@@ -489,7 +489,7 @@ export async function initialismInFull(q: string): Promise<{ q: string; season: 
   const idx = await names();
   const tokens = String(q ?? "").split(/(\s+)/);
   const hits = tokens.map((t, i) => ({ i, w: t.toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, "") }))
-    .filter(({ w }) => w.length >= 3 && !ORDINARY.has(w) && idx.initialism(w).length && !idx.teamsNamed(w).length);
+    .filter(({ w, i }) => w.length >= 3 && !ORDINARY.has(w) && idx.initialism(w).length && !idx.teamsNamed(w).length && !inTeamName(idx, tokens, i));
   if (hits.length !== 1) return null;
   const year = /(?:^|\D)(20\d\d)(?!\d)/.exec(q)?.[1];
   const when = year ? (e: { season: number; start: string | null }) => e.season === Number(year) || String(e.start ?? "").startsWith(year) : undefined;
@@ -500,6 +500,23 @@ export async function initialismInFull(q: string): Promise<{ q: string; season: 
   const out = [...tokens];
   out[hits[0].i] = out[hits[0].i].replace(new RegExp(hits[0].w, "i"), name);
   return { q: out.join(""), season: ev.season, code: ev.code, name };
+}
+
+/** Whether the word at `tokens[at]` is one word of a team's name typed with the words beside it ("kas" in "kas laputa's
+ *  highest score": KAS Laputa, never the KZ Astana Scrimmage's initialism): some run of up to the longest name's words
+ *  through it is a team's whole name, or calls one by its name's own part. A possessive "'s" is the team's, not its
+ *  name's. `tokens` alternate words and the spaces between them, as initialismInFull splits them. */
+function inTeamName(idx: Names, tokens: string[], at: number): boolean {
+  const words = tokens.map((t, i) => ({ i, w: fold(t.replace(/['’]s$/i, "")) })).filter(({ w }) => w);
+  const k = words.findIndex((x) => x.i === at);
+  if (k < 0) return false;
+  for (let len = 2; len <= Math.max(2, idx.longest); len++) {
+    for (let s = Math.max(0, k - len + 1); s <= k && s + len <= words.length; s++) {
+      const run = words.slice(s, s + len).map((x) => x.w).join(" ");
+      if (idx.teamsNamed(run).length || idx.teamsCalled(run).length) return true;
+    }
+  }
+  return false;
 }
 
 /** The answer is about the event: its first hit is the event, or its card or line names it (by its code or name). */
