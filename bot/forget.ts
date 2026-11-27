@@ -24,6 +24,8 @@ export async function forgetGuild(guild: string): Promise<number> {
   gone += await run("DELETE FROM discord_chat_usage WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_guild_teams WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_people WHERE guild_id = ?", [guild]);
+  // Its people's own match reminders (bot/reminders.ts).
+  gone += await run("DELETE FROM discord_reminders WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_threads WHERE guild_id = ?", [guild]);
   gone += await run("DELETE FROM discord_channel_subjects WHERE guild_id = ?", [guild]);
   // Ask-button questions offered under that server's answers (bot/buttons.ts): they carry the server, so they go with

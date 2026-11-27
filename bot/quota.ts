@@ -1,7 +1,7 @@
 // Per-server chat limits for the Discord bot: at most `perHour` chats an hour and `perDay` a day, counted in UTC windows so
-// a limit resets on the clock rather than an hour after a server's first ask. Every server has DEFAULT_LIMIT unless the
-// owner console, or setGuildLimit, gives it a row of its own: 60 an hour and 300 a day, a ceiling far above any team's
-// real use and far below an unbounded Control Point bill. A row replaces both windows (a null or zero there is no cap for
+// a limit resets on the clock rather than an hour after a server's first ask. Every server has DEFAULT_LIMIT — no cap —
+// unless the owner console, or setGuildLimit, gives it a row of its own (the owner asked for no limits by default,
+// 2026-11-26: a channel testing the bot hit the old 60-an-hour default). A row replaces both windows (a null or zero there is no cap for
 // that window), and clearGuildLimit deletes the row to put the server back on the default. A server's two counters start
 // with its limit: setting or clearing one deletes its usage, so chats from before it are not counted against it.
 import { all, get, run } from "../server/db.js";
@@ -13,9 +13,9 @@ export interface LimitSetting extends GuildLimit { custom: boolean }
 /** Allowed, or refused with the seconds until the window that ran out starts afresh. */
 export type Quota = { ok: true } | { ok: false; limited: "hour" | "day"; retryAfter: number };
 
-/** What a server has without a row of its own: a generous ceiling, so no server is ever unbounded by accident. The
- *  owner console sets a server's own row when it needs less (or more). */
-export const DEFAULT_LIMIT: GuildLimit = { perHour: 60, perDay: 300 };
+/** What a server has without a row of its own: no cap in either window. The owner console sets a server's own row when
+ *  one needs a ceiling. */
+export const DEFAULT_LIMIT: GuildLimit = { perHour: null, perDay: null };
 
 /** The two UTC windows a chat counts in, as their keys (the owner console reads them too). */
 export const chatWindows = (now = Date.now()) => {

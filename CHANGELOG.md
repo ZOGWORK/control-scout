@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 8.1.4 — 2026-11-27
+## 8.1.5 — 2026-11-27
 
 One number per fact: every page, card and the Discord bot round a stat the same way.
 
@@ -26,6 +26,24 @@ One number per fact: every page, card and the Discord bot round a stat the same 
 
 ### Fixes
 - **One rounding** (#2393; `src/shared/format.ts` `fixed`): stats are stored to two places, so one in ten sits on a half (an Auto OPR of 0.15, an Endgame of 5.55), and `toFixed` reads the binary 0.1499… and rounds down. 6980's team page showed Auto OPR 0.1 while the compare card showed 0.2, and the Discord bot quoted both (the 2026-11-26 audit's "one number per fact"). `num`, `pct` and every stat display that called `toFixed` itself (team stats, rankings, event tables, search cards, answer families, the bot's views) now use one half-up `fixed`.
+
+## 8.1.4 — 2026-11-27
+
+The Discord bot does what it is asked: it answers "@Control Scout" picked as its role, follows, watches and reminds from a mention, remembers your team, and no longer stops anyone after 30 questions.
+
+### Highlights
+- [alerts] "@Control Scout" works however you pick it from the @ list
+- [alerts] "Remind me when 4215 plays next" pings you 15 minutes before
+- [alerts] "Follow 4215" and "watch the next event 4215 is in" just work
+- [alerts] "My team is 4215" is remembered: "how did my team do" means it
+- [alerts] No more "one at a time": ask as much as you like
+
+### Discord bot
+- **The bot's role is a mention of it** (#2386; `bot/handler.ts`, `bot/index.ts`): Discord's @ list offers the bot's managed role beside the bot, and a message that picked the role was dropped in silence (the audit's 10:13 PM "@Control Scout what is 4215's opr", twice). It is answered now; a role mention Discord sends without its words says how to ask instead of saying nothing.
+- **Actions from a mention or /ask** (`bot/actions.ts`): "follow 4215", "unfollow 4215" and "watch the next event 4215 is in" run the same follow as `/follow` (Manage Server, as `/follow` needs; anyone else is told so and offered a reminder), and a question after the request ("…and tell me when they play next") is answered after it. The chat used to answer these with a paragraph about the team.
+- **Personal reminders** (`bot/reminders.ts`, migration 118 `discord_reminders`): "remind me when 4215 plays next" pings only that person, in that channel, 15 minutes before 4215's next match; the reply names the match, or says none is scheduled yet and keeps checking. "Stop reminding me about 4215" cancels. Sent once, never twice across a restart.
+- **Your team** (`bot/memory.ts`, migration 118 `discord_people.team`): "my team is 4215" / "we're team 4215" is kept for that person in that server, and "how did my team do", "our OPR" and "how did we do" are asked as 4215. "Forget my team" clears it. Before, the chat replied "Got it, I'll remember!" and kept nothing.
+- **No per-person pace, no default server cap** (`bot/quota.ts`; `bot/pacing.ts` removed): the audit was stopped at 10:57 PM by "That's 30 questions in an hour" after the server cap had been lifted. Nobody is paced now, and a server has no cap unless the owner console gives it one.
 
 ## 8.1.3 — 2026-11-27
 
