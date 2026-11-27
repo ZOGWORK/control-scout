@@ -147,8 +147,9 @@ export const searchGet = async <T>(sql: string, args: (string | number | null)[]
  *  caller: never changed. */
 export const keptAnswer = <T>(key: string, make: () => Promise<T>): Promise<T> => keep("answers", key, ANSWER_TTL_MS, ANSWERS_KEPT, make);
 
-/** A whole page, kept PAGE_TTL_MS under `key` (its address: path and query). Shared by every visitor: never changed. */
-export const keptPage = <T>(key: string, make: () => Promise<T>): Promise<T> => keep("pages", key, PAGE_TTL_MS, PAGES_KEPT, make);
+/** A whole page, kept `ttl` (PAGE_TTL_MS unless a frozen season's page, pageCache.ts pageTtlMs) under `key` (its
+ *  address: path and query). Shared by every visitor: never changed. */
+export const keptPage = <T>(key: string, make: () => Promise<T>, ttl = PAGE_TTL_MS): Promise<T> => keep("pages", key, ttl, PAGES_KEPT, make);
 
 /** Drop every kept page and every page carried over a data move: something every page carries changed (the owner's
  *  wash, server/wash.ts), so the next ask draws each page again. Answers and reads stay. */
