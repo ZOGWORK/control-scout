@@ -13,6 +13,7 @@ import { TierMark } from "./predict";
 import { TeamNo } from "./EventGlance";
 import { cn } from "./cn";
 import { Button } from "./ui/button";
+import { fixed } from "../shared/format";
 
 /** Rows shown per side before "Show more". */
 const FIRST = 3;
@@ -120,7 +121,7 @@ function Side({ dir, rows, v }: { dir: DisagreementRow["direction"]; rows: Disag
   );
 }
 
-const num1 = (x: number) => x.toFixed(1);
+const num1 = (x: number) => fixed(x);
 
 function Row({ r, v }: { r: DisagreementRow; v: DisagreementsView }) {
   const s = SIDE[r.direction];

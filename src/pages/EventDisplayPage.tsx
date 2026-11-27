@@ -21,6 +21,7 @@ import { cn } from "../components/cn";
 import { oddsPct, tierWords } from "../shared/share";
 import type { EventDetail, MatchView } from "../shared/api";
 import { PredictedPair } from "../components/ScoreRange";
+import { fixed } from "../shared/format";
 
 const VOLT = "text-[#ffc700]";
 const RED = "#f43f5e", BLUE = "#38bdf8";
@@ -251,7 +252,7 @@ function Rankings({ m, mine }: { m: DisplayModel; mine: ReadonlySet<number> }) {
                 <td className="py-[calc(var(--u)*0.45)] text-zinc-400">{r.rank}</td>
                 <td className={cn("font-semibold", mine.has(r.team) ? VOLT : "text-zinc-50")}>{r.team}</td>
                 <td className="text-right text-zinc-300">{r.wins == null ? "–" : `${r.wins}–${r.losses ?? 0}–${r.ties ?? 0}`}</td>
-                <td className="text-right">{r.opr.np == null ? "—" : r.opr.np.toFixed(1)}</td>
+                <td className="text-right">{r.opr.np == null ? "—" : fixed(r.opr.np)}</td>
               </tr>
             ))}
           </tbody>
