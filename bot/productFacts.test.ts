@@ -49,7 +49,11 @@ it("knows he is Bruno, a golden retriever in spirit — and that he is software,
 
 it("asks him to think the question through first, and to say what's missing rather than guess — inside the cap", () => {
   const how = brunoMethod();
-  expect(how.length).toBeLessThanOrEqual(400);
+  expect(how.length).toBeLessThanOrEqual(590);
+  // Seasons on every number and like-with-like comparisons (the audit's Q43, Q58 and the unlabelled 101.6).
+  expect(how).toMatch(/Say every number's season/);
+  expect(how).toMatch(/compare teams in the same season/);
+  expect(how).toMatch(/look it up first/);
   expect(how).toMatch(/Think before you answer/);
   expect(how).toContain("show a calculation's steps");
   expect(how).toMatch(/say what's missing rather than guessing/);
@@ -60,7 +64,12 @@ it("asks him to think the question through first, and to say what's missing rath
 
 it("tells him how to shape a chat answer — records short, how/why in paragraphs or bullets, a build request in steps — inside the cap", () => {
   const style = answerStyle();
-  expect(style.length).toBeLessThanOrEqual(400);
+  expect(style.length).toBeLessThanOrEqual(590);
+  // "Longer" and a scouting report are never the one-line records shape (the audit's Q44 and Q91).
+  expect(style).toMatch(/"longer" or a scouting report gets/);
+  // The offer is about the answer's own team: "Also want 4215's record?" used to end an answer about NJ's oldest teams.
+  expect(style).not.toMatch(/4215/);
+  expect(style).toMatch(/never about a team the answer isn't about/);
   expect(style).toMatch(/records gets the number/);
   expect(style).toMatch(/How\/why gets a \*\*bold\*\* summary/);
   expect(style).toContain("'- ' bullets");
@@ -71,7 +80,7 @@ it("tells him how to shape a chat answer — records short, how/why in paragraph
   // Still a Discord message, not a document.
   expect(style).toMatch(/No headings, tables or code/);
   // And the records question is offered only on a records answer: a guide doesn't end with an OPR nudge.
-  expect(style).toMatch(/only on a records answer/);
+  expect(style).toMatch(/End a records answer only with one short offer/);
 });
 
 it("lets him answer the channel's own questions — maths, design, rules — inside the cap, with FTC numbers still from the facts", () => {
