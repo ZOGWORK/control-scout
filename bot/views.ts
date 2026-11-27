@@ -244,7 +244,7 @@ export function spillOf(card: APIEmbed): { embed: APIEmbed; rest?: string } {
  * Discord's 6,000, or the 26th field) comes back as `rest`: the caller posts those rows in the channel under the card,
  * so a list is never cut and the card is never refused.
  */
-function packFields(name: string, rows: string[], budget = Infinity): { fields: APIEmbedField[]; rest: string[] } {
+export function packFields(name: string, rows: string[], budget = Infinity, taken = 0): { fields: APIEmbedField[]; rest: string[] } {
   const fields: APIEmbedField[] = [];
   // A field's own name (the list's, then a blank one) counts against the budget with its rows as they go in.
   const fieldName = () => (fields.length ? "\u200b" : name);
@@ -253,8 +253,10 @@ function packFields(name: string, rows: string[], budget = Infinity): { fields: 
   for (const [i, r] of rows.entries()) {
     const row = r.length > FIELD_MAX ? `${r.slice(0, FIELD_MAX - 1)}…` : r;
     const enters = !cur || cur.length + 1 + row.length > FIELD_MAX;
-    // A row that would need a field Discord won't take (a 26th) ends the list here; it and the rest go under the card.
-    if (enters && fields.length >= FIELDS_MAX) break;
+    // A row that would need a field Discord won't take ends the list here; it and the rest go under the card. `taken`
+    // is the card's own fields — those before the list and any it adds after it — and the field being built is one too,
+    // so the whole embed stays at Discord's 25 (closing the old field and opening this row's would be two more).
+    if (enters && taken + fields.length + (cur ? 2 : 1) > FIELDS_MAX) break;
     const add = (enters ? fieldName().length : 1) + row.length;
     if (used + add > budget) break;
     if (!cur) cur = row;
@@ -390,7 +392,7 @@ export function eventEmbed(d: EventDetail, site: string): SpilledEmbed {
       + (win ? win.name.length + win.value.length : 0);
     const packed = packFields(top.season ? "By season OPR" : "By OPR",
       top.rows.map((r, i) => `${i + 1}. [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${one(r.opr)}**`),
-    EMBED_CHARS_MAX - head);
+    EMBED_CHARS_MAX - head, fields.length + (win ? 1 : 0));
     fields.push(...packed.fields);
     rest = packed.rest;
   }
