@@ -6,7 +6,7 @@ export { nothingRead } from "../../server/data/frameRowRules.js";
 
 /** What the runner remembers of each event between runs (by "season/code"): how often it read it with nothing new to
  *  ship, and when it last tried. */
-export interface EventMemory { tries: number; last: string; result: string; waits?: number; timeouts?: number; video?: string }
+export interface EventMemory { tries: number; last: string; result: string; waits?: number; timeouts?: number; fails?: number; video?: string }
 export type Memory = Record<string, EventMemory>;
 
 /** After a read that gave nothing new, an event waits this long before it's read again; after GIVE_UP such reads it's
@@ -34,8 +34,9 @@ export function pickEvents(queue: Queued[], inPr: Set<string>, memory: Memory, m
     if (inPr.has(key)) skipped.push({ event: key, why: "read, in an open PR" });
     else if (m?.waits && now - Date.parse(m.last) < waitBackoff(m.waits)) skipped.push({ event: key, why: `its rows waited ${m.waits} time${m.waits === 1 ? "" : "s"} (${m.result}): read again after ${new Date(Date.parse(m.last) + waitBackoff(m.waits)).toISOString().slice(0, 16)}Z` });
     else if (m?.timeouts && now - Date.parse(m.last) < WAIT_MS) skipped.push({ event: key, why: `stopped at the reader's per-event limit with nothing new (${m.result}): read again after ${new Date(Date.parse(m.last) + WAIT_MS).toISOString().slice(0, 16)}Z` });
+    else if (m?.fails && now - Date.parse(m.last) < WAIT_MS) skipped.push({ event: key, why: `its read failed (${m.result}): read again after ${new Date(Date.parse(m.last) + WAIT_MS).toISOString().slice(0, 16)}Z` });
     else if (m && m.tries >= GIVE_UP) skipped.push({ event: key, why: `read ${m.tries} times with nothing new (${m.result}): left until its recording or matches change` });
-    else if (m && !m.waits && !m.timeouts && now - Date.parse(m.last) < RETRY_MS) skipped.push({ event: key, why: `read ${m.last.slice(0, 10)} with nothing new (${m.result}): tried again after ${new Date(Date.parse(m.last) + RETRY_MS).toISOString().slice(0, 10)}` });
+    else if (m && !m.waits && !m.timeouts && !m.fails && now - Date.parse(m.last) < RETRY_MS) skipped.push({ event: key, why: `read ${m.last.slice(0, 10)} with nothing new (${m.result}): tried again after ${new Date(Date.parse(m.last) + RETRY_MS).toISOString().slice(0, 10)}` });
     else if (picked.length >= max) skipped.push({ event: key, why: "next run" });
     else picked.push(q);
   }
@@ -184,6 +185,19 @@ export function rememberTimeout(memory: Memory, key: string, video: string | und
   const what = `stopped at the per-event limit${video ? ` on video ${video}` : ""}`;
   if (timeouts >= TIMEOUTS_TO_TRY) { remember(memory, key, 0, `${what}, ${timeouts} runs in a row with nothing new`, now); return "counted"; }
   memory[key] = { tries: m?.tries ?? 0, last: new Date(now).toISOString(), result: what, timeouts, ...(video ? { video } : {}) };
+  return "again";
+}
+
+/** Failed reads in a row (a video the player showed nothing of, or the read itself failed) before one counts a try. */
+export const FAILS_TO_TRY = 2;
+/** An event's memory after a failed read. The first isn't a try (YouTube or the browser having a bad hour): read again
+ *  after WAIT_MS. The FAILS_TO_TRY-th in a row counts one (remember), so the usual RETRY_MS and GIVE_UP follow and a
+ *  video that never plays stops being read every run (before, a failed read left no memory: the same dead videos were
+ *  picked first in every run). "counted": this failure counted a try. */
+export function rememberFailure(memory: Memory, key: string, now = Date.now()): "again" | "counted" {
+  const m = memory[key], fails = (m?.fails ?? 0) + 1;
+  if (fails >= FAILS_TO_TRY) { remember(memory, key, 0, `the read failed ${fails} runs in a row`, now); return "counted"; }
+  memory[key] = { tries: m?.tries ?? 0, last: new Date(now).toISOString(), result: "the read failed", fails };
   return "again";
 }
 
