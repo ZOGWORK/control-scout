@@ -28,6 +28,9 @@ const today = (now: number) => new Date(now).toISOString().slice(0, 10);
 const kindWord = (t: string | null) =>
   t === "FIRSTChampionship" ? "FIRST Championship (Worlds)" : (t ?? "event").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 
+/** State codes that are also everyday words: read as a state only when typed in capitals. */
+const WORD_CODES = new Set(["IN", "ME", "OR", "HI", "OK", "OH", "DE", "CO", "MA", "AL", "ID", "LA", "PA", "MO", "GA", "AS"]);
+
 /** A state a message names: by name ("new jersey", "ohio") or, beside an event word, by its code ("nj states"). */
 function stateIn(q: string): string | null {
   const words = q.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
@@ -37,9 +40,10 @@ function stateIn(q: string): string | null {
       if (r && r.country === "USA") return r.state;
     }
   }
-  const code = q.match(/\b([A-Za-z]{2})\s+(?:states?|state\s+championship|championship|cmp|meets?|league|qualifiers?|events?|teams?)\b/i);
-  if (code) {
+  for (const code of q.matchAll(/\b([A-Za-z]{2})\s+(?:states?|state\s+championship|championship|cmp|meets?|league|qualifiers?|events?|teams?)\b/gi)) {
     const upper = code[1].toUpperCase();
+    // "who won in championship", "show me events", "red or blue teams": a word, unless typed as a code ("IN states").
+    if (WORD_CODES.has(upper) && code[1] !== upper) continue;
     if (stateName("US", upper) !== upper) return upper;
   }
   return null;
