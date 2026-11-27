@@ -65,6 +65,18 @@ describe("an answer bigger than one card", () => {
     expect(post.full).toContain("5. [5](");
   });
 
+  it("shows every row of a long list, not the first twenty-five", () => {
+    const post = answerPost("top opr", answer(board(40)), null, SITE);
+    expect(post.full).toContain("40. [40](");
+    expect(post.full).toContain("26. [26](");
+  });
+
+  it("lists every result, not the first fifteen", () => {
+    const hits = Array.from({ length: 20 }, (_, i) => ({ ...hit, ref: String(4000 + i), title: `${4000 + i} | Team ${4000 + i}` }));
+    const post = answerPost("team", { q: "team", step: "deterministic", weak: false, pages: [], hits } as SearchAnswer, null, SITE);
+    expect(post.full).toContain("4019 | Team 4019");
+  });
+
   it("a short answer carries no whole: there is nothing more to show", () => {
     const a: SearchAnswer = { q: "4215", hits: [hit], pages: [], step: "deterministic", weak: false };
     const post = answerPost("4215", a, null, SITE);

@@ -53,11 +53,6 @@ const readLen = (s: string) => s.replace(/\]\([^)]*\)/g, "]").length;
 const ROWS = 3;
 /** Top results listed when the card doesn't already cover them. */
 const HITS = 3;
-/** How much of a long answer the "Show the full answer" button shows: every block, and this many rows of each list. A
- *  complex question (a board, a three-team compare, several parts) answers with more than one card holds. */
-const FULL_ROWS = 25;
-const FULL_HITS = 15;
-
 export interface BrunoSentence { text: string; points: string[] }
 
 /** What /ask needs from the site (the real functions in askDeps; stand-ins in tests). */
@@ -681,7 +676,7 @@ export function blockLines(b: StatBlock, site: string, rows = ROWS): string[] {
 
 /** The short answer: the headline when there is one (it is the answer), else the first block that says anything.
  *  Everything else (more blocks, the source) is one tap away on the website — or, when `full`, in this answer: the
- *  headline, then every block with its own title, each list up to FULL_ROWS rows. */
+ *  headline, then every block with its own title, every row of each list. */
 function statLines(s: StatAnswer, site: string, full = false): string[] {
   const h = s.headline;
   const headline = h ? [`**${link(h.value, h.href, site)}** ${md(h.label)}${h.sub ? ` · ${md(h.sub)}` : ""}${h.teams?.length ? ` · ${teams(h.teams, site)}` : ""}`] : [];
@@ -697,7 +692,7 @@ function statLines(s: StatAnswer, site: string, full = false): string[] {
   // A blank line between blocks, never before the first: a one-block answer's whole is its card, so it gets no button.
   const blocks: string[] = [];
   for (const b of s.blocks) {
-    const lines = blockLines(b, site, FULL_ROWS).filter(Boolean);
+    const lines = blockLines(b, site, Number.POSITIVE_INFINITY).filter(Boolean);
     if (lines.length) blocks.push(...(blocks.length ? [""] : []), ...lines);
   }
   return [...headline, ...(s.none ? [md(s.none)] : []), ...blocks];
@@ -724,14 +719,14 @@ export function fitLines(lines: string[], max: number, read = Infinity): string 
 
 /** The website's answer as one embed. */
 /** An answer's lines, short (`full` off: one block, three rows — what the embed shows) or whole (`full`: the
- *  headline and every block, each list up to FULL_ROWS rows, every card line, every result). Nothing is cut here; the
+ *  headline and every block, every row of each list, every card line, every result). Nothing is cut here; the
  *  embed cuts its start from it and the rest is what the "Show the full answer" button posts. */
 function rendered(q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video: SearchVideo | undefined, pageQuery: string, full: boolean): { title: string; lines: string[]; close: string; footer: APIEmbed["footer"] } {
   const page = searchHref(pageQuery, site);
   const bruno = a.step === "ai" || !!sentence;
   const footer = { text: bruno ? `${BRUNO_CREDIT}\n${FOOTER.text}` : FOOTER.text };
   const close = `[Open this answer on controlscout.org](${page})`;
-  const rows = full ? FULL_ROWS : ROWS;
+  const rows = full ? Number.POSITIVE_INFINITY : ROWS;
 
   // Nothing found, or a question search can't answer yet: said so, what was read, and searches that do answer.
   const cant = !!a.sorry || (a.step === "recovery" && !a.card && !a.stat);
@@ -740,7 +735,7 @@ function rendered(q: string, a: SearchAnswer, sentence: BrunoSentence | null, si
     const lines = [
       understood.length ? `I read it as: ${understood.map(md).join(" · ")}` : null,
       a.recovery?.ai?.refined ? `Bruno AI read it as: **${md(a.recovery.ai.refined)}**` : null,
-      ...(a.recovery?.closest?.length ? ["**Closest matches:**", ...a.recovery.closest.slice(0, full ? FULL_HITS : HITS).map((h) => hitLine(h, site))] : []),
+      ...(a.recovery?.closest?.length ? ["**Closest matches:**", ...a.recovery.closest.slice(0, full ? Number.POSITIVE_INFINITY : HITS).map((h) => hitLine(h, site))] : []),
       (a.recovery?.browse ?? []).map((b) => link(b.title, b.href, site)).join(" · ") || null,
     ].filter((x): x is string => !!x);
     return { title: SORRY_SENTENCE, lines, close, footer };
@@ -777,7 +772,7 @@ function rendered(q: string, a: SearchAnswer, sentence: BrunoSentence | null, si
     }
   }
   // The top results, when the answer didn't already cover them.
-  if (!a.stat && !a.card) lines.push(...a.hits.slice(0, full ? FULL_HITS : HITS).map((h) => `• ${hitLine(h, site)}`), ...more(a.hits.length - (full ? FULL_HITS : HITS)));
+  if (!a.stat && !a.card) lines.push(...a.hits.slice(0, full ? Number.POSITIVE_INFINITY : HITS).map((h) => `• ${hitLine(h, site)}`), ...more(a.hits.length - (full ? Number.POSITIVE_INFINITY : HITS)));
   // The videos, as the website plays them: watched on YouTube.
   const vids = videoLinks(video);
   if (vids.length) lines.push(`▶ Watch: ${vids.map((v) => `[${md(v.label)}](${v.url})`).join(" · ")}`);
