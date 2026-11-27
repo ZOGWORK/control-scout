@@ -1,8 +1,8 @@
 // The answer's buttons: a question lives in a store, not in the custom id (100 characters is not a question); it
 // outlives the process in the database and expires after 30 days; the components carry at most four ask buttons, then
-// the website link and the videos.
+// the website link, the videos and the report button.
 import { describe, expect, it } from "vitest";
-import { ASK_PREFIX, LABEL_MAX, QUESTIONS_MAX, QUESTION_TTL_MS, QuestionButtons, answerComponents, buttonLabel, buttonQuestion, type ButtonStore } from "./buttons";
+import { ASK_PREFIX, LABEL_MAX, QUESTIONS_MAX, QUESTION_TTL_MS, QuestionButtons, answerComponents, buttonLabel, buttonQuestion, textChunks, type ButtonStore } from "./buttons";
 import type { AskReply } from "./ask";
 
 const reply = (over: Partial<AskReply> = {}): AskReply => ({
@@ -85,6 +85,21 @@ describe("the components", () => {
     // Each ask button's custom id is the store's, and gives the words back.
     const id = (rows[0].components[0] as { custom_id: string }).custom_id;
     expect(await buttonQuestion(b, id, 0)).toBe("4215 awards");
+  });
+
+  it("offers at most four questions to ask next, inside Discord's five to a row", async () => {
+    const b = new QuestionButtons();
+    const rows = await answerComponents(reply({ next: ["a", "b", "c", "d", "e"] }), b, 0, "g1");
+    expect(rows[0].components).toHaveLength(4);
+    // Each one asks its own question.
+    expect(await buttonQuestion(b, (rows[0].components[0] as { custom_id: string }).custom_id, 0)).toBe("a");
+  });
+
+  it("splits a long answer into messages Discord takes, on its own lines", () => {
+    expect(textChunks("a\nb\nc", 5)).toEqual(["a\nb\nc"]);
+    expect(textChunks(["a", "b", "c", "d"].join("\n"), 5)).toEqual(["a\nb\nc", "d"]);
+    // A line too long for one message is cut, never dropped.
+    expect(textChunks("xxxxxxxxxx", 4)).toEqual(["xxxx", "xxxx", "xx"]);
   });
 
   it("nothing to offer: only the report button, no empty rows", async () => {
