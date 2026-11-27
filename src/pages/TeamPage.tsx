@@ -772,7 +772,7 @@ function V8Profile({ p, drawn, asked, onSeason }: { p: TeamProfile; drawn: boole
     <div className="min-w-0" data-team-v8>
       <OfflineNote data={p} />
       <V8Header p={p} onSeason={onSeason} fellBackFrom={fellBackFrom} />
-      <div className={cn("mb-8 grid grid-cols-[minmax(0,1fr)] gap-3 max-sm:mb-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start", btbEpisodes(p.featured).length > 0 && "mt-8")}>
+      <div className={cn("mb-8 grid grid-cols-[minmax(0,1fr)] gap-3 max-sm:mb-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start", btbEpisodes(p.featured).length > 0 && "mt-10")}>
         {/* The left column: the standing, then every action in one row under it (beside the taller What's next). */}
         <div className="min-w-0 space-y-3">
           <V8Standing p={p} onSeason={onSeason} />
@@ -967,8 +967,8 @@ function V8Standing({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => 
   const dd = "mt-0.5 text-xl font-semibold tracking-tight tabular-nums text-foreground";
   return (
     <section aria-labelledby={`standing-${p.team.number}`} className="relative rounded-xl border border-line bg-card p-4 sm:p-5" data-standing>
-      {/* A notch on the card's top edge: the team's Behind the Bot episodes (×4). Its bottom sits over the card's border. */}
-      <FeaturedBadge featured={p.featured} team={p.team.number} variant="tab" className="absolute bottom-full right-4 translate-y-px sm:right-5" />
+      {/* The team's Behind the Bot episodes (×4): a small plate just above the card's top edge, clear of its border. */}
+      <FeaturedBadge featured={p.featured} team={p.team.number} className="absolute bottom-full right-4 mb-1.5 sm:right-5" />
       <h2 id={`standing-${p.team.number}`} className="font-sans text-xs font-normal tracking-normal text-text-faint" data-eyebrow>Standing · {seasonLabel(p.season)}</h2>
       {!s ? (
         <div className="mt-3 space-y-3 text-sm">
