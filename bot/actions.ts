@@ -31,10 +31,16 @@ const POLITE = String.raw`^(?:(?:hey|hi|yo)\s+)?(?:bruno[,\s]+)?(?:(?:can|could|
 const RULES: { re: RegExp; make: (m: RegExpMatchArray) => Action | null }[] = [
   // "forget my team", "i'm not on 4215 any more"
   { re: new RegExp(`${POLITE}(?:forget|clear|reset)\\s+(?:that\\s+)?my\\s+team\\b(.*)$`, "i"), make: (m) => ({ kind: "forgetMyTeam", rest: restOf(m[1]) }) },
-  // "remember that my team is 4215", "my team is 4215", "we're team 4215", "i'm on 4215", "set my team to 4215"
+  // "remember that my team is 4215", "my team is 4215", "set my team to 4215"
   {
-    re: new RegExp(`${POLITE}(?:remember\\s+(?:that\\s+)?|note\\s+(?:that\\s+)?|fyi\\s+)?(?:my\\s+team\\s+(?:is|=)|our\\s+team\\s+is|set\\s+my\\s+team\\s+(?:to|as)|we(?:'re|\\s+are)|i(?:'m|\\s+am)\\s+(?:on|in|from|with))\\s+${TEAM}\\b(.*)$`, "i"),
+    re: new RegExp(`${POLITE}(?:remember\\s+(?:that\\s+)?|note\\s+(?:that\\s+)?|fyi\\s+)?(?:my\\s+team\\s+(?:is|=)|our\\s+team\\s+is|set\\s+my\\s+team\\s+(?:to|as))\\s+${TEAM}\\b(.*)$`, "i"),
     make: (m) => { const t = team(m[1]); return t ? { kind: "myTeam", team: t, rest: restOf(m[2]) } : null; },
+  },
+  // "we're team 4215", "i'm on team 4215", "we are 4215." — the word "team", or a number that ends the clause, so
+  // "we are 10 minutes from our match" or "we're 12 points behind" is a question, never a team to keep.
+  {
+    re: new RegExp(`${POLITE}(?:remember\\s+(?:that\\s+)?|fyi\\s+)?(?:we(?:'re|\\s+are)|i(?:'m|\\s+am)\\s+(?:on|in|from|with))\\s+(?:team\\s*#?\\s*(\\d{1,5})\\b|#?(\\d{3,5})(?=\\s*(?:$|[,;.!?]|\\s+(?:and|so|btw)\\b)))(.*)$`, "i"),
+    make: (m) => { const t = team(m[1] ?? m[2]); return t ? { kind: "myTeam", team: t, rest: restOf(m[3]) } : null; },
   },
   // "stop reminding me about 4215", "cancel my reminder"
   {

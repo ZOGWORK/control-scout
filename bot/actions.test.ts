@@ -38,7 +38,13 @@ describe("parseAction", () => {
       "did 4215 follow up with a win",
       "follow the leader 2025",
       "what was my team's record",
+      // A sentence that starts like "we're <number>" but isn't a team (Loopy, #2386).
+      "we are 10 minutes from our match, who plays next",
+      "we're 12 points behind 6980 in auto",
+      "i'm on 3 hours of sleep, who won decode",
     ]) expect(parseAction(q), q).toBeNull();
+    expect(parseAction("we are 4215.")).toMatchObject({ kind: "myTeam", team: 4215 });
+    expect(parseAction("i'm on team 23314 and who is our next opponent")).toMatchObject({ kind: "myTeam", team: 23314, rest: "who is our next opponent" });
   });
 });
 
