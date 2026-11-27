@@ -55,6 +55,10 @@ describe("which events a message names", () => {
     expect((await namedEvents("which teams at nj states have never been to worlds", NOW)).map(key)).toEqual([`${LAST}:USNJCMP`, `${NOW_S}:USNJCMP`]);
     expect((await namedEvents(`how many teams in new jersey: worlds ${NOW_S - 1} against worlds ${NOW_S}`, NOW)).map(key).sort()).toEqual([`${BEFORE}:FTCCMP1`, `${LAST}:FTCCMP1`].sort());
     expect((await namedEvents("how did hypno do at worlds", NOW)).map(key)).toEqual([`${LAST}:FTCCMP1`]);
+    // A team number in the 2000s is a team, not a year (Loopy on #2392): only a year beside "worlds" picks one.
+    expect((await namedEvents(`how did ${NOW_S - 1} do at worlds`, NOW)).map(key)).toEqual([`${LAST}:FTCCMP1`]);
+    expect((await namedEvents(`${NOW_S - 1} worlds`, NOW)).map(key)).toEqual([`${BEFORE}:FTCCMP1`]);
+    expect((await namedEvents(`which teams at nj states, like ${NOW_S - 1}, never went to worlds`, NOW)).map(key)).toEqual([`${LAST}:USNJCMP`, `${NOW_S}:USNJCMP`]);
   });
 
   it("finds the next NJ meet, an event by its own name, and nothing in a plain team question", async () => {
