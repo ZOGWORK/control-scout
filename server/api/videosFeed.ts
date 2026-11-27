@@ -218,9 +218,9 @@ async function creatorPool(): Promise<Candidate[]> {
   });
 }
 
-/** What most people watched these 7 days: item key → people. */
+/** What most people watched these 7 days: item key → people. A "more like this" on a card nobody opened isn't a watch. */
 async function popularity(now: number): Promise<Map<string, number>> {
-  const rows = await all<{ item_key: string; n: number }>("SELECT item_key, COUNT(*) n FROM video_watch WHERE at >= ? AND hidden = 0 GROUP BY item_key ORDER BY n DESC LIMIT 200", [new Date(now - 7 * DAY).toISOString()]).catch(() => []);
+  const rows = await all<{ item_key: string; n: number }>("SELECT item_key, COUNT(*) n FROM video_watch WHERE at >= ? AND hidden = 0 AND (watched_s > 0 OR completed = 1) GROUP BY item_key ORDER BY n DESC LIMIT 200", [new Date(now - 7 * DAY).toISOString()]).catch(() => []);
   return new Map(rows.map((r) => [String(r.item_key), Number(r.n)]));
 }
 
@@ -300,7 +300,7 @@ export async function profileOf(userId: number | null, hints: DeviceHints): Prom
       all<{ key: string; value: string }>("SELECT key, value FROM user_state WHERE user_id = ? AND key IN ('myTeam', 'tracked', 'bookmarks')", [userId]),
       membershipOf(userId).catch(() => []),
       all<{ team: number }>("SELECT team FROM scout_entries WHERE user_id = ? AND season = ? AND deleted = 0 GROUP BY team ORDER BY MAX(updated_at) DESC LIMIT 10", [userId, CURRENT_SEASON]).catch(() => []),
-      all<{ item_key: string; kind: string; watched_s: number; completed: number; hidden: number }>("SELECT item_key, kind, watched_s, completed, hidden FROM video_watch WHERE user_id = ? ORDER BY at DESC LIMIT 500", [userId]),
+      all<{ item_key: string; kind: string; watched_s: number; completed: number; hidden: number; more: number }>("SELECT item_key, kind, watched_s, completed, hidden, more FROM video_watch WHERE user_id = ? ORDER BY at DESC LIMIT 500", [userId]),
     ]);
     const st = new Map(state.map((r) => [String(r.key), parseJson(r.value)]));
     myTeam = teamNumber(st.get("myTeam"));
@@ -313,13 +313,13 @@ export async function profileOf(userId: number | null, hints: DeviceHints): Prom
     for (const s of scouted) tie(teamNumber(Number(s.team)), "scouted");
     for (const w of watched) {
       const kind = WATCH_KINDS.includes(w.kind as WatchKind) ? (w.kind as WatchKind) : "match";
-      history.set(String(w.item_key), { kind, watchedS: Number(w.watched_s), completed: !!w.completed, hidden: !!w.hidden });
+      history.set(String(w.item_key), { kind, watchedS: Number(w.watched_s), completed: !!w.completed, hidden: !!w.hidden, more: !!w.more });
     }
   } else {
     myTeam = hints.myTeam;
     tie(myTeam, "myTeam");
     for (const n of hints.teams) tie(n, "tracked");
-    for (const h of hints.history) history.set(h.key, { kind: h.key.startsWith("s:") ? "stream" : h.key.startsWith("c:") ? "creator" : "match", watchedS: h.state === "d" ? 600 : 10, completed: h.state === "d", hidden: h.state === "x" });
+    for (const h of hints.history) history.set(h.key, { kind: h.key.startsWith("s:") ? "stream" : h.key.startsWith("c:") ? "creator" : "match", watchedS: h.state[0] === "d" ? 600 : h.state[0] === "p" ? 10 : 0, completed: h.state[0] === "d", hidden: h.state === "x", more: h.state.endsWith("m") });
   }
   // Their region: My team's, else the first team they're on (a team followed from afar says nothing of where they are).
   const home = myTeam ?? [...teams].find(([, t]) => t === "member")?.[0] ?? null;
@@ -409,13 +409,13 @@ export function cleanWatch(b: unknown): WatchReport | null {
   if (!WATCH_KINDS.includes(o.kind as WatchKind)) return null;
   const s = Number(o.watchedS);
   if (!Number.isFinite(s) || s < 0) return null;
-  return { key: o.key, kind: o.kind as WatchKind, watchedS: Math.min(86_400, Math.round(s)), completed: o.completed === true, hidden: o.hidden === true };
+  return { key: o.key, kind: o.kind as WatchKind, watchedS: Math.min(86_400, Math.round(s)), completed: o.completed === true, hidden: o.hidden === true, more: o.more === true };
 }
 
-/** Write a watch: the furthest second, finished and "not interested" kept once set. */
+/** Write a watch: the furthest second, finished, "not interested" and "more like this" kept once set. */
 export async function recordWatch(userId: number, w: WatchReport, now = Date.now()): Promise<void> {
-  await run(`INSERT INTO video_watch (user_id, item_key, kind, watched_s, completed, hidden, at) VALUES (?, ?, ?, ?, ?, ?, ?)
+  await run(`INSERT INTO video_watch (user_id, item_key, kind, watched_s, completed, hidden, more, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (user_id, item_key) DO UPDATE SET kind = excluded.kind, watched_s = MAX(video_watch.watched_s, excluded.watched_s),
-    completed = MAX(video_watch.completed, excluded.completed), hidden = MAX(video_watch.hidden, excluded.hidden), at = excluded.at`,
-  [userId, w.key, w.kind, w.watchedS, w.completed ? 1 : 0, w.hidden ? 1 : 0, new Date(now).toISOString()]);
+    completed = MAX(video_watch.completed, excluded.completed), hidden = MAX(video_watch.hidden, excluded.hidden), more = MAX(video_watch.more, excluded.more), at = excluded.at`,
+  [userId, w.key, w.kind, w.watchedS, w.completed ? 1 : 0, w.hidden ? 1 : 0, w.more ? 1 : 0, new Date(now).toISOString()]);
 }

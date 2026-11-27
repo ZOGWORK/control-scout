@@ -24,6 +24,12 @@ describe("kindWeights", () => {
     expect(w.match).toBe(0.4);
     expect(w.stream).toBe(1);
   });
+  it("counts \"show more like this\" for a kind more than a finish", () => {
+    const one = (more: boolean): WatchRow => ({ kind: "behindTheBot", watchedS: more ? 0 : 600, completed: !more, hidden: false, more });
+    expect(kindWeights([one(true)]).behindTheBot).toBeGreaterThan(kindWeights([one(false)]).behindTheBot);
+    // "Not interested" still wins on the same card.
+    expect(kindWeights([{ kind: "match", watchedS: 0, completed: false, hidden: true, more: true }]).match).toBeLessThan(1);
+  });
 });
 
 describe("scoreOf", () => {
@@ -79,6 +85,8 @@ describe("watchedPart", () => {
     expect(watchedPart({ kind: "match", watchedS: 5, completed: false, hidden: false }, 200)).toBe(0.3);
     expect(watchedPart({ kind: "match", watchedS: 100, completed: false, hidden: false }, 200)).toBe(0.5);
     expect(watchedPart({ kind: "match", watchedS: 1, completed: true, hidden: false }, 200)).toBe(1);
+    // "Show more like this" on a card never opened: not seen.
+    expect(watchedPart({ kind: "match", watchedS: 0, completed: false, hidden: false, more: true }, 200)).toBe(0);
   });
 });
 
