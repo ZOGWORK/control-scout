@@ -7,7 +7,7 @@ import { all, get, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { deleteUser, sha256 } from "../auth/session";
 import { cleanItem, HISTORY_CAP, LIBRARY_PAGE, type LibraryCounts, type LibraryItemState, type LibraryPage, type NotesPage, type VideoNote } from "../../src/shared/videoLibrary";
-import { cpNote, putLibrary } from "./videoLibrary";
+import { putLibrary } from "./videoLibrary";
 
 let server: Server;
 let base = "";
@@ -124,9 +124,43 @@ describe("the video library", () => {
     expect((await call<LibraryCounts>("GET", "/videos/library/counts", me.cookie)).body.notes).toBe(2);
   });
 
-  it("hands Control Point the note with where to watch it", () => {
-    const note: VideoNote = { id: "9", key: `c:${vid(1)}`, videoId: vid(1), t: 75, body: "Fast lift", item: cleanItem(card(1))!, createdAt: "2026-11-26T00:00:00Z", updatedAt: "2026-11-26T00:00:00Z" };
-    expect(cpNote(note)).toEqual({ scoutId: "9", videoId: vid(1), key: `c:${vid(1)}`, t: 75, body: "Fast lift", title: "Episode 1", watch: `/watch/${vid(1)}?t=75`, createdAt: note.createdAt, updatedAt: note.updatedAt });
+  it("shares notes with the writer's Control Point team, and nobody else", async () => {
+    // Sushil and Zane are in one workspace; Ava is in another; Kai has no team.
+    const [sushil, zane, ava, kai] = [await account(), await account(), await account(), await account()];
+    await run("UPDATE users SET display_name = ? WHERE id = ?", ["Sushil", sushil.id]);
+    await run("UPDATE users SET display_name = ? WHERE id = ?", ["Zane", zane.id]);
+    const link = async (userId: number, acc: number, ws: string, name: string) => {
+      await run("INSERT INTO identities (provider, subject, user_id) VALUES ('control-point', ?, ?)", [String(acc), userId]);
+      await run("INSERT INTO workspace_members (account_id, cp_workspace_id, workspace_name, role, updated_at) VALUES (?, ?, ?, 'member', ?)", [acc, ws, name, Date.now()]);
+    };
+    await link(sushil.id, 9001, "ws-hyp", "Hypnotic");
+    await link(zane.id, 9002, "ws-hyp", "Hypnotic");
+    await link(ava.id, 9003, "ws-other", "Other Team");
+    const key = encodeURIComponent(`c:${vid(40)}`);
+    const n = (await call<{ note: VideoNote }>("POST", "/videos/notes", sushil.cookie, { item: card(40), t: 61, body: "Their claw closes in one motion" })).body.note;
+    await call("POST", "/videos/notes", kai.cookie, { item: card(40), t: 5, body: "Kai's own" });
+
+    const forZane = await call<LibraryItemState>("GET", `/videos/library/item?key=${key}`, zane.cookie);
+    expect(forZane.body.notes.map((x) => [x.body, x.author])).toEqual([["Their claw closes in one motion", { mine: false, name: "Sushil", team: "Hypnotic" }]]);
+    expect(forZane.body.teams).toEqual(["Hypnotic"]);
+    expect((await call<NotesPage>("GET", "/videos/notes", zane.cookie)).body.notes.map((x) => x.id)).toEqual([n.id]);
+    expect((await call<LibraryCounts>("GET", "/videos/library/counts", zane.cookie)).body.notes).toBe(1);
+    // Theirs to read, not to change.
+    expect((await call("PATCH", `/videos/notes/${n.id}`, zane.cookie, { body: "x" })).status).toBe(404);
+    expect((await call("DELETE", `/videos/notes/${n.id}`, zane.cookie)).status).toBe(404);
+
+    const forSushil = await call<LibraryItemState>("GET", `/videos/library/item?key=${key}`, sushil.cookie);
+    expect(forSushil.body.notes.map((x) => x.author)).toEqual([{ mine: true, name: "You", team: null }]);
+
+    // Another team and no team: neither sees Sushil's note; Kai sees only Kai's.
+    expect((await call<LibraryItemState>("GET", `/videos/library/item?key=${key}`, ava.cookie)).body.notes).toEqual([]);
+    const forKai = await call<LibraryItemState>("GET", `/videos/library/item?key=${key}`, kai.cookie);
+    expect(forKai.body.notes.map((x) => x.body)).toEqual(["Kai's own"]);
+    expect(forKai.body.teams).toEqual([]);
+
+    // Zane leaves the team (Control Point's next answer): Sushil's notes are gone for him.
+    await run("DELETE FROM workspace_members WHERE account_id = 9002");
+    expect((await call<LibraryItemState>("GET", `/videos/library/item?key=${key}`, zane.cookie)).body.notes).toEqual([]);
   });
 
   it("goes with the account", async () => {

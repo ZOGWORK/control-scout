@@ -49,7 +49,7 @@ const VIEW_SUMMARY = {
   later: "Videos you've set aside for later.",
   saved: "Videos you've kept.",
   history: "What you've watched, newest first.",
-  notes: "What you noted while watching, each at its moment in the video.",
+  notes: "What you and your team noted while watching, each at its moment in the video.",
 } as const;
 
 function VideosBody() {
