@@ -6,7 +6,7 @@ import { ComponentType, MessageFlags, PermissionFlagsBits, TextInputStyle, type 
 import { AnswerCache } from "./guard.js";
 import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
 import { addFollow, followName, followingEmbed, listFollows, removeFollow, type FollowTarget } from "./follows.js";
-import { REPORT_PREFIX, answerComponents, buttonQuestion, dbButtonStore, QuestionButtons } from "./buttons.js";
+import { REPORT_PREFIX, answerComponents, buttonQuestion, dbButtonStore, fullText, FullAnswers, textChunks, QuestionButtons } from "./buttons.js";
 import { DEFAULT_SETTINGS, answerField, guildSettings, parseQuiet, parseStyle, setGuildSettings, settingsEmbed, styleLine, type GuildSettings, type GuildSettingsPatch } from "./settings.js";
 import { forgetAskChannels } from "./ambient.js";
 import { paceEmbed, takePersonChat, type Pace } from "./pacing.js";
@@ -318,6 +318,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
   // The questions behind the answers' buttons (bot/buttons.ts): kept in the database, so they work after a restart.
   const buttons = new QuestionButtons(dbButtonStore());
+  // The whole of the answers that were too long for one card (bot/buttons.ts), kept where the questions are.
+  const fulls = new FullAnswers(dbButtonStore());
   // The server's chat limit (bot/quota.ts): the default ceiling unless the server has its own row, and a read that
   // fails allows the chat — a database blip must never silence the bot.
   const quota = lookups.quota;
@@ -400,7 +402,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const tail = check ? `\n-# ${check}` : "";
       return `${text.slice(0, 2000 - tail.length)}${tail}`;
     };
-    const components = await answerComponents(shown, buttons, Date.now(), guild);
+    const components = await answerComponents(shown, buttons, Date.now(), guild, fulls);
     const post: AskPost = shown.chat
       ? { content: withCheck(chatPost(question, shown.chat, { quote })), embeds: shown.chat.card && shown.chat.by !== "scout" ? [pride(embed)] : [] }
       : { ...(shown.content ? { content: withCheck(shown.content) } : {}), embeds: [pride(checked)] };
@@ -937,6 +939,15 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   async function pressed(i: ButtonInteraction): Promise<void> {
     if (lookups.enabled && !(await lookups.enabled("discordBot"))) {
       await i.reply({ embeds: [pride(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works."))], flags: MessageFlags.Ephemeral });
+      return;
+    }
+    // A "Show the full answer" button (bot/buttons.ts): the rest of a long answer, for the one who clicked. It asks
+    // nothing, so it takes neither the server's cap nor the person's pace; the answer is already in the channel.
+    const whole = await fullText(fulls, i.customId);
+    if (whole !== null) {
+      const [first, ...rest] = textChunks(whole);
+      await i.reply({ content: first, flags: MessageFlags.Ephemeral, allowedMentions: NO_PINGS });
+      for (const c of rest) await i.followUp({ content: c, flags: MessageFlags.Ephemeral, allowedMentions: NO_PINGS });
       return;
     }
     // "Something's wrong" under an answer: a report of that answer, asked in a modal rather than in a phrase nobody

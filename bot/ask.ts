@@ -53,6 +53,10 @@ const readLen = (s: string) => s.replace(/\]\([^)]*\)/g, "]").length;
 const ROWS = 3;
 /** Top results listed when the card doesn't already cover them. */
 const HITS = 3;
+/** How much of a long answer the "Show the full answer" button shows: every block, and this many rows of each list. A
+ *  complex question (a board, a three-team compare, several parts) answers with more than one card holds. */
+const FULL_ROWS = 25;
+const FULL_HITS = 15;
 
 export interface BrunoSentence { text: string; points: string[] }
 
@@ -119,7 +123,11 @@ export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string;   
   declined?: string;
   /** What the answer actually checked: the searches behind it and the parts of the message they didn't answer, said on
    *  the post so a reader can see what was verified and what wasn't. */
-  checked?: { searches: number; unanswered: string[] } }
+  checked?: { searches: number; unanswered: string[] };
+  /** The whole answer as text, when the embed shows only the start of it (a board's every row, a compound question's
+   *  every part, a card's every line). The "Show the full answer" button posts it (bot/buttons.ts); the answer itself
+   *  stays short. Absent when the embed is the whole answer. */
+  full?: string }
 
 /** Whether an answer has records to show — a card, a stat or results, never the sorry a message-level search gives
  *  when it can't read the whole question. A chat beside no records posts its words alone. */
@@ -349,7 +357,7 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
       // site's queue learns the phrasing, and the answer still posts (an empty answer is filed further down).
       if (recordsMiss(q) && CANT.test(reply.text)) deps.miss?.(q, answer, guild);
       return {
-        embed: askEmbed(q, shown, null, site, video, pageQ),
+        ...answerPost(q, shown, null, site, video, pageQ),
         meta: { step: answer.step, refined: false, sentence: false, chat: true },
         chat: { text: reply.text, ...(keep ? { card: true } : {}), ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(pageQ, site) } : {}) },
         next: askNext(shown),
@@ -378,7 +386,7 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
   // question's own words decide, not the thread's, and an answer search gave teaches the queue nothing.
   if (empty && recordsMiss(q)) deps.miss?.(q, answer, guild);
   if (talk) return {
-    embed: askEmbed(q, answer, null, site),
+    ...answerPost(q, answer, null, site),
     meta: { step: answer.step, refined, sentence: false, chat: true },
     chat: { text: talk, by: "scout", page: searchHref(q, site) },
     next: askNext(answer),
@@ -387,7 +395,7 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
   const video = await videoFor(q, answer, deps);
   const watch = videoLinks(video);
   return {
-    embed: askEmbed(q, answer, sentence, site, video),
+    ...answerPost(q, answer, sentence, site, video),
     meta: { step: answer.step, refined, sentence: !!sentence },
     ...(watch[0] ? { content: watch[0].url } : {}),
     next: askNext(answer),
@@ -644,46 +652,53 @@ function matchRow(r: StatMatchRow, site: string): string {
 }
 
 /** One stat block as lines (lists capped at ROWS, the rest left to the website). */
-export function blockLines(b: StatBlock, site: string): string[] {
+export function blockLines(b: StatBlock, site: string, rows = ROWS): string[] {
   const head = (t?: string) => (t ? [`**${md(t)}**`] : []);
   switch (b.kind) {
     case "kpis": return [b.items.map((k) => `${md(k.label)} **${link(k.value, k.href, site)}**${k.sub ? ` (${md(k.sub)})` : ""}`).join(" · ")];
     case "record": return [...head(b.title), `${b.wins}–${b.losses}–${b.ties} (W–L–T)${b.split ? ` · quals ${b.split.quals.wins}–${b.split.quals.losses}–${b.split.quals.ties}, playoffs ${b.split.playoffs.wins}–${b.split.playoffs.losses}–${b.split.playoffs.ties}` : ""}`];
-    case "matches": return [...head(b.title), ...b.rows.slice(0, ROWS).map((r) => matchRow(r, site)), ...more(b.rows.length - ROWS)];
+    case "matches": return [...head(b.title), ...b.rows.slice(0, rows).map((r) => matchRow(r, site)), ...more(b.rows.length - rows)];
     case "table": {
       const cols = b.columns.slice(0, 4);
-      const rows = b.rows.slice(0, ROWS).map((r) => {
+      const list = b.rows.slice(0, rows).map((r) => {
         const [first, ...rest] = cols.map((c) => r.cells[c.key]).map((v) => (v == null ? "—" : String(v)));
         const sides = r.teams ? ` · ${teams(r.teams.red, site)} vs ${teams(r.teams.blue, site)}` : "";
         return `${link(first ?? "", r.href, site)}${rest.length ? ` · ${rest.map(md).join(" · ")}` : ""}${sides}`;
       });
-      return [...head(b.title), ...rows, ...more(b.rows.length - ROWS)];
+      return [...head(b.title), ...list, ...more(b.rows.length - rows)];
     }
-    case "leaderboard": return [...head(b.title), ...b.rows.slice(0, ROWS).map((r) => `${r.rank}. ${statLink(r.team, site)} **${md(r.display)}**${r.record ? ` · ${md(r.record)}` : ""}`), ...more(b.rows.length - ROWS), md(b.note)];
-    case "compare": return [...head(b.title), `${teams(b.teams, site).replace(/ & /g, " vs ")}`, ...b.rows.slice(0, ROWS).map((r) => `${md(r.label)}: ${r.values.map((v, i) => (r.best === i ? `**${md(v)}**` : md(v))).join(" vs ")}${r.gap ? ` (${md(r.gap)})` : ""}`), ...more(b.rows.length - ROWS)];
-    case "league": return [...head(b.title), ...b.rows.slice(0, ROWS).map((r) => `${r.rank}. ${teamLink(r.team, site)}${r.name ? ` ${md(r.name)}` : ""}${r.wins != null ? ` · ${r.wins}–${r.losses ?? 0}–${r.ties ?? 0}` : ""}${r.rs != null ? ` · RS ${r.rs}` : ""}`), ...more(b.rows.length - ROWS), statLink(b.more, site)];
+    case "leaderboard": return [...head(b.title), ...b.rows.slice(0, rows).map((r) => `${r.rank}. ${statLink(r.team, site)} **${md(r.display)}**${r.record ? ` · ${md(r.record)}` : ""}`), ...more(b.rows.length - rows), md(b.note)];
+    case "compare": return [...head(b.title), `${teams(b.teams, site).replace(/ & /g, " vs ")}`, ...b.rows.slice(0, rows).map((r) => `${md(r.label)}: ${r.values.map((v, i) => (r.best === i ? `**${md(v)}**` : md(v))).join(" vs ")}${r.gap ? ` (${md(r.gap)})` : ""}`), ...more(b.rows.length - rows)];
+    case "league": return [...head(b.title), ...b.rows.slice(0, rows).map((r) => `${r.rank}. ${teamLink(r.team, site)}${r.name ? ` ${md(r.name)}` : ""}${r.wins != null ? ` · ${r.wins}–${r.losses ?? 0}–${r.ties ?? 0}` : ""}${r.rs != null ? ` · RS ${r.rs}` : ""}`), ...more(b.rows.length - rows), statLink(b.more, site)];
     case "links": return b.items.length ? [...head(b.title), b.items.slice(0, 10).map((l) => statLink(l, site)).join(" · ")] : b.none ? [md(b.none)] : [];
     case "related": return [...head(b.title), ...b.queries.slice(0, 3).map(askable)];
     case "chance": return [`${md(b.label)}: **${Math.round(b.p * 100) === 0 && !b.decided ? "1%" : Math.round(b.p * 100) === 100 && !b.decided ? "99%" : `${Math.round(b.p * 100)}%`}** ${md(b.who)}${b.note ? ` · ${md(b.note)}` : ""}${b.action ? ` · ${statLink(b.action, site)}` : ""}`];
-    case "series": return [...head(b.title), b.points.filter((p) => p.y != null).slice(-ROWS).map((p) => `${md(p.x)} ${p.y}${b.unit ? ` ${md(b.unit)}` : ""}`).join(" · ")];
-    case "bars": return [...head(b.title), ...b.groups.slice(0, ROWS).map((g) => `${md(g.label)}: ${g.items.map((i) => `${md(i.label)} ${i.value ?? "—"}`).join(" · ")}`)];
-    case "videos": return b.tiles.length ? [...head(b.title), ...b.tiles.slice(0, ROWS).map((t) => `${link(t.label, t.href, site)} ${t.redScore}–${t.blueScore}${t.event ? ` · ${md(t.event)}` : ""}`), ...more(b.tiles.length - ROWS)] : b.empty ? [link(b.empty.text, b.empty.href, site)] : [];
+    case "series": return [...head(b.title), b.points.filter((p) => p.y != null).slice(-rows).map((p) => `${md(p.x)} ${p.y}${b.unit ? ` ${md(b.unit)}` : ""}`).join(" · ")];
+    case "bars": return [...head(b.title), ...b.groups.slice(0, rows).map((g) => `${md(g.label)}: ${g.items.map((i) => `${md(i.label)} ${i.value ?? "—"}`).join(" · ")}`)];
+    case "videos": return b.tiles.length ? [...head(b.title), ...b.tiles.slice(0, rows).map((t) => `${link(t.label, t.href, site)} ${t.redScore}–${t.blueScore}${t.event ? ` · ${md(t.event)}` : ""}`), ...more(b.tiles.length - rows)] : b.empty ? [link(b.empty.text, b.empty.href, site)] : [];
   }
 }
 
 /** The short answer: the headline when there is one (it is the answer), else the first block that says anything.
- *  Everything else (more blocks, the source) is one tap away on the website. */
-function statLines(s: StatAnswer, site: string): string[] {
-  if (s.headline) {
-    const h = s.headline;
-    return [`**${link(h.value, h.href, site)}** ${md(h.label)}${h.sub ? ` · ${md(h.sub)}` : ""}${h.teams?.length ? ` · ${teams(h.teams, site)}` : ""}`];
+ *  Everything else (more blocks, the source) is one tap away on the website — or, when `full`, in this answer: the
+ *  headline, then every block with its own title, each list up to FULL_ROWS rows. */
+function statLines(s: StatAnswer, site: string, full = false): string[] {
+  const h = s.headline;
+  const headline = h ? [`**${link(h.value, h.href, site)}** ${md(h.label)}${h.sub ? ` · ${md(h.sub)}` : ""}${h.teams?.length ? ` · ${teams(h.teams, site)}` : ""}`] : [];
+  if (!full) {
+    if (headline.length) return headline;
+    if (s.none) return [md(s.none)];
+    for (const b of s.blocks) {
+      const lines = blockLines(b, site).filter(Boolean);
+      if (lines.length) return lines;
+    }
+    return [];
   }
-  if (s.none) return [md(s.none)];
-  for (const b of s.blocks) {
-    const lines = blockLines(b, site).filter(Boolean);
-    if (lines.length) return lines;
-  }
-  return [];
+  const blocks = s.blocks.flatMap((b) => {
+    const lines = blockLines(b, site, FULL_ROWS).filter(Boolean);
+    return lines.length ? ["", ...lines] : [];
+  });
+  return [...headline, ...(s.none ? [md(s.none)] : []), ...blocks];
 }
 
 const hitLine = (h: SearchHit, site: string) => `${link(h.title, hitHref(h), site)}${h.subtitle ? ` · ${md(h.subtitle)}` : ""}${h.facts?.length ? ` · ${h.facts.map((f) => `${md(f.label)} **${md(f.value)}**`).join(", ")}` : ""}`;
@@ -706,11 +721,15 @@ export function fitLines(lines: string[], max: number, read = Infinity): string 
 }
 
 /** The website's answer as one embed. */
-export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video?: SearchVideo, pageQuery = q): APIEmbed {
+/** An answer's lines, short (`full` off: one block, three rows — what the embed shows) or whole (`full`: the
+ *  headline and every block, each list up to FULL_ROWS rows, every card line, every result). Nothing is cut here; the
+ *  embed cuts its start from it and the rest is what the "Show the full answer" button posts. */
+function rendered(q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video: SearchVideo | undefined, pageQuery: string, full: boolean): { title: string; lines: string[]; close: string; footer: APIEmbed["footer"] } {
   const page = searchHref(pageQuery, site);
   const bruno = a.step === "ai" || !!sentence;
   const footer = { text: bruno ? `${BRUNO_CREDIT}\n${FOOTER.text}` : FOOTER.text };
   const close = `[Open this answer on controlscout.org](${page})`;
+  const rows = full ? FULL_ROWS : ROWS;
 
   // Nothing found, or a question search can't answer yet: said so, what was read, and searches that do answer.
   const cant = !!a.sorry || (a.step === "recovery" && !a.card && !a.stat);
@@ -719,11 +738,10 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
     const lines = [
       understood.length ? `I read it as: ${understood.map(md).join(" · ")}` : null,
       a.recovery?.ai?.refined ? `Bruno AI read it as: **${md(a.recovery.ai.refined)}**` : null,
-      ...(a.recovery?.closest?.length ? ["**Closest matches:**", ...a.recovery.closest.slice(0, HITS).map((h) => hitLine(h, site))] : []),
+      ...(a.recovery?.closest?.length ? ["**Closest matches:**", ...a.recovery.closest.slice(0, full ? FULL_HITS : HITS).map((h) => hitLine(h, site))] : []),
       (a.recovery?.browse ?? []).map((b) => link(b.title, b.href, site)).join(" · ") || null,
     ].filter((x): x is string => !!x);
-    // The link to the whole answer stays: lines are cut from the bottom, never it.
-    return { author: asked(q), title: SORRY_SENTENCE, url: page, description: `${fitLines(lines, DESCRIPTION_MAX - close.length - 1, READ_MAX)}\n${close}`, color: VOLT, footer };
+    return { title: SORRY_SENTENCE, lines, close, footer };
   }
 
   const lines: string[] = [];
@@ -735,37 +753,61 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
   let title: string;
   if (a.stat) {
     title = a.stat.heading ?? a.stat.title;
-    lines.push(...statLines(a.stat, site));
+    lines.push(...statLines(a.stat, site, full));
   } else if (a.card) {
     const c = a.card;
     title = `${c.title}${c.team ? ` · ${c.team.number}${c.team.name ? ` ${c.team.name}` : ""}` : ""}`;
     if (c.headline) lines.push(`**${md(c.headline)}**`);
-    lines.push(...c.lines.slice(0, ROWS).map((l) => `• ${lineOf(l, site)}`), ...more(c.lines.length - ROWS));
+    lines.push(...c.lines.slice(0, rows).map((l) => `• ${lineOf(l, site)}`), ...more(c.lines.length - rows));
     if (c.none) lines.push(md(c.none));
-    if (c.closest?.length && !c.lines.length) lines.push("**Closest records:**", ...c.closest.slice(0, ROWS).map((l) => `• ${lineOf(l, site)}`));
+    if (c.closest?.length && !c.lines.length) lines.push("**Closest records:**", ...c.closest.slice(0, rows).map((l) => `• ${lineOf(l, site)}`));
   } else {
     title = a.hits[0] ? a.hits[0].title : q;
   }
   // A compound question's other parts (server/api/query/clauses.ts): each under its own bold title, in the order asked.
   for (const c of a.clauses ?? []) {
-    if (c.stat) lines.push("", `**${md(c.stat.heading ?? c.stat.title)}**`, ...statLines(c.stat, site));
+    if (c.stat) lines.push("", `**${md(c.stat.heading ?? c.stat.title)}**`, ...statLines(c.stat, site, full));
     else if (c.card) {
       lines.push("", `**${md(`${c.card.title}${c.card.team ? ` · ${c.card.team.number}${c.card.team.name ? ` ${c.card.team.name}` : ""}` : ""}`)}**`);
       if (c.card.headline) lines.push(`**${md(c.card.headline)}**`);
-      lines.push(...c.card.lines.slice(0, ROWS).map((l) => `• ${lineOf(l, site)}`), ...more(c.card.lines.length - ROWS));
+      lines.push(...c.card.lines.slice(0, rows).map((l) => `• ${lineOf(l, site)}`), ...more(c.card.lines.length - rows));
       if (c.card.none) lines.push(md(c.card.none));
     }
   }
   // The top results, when the answer didn't already cover them.
-  if (!a.stat && !a.card) lines.push(...a.hits.slice(0, HITS).map((h) => `• ${hitLine(h, site)}`), ...more(a.hits.length - HITS));
+  if (!a.stat && !a.card) lines.push(...a.hits.slice(0, full ? FULL_HITS : HITS).map((h) => `• ${hitLine(h, site)}`), ...more(a.hits.length - (full ? FULL_HITS : HITS)));
   // The videos, as the website plays them: watched on YouTube.
   const vids = videoLinks(video);
   if (vids.length) lines.push(`▶ Watch: ${vids.map((v) => `[${md(v.label)}](${v.url})`).join(" · ")}`);
   // What to ask next is not text here: the answer's buttons carry it (bot/buttons.ts, askNext below).
-  // The link stays: lines are cut from the bottom of the answer, never the link to the whole of it.
-  const body = fitLines(lines, DESCRIPTION_MAX - close.length - 1, READ_MAX);
-  return { author: asked(q), title: title.length > 256 ? `${title.slice(0, 255)}…` : title, url: page, description: `${body ? `${body}\n` : ""}${close}`, color: VOLT, footer };
+  return { title, lines, close, footer };
 }
+
+/**
+ * The answer as the embed posts it, and — when that embed shows only the start of it — the whole of it as text, for the
+ * button under it (bot/buttons.ts): a board's every row, a compound question's every part, a card's every line. The
+ * embed is unchanged; `full` is what a reader who wants the rest of a complex answer gets in Discord.
+ */
+export function answerPost(q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video?: SearchVideo, pageQuery = q): { embed: APIEmbed; full?: string } {
+  const short = rendered(q, a, sentence, site, video, pageQuery, false);
+  // The link to the whole answer stays: lines are cut from the bottom, never it.
+  const body = fitLines(short.lines, DESCRIPTION_MAX - short.close.length - 1, READ_MAX);
+  const embed: APIEmbed = {
+    author: asked(q),
+    title: short.title.length > 256 ? `${short.title.slice(0, 255)}…` : short.title,
+    url: searchHref(pageQuery, site),
+    description: `${body ? `${body}\n` : ""}${short.close}`,
+    color: VOLT,
+    footer: short.footer,
+  };
+  const whole = rendered(q, a, sentence, site, video, pageQuery, true).lines.join("\n");
+  // What the embed left out: rows, blocks, parts or results past its cut ("…more on the website" is fitLines' mark).
+  const shown = body.replace(/\n…more on the website$/, "");
+  return whole.trim() && whole !== shown ? { embed, full: `**${short.title}**\n${whole}\n${short.close}` } : { embed };
+}
+
+export const askEmbed = (q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video?: SearchVideo, pageQuery = q): APIEmbed =>
+  answerPost(q, a, sentence, site, video, pageQuery).embed;
 
 /** The question as asked, above the answer: everyone in the channel sees what was asked, not just "used /ask". */
 export const asked = (q: string) => {
