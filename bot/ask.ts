@@ -11,9 +11,9 @@
 //                                         buttons included) when the facts answer it, and a link to the website.
 //      his lookups                        an agent loop (talk, below): a reply may ask for searches with `LOOKUP: <query>`
 //                                         lines (bot/productFacts.ts's lookupNote), the bot runs them and hands the facts
-//                                         back for the next step — up to AGENT_STEPS steps inside AGENT_BUDGET_MS of wall
-//                                         clock, each search reported whether it found anything, so he can work a
-//                                         question out instead of answering once and without holding the channel.
+//                                         back for the next step, for as long as AGENT_BUDGET_MS of wall clock allows,
+//                                         each search reported whether it found anything, so he can work a question
+//                                         out instead of answering once and without holding the channel.
 //      one correction                    a reply naming a number the facts don't have is rewritten once, told which
 //                                         number, instead of being dropped for the card on the spot.
 //   3. refine(q) / brunoAnswer(q)         only when that chat gives nothing: search's own answer, with his rewrite of
@@ -37,7 +37,7 @@ import { RECORD_NUMBER, WORKING, smallTalk } from "./smallTalk.js";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
 import { lookupFacts, splitAsk, type Lookup } from "./tools.js";
 import { threadSubject, withSubject } from "./subject.js";
-import { AGENT_BUDGET_MS, AGENT_STEPS, MIN_CALL_MS, QUERIES_PER_STEP } from "./agent.js";
+import { AGENT_BUDGET_MS, MIN_CALL_MS } from "./agent.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -422,33 +422,25 @@ const CANT = /\b(?:(?:couldn't|could not|can't|cannot) find|not (?:in|among) the
 /** The searches Bruno asks for in his reply (`LOOKUP: …`), taken from it: the lookup is the bot's to run, never part of
  *  what posts. */
 const LOOKUP = /^[ \t]*lookup\s*:\s*(.+)$/gim;
-/** The steps of one answer's loop, and the searches one step may ask for: with bot/productFacts.ts's tool note,
- *  which is built from the same numbers (bot/agent.ts). */
-export { AGENT_STEPS, QUERIES_PER_STEP } from "./agent.js";
-
-/** A reply split into what he said and the searches he asked for: at most `max` queries, and the text with the
+/** A reply split into what he said and the searches he asked for: every one of them (no cap), and the text with the
  *  `LOOKUP:` lines taken out. */
-export function lookupAsked(text: string, max = QUERIES_PER_STEP): { text: string; queries: string[] } {
-  const queries = [...text.matchAll(LOOKUP)].map((m) => m[1].trim().slice(0, 120)).filter(Boolean).slice(0, max);
+export function lookupAsked(text: string): { text: string; queries: string[] } {
+  const queries = [...text.matchAll(LOOKUP)].map((m) => m[1].trim().slice(0, 120)).filter(Boolean);
   const said = text.replace(LOOKUP, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   return { text: said, queries };
 }
-
-/** The line that ends the loop: the last step is told the lookups are spent, so he answers from the facts he has
- *  instead of asking for one more the bot won't run. */
-const LOOKUPS_DONE = `Lookups are done (${AGENT_STEPS} steps used). Answer now from the facts above; where they don't hold something, say what's missing. Don't ask for another lookup.`;
 
 /**
  * Bruno's reply to `q` from `facts`, worked out in steps rather than in one call: every reply may ask for searches
  * (`LOOKUP: …`), the bot runs them, and the facts come back as what that step found for the next reply. A step whose
  * search finds nothing says so, so he changes the words instead of repeating the search; a search already run is never
- * run twice; the last step is told the lookups are done and to answer from what it has. A reply that is only a request
- * (no words yet) is a step, not an empty answer. A number the facts don't have gets one correction round naming it
- * before ask's own check refuses the reply. Never throws: a step that fails keeps what he said.
+ * run twice; the loop has no step or search cap and ends when he answers without asking for another. A reply that is
+ * only a request (no words yet) is a step, not an empty answer. A number the facts don't have gets one correction round
+ * naming it before ask's own check refuses the reply. Never throws: a step that fails keeps what he said.
  *
  * The whole loop runs on one wall-clock budget (`AGENT_BUDGET_MS`): every call is given only the time left (never more
  * than `CHAT_TIMEOUT_MS`), and once there isn't time for another call worth starting the loop stops and posts what he
- * already said, instead of three slow steps holding the channel for minutes.
+ * already said, instead of a slow model holding the channel for minutes.
  */
 async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: AskDeps, memory: string[], records: boolean): Promise<ChatReply | null> {
   // The clock starts before the first call: the steps, their searches and the correction round all come out of it.
@@ -468,7 +460,7 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
   // What he has already looked up, so a repeated search is not run again (it answers the same way it did).
   const tried = new Set<string>();
   let reply = await talkOnce(packet);
-  for (let step = 1; reply && step <= AGENT_STEPS; step++) {
+  for (let step = 1; reply; step++) {
     const asked = lookupAsked(reply.text);
     if (asked.text) spoken = { ...reply, text: asked.text };
     const factsFor = deps.factsFor;
@@ -489,19 +481,17 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
     // What the step found is said either way: an empty search that came back as silence is one he asks for again, and
     // a search that didn't run must not be reported as proof the records are missing.
     const note = found.length
-      ? `Looked up ${label} (step ${step} of ${AGENT_STEPS}): the facts below include what that search found.${failed.length ? ` The search for ${failed.join(" · ").slice(0, 80)} failed to run: that is not an empty result.` : ""}`
+      ? `Looked up ${label} (step ${step}): the facts below include what that search found.${failed.length ? ` The search for ${failed.join(" · ").slice(0, 80)} failed to run: that is not an empty result.` : ""}`
       : failed.length
-        ? `Looked up ${label} (step ${step} of ${AGENT_STEPS}): the search failed to run. That is not an empty result: don't say the records don't exist, say you couldn't check it.`
-        : `Looked up ${label} (step ${step} of ${AGENT_STEPS}): the search found nothing. Don't ask for it again; try different words, or say what's missing.`;
+        ? `Looked up ${label} (step ${step}): the search failed to run. That is not an empty result: don't say the records don't exist, say you couldn't check it.`
+        : `Looked up ${label} (step ${step}): the search found nothing. Don't ask for it again; try different words, or say what's missing.`;
     console.info(`[bot] chat lookup: ${fresh.join(" | ").slice(0, 160)} (${found.length} facts${failed.length ? `, ${failed.length} failed` : ""})`);
     packet = fit([note, ...packet, ...found], CHAT_FACTS, CHAT_FACTS_CHARS);
-    const last = step === AGENT_STEPS;
-    const next = await talkOnce(last ? fit([LOOKUPS_DONE, ...packet], CHAT_FACTS, CHAT_FACTS_CHARS) : packet);
+    const next = await talkOnce(packet);
     if (!next) break;
     reply = next;
-    if (last) break;
   }
-  // A `LOOKUP:` line he didn't get to run (the steps are used up, or no search is wired) still never posts.
+  // A `LOOKUP:` line he didn't get to run (the clock ran out, or no search is wired) still never posts.
   if (reply) {
     const said = lookupAsked(reply.text).text;
     if (said) spoken = { ...reply, text: said };
