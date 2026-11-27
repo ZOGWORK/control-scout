@@ -169,9 +169,21 @@ export const KIND_LABEL: Record<MatchPredictionView["kind"], string> = {
 
 type Side = "red" | "blue";
 
+/** When the two alliance boxes sit side by side, facing each other (blue mirrored, scores in the middle); below that they
+ *  stack, one line each. A playoff row also carries each alliance's lives (two hearts), so its boxes face each other only
+ *  from a wider row: on a phone the hearts, two or three 5-digit numbers and the score don't fit in half the width.
+ *  Written out in full so Tailwind finds every class. */
+const FACING = {
+  normal: { chipBlue: "@min-[330px]:items-end @min-[330px]:text-right", boxBlue: "@min-[330px]:flex-row-reverse @min-[330px]:border-l-0 @min-[330px]:border-r-[3px]",
+    boxBlueV8: "v8:@min-[330px]:border-l-0 v8:@min-[330px]:border-r-2", hearts: "@min-[330px]:order-last", pair: "@min-[330px]:grid-cols-2 @min-[330px]:gap-1.5" },
+  playoff: { chipBlue: "@min-[520px]:items-end @min-[520px]:text-right", boxBlue: "@min-[520px]:flex-row-reverse @min-[520px]:border-l-0 @min-[520px]:border-r-[3px]",
+    boxBlueV8: "v8:@min-[520px]:border-l-0 v8:@min-[520px]:border-r-2", hearts: "@min-[520px]:order-last", pair: "@min-[520px]:grid-cols-2 @min-[520px]:gap-1.5" },
+} as const;
+type Facing = keyof typeof FACING;
+
 /** A team in an alliance box: its number, its name under it. In a match list a tap opens the team card
  *  (TeamSnack) and marks the team in every row; elsewhere it links to the team page. */
-function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][number]; side: Side; season: number; highlight?: number }) {
+function TeamChip({ t, side, season, highlight, face = "normal" }: { t: AllianceScore["teams"][number]; side: Side; season: number; highlight?: number; face?: Facing }) {
   const snack = useTeamSnack();
   const n = t.number, sub = t.surrogate || !t.onField;
   const me = n === highlight, picked = snack?.team === n;
@@ -179,7 +191,7 @@ function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][nu
   // Its own container (chip): a team's logo shows only while the chip has room for it beside the number (a 5-digit
   // number, the logo and the gap: 3.75rem), so a narrow box never runs one number into the next.
   const cls = cn("@container/chip [&_[data-team-logo]]:@max-[3.75rem]/chip:hidden flex min-w-0 flex-col rounded-md px-1.5 py-0.5 text-left v8:py-px leading-tight outline-none pointer-coarse:min-h-[44px] pointer-coarse:justify-center focus-visible:ring-2 focus-visible:ring-ring/60",
-    side === "blue" && "@min-[330px]:items-end @min-[330px]:text-right",
+    side === "blue" && FACING[face].chipBlue,
     picked ? (side === "red" ? "bg-red-alliance/30 ring-1 ring-red-alliance/70" : "bg-blue-alliance/30 ring-1 ring-blue-alliance/70")
       : me ? "bg-accent/15 ring-1 ring-accent/60 v8:bg-accent/[0.14] v8:ring-accent/70" : "still-hover:bg-text-base/[0.06]");
   const body = (
@@ -243,23 +255,24 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
   side: Side; m: MatchView; score: number | null; forecast: { mean: number; range?: [number, number]; level?: number } | null; outcome: "win" | "loss" | "tie" | null; highlight?: number;
 }) {
   const a = m[side];
+  const face: Facing = m.lives ? "playoff" : "normal";
   const flash = useChangeCount(score);
   return (
     <div className={cn(
       // Narrow rows: one line per alliance, teams then score. Wider rows (the row's own width): the two boxes face each other, scores in the middle.
       "flex min-w-0 items-center justify-between gap-2 rounded-lg border-l-[3px] px-2 py-1.5 v8:py-1",
-      side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : "border-blue-alliance bg-blue-alliance/[0.06] @min-[330px]:flex-row-reverse @min-[330px]:border-l-0 @min-[330px]:border-r-[3px]",
+      side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : cn("border-blue-alliance bg-blue-alliance/[0.06]", FACING[face].boxBlue),
       outcome === "win" && (side === "red" ? "bg-red-alliance/[0.14]" : "bg-blue-alliance/[0.14]"),
       // v8: the same box, quieter: a fainter tint (a little stronger for the winner) and a 2px edge.
-      side === "red" ? "v8:border-l-2 v8:bg-red-alliance/[0.05]" : "v8:border-l-2 v8:bg-blue-alliance/[0.05] v8:@min-[330px]:border-l-0 v8:@min-[330px]:border-r-2",
+      side === "red" ? "v8:border-l-2 v8:bg-red-alliance/[0.05]" : cn("v8:border-l-2 v8:bg-blue-alliance/[0.05]", FACING[face].boxBlueV8),
       outcome === "win" && (side === "red" ? "v8:bg-red-alliance/[0.09]" : "v8:bg-blue-alliance/[0.09]"),
     )} data-alliance-box={side}>
       {/* A double-elimination playoff: the alliance's lives first, at the box's left (the blue box faces the red from
           the right on wider rows, so its hearts go last in its reversed row: still its left edge). */}
-      {m.lives && <span className={cn(side === "blue" && "@min-[330px]:order-last")}><LivesHearts side={side} l={m.lives[side]} /></span>}
+      {m.lives && <span className={cn(side === "blue" && FACING[face].hearts)}><LivesHearts side={side} l={m.lives[side]} /></span>}
       {/* The teams share the box's width (a playoff alliance of three included), each name truncated to its share. */}
       <div className="grid min-w-0 flex-1 auto-cols-fr grid-flow-col gap-x-1">
-        {a.teams.map((t) => <TeamChip key={t.number} t={t} side={side} season={m.season} highlight={highlight} />)}
+        {a.teams.map((t) => <TeamChip key={t.number} t={t} side={side} season={m.season} highlight={highlight} face={face} />)}
       </div>
       {score != null ? (
         <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums v8:text-xl", outcome === "loss" && "v8:font-medium", flash > 0 && "cs-score-flash -mx-1 px-1", outcome === "loss" ? FADED[side] : side === "red" ? "text-red-alliance-ink" : "text-blue-alliance",
@@ -370,8 +383,9 @@ function MatchRowClassic({ m, highlight, showEvent, eventName, open, onToggle, o
           </span>
         )}
       </div>
-      {/* Narrow rows: the alliances sit under the label line (stacked, then facing each other from a 390 px phone up (a 330 px row)). */}
-      <div className="col-span-3 row-start-2 grid gap-1 v8:col-span-2 v8:@3xl:col-start-2 @min-[330px]:grid-cols-2 @min-[330px]:gap-1.5 @3xl:col-span-2 @3xl:col-start-2 @3xl:row-start-1" data-alliances>
+      {/* Narrow rows: the alliances sit under the label line (stacked, then facing each other from a 390 px phone up (a 330 px row);
+          a playoff row with lives from 520 px: FACING). */}
+      <div className={cn("col-span-3 row-start-2 grid gap-1 v8:col-span-2 v8:@3xl:col-start-2", FACING[m.lives ? "playoff" : "normal"].pair, "@3xl:col-span-2 @3xl:col-start-2 @3xl:row-start-1")} data-alliances>
         <AllianceBox side="red" m={m} score={red} forecast={forecast?.red ?? null} outcome={outcome("red")} highlight={highlight} />
         <AllianceBox side="blue" m={m} score={blue} forecast={forecast?.blue ?? null} outcome={outcome("blue")} highlight={highlight} />
       </div>
