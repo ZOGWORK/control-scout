@@ -5,7 +5,7 @@ import express from "express";
 import { beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, setDb } from "./db";
 import { invalidateFlags, setFlag } from "./flags";
-import { DEFAULT_TEAM, LOGO_ORIGIN, parseLogoSheet, refreshTeamLogos, sheetUrl, teamLogosRouter } from "./teamLogos";
+import { DEFAULT_TEAM, LOGO_ORIGIN, LOGO_REFRESH_MS, LOGO_RETRIES, LOGO_RETRY_MS, parseLogoSheet, refreshTeamLogos, refreshTeamLogosIfDue, sheetUrl, teamLogosRouter } from "./teamLogos";
 
 // A 1×1 PNG, and a second one that differs in its last bytes.
 const PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64"));
@@ -108,6 +108,44 @@ describe("refreshTeamLogos", () => {
   it("keeps a picture that isn't a PNG out", async () => {
     const { f } = fakeFirst({ 2026: sheet(2026, { 7: "a" }) }, { "/ftc/2026/avatars/composed/7_a": new TextEncoder().encode("<html>") });
     expect(await refreshTeamLogos({ seasons: [2026], fetch: f })).toMatchObject({ fetched: 0, failed: 1 });
+  });
+});
+
+describe("refreshTeamLogosIfDue", () => {
+  const noLog = () => {};
+  /** Whether a refresh runs at `at` (it reads the sheet first). */
+  async function runsAt(at: number, sheets: Record<number, string>, pictures: Record<string, Uint8Array> = {}) {
+    const { f, asked } = fakeFirst(sheets, pictures);
+    await refreshTeamLogosIfDue([2026], noLog, at, f);
+    return asked.length > 0;
+  }
+  const T = Date.parse("2026-11-26T00:00:00Z");
+
+  it("runs once a day when it finishes", async () => {
+    const ok = { 2026: sheet(2026, { 1: "a" }) };
+    expect(await runsAt(T, ok)).toBe(true);
+    expect(await runsAt(T + LOGO_RETRY_MS + 1, ok)).toBe(false);
+    expect(await runsAt(T + LOGO_REFRESH_MS + 1, ok)).toBe(true);
+  });
+
+  it("a refresh with failures tries again within the hour, a few times, then waits a day", async () => {
+    // Team 1's picture is never a PNG: every run has a failure.
+    const bad = { 2026: sheet(2026, { 1: "a" }) }, pics = { "/ftc/2026/avatars/composed/1_a": new TextEncoder().encode("<html>") };
+    let t = T;
+    expect(await runsAt(t, bad, pics)).toBe(true);
+    for (let i = 0; i < LOGO_RETRIES; i++) {
+      expect(await runsAt(t + LOGO_RETRY_MS - 1000, bad, pics)).toBe(false);
+      t += LOGO_RETRY_MS + 1;
+      expect(await runsAt(t, bad, pics)).toBe(true);
+    }
+    // Retries used up: the usual day.
+    expect(await runsAt(t + LOGO_RETRY_MS + 1, bad, pics)).toBe(false);
+    expect(await runsAt(t + LOGO_REFRESH_MS + 1, bad, pics)).toBe(true);
+  });
+
+  it("a sheet that can't be read tries again within the hour too", async () => {
+    expect(await runsAt(T, {})).toBe(true);
+    expect(await runsAt(T + LOGO_RETRY_MS + 1, {})).toBe(true);
   });
 });
 
