@@ -6,13 +6,12 @@
 // cycle itself (data/jobs.ts: one per process, and it takes the writer lease), and the other two
 // hold the writer lease (data/lock.ts) while they work. When the lease is taken, or a job of the
 // same kind is still running here, the op is refused with the reason instead of queued.
-import { kvSet } from "../db.js";
 import { lockHolder, LockBusy, withDataLock } from "../data/lock.js";
 import { childCycle, cycleRunning, runDataCycle } from "../data/jobs.js";
-import { runPacksInChild } from "../data/cycle.js";
+import { runPacksInChild, stampPacks } from "../data/cycle.js";
 import { buildPacks } from "../packs/build.js";
 import { clearAllCaches, registerCache } from "../caches.js";
-import { forecasterFor } from "../predict/engine.js";
+import { dataVersion, forecasterFor } from "../predict/engine.js";
 import { warmTrackRecord } from "../api/accuracy.js";
 import { resetWeatherCache } from "../weather.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
@@ -37,12 +36,14 @@ const runners: Record<OpName, (log: Log) => Promise<string>> = {
     // Where the cycle runs in a child process (DATA_CYCLE=child), so does this build: its long synchronous
     // stretches would otherwise stall every request this server answers.
     let msg: string;
+    // Read before the build, as the cycle does: a result that lands meanwhile is new data for the next cycle.
+    const dataAt = await dataVersion();
     if (childCycle()) {
       log("building in a child process");
       await runPacksInChild(undefined, { lockHeld: true });
       msg = "Packs built.";
     } else msg = `Packs ${(await buildPacks(log, { lockHeld: true })).version} built.`;
-    await kvSet("packs:last", new Date().toISOString());
+    await stampPacks(dataAt, true);
     return msg;
   }, { ttlMs: 2 * 60_000, waitMs: 0 }),
   caches: async () => {
