@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.1.1 — 2026-11-26
+
+Videos feel more responsive: everything you press answers the press, and a video you're not interested in fades away instead of vanishing.
+
+### Highlights
+- [live] Videos you hide fade out instead of jumping away
+- [live] Filters, team chips and video cards answer every press
+- [live] The play mark shows when you point at a video, as in the feed
+
+### Videos
+- **Press feedback and easing** (#2377; `src/pages/VideosPage.tsx`, `src/pages/WatchPage.tsx`, `src/components/FeedCard.tsx`, `src/components/FeaturedVideos.tsx`): the feed's filters, the watch page's team chips, "Not interested" and the Featured in cards scale a touch when pressed, on a strong ease-out; "Show more" turns its arrow on the same curve. None of it moves with reduced motion.
+- **Not interested** fades the card out over 150 ms before it leaves the feed (at once with reduced motion).
+- **Up next's episode count** ("×4") wears the Behind the Bot badge's pixel letters and purple, and Featured in shows its play mark only on hover or focus (always on touch), like the feed.
+
 ## 8.1.0 — 2026-11-26
 
 The Behind the Bot badge is an arcade plate now: pixel letters, purple and white, with a silver shine that sweeps across.
