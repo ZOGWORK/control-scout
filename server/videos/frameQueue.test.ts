@@ -66,6 +66,19 @@ describe("frameStatus", () => {
       .toMatchObject({ state: "read", due: 0, at: "2026-11-15", why: "Read 2026-11-15: 1 match still without a clip, as the video shows (see each match)" });
   });
 
+  it("reads again a video whose live row saw matches at its edges yet placed none: a failed read, not a read", () => {
+    // 2025 FRCMP's kind: opens on Q1, ends on M10, 0 of 55 placed. Read after the event, yet still to read.
+    const R = "no frame read of it, and no agreeing reads on both sides";
+    const missing = Object.fromEntries(["Q1", "Q2", "Q3", "Q4", "Q5"].map((l) => [l, R]));
+    ROWS.push({ videoId: "BLINDaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: {}, missing, opensOn: { at: 2390, label: "Q1", clear: true } });
+    setFrameTimingsForTests(ROWS);
+    expect(frameStatus(ev([miss("Q1", { videoId: "BLINDaaaaa1" })]), NOW)).toMatchObject({ state: "queued", due: 1 });
+    // The same read with its edges showing no match: what the video shows, settled.
+    ROWS.push({ videoId: "BLANKaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: {}, missing, opensOn: { at: 3, played: 0, of: 40 } });
+    setFrameTimingsForTests(ROWS);
+    expect(frameStatus(ev([miss("Q1", { videoId: "BLANKaaaaa1" })]), NOW).state).toBe("read");
+  });
+
   it("dates a read by the matches it read, never by a match it can't place whose video was read another day", () => {
     const f = frameStatus(ev([miss("Q1", readOn("2026-11-15")), miss("Q2", { reason: "no-start", ...readOn("2026-11-20") })]), NOW);
     expect(f).toMatchObject({ state: "read", at: "2026-11-15", why: "Read 2026-11-15: 1 match still without a clip, as the video shows (see each match)" });
