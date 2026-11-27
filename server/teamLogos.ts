@@ -26,7 +26,12 @@ export const DEFAULT_TEAM = 0;
 export const LOGO_MAX_BYTES = 64 * 1024;
 /** How often the data cycle refreshes them. */
 export const LOGO_REFRESH_MS = 23 * 3600_000;
+/** A refresh that couldn't finish (a picture or sheet failed) tries again this soon, up to LOGO_RETRIES times in a row,
+ *  then waits the usual day: a picture that always fails never has the sheets read every hour. */
+export const LOGO_RETRY_MS = 3600_000;
+export const LOGO_RETRIES = 3;
 const LAST_KEY = "teamLogos:last";
+const RETRY_KEY = "teamLogos:retries";
 
 export interface LogoSheet { fallback: Uint8Array | null; teams: Map<number, string> }
 
@@ -142,13 +147,22 @@ export async function refreshTeamLogos(opts: { seasons: number[]; teams?: number
   return report;
 }
 
-/** The data cycle's daily refresh: when the last one is over LOGO_REFRESH_MS old. Never throws. */
-export async function refreshTeamLogosIfDue(seasons: number[], log: (m: string) => void, now = Date.now()): Promise<void> {
+/** The data cycle's daily refresh: when the last one is over LOGO_REFRESH_MS old (or a failed one's retry is due).
+ *  Never throws. */
+export async function refreshTeamLogosIfDue(seasons: number[], log: (m: string) => void, now = Date.now(), f?: Fetch): Promise<void> {
+  let complete = false;
   try {
     const last = await kvGet<string>(LAST_KEY);
     if (last && now - Date.parse(last) < LOGO_REFRESH_MS) return;
-    const r = await refreshTeamLogos({ seasons, prune: true, log });
-    if (r.seasons.length) await kvSet(LAST_KEY, new Date(now).toISOString());
+    const r = await refreshTeamLogos({ seasons, prune: true, log, fetch: f });
+    complete = r.failed === 0 && r.seasons.length === seasons.length;
+  } catch (e) { log(`team logos: ${(e as Error).message}`); }
+  try {
+    // Done: next in a day. Not done: again in an hour, at most LOGO_RETRIES times in a row, then the usual day.
+    const tries = complete ? 0 : ((await kvGet<number>(RETRY_KEY)) ?? 0) + 1;
+    const soon = !complete && tries <= LOGO_RETRIES;
+    await kvSet(RETRY_KEY, soon ? tries : 0);
+    await kvSet(LAST_KEY, new Date(soon ? now - LOGO_REFRESH_MS + LOGO_RETRY_MS : now).toISOString());
   } catch (e) { log(`team logos: ${(e as Error).message}`); }
 }
 
