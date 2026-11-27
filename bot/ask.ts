@@ -385,7 +385,11 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
         chat: { text: reply.text, ...(keep ? { card: true } : {}), ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(pageQ, site) } : {}) },
         next: askNext(shown),
         // A search the loop's clock stopped before it ran is said too, as what it is: not checked, not missing records.
-        checked: { searches: 1 + parts.length, unanswered: [...parts.filter((p) => !p.answered).map((p) => p.q), ...(reply.skipped ?? []).map((r) => `${r} (out of time)`), ...(asksVideo(q) && !watch.length ? ["videos"] : [])] },
+        // A part search couldn't read is listed only when his reply says something was missing: one he answered from the
+        // team and event blocks (server/api/brunoDossier.ts, brunoEvents.ts) was checked, and a "couldn't check: who
+        // should I watch at the next NJ meet" under the answer to it contradicted the answer (the audit's Q77, and Q88
+        // after the event blocks went live).
+        checked: { searches: 1 + parts.length, unanswered: [...(CANT.test(reply.text) ? parts.filter((p) => !p.answered).map((p) => p.q) : []), ...(reply.skipped ?? []).map((r) => `${r} (out of time)`), ...(asksVideo(q) && !watch.length ? ["videos"] : [])] },
         ...(watch.length ? { watch } : {}),
       };
     }
