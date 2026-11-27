@@ -202,6 +202,30 @@ describe("the watcher's matcher", () => {
     expect(v).toMatchObject({ kind: "ignore", why: /an upload of FTCCMP1JEMI \(2025-04-15 to 2025-04-19\) with no date: which of its days it is can't be told/ });
   });
 
+  it("dates an undated upload by when it went up when its event played on one day only, set-up day listed or not", () => {
+    // FIRST in Michigan lists its qualifiers Friday (set-up) to Saturday; every match is on the Saturday. The Orange
+    // Alliance's re-upload of the day went up five days later: that Saturday's video.
+    const MI = { region: "state=MI", words: "michigan" };
+    const fri = { state: "MI", city: "Ann Arbor", start: "2024-11-08", end: "2024-11-09", timezone: "America/Detroit" } as const;
+    const aa = ev("USMIAAQ", "Ann Arbor FTC Qualifier", { ...fri, playedDays: ["2024-11-09"] });
+    const up = vid("2024 MI Ann Arbor FTC Qualifier", { start: null, published: "2024-11-14T03:00:00Z", durationS: 11 * 3600 });
+    expect(matchVideo(up, MI, [aa])).toMatchObject({ kind: "add", event: { code: "USMIAAQ" }, day: "2024-11-09", why: /when it went up/ });
+    // Matches on both of its days: which one it is still can't be told.
+    expect(matchVideo(up, MI, [{ ...aa, playedDays: ["2024-11-08", "2024-11-09"] }]).kind).not.toBe("add");
+    // Its days of play not known: as before, no day to put it on.
+    expect(matchVideo(up, MI, [{ ...aa, playedDays: undefined }]).kind).not.toBe("add");
+    // Went up more than two weeks after: not dated by it.
+    expect(matchVideo({ ...up, published: "2024-11-30T03:00:00Z" }, MI, [aa]).kind).not.toBe("add");
+  });
+
+  it("sets aside a pit display stream: no matches on it", () => {
+    const WA = { region: "state=WA", words: "washington wa biobuzz" };
+    const tesla = [ev("USWATELT", "Tesla League Tournament", { state: "WA", city: "Bothell", start: "2024-12-21", end: "2024-12-21", timezone: "America/Los_Angeles", type: "LeagueTournament" })];
+    const at = { start: "2024-12-21T17:00:00Z" };
+    expect(matchVideo(vid("WA Tesla Interleague - Pit Display/Rankings - Into The Deep", at), WA, tesla)).toMatchObject({ kind: "ignore", why: /pit display/i });
+    expect(matchVideo(vid("WA Tesla Interleague - Into The Deep", at), WA, tesla)).toMatchObject({ kind: "add", event: { code: "USWATELT" } });
+  });
+
   it("trusts the broadcast's date over a title's slip, only when the event it names doesn't run on the title's date", () => {
     const NTX = { region: "state=TX", words: "texas ntx fit north" };
     const m3 = [ev("USTXNEM3", "FiT-North E-League Meet 3", { start: "2025-01-18", end: "2025-01-18", type: "LeagueMeet" })];
