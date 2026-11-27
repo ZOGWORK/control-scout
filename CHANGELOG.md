@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.2.3 — 2026-11-27
+
+A first visit pays for the page it opened, not for every page the app has.
+
+### Highlights
+- [speed] A first visit downloads the app's shell, not all 161 page chunks
+- [speed] Archived seasons' pages are drawn far less often
+- [speed] Pages arrive Brotli-compressed: about a fifth fewer bytes
+- [speed] The proxy reuses its connection to the app
+
+### Speed
+- **The service worker precaches the shell only** (`vite.config.ts`): it used to precache every emitted chunk, which on a first visit meant all 161 of them (5.5 MB, `CHANGELOG`'s What's-new bundle alone 895 kB) for a visitor who may only open Home. It now precaches the entry and the chunks it imports statically, plus the CSS, fonts and brand images; a page's own chunk is saved by the worker as that page is first fetched (the behaviour it already had for `/assets/`), so offline still works after a page has been visited, and the shell still opens offline on a first visit.
+- **A frozen season's page is kept five minutes instead of thirty seconds** (`server/pageCache.ts` `pageTtlMs`): drawing a team or event page is 0.4–1 s of this process's one thread (`server/api/searchReads.ts`), and 2019–2022 cannot change between syncs, so their pages were being redrawn 120 times an hour for no new bytes. A live season's page keeps the 30-second rule, and a data move still drops every kept page.
+- **Pages are kept as Brotli as well as gzip** (`server/pageCache.ts`): the page cache already stored one gzip per page, so the extra encode is paid once per draw, not once per visitor. A visitor or cache that accepts Brotli gets it (quality 5: about a fifth smaller than gzip for this much HTML); one that takes only gzip gets the gzip as before, and one that takes neither gets the HTML unzipped from it.
+
+### Server
+- **nginx keeps its connection to the app** (`deploy/oracle-vm-setup.sh`): `proxy_pass` alone speaks HTTP/1.0 to the app with `Connection: close`, so every proxied request — a page's several API calls included — opened a new loopback connection. An `upstream … keepalive 32` with `proxy_http_version 1.1` and an empty `Connection` reuses them. The two live-stream locations already did this.
+
 ## 8.2.2 — 2026-11-27
 
 Offline predictions at an event are this morning's, not yesterday's: the packs are rebuilt as results come in.
