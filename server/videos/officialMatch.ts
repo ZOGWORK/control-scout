@@ -84,7 +84,7 @@ export function designators(s: string): Designators {
 }
 
 const COMP = /(champs|championship|campionat|qualif|tournament|turneu|regional|league|\bmeets?(?![a-z])|invitational|premier|scrimmage|state cup|uil|division|\bday\s*\d{1,2}(?!\d)|super|showcase|\bcup\b|competi|ftc|tech challenge|rodeo|madness|roundup)/i;
-const NOT = /(webinar|training|sesiune|workshop|kick ?off|q&a|interview|judg|referee|pregatire|informativ|\bfrc\b|first robotics competition|lego|\bfll\b|\bvex\b|banquet|town hall|info session|mentor|district event|\bweek \d|inspection status|opening ceremon|practice day|test stream|livestream test|pre-?show|first global|\bfgc\b|\bdrones?\b|\bdcl\b|simulator|\bursim\b|\bxrc\b|\b(?:rebuilt|reefscape|crescendo|charged up|rapid react|infinite recharge)\b|coach(?:es)?'? (?:call|corner)|program call|\bmeeting\b|legislature|committee|\bcouncil\b|keynote|\bnemc\b|sports day|robot in 30 hours|\bri30h\b|\bri3d\b|robot reveals?|\brecap\b|вебинар|\bfllc\b|gaming league|minecraft|valorant|rocket league|dungeons|\btop 25\b|predictions|board of education|meet the candidates|\bdiscuti[ae]\b|detalii tehnice)/i;
+const NOT = /(webinar|training|sesiune|workshop|kick ?off|q&a|interview|judg|referee|pregatire|informativ|\bfrc\b|first robotics competition|lego|\bfll\b|\bvex\b|banquet|town hall|info session|mentor|district event|\bweek \d|inspection status|opening ceremon|practice day|test stream|livestream test|pre-?show|first global|\bfgc\b|\bdrones?\b|\bdcl\b|simulator|\bursim\b|\bxrc\b|\b(?:rebuilt|reefscape|crescendo|charged up|rapid react|infinite recharge)\b|coach(?:es)?'? (?:call|corner)|program call|\bmeeting\b|legislature|committee|\bcouncil\b|keynote|\bnemc\b|sports day|robot in 30 hours|\bri30h\b|\bri3d\b|robot reveals?|\brecap\b|вебинар|\bfllc\b|gaming league|minecraft|valorant|rocket league|dungeons|\btop 25\b|predictions|board of education|meet the candidates|\bdiscuti[ae]\b|detalii tehnice|pit display)/i;
 const PART = /(ceremon|award|premier[ei]|finala|finals?\b|alliance selection|playoff|elimination|\bmorning\b|\bafternoon\b|(?:before|after) lunch)/i;
 const PART_NAME: [RegExp, string][] = [[/alliance selection/i, "Alliance selection & finals"], [/finala/i, "Finals & awards"], [/ceremon|award|premier[ei]/i, "Awards"], [/finals?\b/i, "Finals"], [/playoff/i, "Playoffs"], [/elimination/i, "Eliminations"], [/\bmorning\b/i, "Morning"], [/\bafternoon\b/i, "Afternoon"], [/before lunch/i, "Before lunch"], [/after lunch/i, "After lunch"]];
 const FIELD = /(divizia|\bfield\s*\d|\bfield [ab]\b|teren)/i;
@@ -215,15 +215,20 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     return { kind: "review", why: UPLOAD };
   };
   // An upload has no broadcast date: its day is the title's date when the title reads as exactly one date. With no
-  // date in its title, an upload that went up within two weeks of a one-day event is dated by that: the event's one
-  // day. (Not a day a title numbers: "Day 4" of an event whose dates include set-up days isn't its fourth date.)
+  // date in its title, an upload that went up within two weeks of a one-day event (one date, or matches on one day
+  // only) is dated by that: the event's one day. (Not a day a title numbers: "Day 4" of an event whose dates include
+  // set-up days isn't its fourth date.)
   if (upload && titleDates && titleDates.length !== 1) return undated();
   const uploadDay = upload && titleDates ? titleDates[0] : null;
   const pubDay = v.published && /^\d{4}-\d{2}-\d{2}/.test(v.published) ? v.published.slice(0, 10) : null;
   const lagDay = (e: WatchEvent): string | null => {
     const end = e.end || e.start;
     if (!pubDay || pubDay < end || daysBetween(end, pubDay) > UPLOAD_LAG_DAYS) return null;
-    return e.start === end ? e.start : null;
+    if (e.start === end) return e.start;
+    // Listed over more dates than it played on (a set-up day before a Saturday qualifier: FIRST in Michigan's are
+    // listed Friday to Saturday), with matches on one day only: that day is its one day, as a one-date event's is.
+    const [only, ...more] = e.playedDays ?? [];
+    return only && !more.length && e.start <= only && only <= end ? only : null;
   };
   const lagged = upload && !uploadDay;
   const dayOf = (e: WatchEvent) => (v.start ? localDate(v.start, e.timezone) : uploadDay ?? lagDay(e));
