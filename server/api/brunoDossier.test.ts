@@ -14,7 +14,7 @@ beforeAll(async () => {
   const c = openDb(":memory:");
   setDb(c);
   await migrate(c);
-  await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (4215, 'Hypnotic Robotics', 'Oradell', 'NJ', 'USA', 2010), (6980, 'Bad Wolf', 'Oradell', 'NJ', 'USA', 2013), (7149, 'Old Timers', 'Edison', 'NJ', 'USA', 2009)");
+  await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (3, 'Three', 'X', 'NJ', 'USA', 2005), (5, 'Five', 'X', 'NJ', 'USA', 2005), (26, 'Twenty Six', 'X', 'NJ', 'USA', 2005), (50, 'Fifty', 'X', 'NJ', 'USA', 2005), (100, 'Hundred', 'X', 'NJ', 'USA', 2005), (4215, 'Hypnotic Robotics', 'Oradell', 'NJ', 'USA', 2010), (6980, 'Bad Wolf', 'Oradell', 'NJ', 'USA', 2013), (7149, 'Old Timers', 'Edison', 'NJ', 'USA', 2009)");
   const season = (s: number, t: number, np: number, a: number, te: number, e: number, w: number, l: number) =>
     run("INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, events, matches, wins, losses, ties) VALUES (?, ?, ?, ?, ?, ?, 10, 8308, 1, ?, ?, ?, 0)", [s, t, np, a, te, e, w + l, w, l]);
   await season(NOW, 4215, 16.02, 1.35, 14.68, 5.55, 2, 3);
@@ -82,6 +82,13 @@ describe("which teams", () => {
     expect(await namedTeams("who has the better auto opr, 4215 or 6980 in 2024, and 99999")).toEqual([4215, 6980]);
     expect(await namedTeams("compare 6980, 4215 and 7149 by auto")).toEqual([6980, 4215, 7149]);
     expect(await namedTeams("what is 101.6")).toEqual([]);
+    // Counts and seasons are never teams (Loopy on #2391; the audit's Q73 read "top 50" as team 50)...
+    expect(await namedTeams("auto and endgame for 4215, 6980 and 7149 in 2024-25 and 2025–26")).toEqual([4215, 6980, 7149]);
+    expect(await namedTeams("top 50 teams in nj, compare 4215 and 6980 in the last 3 matches, top 5")).toEqual([4215, 6980]);
+    expect(await namedTeams("who scored over 100 points, and 100 pts in auto")).toEqual([]);
+    expect(await namedTeams("is 4215 better than 6980 over 7149")).toEqual([4215, 6980, 7149]);
+    // ...but a small team number said as one is.
+    expect(await namedTeams("how did team 5 and #50 do vs 4215")).toEqual([5, 50, 4215]);
   });
 
   it("says which season 'this season' is", () => {

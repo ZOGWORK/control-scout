@@ -144,10 +144,26 @@ export async function teamDossier(team: number, now = Date.now()): Promise<strin
   return out;
 }
 
-/** The teams a message names (3 to 5 digit numbers that are teams, never a year), in the order it names them. */
+/** A number that counts something ("top 5", "100 points", "last 3 matches"), never a team. */
+const COUNT_AFTER = /^\s*(?:%|(?:pts?|points?|matches|games|events?|teams|seasons?|wins?|losses|min(?:ute)?s?|seconds?|secs?|hours?|days?|weeks?|times|percent|place|th|st|nd|rd)\b)/i;
+const COUNT_BEFORE = /\b(?:top|best|worst|last|bottom|at\s+least|more\s+than|less\s+than|ranked)\s*$/i;
+
+/**
+ * The teams a message names, in the order it names them: a 3 to 5 digit number that is a team, or any team number
+ * after "team" or "#" ("team 11", "#50"). Never a year, a season ("2024-25"), a decimal ("101.6"), or a count ("top
+ * 50", "100 points", "last 3 matches": the audit's Q73 read "top 50" as team 50).
+ */
 export async function namedTeams(q: string): Promise<number[]> {
-  const nums = [...new Set((q.match(/(?<![\d.])\d{1,5}(?![\d.])/g) ?? []).map(Number))]
-    .filter((x) => x >= 1 && !(x >= 1990 && x <= 2099));
+  const text = q.replace(/\b(?:19|20)\d{2}\s*[-–—/]\s*\d{2,4}\b/g, " ");
+  const nums: number[] = [];
+  for (const m of text.matchAll(/(?<![\d.])(\d{1,5})(?!\d|\.\d)/g)) {
+    const x = Number(m[1]);
+    const before = text.slice(0, m.index), after = text.slice(m.index! + m[1].length);
+    const marked = /(?:\bteams?|#)\s*$/i.test(before);
+    if (x < 1 || (x >= 1990 && x <= 2099 && !marked)) continue;
+    if (!marked && (m[1].length < 3 || COUNT_AFTER.test(after) || COUNT_BEFORE.test(before))) continue;
+    if (!nums.includes(x)) nums.push(x);
+  }
   if (!nums.length) return [];
   const known = await all<{ number: number }>(`SELECT number FROM teams WHERE number IN (${nums.map(() => "?").join(", ")})`, nums);
   const set = new Set(known.map((r) => Number(r.number)));
