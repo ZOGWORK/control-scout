@@ -16,7 +16,8 @@ an embed that links back to controlscout.org:
 | `/unfollow team: event: channel:` | Stop them (every channel if none is given). Manage Server only |
 | `/following` | What the server follows — teams and events — and where each posts (up to 10 in all) |
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below), with buttons for what to ask next |
-| `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👎 an answer to report it |
+| `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking, and 👎 an answer to report it. Mentioning the bot's **role** (Discord's @ list offers it beside the bot) counts too |
+| `@Control Scout follow 4215` | Does it, rather than talking about it (`bot/actions.ts`): `follow`/`unfollow` a team and `watch the next event 4215 is in` (Manage Server, like `/follow`); `remind me when 4215 plays next` (anyone: pings only them, in that channel, 15 minutes before the match, `bot/reminders.ts`); `my team is 4215` (then "how did my team do" means 4215). A question after the request is answered too |
 | `/settings` | How this server gets its posts: quiet hours (UTC), whether match reminders are on, and a role to ping on them. Manage Server only, answered privately |
 | `/config` | What the bot is and can do here, read live, **and how this server's answers read**: `channel:#ask` answers plain messages there with no mention, each question in its own thread, `style:short`/`detailed`, `extras:false` for no follow-up buttons, `videos:false` for no clips, `reset:true` for the defaults. Private, Manage Server only |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
@@ -78,10 +79,9 @@ after the day's last match", "next: nothing scheduled"), read from the same sche
 Settings are read once a minute by the tick (one query, not one a channel) and a failed read posts as before rather than
 going silent. They go with the server's other rows when the bot is removed (`bot/forget.ts`).
 
-**Each person is paced too** (`bot/pacing.ts`, migration 111): six chats a UTC minute and thirty a UTC hour, per person
-per server, counted in `discord_person_usage` so a restart doesn't reset them. A server's cap (`bot/quota.ts`) bounds the
-whole server; without this, one member could spend it alone, or make the bot answer a channel in a loop. A report is not
-a chat and takes neither. The refusal is private, says which window, and points at the site, which has no such limit.
+**Nobody is paced per person, and no server is capped by default** (2026-11-26): the audit hit "One at a time — that's
+30 questions in an hour" at 10:57 PM, after the server cap had already been lifted. The per-person pace (`bot/pacing.ts`)
+is gone and the server default is no cap; only a cap the owner sets for one server (below) still applies.
 
 ## /next
 
@@ -188,15 +188,13 @@ and none spends a website visitor's hourly report cap), so the phrasings people 
 website's search work list too; the bot flushes that queue once a minute from its own process. A greeting, an answer
 search gave, and a chat that answered it are not failed searches and are never filed.
 
-Pace: each person has their own in each server (six a minute, thirty an hour, `bot/pacing.ts`), so two questions in
-a row are both answered while a loop is stopped; only the same question within a minute is the answer already given
-(one lookup, whoever asks). A message in the ask channel is paced the same way, and one past the pace is left
-unanswered rather than met with a notice per message. Every ask is logged as the command, the step, whether Bruno helped
+No pace: every question is answered, however many in a row; only the same question within a minute is the answer
+already given (one lookup, whoever asks). Every ask is logged as the command, the step, whether Bruno helped
 and the time, never who asked. The bot reads the site's search index and never writes it.
 
-**Per-server chat limits: a generous default, set lower where needed.** `bot/quota.ts` caps a server at `perHour`
-chats a UTC hour and `perDay` a UTC day, counted in UTC windows. Every server has `DEFAULT_LIMIT` — 60 an hour and 300
-a day — so no server is ever unbounded by accident; a server with a row in `discord_limits` has its own cap instead. A
+**Per-server chat limits: none by default, set where needed.** `bot/quota.ts` caps a server at `perHour`
+chats a UTC hour and `perDay` a UTC day, counted in UTC windows. Every server has `DEFAULT_LIMIT` — no cap in either
+window — and a server with a row in `discord_limits` has its own cap instead. A
 row replaces both windows, and a zero or a null there is no cap for that window, while `clearGuildLimit(guild)` deletes
 the row and puts the server back on the default. Both are the owner console's write (Product › Discord bot,
 `server/portal/discordLimits.ts`): it lists every server the bot knows with its cap and what it has used today, and
