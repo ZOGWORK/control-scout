@@ -125,7 +125,7 @@ export function DiscordPanel() {
 
   return (
     <Section title="Discord bot"
-      description="Every server has a default ceiling (60 chats an hour, 300 a day, counted in UTC windows). Give one its own cap and it replaces both windows for that server; take it away again to put it back on the default. Either write starts that server's counters afresh. At a cap, /ask and a mention say when it resets; the site and the server's follow posts keep working.">
+      description="No server has a cap by default. Give one its own cap (counted in UTC windows) and it replaces both windows for that server; take it away again to put it back on no cap. Either write starts that server's counters afresh. At a cap, /ask and a mention say when it resets; the site and the server's follow posts keep working.">
       {/* The form stays outside the empty state: clearing the last known server's cap must not take the way to set it. */}
       <Async state={state}>
         {(d) => (

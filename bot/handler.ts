@@ -9,7 +9,9 @@ import { addFollow, followName, followingEmbed, listFollows, removeFollow, type 
 import { REPORT_PREFIX, answerComponents, buttonQuestion, dbButtonStore, textChunks, QuestionButtons } from "./buttons.js";
 import { DEFAULT_SETTINGS, answerField, guildSettings, parseQuiet, parseStyle, setGuildSettings, settingsEmbed, styleLine, type GuildSettings, type GuildSettingsPatch } from "./settings.js";
 import { forgetAskChannels } from "./ambient.js";
-import { paceEmbed, takePersonChat, type Pace } from "./pacing.js";
+import { parseAction, withMyTeam, mentionsMine, type Action } from "./actions.js";
+import { addReminder, cancelReminders, nextEventFor, nextMatchFor } from "./reminders.js";
+import type { NextMatch } from "./next.js";
 import { answerRow as answerRowOf, markReported, trackAnswer, type AnswerRow } from "./reactions.js";
 import { noteAsk, type AskRecord } from "./asks.js";
 import { SORRY_SENTENCE } from "../src/shared/search.js";
@@ -19,7 +21,7 @@ import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
 import { ask as askSearch, chatPost, offeredQuestion, realAskDeps, recordsTurn, type AskDeps, type AskReply } from "./ask.js";
 import { takeChat, type Quota } from "./quota.js";
-import { channelSubject as readChannelSubject, keep as keepThread, keepChannelSubject, learn as learnMemory, recall as recallMemory, teamsAsked, thread as readThread } from "./memory.js";
+import { channelSubject as readChannelSubject, keep as keepThread, keepChannelSubject, keepMyTeam, learn as learnMemory, myTeam as readMyTeam, recall as recallMemory, teamsAsked, thread as readThread } from "./memory.js";
 import { subjectKept } from "./subject.js";
 import { fileReport, noteReport as postReportNote, wantsReport, type Filed, type Report } from "./report.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
@@ -42,8 +44,15 @@ export interface Lookups {
   /** What one server asked of its follow posts (/settings, bot/settings.ts); absent: the defaults. */
   settings?: (guild: string) => Promise<GuildSettings>;
   saveSettings?: (guild: string, s: GuildSettingsPatch, by: string | null) => Promise<void>;
-  /** One person's pace in one server (bot/pacing.ts): six a minute, thirty an hour. Absent: nobody is paced. */
-  pace?: (guild: string, user: string) => Promise<Pace>;
+  /** A person's own reminder for a team's next match (bot/reminders.ts); absent: "remind me" says it can't. */
+  remind?: (guild: string, channel: string, user: string, team: number) => Promise<void>;
+  /** Cancel a person's reminders in a server (one team's, or all); how many went. */
+  cancelRemind?: (guild: string, user: string, team: number | null) => Promise<number>;
+  /** A team's next unplayed match this season (bot/reminders.ts nextMatchFor), or null: what a reminder or a watch
+   *  confirms it will act on. */
+  nextMatch?: (team: number) => Promise<NextMatch | null>;
+  /** The next event a team is entered in this season, null when none, "unknown" for no such team. */
+  nextEvent?: (team: number) => Promise<{ code: string; name: string; start: string | null } | null | "unknown">;
   follow: (guild: string, channel: string, target: FollowTarget, by: string) => Promise<"added" | "already">;
   unfollow: (guild: string, target: FollowTarget, channel?: string | null) => Promise<number>;
   following: (guild: string) => Promise<APIEmbed>;
@@ -95,6 +104,10 @@ export interface Memory {
   channel: (channel: string) => Promise<string | null>;
   /** Keep what a channel is asking about now, in its server, so it can be forgotten with the rest of its data. */
   keepChannel: (channel: string, subject: string, guild: string | null) => Promise<void>;
+  /** The team a person said is theirs in this server ("my team is 4215"), or null. */
+  myTeam?: (guild: string, user: string) => Promise<number | null>;
+  /** Keep (or, with null, forget) the team a person says is theirs. */
+  setMyTeam?: (guild: string, user: string, name: string | null, team: number | null) => Promise<void>;
 }
 
 export const realLookups: Lookups = {
@@ -108,7 +121,10 @@ export const realLookups: Lookups = {
   teamChoices: async (typed) => rankTeamChoices(await teamChoices(), typed),
   settings: guildSettings,
   saveSettings: (guild, s, by) => setGuildSettings(guild, s, by),
-  pace: takePersonChat,
+  remind: (guild, channel, user, team) => addReminder(guild, channel, user, team),
+  cancelRemind: (guild, user, team) => cancelReminders(guild, user, team),
+  nextMatch: (team) => nextMatchFor(team),
+  nextEvent: (team) => nextEventFor(team),
   follow: addFollow,
   unfollow: removeFollow,
   following: async (guild) => followingEmbed(await listFollows(guild), site()),
@@ -120,7 +136,7 @@ export const realLookups: Lookups = {
   noteReport: (n, r) => postReportNote(n, r),
   enabled: (flag) => isEnabled(flag),
   quota: takeChat,
-  memory: { recall: recallMemory, learn: learnMemory, thread: readThread, keep: keepThread, channel: readChannelSubject, keepChannel: keepChannelSubject },
+  memory: { recall: recallMemory, learn: learnMemory, thread: readThread, keep: keepThread, channel: readChannelSubject, keepChannel: keepChannelSubject, myTeam: readMyTeam, setMyTeam: keepMyTeam },
   report: fileReport,
 };
 let askDeps: Promise<AskDeps> | undefined;
@@ -329,9 +345,6 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   const quota = lookups.quota;
   const mayChat = async (guild: string | null | undefined): Promise<Quota> =>
     !guild || !quota ? { ok: true } : quota(guild).catch((): Quota => ({ ok: true }));
-  // This person's pace in this server (bot/pacing.ts). A read that fails allows the chat, like the server cap does.
-  const mayPace = async (guild: string | null | undefined, user: string | null | undefined): Promise<Pace> =>
-    !guild || !user || !lookups.pace ? { ok: true } : lookups.pace(guild, user).catch((): Pace => ({ ok: true }));
 
   /**
    * /ask and a mention, logged with the question and how it was answered (never who asked). Cached by the whole
@@ -477,7 +490,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     // "what is my name?" has to be the name their friends see today. A failed read still has the name the message
     // itself carried.
     const who = name ?? m?.name ?? null;
+    const mine = await ownTeam(guild, user);
     return [
+      mine ? `The person asking told me their own team is ${mine}: "my team", "our", "we" and "us" mean ${mine}.` : "",
       m?.teams.length ? `This server asks about teams ${m.teams.join(", ")} most: when a question doesn't name a team, it means one of these, and say which one you picked.` : "",
       who ? `The person asking goes by ${who} here.` : "",
     ].filter(Boolean);
@@ -519,6 +534,87 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     return r;
   }
   /** Remember what this ask taught the server: the asker's name and the teams the message named (bot/memory.ts). */
+  /** The team this person said is theirs here, or null (none said, no memory, or a read that failed). */
+  async function ownTeam(guild: string | null | undefined, user: string): Promise<number | null> {
+    if (!guild || !lookups.memory?.myTeam) return null;
+    return lookups.memory.myTeam(guild, user).catch(() => null);
+  }
+  /** The question left after an action ("follow 4215 and tell me when they play next"), with its pronoun read as the
+   *  action's team, so "when do they play next" is asked about 4215. */
+  function restWith(a: Action): string {
+    const team = "team" in a && a.team ? a.team : null;
+    if (!team) return a.rest;
+    return a.rest.replace(/\btheir\b/i, `${team}'s`).replace(/\b(?:they|them|it)\b/i, String(team));
+  }
+  /**
+   * Do what a message asked for (bot/actions.ts) and say what happened — or, when it can't happen, say plainly why and
+   * what will work. Never pretends: the chat used to answer "follow 4215" with a paragraph about 4215, and "remember that
+   * my team is 4215" with "Got it!" while nothing was kept. Follows post into a channel for everyone, so they take
+   * Manage Server as /follow does; a reminder and "my team" are the asker's own and need nothing.
+   */
+  async function act(a: Action, c: { guild: string; channel: string | null; user: string; name: string | null; manager: boolean }): Promise<APIEmbed> {
+    const ok = (title: string, description: string): APIEmbed => ({ title, description, color: VOLT, footer: FOOTER });
+    const needsManager = (what: string, team: number | null) => ok("That needs Manage Server",
+      `${what} posts in this channel for everyone, so it takes **Manage Server**, the same as \`/follow\`. Ask someone who has it to say it, or to run \`/follow team:${team ?? 4215}\`.${team ? `\n\nI can remind **you** though: \`@Control Scout remind me when ${team} plays next\` pings only you, 15 minutes before ${team}'s next match.` : ""}`);
+    try {
+      switch (a.kind) {
+        case "myTeam": {
+          if (!lookups.memory?.setMyTeam) return errorEmbed("Can't remember that here", "This bot has no memory to keep it in right now.");
+          await lookups.memory.setMyTeam(c.guild, c.user, c.name, a.team);
+          return ok(`Got it: your team is ${a.team}`, `Saved for you in this server. "How did my team do", "our OPR" or "my team's next match" now mean **${a.team}**. Say \`@Control Scout forget my team\` to clear it.`);
+        }
+        case "forgetMyTeam": {
+          if (!lookups.memory?.setMyTeam) return errorEmbed("Can't change that here", "This bot has no memory right now.");
+          await lookups.memory.setMyTeam(c.guild, c.user, c.name, null);
+          return ok("Forgotten", "I no longer have a team saved for you in this server.");
+        }
+        case "remind": {
+          if (!lookups.remind || !c.channel) return errorEmbed("Can't set reminders here", "Reminders aren't available in this channel.");
+          const next = lookups.nextEvent ? await lookups.nextEvent(a.team).catch(() => null) : null;
+          if (next === "unknown") return errorEmbed("Team not found", `There's no FTC team ${a.team} in Control Scout's data.`);
+          await lookups.remind(c.guild, c.channel, c.user, a.team);
+          const match = lookups.nextMatch ? await lookups.nextMatch(a.team).catch(() => null) : null;
+          const when = match ? `${match.match.label} at ${match.event.event.name}${match.match.startsAt ? `, <t:${Math.floor(Date.parse(match.match.startsAt) / 1000)}:R>` : " (no time posted yet)"}` : null;
+          return ok(`Reminder set for ${a.team}`, when
+            ? `I'll ping you here 15 minutes before ${a.team}'s next match: **${when}**. Only you are pinged. \`@Control Scout stop reminding me about ${a.team}\` cancels it.`
+            : `No match is scheduled for ${a.team} yet${next ? ` (it's entered in **${next.name}**${next.start ? `, starting ${next.start.slice(0, 10)}` : ""})` : ""}. I'll keep checking and ping you here 15 minutes before its next match once FIRST posts the schedule. Only you are pinged.`);
+        }
+        case "cancelRemind": {
+          const n = lookups.cancelRemind ? await lookups.cancelRemind(c.guild, c.user, a.team) : 0;
+          return ok(n ? "Reminder cancelled" : "No reminder to cancel", n ? `No more reminder${n > 1 ? "s" : ""}${a.team ? ` about ${a.team}` : ""} for you.` : `You have no reminder${a.team ? ` about ${a.team}` : ""} waiting in this server.`);
+        }
+        case "follow": case "unfollow": case "watchEvent": {
+          if (!c.manager) return needsManager(a.kind === "unfollow" ? "Stopping a follow" : "Following", "team" in a ? a.team : null);
+          if (!c.channel) return errorEmbed("Pick a channel", "Ask in the channel the posts should go to.");
+          if (a.kind === "unfollow") {
+            const n = await lookups.unfollow(c.guild, { kind: "team", team: a.team }, c.channel);
+            return n ? ok(`Stopped following ${a.team}`, `No more automatic posts for **${a.team}** in <#${c.channel}>.`) : ok("Not following", `This channel doesn't follow ${a.team}.`);
+          }
+          let target: FollowTarget = a.kind === "follow" ? { kind: "team", team: a.team } : { kind: "event", event: a.event ?? "" };
+          let eventName: string | null = null;
+          if (a.kind === "watchEvent" && a.team) {
+            const next = lookups.nextEvent ? await lookups.nextEvent(a.team) : null;
+            if (next === "unknown") return errorEmbed("Team not found", `There's no FTC team ${a.team} in Control Scout's data.`);
+            if (!next) {
+              // Nothing entered yet: following the team covers its next event the moment it's entered in one.
+              target = { kind: "team", team: a.team };
+              eventName = null;
+            } else { target = { kind: "event", event: next.code }; eventName = next.name; }
+          }
+          const r = await lookups.follow(c.guild, c.channel, target, c.user);
+          const name = followName(target);
+          const title = `${r === "added" ? "Following" : "Already following"} ${eventName ?? name}`;
+          return ok(title, target.kind === "team"
+            ? `<#${c.channel}> gets posts for **${target.team}**: the evening before each event, its schedule with win odds once posted, 15 minutes before each match, each result, and a recap at the end of each day.${a.kind === "watchEvent" ? ` (${target.team} isn't entered in an upcoming event yet, so I followed the team: its next event is covered as soon as it's entered.)` : ""} Stop with \`@Control Scout unfollow ${target.team}\`.`
+            : `<#${c.channel}> gets posts for **${eventName ?? target.event}**${a.kind === "watchEvent" && a.team ? `, ${a.team}'s next event` : ""}: the evening before it starts, its schedule once posted, and a recap at the end of each day. Stop with \`/unfollow event:${target.event}\`.`);
+        }
+      }
+    } catch (e) {
+      if (e instanceof Friendly) return errorEmbed(e.title, e.detail);
+      logLine(`action ${a.kind} failed: ${(e as Error)?.message ?? String(e)}`);
+      return errorEmbed("That didn't work", "Something on my side stopped it. Try again in a moment, or use the slash command.");
+    }
+  }
   function learnAsk(guild: string | null | undefined, user: string, name: string | null, q: string): void {
     if (!guild || !lookups.memory) return;
     void lookups.memory.learn(guild, user, name, teamsAsked(q)).catch(() => {});
@@ -721,10 +817,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         await i.editReply({ embeds: [pride(errorEmbed("Two teams, please", "Pick two different numbers: `/compare team:4215 other:6980`."))] });
         return;
       }
-      // This person's own pace (bot/pacing.ts) before the server's cap (bot/quota.ts): a chat the pace refuses never
-      // happened, so it must not spend a slot of the server's allowance. Either is said plainly, before any lookup.
-      const fast = await mayPace(i.guildId, i.user.id);
-      if (!fast.ok) { await i.editReply({ embeds: [pride({ ...paceEmbed(fast), color: VOLT, footer: FOOTER })] }); return; }
+      // Nobody is paced per person: the server's own cap (bot/quota.ts), when an owner set one, is the only limit.
       const over = await mayChat(i.guildId);
       if (!over.ok) { await i.editReply({ embeds: [pride(limitEmbed(over))] }); return; }
       // "Report this to ControlScout" in /ask: the same report a mention files (bot/report.ts), before the chat limit —
@@ -737,31 +830,41 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this question adds.
       const name = serverName(i.user, i.member);
+      // Something to do rather than answer (bot/actions.ts), in /ask as in a mention.
+      const action = i.commandName === "ask" && i.guildId ? parseAction(question) : null;
+      if (action && i.guildId) {
+        const done = await act(action, { guild: i.guildId, channel: i.channelId, user: i.user.id, name, manager: !!i.memberPermissions?.has(PermissionFlagsBits.ManageGuild) });
+        if (!action.rest) { await i.editReply({ embeds: [pride(done)], allowedMentions: NO_PINGS }); return; }
+        await i.editReply({ embeds: [pride(done)], allowedMentions: NO_PINGS });
+      }
+      const typed = action ? restWith(action) : question;
+      const asked = withMyTeam(typed, mentionsMine(typed) ? await ownTeam(i.guildId, i.user.id) : null);
       const prefs = await prefsFor(i.guildId);
       // The server's own answer style rides with the chat's lines: it shapes the reply and is part of the cache key.
       const lines = [...await serverLines(i.guildId, i.user.id, name), styleLine(prefs)].filter(Boolean);
-      learnAsk(i.guildId, i.user.id, name, question);
+      learnAsk(i.guildId, i.user.id, name, asked);
       let post: AskPost;
       let r: AskReply | undefined;
       try {
         // /ask is never in a reply thread: what the channel was asking about lately is what a follow-up in it means.
-        r = await askReply(question, describe(i), [], lines, i.guildId, await channelSubjectFor(i.channelId, []));
+        r = await askReply(asked, describe(i), [], lines, i.guildId, await channelSubjectFor(i.channelId, []));
         // What was asked when a yes — or a no — answered the question Bruno offered (bot/ask.ts): the reply quotes
         // that, not the word.
-        post = await askPost(quoted(question, r), r, true, i.guildId, prefs);
+        post = await askPost(quoted(typed, r), r, true, i.guildId, prefs);
       } catch (e) {
         logLine(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
       }
       const { rest, ...edit } = post;
-      const sent = await i.editReply({ ...edit, allowedMentions: NO_PINGS });
+      // After an action the reply already says what was done: the answer to the rest of the question follows it.
+      const sent = action ? await i.followUp({ ...edit, allowedMentions: NO_PINGS }) : await i.editReply({ ...edit, allowedMentions: NO_PINGS });
       // The rest of a long answer, in the channel under it: every row, every part, every result.
       await postRest(rest, (c) => i.followUp({ content: c, embeds: [], allowedMentions: NO_PINGS }));
       // Only an answer gets a row: the failure notice above is not one.
       if (r) {
-        remember((sent as { id?: string } | undefined)?.id, [], quoted(question, r), r, i.guildId);
-        keepChannel(i.channelId, question, i.guildId);
-        keepAnswer(sent, i.guildId ?? null, quoted(question, r), r);
+        remember((sent as { id?: string } | undefined)?.id, [], quoted(typed, r), r, i.guildId);
+        keepChannel(i.channelId, asked, i.guildId);
+        keepAnswer(sent, i.guildId ?? null, quoted(typed, r), r);
       }
       return;
     }
@@ -803,19 +906,31 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
    * "@Control Scout who won decode", or a reply to one of its answers: a chat with Bruno (the same answer as /ask,
    * same cache, same 3-second pace), as a reply. A reply to his answer carries the thread on: he sees the turns
    * before it. Only a message from a person in a server that @mentions the bot itself or replies to its post:
-   * never its own or another bot's, never @everyone or a role. Discord sends the text of a message that mentions
+   * never its own or another bot's, never @everyone or another role (its own managed role is a mention of it). Discord sends the text of a message that mentions
    * the bot without the privileged Message Content intent, so the bot never reads anything else (a reply that
    * arrives without its text is left alone). `ambient`: a message in the one channel the server picked with
    * `/config channel:`, where no mention is needed and the answer goes in a thread (bot/ambient.ts); the channel check
    * and the intent are bot/index.ts's.
    */
-  async function mention(m: MentionMessage, botId: string, ambient = false): Promise<void> {
+  async function mention(m: MentionMessage, botId: string, ambient = false, selfRole: string | null = null): Promise<void> {
     try {
       if (m.author.bot || !m.guildId) return;
       const replyTo = m.reference?.messageId && m.mentions?.repliedUser?.id === botId ? m.reference.messageId : null;
+      // "@Control Scout" picked from Discord's @ list can be the bot or its own role (the managed role named like it):
+      // both are the bot being asked. Before this only the first counted, and a member who picked the role — the
+      // audit's 10:13 PM "@Control Scout what is 4215's opr" — got silence.
+      const byRole = !!selfRole && (new RegExp(`<@&${selfRole}>`).test(m.content) || !!m.mentions?.roles?.has?.(selfRole));
+      const mentioned = new RegExp(`<@!?${botId}>`).test(m.content) || byRole;
       // Ambient: a message in the channel the server picked with /config channel:, which is the opt-in (bot/ambient.ts).
       // Everything else still has to mention the bot or reply to one of its answers.
-      if (!ambient && !new RegExp(`<@!?${botId}>`).test(m.content) && !(replyTo && m.content.trim())) return;
+      if (!ambient && !mentioned && !(replyTo && m.content.trim())) return;
+      // Discord only shows a bot a message's words when the bot itself is mentioned: a mention of its role alone arrives
+      // empty without the Message Content intent. Say how to ask rather than answer nothing.
+      if (byRole && !m.content.trim()) {
+        await m.reply({ embeds: [pride({ title: "I couldn't read that one", description: "You mentioned my **role**, and Discord doesn't show me the words of a message that only mentions a role. Pick **Control Scout** with the **APP** tag in the @ list (the bot, not the role), reply to one of my answers, or use `/ask question:`.", color: VOLT, footer: FOOTER })], allowedMentions: NO_PINGS }).catch(() => {});
+        logLine("@role mention arrived without its words (no Message Content intent)");
+        return;
+      }
       // A command-looking line in the ask channel is somebody else's command, not a question for Control Scout.
       if (ambient && /^[/!]/.test(m.content.trim())) return;
       // The whole message, however long: Discord's own 2,000 characters, not a shorter cut of them.
@@ -866,16 +981,19 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         await reportIt(key, { guild: m.guildId, channel: m.channelId ?? null, user: m.author.id, name: shownName(m.author, m.member) }, q, history, card);
         return;
       }
-      // The server's chat limit, if one is set (none is, today): said in the channel, before the typing indicator goes up.
-      // After the bare-mention help: that asks nothing of Control Scout, so it never uses a chat.
-      // The pace first: a chat it refuses must not spend a slot of the server's own allowance.
-      const fast = await mayPace(m.guildId, m.author.id);
-      if (!fast.ok) {
-        // A person past their pace in an ask channel could be a loop: logged, not answered with a notice per message.
-        if (ambient) logLine(`ask channel: ${fast.window} pace reached, a message left unanswered`);
-        await say({ ...paceEmbed(fast), color: VOLT, footer: FOOTER });
-        return;
+      const name = serverName(m.author, m.member);
+      // Something to do rather than answer ("follow 4215", "remind me when 4215 plays next", "my team is 4215"): done
+      // here with the same code as /follow, or said plainly why not. A question after it is answered as usual.
+      const action = parseAction(q);
+      let asked = q;
+      if (action) {
+        const manager = !!m.member?.permissions?.has?.(PermissionFlagsBits.ManageGuild);
+        await card(await act(action, { guild: m.guildId, channel: m.channelId ?? null, user: m.author.id, name, manager }));
+        if (!action.rest) return;
+        asked = restWith(action);
       }
+      // The server's chat limit, if an owner set one (there is none by default): said in the channel, before the typing
+      // indicator goes up. Nobody is paced per person.
       const over = await mayChat(m.guildId);
       if (!over.ok) {
         if (ambient) logLine(`ask channel: the server's ${over.limited} cap is reached, a message left unanswered`);
@@ -883,10 +1001,11 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         return;
       }
       // What this server has taught the bot (bot/memory.ts): its lines for this chat, then what this message adds.
-      const name = serverName(m.author, m.member);
       const prefs = await prefsFor(m.guildId);
       const lines = [...await serverLines(m.guildId, m.author.id, name), styleLine(prefs)].filter(Boolean);
-      learnAsk(m.guildId, m.author.id, name, q);
+      learnAsk(m.guildId, m.author.id, name, asked);
+      // "how did my team do": asked as the team this person said is theirs, so search reads a number.
+      const searched = withMyTeam(asked, mentionsMine(asked) ? await ownTeam(m.guildId, m.author.id) : null);
       // Typing lasts about 10 s and a model reply can take 45: keep it up while the chat is written.
       void m.channel.sendTyping?.().catch(() => {});
       const typing = setInterval(() => { void m.channel.sendTyping?.().catch(() => {}); }, 8_000);
@@ -896,7 +1015,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       const channelSubject = await channelSubjectFor(m.channelId, history);
       let r: AskReply;
       try {
-        r = await askReply(q, `${ambient ? "#ask" : "@mention"} question=${q.toUpperCase().slice(0, 100)}`, history, lines, m.guildId ?? null, channelSubject);
+        r = await askReply(searched, `${ambient ? "#ask" : "@mention"} question=${searched.toUpperCase().slice(0, 100)}`, history, lines, m.guildId ?? null, channelSubject);
       } catch (e) {
         clearInterval(typing);
         logLine(`@mention ask failed: ${(e as Error)?.message ?? String(e)}`);
@@ -906,10 +1025,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       clearInterval(typing);
       // The reply quotes the message it answers: no need to repeat the question (a "yes" becomes the question it
       // answered, so the thread carries on from 4215's record rather than from the word).
-      const sent = await send(await askPost(quoted(q, r), r, false, m.guildId ?? null, prefs));
-      remember((sent as { id?: string } | undefined)?.id, history, quoted(q, r), r, m.guildId ?? null);
-      keepChannel(m.channelId, q, m.guildId);
-      keepAnswer(sent, m.guildId ?? null, quoted(q, r), r);
+      const sent = await send(await askPost(quoted(asked, r), r, false, m.guildId ?? null, prefs));
+      remember((sent as { id?: string } | undefined)?.id, history, quoted(asked, r), r, m.guildId ?? null);
+      keepChannel(m.channelId, searched, m.guildId);
+      keepAnswer(sent, m.guildId ?? null, quoted(asked, r), r);
     } catch (e) {
       logLine(`mention failed: ${(e as Error)?.message ?? String(e)}`);
     }
@@ -990,9 +1109,6 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       await i.reply({ content: "That button's question isn't kept any more (it is from before this bot kept them). Ask it with `/ask question:`.", flags: MessageFlags.Ephemeral });
       return;
     }
-    // The pace first: a button press it refuses must not spend a slot of the server's own allowance.
-    const fast = await mayPace(i.guildId, i.user.id);
-    if (!fast.ok) { await i.reply({ embeds: [pride({ ...paceEmbed(fast), color: VOLT, footer: FOOTER })], flags: MessageFlags.Ephemeral }); return; }
     const over = await mayChat(i.guildId);
     if (!over.ok) { await i.reply({ embeds: [pride(limitEmbed(over))], flags: MessageFlags.Ephemeral }); return; }
     await i.deferReply();
@@ -1095,8 +1211,9 @@ export interface MentionMessage {
    *  The name the answer says is `shownName(author, member)`, which prefers the server's nickname. */
   author: { id: string; bot: boolean; globalName?: string | null; username?: string };
   /** The author's membership of this server, as the message carries it: its `displayName` (nickname first) is the name
-   *  Discord shows. Absent when the guild isn't cached. */
-  member?: { displayName?: string | null; nick?: string | null } | null;
+   *  Discord shows. Absent when the guild isn't cached. `permissions`: whether they may manage the server, which a
+   *  follow asked for in a mention needs, as /follow does. */
+  member?: { displayName?: string | null; nick?: string | null; permissions?: { has?: (p: bigint) => boolean } } | null;
   guildId: string | null;
   /** The channel's id: a report says where it happened (bot/report.ts). */
   channelId?: string | null;
@@ -1105,7 +1222,8 @@ export interface MentionMessage {
   content: string;
   /** The message it replies to, and that message's author. */
   reference?: { messageId?: string } | null;
-  mentions?: { repliedUser?: { id: string } | null };
+  /** Who the message mentions: the user it replies to, and the roles it names (the bot's own role is a mention of it). */
+  mentions?: { repliedUser?: { id: string } | null; roles?: { has?: (id: string) => boolean } };
   reply: (opts: { content?: string; embeds: APIEmbed[]; components?: AnswerComponents; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>;
   /** The message's channel: `id` and `parentId` are what bot/index.ts checks against the server's picked ask channel
    *  (bot/ambient.ts), and `isThread` keeps an answer in a thread the question is already in. */
