@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer } from "../src/shared/api";
-import { LOOKUP_LINES, lookupFacts, needsSubject, plainAsk, resolveAsk, splitAsk, subjectPhrase } from "./tools";
+import { lookupFacts, needsSubject, plainAsk, resolveAsk, splitAsk, subjectPhrase } from "./tools";
 
 describe("the parts of a message", () => {
   it("the screenshot's question is three parts, its filler dropped", () => {
@@ -20,8 +20,8 @@ describe("the parts of a message", () => {
     expect(splitAsk("4215 opr and rank")).toEqual(["4215 opr and rank"]);
   });
 
-  it("at most three parts, a one-part message whole, and nothing for no words", () => {
-    expect(splitAsk("what is 4215's record, and who won worlds, and what is the highest score")).toHaveLength(3);
+  it("every part, a one-part message whole, and nothing for no words", () => {
+    expect(splitAsk("what is 4215's record, and who won worlds, and what is the highest score, and who won inspire")).toHaveLength(4);
     expect(splitAsk("what is 4215's record")).toEqual(["what is 4215's record"]);
     expect(splitAsk("  ")).toEqual([]);
   });
@@ -120,16 +120,33 @@ describe("the facts of the parts", () => {
     expect((await lookupFacts(["what is the best team", "who is by"], { search: async (q) => answer(q), facts: async () => [] })).answer).toBeUndefined();
   });
 
-  it("is capped, and every part keeps a share, so a broad board never fills the packet before the follow-up", async () => {
+  it("searches the parts one at a time, however many a message has", async () => {
+    let active = 0, most = 0;
+    const asked: string[] = [];
+    await lookupFacts(["a question", "another question", "a third question", "a fourth question"], {
+      search: async (q) => {
+        active++; most = Math.max(most, active); asked.push(q);
+        await new Promise((r) => setTimeout(r, 1));
+        active--;
+        return answer(q);
+      },
+      facts: async () => [],
+    });
+    expect(asked).toEqual(["a question", "another question", "a third question", "a fourth question"]);
+    expect(most).toBe(1);
+  });
+
+  it("keeps every part's facts, with no line or character cap of its own", async () => {
     const many = (p: string) => Array.from({ length: 40 }, (_, i) => `${p} ${i} ${"x".repeat(100)}`);
     const facts = await lookupFacts(["a question", "another question"], {
       search: async (q) => answer(q),
       facts: async (a) => many(a.q),
     });
-    expect(facts.facts.length).toBeLessThanOrEqual(LOOKUP_LINES);
-    expect(facts.facts[0]).toBe(many("a question")[0]);
-    // The second part's own line is in the packet: the first part's 40 can't crowd it out.
-    expect(facts.facts).toContain(many("another question")[0]);
+    // Both parts' forty lines: what the chat can hold is Control Point's packet cap, applied later in ask.ts.
+    expect(facts.facts).toHaveLength(80);
+    // Each part's first line comes before its second: a packet that trims still hears from both parts.
+    expect(facts.facts.slice(0, 2)).toEqual([many("a question")[0], many("another question")[0]]);
+    expect(facts.facts).toContain(many("another question")[39]);
   });
   it("says which parts search answered, so the post can say what it couldn't", async () => {
     const answered = { q: "what is the best team", hits: [], pages: [], step: "deterministic" as const, weak: false } as unknown as SearchAnswer;
