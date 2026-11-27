@@ -20,13 +20,14 @@ const SENT_KEEP_MS = 86_400_000;
 /** A match already this far past its start isn't reminded about: it's being played, or the schedule is stale. */
 const LATE_MS = 5 * 60_000;
 
-export interface Reminder { guild_id: string; channel_id: string; user_id: string; team: number; created_at: string }
+export interface Reminder { guild_id: string; channel_id: string; user_id: string; team: number; created_at: string; sent_match?: string | null }
 
-/** Ask for one (again): a reminder already sent for this team starts over, so "remind me" twice means the next match. */
+/** Ask for one (again): a reminder already sent for this team starts over, so "remind me" twice means the next match —
+ *  the match it was already sent for is kept, so asking again while that match is still ahead never pings it twice. */
 export async function addReminder(guild: string, channel: string, user: string, team: number, now = Date.now()): Promise<void> {
   await run(
     `INSERT INTO discord_reminders (guild_id, channel_id, user_id, team, created_at) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(guild_id, user_id, team) DO UPDATE SET channel_id = excluded.channel_id, created_at = excluded.created_at, sent_at = NULL, sent_match = NULL`,
+     ON CONFLICT(guild_id, user_id, team) DO UPDATE SET channel_id = excluded.channel_id, created_at = excluded.created_at, sent_at = NULL`,
     [guild, channel, user, team, new Date(now).toISOString()]);
 }
 
@@ -98,7 +99,7 @@ export type RemindSend = (channel: string, user: string, post: { content: string
 export async function reminderTick(send: RemindSend, site: string, now = Date.now(), next: (team: number, now: number) => Promise<NextMatch | null> = nextMatchFor): Promise<number> {
   await run("DELETE FROM discord_reminders WHERE (sent_at IS NOT NULL AND sent_at < ?) OR created_at < ?",
     [new Date(now - SENT_KEEP_MS).toISOString(), new Date(now - REMINDER_KEEP_MS).toISOString()]);
-  const rows = await all<Reminder>("SELECT guild_id, channel_id, user_id, team, created_at FROM discord_reminders WHERE sent_at IS NULL");
+  const rows = await all<Reminder>("SELECT guild_id, channel_id, user_id, team, created_at, sent_match FROM discord_reminders WHERE sent_at IS NULL");
   if (!rows.length) return 0;
   const matches = new Map<number, NextMatch | null>();
   let sent = 0;
@@ -106,7 +107,7 @@ export async function reminderTick(send: RemindSend, site: string, now = Date.no
     const team = Number(r.team);
     if (!matches.has(team)) matches.set(team, await next(team, now).catch(() => null));
     const n = matches.get(team);
-    if (!n || !reminderDue(n, now)) continue;
+    if (!n || !reminderDue(n, now) || (r.sent_match != null && matchKey(n) === r.sent_match)) continue;
     const out = await send(String(r.channel_id), String(r.user_id), reminderPost(String(r.user_id), team, n, site));
     if (out === "error") continue;
     // Sent, or the channel is gone (nothing can ever post there): either way it is done.
