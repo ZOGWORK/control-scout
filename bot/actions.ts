@@ -15,12 +15,15 @@ export type Action =
   | { kind: "myTeam"; team: number; rest: string }
   | { kind: "forgetMyTeam"; rest: string };
 
-/** A team number as people type one: 1 to 5 digits, not a year. */
+/** A team number as people type one: 1 to 5 digits. Teams 1990–2099 exist ("follow 2025" is team 2025); a number said
+ *  as a year is caught by `saidAsYear` from what follows it. */
 const TEAM = String.raw`(?:team\s*#?\s*)?(\d{1,5})`;
-const year = (n: number) => n >= 1990 && n <= 2099;
+/** "2025-26", "2025 season", "2025 worlds", "2025's game": a year in a sentence, never a team to act on. */
+const saidAsYear = (q: string, n: number) =>
+  n >= 1990 && n <= 2099 && new RegExp(String.raw`\b${n}(?:'s)?\s*(?:[-–/]\s*\d{2}\b|(?:season|worlds|world|championships?|game|games|kickoff|robot|rules?|events?)\b)`, "i").test(q);
 const team = (s: string | undefined): number | null => {
   const n = Number(s);
-  return Number.isInteger(n) && n > 0 && !year(n) ? n : null;
+  return Number.isInteger(n) && n > 0 ? n : null;
 };
 
 /** What follows an action clause and is a question of its own: "… and tell me when they play next". */
@@ -80,7 +83,7 @@ export function parseAction(q: string): Action | null {
   const s = q.replace(/\s+/g, " ").trim().replace(/[!.?]+$/, "");
   for (const r of RULES) {
     const m = s.match(r.re);
-    if (m) { const a = r.make(m); if (a) return a; }
+    if (m) { const a = r.make(m); if (a && !("team" in a && a.team != null && saidAsYear(s, a.team))) return a; }
   }
   return null;
 }

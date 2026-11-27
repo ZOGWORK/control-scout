@@ -19,6 +19,12 @@ describe("parseAction", () => {
     expect(parseAction("watch 4215's next event")).toMatchObject({ kind: "watchEvent", team: 4215 });
     expect(parseAction("follow event USNJCMP")).toMatchObject({ kind: "watchEvent", team: null, event: "USNJCMP" });
     expect(parseAction("ping me before 23314's next match")).toMatchObject({ kind: "remind", team: 23314 });
+    // Teams 1990–2099 exist (Loopy on #2386): a number is a year only when it is said as one.
+    expect(parseAction("follow 2025")).toMatchObject({ kind: "follow", team: 2025 });
+    expect(parseAction("remind me when 2050 plays next")).toMatchObject({ kind: "remind", team: 2050 });
+    expect(parseAction("my team is 2099")).toMatchObject({ kind: "myTeam", team: 2099 });
+    expect(parseAction("follow 2025 worlds")).toBeNull();
+    expect(parseAction("follow 2025-26 season")).toBeNull();
     expect(parseAction("tell me when 4215 plays next")).toMatchObject({ kind: "remind", team: 4215 });
     expect(parseAction("remind me about 4215")).toMatchObject({ kind: "remind", team: 4215 });
     expect(parseAction("stop reminding me about 4215")).toMatchObject({ kind: "cancelRemind", team: 4215 });
