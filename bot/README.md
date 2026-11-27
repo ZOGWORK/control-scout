@@ -84,8 +84,8 @@ a chat and takes neither. The refusal is private, says which window, and points 
 ## /next
 
 `/next` (`bot/next.ts`, `bot/lookups.ts`) answers the question people actually ask at an event: when does this team
-play next? It reads the team's events that aren't over, earliest first (three at most), and takes the first unplayed
-match the team is in, in schedule order: qualifications before playoffs, then series and number, so a match whose time
+play next? It reads the team's events that aren't over, earliest first — every one of them, until one has a match — and
+takes the first unplayed match the team is in, in schedule order: qualifications before playoffs, then series and number, so a match whose time
 FIRST hasn't posted yet still counts. The answer is the same pre-match card the follow reminders post: the lineup, the
 favourite's win chance, the predicted score and its confidence. No schedule with the team on it isn't a guess — it says
 so and links the event to watch, and a team with nothing scheduled this season gets a link to its page. It shows the same call `/predict` does, so the owner's `livePredictions` switch turns it off with `/predict` (`bot/handler.ts`).
