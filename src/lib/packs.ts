@@ -26,7 +26,10 @@ export { packStatus, type PackMeta } from "./packPolicy";
 export interface PackGz { name: string; url: string; bytes: number; sha256: string }
 /** Counts in a season pack, for "214 new matches" when a newer release is out (packs from 6.0.5 on). */
 export interface PackStats { matches: number; events: number }
-export interface PackFile { name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string; gz?: PackGz; stats?: PackStats }
+/** `dataAsOf`: when the server last synced before this season file was built (packs built before the hourly
+ *  event-day season pack lack it). An event-day release carries the current season's file between its hourly builds,
+ *  so the file's time can be older than the manifest's; older files don't say, and the manifest's stands in. */
+export interface PackFile { name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string; gz?: PackGz; stats?: PackStats; dataAsOf?: string | null }
 export interface PackManifest { format: number; version: string; builtAt: string; engineVersion: string; dataAsOf: string | null; lite: PackFile | null; full: PackFile[] }
 
 export interface LitePack {
