@@ -4,19 +4,21 @@
 import type { EventDetail, MatchView } from "../src/shared/api.js";
 import { eventOver, type EventCalendar } from "../src/shared/eventDay.js";
 
-/** The events to look in, at most this many: a team is not in two on one weekend, and reading every one it has ever
- *  been in for "the next match" would be calls for nothing. */
-export const AHEAD = 3;
-
 /**
- * The events that aren't over yet, earliest first, capped at AHEAD. "Over" is read on the venue's own calendar
- * (src/shared/eventDay.ts), never on UTC: at 19:30 in New York on the 24th it is already the 25th in UTC, and a match
- * still to be played that evening must not drop out of "next".
+ * Every one of the team's events that isn't over yet, earliest first — never a fixed number of them. A team's next
+ * match can be at the fourth event it is entered in when the ones before it have nothing for it: a meet FIRST hasn't
+ * posted a schedule for, one it is on the roster of but not the field of, one that was called off. A cap of ours
+ * would answer "nothing scheduled" over a match that is really next. The walk stops at the first event with a match,
+ * so the cost is one cached read per event up to the answer (bot/lookups.ts); only "nothing scheduled" reads them
+ * all, which is what makes that answer true.
+ *
+ * "Over" is read on the venue's own calendar (src/shared/eventDay.ts), never on UTC: at 19:30 in New York on the 24th
+ * it is already the 25th in UTC, and a match still to be played that evening must not drop out of "next".
  */
 export function aheadEvents<T extends EventCalendar & { start: string | null }>(events: readonly T[], now = Date.now()): T[] {
   // An event with no date published yet is not over (eventOver says so) and is kept, after the dated ones: its team is
   // entered in it, and "nothing scheduled" must be able to name it.
-  return events.filter((e) => !eventOver(e, now)).sort((a, b) => (a.start ?? "9999").localeCompare(b.start ?? "9999")).slice(0, AHEAD);
+  return events.filter((e) => !eventOver(e, now)).sort((a, b) => (a.start ?? "9999").localeCompare(b.start ?? "9999"));
 }
 
 /** Schedule order at one event: qualifications before playoffs, then series and number. */
