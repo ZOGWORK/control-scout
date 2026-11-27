@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView } from "../src/shared/api";
 import { EVE_HOUR, FIELD_MAX, RECAP_AFTER_MS, SCHEDULE_MAX, eveEmbed, packLines, eventDue, eventRecapEmbed, eventScheduleEmbed, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts";
 import type { Follow } from "./follows";
+import { embedProblems } from "./limits";
 
 const SITE = "https://controlscout.org";
 const ZONE = "America/Chicago"; // UTC-5 in October
@@ -219,7 +220,8 @@ describe("the redesign's rules for event posts", () => {
     // No cap of ours: all twenty, and nothing left out.
     expect(all).not.toMatch(/…and \d+ more/);
     expect(all.split("\n").filter((l) => l.startsWith("`Q")).length).toBe(ms.length);
-    expect(JSON.stringify(e).length).toBeLessThan(6000);
+    // One Discord takes, by its own limits rather than by the JSON's length (bot/limits.ts).
+    expect(embedProblems(e)).toEqual([]);
   });
 
   it("a schedule post naming many teams never passes Discord's 25 fields", () => {
@@ -227,6 +229,7 @@ describe("the redesign's rules for event posts", () => {
     const ms = teams.map((t, i) => q(i + 1, local("2026-10-24", "10:00"), [t, 1], [2, 3]));
     const e = scheduleEmbed({ channel: "c1", teams, kind: "schedule", key: "schedule" }, detail(ms), SITE);
     expect(e.fields!.length).toBeLessThanOrEqual(25);
+    expect(embedProblems(e)).toEqual([]);
   });
 
   it("packLines: continues in a new field at the cap, stops at the line cap or the post's budget", () => {

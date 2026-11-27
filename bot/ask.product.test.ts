@@ -7,7 +7,7 @@ vi.mock("../server/auth/controlPoint", () => ({ brunoAvailable: () => true, brun
 
 it("sends current product knowledge with Discord chats, reserving room beside search records and grounding v8", async () => {
   const deps = await realAskDeps();
-  const facts = Array.from({ length: 40 }, (_, n) => `Search record ${n}: ${"x".repeat(200)}`);
+  const facts = Array.from({ length: 200 }, (_, n) => `Search record ${n}: ${"x".repeat(400)}`);
   const reply = await deps.chat!("what changed in Control Scout?", facts, []);
   expect(reply?.text).toContain("v8 remodel is complete");
   const context = state.chat.mock.calls[0] as unknown as [string, string[]];
@@ -17,10 +17,12 @@ it("sends current product knowledge with Discord chats, reserving room beside se
   expect(context[1].join(" ")).toContain("Shapes: records gets the number");
   expect(context[1].join(" ")).toContain("'- ' bullets");
   expect(context[1].join(" ")).toContain("Search record 0");
-  expect(context[1].length).toBeLessThanOrEqual(40);
-  expect(context[1].join("\n").length).toBeLessThan(8000);
-  // Control Point refuses a packet with a fact over 400 characters: every line, product facts included, is under it.
-  expect(context[1].every((f) => f.length <= 400)).toBe(true);
+  // Inside Control Point's packet (ZOGWORK/control-point#370: 120 lines, 600 a line, 40,000 in all), however much
+  // search found: one line over it and Control Point refuses the whole chat.
+  expect(context[1].length).toBeLessThanOrEqual(120);
+  expect(context[1].length).toBeGreaterThan(40);
+  expect(context[1].join("\n").length).toBeLessThan(40_000);
+  expect(context[1].every((f) => f.length <= 600)).toBe(true);
 
   // What the server has taught the bot rides with the facts too (bot/memory.ts), inside the same caps.
   await deps.chat!("what was our auto OPR?", facts, [], ["This server asks about teams 4215, 6980 most: when a question doesn't name a team, it means one of these, and say which one you picked.", "The person asking goes by Alex here."]);
@@ -28,9 +30,9 @@ it("sends current product knowledge with Discord chats, reserving room beside se
   expect(withMemory[1].join(" ")).toContain("teams 4215, 6980");
   expect(withMemory[1].join(" ")).toContain("Alex here");
   expect(withMemory[1].join(" ")).toContain("Shapes: records gets the number");
-  expect(withMemory[1].length).toBeLessThanOrEqual(40);
-  expect(withMemory[1].join("\n").length).toBeLessThan(8000);
-  expect(withMemory[1].every((f) => f.length <= 400)).toBe(true);
+  expect(withMemory[1].length).toBeLessThanOrEqual(120);
+  expect(withMemory[1].join("\n").length).toBeLessThan(40_000);
+  expect(withMemory[1].every((f) => f.length <= 600)).toBe(true);
   expect(state.flag.mock.calls.every((args) => (args as unknown as string[])[0] === "discordBruno")).toBe(true);
 
   // Exercise the outer ask/chatWith fit too: the real chat must still trim the
@@ -41,8 +43,8 @@ it("sends current product knowledge with Discord chats, reserving room beside se
     facts: async () => facts,
   }, "https://controlscout.org");
   const throughAsk = state.chat.mock.calls[1] as unknown as [string, string[]];
-  expect(throughAsk[1].length).toBeLessThanOrEqual(40);
-  expect(throughAsk[1].join("\n").length).toBeLessThan(7500);
+  expect(throughAsk[1].length).toBeLessThanOrEqual(120);
+  expect(throughAsk[1].join("\n").length).toBeLessThan(40_000);
   expect(throughAsk[1].join(" ")).toContain("remodel is complete");
   expect(throughAsk[1].join(" ")).toContain("Search record 0");
 });

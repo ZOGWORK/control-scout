@@ -35,7 +35,7 @@ import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 import { answerScope, answerStyle, brunoMethod, brunoPersona, lookupNote, productFacts, zogModeReply } from "./productFacts.js";
 import { RECORD_NUMBER, WORKING, smallTalk } from "./smallTalk.js";
 import { CHAT_OFF_SWITCH, CHAT_OFF_UNCONFIGURED } from "./chatState.js";
-import { lookupFacts, splitAsk, type Lookup } from "./tools.js";
+import { lookupFacts, plainAsk, splitAsk, type Lookup } from "./tools.js";
 import { threadSubject, withSubject } from "./subject.js";
 import { AGENT_BUDGET_MS, MIN_CALL_MS } from "./agent.js";
 
@@ -84,12 +84,23 @@ export interface AskDeps {
 /** Bruno's chat reply; `search`: the facts answer the message, so the answer's video and page go with it. `unknown`:
  *  numbers in his text that neither the facts, the message nor the thread have — a record claim in a records answer,
  *  an explanation's own numbers in a chat (see ask, below). */
-export interface ChatReply { text: string; search: boolean; unknown?: string[] }
+export interface ChatReply { text: string; search: boolean; unknown?: string[];
+  /** The searches the reply asked for that the clock stopped before they ran (`talk`, below): the answer's check line
+   *  names them, so a shorter answer never reads as a complete one. */
+  skipped?: string[] }
 /** Facts sent with a chat, at most (Control Point's caps: 40 lines of at most 400 characters, 8,000 in all). One
  *  longer line and it refuses the whole packet with a 400, so every line is cut to its cap (clip, below). */
-const CHAT_FACTS = 40;
-const CHAT_FACTS_CHARS = 7500;
-const CHAT_FACT_CHARS = 400;
+/** The chat packet as Control Point takes it (ZOGWORK/control-point#370: 120 lines of up to 600 characters, 40,000 in
+ *  all), with a margin so a boundary difference can't refuse the whole packet. Sized for three teams' labelled lines
+ *  (server/api/brunoDossier.ts) beside search's own facts; the old 40 x 400 / 7,500 held one team's. */
+const CHAT_FACTS = 116;
+const CHAT_FACTS_CHARS = 38_000;
+const CHAT_FACT_CHARS = 590;
+/** A thread turn and the message, as Control Point takes them (4,000 and 2,000; 12 turns). A longer one used to refuse
+ *  the whole chat with 400 invalid_packet, and the card posted instead. */
+const CHAT_TURN_CHARS = 3990;
+const CHAT_TURNS = 12;
+const CHAT_MESSAGE_CHARS = 2000;
 
 /** What one ask did, for the log (never who asked). */
 export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentence: boolean; chat?: boolean;
@@ -194,6 +205,23 @@ function declinedReply(offer: string): AskReply {
  *  the loop's steps and correction share AGENT_BUDGET_MS of wall clock (bot/agent.ts). */
 export const CHAT_TIMEOUT_MS = 45_000;
 
+/**
+ * Search's facts for an answer, then what Bruno knows about every team the question names (or the answer is about):
+ * one labelled block each (server/api/brunoDossier.ts) — every season, this season's and last season's events in order,
+ * its latest event's matches, what's next, Worlds and Behind the Bot — after a line saying which season "this season"
+ * is. Search's own lines go first: they are the answer to what was asked; the blocks are what a comparison, a trend, a
+ * "this season" or a follow-up needs. A block that fails to read is left out, never the answer.
+ */
+export async function withDossiers(a: SearchAnswer, base: (a: SearchAnswer) => Promise<string[]>): Promise<string[]> {
+  const { teamDossier, namedTeams, seasonNowLine } = await import("../server/api/brunoDossier.js");
+  const own = await base(a);
+  const named = await namedTeams(a.q).catch(() => [] as number[]);
+  const main = a.card?.team?.number ?? a.stat?.team?.number ?? (a.hits[0]?.kind === "team" ? Number(a.hits[0].ref) : null);
+  const teams = [...new Set([...named, ...(main && !named.length ? [main] : [])])];
+  const blocks = (await Promise.all(teams.map((t) => teamDossier(t).catch(() => [] as string[])))).flat();
+  return [seasonNowLine(), ...own, ...blocks.filter((l) => !own.includes(l))];
+}
+
 export async function realAskDeps(): Promise<AskDeps> {
   // The search index is the site's (it builds and refreshes it); the bot only reads it, like every other table but its own.
   const [{ searchAnswer }, { refine }, { brunoAnswer, answerFacts, ungrounded }, { isEnabled }, { brunoAvailable, brunoDiscordChat }, { noteBotSearch, outcomeTrace }] = await Promise.all([
@@ -210,7 +238,7 @@ export async function realAskDeps(): Promise<AskDeps> {
     available: brunoAvailable,
     // No viewer: only the site's own match clips and recordings, as a page drawn for everyone gets.
     video: (a) => answerVideo(a),
-    facts: (a) => answerFacts(a),
+    facts: (a) => withDossiers(a, answerFacts),
     chat: async (message, facts, history, memory = [], timeoutMs = CHAT_TIMEOUT_MS) => {
       // Why a chat didn't happen is logged (never the message or the key): a deployment is diagnosed from these lines.
       if (!brunoAvailable()) {
@@ -225,7 +253,9 @@ export async function realAskDeps(): Promise<AskDeps> {
       // whole packet (400 `facts[i]`), which used to fall back to the card with nothing in the log.
       const context = chatContext(facts, memory, message);
       let r: { text: string; search: boolean };
-      try { r = await brunoDiscordChat(message, context, history, timeoutMs ?? CHAT_TIMEOUT_MS); }
+      // Inside Control Point's contract, so a long thread or message never refuses the whole chat.
+      const turns = history.slice(-CHAT_TURNS).map((t) => ({ ...t, text: t.text.slice(0, CHAT_TURN_CHARS) })).filter((t) => t.text.trim());
+      try { r = await brunoDiscordChat(message.slice(0, CHAT_MESSAGE_CHARS), context, turns, timeoutMs ?? CHAT_TIMEOUT_MS); }
       catch (e) {
         // "Control Point answered 404", "timeout", a network error: enough to fix a deployment, and no secret in it.
         console.info(`[bot] chat failed: ${(e as Error)?.message ?? String(e)}`);
@@ -246,11 +276,12 @@ export async function realAskDeps(): Promise<AskDeps> {
       if (parts.length < 2) return { facts: [], parts: [] };
       return lookupFacts(parts, {
         search: (p) => searchAnswer(p, { learn: false, limit: SEARCH_PAGE_LIMIT }).catch(() => null),
-        facts: (a) => answerFacts(a),
+        facts: (a) => withDossiers(a, answerFacts),
       });
     },
-    // What he asks for mid-answer: the same unlearned search, its facts only (his reply is the answer, so no card).
-    factsFor: (q) => searchAnswer(q, { learn: false, limit: SEARCH_PAGE_LIMIT }).then((a) => answerFacts(a)).catch(() => []),
+    // What he asks for mid-answer: the same unlearned search, its facts only (his reply is the answer, so no card) —
+    // with the labelled block of every team the search names, so "LOOKUP: 7149 2024-25" brings 7149's seasons.
+    factsFor: (q) => searchAnswer(q, { learn: false, limit: SEARCH_PAGE_LIMIT }).then((a) => withDossiers(a, answerFacts)).catch(() => []),
     unknown: (text, facts, history, memory, question) => ungrounded(text, [...facts, ...memory, ...history.map((t) => t.text)], question),
     // The site's own failed-search queue (server/searchFailures.ts): the words people actually use, which the website's
     // search box never sees. In-memory and synchronous; the bot flushes it once a minute (bot/index.ts). A failure here
@@ -348,7 +379,8 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
         meta: { step: answer.step, refined: false, sentence: false, chat: true },
         chat: { text: reply.text, ...(keep ? { card: true } : {}), ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(pageQ, site) } : {}) },
         next: askNext(shown),
-        checked: { searches: 1 + parts.length, unanswered: [...parts.filter((p) => !p.answered).map((p) => p.q), ...(asksVideo(q) && !watch.length ? ["videos"] : [])] },
+        // A search the loop's clock stopped before it ran is said too, as what it is: not checked, not missing records.
+        checked: { searches: 1 + parts.length, unanswered: [...parts.filter((p) => !p.answered).map((p) => p.q), ...(reply.skipped ?? []).map((r) => `${r} (out of time)`), ...(asksVideo(q) && !watch.length ? ["videos"] : [])] },
         ...(watch.length ? { watch } : {}),
       };
     }
@@ -467,7 +499,30 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
   let spoken: ChatReply | null = null;
   // What he has already looked up, so a repeated search is not run again (it answers the same way it did).
   const tried = new Set<string>();
+  // The searches the clock stopped before they ran, for the answer's check line.
+  const skipped: string[] = [];
   let reply = await talkOnce(packet);
+  // He gave up on a records question without asking for a single lookup (the audit's Q84: "couldn't find auto and
+  // endgame data for 4215, 6980 and 7149 in 2024-25", which the channel had been given minutes before). The bot digs
+  // for him once: every part of the message, and the message without its filler, searched with the labelled team blocks,
+  // then he answers again from what that found.
+  if (reply && records && deps.factsFor && CANT.test(reply.text) && !lookupAsked(reply.text).queries.length && room() >= MIN_CALL_MS) {
+    const parts = [...new Set([...splitAsk(q), plainAsk(q)].map((x) => x.trim()).filter(Boolean))];
+    const runs: { r: string; facts: string[]; ok: boolean }[] = [];
+    for (const r of parts) {
+      if (room() < MIN_CALL_MS) break;
+      tried.add(r.toLowerCase());
+      try { runs.push({ r, facts: await deps.factsFor(r), ok: true }); } catch { runs.push({ r, facts: [], ok: false }); }
+    }
+    const found = runs.flatMap((x) => x.facts).filter((f) => f && !packet.includes(f));
+    if (found.length) {
+      console.info(`[bot] chat dig: ${runs.map((x) => x.r).join(" | ").slice(0, 160)} (${found.length} facts)`);
+      const note = `You said you couldn't find it, but you hadn't looked anything up. I searched each part of the message: ${runs.map((x) => x.r).join(" · ").slice(0, 200)}. Answer from these facts now; if something is still missing, ask with LOOKUP lines before saying so.`;
+      packet = fit([note, ...found, ...packet], CHAT_FACTS, CHAT_FACTS_CHARS);
+      const again = await talkOnce(packet);
+      if (again) reply = again;
+    }
+  }
   for (let step = 1; reply; step++) {
     const asked = lookupAsked(reply.text);
     if (asked.text) spoken = { ...reply, text: asked.text };
@@ -476,14 +531,14 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
     const fresh = asked.queries.filter((r) => !tried.has(r.toLowerCase()));
     if (!fresh.length) break;
     // Out of time: facts for a reply there's no budget left to write would only hold the channel longer.
-    if (room() < MIN_CALL_MS) { console.info(`[bot] chat out of time at step ${step}: posting what he said`); break; }
+    if (room() < MIN_CALL_MS) { skipped.push(...fresh); console.info(`[bot] chat out of time at step ${step}: posting what he said`); break; }
     // A lookup that threw is not a lookup that found nothing — told they are the same, he says the records don't
     // exist when the search was never reachable — so a failed search is counted apart from an empty one. One at a
     // time, in the order asked: every search a reply asks for runs, without all of them hitting the database at once,
     // and none runs once the budget has no time left to write from what it finds.
     const runs: { r: string; facts: string[]; ok: boolean }[] = [];
-    for (const r of fresh) {
-      if (room() < MIN_CALL_MS) { console.info(`[bot] chat out of time at step ${step}: posting what he said`); break; }
+    for (const [i, r] of fresh.entries()) {
+      if (room() < MIN_CALL_MS) { skipped.push(...fresh.slice(i)); console.info(`[bot] chat out of time at step ${step}: posting what he said`); break; }
       tried.add(r.toLowerCase());
       try { runs.push({ r, facts: await factsFor(r), ok: true }); } catch { runs.push({ r, facts: [], ok: false }); }
     }
@@ -516,7 +571,7 @@ async function talk(q: string, facts: string[], history: BrunoChatTurn[], deps: 
       reply = { ...next, text: said };
     }
   }
-  return reply;
+  return reply && skipped.length ? { ...reply, skipped } : reply;
 }
 
 /** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
