@@ -1,7 +1,8 @@
 // The watch page's own part of the library (pages/WatchPage.tsx): Save and Watch later under the video, and Notes
 // where comments would be. A note is written at the moment the video is at (the player's clock, lib/ytBridge.ts),
-// or about the whole video; a note's moment plays the video from there. Only the person sees their notes: an account
-// keeps them (and hands them to a linked Control Point account), a signed-out device keeps its own.
+// or about the whole video; a note's moment plays the video from there. An account's notes are shared with its
+// Control Point team (each teammate's under their name, theirs alone to edit); with no team, or signed out (the
+// device keeps its own), only the person sees them.
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Bookmark, BookmarkCheck, Clock, Check, Pencil, Trash2 } from "lucide-react";
 import { addNote, deleteNote, editNote, itemState, setInList, useLibraryVersion } from "../../lib/videoLibrary";
@@ -80,7 +81,7 @@ export function WatchNotes({ item, signedIn, state, now, seek }: { item: FeedIte
       <div className="mb-3 flex items-baseline gap-2">
         <h2 id="watch-notes" className="text-base font-semibold text-text-base">Notes</h2>
         {notes.length > 0 && <span className="text-sm tabular-nums text-text-faint">{notes.length}</span>}
-        <span className="ml-auto text-xs text-text-faint">Only you see these</span>
+        <span className="ml-auto min-w-0 truncate text-xs text-text-faint" data-notes-audience>{state?.teams.length ? `Shared with ${state.teams.join(", ")}` : "Only you see these"}</span>
       </div>
       <form onSubmit={submit} className="rounded-2xl border border-line bg-card p-3 focus-within:border-ink/25">
         <label htmlFor="watch-note-body" className="sr-only">Add a note</label>
@@ -104,7 +105,7 @@ export function WatchNotes({ item, signedIn, state, now, seek }: { item: FeedIte
           {notes.map((n) => <NoteRow key={n.id} note={n} signedIn={signedIn} seek={seek} onGone={() => setExtra((x) => x.filter((y) => y.id !== n.id))} />)}
         </ul>
       )}
-      {!signedIn && notes.length > 0 && <p className="mt-3 text-xs text-text-faint">Kept on this device. Sign in to keep your notes on your account.</p>}
+      {!signedIn && notes.length > 0 && <p className="mt-3 text-xs text-text-faint">Kept on this device. Sign in to keep your notes on your account and share them with your team.</p>}
     </section>
   );
 }
@@ -125,6 +126,7 @@ function NoteRow({ note, signedIn, seek, onGone }: { note: VideoNote; signedIn: 
     setLeaving(true);
     window.setTimeout(() => { void deleteNote(signedIn, note.id).then(onGone).catch(() => setLeaving(false)); }, 150);
   };
+  const theirs = note.author && !note.author.mine;
   const icon = "inline-flex size-8 items-center justify-center rounded-lg text-text-faint transition-[color,background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink/[0.06] hover:text-text-base active:scale-[0.92] motion-reduce:transition-none motion-reduce:active:scale-100";
   return (
     <li className={cn("group/note flex gap-3 rounded-xl px-2 py-2 transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink/[0.03] motion-reduce:transition-none", leaving && "scale-[0.98] opacity-0")} data-note={note.id}>
@@ -142,9 +144,12 @@ function NoteRow({ note, signedIn, seek, onGone }: { note: VideoNote; signedIn: 
               <Button size="sm" variant="ghost" onClick={() => { setText(note.body); setEditing(false); }}>Cancel</Button>
             </div>
           </div>
-        ) : <p className="whitespace-pre-line break-words text-sm leading-6 text-text-base">{note.body}</p>}
+        ) : <>
+          {theirs && <p className="text-xs font-medium text-text-muted" data-note-author>{note.author!.name}{note.author!.team ? <span className="font-normal text-text-faint"> · {note.author!.team}</span> : null}</p>}
+          <p className="whitespace-pre-line break-words text-sm leading-6 text-text-base">{note.body}</p>
+        </>}
       </div>
-      {!editing && (
+      {!editing && !theirs && (
         <div className="flex shrink-0 items-start gap-0.5 opacity-100 sm:opacity-0 sm:transition-opacity sm:duration-150 sm:group-hover/note:opacity-100 sm:group-focus-within/note:opacity-100">
           <button type="button" className={icon} onClick={() => setEditing(true)} aria-label="Edit note"><Pencil className="size-3.5" aria-hidden /></button>
           <button type="button" className={icon} onClick={remove} aria-label="Delete note"><Trash2 className="size-3.5" aria-hidden /></button>

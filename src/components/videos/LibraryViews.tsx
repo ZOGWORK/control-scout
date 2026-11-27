@@ -17,7 +17,7 @@ const EMPTY: Record<LibraryList | "notes", { icon: typeof Clock; text: string }>
   later: { icon: Clock, text: "Nothing to watch later yet. Tap Watch later under a video to queue it here." },
   saved: { icon: Bookmark, text: "No saved videos yet. Tap Save under a video to keep it here." },
   history: { icon: History, text: "Videos you watch show up here." },
-  notes: { icon: NotebookPen, text: "No notes yet. Open a video and write what you notice: each note keeps the moment it's about." },
+  notes: { icon: NotebookPen, text: "No notes yet. Open a video and write what you notice: each note keeps the moment it's about, and your team sees it too." },
 };
 const REMOVE: Record<LibraryList, string> = { later: "Remove from Watch later", saved: "Remove from Saved", history: "Remove from History" };
 
@@ -139,7 +139,10 @@ export function NotesView({ signedIn }: { signedIn: boolean }) {
                           {n.t != null
                             ? <Link to={watchHref(n.videoId, { t: n.t })} className="h-6 shrink-0 rounded-md bg-accent/15 px-1.5 text-xs font-semibold leading-6 tabular-nums text-accent-text transition-colors duration-150 hover:bg-accent/25" aria-label={`Watch from ${noteTime(n.t)}`}>{noteTime(n.t)}</Link>
                             : <span className="h-6 shrink-0 rounded-md bg-ink/[0.06] px-1.5 text-xs font-medium leading-6 text-text-faint">Video</span>}
-                          <p className="min-w-0 whitespace-pre-line break-words text-text-base">{n.body}</p>
+                          <div className="min-w-0">
+                            {n.author && !n.author.mine && <p className="text-xs font-medium leading-5 text-text-muted">{n.author.name}{n.author.team ? <span className="font-normal text-text-faint"> · {n.author.team}</span> : null}</p>}
+                            <p className="whitespace-pre-line break-words text-text-base">{n.body}</p>
+                          </div>
                         </li>
                       ))}
                     </ul>

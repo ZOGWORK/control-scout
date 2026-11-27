@@ -1,7 +1,11 @@
 // A person's own video library (the Videos tab's side panel, pages/VideosPage.tsx): videos saved, the Watch later
 // queue, what they watched (History), and notes taken on a video at a moment in it (instead of comments: only the
-// person sees them). A signed-in account keeps them on the server (server/api/videoLibrary.ts, migration 117), and a
-// linked Control Point account gets each note too; a signed-out device keeps its own (lib/videoLibrary.ts).
+// person and their team see them). A signed-in account keeps them on the server (server/api/videoLibrary.ts,
+// migration 117); a signed-out device keeps its own (lib/videoLibrary.ts).
+//
+// Notes are shared with the writer's team: everyone in a Control Point workspace with them sees their notes on the
+// video, under their name. Control Point only says who's in which team (Scout's copy: workspace_members); the notes
+// stay in Scout. With no team, a person's notes are theirs alone.
 //
 // An entry carries a copy of the feed card it was saved from (FeedItem), checked here, so a list draws its cards
 // without reading every video again. The same check runs on the server and on the device.
@@ -33,12 +37,16 @@ export const NOTES_PAGE = 60;
 export interface LibraryEntry { item: FeedItem; at: string }
 export interface LibraryPage { items: LibraryEntry[]; next: string | null }
 
-/** A note: its text, and the second of the video it was taken at (null: about the whole video). */
-export interface VideoNote { id: string; key: string; videoId: string; t: number | null; body: string; item: FeedItem; createdAt: string; updatedAt: string }
+/** Who wrote a note: the reader themself, or a teammate (their name, never their email, and the team they share). */
+export interface NoteAuthor { mine: boolean; name: string; team: string | null }
+/** A note: its text, and the second of the video it was taken at (null: about the whole video). No author: the
+ *  reader's own (a device's notes). */
+export interface VideoNote { id: string; key: string; videoId: string; t: number | null; body: string; item: FeedItem; createdAt: string; updatedAt: string; author?: NoteAuthor }
 export interface NotesPage { notes: VideoNote[]; next: string | null }
 
-/** One video's place in the library: which lists hold it, and its notes (oldest moment first). */
-export interface LibraryItemState { lists: LibraryList[]; notes: VideoNote[] }
+/** One video's place in the library: which lists hold it, its notes (the reader's and their team's, earliest
+ *  moment first), and the teams the reader's notes are shared with (none: only they see them). */
+export interface LibraryItemState { lists: LibraryList[]; notes: VideoNote[]; teams: string[] }
 
 /** The library's counts for the side panel. */
 export interface LibraryCounts { saved: number; later: number; history: number; notes: number }

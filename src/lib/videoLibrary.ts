@@ -1,6 +1,6 @@
 // The person's video library on the client (src/shared/videoLibrary.ts): Saved, Watch later, History and notes.
 // Signed in, it's the account's (GET/PUT/DELETE /api/videos/library…, /api/videos/notes…, server/api/videoLibrary.ts),
-// and a linked Control Point account gets the notes too. Signed out, it stays on this device only (localStorage,
+// with notes shared with the person's Control Point team. Signed out, it stays on this device only (localStorage,
 // like recent searches), with the same caps and shapes, so the pages read one way either way.
 //
 // Every change bumps a version (useLibraryVersion) so the side panel's counts and an open list read again.
@@ -67,7 +67,7 @@ const byMoment = (a: VideoNote, b: VideoNote) => (a.t == null ? 1 : 0) - (b.t ==
 export async function itemState(signedIn: boolean, key: string): Promise<LibraryItemState> {
   if (signedIn) return apiFetch<LibraryItemState>(`/api/videos/library/item?key=${encodeURIComponent(key)}`);
   const d = readDevice();
-  return { lists: (["saved", "later"] as const).filter((l) => d.lists[l].some((e) => e.item.key === key)), notes: d.notes.filter((x) => x.key === key).sort(byMoment) };
+  return { lists: (["saved", "later"] as const).filter((l) => d.lists[l].some((e) => e.item.key === key)), notes: d.notes.filter((x) => x.key === key).sort(byMoment), teams: [] };
 }
 
 /** Put a video on a list or take it off. */

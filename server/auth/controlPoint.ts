@@ -251,15 +251,6 @@ export async function deleteAccountAvatar(accountId: number): Promise<void> {
   await internal<{ ok: true }>(`/internal/accounts/${accountId}/avatar`, { method: "DELETE" }, 5000);
 }
 
-/** A video note (server/api/videoLibrary.ts cpNote) on the person's shared account, by Scout's id: written again
- *  on an edit. Control Point answers 404 until it keeps notes; the caller lets that pass. */
-export async function pushVideoNote(accountId: number, note: Record<string, unknown>): Promise<void> {
-  await internal<{ ok: true }>(`/internal/accounts/${accountId}/video-notes`, { method: "PUT", body: note }, 5000);
-}
-export async function deleteVideoNoteAt(accountId: number, scoutId: string): Promise<void> {
-  await internal<{ ok: true }>(`/internal/accounts/${accountId}/video-notes/${encodeURIComponent(scoutId)}`, { method: "DELETE" }, 5000);
-}
-
 /** The shared account id this Scout user is linked to, if any. */
 export async function linkedAccountId(userId: number): Promise<number | null> {
   const r = await get<{ subject: string }>("SELECT subject FROM identities WHERE provider = ? AND user_id = ?", [CP_PROVIDER, userId]);

@@ -23,13 +23,14 @@ Videos has a library of your own: save videos, queue them to watch later, find w
 - [live] Save a video or queue it to watch later
 - [live] Take notes on a video, each at the moment it's about
 - [live] Your history, saved videos and notes in a panel that slides in
-- [live] Notes reach your Control Point account when it's linked
+- [live] Your Control Point team sees your notes on the same video
 
 ### Videos
 - **A "You" panel** (#2382; `src/components/videos/VideosFrame.tsx`): a button in the Videos header and beside a video's title slides in a panel from the right with Home, Watch later, Saved, History and Notes, their counts and your latest notes. The page makes room: the feed shows two videos a row, and the watch page puts Up next under the video. It stays open from page to page; on a phone it's a sheet.
 - **Library pages** (`/videos/later`, `/videos/saved`, `/videos/history`, `/videos/notes`, `src/components/videos/LibraryViews.tsx`): the feed's cards, each one's ✕ taking it off that list; History can be cleared; Notes groups every note under its video.
-- **Save, Watch later and Notes under a video** (`src/components/videos/WatchLibrary.tsx`): a note keeps the second the video was at (or is about the whole video), and its time plays the video from there. Notes can be edited and deleted, and only you see them. Five seconds in, a video goes on your History.
-- **Kept on your account** (migration 117: `video_library`, `video_notes`, private and deleted with the account; `server/api/videoLibrary.ts`), or on this device when signed out. A linked Control Point account gets each note too.
+- **Save, Watch later and Notes under a video** (`src/components/videos/WatchLibrary.tsx`): a note keeps the second the video was at (or is about the whole video), and its time plays the video from there. Notes can be edited and deleted by whoever wrote them. Five seconds in, a video goes on your History.
+- **Notes are shared with your team**: everyone in a Control Point team with you sees your notes on that video, under your name (never your email), and you see theirs; with no team, your notes are yours alone. Control Point only says who's on which team; the notes stay in Scout, and someone who leaves the team stops seeing them.
+- **Kept on your account** (migration 117: `video_library`, `video_notes`, private and deleted with the account; `server/api/videoLibrary.ts`), or on this device when signed out. Your lists are yours alone.
 
 ## 8.1.1 — 2026-11-26
 

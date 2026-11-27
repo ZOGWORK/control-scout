@@ -153,7 +153,7 @@ function LibraryPanel({ inSheet }: { inSheet?: boolean }) {
                   <span className="line-clamp-2 text-sm text-text-base">{n.body}</span>
                   <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-text-faint">
                     {n.t != null && <span className="shrink-0 font-medium tabular-nums text-accent-text">{noteTime(n.t)}</span>}
-                    <span className="truncate">{n.item.title}</span>
+                    <span className="truncate">{n.author && !n.author.mine ? `${n.author.name} · ` : ""}{n.item.title}</span>
                   </span>
                 </Link>
               </li>
@@ -162,7 +162,7 @@ function LibraryPanel({ inSheet }: { inSheet?: boolean }) {
         </section>
       )}
       <p className="px-2 pb-1 text-xs leading-5 text-text-faint">
-        {!ready ? " " : signedIn ? "Only you see these. Notes go to your Control Point account too when it's linked." : "Kept on this device. Sign in to keep them on your account."}
+        {!ready ? " " : signedIn ? "Your lists are yours alone. Notes are shared with your Control Point team." : "Kept on this device. Sign in to keep them on your account."}
       </p>
     </div>
   );
