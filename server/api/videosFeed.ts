@@ -218,9 +218,9 @@ async function creatorPool(): Promise<Candidate[]> {
   });
 }
 
-/** What most people watched these 7 days: item key → people. */
+/** What most people watched these 7 days: item key → people. A "more like this" on a card nobody opened isn't a watch. */
 async function popularity(now: number): Promise<Map<string, number>> {
-  const rows = await all<{ item_key: string; n: number }>("SELECT item_key, COUNT(*) n FROM video_watch WHERE at >= ? AND hidden = 0 GROUP BY item_key ORDER BY n DESC LIMIT 200", [new Date(now - 7 * DAY).toISOString()]).catch(() => []);
+  const rows = await all<{ item_key: string; n: number }>("SELECT item_key, COUNT(*) n FROM video_watch WHERE at >= ? AND hidden = 0 AND (watched_s > 0 OR completed = 1) GROUP BY item_key ORDER BY n DESC LIMIT 200", [new Date(now - 7 * DAY).toISOString()]).catch(() => []);
   return new Map(rows.map((r) => [String(r.item_key), Number(r.n)]));
 }
 
@@ -319,7 +319,7 @@ export async function profileOf(userId: number | null, hints: DeviceHints): Prom
     myTeam = hints.myTeam;
     tie(myTeam, "myTeam");
     for (const n of hints.teams) tie(n, "tracked");
-    for (const h of hints.history) history.set(h.key, { kind: h.key.startsWith("s:") ? "stream" : h.key.startsWith("c:") ? "creator" : "match", watchedS: h.state === "d" ? 600 : h.state === "m" ? 0 : 10, completed: h.state === "d", hidden: h.state === "x", more: h.state === "m" });
+    for (const h of hints.history) history.set(h.key, { kind: h.key.startsWith("s:") ? "stream" : h.key.startsWith("c:") ? "creator" : "match", watchedS: h.state[0] === "d" ? 600 : h.state[0] === "p" ? 10 : 0, completed: h.state[0] === "d", hidden: h.state === "x", more: h.state.endsWith("m") });
   }
   // Their region: My team's, else the first team they're on (a team followed from afar says nothing of where they are).
   const home = myTeam ?? [...teams].find(([, t]) => t === "member")?.[0] ?? null;

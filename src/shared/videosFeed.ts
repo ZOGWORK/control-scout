@@ -76,11 +76,13 @@ export const WATCH_KINDS: readonly WatchKind[] = ["match", "stream", "creator", 
 export const FEED_KEY = /^[msc]:[A-Za-z0-9:_-]{1,118}$/;
 
 /** A signed-out device's history as the feed request carries it (`h=`): "key~state" joined by commas, state "d"
- *  (finished), "p" (started), "x" (not interested), "m" (show more like this). At most HISTORY_SENT entries: "not
- *  interested" first, then "more like this", finished, then started, each newest first (src/lib/videoHistory.ts
- *  sentHistory), so an old "not interested" is never the one left out. */
+ *  (finished), "p" (started), "x" (not interested), "m" (show more like this, not opened), "dm" / "pm" (finished /
+ *  started, and more like this). At most HISTORY_SENT entries: "not interested" first, then "more like this",
+ *  finished, then started, each newest first (src/lib/videoHistory.ts sentHistory), so an old "not interested" is
+ *  never the one left out. */
 export const HISTORY_SENT = 120;
-export type HistoryState = "d" | "p" | "x" | "m";
+export type HistoryState = "d" | "p" | "x" | "m" | "dm" | "pm";
+export const HISTORY_STATES: readonly HistoryState[] = ["d", "p", "x", "m", "dm", "pm"];
 export function encodeHistory(h: { key: string; state: HistoryState }[]): string {
   return h.filter((e) => FEED_KEY.test(e.key)).slice(0, HISTORY_SENT).map((e) => `${e.key}~${e.state}`).join(",");
 }
@@ -89,7 +91,7 @@ export function decodeHistory(raw: unknown): { key: string; state: HistoryState 
   const out: { key: string; state: HistoryState }[] = [];
   for (const part of raw.slice(0, 16_000).split(",")) {
     const [key, state] = part.split("~");
-    if (key && FEED_KEY.test(key) && (state === "d" || state === "p" || state === "x" || state === "m") && !out.some((e) => e.key === key)) out.push({ key, state });
+    if (key && FEED_KEY.test(key) && HISTORY_STATES.includes(state as HistoryState) && !out.some((e) => e.key === key)) out.push({ key, state: state as HistoryState });
     if (out.length >= HISTORY_SENT) break;
   }
   return out;
