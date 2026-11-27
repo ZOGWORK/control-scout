@@ -204,6 +204,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/legacy" element={<LegacyPage />} />
                   <Route path="/weekend" element={<WeekendPage />} />
                   <Route path="/videos" element={<VideosPage />} />
+                  <Route path="/videos/:view" element={<VideosPage />} />
                   <Route path="/watch/:videoId" element={<WatchPage />} />
                   <Route path="/events/:code" element={<EventCodeRedirect />} />
                   <Route path="/events/:season/:code" element={<EventPage />} />

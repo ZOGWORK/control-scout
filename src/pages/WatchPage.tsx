@@ -3,14 +3,18 @@
 // first, then the rest of the series, newest first, without end. A match clip from the Videos feed: the feed itself
 // carries on beside it. The player is youtube-nocookie with its message channel on (lib/ytBridge.ts), so the watch is
 // reported at 5 s, half way and the end (lib/useWatchReports.ts), as the feed learns from.
+//
+// Under the video: Save and Watch later, and Notes where comments would be (components/videos/WatchLibrary.tsx);
+// 5 s in, the video goes on the person's History. The library's panel opens beside it (components/videos/VideosFrame.tsx),
+// and then Up next moves under the video.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ChevronDown, Tv } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { clipParams } from "../lib/streamSeek";
-import { bridgedSrc } from "../lib/ytBridge";
+import { bridgedSrc, useVideoClock } from "../lib/ytBridge";
 import { useWatchReports, type Watched } from "../lib/useWatchReports";
 import { feedPath } from "../lib/feedPath";
 import { sentHistory } from "../lib/videoHistory";
@@ -25,6 +29,9 @@ import { ErrorState } from "../components/states";
 import { ClipImage } from "../components/search/page/ClipImage";
 import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
+import { LibraryButton, usePanelBeside, VideosFrame } from "../components/videos/VideosFrame";
+import { useItemState, WatchActions, WatchNotes } from "../components/videos/WatchLibrary";
+import { setInList } from "../lib/videoLibrary";
 
 const int = (s: string | null) => { const n = Number(s); return s != null && s !== "" && Number.isInteger(n) && n >= 0 ? n : null; };
 const shortDate = (iso: string | null | undefined) => {
@@ -173,15 +180,22 @@ function FeedUpNext({ videoId, filter }: { videoId: string; filter: string | und
 }
 
 export default function WatchPage() {
+  return <VideosFrame><WatchBody /></VideosFrame>;
+}
+
+function WatchBody() {
   const { videoId = "" } = useParams();
   const [sp] = useSearchParams();
   const loc = useLocation();
+  const navigate = useNavigate();
   const t = int(sp.get("t")) ?? 0;
   const end = int(sp.get("end"));
   const team = int(sp.get("team")) || null;
   const state = loc.state as WatchState | null;
   const fromFeed = state?.item && state.item.videoId === videoId ? state.item : null;
-  const { user } = usePersonal();
+  const { user, accountAnswered, providers } = usePersonal();
+  const ready = accountAnswered || providers != null;
+  const beside = usePanelBeside();
   const valid = /^[A-Za-z0-9_-]{11}$/.test(videoId);
 
   const up = usePaged<CreatorVideo, UpNextAnswer>(`${videoId}|${team ?? ""}`,
@@ -198,6 +212,22 @@ export default function WatchPage() {
     : creator ? { key: `c:${creator.videoId}`, kind: creator.series === "behind-the-bot" ? "behindTheBot" : "creator", t: 0, duration: creator.durationS ?? undefined } : null;
   useWatchReports(frame, watched, !!user);
 
+  // The video as a card, for Save, Watch later, History and notes: the feed's own, else its creator video's.
+  const card: FeedItem | null = useMemo(() => fromFeed ? { ...fromFeed, reason: "" }
+    : creator ? { key: `c:${creator.videoId}`, kind: "creator", source: creator.series === "behind-the-bot" ? "behindTheBot" : "creator", videoId: creator.videoId, t: 0,
+      title: creator.title, thumb: thumbnailUrl(creator.videoId), teams: creator.teams ?? [], published: creator.publishedAt, reason: "",
+      ...(creator.channel ? { channel: creator.channel } : {}), ...(creator.series ? { series: creator.series } : {}), ...(creator.durationS ? { duration: creator.durationS } : {}) }
+    : null, [fromFeed, creator]);
+  const lib = useItemState(card, !!user, ready);
+  const { clock, seek } = useVideoClock(frame, `${videoId}:${t}:${end ?? ""}`);
+  // 5 s in, it's on the person's History (once per visit).
+  const kept = useRef<string | null>(null);
+  useEffect(() => {
+    if (!card || !ready || !clock || clock.t < (card.t ?? 0) + 5 || kept.current === card.key) return;
+    kept.current = card.key;
+    void setInList(!!user, "history", card, true).catch(() => {});
+  }, [card, clock, ready, user]);
+
   const [more, setMore] = useState(false);
   useEffect(() => setMore(false), [videoId]);
   if (!valid) return <ErrorState error={new Error("That isn't a video we can play.")} />;
@@ -206,7 +236,7 @@ export default function WatchPage() {
   const teams = creator?.teams ?? fromFeed?.teams ?? [];
 
   return (
-    <div className="grid gap-x-8 gap-y-10 pt-2 lg:grid-cols-[minmax(0,1fr)_23rem] xl:grid-cols-[minmax(0,1fr)_26rem]" data-watch-page>
+    <div className={cn("grid gap-x-8 gap-y-10 pt-2", !beside && "lg:grid-cols-[minmax(0,1fr)_23rem] xl:grid-cols-[minmax(0,1fr)_26rem]")} data-watch-page>
       <div className="min-w-0">
         <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black">
           <iframe key={`${videoId}:${t}:${end ?? ""}`} ref={frame} className="absolute inset-0 size-full" title={title ? `${title} video` : "Video"}
@@ -214,13 +244,17 @@ export default function WatchPage() {
             allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" data-watch-player />
         </div>
         <div className="mt-4">
-          {title ? <h1 className="text-pretty text-xl font-semibold leading-7 tracking-tight text-text-base" data-watch-title>{title}</h1>
-            : <div className="h-7 w-2/3 animate-pulse rounded bg-ink/[0.06] motion-reduce:animate-none" />}
+          <div className="flex items-start gap-4">
+            {title ? <h1 className="min-w-0 flex-1 text-pretty text-xl font-semibold leading-7 tracking-tight text-text-base" data-watch-title>{title}</h1>
+              : <div className="h-7 w-2/3 animate-pulse rounded bg-ink/[0.06] motion-reduce:animate-none" />}
+            <LibraryButton className="ml-auto" />
+          </div>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-text-muted">
             {series && <span className="rounded-md border border-accent/40 bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent-text">{series}</span>}
             {meta && <span>{meta}</span>}
             {fromFeed?.href && <Link to={fromFeed.href} className="font-medium text-text-base underline-offset-2 hover:underline">Match details</Link>}
           </div>
+          <div className="mt-4"><WatchActions item={card} signedIn={!!user} state={lib} /></div>
           {teams.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5" data-watch-teams>
               {teams.slice(0, 12).map((n) => <Link key={n} to={`/teams/${n}`} className="rounded-full border border-ink/[0.12] px-2.5 py-1 text-xs font-medium tabular-nums text-text-muted transition-[color,border-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-ink/25 hover:text-text-base active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100">Team {n}</Link>)}
@@ -234,6 +268,8 @@ export default function WatchPage() {
               </button>
             </div>
           )}
+          <WatchNotes item={card} signedIn={!!user} state={lib} now={clock ? Math.floor(clock.t) : null}
+            seek={(s) => { if (!seek(s)) navigate(watchHref(videoId, { t: s, team }), { replace: true, state: loc.state }); frame.current?.scrollIntoView({ block: "nearest" }); }} />
         </div>
       </div>
       <aside aria-label="Up next" className="min-w-0">

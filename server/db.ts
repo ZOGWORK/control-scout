@@ -3099,6 +3099,38 @@ CREATE TABLE IF NOT EXISTS team_logos (
 );
 `,
   },
+  {
+    version: 117,
+    name: "videos library: saved, watch later, history, notes",
+    sql: `
+-- A person's own video library (server/api/videoLibrary.ts): list is saved, later (Watch later) or history; item is
+-- the feed card it was kept from (src/shared/videoLibrary.ts cleanItem), so a list draws without reading each video.
+-- video_notes: notes taken on a video at a second in it (t; null: the whole video). Personal: never shipped
+-- (PRIVATE_TABLES), deleted with the account (deleteUser).
+CREATE TABLE IF NOT EXISTS video_library (
+  user_id INTEGER NOT NULL,
+  list TEXT NOT NULL,
+  item_key TEXT NOT NULL,
+  item TEXT NOT NULL,
+  at TEXT NOT NULL,
+  PRIMARY KEY (user_id, list, item_key)
+);
+CREATE INDEX IF NOT EXISTS video_library_by_time ON video_library (user_id, list, at);
+CREATE TABLE IF NOT EXISTS video_notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  item_key TEXT NOT NULL,
+  video_id TEXT NOT NULL,
+  t INTEGER,
+  body TEXT NOT NULL,
+  item TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS video_notes_by_time ON video_notes (user_id, updated_at);
+CREATE INDEX IF NOT EXISTS video_notes_by_item ON video_notes (user_id, item_key);
+`,
+  },
 ];
 
 export type Db = Client;

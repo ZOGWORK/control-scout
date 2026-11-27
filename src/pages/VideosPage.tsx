@@ -3,8 +3,11 @@
 // our call got wrong, creator videos and Behind the Bot episodes, each card saying why it's there. Pages load by
 // cursor as the reader nears the end, in the app's windowed list (components/ui/windowing.tsx). Signed out, the
 // device's own teams and watch history (lib/videoHistory.ts) shape it; nothing about them is kept on the server.
+//
+// The person's own library is a button away (components/videos/VideosFrame.tsx): a panel slides in beside the feed
+// (two videos a row then), and /videos/later, /saved, /history and /notes are its pages (components/videos/LibraryViews.tsx).
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { MonitorPlay } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useTitle } from "../lib/meta";
@@ -16,6 +19,9 @@ import { ErrorState } from "../components/states";
 import { Button } from "../components/ui/button";
 import { Spacer, useVirtualRows } from "../components/ui/windowing";
 import { cn } from "../components/cn";
+import { LibraryButton, usePanelBeside, VideosFrame } from "../components/videos/VideosFrame";
+import { LibraryListView, NotesView } from "../components/videos/LibraryViews";
+import { LIBRARY_LABEL, libraryViewOf } from "../shared/videoLibrary";
 import { encodeHistory, FEED_FILTERS, isFeedFilter, type FeedAnswer, type FeedFilter, type FeedItem } from "../shared/videosFeed";
 
 /** Cards a row: 1 on a phone, 2 from 640 px, 3 from 1100 px. */
@@ -27,7 +33,8 @@ const subscribeCols = (cb: () => void) => {
   for (const m of ms) m.addEventListener("change", cb);
   return () => { for (const m of ms) m.removeEventListener("change", cb); };
 };
-const useCols = () => useSyncExternalStore(subscribeCols, colsNow, () => 1);
+/** With the library open beside it, a row holds at most two. */
+const useCols = () => { const n = useSyncExternalStore(subscribeCols, colsNow, () => 1); return usePanelBeside() ? Math.min(n, 2) : n; };
 
 export { feedPath };
 
@@ -35,7 +42,19 @@ interface Feed { items: FeedItem[]; next: string | null; loading: boolean; error
 const START: Feed = { items: [], next: null, loading: true, error: null, coldStart: false };
 
 export default function VideosPage() {
-  useTitle("FTC videos");
+  return <VideosFrame><VideosBody /></VideosFrame>;
+}
+
+const VIEW_SUMMARY = {
+  later: "Videos you've set aside for later.",
+  saved: "Videos you've kept.",
+  history: "What you've watched, newest first.",
+  notes: "What you noted while watching, each at its moment in the video.",
+} as const;
+
+function VideosBody() {
+  const view = libraryViewOf(useLocation().pathname);
+  useTitle(view === "home" ? "FTC videos" : LIBRARY_LABEL[view]);
   const [sp, setSp] = useSearchParams();
   const raw = sp.get("filter");
   const filter: FeedFilter = isFeedFilter(raw) ? raw : "all";
@@ -71,7 +90,7 @@ export default function VideosPage() {
   }, [filter, signedIn, personal.myTeam, personal.tracked.teams, personal.bookmarks]);
 
   // Wait for the account's answer, so a signed-in reader's feed is asked for once, as theirs.
-  useEffect(() => { if (ready) void load(null); }, [ready, load]);
+  useEffect(() => { if (ready && view === "home") void load(null); }, [ready, view, load]);
 
   const shown = feed.items.filter((i) => !hidden.has(i.key));
   const cols = useCols();
@@ -97,10 +116,16 @@ export default function VideosPage() {
 
   return (
     <div data-videos-page>
-      <header className="mb-6 mt-2 sm:mt-4">
-        <h1 className="text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">Videos</h1>
-        <p className="mt-1 text-sm text-text-muted" data-videos-summary>{feed.loading && !feed.items.length ? "Match clips, streams and creator videos, all played here." : summary}</p>
+      <header className="mb-6 mt-2 flex items-start justify-between gap-4 sm:mt-4">
+        <div className="min-w-0">
+          <h1 className="text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">{view === "home" ? "Videos" : LIBRARY_LABEL[view]}</h1>
+          <p className="mt-1 text-sm text-text-muted" data-videos-summary>{view !== "home" ? VIEW_SUMMARY[view] : feed.loading && !feed.items.length ? "Match clips, streams and creator videos, all played here." : summary}</p>
+        </div>
+        <LibraryButton />
       </header>
+      {view === "later" || view === "saved" || view === "history" ? <LibraryListView list={view} signedIn={signedIn} cols={cols} />
+        : view === "notes" ? <NotesView signedIn={signedIn} />
+        : <>
       <div role="tablist" aria-label="Show" className="-mx-4 mb-8 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" data-videos-filters>
         {FEED_FILTERS.map((f) => (
           <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} onClick={() => pick(f.id)}
@@ -135,6 +160,7 @@ export default function VideosPage() {
           <div ref={end} aria-hidden className="h-px" />
         </div>
       )}
+        </>}
     </div>
   );
 }
