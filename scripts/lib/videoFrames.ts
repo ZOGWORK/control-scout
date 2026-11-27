@@ -1014,7 +1014,32 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   let kept: number[] = [];
   const longest = Math.max(0, ...len);
   len.forEach((l, k) => { if (l === longest) { const r = runOf(k); if (!kept.length || agreeing(r) >= agreeing(kept)) kept = r; } });
-  const dropped = new Set(idx.filter((i) => !kept.includes(i)));
+  // A second stretch the longest run left out: reads in a row that agree among themselves (their own run, as above)
+  // and sit in the video in the order the matches were played, a match apart, between the kept reads either side.
+  // FIRST's times for part of a day can be off from the rest (a scorekeeping clock reset after lunch), so the
+  // distance rises there although the stream ran on: 2025 USOKOKBKLT's Q27–M3, twelve matches read off their own
+  // frames in order between Q26 and M4, dropped as a rise. Two reads at least, so a lone misread still goes; and the
+  // one longest such stretch, so two that differ can't say which is right and neither stands.
+  const keptSet = new Set(kept);
+  const apart = MATCH_S - LOSS_S;
+  for (let k = -1; k < kept.length; k++) {
+    const lo = k >= 0 ? kept[k] : -1, hi = k + 1 < kept.length ? kept[k + 1] : Infinity;
+    const lower = lo >= 0 ? seen.get(lo)! + apart : 0, upper = hi !== Infinity ? seen.get(hi)! - apart : length;
+    const group = idx.filter((i) => i > lo && i < hi && !keptSet.has(i) && seen.get(i)! >= lower && seen.get(i)! <= upper);
+    if (group.length < 2) continue;
+    const gl = group.map(() => 1), gf = group.map(() => -1), glow = group.map((i) => d(i));
+    for (let b = 0; b < group.length; b++) for (let a = 0; a < b; a++) {
+      const ok = d(group[b]) <= glow[a] + SAME_S && seen.get(group[b])! - seen.get(group[a])! >= apart;
+      if (ok && gl[a] + 1 > gl[b]) { gl[b] = gl[a] + 1; gf[b] = a; glow[b] = Math.min(glow[a], d(group[b])); }
+    }
+    const best = Math.max(...gl);
+    if (best < 2 || gl.filter((l) => l === best).length > 1) continue;
+    const run: number[] = [];
+    for (let at = gl.indexOf(best); at >= 0; at = gf[at]) run.unshift(group[at]);
+    for (const i of run) keptSet.add(i);
+  }
+  kept = idx.filter((i) => keptSet.has(i));
+  const dropped = new Set(idx.filter((i) => !keptSet.has(i)));
   // The scheduled matches' reads: those on every longest run rising with the matches' order (a match apart at least,
   // less what a cut in the recording loses, as for two high starts below). Two runs as long that differ can't say which read is wrong, so neither of theirs stands.
   const sched = [...seen.keys()].filter((i) => !timed(i)).sort((a, b) => a - b);
