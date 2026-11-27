@@ -116,10 +116,10 @@ describe("the embed, step by step", () => {
     const e = askEmbed("4215", a, null, SITE);
     // Not copy-paste text in the card: the answer's buttons carry them (bot/handler.ts, bot/buttons.ts).
     expect(e.description).not.toContain("Ask next");
-    // A team answer always has two more worth asking: where it is from, and its videos (the row holds four).
-    expect(askNext(a)).toEqual(["4215 awards", "4215 opr", "where is 4215 from?", "show me 4215 videos"]);
-    // An answer that names no team keeps its own suggestions, at most three.
-    expect(askNext(base({ suggest: ["a", "b", "c", "d"] }))).toEqual(["a", "b", "c"]);
+    // A team answer always has two more worth asking: where it is from, and its videos (the row holds five).
+    expect(askNext(a)).toEqual(["4215 awards", "4215 opr", "where is 4215 from?", "show me 4215 videos", "4215 worlds"]);
+    // An answer that names no team keeps its own suggestions, up to Discord's five to a row.
+    expect(askNext(base({ suggest: ["a", "b", "c", "d"] }))).toEqual(["a", "b", "c", "d"]);
     // An answer's related questions come first, then search's suggestions, deduplicated.
     expect(askNext(base({ suggest: ["x"], stat: { blocks: [{ kind: "related", title: "More", queries: ["x", "y", "z"] }] } as never }))).toEqual(["x", "y", "z"]);
   });
@@ -223,9 +223,17 @@ describe("the bot's own switch", () => {
 
 describe("videos", () => {
   const v = { main: { videoId: "AAA", t: 90, kind: "match" as const, match: "Q85" }, mainRow: "/m/85", rows: { "/m/85": { videoId: "AAA", t: 90, kind: "match" as const, match: "Q85" }, "/m/18": { videoId: "BBB", t: 0, kind: "match" as const, match: "Q18" }, "/m/9": { videoId: "CCC", t: 5, kind: "contributor" as const, match: "Q9" } } };
-  it("the main one first, then the listed matches' clips; never a video people added; at most 3", () => {
+  it("the main one first, then the listed matches' clips; never a video people added", () => {
     expect(videoLinks(v)).toEqual([{ label: "Q85", url: "https://www.youtube.com/watch?v=AAA&t=90s" }, { label: "Q18", url: "https://www.youtube.com/watch?v=BBB" }]);
     expect(videoLinks(undefined)).toEqual([]);
+  });
+  it("every clip the answer has, not the first three", () => {
+    const many = { main: v.main, mainRow: "/m/85", rows: {
+      ...v.rows,
+      "/m/7": { videoId: "DDD", t: 1, kind: "match" as const, match: "Q7" },
+      "/m/6": { videoId: "EEE", t: 2, kind: "match" as const, match: "Q6" },
+    } };
+    expect(videoLinks(many).map((l) => l.label)).toEqual(["Q85", "Q18", "Q7", "Q6"]);
   });
   it("a Watch line in the answer, and the main video as the message's text (a player under the embed)", async () => {
     const e = askEmbed("23268 highlights", base(), null, SITE, v);
@@ -390,7 +398,8 @@ describe("a chat with Bruno", () => {
     // 2,000-character message cap still holds for one that runs long.
     const answer = "**A coaxial swerve puts both drive motors on one axis.**\n\nThat keeps the wheel's turning on the module's pivot.\n- **Coaxial**: both motors share a shaft\n- **Offset**: the motors sit beside the pivot";
     expect(chatPost("explain a coaxial swerve", { text: answer }, { quote: false })).toBe(`${answer}\n-# Bruno AI · controlscout.org`);
-    expect(chatPost("x", { text: "y".repeat(3000) }, { quote: false })).toHaveLength(2000);
+    // Never cut to one message: the handler splits it into the messages Discord's 2,000 a message take.
+    expect(chatPost("x", { text: "y".repeat(3000) }, { quote: false })).toContain("y".repeat(3000));
   });
 });
 
