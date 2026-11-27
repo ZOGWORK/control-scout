@@ -694,10 +694,12 @@ function statLines(s: StatAnswer, site: string, full = false): string[] {
     }
     return [];
   }
-  const blocks = s.blocks.flatMap((b) => {
+  // A blank line between blocks, never before the first: a one-block answer's whole is its card, so it gets no button.
+  const blocks: string[] = [];
+  for (const b of s.blocks) {
     const lines = blockLines(b, site, FULL_ROWS).filter(Boolean);
-    return lines.length ? ["", ...lines] : [];
-  });
+    if (lines.length) blocks.push(...(blocks.length ? [""] : []), ...lines);
+  }
   return [...headline, ...(s.none ? [md(s.none)] : []), ...blocks];
 }
 
@@ -800,10 +802,12 @@ export function answerPost(q: string, a: SearchAnswer, sentence: BrunoSentence |
     color: VOLT,
     footer: short.footer,
   };
-  const whole = rendered(q, a, sentence, site, video, pageQuery, true).lines.join("\n");
+  const whole = rendered(q, a, sentence, site, video, pageQuery, true).lines.join("\n").trim();
   // What the embed left out: rows, blocks, parts or results past its cut ("…more on the website" is fitLines' mark).
-  const shown = body.replace(/\n…more on the website$/, "");
-  return whole.trim() && whole !== shown ? { embed, full: `**${short.title}**\n${whole}\n${short.close}` } : { embed };
+  // Compared trimmed, so an answer whose whole is its card — a headline, or one block of three rows — carries no
+  // button: it would open the same lines again.
+  const shown = body.replace(/\n…more on the website$/, "").trim();
+  return whole && whole !== shown ? { embed, full: `**${short.title}**\n${whole}\n${short.close}` } : { embed };
 }
 
 export const askEmbed = (q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video?: SearchVideo, pageQuery = q): APIEmbed =>
