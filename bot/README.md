@@ -453,8 +453,10 @@ code; you can also type a code yourself).
   deploy), plus its `service_heartbeats` row
   once a minute while connected, which the site's /status page reads (`server/uptime.ts`, migration 86). Its missed
   records questions go into the site's `search_failures` through the site's own `noteBotSearch`.
-- **Automatic posts** (`bot/follows.ts`): every minute it reads the follows, the followed teams' matches at
-  events on today, and posts what's due: a reminder within 15 minutes of a start, a result within 6 hours of
+- **Automatic posts** (`bot/follows.ts`): every minute it reads the follows and every event a followed team is
+  entered in that isn't over (one with no dates yet, and one that ended with a match still unplayed, included —
+  FIRST often posts a meet's schedule weeks ahead, and a window around today would hold that post back), and posts
+  what's due: a reminder within 15 minutes of a start, a result within 6 hours of
   it, the match two away while it is close (`On deck`, `bot/eventChanges.ts`), and — compared with the schedule
   the last tick stored in `discord_match_state` — a moved start, a changed lineup or a newly scheduled match
   (a playoff pairing), each once. Only matches starting after the follow (no backlog). Each post is claimed in
