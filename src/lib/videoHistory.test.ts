@@ -6,6 +6,16 @@ import { milestones } from "./useWatchReports";
 import { feedPath } from "../pages/VideosPage";
 
 describe("withWatch (a signed-out device's history)", () => {
+  it("keeps \"more like this\" with the watch, as an account does", () => {
+    let h = withWatch([], { key: "c:y", kind: "creator", watchedS: 0, more: true }, 1);
+    expect(h[0].state).toBe("m");
+    h = withWatch(h, { key: "c:y", kind: "creator", watchedS: 5 }, 2);
+    expect(h[0].state).toBe("pm");
+    h = withWatch(h, { key: "c:y", kind: "creator", watchedS: 600, completed: true }, 3);
+    expect(h[0].state).toBe("dm");
+    h = withWatch(h, { key: "c:y", kind: "creator", watchedS: 0, hidden: true }, 4);
+    expect(h[0].state).toBe("x");
+  });
   it("puts the newest first, keeps a finish or 'not interested', and caps the list", () => {
     let h = withWatch([], { key: "m:2025:A:qual:0:1", kind: "match", watchedS: 5 }, 1);
     h = withWatch(h, { key: "c:x", kind: "creator", watchedS: 100, completed: true }, 2);
