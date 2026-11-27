@@ -61,7 +61,9 @@ describe("match row in v8: every classic feature, restyled", () => {
     expect(q("[data-report-link]").className).toMatch(/v8:hidden/);
     const row = q("[data-row]");
     expect(row.className).toMatch(/v8:py-1\.5/);
-    expect(row.className).toMatch(/v8:@3xl:grid-cols-\[6\.5rem_minmax\(0,1fr\)_minmax\(0,1fr\)_20rem]/); // no report track
+    // No report track. The call's track is 14rem on mid-width rows (the alliances keep the room), 20rem from @6xl.
+    expect(row.className).toMatch(/v8:@3xl:grid-cols-\[6\.5rem_minmax\(0,1fr\)_minmax\(0,1fr\)_14rem]/);
+    expect(row.className).toMatch(/v8:@6xl:grid-cols-\[6\.5rem_minmax\(0,1fr\)_minmax\(0,1fr\)_20rem]/);
     expect(q("[data-call]").className).toMatch(/v8:flex-row/);
   });
 
