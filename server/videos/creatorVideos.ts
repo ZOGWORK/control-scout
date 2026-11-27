@@ -380,8 +380,9 @@ const asSeries = (s: unknown): CreatorSeries | null => (typeof s === "string" &&
 const asProgram = (s: unknown): CreatorProgram => (s === "ftc" || s === "frc" || s === "vex" ? s : "unknown");
 
 /** Creator videos, newest first: embeddable ones only, each with its tagged teams. `teams`: only those tagged with any
- *  of them; `series`: only that series; `since`: published at or after (ISO). */
-export async function creatorVideosFor(opts: { teams?: number[]; series?: string; since?: string; limit: number }): Promise<CreatorVideo[]> {
+ *  of them; `series`: only that series; `since`: published at or after (ISO); `before`: after this video in the list's
+ *  order (newest first, then by id), the next page's start. */
+export async function creatorVideosFor(opts: { teams?: number[]; series?: string; since?: string; before?: { at: string; id: string }; limit: number }): Promise<CreatorVideo[]> {
   const where = ["v.embeddable = 1"];
   const args: (string | number)[] = [];
   const teams = (opts.teams ?? []).filter((n) => Number.isInteger(n) && n > 0).slice(0, 200);
@@ -392,6 +393,7 @@ export async function creatorVideosFor(opts: { teams?: number[]; series?: string
   }
   if (opts.series) { where.push("v.series = ?"); args.push(opts.series); }
   if (opts.since) { where.push("v.published_at >= ?"); args.push(opts.since); }
+  if (opts.before) { where.push("(v.published_at < ? OR (v.published_at = ? AND v.video_id > ?))"); args.push(opts.before.at, opts.before.at, opts.before.id); }
   const limit = Math.max(1, Math.min(500, Math.floor(opts.limit) || 1));
   const rows = await all<any>(
     `SELECT v.video_id, v.channel_id, c.title AS channel, v.title, v.published_at, v.duration_s, v.series, v.program, v.season,
@@ -404,6 +406,24 @@ export async function creatorVideosFor(opts: { teams?: number[]; series?: string
     season: r.season == null ? null : Number(r.season),
     teams: r.teams ? String(r.teams).split(",").map(Number).filter(Number.isFinite).sort((a, b) => a - b) : [],
   }));
+}
+
+/** One creator video by id, with its description: the watch page's video (pages/WatchPage.tsx). Embeddable ones only;
+ *  undefined for any other id. */
+export async function creatorVideo(videoId: string): Promise<(CreatorVideo & { description: string }) | undefined> {
+  if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return undefined;
+  const r = await get<any>(
+    `SELECT v.video_id, v.channel_id, c.title AS channel, v.title, v.description, v.published_at, v.duration_s, v.series, v.program, v.season,
+            (SELECT group_concat(t.team_number) FROM video_team_tags t WHERE t.video_id = v.video_id) AS teams
+     FROM creator_videos v LEFT JOIN creator_channels c ON c.channel_id = v.channel_id
+     WHERE v.video_id = ? AND v.embeddable = 1`, [videoId]);
+  if (!r) return undefined;
+  return {
+    videoId: String(r.video_id), channelId: String(r.channel_id), channel: r.channel ?? null, title: String(r.title), publishedAt: String(r.published_at),
+    durationS: r.duration_s == null ? null : Number(r.duration_s), series: asSeries(r.series), program: asProgram(r.program),
+    season: r.season == null ? null : Number(r.season), description: String(r.description ?? ""),
+    teams: r.teams ? String(r.teams).split(",").map(Number).filter(Number.isFinite).sort((a, b) => a - b) : [],
+  };
 }
 
 /** A team's featured videos, newest first: the creator videos whose title names it (a description's passing mention

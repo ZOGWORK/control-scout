@@ -55,6 +55,8 @@ import { answerVideo } from "./api/answers/video.js";
 import { matchViews } from "./api/matches.js";
 import { teamNextMatch, weekendEvents } from "./api/weekend.js";
 import { cleanWatch, FEED_CURSOR, recordWatch, videoFeed } from "./api/videosFeed.js";
+import { upNext } from "./api/upNext.js";
+import { UP_NEXT_CURSOR } from "../src/shared/watch.js";
 import { decodeHistory, FEED_FILTERS, isFeedFilter } from "../src/shared/videosFeed.js";
 import { eventListAnswer, matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
 import { matchReport } from "./api/matchReport.js";
@@ -755,6 +757,18 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     const viewer = user ? `u:${user.id}` : `d:${createHash("sha256").update(JSON.stringify([hints.myTeam, hints.teams])).digest("base64url").slice(0, 16)}`;
     res.setHeader("Cache-Control", "private, no-store");
     return videoFeed({ viewer, userId: user?.id ?? null, hints, filter, cursor });
+  }));
+  // The watch page's video and what plays next (server/api/upNext.ts): ?team= puts that team's own episodes first,
+  // ?cursor= the last page's next. Public, the same for everyone.
+  api.get("/videos/up-next/:videoId", limiter(120), h(async (req, res) => {
+    const videoId = String(req.params.videoId);
+    if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) throw bad("videoId must be a YouTube video id");
+    const cursor = typeof req.query.cursor === "string" && req.query.cursor ? req.query.cursor : null;
+    if (cursor && !UP_NEXT_CURSOR.test(cursor)) throw bad("cursor must be one the list gave");
+    const t = req.query.team == null || req.query.team === "" ? null : Number(req.query.team);
+    if (t != null && !(Number.isInteger(t) && t > 0 && t <= 999_999)) throw bad("team must be a team number");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    return upNext({ videoId, team: t, cursor });
   }));
   // A watch of a feed item (at 5 s, half way, the end, or "not interested"): kept for a signed-in account only (a
   // signed-out device keeps its own). JSON only, like every write from the app.

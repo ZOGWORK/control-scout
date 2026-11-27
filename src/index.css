@@ -6,6 +6,8 @@
 @font-face { font-family: "Inter"; font-weight: 400 800; font-style: normal; font-display: swap; src: url("/fonts/Inter.woff2") format("woff2"); }
 @font-face { font-family: "Space Grotesk"; font-weight: 500 700; font-style: normal; font-display: swap; src: url("/fonts/SpaceGrotesk.woff2") format("woff2"); }
 @font-face { font-family: "JetBrains Mono"; font-weight: 400; font-style: normal; font-display: swap; src: url("/fonts/JetBrainsMono-400.woff2") format("woff2"); }
+/* The Behind the Bot badge's pixel lettering (SIL Open Font License: public/fonts/Silkscreen-OFL.txt). */
+@font-face { font-family: "Silkscreen"; font-weight: 400; font-style: normal; font-display: swap; src: url("/fonts/Silkscreen.woff2") format("woff2"); }
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -38,6 +40,7 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-pixel: "Silkscreen", "JetBrains Mono", ui-monospace, monospace;
 
   /* v8 motion (brief §4): strong curves; no ease-in on UI anywhere. ease-drawer is for phone sheets. */
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
@@ -747,6 +750,11 @@ html[data-v8] .cs-score-flash { animation: cs-v8-score-in 200ms var(--ease-out);
 html.compact .density-row { padding-top: 0.375rem; padding-bottom: 0.375rem; }
 html.compact .density-card { padding: 0.875rem; }
 
+/* The Behind the Bot badge's shine (components/FeaturedVideos.tsx): a silver band sweeps left to right, then rests,
+   like a foil card catching the light. Transform only; none with reduced motion. */
+@keyframes btb-shine { 0% { transform: translateX(-120%) skewX(-20deg); } 22%, 100% { transform: translateX(420%) skewX(-20deg); } }
+.btb-shine { animation: btb-shine 7s cubic-bezier(0.45, 0, 0.25, 1) 1.5s infinite; }
+@media (prefers-reduced-motion: reduce) { .btb-shine { animation: none; opacity: 0; } }
 @keyframes cs-shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 .skeleton {
   background: linear-gradient(90deg, var(--color-muted) 0px, color-mix(in srgb, var(--color-muted) 60%, var(--color-text-muted) 12%) 80px, var(--color-muted) 160px);

@@ -309,8 +309,8 @@ answer now, never on a guide or an explanation.
 split where another question starts — "what is like the best team rn, where are they from and what is their auto opr"
 is three parts, while "4215 and 6980 opr" stays whole because the words after "and" aren't a question — filler words
 like "like" and "rn" are dropped, each part is searched on its own with learning off, and every part's facts are sent
-after the message's own, up to three parts and eighteen lines, each part keeping its share so a broad board can't crowd
-out the follow-up's records. A part that finds nothing adds nothing; his method line then says to answer each part the
+after the message's own — every part, and every line each one found. Nothing here is capped: the packet's own size
+(Control Point's) is the only thing that holds any of it back. A part that finds nothing adds nothing; his method line then says to answer each part the
 facts cover and name the part they don't. The board a "best team" question answers with carries where the team is and
 its OPR phases (`server/api/searchBrunoAnswer.ts`), so "where are they from" and "their auto opr" are answered by the
 same answer.
@@ -326,11 +326,11 @@ controlscout.org/search, and the same answer comes back.
 search read loosely used to be refused from inside the answer ("I couldn't find … in the facts"). He can ask for one
 instead: a reply that ends with `LOOKUP: <query>` lines — the instruction rides in every chat's own packet
 (`lookupNote()` in `bot/productFacts.ts`) — has those searches run with learning off, and he replies again with what
-they found. It is a loop, not a retry (`talk` in `bot/ask.ts`): up to `AGENT_STEPS` (3) steps, each taking up to three
-searches, so a question can be worked out rather than answered from the first packet. Each step's result is reported
-whether or not it found anything (a search that found nothing says so, so he changes the words instead of asking for
-the same one again), a search already run is never run twice, and the last step is told the lookups are done and to
-answer from what it has. The whole loop runs on one wall-clock budget (`AGENT_BUDGET_MS`, two minutes): each call is
+they found. It is a loop, not a retry (`talk` in `bot/ask.ts`): as many steps as the question needs, each running every
+search he asks for, so a question can be worked out rather than answered from the first packet. Each step's result is
+reported whether or not it found anything (a search that found nothing says so, so he changes the words instead of
+asking for the same one again), a search already run is never run twice, and the loop ends when he answers without
+asking for another. The whole loop runs on one wall-clock budget (`AGENT_BUDGET_MS`, two minutes): each call is
 given only the time left (never more than its own `CHAT_TIMEOUT_MS` ceiling), and once there isn't time for another
 call worth starting the loop stops and posts the words he already said (`[bot] chat out of time at step N`, in the
 journal), so a slow model can't hold a channel for minutes. A reply that is only a `LOOKUP:` line is a step, not an

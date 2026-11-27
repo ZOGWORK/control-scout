@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { sentHistory, withWatch } from "./videoHistory";
 import { HISTORY_SENT } from "../shared/videosFeed";
 import { readProgress } from "./ytBridge";
-import { milestones } from "../components/FeedCard";
+import { milestones } from "./useWatchReports";
 import { feedPath } from "../pages/VideosPage";
 
 describe("withWatch (a signed-out device's history)", () => {

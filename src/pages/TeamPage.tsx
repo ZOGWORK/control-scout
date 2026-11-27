@@ -56,7 +56,7 @@ import { TeamScheduleSection } from "../components/ScheduleDifficulty";
 import { predictHref } from "../shared/predictUrl";
 import { useIsV8 } from "../lib/v8";
 import { V8_PHASE } from "../lib/records/describe";
-import { FeaturedBadge, FeaturedSection } from "../components/FeaturedVideos";
+import { btbEpisodes, FeaturedBadge, FeaturedSection } from "../components/FeaturedVideos";
 
 /** v8 (docs/design/v8-revamp-brief.md): a small label, sentence case and faint (the uppercase tracked eyebrows today). */
 const V8_LABEL = "v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint";
@@ -145,7 +145,7 @@ function ClassicProfile({ p, drawn = false, asked, onSeason }: { p: TeamProfile;
         </>
       )}
       {rest && !hasResults && <><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
-      {rest && <FeaturedSection key={p.team.number} featured={p.featured} />}
+      {rest && <FeaturedSection key={p.team.number} featured={p.featured} team={p.team.number} />}
       {/* Workspace members only: their workspace's scouting on this team (nothing for anyone else). Last, after
           the team's own numbers and matches: it's the members' take, not the first thing a search opens on. */}
       {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} reliability={p.stats?.reliability} />}
@@ -207,7 +207,6 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
             {t.rookieYear && <span>Rookie year {t.rookieYear}</span>}
             {t.website && <a href={t.website.startsWith("http") ? t.website : `https://${t.website}`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
           </div>
-          <FeaturedBadge featured={p.featured} className="relative mt-3" />
           {t.sponsors.length > 0 && (
             <Collapsible className="relative mt-3">
               <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-10 pointer-coarse:min-h-[44px]">
@@ -244,6 +243,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
           <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="tap-44 relative mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground underline decoration-current/40 underline-offset-2 hover:text-accent-text">
             Manage this team in Control Point <ExternalLink className="size-3" />
           </a>
+          <div className="relative mt-4"><FeaturedBadge featured={p.featured} team={t.number} /></div>
           {workspaceUser && flags.isMine && (
             <Link to={FOLLOWED_TEAM_PATH} className="relative ml-4 mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent-text">
               <Star className="size-3" aria-hidden /> My followed team dashboard
@@ -772,7 +772,7 @@ function V8Profile({ p, drawn, asked, onSeason }: { p: TeamProfile; drawn: boole
     <div className="min-w-0" data-team-v8>
       <OfflineNote data={p} />
       <V8Header p={p} onSeason={onSeason} fellBackFrom={fellBackFrom} />
-      <div className="mb-8 grid gap-3 max-sm:mb-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start">
+      <div className={cn("mb-8 grid grid-cols-[minmax(0,1fr)] gap-3 max-sm:mb-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start", btbEpisodes(p.featured).length > 0 && "mt-10")}>
         {/* The left column: the standing, then every action in one row under it (beside the taller What's next). */}
         <div className="min-w-0 space-y-3">
           <V8Standing p={p} onSeason={onSeason} />
@@ -809,7 +809,7 @@ function V8Profile({ p, drawn, asked, onSeason }: { p: TeamProfile; drawn: boole
           </div>
         </>
       )}
-      {rest && <FeaturedSection key={p.team.number} featured={p.featured} />}
+      {rest && <FeaturedSection key={p.team.number} featured={p.featured} team={p.team.number} />}
       {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} reliability={p.stats?.reliability} />}
       {rest && predictable && <CommonsSection team={p.team.number} season={p.season} />}
     </div>
@@ -913,7 +913,6 @@ function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s:
                 {t.website && <>{line.length > 0 && " · "}<a href={websiteHref(t.website)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 underline-offset-2 hover:text-text-base hover:underline" data-team-website>Website <ExternalLink className="size-3" aria-hidden /></a></>}
               </p>
             )}
-            <FeaturedBadge featured={p.featured} className="mt-2.5" />
             {t.sponsors.length > 0 && (
               <Collapsible className="mt-1.5">
                 <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-xs text-text-faint hover:text-text-muted pointer-coarse:min-h-[44px]">
@@ -967,7 +966,9 @@ function V8Standing({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => 
   const dt = "text-xs text-text-faint";
   const dd = "mt-0.5 text-xl font-semibold tracking-tight tabular-nums text-foreground";
   return (
-    <section aria-labelledby={`standing-${p.team.number}`} className="rounded-xl border border-line bg-card p-4 sm:p-5" data-standing>
+    <section aria-labelledby={`standing-${p.team.number}`} className="relative rounded-xl border border-line bg-card p-4 sm:p-5" data-standing>
+      {/* The team's Behind the Bot episodes (×4): a small plate just above the card's top edge, clear of its border. */}
+      <FeaturedBadge featured={p.featured} team={p.team.number} className="absolute bottom-full right-4 mb-1.5 sm:right-5" />
       <h2 id={`standing-${p.team.number}`} className="font-sans text-xs font-normal tracking-normal text-text-faint" data-eyebrow>Standing · {seasonLabel(p.season)}</h2>
       {!s ? (
         <div className="mt-3 space-y-3 text-sm">

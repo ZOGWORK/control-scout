@@ -1,7 +1,7 @@
 // /ask: the website's search answer as one embed, Bruno only where the site would use him, credited only then.
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
-import { BRUNO_CREDIT, CHAT_TIMEOUT_MS, DESCRIPTION_MAX, affirmative, answerPost, ask, askEmbed, askNext, chatContext, chatPost, declined, fitLines, offeredQuestion, videoLinks, type AskDeps } from "./ask";
+import { BRUNO_CREDIT, CHAT_TIMEOUT_MS, DESCRIPTION_MAX, affirmative, answerPost, ask, askEmbed, askNext, chatContext, chatPost, declined, fitLines, lookupNoteFor, offeredQuestion, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 import { SORRY_SENTENCE } from "../src/shared/search";
 import { NO_CHAT, NO_REPLY } from "./smallTalk";
@@ -563,18 +563,59 @@ describe("a chat that looks something up, and one that got a number wrong", () =
     expect(r.chat!.text).toBe("26000's auto OPR is **45.2**.");
   });
 
-  it("stops at the step budget, and the last step is told to answer from what it has", async () => {
+  it("looks up as many times as he needs (no step cap), until he answers", async () => {
     let asked = 0;
-    const chat = vi.fn(async (_q: string, packet: string[]) => ({
-      text: packet.some((l) => l.startsWith("Lookups are done")) ? "That's all I can find." : `One more.\nLOOKUP: search ${++asked}`,
-      search: false,
-    }));
+    const chat = vi.fn(async () => (asked < 6
+      ? { text: `One more.\nLOOKUP: search ${++asked}`, search: false }
+      : { text: "That's all I can find.", search: false }));
     const factsFor = vi.fn(async (q: string) => [`facts for ${q}`]);
-    const r = await ask("a question one search can't settle", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
-    // The first reply plus one per step, and the last one carries the instruction instead of another search.
-    expect(chat).toHaveBeenCalledTimes(4);
-    expect(((chat.mock.calls[3] as unknown[])[1] as string[])[0]).toContain("Lookups are done");
+    const r = await ask("a question several searches settle", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+    // The first reply, one per lookup, and the answer after the sixth.
+    expect(chat).toHaveBeenCalledTimes(7);
+    expect(factsFor).toHaveBeenCalledTimes(6);
     expect(r.chat!.text).toBe("That's all I can find.");
+  });
+
+  it("runs one reply's lookups one at a time, however many it asks for", async () => {
+    let active = 0, most = 0;
+    const chat = vi.fn()
+      .mockResolvedValueOnce({ text: "Working.\nLOOKUP: one\nLOOKUP: two\nLOOKUP: three", search: false })
+      .mockResolvedValueOnce({ text: "Done.", search: true });
+    const factsFor = vi.fn(async (q: string) => {
+      active++; most = Math.max(most, active);
+      await new Promise((r) => setTimeout(r, 1));
+      active--;
+      return [`fact ${q}`];
+    });
+    const r = await ask("a question", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+    expect(factsFor).toHaveBeenCalledTimes(3);
+    expect(most).toBe(1);
+    expect(r.chat!.text).toBe("Done.");
+  });
+
+  it("names only the lookups that ran in the note the chat reads", () => {
+    // One of the two ran (the clock stopped the other): the note must not call the unrun one empty, or he gives up on it.
+    const note = lookupNoteFor(2, [{ r: "4215 opr", facts: ["4215: OPR 45.2"], ok: true }]);
+    expect(note).toContain("4215 opr");
+    expect(note).toContain("step 2");
+    expect(note).toContain("include what that search found");
+    expect(note).not.toContain("found nothing");
+  });
+
+  it("stops a step's lookups when the budget runs out, instead of searching for facts it can't use", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chat = vi.fn().mockResolvedValueOnce({ text: "Working.\nLOOKUP: one\nLOOKUP: two", search: false });
+      const factsFor = vi.fn(async () => {
+        // The first search used every second of the loop's budget.
+        vi.setSystemTime(Date.now() + AGENT_BUDGET_MS);
+        return ["fact"];
+      });
+      const r = await ask("a question", deps(base(), { chat, facts: vi.fn(async () => []), factsFor }), SITE);
+      expect(factsFor).toHaveBeenCalledTimes(1);
+      expect(chat).toHaveBeenCalledTimes(1);
+      expect(r.chat!.text).toBe("Working.");
+    } finally { vi.useRealTimers(); }
   });
 
   it("stops when the reply's time budget is spent, instead of holding the channel for another step", async () => {
