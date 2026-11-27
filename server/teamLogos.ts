@@ -80,12 +80,18 @@ async function store(team: number, season: number, src: string, png: Uint8Array)
 
 export interface LogoReport { seasons: number[]; listed: number; fetched: number; unchanged: number; failed: number; removed: number }
 
+/** A prune never removes more than this share of the stored pictures at once: a sheet that comes back empty or
+ *  reshaped (FIRST changed its format) reads as "every team took its picture down", which is never true. */
+export const PRUNE_MAX_SHARE = 0.1;
+
 /**
  * Bring team_logos up to date with FIRST's sheets. `seasons` newest first: a team's newest picture wins, and the
- * generic mark comes from the newest sheet that has one. `teams`: only these (a manual run); nothing is removed then.
+ * generic mark comes from the newest sheet that has one. `teams`: only these (a manual run).
+ * `prune` (the data cycle's full refresh): also drop teams no sheet lists any more, but only when every season's
+ * sheet was read and the drop is small (PRUNE_MAX_SHARE); otherwise nothing is removed and it says why.
  * Downloads at most `concurrency` pictures at a time, and only paths it hasn't stored.
  */
-export async function refreshTeamLogos(opts: { seasons: number[]; teams?: number[]; log?: (m: string) => void; fetch?: Fetch; concurrency?: number }): Promise<LogoReport> {
+export async function refreshTeamLogos(opts: { seasons: number[]; teams?: number[]; prune?: boolean; log?: (m: string) => void; fetch?: Fetch; concurrency?: number }): Promise<LogoReport> {
   const f = opts.fetch ?? fetch, log = opts.log ?? (() => {});
   const want = new Map<number, { season: number; src: string }>();
   let fallback: { season: number; png: Uint8Array } | null = null;
@@ -120,11 +126,17 @@ export async function refreshTeamLogos(opts: { seasons: number[]; teams?: number
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, opts.concurrency ?? 4) }, worker));
-  // A team that took its picture down: its old one goes (a manual run for a few teams never removes anything).
-  if (!only) {
+  // A team that took its picture down: its old one goes. Only on a full refresh whose every sheet was read, and never
+  // a mass removal (a missing, empty or reshaped sheet would otherwise look like every team removing theirs).
+  if (opts.prune && !only) {
     const gone = [...have.keys()].filter((n) => n !== DEFAULT_TEAM && !want.has(n));
-    for (const n of gone) await run("DELETE FROM team_logos WHERE team = ?", [n]);
-    report.removed = gone.length;
+    const stored = [...have.keys()].filter((n) => n !== DEFAULT_TEAM).length;
+    if (read.length < opts.seasons.length) log(`team logos: not removing anything, ${opts.seasons.length - read.length} sheet(s) could not be read`);
+    else if (gone.length > Math.max(5, stored * PRUNE_MAX_SHARE)) log(`team logos: not removing ${gone.length} of ${stored} (too many at once to be teams taking pictures down)`);
+    else {
+      for (const n of gone) await run("DELETE FROM team_logos WHERE team = ?", [n]);
+      report.removed = gone.length;
+    }
   }
   log(`team logos: ${report.listed} listed (${read.join(", ")}), ${report.fetched} fetched, ${report.unchanged} unchanged, ${report.failed} failed, ${report.removed} removed`);
   return report;
@@ -135,7 +147,7 @@ export async function refreshTeamLogosIfDue(seasons: number[], log: (m: string) 
   try {
     const last = await kvGet<string>(LAST_KEY);
     if (last && now - Date.parse(last) < LOGO_REFRESH_MS) return;
-    const r = await refreshTeamLogos({ seasons, log });
+    const r = await refreshTeamLogos({ seasons, prune: true, log });
     if (r.seasons.length) await kvSet(LAST_KEY, new Date(now).toISOString());
   } catch (e) { log(`team logos: ${(e as Error).message}`); }
 }
