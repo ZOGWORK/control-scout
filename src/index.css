@@ -752,8 +752,8 @@ html.compact .density-card { padding: 0.875rem; }
 
 /* The Behind the Bot badge's shine (components/FeaturedVideos.tsx): a silver band sweeps left to right, then rests,
    like a foil card catching the light. Transform only; none with reduced motion. */
-@keyframes btb-shine { 0% { transform: translateX(-120%) skewX(-20deg); } 45%, 100% { transform: translateX(420%) skewX(-20deg); } }
-.btb-shine { animation: btb-shine 3.8s cubic-bezier(0.45, 0, 0.25, 1) 0.8s infinite; }
+@keyframes btb-shine { 0% { transform: translateX(-120%) skewX(-20deg); } 22%, 100% { transform: translateX(420%) skewX(-20deg); } }
+.btb-shine { animation: btb-shine 7s cubic-bezier(0.45, 0, 0.25, 1) 1.5s infinite; }
 @media (prefers-reduced-motion: reduce) { .btb-shine { animation: none; opacity: 0; } }
 @keyframes cs-shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 .skeleton {

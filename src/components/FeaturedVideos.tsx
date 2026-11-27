@@ -20,7 +20,7 @@ export const btbEpisodes = (featured: readonly FeaturedVideo[] | undefined) => e
 
 /**
  * The team's Behind the Bot badge: an arcade-style plate, "Behind the Bot ×4" (no count for one), purple with white
- * pixel lettering and a white count, stepped corners and a hard shadow, with a silver shine sweeping across now and
+ * pixel lettering and a white count and stepped corners and a hard shadow, with a silver shine sweeping across now and
  * then (index.css btb-shine; still with reduced motion). It opens the watch page on the newest episode, the team's
  * other episodes first in Up next, then the rest of the series.
  */
@@ -32,14 +32,14 @@ export function FeaturedBadge({ featured, team, className }: { featured: readonl
   return (
     <Link to={watchHref(list[0].videoId, { team })} data-featured-badge={n} aria-label={label} title={label}
       className={cn(
-        "group tap-44 inline-flex outline-none [filter:drop-shadow(2px_2px_0_#1e0b4b)_drop-shadow(0_0_7px_rgb(139_92_246/0.55))]",
+        "group tap-44 inline-flex outline-none [filter:drop-shadow(2px_2px_0_#1e0b4b)]",
         "transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:translate-x-px active:translate-y-px motion-reduce:transition-none motion-reduce:active:translate-x-0 motion-reduce:active:translate-y-0",
-        "focus-visible:[filter:drop-shadow(0_0_0_2px_var(--color-ring))]",
+        "focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className)}>
-      <span className="relative inline-flex h-[22px] items-center gap-1.5 overflow-hidden bg-[#7c3aed] pl-1.5 pr-[3px] text-[#f5f3ff] [clip-path:polygon(3px_0,calc(100%-3px)_0,100%_3px,100%_calc(100%-3px),calc(100%-3px)_100%,3px_100%,0_calc(100%-3px),0_3px)]">
+      <span className="relative inline-flex h-[22px] items-center gap-1.5 overflow-hidden bg-[#5b21b6] pl-1.5 pr-[3px] text-[#e4dcfb] [clip-path:polygon(3px_0,calc(100%-3px)_0,100%_3px,100%_calc(100%-3px),calc(100%-3px)_100%,3px_100%,0_calc(100%-3px),0_3px)]">
         <span className="font-pixel text-[12px] uppercase leading-none tracking-[0.06em]">Behind the Bot</span>
-        {n > 1 && <span className="bg-[#f5f3ff] px-[3px] py-[2px] font-pixel text-[11px] leading-none text-[#5b21b6]" data-featured-count>×{n}</span>}
-        <span aria-hidden className="btb-shine pointer-events-none absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+        {n > 1 && <span className="bg-[#e4dcfb] px-[3px] py-[2px] font-pixel text-[11px] leading-none text-[#4c1d95]" data-featured-count>×{n}</span>}
+        <span aria-hidden className="btb-shine pointer-events-none absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-transparent via-white/40 to-transparent" />
       </span>
     </Link>
   );
