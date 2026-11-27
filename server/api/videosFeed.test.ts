@@ -213,6 +213,17 @@ describe("POST /api/videos/watch", () => {
     expect(r.status).toBe(415);
   });
 
+  it("keeps \"show more like this\" once said, without counting the card as seen", async () => {
+    const me = await account();
+    expect((await watch({ key: "c:vid00000099", kind: "behindTheBot", watchedS: 0, more: true }, me.cookie)).status).toBe(200);
+    await watch({ key: "c:vid00000099", kind: "behindTheBot", watchedS: 5 }, me.cookie);
+    expect(await get("SELECT watched_s, completed, hidden, more FROM video_watch WHERE user_id = ? AND item_key = 'c:vid00000099'", [me.id])).toEqual({ watched_s: 5, completed: 0, hidden: 0, more: 1 });
+    // A "more like this" on a card nobody opened isn't a watch: Popular never counts it.
+    const other = await account();
+    await watch({ key: "c:vid00000098", kind: "behindTheBot", watchedS: 0, more: true }, other.cookie);
+    expect((await feed("", other.cookie)).items.some((i) => i.key === "c:vid00000098" && i.source === "popular")).toBe(false);
+  });
+
   it("is deleted with the account", async () => {
     const me = await account();
     await watch({ key: "m:2025:X:qual:0:1", kind: "match", watchedS: 5 }, me.cookie);
@@ -224,12 +235,14 @@ describe("POST /api/videos/watch", () => {
 
 describe("helpers", () => {
   it("cleanWatch caps and rounds the second, and keeps only true flags", () => {
-    expect(cleanWatch({ key: "c:abc", kind: "creator", watchedS: 12.6, completed: "yes" })).toEqual({ key: "c:abc", kind: "creator", watchedS: 13, completed: false, hidden: false });
+    expect(cleanWatch({ key: "c:abc", kind: "creator", watchedS: 12.6, completed: "yes" })).toEqual({ key: "c:abc", kind: "creator", watchedS: 13, completed: false, hidden: false, more: false });
+    expect(cleanWatch({ key: "c:abc", kind: "creator", watchedS: 0, more: true })?.more).toBe(true);
     expect(cleanWatch({ key: "c:abc", kind: "creator", watchedS: -1 })).toBeNull();
   });
   it("history round-trips, drops bad entries and keeps each key once", () => {
     const h = encodeHistory([{ key: "m:2025:A:qual:0:1", state: "d" }, { key: "bad key", state: "x" }]);
     expect(decodeHistory(`${h},m:2025:A:qual:0:1~x,c:z~q`)).toEqual([{ key: "m:2025:A:qual:0:1", state: "d" }]);
+    expect(decodeHistory("c:abc~m,c:def~dm,c:ghi~pm")).toEqual([{ key: "c:abc", state: "m" }, { key: "c:def", state: "dm" }, { key: "c:ghi", state: "pm" }]);
   });
   it("an upset's percent is never 0 or 100", () => {
     expect(upsetPercent(0.999, false)).toBe(1);

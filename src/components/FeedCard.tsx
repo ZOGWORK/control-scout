@@ -1,12 +1,17 @@
 // One video in the Videos tab's feed (pages/VideosPage.tsx): its picture, and a tap opens the watch page
 // (pages/WatchPage.tsx: the video big, more to watch beside it), which reports the watch (lib/useWatchReports.ts). A
-// video that can't play on other sites opens on YouTube (lib/streamSeek.ts playInDialog). "Not interested" takes it
-// out of the feed.
+// video that can't play on other sites opens on YouTube (lib/streamSeek.ts playInDialog). Its ⋮ menu: Save to Watch
+// later, Save, Show more like this (the feed learns the kind), and Not interested (out of the feed) or, in a library
+// list, Remove from it.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { EyeOff, Play, Radio, X } from "lucide-react";
+import { Bookmark, Clock, EyeOff, MoreVertical, Play, Radio, ThumbsUp, X } from "lucide-react";
 import { playInDialog, YOUTUBE_ONLY_NOTE } from "../lib/streamSeek";
 import { reportWatch } from "../lib/videoHistory";
+import { setInList } from "../lib/videoLibrary";
+import type { LibraryList } from "../shared/videoLibrary";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/overlay";
+import { toast } from "./ui/sonner";
 import { clipTime } from "../shared/recording";
 import { watchHref } from "../shared/watch";
 import { watchKindOf, type FeedItem, type FeedSource } from "../shared/videosFeed";
@@ -36,9 +41,9 @@ const shortDate = (iso: string | null) => {
 /** What the watch page gets with the link: the item itself, so its title, clip and key are there at once. */
 export interface WatchState { item: FeedItem; filter?: string }
 
-/** A card in the feed ("Not interested" takes it out and teaches the feed), or in a library list (`remove`: "Remove
- *  from Watch later" takes it off that list only). */
-export function FeedCard({ item, signedIn, filter, onHide, remove }: { item: FeedItem; signedIn: boolean; filter?: string; onHide: (key: string) => void; remove?: string }) {
+/** A card in the feed ("Not interested" takes it out and teaches the feed), or in a library list (`inList`, with
+ *  `remove` its label: "Remove from Watch later" takes it off that list only). */
+export function FeedCard({ item, signedIn, filter, onHide, remove, inList }: { item: FeedItem; signedIn: boolean; filter?: string; onHide: (key: string) => void; remove?: string; inList?: LibraryList }) {
   const kind = watchKindOf(item);
   // "Not interested": the card fades and settles back for 150 ms, then leaves the list (at once with reduced motion).
   const [leaving, setLeaving] = useState(false);
@@ -49,6 +54,17 @@ export function FeedCard({ item, signedIn, filter, onHide, remove }: { item: Fee
     if (still) { onHide(item.key); return; }
     setLeaving(true);
     window.setTimeout(() => onHide(item.key), 150);
+  };
+  // Save to a list from the menu: said in a toast, with Undo.
+  const keep = (list: "later" | "saved") => {
+    const said = list === "later" ? "Saved to Watch later" : "Saved";
+    void setInList(signedIn, list, item, true).then(
+      () => toast(said, { action: { label: "Undo", onClick: () => { void setInList(signedIn, list, item, false); } } }),
+      () => toast("Couldn't save that. Try again."));
+  };
+  const more = () => {
+    void reportWatch({ key: item.key, kind, watchedS: 0, more: true }, signedIn);
+    toast("Got it: more videos like this in your feed");
   };
   const when = shortDate(item.published);
   const meta = [item.event?.name ?? item.channel ?? null, when].filter(Boolean).join(" · ");
@@ -83,10 +99,23 @@ export function FeedCard({ item, signedIn, filter, onHide, remove }: { item: Fee
           : <p className="line-clamp-2 text-[0.9375rem] font-semibold leading-5 text-text-base">{item.title}</p>}
         <div className="mt-auto flex items-center gap-2">
           {meta && (item.event ? <Link to={item.event.href} className="min-w-0 flex-1 truncate text-xs text-text-muted hover:text-text-base">{meta}</Link> : <p className="min-w-0 flex-1 truncate text-xs text-text-muted">{meta}</p>)}
-          <button type="button" onClick={hide}
-            className="-mr-1 ml-auto inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-faint transition-[color,background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink/[0.06] hover:text-text-base active:scale-[0.92] motion-reduce:transition-none motion-reduce:active:scale-100" aria-label={remove ? `${remove}: ${item.title}` : `Not interested in ${item.title}`} title={remove ?? "Not interested"}>
-            {remove ? <X className="size-4" aria-hidden /> : <EyeOff className="size-4" aria-hidden />}
-          </button>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="-mr-1 ml-auto inline-flex size-9 shrink-0 items-center justify-center rounded-full text-text-faint transition-[color,background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink/[0.06] hover:text-text-base active:scale-[0.92] data-[state=open]:bg-ink/[0.08] data-[state=open]:text-text-base motion-reduce:transition-none motion-reduce:active:scale-100"
+                aria-label={`More for ${item.title}`} data-feed-menu>
+                <MoreVertical className="size-4" aria-hidden />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[13rem]">
+              {inList !== "later" && <DropdownMenuItem onSelect={() => keep("later")} data-menu="later"><Clock aria-hidden />Save to Watch later</DropdownMenuItem>}
+              {inList !== "saved" && <DropdownMenuItem onSelect={() => keep("saved")} data-menu="save"><Bookmark aria-hidden />Save</DropdownMenuItem>}
+              <DropdownMenuItem onSelect={more} data-menu="more"><ThumbsUp aria-hidden />Show more like this</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {remove
+                ? <DropdownMenuItem onSelect={hide} data-menu="remove"><X aria-hidden />{remove}</DropdownMenuItem>
+                : <DropdownMenuItem onSelect={hide} data-menu="hide"><EyeOff aria-hidden />Not interested</DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </article>

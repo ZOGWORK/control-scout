@@ -31,7 +31,7 @@ export interface Candidate {
 }
 
 export type Tie = "member" | "myTeam" | "tracked" | "shortlist" | "scouted";
-export interface WatchRow { watchedS: number; completed: boolean; hidden: boolean; kind: WatchKind }
+export interface WatchRow { watchedS: number; completed: boolean; hidden: boolean; kind: WatchKind; more?: boolean }
 export interface Profile {
   /** Each team the person is tied to, by its strongest tie. */
   teams: Map<number, Tie>;
@@ -61,8 +61,8 @@ export function tieOf(item: Pick<FeedItem, "teams">, p: Profile): { team: number
 }
 
 /**
- * A weight per kind of video from what the person did with it: finished ones count for it, skipped ones (started and
- * left before half way, or "not interested") against. A Beta(1, 1) mean, doubled so a kind with no history is 1;
+ * A weight per kind of video from what the person did with it: "show more like this" counts for it most, finished
+ * ones for it, skipped ones (started and left before half way, or "not interested") against. A Beta(1, 1) mean, doubled so a kind with no history is 1;
  * kept between 0.4 and 1.8 so one bad run never empties a kind out of the feed.
  */
 export function kindWeights(history: Iterable<WatchRow>): Record<WatchKind, number> {
@@ -71,6 +71,7 @@ export function kindWeights(history: Iterable<WatchRow>): Record<WatchKind, numb
     const c = n[h.kind];
     if (!c) continue;
     if (h.hidden) c.skip += 1.5;
+    else if (h.more) c.done += h.completed ? 3 : 2;
     else if (h.completed) c.done += 1;
     else c.skip += 0.5;
   }
@@ -78,10 +79,12 @@ export function kindWeights(history: Iterable<WatchRow>): Record<WatchKind, numb
   return { match: w(n.match), stream: w(n.stream), creator: w(n.creator), behindTheBot: w(n.behindTheBot) };
 }
 
-/** How much of it the person has seen: 1 finished, a part when started (at least 0.3: it was opened), 0 not seen. */
+/** How much of it the person has seen: 1 finished, a part when started (at least 0.3: it was opened), 0 not seen
+ *  ("more like this" on a card never opened isn't a watch). */
 export function watchedPart(h: WatchRow | undefined, duration: number | undefined): number {
   if (!h) return 0;
   if (h.completed) return 1;
+  if (h.more && h.watchedS <= 0) return 0;
   const len = duration && duration > 0 ? duration : 180;
   return Math.min(0.9, Math.max(0.3, h.watchedS / len));
 }
