@@ -224,21 +224,33 @@ export function callLine(p: MatchView["prediction"]): string {
 const unix = (iso: string) => Math.floor(Date.parse(iso) / 1000);
 const matchTitle = (m: MatchView, eventName: string) => clip(`${m.label} · ${eventName}`, 256);
 
-/** Discord's own caps: 1,024 characters to a field, 25 fields to an embed. */
+/** Discord's own caps: 1,024 characters to a field, 25 fields and 6,000 characters to a whole embed. */
 const FIELD_MAX = 1024;
 const FIELDS_MAX = 25;
+export const EMBED_CHARS_MAX = 6000;
 
 /**
  * Rows as field values Discord takes: whole rows, 1,024 characters to a field, the list continuing in a blank-named
- * field so it reads as one. A list longer than one field is posted whole, never cut to the first few rows.
+ * field so it reads as one. A list longer than one field is posted whole, up to `budget` (what the embed's other parts
+ * leave of Discord's 6,000); past that, the last field says how many it left out rather than the card being refused.
  */
-function packFields(name: string, rows: string[]): APIEmbedField[] {
+function packFields(name: string, rows: string[], budget = Infinity): APIEmbedField[] {
   const out: APIEmbedField[] = [];
-  let cur = "";
+  let cur = "", used = 0, kept = 0;
   for (const r of rows) {
     const row = r.length > FIELD_MAX ? `${r.slice(0, FIELD_MAX - 1)}…` : r;
+    const add = (cur ? 1 : 0) + row.length;
+    if (used + add > budget) break;
     if (cur && cur.length + 1 + row.length > FIELD_MAX) { out.push({ name: out.length ? "\u200b" : name, value: cur }); cur = row; }
     else cur = cur ? `${cur}\n${row}` : row;
+    used += add;
+    kept++;
+  }
+  if (!kept) return [];
+  if (kept < rows.length) {
+    const tail = `…and ${rows.length - kept} more`;
+    if (cur.length + 1 + tail.length <= FIELD_MAX) cur = `${cur}\n${tail}`;
+    else { out.push({ name: out.length ? "\u200b" : name, value: cur }); cur = tail; }
   }
   if (cur) out.push({ name: out.length ? "\u200b" : name, value: cur });
   return out.slice(0, FIELDS_MAX);
@@ -344,6 +356,8 @@ export function winningAlliance(d: Pick<EventDetail, "awards" | "alliances">): {
 
 export function eventEmbed(d: EventDetail, site: string): APIEmbed {
   const e = d.event;
+  const title = clip(e.name, 256);
+  const description = [dates(e.start, e.end), place(e.city, e.state, e.country), e.code].filter(Boolean).join(" · ");
   const fields: APIEmbedField[] = [
     { name: "Status", value: STATUS[e.status] ?? e.status, inline: true },
     { name: "Matches played", value: e.matchesTotal ? `${e.matchesPlayed} of ${e.matchesTotal}` : "Schedule not posted yet", inline: true },
@@ -351,18 +365,23 @@ export function eventEmbed(d: EventDetail, site: string): APIEmbed {
   ];
   const top = topByOpr(d.field);
   if (top.rows.length) {
-    // Every team at the event, by OPR, whole: a list longer than Discord's 1,024-to-a-field continues in the next field.
+    // Every team at the event, by OPR: the list continues in the next field, inside what Discord's 6,000-character
+    // embed has left after its title, description, footer and the fields above and below (a big event says how many
+    // it couldn't hold rather than the card being refused).
+    const head = title.length + description.length + FOOTER.text.length + fields.reduce((n, f) => n + f.name.length + f.value.length, 0);
+    const reserved = e.status === "finished" ? 80 : 0;
     fields.push(...packFields(top.season ? "By season OPR" : "By OPR",
-      top.rows.map((r, i) => `${i + 1}. [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${one(r.opr)}**`)));
+      top.rows.map((r, i) => `${i + 1}. [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${one(r.opr)}**`),
+    EMBED_CHARS_MAX - head - reserved));
   }
   if (e.status === "finished") {
     const w = winningAlliance(d);
     fields.push({ name: "Winning alliance", value: w ? `${w.alliance ? `Alliance ${w.alliance}: ` : ""}${linkedAlliance(w.teams, site)}` : "Not posted yet (it comes with the awards)" });
   }
   return {
-    title: clip(e.name, 256),
+    title,
     url: `${site}/events/${e.season}/${encodeURIComponent(e.code)}`,
-    description: [dates(e.start, e.end), place(e.city, e.state, e.country), e.code].filter(Boolean).join(" · "),
+    description,
     color: VOLT,
     fields,
     footer: FOOTER,

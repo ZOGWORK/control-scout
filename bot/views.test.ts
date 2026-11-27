@@ -262,6 +262,20 @@ describe("eventEmbed", () => {
     expect(lines[6]).toContain("[7]");
   });
 
+  it("a huge event stays inside Discord's 6,000 characters and says how many it left out", () => {
+    const d = {
+      event: { season: 2025, code: "X", name: "Championship", status: "finished", start: "2026-04-29", end: "2026-05-02", city: "Houston", state: "TX", country: "USA", matchesPlayed: 400, matchesTotal: 400, teams: 600 },
+      field: Array.from({ length: 600 }, (_, i) => row(i + 1, 90 - i / 10)),
+      alliances: [], awards: [],
+    } as unknown as EventDetail;
+    const e = eventEmbed(d, SITE);
+    const size = (e.title?.length ?? 0) + (e.description?.length ?? 0) + (e.footer?.text.length ?? 0)
+      + e.fields!.reduce((n, f) => n + f.name.length + f.value.length, 0);
+    expect(size).toBeLessThanOrEqual(6000);
+    expect(e.fields!.map((f) => f.value).join("\n")).toMatch(/…and \d+ more/);
+    for (const f of e.fields!) expect(f.value.length).toBeLessThanOrEqual(1024);
+  });
+
   it("a finished event names its winning alliance", () => {
     const d = {
       event: { season: 2025, code: "X", name: "Final", status: "finished", start: "2026-03-01", end: "2026-03-02", city: "Austin", state: "TX", country: "USA", matchesPlayed: 40, matchesTotal: 40, teams: 3 },
