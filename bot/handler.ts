@@ -209,7 +209,9 @@ function serverName(
 /** Turns of a reply thread Bruno sees, at most (Control Point's cap), and the threads remembered. */
 export const THREAD_TURNS = 6;
 const THREADS_MAX = 2000;
-const TURN_MAX = 600;
+/** A turn the thread keeps: Discord's own 2,000 characters for a message, so a long answer is kept whole for the
+ *  follow-up that leans on it (and for a report). */
+const TURN_MAX = 2000;
 const turn = (role: BrunoChatTurn["role"], text: string): BrunoChatTurn => ({ role, text: text.trim().replace(/\s+/g, " ").slice(0, TURN_MAX) });
 
 /** Bruno's turn as the thread keeps it: clipped to the thread's cap, but never losing the question he ended with
@@ -226,6 +228,8 @@ const brunoTurn = (text: string): BrunoChatTurn => {
 
 /** An answer pings nobody: not the asker, not @everyone, a role or a person named in Bruno's text. */
 export const NO_PINGS = { parse: [] as never[], repliedUser: false };
+/** Discord's own footer limit, in characters. */
+const FOOTER_MAX = 2048;
 
 /** What an answer posts in an ask channel's thread, and how. */
 export interface SendOpts { content?: string; embeds: APIEmbed[]; components?: AnswerComponents; allowedMentions: { parse: never[]; repliedUser: boolean } }
@@ -375,7 +379,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   const checkLine = (c: AskReply["checked"]): string => {
     if (!c) return "";
     const searches = c.searches === 1 ? "1 search" : `${c.searches} searches`;
-    const missed = c.unanswered.length ? ` · couldn't check: ${c.unanswered.slice(0, 2).map((q) => q.trim().slice(0, 40)).join(", ")}` : "";
+    // Every part it couldn't answer, whole: what wasn't checked is the reader's to see, not to guess at.
+    const missed = c.unanswered.length ? ` · couldn't check: ${c.unanswered.map((q) => q.trim()).join(", ")}` : "";
     return `✓ Checked ${searches} against Control Scout${missed}`;
   };
   const askPost = async (question: string, r: AskReply, quote: boolean, guild: string | null = null, prefs: GuildSettings = DEFAULT_SETTINGS): Promise<AskPost> => {
@@ -393,22 +398,27 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       : undefined;
     const check = checkLine(checkedMeta);
     const embed = shown.embed;
-    const checked = check
-      ? { ...embed, footer: { ...(embed.footer ?? FOOTER), text: `${embed.footer?.text ?? FOOTER.text} · ${check}` } }
-      : embed;
-    // The check line rides under the text, inside Discord's 2,000 characters: the answer is cut instead of the post
-    // being refused.
-    const withCheck = (text: string) => {
-      const tail = check ? `\n-# ${check}` : "";
-      return `${text.slice(0, 2000 - tail.length)}${tail}`;
-    };
+    // Discord's footer holds 2,048 characters, so a check line longer than that is the one cut Discord's own limit makes.
+    const footer = check ? `${embed.footer?.text ?? FOOTER.text} · ${check}` : null;
+    const checked = footer && footer.length > FOOTER_MAX
+      ? { ...embed, footer: { ...(embed.footer ?? FOOTER), text: `${footer.slice(0, FOOTER_MAX - 1)}…` } }
+      : footer ? { ...embed, footer: { ...(embed.footer ?? FOOTER), text: footer } } : embed;
+    // The answer's text, whole, then split wherever Discord's 2,000 characters a message end: the first message rides
+    // the answer, the rest follow it. A chat reply is never cut to fit one message.
+    const body = shown.chat ? chatPost(question, shown.chat, { quote }) : shown.content ?? "";
+    // The check line rides under a text that exists; with no text at all it is the embed's footer that carries it.
+    const text = `${body}${body && check ? `\n-# ${check}` : ""}`;
+    const chunks = text ? textChunks(text) : [];
     const components = await answerComponents(shown, buttons, Date.now(), guild);
     const post: AskPost = {
-      ...(shown.chat
-        ? { content: withCheck(chatPost(question, shown.chat, { quote })), embeds: shown.chat.card && shown.chat.by !== "scout" ? [pride(embed)] : [] }
-        : { ...(shown.content ? { content: withCheck(shown.content) } : {}), embeds: [pride(checked)] }),
-      // The rest of the answer, when Discord's embed couldn't hold it: posted under the answer by the caller.
-      ...(shown.rest ? { rest: shown.rest } : {}),
+      ...(chunks.length ? { content: chunks[0] } : {}),
+      embeds: shown.chat
+        ? (shown.chat.card && shown.chat.by !== "scout" ? [pride(embed)] : [])
+        : [pride(checked)],
+      // What the embed couldn't hold, then the rest of a long text: the caller posts it in the channel under the answer.
+      ...(chunks.length > 1 || shown.rest
+        ? { rest: [...chunks.slice(1), shown.rest ?? ""].filter(Boolean).join("\n\n") }
+        : {}),
     };
     return components.length ? { ...post, components } : post;
   };
@@ -804,7 +814,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       if (!ambient && !new RegExp(`<@!?${botId}>`).test(m.content) && !(replyTo && m.content.trim())) return;
       // A command-looking line in the ask channel is somebody else's command, not a question for Control Scout.
       if (ambient && /^[/!]/.test(m.content.trim())) return;
-      const q = m.content.replace(/<@[!&]?\d+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
+      // The whole message, however long: Discord's own 2,000 characters, not a shorter cut of them.
+      const q = m.content.replace(/<@[!&]?\d+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 2000);
       const history = replyTo ? await historyFor(replyTo) : [];
       /**
        * Where an answer goes. A mention is a reply to the message itself (a plain one when the channel can't be replied
@@ -1019,7 +1030,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         type: ComponentType.ActionRow,
         components: [{
           type: ComponentType.TextInput, custom_id: "note", label: "What's wrong with this answer?",
-          style: TextInputStyle.Paragraph, required: true, max_length: 500,
+          style: TextInputStyle.Paragraph, required: true, max_length: 4000,
           placeholder: "A wrong number, a wrong team, out of date…",
         }],
       }],
@@ -1045,7 +1056,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       await i.deferReply({ flags: MessageFlags.Ephemeral });
       // Already reported (a 👎, or the button a moment ago): the same issue rather than another.
       if (row.report) { await i.editReply({ embeds: [pride(reportedEmbed(row.report))] }); return; }
-      const note = i.fields.getTextInputValue("note").trim().slice(0, 500);
+      const note = i.fields.getTextInputValue("note").trim().slice(0, 4000);
       const said = (whole.content ?? "").trim();
       const about = {
         source: row.source, step: row.step, ms: row.ms,

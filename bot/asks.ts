@@ -12,7 +12,8 @@ import { redact } from "../server/searchFailures.js";
 /** How long an ask is kept: long enough to see a phrasing come up twice, short enough to stay small. */
 export const KEEP_DAYS = 90;
 /** The most characters of a question kept. */
-export const QUESTION_MAX = 500;
+/** A question as stored: Discord's own 2,000 characters for a message, so a long one is kept whole. */
+export const QUESTION_MAX = 2000;
 /** Every PRUNE_EVERY writes, asks past KEEP_DAYS are deleted (the table is read by month at most). */
 export const PRUNE_EVERY = 200;
 let writes = 0;
