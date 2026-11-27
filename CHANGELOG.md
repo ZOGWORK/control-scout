@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.1.4 — 2026-11-27
+
+The Discord bot knows events: NJ States, the next NJ meet, Worlds and any event by its name, with every team there.
+
+### Highlights
+- [alerts] "Rank the teams at NJ States by auto OPR" gets every team there
+- [alerts] "Who has never been to Worlds" is answered from each team's history
+- [alerts] "How many NJ teams were at Worlds 2025" is counted for you
+- [alerts] "Who should I watch at the next NJ meet" knows the next meet
+
+### Discord bot
+- **What Bruno knows about each named event** (#2392; `server/api/brunoEvents.ts`, `bot/ask.ts`): an event a message names (by its own name, as "NJ States" or "the New Jersey championship", as "the next NJ meet", or as "Worlds" with the year it was played) brings a labelled block: what and when it is, its matches and scores, every team there (divisions read whole) with its event OPR, phases, rank and record, or before it's played each team's season OPR so far (a league meet nobody has entered yet is read by its league's teams), who there has played at Worlds and who never has, and for Worlds where its teams are from. Search resolves none of these, so the audit's Q68, Q74, Q76, Q85, Q87, Q88 and Q92 had nothing to answer from.
+
 ## 8.1.3 — 2026-11-27
 
 The Discord bot gives one number per fact, says which season every number is from, and keeps looking before it says it can't find something.

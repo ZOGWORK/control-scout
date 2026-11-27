@@ -216,7 +216,12 @@ export async function withDossiers(a: SearchAnswer, base: (a: SearchAnswer) => P
   const main = a.card?.team?.number ?? a.stat?.team?.number ?? (a.hits[0]?.kind === "team" ? Number(a.hits[0].ref) : null);
   const teams = [...new Set([...named, ...(main && !named.length ? [main] : [])])];
   const blocks = (await Promise.all(teams.map((t) => teamDossier(t).catch(() => [] as string[])))).flat();
-  return [seasonNowLine(), ...own, ...blocks.filter((l) => !own.includes(l))];
+  // And every event it names ("NJ States", "the next NJ meet", "Worlds 2025", "Lake Erie League Meet"): its teams with
+  // their numbers there and who has been to Worlds (server/api/brunoEvents.ts), after the teams' own blocks.
+  const { namedEvents, eventDossier } = await import("../server/api/brunoEvents.js");
+  const events = await namedEvents(a.q).catch(() => []);
+  const eventBlocks = (await Promise.all(events.map((e) => eventDossier(e).catch(() => [] as string[])))).flat();
+  return [seasonNowLine(), ...own, ...[...blocks, ...eventBlocks].filter((l) => !own.includes(l))];
 }
 
 export async function realAskDeps(): Promise<AskDeps> {
