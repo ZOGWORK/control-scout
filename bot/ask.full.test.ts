@@ -49,6 +49,22 @@ describe("an answer bigger than one card", () => {
     expect(askEmbed("top opr", a, null, SITE)).toEqual(answerPost("top opr", a, null, SITE).embed);
   });
 
+  it("a stat card that already holds everything carries no whole", () => {
+    // No headline, one block of two rows: the card is the answer, so the button would open the same lines again.
+    const a = answer({ ...board(2), blocks: [board(2).blocks[0]], title: "Top OPR" });
+    const post = answerPost("top opr", a, null, SITE);
+    expect(post.embed.description).toContain("2. [2](");
+    expect(post.full).toBeUndefined();
+  });
+
+  it("a headline with its rows behind it still carries its whole", () => {
+    const a = answer({ ...board(5), headline: { value: "100", label: "OPR", href: "/teams/1" } });
+    const post = answerPost("top opr", a, null, SITE);
+    expect(post.embed.description).not.toContain("1. ");
+    expect(post.full).toBeDefined();
+    expect(post.full).toContain("5. [5](");
+  });
+
   it("a short answer carries no whole: there is nothing more to show", () => {
     const a: SearchAnswer = { q: "4215", hits: [hit], pages: [], step: "deterministic", weak: false };
     const post = answerPost("4215", a, null, SITE);
