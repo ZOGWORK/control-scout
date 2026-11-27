@@ -142,8 +142,9 @@ https://controlscout.org.
   the build succeeds, and the existing certificate is re-applied.
 - **Custom port:** set `PORT` in `shared/.env`; every deploy reads it from there.
 - **Schedule (built in):** current-season sync daily, and on event days every 15 min on the VM (`DATA_CYCLE=child`; hourly on Render; `EVENT_DAY_SYNC_MINUTES` overrides);
-  stats + prediction ledger after each sync; offline packs rebuilt the same day, and on event days at the sync's own
-  pace (`server/packs/due.ts`: the lite pack and the current season's, the frozen seasons' files carried forward).
+  stats + prediction ledger after each sync; offline packs rebuilt daily, and on event days as soon as a sync has
+  brought new data (`server/packs/due.ts`: the lite pack and the current season's, the frozen seasons' files carried
+  forward).
   The live lane's follow-up after new
   results (stats, records, live calls, report cards, coin flips) runs in a child process too with `DATA_CYCLE=child`
   (`LIVE_FOLLOW_UP=inline` keeps it in the server process). These children build the ratings on their own thread,
