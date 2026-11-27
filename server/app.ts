@@ -57,7 +57,9 @@ import { teamNextMatch, weekendEvents } from "./api/weekend.js";
 import { cleanWatch, FEED_CURSOR, recordWatch, videoFeed } from "./api/videosFeed.js";
 import { upNext } from "./api/upNext.js";
 import { UP_NEXT_CURSOR } from "../src/shared/watch.js";
-import { decodeHistory, FEED_FILTERS, isFeedFilter } from "../src/shared/videosFeed.js";
+import { decodeHistory, FEED_FILTERS, FEED_KEY, isFeedFilter } from "../src/shared/videosFeed.js";
+import { addNote, clearLibrary, deleteNote, editNote, itemState, libraryCounts, listLibrary, listNotes, NoteLimitError, putLibrary, removeLibrary } from "./api/videoLibrary.js";
+import { cleanItem, cleanNoteBody, cleanNoteTime, isLibraryList, type LibraryList } from "../src/shared/videoLibrary.js";
 import { eventListAnswer, matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
@@ -780,6 +782,75 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     const w = cleanWatch(req.body);
     if (!w) throw bad("Send { key, kind, watchedS, completed?, hidden? }");
     await recordWatch(user.id, w);
+    return { ok: true };
+  }));
+
+  // The person's own library (server/api/videoLibrary.ts): Saved, Watch later, History and notes. Signed in only (a
+  // signed-out device keeps its own, lib/videoLibrary.ts); every write is JSON, like every write from the app.
+  const me = async (req: Request, res: Response, write = false) => {
+    if (write && req.method !== "DELETE" && !req.is("application/json")) { res.status(415).json({ error: "Send JSON" }); return null; }
+    const user = await currentUser(req);
+    if (!user) { res.status(401).json({ error: "Sign in to keep your videos and notes." }); return null; }
+    return user;
+  };
+  const listParam = (v: unknown): LibraryList => { if (!isLibraryList(v)) throw bad("list is saved, later or history"); return v; };
+  const noteId = (v: unknown) => { const s = String(v); if (!/^\d{1,15}$/.test(s)) throw bad("Unknown note"); return Number(s); };
+  api.get("/videos/library", h(async (req, res) => {
+    const user = await me(req, res); if (!user) return;
+    return listLibrary(user.id, listParam(req.query.list), req.query.cursor);
+  }));
+  api.get("/videos/library/counts", h(async (req, res) => {
+    const user = await me(req, res); if (!user) return;
+    return libraryCounts(user.id);
+  }));
+  api.get("/videos/library/item", h(async (req, res) => {
+    const user = await me(req, res); if (!user) return;
+    const key = String(req.query.key ?? "");
+    if (!FEED_KEY.test(key)) throw bad("Unknown video");
+    return itemState(user.id, key);
+  }));
+  api.put("/videos/library/:list", limiter(120), h(async (req, res) => {
+    const user = await me(req, res, true); if (!user) return;
+    const list = listParam(req.params.list);
+    const item = cleanItem(req.body?.item);
+    if (!item) throw bad("Send { item }: the video's card");
+    await putLibrary(user.id, list, item);
+    return { ok: true };
+  }));
+  api.delete("/videos/library/:list/:key", limiter(120), h(async (req, res) => {
+    const user = await me(req, res, true); if (!user) return;
+    const key = String(req.params.key);
+    if (!FEED_KEY.test(key)) throw bad("Unknown video");
+    await removeLibrary(user.id, listParam(req.params.list), key);
+    return { ok: true };
+  }));
+  api.delete("/videos/library/:list", limiter(30), h(async (req, res) => {
+    const user = await me(req, res, true); if (!user) return;
+    await clearLibrary(user.id, listParam(req.params.list));
+    return { ok: true };
+  }));
+  api.get("/videos/notes", h(async (req, res) => {
+    const user = await me(req, res); if (!user) return;
+    return listNotes(user.id, req.query.cursor);
+  }));
+  api.post("/videos/notes", limiter(60), h(async (req, res) => {
+    const user = await me(req, res, true); if (!user) return;
+    const item = cleanItem(req.body?.item), body = cleanNoteBody(req.body?.body), t = cleanNoteTime(req.body?.t ?? null);
+    if (!item || !body || t === undefined) throw bad("Send { item, body, t }: the video's card, the note, and its second (or null)");
+    try { return { note: await addNote(user.id, item, t, body) }; } catch (e) { if (e instanceof NoteLimitError) throw bad(e.message); throw e; }
+  }));
+  api.patch("/videos/notes/:id", limiter(60), h(async (req, res) => {
+    const user = await me(req, res, true); if (!user) return;
+    const body = cleanNoteBody(req.body?.body), t = req.body && "t" in req.body ? cleanNoteTime(req.body.t) : undefined;
+    if (!body) throw bad("Send { body }");
+    if (req.body && "t" in req.body && t === undefined) throw bad("t is a second into the video, or null");
+    const note = await editNote(user.id, noteId(req.params.id), body, t);
+    if (!note) { res.status(404).json({ error: "No such note" }); return; }
+    return { note };
+  }));
+  api.delete("/videos/notes/:id", limiter(60), h(async (req, res) => {
+    const user = await me(req, res, true); if (!user) return;
+    if (!(await deleteNote(user.id, noteId(req.params.id)))) { res.status(404).json({ error: "No such note" }); return; }
     return { ok: true };
   }));
 
