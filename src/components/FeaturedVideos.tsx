@@ -1,48 +1,66 @@
 // A team featured in a creator video (src/shared/creatorVideos.ts, server/videos/creatorVideos.ts): the public
-// "Featured on Behind the Bot" badge in the team page's header, the page's Featured in section listing each video, and
-// the small chip on team rows (search results, event team lists, rankings). Everyone sees them, signed in or not, and
-// every tap plays the video in the app's dialog (lib/streamSeek.ts), never a jump to YouTube.
-import { Clapperboard, Play } from "lucide-react";
+// Behind the Bot badge ("Behind the Bot ×4": a tab on the Standing card's top edge, a retro sticker on classic), the page's Featured in
+// section listing each video, and the small chip on team rows (search results, event team lists, rankings). Everyone
+// sees them, signed in or not, and every tap opens the app's watch page (pages/WatchPage.tsx), never a jump to YouTube.
+import { Link } from "react-router-dom";
+import { Clapperboard, Play, Tv } from "lucide-react";
 import { Section } from "./page";
 import { cn } from "./cn";
 import { useApi } from "../lib/api";
-import { playInDialog } from "../lib/streamSeek";
 import { seasonLabel } from "../lib/format";
 import { thumbnailUrl } from "../shared/stream";
-import { watchUrl } from "../shared/recording";
+import { watchHref } from "../shared/watch";
 import { seriesLabel, type FeaturedVideo } from "../shared/creatorVideos";
-
-/** In the app's dialog; on YouTube in a new tab only where the dialog isn't mounted. */
-const play = (v: FeaturedVideo) => {
-  if (!playInDialog({ videoId: v.videoId, t: 0, label: v.title, highlight: true })) window.open(watchUrl(v.videoId), "_blank", "noopener,noreferrer");
-};
 
 /** Behind the Bot's episodes about this team, newest first. */
 const episodes = (featured: readonly FeaturedVideo[] | undefined) => (featured ?? []).filter((v) => v.series === "behind-the-bot");
 
+/** The team's Behind the Bot episodes, for a badge: how many, and where it opens. */
+export const btbEpisodes = (featured: readonly FeaturedVideo[] | undefined) => episodes(featured);
+
 /**
- * The header's badge: "Featured on Behind the Bot", playing the episode in the app. A team on more than one season's
- * Behind the Bot gets one badge per episode, each with its season.
+ * The team's Behind the Bot badge: "Behind the Bot ×4" when the team was on it four times (no count for one), opening
+ * the watch page on the newest episode with the team's other episodes first in Up next, then the rest of the series.
+ * `tab` (v8): a notch on the top edge of the Standing card, in the card's own colour so it reads as part of it, with
+ * the accent along its top; `patch` (classic): the same lettering as a small retro sticker under the actions.
  */
-export function FeaturedBadge({ featured, className }: { featured: readonly FeaturedVideo[] | undefined; className?: string }) {
+export function FeaturedBadge({ featured, team, variant = "patch", className }: { featured: readonly FeaturedVideo[] | undefined; team: number; variant?: "tab" | "patch"; className?: string }) {
   const list = episodes(featured);
   if (!list.length) return null;
-  const several = new Set(list.map((v) => v.season)).size > 1;
+  const n = list.length;
+  const label = `Behind the Bot${n > 1 ? `, ${n} episodes` : ""}: watch ${n > 1 ? "them" : "it"}`;
+  const words = (
+    <>
+      <Tv className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden />
+      <span className="font-mono text-[0.6875rem] font-bold uppercase leading-none tracking-[0.14em]">Behind the Bot</span>
+      {n > 1 && <span className="rounded-[3px] bg-accent px-1 py-px font-mono text-[0.6875rem] font-black leading-4 tabular-nums text-accent-ink" data-featured-count>×{n}</span>}
+    </>
+  );
+  if (variant === "tab") {
+    return (
+      <Link to={watchHref(list[0].videoId, { team })} data-featured-badge={n} aria-label={label} title={label}
+        className={cn(
+          "group inline-flex h-7 items-center gap-1.5 rounded-t-[9px] border border-b-0 border-line border-t-2 border-t-accent bg-card px-2.5 text-accent-text outline-none",
+          "origin-bottom transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-accent/[0.08] active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none motion-reduce:active:scale-100",
+          className)}>
+        {words}
+      </Link>
+    );
+  }
   return (
-    <div className={cn("flex flex-wrap gap-2", className)} data-featured-badges>
-      {list.map((v) => (
-        <button key={v.videoId} type="button" onClick={() => play(v)} title={`Play "${v.title}"`} data-featured-badge={v.videoId}
-          className="tap-44 inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full border border-accent/50 bg-accent/10 pl-2 pr-3 text-xs font-medium text-text-base outline-none transition-colors hover:bg-accent/[0.16] focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none max-sm:min-h-10">
-          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent text-accent-ink"><Play className="size-3 translate-x-px fill-current" aria-hidden /></span>
-          <span className="truncate">Featured on Behind the Bot{several && v.season != null ? ` · ${seasonLabel(v.season)}` : ""}</span>
-        </button>
-      ))}
-    </div>
+    <Link to={watchHref(list[0].videoId, { team })} data-featured-badge={n} aria-label={label} title={label}
+      className={cn(
+        "inline-flex select-none items-center gap-1.5 rounded-[6px] border-2 border-accent bg-accent/[0.08] px-2 py-1 text-accent-text outline-none",
+        "shadow-[2px_2px_0_0_var(--color-accent)] transition-[transform,box-shadow] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:-translate-x-px hover:-translate-y-px hover:shadow-[3px_3px_0_0_var(--color-accent)]",
+        "active:translate-x-[2px] active:translate-y-[2px] active:shadow-none focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none motion-reduce:hover:translate-x-0 motion-reduce:hover:translate-y-0",
+        className)}>
+      {words}
+    </Link>
   );
 }
 
-/** Featured in: every creator video whose title names the team, each playing in the app. Closed at first. */
-export function FeaturedSection({ featured }: { featured: readonly FeaturedVideo[] | undefined }) {
+/** Featured in: every creator video whose title names the team, each opening the watch page. Closed at first. */
+export function FeaturedSection({ featured, team }: { featured: readonly FeaturedVideo[] | undefined; team: number }) {
   const list = featured ?? [];
   if (!list.length) return null;
   return (
@@ -54,7 +72,7 @@ export function FeaturedSection({ featured }: { featured: readonly FeaturedVideo
           const series = seriesLabel(v.series);
           return (
             <li key={v.videoId}>
-              <button type="button" onClick={() => play(v)} className="group flex w-full flex-col overflow-hidden rounded-xl border border-line bg-card text-left outline-none transition-colors still-hover:bg-ink/[0.03] focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none" data-featured-video={v.videoId}>
+              <Link to={watchHref(v.videoId, { team })} className="group flex w-full flex-col overflow-hidden rounded-xl border border-line bg-card text-left outline-none transition-colors still-hover:bg-ink/[0.03] focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none" data-featured-video={v.videoId}>
                 <span className="relative block aspect-video w-full overflow-hidden bg-black">
                   <img src={thumbnailUrl(v.videoId)} alt="" loading="lazy" className="absolute inset-0 size-full object-cover opacity-90 transition-opacity group-hover:opacity-100" />
                   <span className="absolute inset-0 grid place-items-center"><span className="grid size-11 place-items-center rounded-full bg-black/70 text-white"><Play className="size-5 translate-x-px fill-current" aria-hidden /></span></span>
@@ -66,7 +84,7 @@ export function FeaturedSection({ featured }: { featured: readonly FeaturedVideo
                     {v.season != null && <span className="tabular-nums">{seasonLabel(v.season)}</span>}
                   </span>
                 </span>
-              </button>
+              </Link>
             </li>
           );
         })}
