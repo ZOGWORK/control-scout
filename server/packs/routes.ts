@@ -67,8 +67,8 @@ export function packsRouter(): Router {
       res.setHeader("Vary", "Accept-Encoding");
       if (gzipWhole(req) && existsSync(`${f}.gz`)) {
         res.setHeader("Content-Encoding", "gzip");
+        res.attachment(name); // sets a type from the name (octet-stream for .db): the right one goes after it
         res.type("application/vnd.sqlite3");
-        res.attachment(name);
         // No ranges of the gzipped bytes: a resume asks for the raw file's offsets, never these.
         res.sendFile(`${f}.gz`, { acceptRanges: false });
         return;
