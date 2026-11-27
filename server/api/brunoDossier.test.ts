@@ -87,6 +87,9 @@ describe("which teams", () => {
     expect(await namedTeams("top 50 teams in nj, compare 4215 and 6980 in the last 3 matches, top 5")).toEqual([4215, 6980]);
     expect(await namedTeams("who scored over 100 points, and 100 pts in auto")).toEqual([]);
     expect(await namedTeams("is 4215 better than 6980 over 7149")).toEqual([4215, 6980, 7149]);
+    // A team before a word a team has is the team (Loopy on #2391); an amount or a place is not.
+    expect(await namedTeams("4215 wins vs 6980, 7149 matches this season, how many events has 4215 played")).toEqual([4215, 6980, 7149]);
+    expect(await namedTeams("who was 100th, and who had 100% or 100 pts")).toEqual([]);
     // ...but a small team number said as one is.
     expect(await namedTeams("how did team 5 and #50 do vs 4215")).toEqual([5, 50, 4215]);
   });
