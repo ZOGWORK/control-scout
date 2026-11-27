@@ -9,7 +9,7 @@
 //   Best season and most improved: by OPR rank among the season's ranked teams (as a top-percent share), since each
 //     season is a different game and its OPR numbers can't be compared across seasons.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
-import { dateRange, place, possessive, seasonLabel } from "../../../../src/shared/format.js";
+import { dateRange, place, possessive, seasonLabel, fixed } from "../../../../src/shared/format.js";
 import { eventInScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
 import type { TeamEvent, TeamSeason } from "../eventSet.js";
 import { eventHref, teamHref } from "../matchSet.js";
@@ -37,7 +37,7 @@ const EVENT_RULE = "Events the team attended (on the field at a played match, or
 const top = (s: TeamSeason) => (s.rank != null && s.of ? s.rank / s.of : null);
 const topText = (s: TeamSeason) => (s.rank != null && s.of ? `#${s.rank} of ${s.of} (top ${Math.max(1, Math.round((100 * s.rank) / s.of))}%)` : "not ranked");
 const rec = (s: { wins: number; losses: number; ties: number }) => `${s.wins}-${s.losses}-${s.ties}`;
-const opr = (v: number | null) => (v == null ? "–" : v.toFixed(1));
+const opr = (v: number | null) => (v == null ? "–" : fixed(v));
 const rankText = (e: TeamEvent) => (e.rank != null ? `#${e.rank}${e.of ? ` of ${e.of}` : ""}` : "–");
 /** An event list's rank cell: the event's rank, else a league meet's standing said as the league's ("#1 of 20 league"). */
 const rankCell = (e: TeamEvent) => (e.rank == null && e.standing ? `#${e.standing.n}${e.standing.of ? ` of ${e.standing.of}` : ""} league` : rankText(e));

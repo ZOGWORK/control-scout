@@ -18,6 +18,7 @@ import { V8_SOFT, type SoftColour } from "./v8tone";
 import { eventFacts, teamParts } from "./results";
 import type { SeasonSummary } from "./ResultCards";
 import { TeamLogo } from "../../TeamLogo";
+import { fixed } from "../../../shared/format";
 
 const searchHref = (q: string) => `/search?q=${encodeURIComponent(q)}`;
 /** How a reading is said (shared/api SearchUnderstood kinds). */
@@ -107,7 +108,7 @@ export function V8TeamAnswer({ team, name, place, summary, pending = false, stat
   const next = useNextMatch(team, summary?.season ?? null);
   const facts: { label: string; value: ReactNode }[] = [];
   if (s?.record) facts.push({ label: "Record", value: <RecordText text={s.record} win={V8_SOFT.green.text} loss={V8_SOFT.red.text} /> });
-  if (s?.opr != null) facts.push({ label: "OPR", value: s.opr.toFixed(1) });
+  if (s?.opr != null) facts.push({ label: "OPR", value: fixed(s.opr) });
   if (s?.oprRank != null) facts.push({ label: "OPR rank", value: <>#{s.oprRank.toLocaleString()}{s.of != null && <span className="text-text-faint"> of {s.of.toLocaleString()}</span>}</> });
   if (stat?.intent === "team-highlights" && stat.headline) facts.push({ label: "Best score", value: stat.headline.value.replace(/\s*points?$/i, "") });
   // While the numbers are on their way: one row of four, the facts not known yet held by placeholders.
@@ -233,7 +234,7 @@ export function TeamRow({ h, summary, onOpen }: { h: SearchHit; summary?: Season
       {s && (s.record || s.opr != null) && (
         <span className="shrink-0 text-right text-xs tabular-nums text-text-muted">
           {s.record && <RecordText text={s.record} className="block" win={V8_SOFT.green.text} loss={V8_SOFT.red.text} />}
-          {s.opr != null && <span className="block">OPR <span className="text-foreground">{s.opr.toFixed(1)}</span></span>}
+          {s.opr != null && <span className="block">OPR <span className="text-foreground">{fixed(s.opr)}</span></span>}
         </span>
       )}
     </Link>

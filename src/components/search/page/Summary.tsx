@@ -13,6 +13,7 @@ import { TONE, V8_SOFT, v8Stat, v8Tile } from "./v8tone";
 import { AwardChip, TEAM_BAR, TEAM_TEXT } from "./answerCells";
 import type { Appearance, Stat, Standing } from "./records";
 import { AnswerFrame, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
+import { fixed } from "../../../shared/format";
 
 const nf = new Intl.NumberFormat();
 
@@ -118,8 +119,8 @@ export function QualityBanner({ s }: { s: Standing }) {
   const blocks: Stat[] = [];
   if (s.record) blocks.push({ label: `${seasonLabel(s.season)} record`, value: s.record });
   if (s.rank != null && s.of) blocks.push({ label: "World OPR rank", value: `#${nf.format(s.rank)}`, note: `of ${nf.format(s.of)}` });
-  if (s.opr != null) blocks.push({ label: "OPR", value: s.opr.toFixed(1) });
-  if (s.pct != null && s.tier) blocks.push({ label: "Global standing", value: `Top ${s.pct.toFixed(1)}%`, note: s.tier });
+  if (s.opr != null) blocks.push({ label: "OPR", value: fixed(s.opr) });
+  if (s.pct != null && s.tier) blocks.push({ label: "Global standing", value: `Top ${fixed(s.pct)}%`, note: s.tier });
   if (!blocks.length) return null;
   return (
     <div className="space-y-2" data-quality-banner>

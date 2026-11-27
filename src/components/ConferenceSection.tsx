@@ -15,6 +15,7 @@ import { Move, TrendBadge, active, idle, trigger } from "../pages/RankingsPage";
 import type { MoverItem, NewItem } from "./rankings/MoverCards";
 import { V8_NUM } from "../lib/v8";
 import { v8Medal } from "./rankings/v8";
+import { fixed } from "../shared/format";
 
 export const CONFERENCE_PAGE = 50;
 
@@ -43,7 +44,7 @@ export function sortConferenceRows(rows: ConferenceRow[], key: SortKey, dir: "as
   });
 }
 
-const one = (v: number | null) => (v == null ? null : v.toFixed(1));
+const one = (v: number | null) => (v == null ? null : fixed(v));
 const record = (r: ConferenceRow) => (r.wins == null || r.losses == null ? null : `${r.wins}-${r.losses}-${r.ties ?? 0}`);
 
 /** What a link's `?conference=` names: a slug when only one conference has it, else the tournament's code (unique). */

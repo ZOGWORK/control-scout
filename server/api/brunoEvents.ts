@@ -13,6 +13,7 @@
 // Worlds. A championship with divisions is read whole: the parent and every division.
 import { all } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
+import { fixed } from "../../src/shared/format.js";
 import { regionNamed, stateName } from "../../src/shared/regions.js";
 import { opr, seasonWord, splitLine } from "./brunoDossier.js";
 
@@ -181,7 +182,7 @@ export async function eventDossier(e: EventRow): Promise<string[]> {
 
   const when = e.start ? (e.end && e.end !== e.start ? `${e.start} to ${e.end}` : e.start) : "date not set";
   const where = [e.city, e.state, e.country].filter(Boolean).join(", ");
-  const out = [`${label}: a ${kindWord(e.type)}, ${when}${where ? `, in ${where}` : ""}. ${list.length} teams${divisions.length ? ` in ${divisions.length} divisions (${divisions.map((d) => short(d.name)).join(", ")})` : ""}. ${anyPlayed ? `${Number(s.played)} matches played${Number(s.played) < Number(s.total) ? ` of ${Number(s.total)} scheduled` : ""}; average alliance score in qualification ${s.avg == null ? "–" : (Math.round(s.avg * 10) / 10).toFixed(1)}, highest alliance score ${s.high ?? "–"}.${isPlayed ? "" : " Event OPRs aren't worked out yet."}` : "Not played yet."}`];
+  const out = [`${label}: a ${kindWord(e.type)}, ${when}${where ? `, in ${where}` : ""}. ${list.length} teams${divisions.length ? ` in ${divisions.length} divisions (${divisions.map((d) => short(d.name)).join(", ")})` : ""}. ${anyPlayed ? `${Number(s.played)} matches played${Number(s.played) < Number(s.total) ? ` of ${Number(s.total)} scheduled` : ""}; average alliance score in qualification ${s.avg == null ? "–" : fixed(s.avg)}, highest alliance score ${s.high ?? "–"}.${isPlayed ? "" : " Event OPRs aren't worked out yet."}` : "Not played yet."}`];
 
   if (e.type === "FIRSTChampionship") {
     // Where Worlds' teams are from, said first ("how many NJ teams were at Worlds" is read here, never counted by

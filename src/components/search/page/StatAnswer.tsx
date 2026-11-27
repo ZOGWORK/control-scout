@@ -4,7 +4,7 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, CalendarDays, Hash, Info, Medal, Sparkles, Target, Trophy, type LucideIcon } from "lucide-react";
 import { eventTypeLabel } from "../../../shared/labels";
-import { seasonLabel, recordWords } from "../../../shared/format";
+import { seasonLabel, recordWords, fixed } from "../../../shared/format";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { useIsV8 } from "../../../lib/v8";
 import type { StatAnswer, StatBlock, StatLink, StatRecord } from "../../../shared/searchStat";
@@ -595,7 +595,7 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
 
 function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
   // One group's values are small tiles (a phase's in the team page's colour for it); several groups a compact table, a row each.
-  const fmt = (v: number | null) => (v == null ? "–" : `${Number.isInteger(v) ? v : v.toFixed(1)}${b.unit === "%" ? "%" : ""}`);
+  const fmt = (v: number | null) => (v == null ? "–" : `${Number.isInteger(v) ? v : fixed(v)}${b.unit === "%" ? "%" : ""}`);
   // A value's meaning first (a phase, an award: the same colour as everywhere); else a team's (tone a, b, c: a
   // prediction's two teams, labelled by number) in that team's hue; else the card's.
   const sw = (i: { label: string; tone?: string }): Swatch => (meaningOf(i.label) ? swatchOf(i.label)
