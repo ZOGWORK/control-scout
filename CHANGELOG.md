@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 One number per fact: every page, card and the Discord bot round a stat the same way.
 
 ### Highlights
-- [fixes] A stat ending in 5 rounds up everywhere: 6980's auto is 0.2 on every page
+- [fixes] A stat ending in 5 rounds up: 6980's auto is 0.2 on every page
 - [fixes] The team page, compare card and Discord bot agree to the decimal
 - [rankings] Ratings and OPRs in rankings round the same way too
 
