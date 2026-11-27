@@ -174,11 +174,14 @@ export async function eventDossier(e: EventRow): Promise<string[]> {
     leagueOnly = byTeam.size > 0;
   }
   const list = [...byTeam.values()];
-  const isPlayed = Number(s.played ?? 0) > 0 && list.some((t) => t.opr_np != null);
+  // Played is what the matches say; the list reads event OPRs only once they exist (an event mid-way, or just finished
+  // before its OPRs are worked out, lists the teams by their season OPR so far instead, still said as played).
+  const anyPlayed = Number(s.played ?? 0) > 0;
+  const isPlayed = anyPlayed && list.some((t) => t.opr_np != null);
 
   const when = e.start ? (e.end && e.end !== e.start ? `${e.start} to ${e.end}` : e.start) : "date not set";
   const where = [e.city, e.state, e.country].filter(Boolean).join(", ");
-  const out = [`${label}: a ${kindWord(e.type)}, ${when}${where ? `, in ${where}` : ""}. ${list.length} teams${divisions.length ? ` in ${divisions.length} divisions (${divisions.map((d) => short(d.name)).join(", ")})` : ""}. ${isPlayed ? `${Number(s.played)} matches played; average alliance score in qualification ${s.avg == null ? "–" : (Math.round(s.avg * 10) / 10).toFixed(1)}, highest alliance score ${s.high ?? "–"}.` : "Not played yet."}`];
+  const out = [`${label}: a ${kindWord(e.type)}, ${when}${where ? `, in ${where}` : ""}. ${list.length} teams${divisions.length ? ` in ${divisions.length} divisions (${divisions.map((d) => short(d.name)).join(", ")})` : ""}. ${anyPlayed ? `${Number(s.played)} matches played${Number(s.played) < Number(s.total) ? ` of ${Number(s.total)} scheduled` : ""}; average alliance score in qualification ${s.avg == null ? "–" : (Math.round(s.avg * 10) / 10).toFixed(1)}, highest alliance score ${s.high ?? "–"}.${isPlayed ? "" : " Event OPRs aren't worked out yet."}` : "Not played yet."}`];
 
   if (e.type === "FIRSTChampionship") {
     // Where Worlds' teams are from, said first ("how many NJ teams were at Worlds" is read here, never counted by

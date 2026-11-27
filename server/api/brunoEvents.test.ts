@@ -86,6 +86,16 @@ describe("an event's block", () => {
     expect(d).toContain("who have never played at Worlds: 6980; 24033.");
   });
 
+  it("an event with matches played but no event OPRs yet is played, its teams by season OPR (Loopy on #2392)", async () => {
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, blue_total, source) VALUES (?, 'USNJNOM1', 'qual', 0, 1, 'Q1', 1, 60, 40, 'first'), (?, 'USNJNOM1', 'qual', 0, 2, 'Q2', 0, NULL, NULL, 'first')", [NOW_S, NOW_S]);
+    const [m] = await namedEvents("p1-4 northern league meet", NOW);
+    const d = (await eventDossier(m)).join(" ");
+    expect(d).toContain("1 matches played of 2 scheduled");
+    expect(d).toContain("Event OPRs aren't worked out yet.");
+    expect(d).not.toContain("Not played yet.");
+    expect(d).toContain("4215 Hypnotic Robotics 16.0 (A 1.4");
+  });
+
   it("counts Worlds' teams by US state or country, first", async () => {
     const [w] = (await namedEvents(`worlds ${NOW_S - 1}`, NOW)).filter((e) => e.season === BEFORE);
     const d = await eventDossier(w);
