@@ -42,7 +42,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { forgetSettled, recheckOnly, laneJobMs, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup } from "./lib/autopilotRun";
+import { forgetSettled, recheckOnly, laneJobMs, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberFailure, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup } from "./lib/autopilotRun";
 import { clipCheckProblems } from "./lib/autopilotClips";
 import { streamRun } from "./lib/streamRun";
 import { eventLimitMs, readFailed as readFailedExit } from "./lib/videoFrames";
@@ -443,7 +443,7 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
       log(`  ${key}: stopped at the reader's per-event limit with no new row${video ? ` on video ${video}` : ""}; ${counted ? "the second run in a row: counted as a try (read again after 3 days, left after 3 tries)" : "read again after 6 h, not counted as a try"}`);
     }
     else if (outcome === "waits") { rememberWait(memory, key, "rows wait for another open PR"); log(`  ${key}: its rows wait for another open PR; read again later, not counted as a try`); }
-    else if (outcome === "read failed") log(`  ${key}: the read failed; not counted as a try`);
+    else if (outcome === "read failed") log(`  ${key}: the read failed; ${rememberFailure(memory, key) === "counted" ? "the second run in a row: counted as a try (read again after 3 days, left after 3 tries)" : "read again after 6 h, not counted as a try"}`);
     // Rows that went live clear what's remembered; rows held for the owner count a try (read again after 3 days), so an
     // event waiting on the owner isn't read again every run.
     else remember(memory, key, outcome === "shipped" ? 1 : 0, outcome === "shipped" ? "live" : count(send, code) ? "rows wait for the owner's approval" : changed ? "rows unchanged" : "no new rows");
