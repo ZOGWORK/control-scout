@@ -104,7 +104,7 @@ export default function VideosPage() {
       <div role="tablist" aria-label="Show" className="-mx-4 mb-8 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" data-videos-filters>
         {FEED_FILTERS.map((f) => (
           <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} onClick={() => pick(f.id)}
-            className={cn("h-9 shrink-0 rounded-full border px-3.5 text-sm font-medium transition-colors duration-150 active:scale-[0.97] motion-reduce:active:scale-100",
+            className={cn("h-9 shrink-0 rounded-full border px-3.5 text-sm font-medium transition-[color,background-color,border-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100",
               filter === f.id ? "border-accent bg-accent text-accent-ink" : "border-ink/[0.12] text-text-muted hover:bg-ink/[0.04] hover:text-text-base")}>{f.label}</button>
         ))}
       </div>

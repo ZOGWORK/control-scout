@@ -58,10 +58,10 @@ export function FeaturedSection({ featured, team }: { featured: readonly Feature
           const series = seriesLabel(v.series);
           return (
             <li key={v.videoId}>
-              <Link to={watchHref(v.videoId, { team })} className="group flex w-full flex-col overflow-hidden rounded-xl border border-line bg-card text-left outline-none transition-colors still-hover:bg-ink/[0.03] focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none" data-featured-video={v.videoId}>
+              <Link to={watchHref(v.videoId, { team })} className="group flex w-full flex-col overflow-hidden rounded-xl border border-line bg-card text-left outline-none transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] still-hover:bg-ink/[0.03] active:scale-[0.985] focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none motion-reduce:active:scale-100" data-featured-video={v.videoId}>
                 <span className="relative block aspect-video w-full overflow-hidden bg-black">
                   <img src={thumbnailUrl(v.videoId)} alt="" loading="lazy" className="absolute inset-0 size-full object-cover opacity-90 transition-opacity group-hover:opacity-100" />
-                  <span className="absolute inset-0 grid place-items-center"><span className="grid size-11 place-items-center rounded-full bg-black/70 text-white"><Play className="size-5 translate-x-px fill-current" aria-hidden /></span></span>
+                  <span className="absolute inset-0 grid place-items-center"><span className="grid size-11 scale-90 place-items-center rounded-full bg-black/70 text-white opacity-0 ring-1 ring-white/20 transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:scale-100 group-hover:opacity-100 group-focus-visible:scale-100 group-focus-visible:opacity-100 pointer-coarse:scale-100 pointer-coarse:opacity-100 motion-reduce:transition-none"><Play className="size-5 translate-x-px fill-current" aria-hidden /></span></span>
                 </span>
                 <span className="block p-3">
                   <span className="line-clamp-2 text-sm font-medium text-text-base">{v.title}</span>

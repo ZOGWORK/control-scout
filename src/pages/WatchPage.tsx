@@ -126,7 +126,7 @@ function CreatorUpNext({ videoId, team, up }: { videoId: string; team: number | 
           <h2 id="up-next-team" className="mb-2 flex items-center gap-2 px-1.5 text-sm font-semibold text-text-base">
             <Tv className="size-4 shrink-0 text-accent-text" aria-hidden />
             <span className="min-w-0 truncate">{name} on Behind the Bot</span>
-            {episodes.length > 1 && <span className="ml-auto shrink-0 rounded-[4px] bg-accent px-1.5 font-mono text-xs font-black tabular-nums text-accent-ink" data-up-next-count>×{episodes.length}</span>}
+            {episodes.length > 1 && <span className="ml-auto shrink-0 bg-[#5b21b6] px-[3px] py-[2px] font-pixel text-[11px] leading-none text-[#e4dcfb]" data-up-next-count>×{episodes.length}</span>}
           </h2>
           <ul className="space-y-1">{episodes.map(row)}</ul>
         </section>
@@ -223,14 +223,14 @@ export default function WatchPage() {
           </div>
           {teams.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5" data-watch-teams>
-              {teams.slice(0, 12).map((n) => <Link key={n} to={`/teams/${n}`} className="rounded-full border border-ink/[0.12] px-2.5 py-1 text-xs font-medium tabular-nums text-text-muted transition-colors hover:border-ink/25 hover:text-text-base">Team {n}</Link>)}
+              {teams.slice(0, 12).map((n) => <Link key={n} to={`/teams/${n}`} className="rounded-full border border-ink/[0.12] px-2.5 py-1 text-xs font-medium tabular-nums text-text-muted transition-[color,border-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-ink/25 hover:text-text-base active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100">Team {n}</Link>)}
             </div>
           )}
           {creator?.description && (
             <div className="mt-4 rounded-xl bg-ink/[0.04] p-3.5">
               <p className={cn("whitespace-pre-line break-words text-sm leading-6 text-text-muted", !more && "line-clamp-3")} data-watch-description>{creator.description}</p>
               <button type="button" onClick={() => setMore((m) => !m)} className="tap-44 mt-1 inline-flex items-center gap-1 text-sm font-medium text-text-base hover:underline" aria-expanded={more}>
-                {more ? "Show less" : "Show more"}<ChevronDown className={cn("size-4 transition-transform duration-200 motion-reduce:transition-none", more && "rotate-180")} aria-hidden />
+                {more ? "Show less" : "Show more"}<ChevronDown className={cn("size-4 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none", more && "rotate-180")} aria-hidden />
               </button>
             </div>
           )}
