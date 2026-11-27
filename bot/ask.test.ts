@@ -1,7 +1,7 @@
 // /ask: the website's search answer as one embed, Bruno only where the site would use him, credited only then.
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
-import { BRUNO_CREDIT, CHAT_TIMEOUT_MS, DESCRIPTION_MAX, affirmative, ask, askEmbed, askNext, chatContext, chatPost, declined, fitLines, lookupNoteFor, offeredQuestion, videoLinks, type AskDeps } from "./ask";
+import { BRUNO_CREDIT, CHAT_TIMEOUT_MS, DESCRIPTION_MAX, affirmative, answerPost, ask, askEmbed, askNext, chatContext, chatPost, declined, fitLines, lookupNoteFor, offeredQuestion, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 import { SORRY_SENTENCE } from "../src/shared/search";
 import { NO_CHAT, NO_REPLY } from "./smallTalk";
@@ -96,15 +96,16 @@ describe("the embed, step by step", () => {
     expect(e.description!.split("\n").slice(0, 2)).toEqual(["**First went to Worlds in 2021–22**", `• [2021–22 Franklin](${SITE}/events/2021/FRANKLIN) · Rank 12`]);
   });
 
-  it("a stat answer with a headline: the headline alone (it is the answer), the rest one tap away", () => {
+  it("a stat answer with a headline: the headline, then every row under it", () => {
     const rows = Array.from({ length: 7 }, (_, i) => ({ rank: i + 1, team: { label: `${100 + i}`, href: `/teams/${100 + i}` }, location: null, record: "5–1–0", opr: 50, value: 50 - i, display: `${50 - i}.0` }));
     const stat = { family: "leaderboard", intent: "opr-top", title: "Top OPR", scope: [], blocks: [{ kind: "leaderboard", title: "Top 7", stat: { id: "opr", label: "OPR" }, note: "2025–26 · 7 teams", rows }], definition: "OPR without penalties", source: "2025–26 matches" } as const;
     const e = askEmbed("top opr", base({ stat: { ...stat, headline: { value: "50.0", label: "OPR", href: "/teams/100" } } as never }), null, SITE);
-    expect(e.description!.split("\n")).toEqual([`**[50.0](${SITE}/teams/100)** OPR`, `[Open this answer on controlscout.org](${SITE}/search?q=top%20opr)`]);
-    // No headline: the first block, its list cut at 3.
-    const lines = askEmbed("top opr", base({ stat: stat as never }), null, SITE).description!.split("\n");
+    const lines = e.description!.split("\n");
+    expect(lines[0]).toBe(`**[50.0](${SITE}/teams/100)** OPR`);
+    // Every row, not the first three: the whole list the site built is posted.
     expect(lines).toContain(`1. [100](${SITE}/teams/100) **50.0** · 5–1–0`);
-    expect(lines).toContain("…and 4 more on the website");
+    expect(lines).toContain(`7. [106](${SITE}/teams/106) **44.0** · 5–1–0`);
+    expect(lines.join("\n")).not.toContain("more on the website");
     expect(lines).not.toContain("*2025–26 matches*");
   });
 
@@ -128,12 +129,14 @@ describe("the embed, step by step", () => {
     expect(e.description!.split("\n")[0]).toBe("**Yes** · 4215 has been to Worlds 2 times");
   });
 
-  it("never past Discord's limits: cut from the bottom, the link to the whole answer kept", () => {
+  it("never past Discord's limits: the embed holds whole lines, and the rest comes back as text", () => {
     const a = base({ hits: Array.from({ length: 5 }, (_, i) => hit(i + 1, { title: "x".repeat(1500) })) });
-    const e = askEmbed("x", a, null, SITE);
-    expect(e.description!.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
-    expect(e.description).toMatch(/…more on the website\n\[Open this answer on controlscout\.org\]/);
-    expect(JSON.stringify(e).length).toBeLessThan(6000);
+    const post = answerPost("x", a, null, SITE);
+    expect(post.embed.description!.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+    expect(post.embed.description).toMatch(/\[Open this answer on controlscout\.org\]\(.*\)$/);
+    expect(JSON.stringify(post.embed).length).toBeLessThan(6000);
+    // What the embed couldn't hold is handed over, not dropped and not left to the website.
+    expect(post.rest).toBeTruthy();
     expect(fitLines(["a", "b"], 100)).toBe("a\nb");
   });
 });
@@ -194,12 +197,15 @@ describe("the same path as the website, Bruno only where it would use him", () =
 });
 
 describe("a long answer in the channel", () => {
-  it("is a few short lines as read (links count as their text), the rest one tap away", () => {
-    const a = base({ hits: [], card: { kind: "info", title: "Long", lines: Array.from({ length: 10 }, (_, i) => ({ text: `Line ${i} `.padEnd(200, "x"), href: `/events/2025/E${i}` })) } });
-    const e = askEmbed("long", a, null, SITE);
-    const read = e.description!.replace(/\]\([^)]*\)/g, "]").length;
-    expect(read).toBeLessThanOrEqual(500 + 80);
-    expect(e.description).toMatch(/…more on the website\n\[Open this answer on controlscout\.org\]\(.*\)$/);
+  it("holds whole lines up to Discord's limit, and hands over the rest", () => {
+    const a = base({ hits: [], card: { kind: "info", title: "Long", lines: Array.from({ length: 30 }, (_, i) => ({ text: `Line ${i} `.padEnd(200, "x"), href: `/events/2025/E${i}` })) } });
+    const post = answerPost("long", a, null, SITE);
+    // No 500-character cut: as many whole lines as Discord's description holds...
+    expect(post.embed.description!.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+    expect(post.embed.description).toContain("Line 0");
+    // ...and the lines it can't hold come back for the channel, not a link.
+    expect(post.rest).toContain("Line 29");
+    expect(`${post.embed.description}\n${post.rest}`).not.toContain("more on the website");
   });
 });
 

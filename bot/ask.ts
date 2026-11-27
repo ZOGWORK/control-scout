@@ -44,16 +44,8 @@ export const BRUNO_CREDIT = "Bruno AI, from Control Point";
 /** Discord's caps: an embed's description, and all of one message's text. */
 export const DESCRIPTION_MAX = 4096;
 export const EMBED_MAX = 6000;
-/** How much of an answer a reader sees in the channel (links counted as their text): a phone screen or so. The rest
- *  is one tap away on the website, so a long answer never becomes a wall in the channel. */
-export const READ_MAX = 500;
 /** What a reader sees of a line: a link's text, not its address. */
 const readLen = (s: string) => s.replace(/\]\([^)]*\)/g, "]").length;
-/** Rows of one list block shown before "…and N more on the website". */
-const ROWS = 3;
-/** Top results listed when the card doesn't already cover them. */
-const HITS = 3;
-
 export interface BrunoSentence { text: string; points: string[] }
 
 /** What /ask needs from the site (the real functions in askDeps; stand-ins in tests). */
@@ -119,7 +111,10 @@ export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string;   
   declined?: string;
   /** What the answer actually checked: the searches behind it and the parts of the message they didn't answer, said on
    *  the post so a reader can see what was verified and what wasn't. */
-  checked?: { searches: number; unanswered: string[] } }
+  checked?: { searches: number; unanswered: string[] };
+  /** The part of the answer the embed couldn't hold (a board's rows past the cut, a compound question's other parts, a
+   *  card's every line), which the handler posts in the channel under the answer. Absent when the embed is all of it. */
+  rest?: string }
 
 /** Whether an answer has records to show — a card, a stat or results, never the sorry a message-level search gives
  *  when it can't read the whole question. A chat beside no records posts its words alone. */
@@ -349,7 +344,7 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
       // site's queue learns the phrasing, and the answer still posts (an empty answer is filed further down).
       if (recordsMiss(q) && CANT.test(reply.text)) deps.miss?.(q, answer, guild);
       return {
-        embed: askEmbed(q, shown, null, site, video, pageQ),
+        ...answerPost(q, shown, null, site, video, pageQ),
         meta: { step: answer.step, refined: false, sentence: false, chat: true },
         chat: { text: reply.text, ...(keep ? { card: true } : {}), ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(pageQ, site) } : {}) },
         next: askNext(shown),
@@ -378,7 +373,7 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
   // question's own words decide, not the thread's, and an answer search gave teaches the queue nothing.
   if (empty && recordsMiss(q)) deps.miss?.(q, answer, guild);
   if (talk) return {
-    embed: askEmbed(q, answer, null, site),
+    ...answerPost(q, answer, null, site),
     meta: { step: answer.step, refined, sentence: false, chat: true },
     chat: { text: talk, by: "scout", page: searchHref(q, site) },
     next: askNext(answer),
@@ -387,7 +382,7 @@ async function answerAsk(q: string, deps: AskDeps, site: string, history: BrunoC
   const video = await videoFor(q, answer, deps);
   const watch = videoLinks(video);
   return {
-    embed: askEmbed(q, answer, sentence, site, video),
+    ...answerPost(q, answer, sentence, site, video),
     meta: { step: answer.step, refined, sentence: !!sentence },
     ...(watch[0] ? { content: watch[0].url } : {}),
     next: askNext(answer),
@@ -627,7 +622,6 @@ const link = (label: string, href: string | undefined, site: string) => (href ? 
 const statLink = (l: StatLink, site: string) => link(l.label, l.href, site);
 /** A team StatLink ("4215", "4215 Hypnotic Robotics") linked to its page. */
 const teams = (ls: StatLink[] | undefined, site: string) => (ls ?? []).map((l) => statLink(l, site)).join(" & ");
-const more = (n: number) => (n > 0 ? [`…and ${n} more on the website`] : []);
 /** "/ask question:" text for an answer's own related list. The card's own suggestions are buttons instead
  *  (bot/buttons.ts): this is the one place search's own suggestions are read as text. */
 const askable = (q: string) => `\`/ask question: ${q.replace(/`/g, "'")}\``;
@@ -643,70 +637,71 @@ function matchRow(r: StatMatchRow, site: string): string {
   return `${r.rank ? `${r.rank}. ` : ""}${link(r.label, r.href, site)} ${score} ${r.result} · ${statLink(r.event, site)} (${r.season})${r.unofficial ? ` · *${md(r.unofficial)}*` : ""}`;
 }
 
-/** One stat block as lines (lists capped at ROWS, the rest left to the website). */
+/** One stat block as lines: every row of its lists, and every link it carries. */
 export function blockLines(b: StatBlock, site: string): string[] {
   const head = (t?: string) => (t ? [`**${md(t)}**`] : []);
   switch (b.kind) {
     case "kpis": return [b.items.map((k) => `${md(k.label)} **${link(k.value, k.href, site)}**${k.sub ? ` (${md(k.sub)})` : ""}`).join(" · ")];
     case "record": return [...head(b.title), `${b.wins}–${b.losses}–${b.ties} (W–L–T)${b.split ? ` · quals ${b.split.quals.wins}–${b.split.quals.losses}–${b.split.quals.ties}, playoffs ${b.split.playoffs.wins}–${b.split.playoffs.losses}–${b.split.playoffs.ties}` : ""}`];
-    case "matches": return [...head(b.title), ...b.rows.slice(0, ROWS).map((r) => matchRow(r, site)), ...more(b.rows.length - ROWS)];
+    case "matches": return [...head(b.title), ...b.rows.map((r) => matchRow(r, site))];
     case "table": {
       const cols = b.columns.slice(0, 4);
-      const rows = b.rows.slice(0, ROWS).map((r) => {
+      const list = b.rows.map((r) => {
         const [first, ...rest] = cols.map((c) => r.cells[c.key]).map((v) => (v == null ? "—" : String(v)));
         const sides = r.teams ? ` · ${teams(r.teams.red, site)} vs ${teams(r.teams.blue, site)}` : "";
         return `${link(first ?? "", r.href, site)}${rest.length ? ` · ${rest.map(md).join(" · ")}` : ""}${sides}`;
       });
-      return [...head(b.title), ...rows, ...more(b.rows.length - ROWS)];
+      return [...head(b.title), ...list];
     }
-    case "leaderboard": return [...head(b.title), ...b.rows.slice(0, ROWS).map((r) => `${r.rank}. ${statLink(r.team, site)} **${md(r.display)}**${r.record ? ` · ${md(r.record)}` : ""}`), ...more(b.rows.length - ROWS), md(b.note)];
-    case "compare": return [...head(b.title), `${teams(b.teams, site).replace(/ & /g, " vs ")}`, ...b.rows.slice(0, ROWS).map((r) => `${md(r.label)}: ${r.values.map((v, i) => (r.best === i ? `**${md(v)}**` : md(v))).join(" vs ")}${r.gap ? ` (${md(r.gap)})` : ""}`), ...more(b.rows.length - ROWS)];
-    case "league": return [...head(b.title), ...b.rows.slice(0, ROWS).map((r) => `${r.rank}. ${teamLink(r.team, site)}${r.name ? ` ${md(r.name)}` : ""}${r.wins != null ? ` · ${r.wins}–${r.losses ?? 0}–${r.ties ?? 0}` : ""}${r.rs != null ? ` · RS ${r.rs}` : ""}`), ...more(b.rows.length - ROWS), statLink(b.more, site)];
-    case "links": return b.items.length ? [...head(b.title), b.items.slice(0, 10).map((l) => statLink(l, site)).join(" · ")] : b.none ? [md(b.none)] : [];
+    case "leaderboard": return [...head(b.title), ...b.rows.map((r) => `${r.rank}. ${statLink(r.team, site)} **${md(r.display)}**${r.record ? ` · ${md(r.record)}` : ""}`), md(b.note)];
+    case "compare": return [...head(b.title), `${teams(b.teams, site).replace(/ & /g, " vs ")}`, ...b.rows.map((r) => `${md(r.label)}: ${r.values.map((v, i) => (r.best === i ? `**${md(v)}**` : md(v))).join(" vs ")}${r.gap ? ` (${md(r.gap)})` : ""}`)];
+    case "league": return [...head(b.title), ...b.rows.map((r) => `${r.rank}. ${teamLink(r.team, site)}${r.name ? ` ${md(r.name)}` : ""}${r.wins != null ? ` · ${r.wins}–${r.losses ?? 0}–${r.ties ?? 0}` : ""}${r.rs != null ? ` · RS ${r.rs}` : ""}`), statLink(b.more, site)];
+    case "links": return b.items.length ? [...head(b.title), b.items.map((l) => statLink(l, site)).join(" · ")] : b.none ? [md(b.none)] : [];
     case "related": return [...head(b.title), ...b.queries.slice(0, 3).map(askable)];
     case "chance": return [`${md(b.label)}: **${Math.round(b.p * 100) === 0 && !b.decided ? "1%" : Math.round(b.p * 100) === 100 && !b.decided ? "99%" : `${Math.round(b.p * 100)}%`}** ${md(b.who)}${b.note ? ` · ${md(b.note)}` : ""}${b.action ? ` · ${statLink(b.action, site)}` : ""}`];
-    case "series": return [...head(b.title), b.points.filter((p) => p.y != null).slice(-ROWS).map((p) => `${md(p.x)} ${p.y}${b.unit ? ` ${md(b.unit)}` : ""}`).join(" · ")];
-    case "bars": return [...head(b.title), ...b.groups.slice(0, ROWS).map((g) => `${md(g.label)}: ${g.items.map((i) => `${md(i.label)} ${i.value ?? "—"}`).join(" · ")}`)];
-    case "videos": return b.tiles.length ? [...head(b.title), ...b.tiles.slice(0, ROWS).map((t) => `${link(t.label, t.href, site)} ${t.redScore}–${t.blueScore}${t.event ? ` · ${md(t.event)}` : ""}`), ...more(b.tiles.length - ROWS)] : b.empty ? [link(b.empty.text, b.empty.href, site)] : [];
+    case "series": return [...head(b.title), b.points.filter((p) => p.y != null).map((p) => `${md(p.x)} ${p.y}${b.unit ? ` ${md(b.unit)}` : ""}`).join(" · ")];
+    case "bars": return [...head(b.title), ...b.groups.map((g) => `${md(g.label)}: ${g.items.map((i) => `${md(i.label)} ${i.value ?? "—"}`).join(" · ")}`)];
+    case "videos": return b.tiles.length ? [...head(b.title), ...b.tiles.map((t) => `${link(t.label, t.href, site)} ${t.redScore}–${t.blueScore}${t.event ? ` · ${md(t.event)}` : ""}`)] : b.empty ? [link(b.empty.text, b.empty.href, site)] : [];
   }
 }
 
-/** The short answer: the headline when there is one (it is the answer), else the first block that says anything.
- *  Everything else (more blocks, the source) is one tap away on the website. */
+/** The answer as lines: the headline when there is one, then every block with its own title and every row of each
+ *  list. Nothing is capped here — the embed holds what Discord lets it, and the rest follows in the channel. */
 function statLines(s: StatAnswer, site: string): string[] {
-  if (s.headline) {
-    const h = s.headline;
-    return [`**${link(h.value, h.href, site)}** ${md(h.label)}${h.sub ? ` · ${md(h.sub)}` : ""}${h.teams?.length ? ` · ${teams(h.teams, site)}` : ""}`];
-  }
-  if (s.none) return [md(s.none)];
+  const h = s.headline;
+  const headline = h ? [`**${link(h.value, h.href, site)}** ${md(h.label)}${h.sub ? ` · ${md(h.sub)}` : ""}${h.teams?.length ? ` · ${teams(h.teams, site)}` : ""}`] : [];
+  // A blank line between blocks, never before the first.
+  const blocks: string[] = [];
   for (const b of s.blocks) {
     const lines = blockLines(b, site).filter(Boolean);
-    if (lines.length) return lines;
+    if (lines.length) blocks.push(...(blocks.length ? [""] : []), ...lines);
   }
-  return [];
+  return [...headline, ...(s.none ? [md(s.none)] : []), ...blocks];
 }
 
 const hitLine = (h: SearchHit, site: string) => `${link(h.title, hitHref(h), site)}${h.subtitle ? ` · ${md(h.subtitle)}` : ""}${h.facts?.length ? ` · ${h.facts.map((f) => `${md(f.label)} **${md(f.value)}**`).join(", ")}` : ""}`;
 
-/** The lines that fit in `max` characters (and `read` as a reader sees them), cut from the bottom ("…more on the
- *  website" when any were cut). */
-export function fitLines(lines: string[], max: number, read = Infinity): string {
-  const out: string[] = [];
+/** The lines that fit in `max` characters (and `read` as a reader sees them), whole lines from the top. */
+function takeLines(lines: string[], max: number, read = Infinity): { kept: string[]; cut: boolean } {
+  const kept: string[] = [];
   let used = 0, seen = 0;
-  const tail = "\n…more on the website".length;
-  for (let i = 0; i < lines.length; i++) {
-    const add = (out.length ? 1 : 0) + lines[i].length, look = (out.length ? 1 : 0) + readLen(lines[i]);
-    const room = i < lines.length - 1 ? tail : 0;
-    if (used + add + room > max || seen + look + room > read) { out.push("…more on the website"); break; }
-    out.push(lines[i]);
+  for (const line of lines) {
+    const add = (kept.length ? 1 : 0) + line.length, look = (kept.length ? 1 : 0) + readLen(line);
+    if (used + add > max || seen + look > read) return { kept, cut: true };
+    kept.push(line);
     used += add;
     seen += look;
   }
-  return out.join("\n");
+  return { kept, cut: false };
 }
 
+/** What fits of `lines`, as text. */
+export const fitLines = (lines: string[], max: number, read = Infinity): string => takeLines(lines, max, read).kept.join("\n");
+
 /** The website's answer as one embed. */
-export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video?: SearchVideo, pageQuery = q): APIEmbed {
+/** An answer's lines: the headline and every block, every row of each list, every card line, every result. Nothing
+ *  is capped here; the embed holds what Discord lets it and the rest follows in the channel. */
+function rendered(q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video: SearchVideo | undefined, pageQuery: string): { title: string; lines: string[]; close: string; footer: APIEmbed["footer"] } {
   const page = searchHref(pageQuery, site);
   const bruno = a.step === "ai" || !!sentence;
   const footer = { text: bruno ? `${BRUNO_CREDIT}\n${FOOTER.text}` : FOOTER.text };
@@ -719,11 +714,10 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
     const lines = [
       understood.length ? `I read it as: ${understood.map(md).join(" · ")}` : null,
       a.recovery?.ai?.refined ? `Bruno AI read it as: **${md(a.recovery.ai.refined)}**` : null,
-      ...(a.recovery?.closest?.length ? ["**Closest matches:**", ...a.recovery.closest.slice(0, HITS).map((h) => hitLine(h, site))] : []),
+      ...(a.recovery?.closest?.length ? ["**Closest matches:**", ...a.recovery.closest.map((h) => hitLine(h, site))] : []),
       (a.recovery?.browse ?? []).map((b) => link(b.title, b.href, site)).join(" · ") || null,
     ].filter((x): x is string => !!x);
-    // The link to the whole answer stays: lines are cut from the bottom, never it.
-    return { author: asked(q), title: SORRY_SENTENCE, url: page, description: `${fitLines(lines, DESCRIPTION_MAX - close.length - 1, READ_MAX)}\n${close}`, color: VOLT, footer };
+    return { title: SORRY_SENTENCE, lines, close, footer };
   }
 
   const lines: string[] = [];
@@ -740,9 +734,9 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
     const c = a.card;
     title = `${c.title}${c.team ? ` · ${c.team.number}${c.team.name ? ` ${c.team.name}` : ""}` : ""}`;
     if (c.headline) lines.push(`**${md(c.headline)}**`);
-    lines.push(...c.lines.slice(0, ROWS).map((l) => `• ${lineOf(l, site)}`), ...more(c.lines.length - ROWS));
+    lines.push(...c.lines.map((l) => `• ${lineOf(l, site)}`));
     if (c.none) lines.push(md(c.none));
-    if (c.closest?.length && !c.lines.length) lines.push("**Closest records:**", ...c.closest.slice(0, ROWS).map((l) => `• ${lineOf(l, site)}`));
+    if (c.closest?.length && !c.lines.length) lines.push("**Closest records:**", ...c.closest.map((l) => `• ${lineOf(l, site)}`));
   } else {
     title = a.hits[0] ? a.hits[0].title : q;
   }
@@ -752,20 +746,43 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
     else if (c.card) {
       lines.push("", `**${md(`${c.card.title}${c.card.team ? ` · ${c.card.team.number}${c.card.team.name ? ` ${c.card.team.name}` : ""}` : ""}`)}**`);
       if (c.card.headline) lines.push(`**${md(c.card.headline)}**`);
-      lines.push(...c.card.lines.slice(0, ROWS).map((l) => `• ${lineOf(l, site)}`), ...more(c.card.lines.length - ROWS));
+      lines.push(...c.card.lines.map((l) => `• ${lineOf(l, site)}`));
       if (c.card.none) lines.push(md(c.card.none));
     }
   }
   // The top results, when the answer didn't already cover them.
-  if (!a.stat && !a.card) lines.push(...a.hits.slice(0, HITS).map((h) => `• ${hitLine(h, site)}`), ...more(a.hits.length - HITS));
+  if (!a.stat && !a.card) lines.push(...a.hits.map((h) => `• ${hitLine(h, site)}`));
   // The videos, as the website plays them: watched on YouTube.
   const vids = videoLinks(video);
   if (vids.length) lines.push(`▶ Watch: ${vids.map((v) => `[${md(v.label)}](${v.url})`).join(" · ")}`);
   // What to ask next is not text here: the answer's buttons carry it (bot/buttons.ts, askNext below).
-  // The link stays: lines are cut from the bottom of the answer, never the link to the whole of it.
-  const body = fitLines(lines, DESCRIPTION_MAX - close.length - 1, READ_MAX);
-  return { author: asked(q), title: title.length > 256 ? `${title.slice(0, 255)}…` : title, url: page, description: `${body ? `${body}\n` : ""}${close}`, color: VOLT, footer };
+  return { title, lines, close, footer };
 }
+
+/**
+ * The answer as the embed posts it, and — when Discord's embed can't hold all of it — the rest as text, which the
+ * handler posts in the channel right after: a board's rows past the cut, a compound question's other parts, a card's
+ * every line. Nothing is dropped and there is no "more on the website".
+ */
+export function answerPost(q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video?: SearchVideo, pageQuery = q): { embed: APIEmbed; rest?: string } {
+  const all = rendered(q, a, sentence, site, video, pageQuery);
+  // The link to the whole answer stays: lines are cut from the bottom, never it.
+  const fit = takeLines(all.lines, DESCRIPTION_MAX - all.close.length - 1);
+  const embed: APIEmbed = {
+    author: asked(q),
+    title: all.title.length > 256 ? `${all.title.slice(0, 255)}…` : all.title,
+    url: searchHref(pageQuery, site),
+    description: `${fit.kept.length ? `${fit.kept.join("\n")}\n` : ""}${all.close}`,
+    color: VOLT,
+    footer: all.footer,
+  };
+  // Everything the embed couldn't hold, in the same order: the handler posts it as messages under the answer.
+  const rest = all.lines.slice(fit.kept.length).join("\n").trim();
+  return rest ? { embed, rest } : { embed };
+}
+
+export const askEmbed = (q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video?: SearchVideo, pageQuery = q): APIEmbed =>
+  answerPost(q, a, sentence, site, video, pageQuery).embed;
 
 /** The question as asked, above the answer: everyone in the channel sees what was asked, not just "used /ask". */
 export const asked = (q: string) => {
