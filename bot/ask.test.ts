@@ -1,7 +1,7 @@
 // /ask: the website's search answer as one embed, Bruno only where the site would use him, credited only then.
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
-import { BRUNO_CREDIT, CHAT_TIMEOUT_MS, DESCRIPTION_MAX, affirmative, ask, askEmbed, askNext, chatContext, chatPost, declined, fitLines, offeredQuestion, videoLinks, type AskDeps } from "./ask";
+import { BRUNO_CREDIT, CHAT_TIMEOUT_MS, DESCRIPTION_MAX, affirmative, ask, askEmbed, askNext, chatContext, chatPost, declined, fitLines, lookupNoteFor, offeredQuestion, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 import { SORRY_SENTENCE } from "../src/shared/search";
 import { NO_CHAT, NO_REPLY } from "./smallTalk";
@@ -585,6 +585,15 @@ describe("a chat that looks something up, and one that got a number wrong", () =
     expect(factsFor).toHaveBeenCalledTimes(3);
     expect(most).toBe(1);
     expect(r.chat!.text).toBe("Done.");
+  });
+
+  it("names only the lookups that ran in the note the chat reads", () => {
+    // One of the two ran (the clock stopped the other): the note must not call the unrun one empty, or he gives up on it.
+    const note = lookupNoteFor(2, [{ r: "4215 opr", facts: ["4215: OPR 45.2"], ok: true }]);
+    expect(note).toContain("4215 opr");
+    expect(note).toContain("step 2");
+    expect(note).toContain("include what that search found");
+    expect(note).not.toContain("found nothing");
   });
 
   it("stops a step's lookups when the budget runs out, instead of searching for facts it can't use", async () => {
