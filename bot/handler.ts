@@ -533,7 +533,6 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     await post(reportedEmbed(r)).catch((e) => logLine(`report filed #${r.number} but couldn't say so: ${(e as Error)?.message ?? String(e)}`));
     return r;
   }
-  /** Remember what this ask taught the server: the asker's name and the teams the message named (bot/memory.ts). */
   /** The team this person said is theirs here, or null (none said, no memory, or a read that failed). */
   async function ownTeam(guild: string | null | undefined, user: string): Promise<number | null> {
     if (!guild || !lookups.memory?.myTeam) return null;
@@ -615,6 +614,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       return errorEmbed("That didn't work", "Something on my side stopped it. Try again in a moment, or use the slash command.");
     }
   }
+  /** Remember what this ask taught the server: the asker's name and the teams the message named (bot/memory.ts). */
   function learnAsk(guild: string | null | undefined, user: string, name: string | null, q: string): void {
     if (!guild || !lookups.memory) return;
     void lookups.memory.learn(guild, user, name, teamsAsked(q)).catch(() => {});
