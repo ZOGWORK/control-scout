@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { usePersonal } from "./personal";
 import { useFlag } from "./flags";
-import { PACK_META_KEY, followsTeams, noteVisit, shouldSyncLite, type ConnectionInfo } from "./packPolicy";
+import { LITE_RECHECK_MS, PACK_META_KEY, followsTeams, liteRecheckDue, noteVisit, shouldSyncLite, type ConnectionInfo } from "./packPolicy";
 import { liteAllowed, updatePrefs } from "./offline/updatePolicy";
 
 /** After load + idle, this much quiet (no new requests, no route change) before the download may start. */
@@ -49,12 +49,27 @@ export function LitePackSync(): null {
     let quiet = false, loaded = false, startedAt = 0, idleId: number | undefined, timer: number | undefined;
     const run = () => {
       if (!quiet || !packsOn) return;
+      pick();
+    };
+    // The pack is asked about again mid-session too (a tab left open at a venue all day): the server rebuilds it at the
+    // sync's pace on an event day, and a page that loaded before the build would otherwise keep yesterday's ratings.
+    // The stored pack keeps answering until the newer one is saved whole; a failed check changes nothing.
+    let lastPick = 0;
+    const pick = () => {
+      if (!packsOn) return;
       // Tried whatever navigator.onLine says (iOS can say offline while online): with no signal the fetch just fails, quietly.
       if (!shouldSyncLite({ online: true, returning, follows, hasPack: hasPack(), connection: conn })) return;
       if (!liteAllowed(network, conn)) return;
+      lastPick = Date.now();
       // Asked again right before the download: Wi-Fi may have dropped while the manifest loaded.
       void import("./packs").then((p) => p.syncLite({ allowed: () => liteAllowed(network, conn) })).catch(() => {});
     };
+    const recheck = () => {
+      if (liteRecheckDue(lastPick, Date.now(), document.visibilityState !== "hidden")) pick();
+    };
+    const recheckTimer = window.setInterval(recheck, LITE_RECHECK_MS);
+    const onVisible = () => { if (document.visibilityState !== "hidden") recheck(); };
+    document.addEventListener("visibilitychange", onVisible);
     const idle = (cb: () => void) => {
       if (w.requestIdleCallback) idleId = w.requestIdleCallback(() => { idleId = undefined; cb(); }, { timeout: 10_000 });
       else cb();
@@ -89,6 +104,8 @@ export function LitePackSync(): null {
     return () => {
       kickRef.current = () => {};
       window.removeEventListener("load", afterLoad);
+      clearInterval(recheckTimer);
+      document.removeEventListener("visibilitychange", onVisible);
       cancel();
       observer?.disconnect();
       window.removeEventListener("online", run);

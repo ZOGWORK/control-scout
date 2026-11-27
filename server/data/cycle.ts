@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { hasFirst } from "../env.js";
 import { all, kvGet, kvSet } from "../db.js";
 import { buildPacks } from "../packs/build.js";
+import { packsDue } from "../packs/due.js";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { packsEngine, packsPresent } from "../packs/routes.js";
 import { syncAll } from "../sync.js";
@@ -62,21 +63,41 @@ export async function runCycle(log: Log) {
     await runStats({ seasons: every ? undefined : [...new Set([CURRENT_SEASON, ...pending, ...(unproven ? [unproven] : [])])], log: (m) => log(`  ${m}`) });
     if (pending.length) await kvSet(STATS_PENDING, (await statsPending()).filter((s) => !pending.includes(s)));
   }, { ttlMs: 5 * 60_000, waitMs: 5 * 60_000, pollMs: 2000 });
-  // Offline packs: rebuilt at most daily (they're versioned; devices see "new data available").
+  // Offline packs: rebuilt once a day, and at the sync's own pace on an event day (packs/due.ts) — a phone at a venue
+  // predicts from the lite pack, and a pack built yesterday morning is yesterday's ratings. An event-day build rebuilds
+  // the lite pack and the current season's, carrying the frozen seasons' files forward instead of rewriting them.
   // The timestamp alone isn't enough: an imported database carries
   // packs:last without the pack files, so also require a readable manifest.
   // CS_PACKS=off: hosts with a throwaway disk (Render free) skip packs; /download says none are built.
   // A new engine version rebuilds them right away: its ratings carry state older packs lack.
-  const lastPacks = await kvGet<string>("packs:last");
-  if (process.env.CS_PACKS !== "off" && (!lastPacks || Date.now() - Date.parse(lastPacks) > 23 * 3600_000 || !packsPresent() || packsEngine() !== ENGINE_VERSION)) {
+  const packs = packsDue({
+    lastBuiltAt: await kvGet<string>("packs:last"), now: Date.now(), eventDay: await eventDayNow(),
+    eventDayMinutes: eventDaySyncMinutes(), present: packsPresent(), packsEngine: packsEngine(), engine: ENGINE_VERSION,
+  });
+  if (process.env.CS_PACKS !== "off" && packs.due) {
     try {
-      await buildPacks((m) => log(`  ${m}`));
+      await buildPacks((m) => log(`  ${m}`), { only: packs.scope === "current" ? [CURRENT_SEASON] : null });
       await kvSet("packs:last", new Date().toISOString());
     } catch (e) { log(`  packs: ${(e as Error).message}`); } // e.g. a manual build holds the lock
   }
   // Team logos (server/teamLogos.ts): FIRST's pictures, refreshed daily whether or not the owner's switch is on, so
   // turning it on shows them at once. Light: one stylesheet per season, then only pictures that changed.
   await refreshTeamLogosIfDue([CURRENT_SEASON, CURRENT_SEASON - 1], (m) => log(`  ${m}`));
+}
+
+/** Is any event running today ±1 day? (Event days sync, and build packs, at eventDaySyncMinutes; other days daily.) */
+export async function eventDayNow(now = new Date()): Promise<boolean> {
+  const d = (n: number) => new Date(now.getTime() + n * 864e5).toISOString().slice(0, 10);
+  const r = await all("SELECT 1 FROM events WHERE season = ? AND start <= ? AND COALESCE(end, start) >= ? AND type NOT IN ('Kickoff','Workshop','DemoExhibition') LIMIT 1", [CURRENT_SEASON, d(1), d(-1)]);
+  return r.length > 0;
+}
+
+/** How often an event day syncs (EVENT_DAY_SYNC_MINUTES, else 15 min where the cycle runs in a child process, 60 where it
+ *  runs in the server process): the pace the packs follow too. */
+export function eventDaySyncMinutes(): number {
+  const configured = Number(process.env.EVENT_DAY_SYNC_MINUTES);
+  if (Number.isFinite(configured) && configured >= 1) return configured;
+  return process.env.DATA_CYCLE === "child" ? 15 : 60;
 }
 
 /** Backfill runs where the cycle has its own process (the VM); CS_BACKFILL=on|off overrides. */
