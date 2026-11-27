@@ -1,9 +1,10 @@
 // Simulated rankings answer from the ratings pages already use (liveForecaster: the last finished build), so the first
 // click after a sync doesn't wait for a full window replay before its 2.5 s budget starts. The kept answer is keyed by
-// the build it used: a newer build gives a new answer, the same build the kept one.
+// the build it used and the event input: a newer build or a changed field gives a new answer, a sync that touched
+// neither keeps the kept one.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const engine = vi.hoisted(() => ({ live: "v1", data: "v2", liveCalls: 0, freshCalls: 0 }));
+const engine = vi.hoisted(() => ({ live: "v1", data: "v2", liveCalls: 0, freshCalls: 0, field: [1, 2, 3, 4, 5, 6] }));
 
 vi.mock("../predict/engine.js", () => ({
   dataVersion: async () => engine.data,
@@ -14,9 +15,9 @@ vi.mock("../predict/engine.js", () => ({
 vi.mock("../api/events.js", () => ({
   cachedEventDetail: async () => ({
     event: {}, alliances: [], matches: [],
-    field: [1, 2, 3, 4, 5, 6].map((team) => ({ team })),
+    field: engine.field.map((team) => ({ team })),
   }),
-  toEventInput: () => ({}),
+  toEventInput: (_e: unknown, field: { team: number }[]) => ({ field: field.map((t) => t.team) }),
 }));
 // No ratings in this stand-in: the answer is "unavailable", which is enough to see which ratings were asked for.
 const input = vi.hoisted(() => ({ seen: [] as unknown[] }));
@@ -42,5 +43,16 @@ describe("simulated rankings' ratings", () => {
     engine.live = "v4";
     await simulatedRankings(2026, "USNJQ2", 5);
     expect(input.seen).toEqual([{ built: "v3" }, { built: "v4" }]);
+  });
+
+  it("a sync that changed nothing about the event keeps the answer; one that added a team doesn't", async () => {
+    engine.live = "v5";
+    await simulatedRankings(2026, "USNJQ3", 5);
+    engine.data = "v9"; // another event's results came in
+    await simulatedRankings(2026, "USNJQ3", 5);
+    expect(input.seen).toHaveLength(1);
+    engine.field = [1, 2, 3, 4, 5, 6, 7];
+    await simulatedRankings(2026, "USNJQ3", 5);
+    expect(input.seen).toHaveLength(2);
   });
 });
