@@ -59,6 +59,8 @@ export const PRIVATE_TABLES = [
   // What a Discord server teaches the bot (migrations 100 and 108): its teams, people's names, reply threads and what
   // each channel was asking about.
   "discord_guild_teams", "discord_people", "discord_threads", "discord_channel_subjects",
+  // A person's own reminders (migration 118): Discord user ids, never shipped.
+  "discord_reminders",
   // The bot's own record of its servers (migration 104): server names, the questions it was asked, and the thumbs on its
   // answers. Server ids and people's words, so never shipped.
   "discord_guilds", "discord_asks", "discord_answers",
