@@ -1,7 +1,7 @@
 // The clip autopilot's choices (scripts/lib/autopilotRun.ts): which queued events a run reads, when one that gave
 // nothing new is tried again, and what a delivery's rows change.
 import { describe, expect, it } from "vitest";
-import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
+import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, FAILS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberFailure, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -121,6 +121,29 @@ describe("events the reader stops at its per-event limit", () => {
     rememberWait(m, "2024/USX", "rows wait", NOW);
     expect(m["2024/USX"].timeouts).toBeUndefined();
     expect(rememberTimeout(m, "2024/USX", undefined, NOW)).toBe("again");
+  });
+
+  it("a video that never plays isn't read every run: the first failed read waits WAIT_MS, the second in a row counts a try", () => {
+    const m: Memory = {}, ev = [q("USX", 1)].map((x) => ({ ...x, season: 2024 }));
+    expect(rememberFailure(m, "2024/USX", NOW)).toBe("again");
+    expect(m["2024/USX"]).toEqual({ tries: 0, last: new Date(NOW).toISOString(), result: "the read failed", fails: 1 });
+    expect(pickEvents(ev, new Set(), m, 5, NOW + WAIT_MS - 1).skipped[0].why).toMatch(/^its read failed/);
+    expect(pickEvents(ev, new Set(), m, 5, NOW + WAIT_MS).picked).toHaveLength(1);
+    expect(FAILS_TO_TRY).toBe(2);
+    expect(rememberFailure(m, "2024/USX", NOW + WAIT_MS)).toBe("counted");
+    expect(m["2024/USX"]).toEqual({ tries: 1, last: new Date(NOW + WAIT_MS).toISOString(), result: "the read failed 2 runs in a row" });
+    expect(pickEvents(ev, new Set(), m, 5, NOW + WAIT_MS + RETRY_MS - 1).picked).toEqual([]);
+    for (let i = 0; i < 2 * (GIVE_UP - 1); i++) rememberFailure(m, "2024/USX", NOW);
+    expect(m["2024/USX"].tries).toBe(GIVE_UP);
+    expect(pickEvents(ev, new Set(), m, 5, NOW + 10 * RETRY_MS).skipped[0].why).toMatch(/^read 3 times with nothing new/);
+  });
+
+  it("a read that ships between failures starts the streak again", () => {
+    const m: Memory = {};
+    rememberFailure(m, "2024/USX", NOW);
+    remember(m, "2024/USX", 2, "live", NOW);
+    expect(m["2024/USX"]).toBeUndefined();
+    expect(rememberFailure(m, "2024/USX", NOW)).toBe("again");
   });
 });
 
