@@ -38,6 +38,7 @@ import { useIsV8, V8_NUM } from "../lib/v8";
 import { V8Title, V8_LABEL } from "../components/myteams/v8";
 import { COMPARE_MAX as MAX, compareApiPath, compareSeasonOf, compareTeamsOf, compareTitle } from "../shared/compareUrl";
 import { V8_PHASE, type V8Phase } from "../lib/records/describe";
+import { TeamLogo } from "../components/TeamLogo";
 
 // The team hues (src/index.css --color-team-a…d, Okabe–Ito), as search's compare card has them: never the accent gold.
 const COLORS = ["var(--color-team-a)", "var(--color-team-b)", "var(--color-team-c)", "var(--color-team-d)"];
@@ -389,6 +390,7 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
                 {v8 ? (
                   <>
                     <Link to={`/teams/${x.team.number}?season=${d.season}`} className="flex min-w-0 items-baseline gap-2 hover:underline" title={x.team.name ?? undefined}>
+                      <TeamLogo team={x.team.number} size={20} className="self-center" />
                       <span className="shrink-0 font-display text-lg font-semibold tabular-nums text-text-base">{x.team.number}</span>
                       <span className="min-w-0 truncate text-xs text-text-muted max-sm:hidden">{x.team.name ?? ""}</span>
                     </Link>
@@ -532,7 +534,7 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
         <div className={cn("grid gap-3", t.length > 1 && "sm:grid-cols-2", t.length > 2 && "xl:grid-cols-4")}>
           {t.map((x, i) => (
             <div key={x.team.number} className="min-w-0 rounded-xl border border-border bg-card p-3 v8:border-line sm:v8:p-4">
-              <p className="flex items-center gap-2 text-sm font-semibold"><span className="size-2.5 shrink-0 rounded-full" style={{ background: COLORS[i] }} />
+              <p className="flex items-center gap-2 text-sm font-semibold"><span className="size-2.5 shrink-0 rounded-full" style={{ background: COLORS[i] }} /><TeamLogo team={x.team.number} size={18} />
                 <Link to={`/teams/${x.team.number}?season=${d.season}`} className="truncate hover:text-accent-text pointer-coarse:block pointer-coarse:leading-[44px] v8:hover:text-text-base v8:hover:underline">{x.team.number} {x.team.name}</Link></p>
               <ul className="mt-2 space-y-1 text-xs">
                 {x.events.length ? x.events.map((e) => (
@@ -611,6 +613,7 @@ function Verdict({ t, colors, season }: { t: CompareTeam[]; colors: string[]; se
               {/* A phone: the team and its count on one line, the stats it leads under them. */}
               <div className="flex items-baseline justify-between gap-3 sm:block">
                 <p className="flex min-w-0 items-baseline gap-2">
+                  <TeamLogo team={x.team} size={18} className="self-center" />
                   <Link to={`/teams/${x.team}?season=${season}`} className={cn("font-display text-lg font-semibold tabular-nums text-text-base hover:underline", V8_NUM)}>{x.team}</Link>
                   <span className="min-w-0 truncate text-xs text-text-muted" title={name(x.team) ?? undefined}>{name(x.team) ?? ""}</span>
                 </p>

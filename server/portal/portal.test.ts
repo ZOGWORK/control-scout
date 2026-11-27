@@ -212,6 +212,8 @@ describe("feature flags", () => {
       particleWave: true,
       // The glow at the page's end: its own switch, on by default.
       pageEndGlow: true,
+      // Team logos start off: the owner turns them on.
+      teamLogos: false,
     });
     expect(r.headers.get("cache-control")).toBe("public, max-age=15");
   });

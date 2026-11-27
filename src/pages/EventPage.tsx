@@ -80,6 +80,7 @@ import { Disclosure, eventState, FinishedFocus, noAwardsNote, LiveFocus, Upcomin
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/overlay";
 import { EVENT_TABS, type EventTab } from "../lib/eventTab";
 import { V8_PHASE } from "../lib/records/describe";
+import { TeamLogo, WithTeamLogo } from "../components/TeamLogo";
 
 export default function EventPage() {
   const { season, code } = useParams();
@@ -721,8 +722,8 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
     // Rank, RS and TBP shade green (best here) to red (worst) by value; W-L-T in its status tones (lib/rankShade.ts).
     { key: "rank", label: "Rank", value: rank, asc: true, align: "right", shade: true, render: (r) => <span className={cn((rank(r) ?? 9) <= 3 && "v8:font-semibold")} data-rank={rank(r) ?? undefined}>{rank(r) ?? "—"}</span> },
     { key: "team", label: "Team", value: (r) => r.team, render: (r) => phone && hasTeamPage(r.team, r.name)
-      ? <TeamNumber team={r.team} name={r.name ?? ""} href={`/teams/${r.team}?season=${season}`} plain />
-      : <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
+      ? <WithTeamLogo team={r.team}><TeamNumber team={r.team} name={r.name ?? ""} href={`/teams/${r.team}?season=${season}`} plain /></WithTeamLogo>
+      : <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><TeamLogo team={r.team} size={16} className="mr-1.5 -mt-0.5" /><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
     { key: "rs", label: "RS", title: meet ? "Ranking score at this meet (average ranking points per match)" : "Ranking score (average ranking points)", value: rs, align: "right", render: (r) => num(rs(r), 2), shade: true },
     { key: "wlt", label: "W-L-T", value: (r) => { const [w, l] = rec(r); return w == null ? null : w - (l ?? 0); }, align: "right", render: (r) => <WLT rec={rec(r)} /> },
     // Schedule difficulty (src/shared/scheduleDifficulty.ts), next to the record it helps explain (and in view on a
@@ -807,7 +808,7 @@ function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt
                   </span>
                 )}
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline gap-2"><span className={cn("font-mono font-semibold", t.team !== team && V8_NUM)}>{t.team}</span><span className="truncate text-sm" title={t.name ?? undefined}>{t.name}</span><FeaturedChip team={t.team} className="self-center" /></span>
+                  <span className="flex items-baseline gap-2"><TeamLogo team={t.team} size={18} className="self-center" /><span className={cn("font-mono font-semibold", t.team !== team && V8_NUM)}>{t.team}</span><span className="truncate text-sm" title={t.name ?? undefined}>{t.name}</span><FeaturedChip team={t.team} className="self-center" /></span>
                   <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
                   <span className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] tabular-nums">
                     {t.opr.np != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.npOpr, V8_STAT_CHIP, V8_PHASE.np)}>npOPR {num(t.opr.np)}</span>}

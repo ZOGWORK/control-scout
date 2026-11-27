@@ -28,6 +28,7 @@ import { useIsV8, V8_NUM } from "../lib/v8";
 import {
   Disclosure, RankingsTabs, V8_CAPTION, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_RANK, V8_NEW, V8_ROW, V8_TH, V8_UP, v8Medal, v8Trend,
 } from "../components/rankings/v8";
+import { TeamLogo } from "../components/TeamLogo";
 
 // v8: the filter row's buttons are plain hairline pills; a filter that's on is white text on white/10% (no accent).
 export const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-10 v8:transition-[color,background-color,border-color,scale] v8:duration-150 v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
@@ -327,6 +328,7 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
                 <td className={cn(td, "max-w-0 w-full")}>
                   <Link to={`/teams/${r.team}?season=${data.season}`} className="group block min-w-0">
                     <span className="flex items-baseline gap-2">
+                      <TeamLogo team={r.team} size={18} className="self-center" />
                       <span className={cn("font-mono font-semibold tabular-nums group-hover:text-accent-text", "v8:font-sans", !me && V8_NUM)}>{r.team}</span>
                       <span className={cn("truncate group-hover:text-accent-text", "v8:text-text-muted v8:group-hover:text-text-base", me && "v8:text-text-base")}>{r.name ?? ""}</span>
                       <FeaturedChip team={r.team} className="self-center" />
