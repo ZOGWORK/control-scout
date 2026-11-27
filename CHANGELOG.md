@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.2.6 — 2026-11-27
+
+The raw season file downloads with its size shown, and the server no longer compresses it on every download.
+
+### Highlights
+- [offline] The raw season file shows its size and progress while it downloads
+- [speed] The server sends the stored compressed copy, not a fresh one each time
+- [offline] A paused raw-file download still resumes where it stopped
+
+### Speed
+- **The raw season file comes from its stored gzipped twin** (`server/packs/routes.ts`, `server/app.ts`): the Download page's small "raw SQLite file" link for analysts served the `.db` (13 MB for 2026, 45 MB for 2025) through the compression middleware, which Brotli-compressed the whole file again on every download and sent no `Content-Length`, so the browser had no size to show. Each `.db` already has a gzipped twin on disk (the file the app itself downloads). A download that takes gzip and asks for no range now gets those bytes as they are, marked `Content-Encoding: gzip`, with their length, and the browser saves the `.db` it unzips. A range request (a resumed download) or a client that takes no gzip (curl, wget) gets the raw file, resumable as before, and nothing under `/packs/` goes through the compression middleware any more. The app's own downloads (`.db.gz`, the lite `.json.gz`) are unchanged: they already had a length and come from Cloudflare's cache. `server/packs/routes.rawdb.test.ts` covers each case. (#2418)
+
 ## 8.2.5 — 2026-11-27
 
 A phone left open at an event fetches the predictions pack once an hour, not every ten minutes.
