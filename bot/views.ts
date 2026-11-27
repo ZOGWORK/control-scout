@@ -229,35 +229,42 @@ const FIELD_MAX = 1024;
 const FIELDS_MAX = 25;
 export const EMBED_CHARS_MAX = 6000;
 
+/** An embed with what Discord's limits kept out of it (`rest`): the caller posts those lines in the channel under it. */
+export interface SpilledEmbed extends APIEmbed { rest?: string }
+
+/** A card split into what one embed takes (`embed`) and what is posted under it (`rest`). */
+export function spillOf(card: APIEmbed): { embed: APIEmbed; rest?: string } {
+  const { rest, ...embed } = card as SpilledEmbed;
+  return { embed, rest };
+}
+
 /**
- * Rows as field values Discord takes: whole rows, 1,024 characters to a field, the list continuing in a blank-named
- * field so it reads as one. A list longer than one field is posted whole, up to `budget` (what the embed's other parts
- * leave of Discord's 6,000); past that, the last field says how many it left out rather than the card being refused.
+ * Rows as field values Discord takes: whole rows, 1,024 characters to a field, 25 fields to a card, the list continuing
+ * in a blank-named field so it reads as one. Whatever the card can't hold (`budget`: what its other parts leave of
+ * Discord's 6,000, or the 26th field) comes back as `rest`: the caller posts those rows in the channel under the card,
+ * so a list is never cut and the card is never refused.
  */
-function packFields(name: string, rows: string[], budget = Infinity): APIEmbedField[] {
-  // A row that starts a field brings its name with it (the list's own, then a blank one), and a list that doesn't fit
-  // ends with "…and N more": both count against the budget, so they are paid for as the rows go in.
-  const reserve = 20;
-  const out: APIEmbedField[] = [];
-  let cur = "", used = 0, kept = 0;
-  for (const r of rows) {
+function packFields(name: string, rows: string[], budget = Infinity): { fields: APIEmbedField[]; rest: string[] } {
+  const fields: APIEmbedField[] = [];
+  // A field's own name (the list's, then a blank one) counts against the budget with its rows as they go in.
+  const fieldName = () => (fields.length ? "\u200b" : name);
+  const close = () => { if (cur) { fields.push({ name: fieldName(), value: cur }); cur = ""; } };
+  let cur = "", used = 0, done = 0;
+  for (const [i, r] of rows.entries()) {
     const row = r.length > FIELD_MAX ? `${r.slice(0, FIELD_MAX - 1)}…` : r;
-    const enters = !cur;
-    const add = (enters ? (out.length ? 1 : name.length) : 1) + row.length;
-    if (used + add + reserve > budget) break;
-    if (cur && cur.length + 1 + row.length > FIELD_MAX) { out.push({ name: out.length ? "\u200b" : name, value: cur }); cur = row; }
-    else cur = cur ? `${cur}\n${row}` : row;
+    const enters = !cur || cur.length + 1 + row.length > FIELD_MAX;
+    // A row that would need a field Discord won't take (a 26th) ends the list here; it and the rest go under the card.
+    if (enters && fields.length >= FIELDS_MAX) break;
+    const add = (enters ? fieldName().length : 1) + row.length;
+    if (used + add > budget) break;
+    if (!cur) cur = row;
+    else if (enters) { close(); cur = row; }
+    else cur = `${cur}\n${row}`;
     used += add;
-    kept++;
+    done = i + 1;
   }
-  if (!kept) return [];
-  if (kept < rows.length) {
-    const tail = `…and ${rows.length - kept} more`;
-    if (cur.length + 1 + tail.length <= FIELD_MAX) cur = `${cur}\n${tail}`;
-    else { out.push({ name: out.length ? "\u200b" : name, value: cur }); cur = tail; }
-  }
-  if (cur) out.push({ name: out.length ? "\u200b" : name, value: cur });
-  return out.slice(0, FIELDS_MAX);
+  close();
+  return { fields, rest: rows.slice(done) };
 }
 
 export interface ResultOptions {
@@ -358,7 +365,7 @@ export function winningAlliance(d: Pick<EventDetail, "awards" | "alliances">): {
   return { alliance: alliance?.number ?? null, teams: awarded };
 }
 
-export function eventEmbed(d: EventDetail, site: string): APIEmbed {
+export function eventEmbed(d: EventDetail, site: string): SpilledEmbed {
   const e = d.event;
   const title = clip(e.name, 256);
   const description = [dates(e.start, e.end), place(e.city, e.state, e.country), e.code].filter(Boolean).join(" · ");
@@ -373,16 +380,19 @@ export function eventEmbed(d: EventDetail, site: string): APIEmbed {
     ? (() => { const w = winningAlliance(d); return { name: "Winning alliance", value: w ? `${w.alliance ? `Alliance ${w.alliance}: ` : ""}${linkedAlliance(w.teams, site)}` : "Not posted yet (it comes with the awards)" }; })()
     : null;
   const top = topByOpr(d.field);
+  let rest: string[] = [];
   if (top.rows.length) {
     // Every team at the event, by OPR: the list continues in the next field, inside what Discord's 6,000-character
-    // embed has left after its title, description, footer and the fields above and below (a big event says how many
-    // it couldn't hold rather than the card being refused).
+    // embed has left after its title, description, footer and the fields above and below. A big event's teams that
+    // don't fit are posted in the channel under the card, not dropped from it.
     const head = title.length + description.length + FOOTER.text.length
       + fields.reduce((n, f) => n + f.name.length + f.value.length, 0)
       + (win ? win.name.length + win.value.length : 0);
-    fields.push(...packFields(top.season ? "By season OPR" : "By OPR",
+    const packed = packFields(top.season ? "By season OPR" : "By OPR",
       top.rows.map((r, i) => `${i + 1}. [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${one(r.opr)}**`),
-    EMBED_CHARS_MAX - head));
+    EMBED_CHARS_MAX - head);
+    fields.push(...packed.fields);
+    rest = packed.rest;
   }
   if (win) fields.push(win);
   return {
@@ -392,6 +402,7 @@ export function eventEmbed(d: EventDetail, site: string): APIEmbed {
     color: VOLT,
     fields,
     footer: FOOTER,
+    ...(rest.length ? { rest: rest.join("\n") } : {}),
   };
 }
 
@@ -399,20 +410,23 @@ export function eventEmbed(d: EventDetail, site: string): APIEmbed {
 // /rankings
 // ---------------------------------------------------------------------------
 
-export function rankingsEmbed(rows: RankingRow[], seasonLabel: string, site: string): APIEmbed {
+export function rankingsEmbed(rows: RankingRow[], seasonLabel: string, site: string): SpilledEmbed {
   const lines = rows.map((r) => `**${r.rank}.** \`${movement(r.move).padEnd(3)}\` [${r.team}](${site}/teams/${r.team})${r.name ? ` ${r.name}` : ""} · **${r.rating.toFixed(1)}**`);
+  const { text, rest } = descriptionOf(lines);
   return {
     title: `World rankings · ${seasonLabel}`,
     url: `${site}/rankings`,
-    // The whole page, never the first ten: only Discord's own 4,096-character description can end the list.
-    description: descriptionOf(lines),
+    // The whole page, never the first ten: only Discord's own 4,096-character description can end the embed, and the
+    // rows past it are posted in the channel under the card.
+    description: text,
     color: VOLT,
     footer: { text: `Movement vs last week · rating = points a robot adds per match · ${FOOTER.text}` },
+    ...(rest.length ? { rest: rest.join("\n") } : {}),
   };
 }
 
-/** `lines` as an embed description, whole lines, inside Discord's own 4,096 characters. */
-function descriptionOf(lines: string[], max = 4096): string {
+/** `lines` as an embed description, whole lines, inside Discord's own 4,096 characters; the rest are posted under it. */
+function descriptionOf(lines: string[], max = 4096): { text: string; rest: string[] } {
   const kept: string[] = [];
   let size = 0;
   for (const l of lines) {
@@ -421,5 +435,5 @@ function descriptionOf(lines: string[], max = 4096): string {
     kept.push(l);
     size += add;
   }
-  return kept.join("\n");
+  return { text: kept.join("\n"), rest: lines.slice(kept.length) };
 }

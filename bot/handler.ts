@@ -4,7 +4,7 @@
 // event list and never throws.
 import { ComponentType, MessageFlags, PermissionFlagsBits, TextInputStyle, type APIActionRowComponent, type APIButtonComponent, type APIEmbed, type AutocompleteInteraction, type ButtonInteraction, type ChatInputCommandInteraction, type Interaction, type ModalSubmitInteraction } from "discord.js";
 import { AnswerCache } from "./guard.js";
-import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
+import { FOOTER, Friendly, VOLT, errorEmbed, pride, spillOf, unavailableEmbed } from "./views.js";
 import { addFollow, followName, followingEmbed, listFollows, removeFollow, type FollowTarget } from "./follows.js";
 import { REPORT_PREFIX, answerComponents, buttonQuestion, dbButtonStore, textChunks, QuestionButtons } from "./buttons.js";
 import { DEFAULT_SETTINGS, answerField, guildSettings, parseQuiet, parseStyle, setGuildSettings, settingsEmbed, styleLine, type GuildSettings, type GuildSettingsPatch } from "./settings.js";
@@ -765,17 +765,21 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       }
       return;
     }
-    let embed: APIEmbed;
+    let card: APIEmbed;
     try {
-      embed = await answer(i);
+      card = await answer(i);
     } catch (e) {
-      if (e instanceof Friendly) embed = errorEmbed(e.title, e.detail);
+      if (e instanceof Friendly) card = errorEmbed(e.title, e.detail);
       else {
         logLine(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
-        embed = unavailableEmbed();
+        card = unavailableEmbed();
       }
     }
+    // A card bigger than one embed (`/event`'s teams, `/rankings`' page) carries its leftover rows as `rest`: they follow
+    // it in the channel, so nothing the card couldn't hold is left to a link.
+    const { embed, rest } = spillOf(card);
     await i.editReply({ embeds: [pride(embed)] });
+    await postRest(rest, (c) => i.followUp({ content: c, embeds: [], allowedMentions: NO_PINGS }));
   }
 
   async function autocomplete(i: AutocompleteInteraction): Promise<void> {
