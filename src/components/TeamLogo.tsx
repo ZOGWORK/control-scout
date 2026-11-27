@@ -11,12 +11,14 @@ export const teamLogoSrc = (team: number) => `/api/team-logos/${team}`;
 
 export function TeamLogo({ team, size = 16, className }: { team: number; size?: number; className?: string }) {
   const on = useFlag("teamLogos");
-  const [failed, setFailed] = useState(false);
+  // Which team's picture failed: a reused element now showing another team (a re-sorted table) tries again.
+  const [failedFor, setFailedFor] = useState<number | null>(null);
+  const failed = failedFor === team;
   if (!on || !Number.isInteger(team) || team < 1) return null;
   return (
     <img
       src={teamLogoSrc(team)} alt="" width={size} height={size} loading="lazy" decoding="async" draggable={false}
-      onError={() => setFailed(true)}
+      onError={() => setFailedFor(team)}
       // A picture that can't load keeps its square (nothing shifts) but shows nothing.
       className={cn("inline-block shrink-0 rounded-[3px] object-contain align-middle", failed && "invisible", className)}
       style={{ width: size, height: size }}

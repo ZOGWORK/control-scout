@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The team logo (src/components/TeamLogo.tsx): nothing at all while the owner's teamLogos switch is off; a fixed,
 // lazy, decorative square from /api/team-logos while it's on.
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
@@ -26,5 +26,14 @@ describe("TeamLogo", () => {
     expect(img.getAttribute("loading")).toBe("lazy");
     expect([img.getAttribute("width"), img.getAttribute("height")]).toEqual(["14", "14"]);
     expect(container.textContent).toBe("4215");
+  });
+
+  it("a picture that failed is hidden, and a different team in the same place tries again", () => {
+    act(() => resetFlags({ ...DEFAULT_FLAGS, teamLogos: true }, true));
+    const { container, rerender } = render(<TeamLogo team={1} />);
+    fireEvent.error(container.querySelector("img")!);
+    expect(container.querySelector("img")!.classList.contains("invisible")).toBe(true);
+    rerender(<TeamLogo team={2} />);
+    expect(container.querySelector("img")!.classList.contains("invisible")).toBe(false);
   });
 });

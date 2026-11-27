@@ -29,7 +29,7 @@ function fakeFirst(sheets: Record<number, string>, pictures: Record<string, Uint
     if (season) return new Response(sheets[Number(season)]);
     const path = url.slice(LOGO_ORIGIN.length);
     if (pictures[path]) return new Response(pictures[path], { headers: { "Content-Type": "image/png" } });
-    if (path.startsWith("/ftc/")) return new Response(PNG, { headers: { "Content-Type": "image/png" } });
+    if (/^\/ftc\/\d+\/avatars\/composed\//.test(path)) return new Response(PNG, { headers: { "Content-Type": "image/png" } });
     return new Response("", { status: 404 });
   }) as unknown as typeof fetch;
   return { f, asked };
@@ -71,7 +71,7 @@ describe("refreshTeamLogos", () => {
   it("downloads only pictures whose path changed, and drops a team that took its picture down", async () => {
     await refreshTeamLogos({ seasons: [2026], fetch: fakeFirst({ 2026: sheet(2026, { 4215: "a", 8902: "b" }) }).f });
     const { f, asked } = fakeFirst({ 2026: sheet(2026, { 4215: "a2" }) }, { "/ftc/2026/avatars/composed/4215_a2": PNG2 });
-    const r = await refreshTeamLogos({ seasons: [2026], fetch: f });
+    const r = await refreshTeamLogos({ seasons: [2026], prune: true, fetch: f });
     expect(r).toMatchObject({ fetched: 1, unchanged: 0, removed: 1 });
     expect(asked).toEqual([sheetUrl(2026), `${LOGO_ORIGIN}/ftc/2026/avatars/composed/4215_a2`]);
     expect((await all<{ team: number }>("SELECT team FROM team_logos ORDER BY team")).map((x) => Number(x.team))).toEqual([DEFAULT_TEAM, 4215]);
@@ -87,6 +87,22 @@ describe("refreshTeamLogos", () => {
     expect(await refreshTeamLogos({ seasons: [2026], teams: [3], fetch: f })).toMatchObject({ fetched: 1, removed: 0 });
     expect(asked).toEqual([sheetUrl(2026), `${LOGO_ORIGIN}/ftc/2026/avatars/composed/3_c`]);
     expect((await all<{ team: number }>("SELECT team FROM team_logos ORDER BY team")).map((x) => Number(x.team))).toEqual([DEFAULT_TEAM, 1, 2, 3]);
+  });
+
+  it("without prune (a one-season or few-team run) removes nothing", async () => {
+    await refreshTeamLogos({ seasons: [2026], fetch: fakeFirst({ 2026: sheet(2026, { 1: "a", 2: "b" }) }).f });
+    expect(await refreshTeamLogos({ seasons: [2026], fetch: fakeFirst({ 2026: sheet(2026, { 1: "a" }) }).f })).toMatchObject({ removed: 0 });
+    expect(await all("SELECT team FROM team_logos")).toHaveLength(3);
+  });
+
+  it("never prunes when a sheet couldn't be read, nor a mass removal from an empty or reshaped sheet", async () => {
+    const many = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [i + 1, "a"]));
+    await refreshTeamLogos({ seasons: [2026, 2025], fetch: fakeFirst({ 2026: sheet(2026, many), 2025: sheet(2025, { 99: "z" }) }).f });
+    // 2025's sheet is missing: team 99 (only on it) stays.
+    expect(await refreshTeamLogos({ seasons: [2026, 2025], prune: true, fetch: fakeFirst({ 2026: sheet(2026, many) }).f })).toMatchObject({ removed: 0 });
+    // Both read, but listing nothing: every picture stays.
+    expect(await refreshTeamLogos({ seasons: [2026, 2025], prune: true, fetch: fakeFirst({ 2026: sheet(2026, {}), 2025: sheet(2025, {}) }).f })).toMatchObject({ removed: 0 });
+    expect(await all("SELECT team FROM team_logos")).toHaveLength(42);
   });
 
   it("keeps a picture that isn't a PNG out", async () => {
