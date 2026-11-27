@@ -25,10 +25,6 @@ const edge = (v: string) => `color-mix(in srgb,${tint(v)} calc(55% * var(--wash-
 /** `c` turned toward the page's own colour as the page scrolls (--top-cover, 0% at the top, 100% once scrolled: TopPatch). */
 const covered = (c: string) => `color-mix(in srgb,var(--color-background) var(--top-cover,0%),${c})`;
 export const TOP_PATCH = edge("--wash-b");
-/** The same edge left to right (the wash's left, middle and right colours), drawn over TOP_PATCH so the patch runs on
- *  into the wash on screen; Safari still reads the solid TOP_PATCH under it. */
-export const TOP_PATCH_IMAGE = `linear-gradient(to right,${edge("--wash-a")} 5%,${edge("--wash-b")} 50%,${edge("--wash-c")} 95%)`;
-const COVER_IMAGE = `linear-gradient(to right,${covered(edge("--wash-a"))} 5%,${covered(edge("--wash-b"))} 50%,${covered(edge("--wash-c"))} 95%)`;
 /** How far the page scrolls before the top patch has turned fully into the page's colour. */
 export const COVER_PX = 160;
 /** --top-cover for a scroll position: 0% at the top, 100% from COVER_PX down. */
@@ -37,14 +33,15 @@ export const topCover = (y: number) => `${Math.round(Math.min(1, Math.max(0, y /
 /** The top of the screen on a phone (#2147, #2144). Safari 26 on an iPhone paints the strip behind the clock from the
  *  page (a black band with the page blurred under it as you scroll) unless a fixed bar touches the top: then it fills
  *  the strip with that bar's colour. v8 has no such bar, so this thin patch stands in. Not pointer-events-none: Safari
- *  finds it by a hit test.
+ *  finds it by a hit test. It must be ONE solid colour: Safari reads the colours along the bar, and a gradient there
+ *  (different colours left to right) makes it give up and draw its black band and blur after all.
  *  - At the top of the page it is the wash's own edge colour, and the wash's first few pixels are drawn the same
  *    (data-top-fade, easing into the glows below), so the patch can't be told apart from the wash: no band.
  *  - As the page scrolls it turns into the page's own colour (--top-cover), so no strip of wash stays pinned over the
  *    content once the wash has scrolled away.
  *  - Installed on the home screen (display-mode: standalone, index.css) the page runs under the clock
- *    (black-translucent, index.html): the wash itself shows there, so the patch is see-through at the top and only
- *    turns into the page's colour, the height of the clock's strip, once the page scrolls. */
+ *    (black-translucent, index.html): the patch is the clock's strip, the same solid colour, and the wash's top edge
+ *    is drawn solid for that strip too (--top-inset), so the strip still reads as part of the wash. */
 export function TopPatch() {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -59,16 +56,16 @@ export function TopPatch() {
   }, []);
   return (
     <>
-      <div aria-hidden data-top-fade className="pointer-events-none absolute inset-x-0 top-0 h-[48px] md:hidden"
-        style={{ backgroundColor: TOP_PATCH, backgroundImage: TOP_PATCH_IMAGE, maskImage: TOP_FADE, WebkitMaskImage: TOP_FADE }} />
+      <div aria-hidden data-top-fade className="pointer-events-none absolute inset-x-0 top-0 md:hidden"
+        style={{ height: "calc(var(--top-inset,0px) + 48px)", backgroundColor: TOP_PATCH, maskImage: TOP_FADE, WebkitMaskImage: TOP_FADE }} />
       <div ref={ref} aria-hidden data-top-patch className="fixed inset-x-0 top-0 z-50 h-[6px] before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-24 before:bg-inherit md:hidden"
-        style={{ backgroundColor: covered(TOP_PATCH), backgroundImage: COVER_IMAGE }} />
+        style={{ backgroundColor: covered(TOP_PATCH) }} />
     </>
   );
 }
-/** The wash's top edge (data-top-fade): solid for the patch's 6px, then easing out (1 - smoothstep) into the glows by
- *  48px, so neither edge shows as a line. */
-const TOP_FADE = "linear-gradient(to bottom,#000 6px,rgb(0 0 0/.97) 10px,rgb(0 0 0/.9) 14px,rgb(0 0 0/.78) 18px,rgb(0 0 0/.65) 23px,rgb(0 0 0/.5) 27px,rgb(0 0 0/.35) 31px,rgb(0 0 0/.22) 35px,rgb(0 0 0/.1) 40px,rgb(0 0 0/.03) 44px,transparent 48px)";
+/** The wash's top edge (data-top-fade): solid for the patch's 6px (plus the clock's strip when installed: --top-inset),
+ *  then easing out (1 - smoothstep) into the glows by 48px, so neither edge shows as a line. */
+const TOP_FADE = `linear-gradient(to bottom,#000 calc(var(--top-inset,0px) + 6px),rgb(0 0 0/.97) calc(var(--top-inset,0px) + 10px),rgb(0 0 0/.9) calc(var(--top-inset,0px) + 14px),rgb(0 0 0/.78) calc(var(--top-inset,0px) + 18px),rgb(0 0 0/.65) calc(var(--top-inset,0px) + 23px),rgb(0 0 0/.5) calc(var(--top-inset,0px) + 27px),rgb(0 0 0/.35) calc(var(--top-inset,0px) + 31px),rgb(0 0 0/.22) calc(var(--top-inset,0px) + 35px),rgb(0 0 0/.1) calc(var(--top-inset,0px) + 40px),rgb(0 0 0/.03) calc(var(--top-inset,0px) + 44px),transparent calc(var(--top-inset,0px) + 48px))`;
 /** How long the wash's rise takes (index.css `.wash-rise`, and the first paint's copy in server/bootShell.ts). */
 export const WASH_RISE_MS = 1400;
 
