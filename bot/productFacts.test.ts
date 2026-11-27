@@ -69,7 +69,11 @@ it("tells him how to shape a chat answer — records short, how/why in paragraph
   expect(style).toMatch(/"longer" or a scouting report gets/);
   // The offer is about the answer's own team: "Also want 4215's record?" used to end an answer about NJ's oldest teams.
   expect(style).not.toMatch(/4215/);
-  expect(style).toMatch(/never about a team the answer isn't about/);
+  expect(style).toMatch(/about its own team/);
+  // ...and only when it adds something: the replay of the audit ended 15 of 18 answers with "Also want their record?",
+  // even under a record.
+  expect(style).toMatch(/never the record it shows/);
+  expect(style).not.toMatch(/Also want/);
   expect(style).toMatch(/records gets the number/);
   expect(style).toMatch(/How\/why gets a \*\*bold\*\* summary/);
   expect(style).toContain("'- ' bullets");
@@ -80,7 +84,7 @@ it("tells him how to shape a chat answer — records short, how/why in paragraph
   // Still a Discord message, not a document.
   expect(style).toMatch(/No headings, tables or code/);
   // And the records question is offered only on a records answer: a guide doesn't end with an OPR nudge.
-  expect(style).toMatch(/End a records answer only with one short offer/);
+  expect(style).toMatch(/At most one offer at the end/);
 });
 
 it("lets him answer the channel's own questions — maths, design, rules — inside the cap, with FTC numbers still from the facts", () => {

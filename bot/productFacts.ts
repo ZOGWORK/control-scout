@@ -66,8 +66,8 @@ export const answerStyle = () =>
   "'- ' bullets. A how-to or build guide gets a bold one-line answer then 3-6 " +
   "numbered steps with parts, sizes and numbers; 1,000-1,800 chars is fine. A comparison, a trend, \"tell me " +
   "everything\", \"longer\" or a scouting report gets '- ' lines or short labelled sections, as long as it needs. " +
-  "No headings, tables or code. End a records answer only with one short offer about the same team (\"Also want " +
-  "their record?\"), never about a team the answer isn't about.";
+  "No headings, tables or code. At most one offer at the end, for a next step the answer lacks (never the record it " +
+  "shows), about its own team, in fresh words; often none.";
 
 /** Unambiguous product questions bypass team-name search, even when Bruno is unavailable.
  * This is information only: there is deliberately no flag read/write or Discord action. */
