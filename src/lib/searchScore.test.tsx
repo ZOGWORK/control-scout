@@ -71,7 +71,9 @@ describe("useSearchScore", () => {
     expect(rest).toEqual([]);
     expect(b).toMatchObject({ url: "/api/collect/search", entry: "load", outcome: "direct", via: "typed", re: false });
     expect(typeof b.ms).toBe("number");
-    expect(JSON.stringify(b)).not.toMatch(/4215|6980/);
+    // Everything but the duration, which is a number and can end in 4215 by chance (a run's 817.774215 did): the
+    // question's own words and team numbers never leave the page.
+    expect(Object.entries(b).filter(([k]) => k !== "ms").map(([, v]) => String(v)).join(" ")).not.toMatch(/4215|6980/);
     expect(Object.keys(b).sort()).toEqual(["entry", "ms", "outcome", "re", "screen", "url", "via"]);
     expect(performance.getEntriesByName("search:answer").length).toBeGreaterThan(0);
   });
