@@ -1,5 +1,5 @@
-// The interaction handler with stand-in interactions: deferred replies, the shared cache, the server cap and the
-// per-person pace, and friendly errors for every failure (never the exception's words).
+// The interaction handler with stand-in interactions: deferred replies, the shared cache, the server cap (nobody is
+// paced per person), mention actions, and friendly errors for every failure (never the exception's words).
 import { describe, expect, it, vi } from "vitest";
 import type { APIEmbed } from "discord.js";
 import { answered, createHandler, shownName, type Lookups, type Memory, type MentionMessage } from "./handler";
@@ -435,20 +435,36 @@ describe("@mention answers", () => {
     expect(otherThreads).toEqual([]);
   });
 
-  it("answers a follow-up already in a thread there, and stays quiet past a person's pace", async () => {
+  it("answers a follow-up already in a thread there; nobody is paced per person", async () => {
     const h = createHandler(() => {}, lookups());
     const inThread = msg("their record?", { channel: { isThread: () => true, send: vi.fn(async () => {}) } });
     await h.mention(inThread.m, BOT, true);
     // Already threaded: the answer replies in it instead of starting another.
     expect(inThread.sent[0].kind).toBe("reply");
     expect(inThread.threads).toEqual([]);
-    // The ask channel is paced like every other ask, and nobody asked directly: a refusal there is silence, not a
-    // notice under every message.
-    const paced = createHandler(() => {}, lookups({ pace: async () => ({ ok: false as const, window: "minute" as const, retryAfter: 30 }) }));
-    const { m, sent, threads } = msg("who won decode");
-    await paced.mention(m, BOT, true);
-    expect(sent).toEqual([]);
-    expect(threads).toEqual([]);
+    // Forty different questions from one person in a row, the audit's pace wall at 30 an hour: every one answered.
+    const l = lookups();
+    const many = createHandler(() => {}, l);
+    for (let n = 0; n < 40; n++) await many.mention(msg(`<@${BOT}> what is ${1000 + n}'s opr`).m, BOT);
+    expect(l.ask).toHaveBeenCalledTimes(40);
+  });
+
+  it("\"@Control Scout\" picked as the bot's role is a mention of the bot (the audit's 10:13 PM silence)", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l);
+    const { m, sent } = msg("<@&777> what is 4215's opr");
+    await h.mention(m, BOT, false, "777");
+    expect(l.ask).toHaveBeenCalledWith("what is 4215's opr", [], [], "g1", null);
+    expect(sent).toHaveLength(1);
+    // Another role is not the bot.
+    const other = msg("<@&555> what is 4215's opr");
+    await h.mention(other.m, BOT, false, "777");
+    expect(other.sent).toEqual([]);
+    // The role alone, its words hidden by Discord (no Message Content intent): how to ask, never silence.
+    const hidden = msg("", { mentions: { roles: { has: (id: string) => id === "777" } } });
+    await h.mention(hidden.m, BOT, false, "777");
+    expect(hidden.sent[0].embeds[0].title).toBe("I couldn't read that one");
+    expect(l.ask).toHaveBeenCalledTimes(1);
   });
 
   it("just the mention: how to ask; a reply it can't make: a plain message; back-to-back mentions: both answered; turned off: the note", async () => {
