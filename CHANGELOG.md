@@ -27,6 +27,7 @@ The Discord bot knows events: NJ States, the next NJ meet, Worlds and any event 
 
 ### Discord bot
 - **What Bruno knows about each named event** (#2392; `server/api/brunoEvents.ts`, `bot/ask.ts`): an event a message names (by its own name, as "NJ States" or "the New Jersey championship", as "the next NJ meet", or as "Worlds" with the year it was played) brings a labelled block: what and when it is, its matches and scores, every team there (divisions read whole) with its event OPR, phases, rank and record, or before it's played each team's season OPR so far (a league meet nobody has entered yet is read by its league's teams), who there has played at Worlds and who never has, and for Worlds where its teams are from. Search resolves none of these, so the audit's Q68, Q74, Q76, Q85, Q87, Q88 and Q92 had nothing to answer from.
+- **An offer only when it adds something** (`bot/productFacts.ts`): a replay of the audit ended 15 of 18 answers with "Also want their record?", even under a record. Now at most one offer, for a next step the answer lacks, worded for that answer, and often none.
 
 ## 8.1.3 — 2026-11-27
 
