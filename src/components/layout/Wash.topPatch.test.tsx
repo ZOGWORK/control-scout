@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { act, render } from "@testing-library/react";
-import { COVER_PX, TOP_PATCH, TOP_PATCH_IMAGE, TopPatch, topCover } from "./Wash";
+import { COVER_PX, TOP_PATCH, TopPatch, topCover } from "./Wash";
 
 const scrollTo = async (y: number) => {
   Object.defineProperty(window, "scrollY", { value: y, configurable: true });
@@ -27,11 +27,13 @@ describe("top patch", () => {
     const fade = container.querySelector<HTMLElement>("[data-top-fade]")!;
     const patch = container.querySelector<HTMLElement>("[data-top-patch]")!;
     expect(fade.style.backgroundColor).toBe(TOP_PATCH);
-    expect(fade.style.backgroundImage).toBe(TOP_PATCH_IMAGE);
-    // Solid under the patch's 6px, then eased out into the glows.
-    expect(fade.style.maskImage).toMatch(/^linear-gradient\((to bottom,\s*)?(#000|rgb\(0, 0, 0\)) 6px,.*transparent 48px\)$/);
+    // One solid colour, no image over it: a gradient along the top makes Safari draw its black band and blur (#2350).
+    expect(fade.style.backgroundImage).toBe("");
+    expect(patch.style.backgroundImage).toBe("");
+    // Solid under the patch's 6px (plus the clock's strip when installed), then eased out into the glows.
+    expect(fade.style.maskImage).toMatch(/^linear-gradient\(to bottom,\s*(#000|rgb\(0, 0, 0\)) calc\(var\(--top-inset, ?0px\) \+ 6px\),.*transparent calc\(var\(--top-inset, ?0px\) \+ 48px\)\)$/);
     expect(patch.className).toContain("h-[6px]");
-    expect(fade.className).toContain("h-[48px]"); // px, as its mask: a rem height cut the fade short on phones
+    expect(fade.style.height).toBe("calc(var(--top-inset,0px) + 48px)"); // px, as its mask: a rem height cut the fade short on phones
     // The patch is the same colours, mixed toward the page by --top-cover (0% at the top: exactly the edge).
     expect(patch.style.backgroundColor).toContain("var(--top-cover,0%)");
     expect(patch.style.backgroundColor).toContain(TOP_PATCH);
@@ -53,10 +55,13 @@ describe("top patch", () => {
     expect(readFileSync("index.html", "utf8")).toMatch(/<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" \/>/);
     const css = readFileSync("src/index.css", "utf8");
     const standalone = css.slice(css.indexOf("@media (display-mode: standalone)"));
-    expect(standalone).toMatch(/\[data-top-fade\] \{ display: none; \}/);
+    // The wash's solid edge covers the clock's strip, and the patch stays solid (never see-through or a gradient).
+    expect(standalone).toMatch(/--top-inset: env\(safe-area-inset-top\);/);
+    expect(standalone).not.toMatch(/\[data-top-fade\] \{ display: none; \}/);
+    const rule = standalone.match(/\[data-top-patch\] \{([^}]*)\}/)?.[1] ?? "";
     // Sized by the inset alone: an installed desktop app (standalone, no inset) draws no strip over its top bar.
-    const height = standalone.match(/\[data-top-patch\] \{[^}]*?height: ([^;]+);/)?.[1];
-    expect(height).toBe("calc(env(safe-area-inset-top) * 1.25)");
+    expect(rule).toMatch(/height: env\(safe-area-inset-top\);/);
+    expect(rule).not.toMatch(/transparent|background-image|pointer-events/);
     expect(readFileSync("src/components/layout/Shell.tsx", "utf8")).toMatch(/v8:h-\[calc\(3\.5rem\+env\(safe-area-inset-top\)\)\]/);
   });
 
