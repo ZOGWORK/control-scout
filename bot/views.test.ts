@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView, TeamProfile } from "../src/shared/api";
 import {
-  PRIDE, VOLT, dates, embedBlocks, embedReadChars, eventEmbed, movement, preMatchEmbed, predictEmbed, rankingsEmbed, pride, resultEmbed,
+  PRIDE, VOLT, dates, embedBlocks, embedReadChars, eventEmbed, movement, packFields, preMatchEmbed, predictEmbed, rankingsEmbed, pride, resultEmbed,
   startsText, storyLine, teamEmbed, topByOpr, verdict, winningAlliance, type TeamCard,
 } from "./views";
 import fixture from "./fixtures/usnjnem3-2026-11-07.json";
@@ -262,7 +262,7 @@ describe("eventEmbed", () => {
     expect(lines[6]).toContain("[7]");
   });
 
-  it("a huge event stays inside Discord's 6,000 characters and says how many it left out", () => {
+  it("a huge event stays inside Discord's 6,000 characters and posts the rest of its teams under the card", () => {
     const d = {
       event: { season: 2025, code: "X", name: "Championship", status: "finished", start: "2026-04-29", end: "2026-05-02", city: "Houston", state: "TX", country: "USA", matchesPlayed: 400, matchesTotal: 400, teams: 600 },
       field: Array.from({ length: 600 }, (_, i) => row(i + 1, 90 - i / 10)),
@@ -275,8 +275,28 @@ describe("eventEmbed", () => {
     const size = (e.title?.length ?? 0) + (e.description?.length ?? 0) + (e.footer?.text.length ?? 0)
       + e.fields!.reduce((n, f) => n + f.name.length + f.value.length, 0);
     expect(size).toBeLessThanOrEqual(6000);
-    expect(e.fields!.map((f) => f.value).join("\n")).toMatch(/…and \d+ more/);
+    expect(e.fields!.length).toBeLessThanOrEqual(25);
     for (const f of e.fields!) expect(f.value.length).toBeLessThanOrEqual(1024);
+    // Nothing is dropped and nothing is summarised: the card holds what Discord takes, and every other team is its `rest`,
+    // in the order it was ranked, continuing the card's own numbering.
+    expect(e.fields!.map((f) => f.value).join("\n")).not.toMatch(/…and \d+ more/);
+    const inCard = e.fields!.filter((f) => f.name === "By OPR" || f.name === "\u200b").flatMap((f) => f.value.split("\n"));
+    const under = e.rest!.split("\n");
+    expect(inCard.length + under.length).toBe(600);
+    expect(under[0]).toMatch(new RegExp(`^${inCard.length + 1}\\. \\[`));
+    expect(under.at(-1)).toContain("[600]");
+  });
+
+  it("a card that already has fields still comes to 25 in all, the rest under the card", () => {
+    // Rows long enough to each need a field of their own, under no character budget: only Discord's 25-field cap
+    // decides. Two fields are the card's own (its status row and the winning alliance added after the list).
+    const rows = Array.from({ length: 30 }, (_, i) => `**${i + 1}.** ${"x".repeat(1000)}`);
+    const { fields, rest } = packFields("By OPR", rows, Infinity, 2);
+    expect(fields).toHaveLength(23);
+    expect(2 + fields.length).toBeLessThanOrEqual(25);
+    expect(fields.flatMap((f) => f.value.split("\n")).length + rest.length).toBe(30);
+    expect(rest.at(-1)).toContain("**30.**");
+    for (const f of fields) expect(f.value.length).toBeLessThanOrEqual(1024);
   });
 
   it("a finished event names its winning alliance", () => {
@@ -313,5 +333,17 @@ describe("rankingsEmbed", () => {
     expect(lines).toHaveLength(12);
     expect(lines[0]).toBe(`**1.** \`↑2 \` [100](${SITE}/teams/100) Team 0 · **80.0**`);
     expect(e.url).toBe(`${SITE}/rankings`);
+    expect(e.rest).toBeUndefined();
+  });
+
+  it("a page past Discord's 4,096-character description posts the rest under the card", () => {
+    const rows = Array.from({ length: 120 }, (_, i) => ({ rank: i + 1, team: 100 + i, name: `Team ${i}`, state: null, country: null, rating: 80 - i / 10, move: null, dRating: null, trend: null }));
+    const e = rankingsEmbed(rows, "2026–27", SITE);
+    expect(e.description!.length).toBeLessThanOrEqual(4096);
+    const inCard = e.description!.split("\n");
+    const under = e.rest!.split("\n");
+    expect(inCard.length + under.length).toBe(120);
+    expect(under[0]).toMatch(new RegExp(`^\\*\\*${inCard.length + 1}\\.\\*\\*`));
+    expect(under.at(-1)).toContain("[219]");
   });
 });

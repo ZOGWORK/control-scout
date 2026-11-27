@@ -567,11 +567,12 @@ For `tick`, sync the meet first: `npm run sync -- --event 2026:USNJNEM3`.
   in plain words once. No win bars.
 - **Footer:** `Control Scout • controlscout.org`, plus the call's kind only when it isn't live: `Replayed call`
   or `From today's ratings`.
-- **Budgets: Discord's own, and no others.** A field never past 1,024 characters, an embed 25 fields: a long
-  schedule, an event's teams by OPR or a meet's standings continues in the next field, every match and every team
-  kept (no count of ours, no `…and N more` of ours). A result's shape is one story in the description (4 blocks and
-  600 characters as read on the real Q16/Q17 — its design, not a cut); a reminder 3 and 400. Ranking rows are posted
-  whole, up to Discord's 4,096-character description.
+- **Budgets: Discord's own, and no others.** A field never past 1,024 characters, an embed 25 fields and 6,000
+  characters: a long schedule, an event's teams by OPR or a meet's standings continues in the next field, and what
+  the card can't hold is posted in the channel under it (`rest`, `spillOf` in `bot/views.ts`) — every match, every
+  team and every ranking row kept, no count of ours, no `…and N more` of ours. A result's shape is one story in the
+  description (4 blocks and 600 characters as read on the real Q16/Q17 — its design, not a cut); a reminder 3 and 400.
+  Ranking rows are posted whole, up to Discord's 4,096-character description, the rest under the card.
 
 ## On the VM
 
