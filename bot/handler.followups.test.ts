@@ -1,4 +1,4 @@
-// The follow-up features in the handler: /settings (what this server gets, and changing it), the per-person pace, the
+// The follow-up features in the handler: /settings (what this server gets, and changing it), no per-person pace, the
 // report button and its modal, and team autocomplete.
 import { describe, expect, it, vi } from "vitest";
 import type { APIEmbed } from "discord.js";
@@ -99,32 +99,18 @@ describe("/settings", () => {
   });
 });
 
-describe("the per-person pace", () => {
-  it("says so privately before the question is looked up", async () => {
+describe("no per-person pace", () => {
+  it("answers every /ask and mention from one person, however many in a row", async () => {
     const ask = vi.fn(async () => ({ embed: ok("x"), meta: { step: "deterministic" as const, refined: false, sentence: false } }));
-    const pace = vi.fn(async () => ({ ok: false as const, window: "minute" as const, retryAfter: 30 }));
-    const l = lookups({ ask, pace });
-    const { i, calls } = command("ask", { question: "4215 opr" });
-    await createHandler(() => {}, l)(i);
-    expect(calls[1].payload.embeds[0].title).toBe("One at a time");
-    expect(ask).not.toHaveBeenCalled();
-    expect(pace).toHaveBeenCalledWith("g1", "u1");
-  });
-
-  it("counts a mention and a command the same way", async () => {
-    const pace = vi.fn(async () => ({ ok: true as const }));
-    const h = createHandler(() => {}, lookups({ pace }));
-    // A chat is paced; a plain lookup (/team) is not: it costs no model call.
-    await h(command("ask", { question: "4215 opr" }).i);
-    expect(pace).toHaveBeenCalledWith("g1", "u1");
-    const lookupsOnly = createHandler(() => {}, lookups({ pace }));
-    await lookupsOnly(command("team", { number: 1 }).i);
-    expect(pace).toHaveBeenCalledTimes(1);
-    expect(await (h as any).mention({
-      author: { id: "u2", bot: false }, guildId: "g1", channelId: "c1", id: "m1", content: "<@1> 4215 opr",
-      reply: async () => ({}), channel: {},
-    }, "1")).toBeUndefined();
-    expect(pace).toHaveBeenCalledWith("g1", "u2");
+    const h = createHandler(() => {}, lookups({ ask }));
+    for (let n = 0; n < 35; n++) await h(command("ask", { question: `${2000 + n} opr` }).i);
+    for (let n = 0; n < 10; n++) {
+      await (h as any).mention({
+        author: { id: "u1", bot: false }, guildId: "g1", channelId: "c1", id: `m${n}`, content: `<@1> ${3000 + n} opr`,
+        reply: async () => ({}), channel: {},
+      }, "1");
+    }
+    expect(ask).toHaveBeenCalledTimes(45);
   });
 });
 
