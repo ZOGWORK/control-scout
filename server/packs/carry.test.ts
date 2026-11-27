@@ -1,7 +1,7 @@
 // A season's pack carried into a new release (packs/build.ts carriedSeason): an event-day build rebuilds the current
 // season's pack and links the frozen seasons' files under the new version's name instead of rewriting 90 MB of bytes
 // that cannot have changed. Every manifest keeps naming its own files, so pruning an old release is still safe.
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -32,6 +32,17 @@ describe("carriedSeason", () => {
     expect(carried.contents).toBe("Every DECODE event.");
     // A hard link where the filesystem has them: same inode, no second copy of the bytes.
     expect(statSync(join(d, carried.name)).ino).toBe(statSync(join(d, entry.name)).ino);
+  });
+
+  it("nothing half-written is ever left under a name the manifest could list", () => {
+    const d = dir();
+    writeFileSync(join(d, "scout-pack-2026-11-27-1-2023.db"), "season 2023");
+    const entry = { name: "scout-pack-2026-11-27-1-2023.db", url: "/packs/scout-pack-2026-11-27-1-2023.db", bytes: 11, sha256: "x", seasons: [2023], kind: "full" as const, contents: "Every season's pack." };
+    carriedSeason(d, "2026-11-27.5", entry);
+    expect(readdirSync(d).filter((f) => f.includes(".part"))).toEqual([]);
+    // A carry that can't finish throws and leaves nothing behind: the next build starts this version's name clean.
+    expect(() => carriedSeason(d, "2026-11-27.6", { ...entry, name: "scout-pack-gone-2023.db" })).toThrow();
+    expect(readdirSync(d)).toEqual(["scout-pack-2026-11-27-1-2023.db", "scout-pack-2026-11-27-5-2023.db"]);
   });
 
   it("a release built twice gets its own name back, and an existing target is left as it is", () => {
