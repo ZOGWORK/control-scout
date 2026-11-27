@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.1.2 — 2026-11-26
+
+Videos has a library of your own: save videos, queue them to watch later, find what you watched, and take notes at a moment in a video.
+
+### Highlights
+- [live] Save a video or queue it to watch later
+- [live] Take notes on a video, each at the moment it's about
+- [live] Your history, saved videos and notes in a panel that slides in
+- [live] Notes reach your Control Point account when it's linked
+
+### Videos
+- **A "You" panel** (#2382; `src/components/videos/VideosFrame.tsx`): a button in the Videos header and beside a video's title slides in a panel from the right with Home, Watch later, Saved, History and Notes, their counts and your latest notes. The page makes room: the feed shows two videos a row, and the watch page puts Up next under the video. It stays open from page to page; on a phone it's a sheet.
+- **Library pages** (`/videos/later`, `/videos/saved`, `/videos/history`, `/videos/notes`, `src/components/videos/LibraryViews.tsx`): the feed's cards, each one's ✕ taking it off that list; History can be cleared; Notes groups every note under its video.
+- **Save, Watch later and Notes under a video** (`src/components/videos/WatchLibrary.tsx`): a note keeps the second the video was at (or is about the whole video), and its time plays the video from there. Notes can be edited and deleted, and only you see them. Five seconds in, a video goes on your History.
+- **Kept on your account** (migration 117: `video_library`, `video_notes`, private and deleted with the account; `server/api/videoLibrary.ts`), or on this device when signed out. A linked Control Point account gets each note too.
+
 ## 8.1.1 — 2026-11-26
 
 Videos feel more responsive: everything you press answers the press, and a video you're not interested in fades away instead of vanishing.
