@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.2.1 — 2026-11-27
+
+Ask the Discord bot about a team "at worlds" and its answer is now drawn from the Worlds that team actually played.
+
+### Highlights
+- [fixes] "4215 at worlds" reads the Worlds 4215 played
+- [fixes] A team that went twice gets both, latest first
+- [fixes] A team that never went still gets the latest Worlds
+
+### Discord bot and Bruno
+- **A named team's Worlds** (#2404; `server/api/brunoEvents.ts` worlds): "worlds" without a year used to attach the latest Worlds' 300-team block, even for a team that only played an earlier one ("4215 highest score at worlds"). Now the bot attaches the Worlds the named teams played, at most two with the latest first, or the latest Worlds when none of them went. A year said beside "worlds" still decides.
+
 ## 8.2.0 — 2026-11-27
 
 A team's best scores now show the points without penalties next to each match, so the list's order makes sense and Bruno doesn't mix up the two numbers.

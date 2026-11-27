@@ -61,6 +61,17 @@ describe("which events a message names", () => {
     expect((await namedEvents(`which teams at nj states, like ${NOW_S - 1}, never went to worlds`, NOW)).map(key)).toEqual([`${LAST}:USNJCMP`, `${NOW_S}:USNJCMP`]);
   });
 
+  it("reads a named team's 'worlds' as the Worlds it played, latest first, and the latest one when it never went (the audit's Q55 replay)", async () => {
+    // 4215 played the earlier one only (its Edison Division): never the later Worlds' 300 teams.
+    expect((await namedEvents("4215 highest score at worlds", NOW)).map(key)).toEqual([`${BEFORE}:FTCCMP1`]);
+    // 7149 played both: both, the latest first.
+    expect((await namedEvents("how did 7149 do at worlds", NOW)).map(key)).toEqual([`${LAST}:FTCCMP1`, `${BEFORE}:FTCCMP1`]);
+    // 6980 never went: the latest Worlds, the field a "could they make it" is measured against.
+    expect((await namedEvents("could 6980 make worlds", NOW)).map(key)).toEqual([`${LAST}:FTCCMP1`]);
+    // A year said beside it still wins over the team's own.
+    expect((await namedEvents(`4215 at worlds ${NOW_S}`, NOW)).map(key)).toEqual([`${LAST}:FTCCMP1`]);
+  });
+
   it("finds the next NJ meet, an event by its own name, and nothing in a plain team question", async () => {
     expect((await namedEvents("who should i watch at the next nj meet and why", NOW)).map(key)).toEqual([`${NOW_S}:USNJNOM2`]);
     expect((await namedEvents("compare the lake erie league meet v the new jersey championship", NOW)).map(key)).toContain(`${NOW_S}:USOHLEM1`);
