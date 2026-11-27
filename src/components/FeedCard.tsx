@@ -4,7 +4,7 @@
 // out of the feed.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { EyeOff, Play, Radio } from "lucide-react";
+import { EyeOff, Play, Radio, X } from "lucide-react";
 import { playInDialog, YOUTUBE_ONLY_NOTE } from "../lib/streamSeek";
 import { reportWatch } from "../lib/videoHistory";
 import { clipTime } from "../shared/recording";
@@ -36,13 +36,15 @@ const shortDate = (iso: string | null) => {
 /** What the watch page gets with the link: the item itself, so its title, clip and key are there at once. */
 export interface WatchState { item: FeedItem; filter?: string }
 
-export function FeedCard({ item, signedIn, filter, onHide }: { item: FeedItem; signedIn: boolean; filter?: string; onHide: (key: string) => void }) {
+/** A card in the feed ("Not interested" takes it out and teaches the feed), or in a library list (`remove`: "Remove
+ *  from Watch later" takes it off that list only). */
+export function FeedCard({ item, signedIn, filter, onHide, remove }: { item: FeedItem; signedIn: boolean; filter?: string; onHide: (key: string) => void; remove?: string }) {
   const kind = watchKindOf(item);
   // "Not interested": the card fades and settles back for 150 ms, then leaves the list (at once with reduced motion).
   const [leaving, setLeaving] = useState(false);
   const hide = () => {
     if (leaving) return;
-    void reportWatch({ key: item.key, kind, watchedS: 0, hidden: true }, signedIn);
+    if (!remove) void reportWatch({ key: item.key, kind, watchedS: 0, hidden: true }, signedIn);
     const still = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (still) { onHide(item.key); return; }
     setLeaving(true);
@@ -76,14 +78,14 @@ export function FeedCard({ item, signedIn, filter, onHide }: { item: FeedItem; s
         </Link>
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-2 px-1 pt-3">
-        <span className={cn("self-start rounded-md border px-2 py-0.5 text-xs font-semibold", SOURCE_TONE[item.personal ? "team" : item.source])} data-feed-reason>{item.reason}</span>
+        {item.reason && <span className={cn("self-start rounded-md border px-2 py-0.5 text-xs font-semibold", SOURCE_TONE[item.personal ? "team" : item.source])} data-feed-reason>{item.reason}</span>}
         {item.href ? <Link to={item.href} className="line-clamp-2 text-[0.9375rem] font-semibold leading-5 text-text-base hover:underline">{item.title}</Link>
           : <p className="line-clamp-2 text-[0.9375rem] font-semibold leading-5 text-text-base">{item.title}</p>}
         <div className="mt-auto flex items-center gap-2">
           {meta && (item.event ? <Link to={item.event.href} className="min-w-0 flex-1 truncate text-xs text-text-muted hover:text-text-base">{meta}</Link> : <p className="min-w-0 flex-1 truncate text-xs text-text-muted">{meta}</p>)}
           <button type="button" onClick={hide}
-            className="-mr-1 ml-auto inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-faint transition-[color,background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink/[0.06] hover:text-text-base active:scale-[0.92] motion-reduce:transition-none motion-reduce:active:scale-100" aria-label={`Not interested in ${item.title}`} title="Not interested">
-            <EyeOff className="size-4" aria-hidden />
+            className="-mr-1 ml-auto inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-faint transition-[color,background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink/[0.06] hover:text-text-base active:scale-[0.92] motion-reduce:transition-none motion-reduce:active:scale-100" aria-label={remove ? `${remove}: ${item.title}` : `Not interested in ${item.title}`} title={remove ?? "Not interested"}>
+            {remove ? <X className="size-4" aria-hidden /> : <EyeOff className="size-4" aria-hidden />}
           </button>
         </div>
       </div>
