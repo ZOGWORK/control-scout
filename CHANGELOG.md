@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.1.9 — 2026-11-27
+
+Videos is in the phone's tab bar now, where My team was. My team is still one tap away in the menu.
+
+### Highlights
+- [live] Videos sits in the phone's bottom tab bar
+- [home] My team stays in the menu and in Settings › Appearance
+- [appearance] A tab bar you set up yourself stays as you left it
+
+### Phone tab bar
+- **Videos takes My team's slot by default** (#2400; `src/lib/tabBar.ts` DEFAULT_TABS, `server/bootShell.ts` first paint): Home, Events, Predict, Videos, Scout. A device on the default stores nothing, so it moves to the new bar; one that picked its own tabs keeps them. My team stays in the menu and can be put back in Settings › Appearance.
+
 ## 8.1.8 — 2026-11-27
 
 Every video in the feed has a ⋮ menu now: save it, put it on Watch later, ask for more like it, or say you're not interested.
