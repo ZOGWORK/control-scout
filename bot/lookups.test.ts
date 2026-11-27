@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { kvSet, migrate, openDb, run, setDb } from "../server/db";
 import { clearAllCaches } from "../server/caches";
 import { CURRENT_SEASON as S } from "../server/data/seasons";
-import { eventChoices, eventLookup, predictLookup, rankChoices, rankTeamChoices, rankingsLookup, site, teamLookup } from "./lookups";
+import { eventChoices, eventLookup, nextLookup, predictLookup, rankChoices, rankTeamChoices, rankingsLookup, site, teamLookup } from "./lookups";
 import { Friendly } from "./views";
 
 const NOW = Date.parse("2026-10-20T15:00:00Z");
@@ -170,5 +170,33 @@ describe("team choices", () => {
     expect(out[0].name.length).toBeLessThanOrEqual(100);
     expect(out.map((c) => c.value)).toEqual(["1"]);
     expect(rankTeamChoices([{ number: 2, name: null }], "2")).toEqual([{ name: "2", value: "2" }]);
+  });
+});
+
+describe("nextLookup", () => {
+  it("finds the next match at the fourth event on, past three with nothing scheduled", async () => {
+    // A team entered in more than three upcoming events, none of the first three giving it a match: a meet whose
+    // schedule FIRST hasn't posted, one it is on the roster of but not the field of, one called off. A cap of three
+    // events answered "nothing scheduled" over the match at the fourth.
+    const codes = ["E1", "E2", "E3", "E4"];
+    try {
+      for (const [i, code] of codes.entries()) {
+        await run(
+          "INSERT INTO events (season, code, name, type, start, end, remote, hybrid, source) VALUES (?, ?, ?, 'Qualifier', ?, ?, 0, 0, 'test')",
+          [S, code, `Winter Meet ${i + 1}`, `2026-12-0${i + 1}`, `2026-12-0${i + 1}`],
+        );
+        await run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, 21058)", [S, code]);
+      }
+      await match("E4", 1, [21058, 18360], [4215, 16379]);
+      clearAllCaches();
+      const e = await nextLookup(21058, Date.parse("2026-11-01T12:00:00Z"));
+      expect(e.title).toBe("Qual 1 · Winter Meet 4");
+    } finally {
+      await run("DELETE FROM match_teams WHERE season = ? AND code IN ('E1','E2','E3','E4')", [S]);
+      await run("DELETE FROM matches WHERE season = ? AND code IN ('E1','E2','E3','E4')", [S]);
+      await run("DELETE FROM event_teams WHERE season = ? AND code IN ('E1','E2','E3','E4')", [S]);
+      await run("DELETE FROM events WHERE season = ? AND code IN ('E1','E2','E3','E4')", [S]);
+      clearAllCaches();
+    }
   });
 });
