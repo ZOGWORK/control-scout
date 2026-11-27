@@ -3082,6 +3082,23 @@ CREATE TABLE IF NOT EXISTS video_watch (
 CREATE INDEX IF NOT EXISTS video_watch_at ON video_watch (at);
 `,
   },
+  {
+    version: 116,
+    name: "team logos",
+    sql: `
+-- Team logos (server/teamLogos.ts, behind the owner's teamLogos switch): FIRST's 40x40 team pictures, one row per team,
+-- team 0 is FIRST's generic mark. src is FIRST's picture path (a new picture always gets a new path), so a refresh
+-- downloads only what changed. Not shipped in the snapshot (binary; the data cycle refetches it daily).
+CREATE TABLE IF NOT EXISTS team_logos (
+  team INTEGER PRIMARY KEY,
+  season INTEGER NOT NULL,
+  src TEXT NOT NULL,
+  png BLOB NOT NULL,
+  etag TEXT NOT NULL,
+  fetched_at TEXT NOT NULL
+);
+`,
+  },
 ];
 
 export type Db = Client;

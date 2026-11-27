@@ -17,6 +17,7 @@ import { RowPlay } from "./AnswerVideo";
 import { V8_SOFT, type SoftColour } from "./v8tone";
 import { eventFacts, teamParts } from "./results";
 import type { SeasonSummary } from "./ResultCards";
+import { TeamLogo } from "../../TeamLogo";
 
 const searchHref = (q: string) => `/search?q=${encodeURIComponent(q)}`;
 /** How a reading is said (shared/api SearchUnderstood kinds). */
@@ -118,7 +119,7 @@ export function V8TeamAnswer({ team, name, place, summary, pending = false, stat
     <section aria-label={`Team ${team}`} className="rounded-xl border border-line bg-card p-5" data-answer-frame data-v8-answer="team">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="font-display text-[2.5rem] font-semibold leading-none tracking-tight tabular-nums text-accent" data-team-number>{team}</p>
+          <p className="font-display text-[2.5rem] font-semibold leading-none tracking-tight tabular-nums text-accent" data-team-number><TeamLogo team={team} size={36} className="mr-3 rounded-md align-[0.05em]" />{team}</p>
           <p className="mt-1.5 break-words text-base font-medium text-foreground">{name}</p>
           {(place || s?.place) && <p className="mt-0.5 flex items-center gap-1 text-sm text-text-muted"><MapPin className="size-3.5 shrink-0" aria-hidden />{place || s?.place}</p>}
           <FeaturedChip team={team} className="mt-2" />

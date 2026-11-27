@@ -9,7 +9,7 @@
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest", "publicAccess",
-  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage", "particleWave", "pageEndGlow",
+  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage", "particleWave", "pageEndGlow", "teamLogos",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
@@ -20,7 +20,7 @@ export const isFlag = (x: unknown): x is Flag => typeof x === "string" && (FLAGS
 
 /** Flags a fresh server starts with off, until the owner turns them on: Bruno AI in search waits on the owner's pick
  *  from its experiment report (docs/search.md); the dog theme is the owner's to turn on when they like. */
-export const OFF_BY_DEFAULT: readonly Flag[] = ["brunoSearch", "dogTheme"];
+export const OFF_BY_DEFAULT: readonly Flag[] = ["brunoSearch", "dogTheme", "teamLogos"];
 
 /** Every flag on but OFF_BY_DEFAULT: what a fresh server, or one whose flags can't be read, runs with. */
 export const DEFAULT_FLAGS: FlagSet = Object.fromEntries(FLAGS.map((f) => [f, !OFF_BY_DEFAULT.includes(f)])) as FlagSet;
@@ -60,12 +60,13 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   discordBruno: { group: "feature", scope: "global" },
   searchLearning: { group: "feature", scope: "global" },
   pageEndGlow: { group: "feature", scope: "global" },
+  teamLogos: { group: "feature", scope: "global" },
 };
 
 /** The owner console's feature toggles, in the order its Features tab lists them. */
 export const FEATURE_FLAGS: readonly Flag[] = FLAGS.filter((f) => FLAG_META[f].group === "feature");
 /** The toggles that only change how pages look: the owner console's Appearance tab lists them, not Features. */
-export const APPEARANCE_FLAGS: readonly Flag[] = ["particleWave", "pageEndGlow", "dogTheme"];
+export const APPEARANCE_FLAGS: readonly Flag[] = ["particleWave", "pageEndGlow", "dogTheme", "teamLogos"];
 /** The kill switches, listed below the feature toggles. */
 export const KILL_SWITCHES: readonly Flag[] = FLAGS.filter((f) => FLAG_META[f].group === "kill");
 /** Flags that take per-workspace overrides. */
@@ -109,6 +110,11 @@ export interface FlagsAnswer { flags: FlagSet; workspaces?: Record<string, Parti
 /** What each switch does, for the owner console. `pending`: the feature it guards hasn't shipped yet, so
  *  the switch is stored but nothing reads it (said in the console, never implied otherwise). */
 export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; pending?: string }> = {
+  teamLogos: {
+    label: "Team logos",
+    on: "Each team's own picture from FIRST shows next to its number wherever a team is named: its page, match rows, rankings, search, compare and event team lists. A team without one shows FIRST's generic mark. Small, fixed size, loaded as they scroll into view.",
+    off: "No logos anywhere and no logo requests: pages look as they did. Pictures keep being refreshed daily, so switching on shows them at once.",
+  },
   particleWave: {
     label: "Particle wave",
     on: "The particle wave appears behind pages in the v8 look. It stays still for visitors who prefer reduced motion.",
