@@ -22,6 +22,7 @@ import { runStats, statsRulesStale } from "../stats/job.js";
 import { CURRENT_SEASON, isLegacy } from "./seasons.js";
 import { withDataLock } from "./lock.js";
 import { unprovenSeasons } from "../api/readiness.js";
+import { refreshTeamLogosIfDue } from "../teamLogos.js";
 
 type Log = (m: string) => void;
 
@@ -73,6 +74,9 @@ export async function runCycle(log: Log) {
       await kvSet("packs:last", new Date().toISOString());
     } catch (e) { log(`  packs: ${(e as Error).message}`); } // e.g. a manual build holds the lock
   }
+  // Team logos (server/teamLogos.ts): FIRST's pictures, refreshed daily whether or not the owner's switch is on, so
+  // turning it on shows them at once. Light: one stylesheet per season, then only pictures that changed.
+  await refreshTeamLogosIfDue([CURRENT_SEASON, CURRENT_SEASON - 1], (m) => log(`  ${m}`));
 }
 
 /** Backfill runs where the cycle has its own process (the VM); CS_BACKFILL=on|off overrides. */

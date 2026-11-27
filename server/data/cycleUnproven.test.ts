@@ -11,6 +11,8 @@ vi.mock("../stats/job.js", () => ({
   runStats: async (o: { seasons?: number[] }) => { asked.push(o.seasons); },
   statsRulesStale: async () => false,
 }));
+// The daily team-logo refresh reads FIRST over the network: not here.
+vi.mock("../teamLogos.js", () => ({ refreshTeamLogosIfDue: async () => {} }));
 const { runCycle } = await import("./cycle");
 
 const QUIET = Date.parse("2026-10-20T07:00:00Z");

@@ -10,6 +10,7 @@ import { m as Motion } from "./motion";
 import { useApi, qs } from "../lib/api";
 import type { MatchView, TeamProfile } from "../shared/api";
 import { cn } from "./cn";
+import { TeamLogo } from "./TeamLogo";
 
 /** The team the card is open for, and how a chip opens or closes it. Absent outside a match list: chips link. */
 export const TeamSnackContext = createContext<{ team: number | null; toggle: (team: number) => void } | null>(null);
@@ -102,6 +103,7 @@ function SnackBody({ team, season, name, code, record, onClose, viewRef }: { tea
   return (
     // Solid: the rows behind never show through the card (#2144).
     <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-xl">
+      <TeamLogo team={team} size={36} className="rounded-md" />
       <div className="min-w-0 flex-1">
         <p className="truncate font-display text-lg font-semibold">
           <span className="tabular-nums">{team}</span>{(p?.team.name ?? name) && <span className="text-text-muted"> · <span className="italic text-text-base">{p?.team.name ?? name}</span></span>}

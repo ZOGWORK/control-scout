@@ -17,6 +17,7 @@ import { AdvancedTeams } from "./AdvancedTeams";
 import { cn } from "./cn";
 import { V8_AWARD, v8Rank } from "../lib/v8colour";
 import { V8_PHASE } from "../lib/records/describe";
+import { TeamLogo } from "./TeamLogo";
 
 export type EventState = "live" | "finished" | "upcoming";
 
@@ -93,7 +94,7 @@ export function ProgressLine({ played, total }: { played: number; total: number 
 
 /** A team as a label: the number in the slate blue (white when it is yours), the name beside it grey. */
 function TeamName({ team, name, season, yours }: { team: number; name?: string | null; season: number; yours?: boolean }) {
-  const body = <><span className={cn("font-mono font-semibold tabular-nums", yours ? "text-text-base" : "text-accent")}>{team}</span> <span className="truncate text-text-muted">{name}</span></>;
+  const body = <><TeamLogo team={team} size={16} className="self-center" /><span className={cn("font-mono font-semibold tabular-nums", yours ? "text-text-base" : "text-accent")}>{team}</span> <span className="truncate text-text-muted">{name}</span></>;
   return hasTeamPage(team, name)
     ? <Link to={`/teams/${team}?season=${season}`} className="flex min-w-0 items-baseline gap-2 still-hover:underline">{body}</Link>
     : <span className="flex min-w-0 items-baseline gap-2">{body}</span>;

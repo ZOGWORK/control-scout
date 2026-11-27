@@ -85,6 +85,7 @@ import { matchExplanation } from "./api/predictMatch.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { shutdownGate } from "./shutdownGate.js";
 import { avatarsRouter } from "./auth/avatars.js";
+import { teamLogosRouter } from "./teamLogos.js";
 import { contactRouter } from "./contact.js";
 import { bugReportsRouter } from "./bugReports.js";
 import { scoutRouter } from "./scout/entries.js";
@@ -1195,6 +1196,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   api.use("/me", meRouter());
   // Profile pictures (server/auth/avatars.ts): public, each URL cached for good.
   api.use("/avatars", avatarsRouter());
+  // Team logos (server/teamLogos.ts): FIRST's team pictures, behind the owner's teamLogos switch (off by default).
+  api.use("/team-logos", teamLogosRouter());
   // Entry photos (docs/r2-photos.md): 404 throughout unless R2 is configured and the photos switch is on.
   api.use("/scout/photos", photosRouter());
   api.use("/scout", scoutRouter());
