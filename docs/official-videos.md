@@ -186,7 +186,11 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
 - **Watchlist** (`official_channels`, migration 84): seeded once each from `server/data/officialChannels.ts` with the
   channels the checked list came from. Each channel has a region rule (`country=Romania`, `state=VA,MD,DC`,
   `country=USA;type=Premier,OffSeason`, `state=IN;name=michiana|gears`), the region's own words (too common in its
-  titles to count as evidence) and, optionally, a pattern for titles that name the region itself. Each run reads a
+  titles to count as evidence) and, optionally, a pattern for titles that name the region itself. A `state=` clause
+  also holds an event FIRST's region code puts in that state (`USIA`, `USNYNY`, `USCALA`), wherever it is held: "IA
+  Western Iowa Super Qualifier" is in Omaha, NE, and FTC Iowa streamed it. A multi-state region code (`USCHS`,
+  `USFCT`) names no one state. A `name=` clause reads the event's code too: NYC FIRST's 2019 "The Dalton School
+  Super-Qualifier # 1" is `NYCSQ1`. Each run reads a
   channel's uploads back to the earlier of the date it started being watched and 180 days ago (`LOOKBACK_MS`), up to
   10 pages of 50. A stream is listed when it's scheduled, often weeks before it airs, so a cut at the watch date alone
   skipped every stream scheduled before it, for good, once it aired (the 2026-11-13 audit found 55: FTC Iowa's league
@@ -243,6 +247,17 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   **pending** (the owner's review), or **set aside**, **duplicate** or **rejected**. The only videos not written yet are
   ones still live or still to come (read again every run until they end) and ones YouTube returns no facts for yet
   (read again next run).
+- **The live pass** (`watchLive`, on every half-hourly check, before the 6-hourly run): the run reads a broadcast only
+  once it's over, so an event's page had no video all through its day and for up to six hours after (2026 AUMPQ1:
+  FIRST Australia was live on `VtYecVi59fs` as its matches came in). Each watched channel whose region holds an event
+  on today at its venue, still missing that day's video, has its newest 10 uploads read. A broadcast on the air now
+  that the rules above put on that event alone, as a whole day's stream (no part named), joins it as that day's
+  recording at once (`official_watch.decided_by = 'live watcher'`): the event's page plays it live, then its clips
+  once it's timed. Length isn't weighed while it's live; everything else is. Anything short of that writes nothing,
+  so the 6-hourly run reads it as new once it ends. Each add is checked again once its broadcast ends: one that ran
+  under 45 minutes, or that no longer plays here (a stream that stopped and started again under a new id), comes off
+  its event and is set aside with why, so the restarted stream can take the day. About 1 unit a channel with an event
+  on today, plus 1 for the new videos' facts and 1 for the ended adds, per check.
 - **After a recording is added** (by the watcher, or by the owner's approval), every `onRecordingAdded` listener
   (`server/videos/officialWatch.ts`) gets each event, day, part and video, once per run. It's the hook for
   follow-up work. Clip coverage (`checkClipCoverage`, `server/videos/coverageCheck.ts`) is checked by the 5-minute

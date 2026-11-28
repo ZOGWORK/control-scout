@@ -9,12 +9,12 @@ import { all, db, get, run } from "../db.js";
 import { env } from "../env.js";
 import { recordAudit } from "../portal/audit.js";
 import { OFFICIAL_CHANNELS } from "../data/officialChannels.js";
-import { eventVideosByDay, forgetOfficial } from "./officialVideos.js";
+import { MIN_RECORDING_S, eventVideosByDay, forgetOfficial, localDate } from "./officialVideos.js";
 import { isoDuration } from "./youtube.js";
 import { STARTUP_CYCLE_MS } from "../warm.js";
 import { EVENT_FIRST_DAY, EVENT_LAST_DAY, EVENT_PLAYED_DAYS, playedDays } from "./eventDays.js";
 import { LockBusy, isBusy, lockHolder, withDataLock } from "../data/lock.js";
-import { bestGuess, matchVideo, parseRule, videoWindow, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
+import { NOT_EVENTS, bestGuess, matchVideo, parseRule, videoWindow, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
 export const WATCH_EVERY_MS = 6 * 3600_000;
 /** The half-hourly check's first one after boot: 2.5 minutes before the startup sync (server/warm.ts STARTUP_CYCLE_MS),
@@ -97,12 +97,12 @@ async function api(path: string, params: Record<string, string>, key: string, fe
 /** The events on any day from lo to hi (YYYY-MM-DD): their listed days and the days they played (eventDays.ts). */
 export async function eventsBetween(lo: string, hi: string): Promise<WatchEvent[]> {
   const rows = await all<any>(
-    `SELECT season, code, name, type, city, venue, state, country, start, end, timezone, division_code, remote, parent, played_days FROM (SELECT e.season, e.code, e.name, e.type, e.city, e.venue, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote, ${EVENT_PLAYED_DAYS} AS played_days,
+    `SELECT season, code, name, type, city, venue, state, country, region, start, end, timezone, division_code, remote, parent, played_days FROM (SELECT e.season, e.code, e.name, e.type, e.city, e.venue, e.state, e.country, e.region, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote, ${EVENT_PLAYED_DAYS} AS played_days,
             EXISTS (SELECT 1 FROM events c WHERE c.season = e.season AND c.division_code = e.code AND c.code != e.code) AS parent
      FROM events e WHERE e.start IS NOT NULL) WHERE start <= ? AND end >= ?`, [hi, lo]);
   return rows.map((r) => ({
     season: Number(r.season), code: String(r.code), name: String(r.name ?? ""), type: String(r.type ?? ""), city: r.city ?? null, venue: r.venue ?? null, state: r.state ?? null,
-    country: r.country ?? null, start: String(r.start).slice(0, 10), end: r.end ? String(r.end).slice(0, 10) : null, timezone: r.timezone ?? null,
+    country: r.country ?? null, firstRegion: r.region ?? null, start: String(r.start).slice(0, 10), end: r.end ? String(r.end).slice(0, 10) : null, timezone: r.timezone ?? null,
     divisionCode: r.division_code ?? null, parent: !!Number(r.parent), remote: !!Number(r.remote), playedDays: playedDays(r.played_days),
   }));
 }
@@ -314,11 +314,14 @@ export async function guessFor(v: WatchVideo, rule: ChannelRule): Promise<NonNul
   return bestGuess(v, rule, events);
 }
 
+/** Who added a recording: the 6-hourly watcher, the live pass (a broadcast on the air at its event), or the channel audit. */
+export type AddedBy = "watcher" | "live watcher" | "channel audit";
+
 /** A verdict written: the watcher's row, and for an add the recording on its event. by: who added it (the watcher, or
  *  the channel audit for one older than the watcher's window that passes every check: server/videos/officialAudit.ts).
  *  For an add, what became of it: "added"; "queued" (its day taken meanwhile: in the owner's review, naming the clash);
  *  or "kept" (the owner decided the video meanwhile, and that stands). Any other verdict: "kept". */
-export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: "watcher" | "channel audit" = "watcher"): Promise<"added" | "queued" | "kept"> {
+export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: AddedBy = "watcher"): Promise<"added" | "queued" | "kept"> {
   const writes = verdictWrites(v, ch, verdict, published, now, by);
   if (verdict.kind !== "add") { await db().batch(writes, "write"); return "kept"; }
   // An add lands whole or not at all: the row claimed as added and its recording in. Another recording that took the
@@ -349,7 +352,7 @@ export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "
 /** The rows one verdict writes: the watcher's row, and for an add the dead recordings it replaces and its own. An
  *  existing row in review, set aside or logged as a duplicate is overwritten only by an add (the audit deciding it
  *  again: a duplicate whose day's video has gone), or with reopen (a lost add sent to review). */
-function verdictWrites(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: "watcher" | "channel audit", reopen = false): { sql: string; args: (string | number | null)[] }[] {
+function verdictWrites(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: AddedBy, reopen = false): { sql: string; args: (string | number | null)[] }[] {
   const at = new Date(now).toISOString();
   // An event the verdict names, else (in review or set aside) the best guess: the owner's form starts from it.
   const ev = (verdict.kind === "ignore" ? null : verdict.event ?? null) ?? verdict.guess?.event ?? null;
@@ -381,6 +384,151 @@ function verdictWrites(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title"
     args: [v.videoId, verdict.event.season, verdict.event.code, verdict.day, verdict.part, ch.channelId, v.title, `${by}: ${ch.title}; ${verdict.why}`, at, v.videoId],
   });
   return writes;
+}
+
+// ---- The live pass ----
+// The 6-hourly run reads a broadcast only once it's over, so an event's page had no video all through its day and up to
+// six hours after (2026 AUMPQ1: FIRST Australia was live on VtYecVi59fs while its matches came in). On every half-hourly
+// check, each watched channel whose region has an event on today (at the venue) still missing that day's video has its
+// newest uploads read: a broadcast on the air now that the watcher's rules put on that event, alone, joins it as that
+// day's recording (the live player, then the clips once it's timed). Anything short of that is left for the 6-hourly
+// run, once it's over; so is a stream naming a part (the awards), which needs its length. Each add is checked again
+// once it ends: one that ran under a day's recording (a stream that stopped and started again under a new id) comes off
+// its event, so the new one can take the day. Quota: 1 unit a channel with an event on today still missing its video,
+// 1 for the facts of what's new, and 1 for the ended adds: a few dozen units over a busy Saturday's checks.
+
+/** Uploads read from each channel's list, newest first: a live broadcast is at or near the top. */
+const LIVE_PAGE = 10;
+/** A live add's end is checked for this long after it was added (a failed facts call is tried again next check). */
+const LIVE_SETTLE_DAYS = 3;
+export interface LiveRun { units: number; channels: number; live: number; added: number; settled: number; dropped: number }
+
+/** The events on today at their venue still missing that day's video, by the channels whose region holds them. */
+async function liveTargets(channels: ChannelRow[], now: number): Promise<Map<string, WatchEvent[]>> {
+  const iso = new Date(now).toISOString();
+  const shift = (n: number) => new Date(Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+  const missing: WatchEvent[] = [];
+  for (const e of await eventsBetween(shift(-1), shift(1))) {
+    if (NOT_EVENTS.has(e.type) || e.remote) continue;
+    const local = localDate(iso, e.timezone);
+    if (local < e.start || local > (e.end || e.start)) continue;
+    // A video whose day isn't read yet may be today's: the event waits for it to be timed (the 5-minute recordings pass).
+    const has = (await eventVideosByDay(e.season, e.code)).filter((h) => !h.gone);
+    if (!has.some((h) => h.day === local || !h.timed)) missing.push(e);
+  }
+  const out = new Map<string, WatchEvent[]>();
+  if (!missing.length) return out;
+  for (const ch of channels) {
+    const inRegion = parseRule(ch.region);
+    const mine = inRegion ? missing.filter(inRegion) : [];
+    if (mine.length) out.set(ch.channelId, mine);
+  }
+  return out;
+}
+
+/** One live pass (see above). Not while a 6-hourly run is going, and never without YOUTUBE_API_KEY. */
+export async function watchLive(log: (s: string) => void, opts: { apiKey?: string | null; fetchImpl?: Fetch; now?: () => number; lockWaitMs?: number } = {}): Promise<LiveRun | null> {
+  const key = opts.apiKey === undefined ? env.youtubeApiKey : opts.apiKey;
+  if (!key || busy) return null;
+  busy = true;
+  const now = opts.now ?? Date.now;
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const locked = <T>(fn: () => Promise<T>) => withDataLock("official videos live pass", fn, { ttlMs: 60_000, waitMs: opts.lockWaitMs ?? 60_000, pollMs: 1000 });
+  const out: LiveRun = { units: 0, channels: 0, live: 0, added: 0, settled: 0, dropped: 0 };
+  const added: RecordingAdded[] = [];
+  try {
+    // 1. Its adds whose broadcast is over now: kept when they ran a day's recording, else taken off their event.
+    const since = new Date(now() - LIVE_SETTLE_DAYS * 864e5).toISOString();
+    const open = await all<{ video_id: string; season: number; code: string }>(
+      `SELECT w.video_id, w.season, w.code FROM official_watch w JOIN official_videos o ON o.video_id = w.video_id AND o.removed_at IS NULL
+       WHERE w.status = 'added' AND w.decided_by = 'live watcher' AND w.duration IS NULL AND w.decided_at >= ? LIMIT 50`, [since]);
+    if (open.length) {
+      out.units++;
+      const body = await api("videos", { part: "snippet,contentDetails,status", id: open.map((o) => o.video_id).join(","), maxResults: "50" }, key, fetchImpl);
+      const items = new Map<string, any>((Array.isArray(body?.items) ? body.items : []).map((i: any) => [String(i.id), i]));
+      const at = new Date(now()).toISOString();
+      const writes: { sql: string; args: (string | number | null)[] }[] = [];
+      for (const o of open) {
+        const it = items.get(String(o.video_id));
+        const state = String(it?.snippet?.liveBroadcastContent ?? "none");
+        if (it && (state === "live" || state === "upcoming")) continue;
+        const length = it ? isoDuration(it?.contentDetails?.duration) : null;
+        const playable = !!it && it?.status?.privacyStatus === "public" && it?.status?.embeddable !== false
+          && !((it?.contentDetails?.regionRestriction?.blocked?.length ?? 0) >= 50);
+        if (playable && length != null && length >= MIN_RECORDING_S) {
+          writes.push({ sql: "UPDATE official_watch SET duration = ? WHERE video_id = ? AND status = 'added'", args: [length, String(o.video_id)] });
+          out.settled++;
+          continue;
+        }
+        const why = !it ? "gone from YouTube once its broadcast ended" : !playable ? "not a public video that plays here once its broadcast ended"
+          : `${Math.round((length ?? 0) / 60)} minutes once its broadcast ended: too short for a day's recording`;
+        writes.push(
+          { sql: "UPDATE official_videos SET removed_at = ? WHERE video_id = ? AND removed_at IS NULL", args: [at, String(o.video_id)] },
+          { sql: "UPDATE official_watch SET status = 'ignored', duration = ?, why = ? WHERE video_id = ? AND status = 'added'",
+            args: [length, `taken off ${o.season} ${o.code} by the live pass: ${why}`.slice(0, 500), String(o.video_id)] });
+        out.dropped++;
+        log(`official videos: live pass took ${o.video_id} off ${o.season} ${o.code}: ${why}`);
+      }
+      if (writes.length) await locked(() => db().batch(writes, "write"));
+    }
+    // 2. What's on the air now on the channels whose region has an event on today still missing that day's video.
+    const channels = (await all<any>("SELECT channel_id, title, region, words, title_pattern, watch_from, checked_at, last_error, removed_at FROM official_channels WHERE removed_at IS NULL ORDER BY channel_id")).map(channelOf);
+    const targets = await liveTargets(channels, now());
+    const fresh: { ch: ChannelRow; id: string; published: string }[] = [];
+    for (const ch of channels.filter((c) => targets.has(c.channelId))) {
+      out.units++;
+      out.channels++;
+      try {
+        const body = await api("playlistItems", { part: "contentDetails", playlistId: `UU${ch.channelId.slice(2)}`, maxResults: String(LIVE_PAGE) }, key, fetchImpl);
+        const items: { id: string; published: string }[] = (Array.isArray(body?.items) ? body.items : [])
+          .map((i: any) => ({ id: String(i?.contentDetails?.videoId ?? ""), published: String(i?.contentDetails?.videoPublishedAt ?? "") }))
+          .filter((i: { id: string }) => VIDEO_ID.test(i.id));
+        if (!items.length) continue;
+        const ids = items.map((i) => i.id), q = ids.map(() => "?").join(",");
+        const known = new Set((await all<{ video_id: string }>(`SELECT video_id FROM official_watch WHERE video_id IN (${q}) UNION SELECT video_id FROM official_videos WHERE video_id IN (${q})`, [...ids, ...ids])).map((r) => String(r.video_id)));
+        for (const i of items) if (!known.has(i.id)) fresh.push({ ch, ...i });
+      } catch (e) {
+        if (e instanceof QuotaError) throw e;
+        log(`official videos: live pass: ${ch.title}: ${(e as Error).message}`);
+      }
+    }
+    for (let i = 0; i < fresh.length; i += 50) {
+      const part = fresh.slice(i, i + 50);
+      out.units++;
+      const body = await api("videos", { part: "snippet,contentDetails,status,liveStreamingDetails", id: part.map((p) => p.id).join(","), maxResults: "50" }, key, fetchImpl);
+      for (const item of Array.isArray(body?.items) ? body.items : []) {
+        if (String(item?.snippet?.liveBroadcastContent ?? "none") !== "live") continue;
+        const p = part.find((x) => x.id === String(item.id));
+        const start = item?.liveStreamingDetails?.actualStartTime ?? null;
+        if (!p || !start) continue;
+        out.live++;
+        const v: WatchVideo = {
+          videoId: p.id, title: String(item?.snippet?.title ?? "").slice(0, 300), start, published: p.published || null, durationS: null, live: true,
+          privacy: String(item?.status?.privacyStatus ?? "public"), embeddable: item?.status?.embeddable !== false,
+          blockedIn: Array.isArray(item?.contentDetails?.regionRestriction?.blocked) ? item.contentDetails.regionRestriction.blocked.length : 0,
+        };
+        // Its verdict and its write together, under the lease, as the watcher's are. Only an add of a whole day's
+        // stream, on an event on today still missing that day's video, is written: nothing else is, so the 6-hourly
+        // run reads the video as new once its broadcast is over.
+        await locked(async () => {
+          const verdict = await decide(v, p.ch);
+          if (verdict.kind !== "add" || verdict.part != null) return;
+          if (!targets.get(p.ch.channelId)?.some((e) => e.season === verdict.event.season && e.code === verdict.event.code)) return;
+          if (await record(v, p.ch, verdict, p.published || null, now(), "live watcher") !== "added") return;
+          out.added++;
+          added.push({ season: verdict.event.season, code: verdict.event.code, day: verdict.day, part: null, videoId: v.videoId, by: "watcher" });
+          log(`official videos: live pass added ${v.videoId} to ${verdict.event.season} ${verdict.event.code} (${verdict.day}): ${verdict.why}`);
+        });
+      }
+    }
+  } catch (e) {
+    if (!(e instanceof LockBusy) && !isBusy(e)) log(`official videos: live pass: ${String((e as Error).message ?? e).slice(0, 300)}`);
+  } finally {
+    busy = false;
+  }
+  if (out.added || out.dropped) forgetOfficial();
+  await recordingsAdded(added, log);
+  return out;
 }
 
 // ---- The owner's side (server/videos/officialOwnerRoutes.ts) ----

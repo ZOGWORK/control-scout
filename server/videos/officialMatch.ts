@@ -5,10 +5,14 @@
 import { MIN_RECORDING_S, localDate } from "./officialVideos.js";
 
 /** A channel's patch: which events can be its (docs/official-videos.md). Clauses separated by ";", each key=values:
- *  country=Romania · state=VA,MD,DC · type=Premier,OffSeason · name=<regex on the event's name>. All must hold. */
+ *  country=Romania · state=VA,MD,DC · type=Premier,OffSeason · name=<regex on the event's name or code>. All must hold.
+ *  A state also holds an event its FIRST region runs from that state ("IA Western Iowa Super Qualifier", held in Omaha
+ *  but in FIRST's region USIA), and a name rule reads the code too (NYC FIRST's 2019 "The Dalton School Super-Qualifier
+ *  # 1" is NYCSQ1). */
 export interface ChannelRule { region: string; /** Words of the region itself, too common in its titles to count as evidence. */ words?: string | null; /** A title naming this regex is about the region's own events (its championship). */ titlePattern?: string | null }
 export interface WatchEvent {
   season: number; code: string; name: string; type: string; city: string | null; /** Where it is held ("Pius X-College"): a title may name the venue rather than the event. */ venue?: string | null; state: string | null; country: string | null;
+  /** FIRST's region code ("USIA", "USNYNY", "AU"): the region that runs it, which can hold an event across a state line. */ firstRegion?: string | null;
   start: string; end: string | null; timezone: string | null; divisionCode: string | null; /** Other events name this one as their parent. */ parent: boolean;
   /** Played remotely: each team on its own field, scored from its own videos (2020-21). */ remote?: boolean;
   /** The venue-local days it played a match, in order (eventDays.ts): a title's day number may count these. */ playedDays?: string[];
@@ -17,12 +21,17 @@ export interface WatchVideo {
   videoId: string; title: string; /** liveStreamingDetails.actualStartTime: null for an upload. */ start: string | null;
   /** When it went up on the channel (the uploads list's videoPublishedAt): an upload's only date. */ published?: string | null;
   durationS: number | null; privacy: string; embeddable: boolean; /** Countries YouTube blocks it in. */ blockedIn: number;
+  /** On the air now (the live pass, ./officialWatch.ts): it has no length yet, so length isn't weighed. */ live?: boolean;
 }
 export type Verdict =
   | { kind: "add"; event: WatchEvent; day: string; part: string | null; why: string }
   | { kind: "review"; why: string; event?: WatchEvent; day?: string; part?: string | null }
   | { kind: "ignore"; why: string };
 
+
+/** The state a US region code is run from: USIA → ia, USNYNY → ny, USCALA → ca. Not a multi-state one (USCHS, USFCT,
+ *  USARL): their codes don't name one state. */
+const regionState = (r: string | null | undefined) => /^US([A-Z]{2})(?:[A-Z]{2})?$/.exec(r ?? "")?.[1].toLowerCase() ?? "";
 
 export function parseRule(region: string): ((e: WatchEvent) => boolean) | null {
   const clauses = region.split(";").map((c) => c.trim()).filter(Boolean);
@@ -35,12 +44,13 @@ export function parseRule(region: string): ((e: WatchEvent) => boolean) | null {
     if (key === "name") {
       let re: RegExp;
       try { re = new RegExp(val, "i"); } catch { return null; }
-      tests.push((e) => re.test(e.name));
+      tests.push((e) => re.test(e.name) || re.test(e.code));
       continue;
     }
     const set = new Set(val.split(",").map((v) => v.trim().toLowerCase()).filter(Boolean));
     if (!set.size) return null;
-    tests.push((e) => set.has(String((key === "country" ? e.country : key === "state" ? e.state : e.type) ?? "").toLowerCase()));
+    tests.push((e) => set.has(String((key === "country" ? e.country : key === "state" ? e.state : e.type) ?? "").toLowerCase())
+      || (key === "state" && set.has(regionState(e.firstRegion))));
   }
   return (e) => tests.every((t) => t(e));
 }
@@ -185,12 +195,12 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   if (notComp) return { kind: "ignore", why: notComp };
   const inRegion = parseRule(rule.region);
   if (!inRegion) return { kind: "review", why: `the channel's region rule "${rule.region}" can't be read` };
-  const short = v.durationS != null && v.durationS < MIN_RECORDING_S;
+  const short = !v.live && v.durationS != null && v.durationS < MIN_RECORDING_S;
   const mins = Math.round((v.durationS ?? 0) / 60);
   // A short upload can't be a day's recording and has no broadcast date to tie it to an event: set aside with why (the
   // owner can still add it as a highlight from the set-aside list). A full-length upload might be a re-uploaded day.
   if (!v.start && short) return { kind: "ignore", why: `a ${mins}-minute upload, not a broadcast: too short for a day's recording (set aside; add it as a highlight if it is one)` };
-  if (v.durationS == null) return { kind: "review", why: "YouTube gave no length for it, so it can't be told from a clip" };
+  if (v.durationS == null && !v.live) return { kind: "review", why: "YouTube gave no length for it, so it can't be told from a clip" };
   // Not a public video that plays here (private, unlisted, embedding off, blocked in most countries): nothing to link,
   // whichever event it is. Set aside with why; a later change of its settings is read by the next audit.
   if (v.privacy !== "public" || !v.embeddable || v.blockedIn >= 50) return { kind: "ignore", why: `not a public video that plays here (${v.privacy}${v.embeddable ? "" : ", not embeddable"}${v.blockedIn ? `, blocked in ${v.blockedIn} countries` : ""})` };

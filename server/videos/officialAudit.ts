@@ -135,13 +135,13 @@ async function scoutRecords(unused?: UnusedLink[]): Promise<Map<string, Record_>
 /** Every event with a date, for matching in memory, bucketed by month so a window reads two or three buckets. */
 async function eventIndex(): Promise<(lo: string, hi: string) => WatchEvent[]> {
   // Its days: the listed ones and the days it played (eventDays.ts).
-  const rows = await all<any>(`SELECT e.season, e.code, e.name, e.type, e.city, e.venue, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote, ${EVENT_PLAYED_DAYS} AS played_days FROM events e WHERE e.start IS NOT NULL`);
+  const rows = await all<any>(`SELECT e.season, e.code, e.name, e.type, e.city, e.venue, e.state, e.country, e.region, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote, ${EVENT_PLAYED_DAYS} AS played_days FROM events e WHERE e.start IS NOT NULL`);
   const parents = new Set(rows.filter((r) => r.division_code && r.division_code !== r.code).map((r) => `${r.season}/${r.division_code}`));
   const buckets = new Map<string, WatchEvent[]>();
   for (const r of rows) {
     const e: WatchEvent = {
       season: Number(r.season), code: String(r.code), name: String(r.name ?? ""), type: String(r.type ?? ""), city: r.city ?? null, venue: r.venue ?? null, state: r.state ?? null,
-      country: r.country ?? null, start: String(r.start).slice(0, 10), end: r.end ? String(r.end).slice(0, 10) : null, timezone: r.timezone ?? null,
+      country: r.country ?? null, firstRegion: r.region ?? null, start: String(r.start).slice(0, 10), end: r.end ? String(r.end).slice(0, 10) : null, timezone: r.timezone ?? null,
       divisionCode: r.division_code ?? null, parent: parents.has(`${r.season}/${r.code}`), remote: !!Number(r.remote), playedDays: playedDays(r.played_days),
     };
     for (let m = e.start.slice(0, 7); m <= (e.end ?? e.start).slice(0, 7); m = nextMonth(m)) {
@@ -642,7 +642,8 @@ async function checkAdds(rows: any[], facts: Map<string, any>, rules: Map<string
     }
     const rule = rules.get(String(a.channel_id));
     if (rule && start && a.e_start && !nc) {
-      const v: WatchVideo = { videoId: vid, title, start, durationS: f?.duration ?? r?.duration ?? null, privacy: "public", embeddable: true, blockedIn: 0 };
+      // On the air still (a live pass add): no length yet, so length isn't weighed until it's over.
+      const v: WatchVideo = { videoId: vid, title, start, durationS: f?.duration ?? r?.duration ?? null, privacy: "public", embeddable: true, blockedIn: 0, live: f?.live === "live" };
       const w = videoWindow(v)!;
       // Playability is checked above from its facts: here, only which event the rules pick for it today.
       const m = matchVideo(v, rule, events(w[0], w[1]));
