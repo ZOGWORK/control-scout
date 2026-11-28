@@ -513,6 +513,14 @@ async function spelledFix(typed: string, a: SearchAnswer, run: (q: string) => Pr
     const n = await numberFix(led[1]);
     if (n?.didYouMean) return carryOutcome(a, { ...n, q: a.q, step: "deterministic", didYouMean: `${n.didYouMean} ${led[2]}` });
   }
+  // The same said inside the question as a team ("what is team 33960's opr", "how did 33960's season go"): the closest
+  // team numbers, the question offered again with the closest one in the number's place.
+  const inside = was <= 1 && !led ? /(?:\bteam\s*#?|#)(\d{2,6})\b|\b(\d{2,6})['’]s\b/iu.exec(typed) : null;
+  if (inside) {
+    const num = inside[1] ?? inside[2];
+    const n = await numberFix(num);
+    if (n?.didYouMean) return carryOutcome(a, { ...n, q: a.q, step: "deterministic", didYouMean: typed.replace(num, n.didYouMean) });
+  }
   // "What is the bet", "what is the best time": search ranks teams, so "… best team" is offered (and shown when the
   // query as typed found nothing that matches).
   const best = was <= 3 ? bestFix(typed) : null;

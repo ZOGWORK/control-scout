@@ -223,9 +223,11 @@ async function otherSeasons(e: Ev, worlds: boolean): Promise<StatBlock[]> {
     : worlds
       ? await finishedChampionships()
       : (await all<{ season: number }>("SELECT DISTINCT season FROM events WHERE code = ? AND COALESCE(end, start) < ? ORDER BY season DESC", [e.code, today])).map((r) => Number(r.season));
+  // An event is often renamed from season to season: each season's link says that season's own name.
+  const names = worlds ? new Map<number, string>() : new Map((await all<{ season: number; name: string }>("SELECT season, name FROM events WHERE code = ?", [e.code])).map((r) => [Number(r.season), r.name]));
   const items = seasons.filter((s) => s !== Number(e.season)).map((s) => ({
     label: worlds ? `${gameOf(s)} ${seasonLabel(s)}` : seasonLabel(s),
-    href: `/search?q=${encodeURIComponent(worlds ? `${gameOf(s).toLowerCase()}${division ? ` ${division.toLowerCase()} division` : ""} winners` : `who won ${e.name} ${seasonLabel(s)}`)}`,
+    href: `/search?q=${encodeURIComponent(worlds ? `${gameOf(s).toLowerCase()}${division ? ` ${division.toLowerCase()} division` : ""} winners` : `who won ${names.get(s) ?? e.name} ${seasonLabel(s)}`)}`,
   }));
   return items.length ? [{ kind: "links", title: "Other seasons", items }] : [];
 }

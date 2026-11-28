@@ -24,7 +24,7 @@ import {
 
 /** The intents answered here. */
 export const MATCH_STAT_IDS = new Set<IntentId>(["ties-count", "win-percent", "score-range", "median-score", "score-consistency", "scores-over",
-  "highest-auto", "highest-teleop", "highest-endgame", "most-penalties", "penalties", "easiest-opponent", "vs-top", "vs-rookies", "early-late"]);
+  "highest-auto", "highest-teleop", "highest-endgame", "average-auto", "average-teleop", "average-endgame", "most-penalties", "penalties", "easiest-opponent", "vs-top", "vs-rookies", "early-late"]);
 
 /** "Top teams": opponents in the season's top tenth by prediction rating (its world rank among every rated team). */
 export const TOP_SHARE = 0.1;
@@ -39,9 +39,9 @@ const byEvent = (ms: TeamMatch[]) => { const g = new Map<string, TeamMatch[]>();
 
 /** A phase's points in match `m`, as the team page reports that phase (TeleOp with the endgame from 2024–25 on). */
 function phaseOf(id: IntentId, m: TeamMatch): number | null {
-  if (id === "highest-auto") return m.ownAuto;
-  if (id === "highest-endgame") return m.ownEndgame;
-  if (id === "highest-teleop") return m.ownTeleop == null ? null : m.ownTeleop + (reportedTeleopIncludesEndgame(m.season) ? m.ownEndgame ?? 0 : 0);
+  if (id === "highest-auto" || id === "average-auto") return m.ownAuto;
+  if (id === "highest-endgame" || id === "average-endgame") return m.ownEndgame;
+  if (id === "highest-teleop" || id === "average-teleop") return m.ownTeleop == null ? null : m.ownTeleop + (reportedTeleopIncludesEndgame(m.season) ? m.ownEndgame ?? 0 : 0);
   if (id === "most-penalties") return m.ownPen;
   return null;
 }
@@ -50,6 +50,9 @@ const PHASE: Partial<Record<IntentId, { title: string; word: string; phase?: "au
   "highest-teleop": { title: "Highest TeleOp score", word: "TeleOp", phase: "teleop" },
   "highest-endgame": { title: "Highest Endgame score", word: "Endgame", phase: "endgame" },
   "most-penalties": { title: "Match with the most penalty points given away", word: "penalty points given away" },
+  "average-auto": { title: "Average Auto points", word: "Auto", phase: "auto" },
+  "average-teleop": { title: "Average TeleOp points", word: "TeleOp", phase: "teleop" },
+  "average-endgame": { title: "Average Endgame points", word: "Endgame", phase: "endgame" },
 };
 
 /** The prediction rating (and its world rank) each opponent had that season, as its team page shows it. */
@@ -219,6 +222,36 @@ export async function matchStatAnswer(id: IntentId, team: AnswerTeam, all0: Team
       return {
         ...base, family: "superlative", intent: id, title,
         headline: { value: `${v} point${v === 1 ? "" : "s"}`, label: `${id === "most-penalties" ? "of penalty points given away" : ph.word} in ${top.label} at ${top.event}`, sub: [seasonLabel(top.season), r.date, `${top.alliance === "red" ? "Red" : "Blue"} alliance`].filter(Boolean).join(" · "), href: r.href },
+        blocks, definition: def,
+      };
+    }
+
+    case "average-auto":
+    case "average-teleop":
+    case "average-endgame": {
+      const ph = PHASE[id]!;
+      const title = title0(ph.title);
+      const teleopNote = id === "average-teleop" && reportedTeleopIncludesEndgame(pointsSeason ?? 0) ? " TeleOp includes the endgame, as FIRST reports it and the team page shows it." : "";
+      const def = `Phase points: the alliance's points in that phase, as the match's score breakdown has them (both robots together), in matches the team was on the field for, at official events; the average is over the matches with a breakdown.${teleopNote}${pointsNote}`;
+      const xs = pts.filter((m) => phaseOf(id, m) != null);
+      if (!xs.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: pts.length ? `No score breakdown${where} on record for ${who}'s matches.` : none("matches") };
+      const vs = xs.map((m) => phaseOf(id, m)!);
+      const avg = mean(vs);
+      const hi = xs.reduce((a, b) => (phaseOf(id, b)! > phaseOf(id, a)! ? b : a));
+      const evs = byEvent(xs).map((ys) => ({ ys, avg: mean(ys.map((m) => phaseOf(id, m)!)) }));
+      const blocks: StatBlock[] = [
+        { kind: "kpis", items: [
+          { label: `Average ${ph.word}`, value: one(avg), sub: `points a match, over ${plural(xs.length, "match", "matches")}`, tone: "accent" },
+          { label: "Highest", value: String(phaseOf(id, hi)), sub: `${hi.label} at ${hi.event}` },
+          { label: "Lowest", value: String(Math.min(...vs)) },
+        ] },
+        ...(evs.length > 1 ? [{ kind: "series" as const, title: `Average ${ph.word} by event`, unit: "points", points: evs.map(({ ys, avg: y }) => ({ x: ys[0].event, y: Number(one(y)), href: eventHref(ys[0].season, ys[0].code, team.number), note: `${ys.length} matches` })) }] : []),
+        { kind: "table", title: `${ph.word} each match, newest first`, columns: [{ key: "v", label: ph.word, num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "result", label: "Result" }],
+          rows: [...xs].reverse().slice(0, LIST_CAP).map((m) => ({ cells: { v: phaseOf(id, m), match: m.label, event: m.event, result: resultWord(m) }, href: row(m).href })) },
+      ];
+      return {
+        ...base, family: "aggregate", intent: id, title,
+        headline: { value: `${one(avg)} points`, label: `average ${ph.word} a match${where}`, sub: `${plural(xs.length, "match", "matches")} · ${seasonsText([...new Set(xs.map((m) => m.season))].sort())}` },
         blocks, definition: def,
       };
     }

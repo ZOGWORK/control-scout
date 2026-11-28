@@ -21,7 +21,7 @@ export type IntentId =
   | "blowout-wins" | "losses" | "playoff-matches" | "qual-matches" | "season-matches" | "red-blue-record"
   // Family 4 again, over the match rows' scores, phases and penalties (families/matchStats.ts).
   | "ties-count" | "win-percent" | "score-range" | "median-score" | "score-consistency" | "scores-over"
-  | "highest-auto" | "highest-teleop" | "highest-endgame" | "most-penalties" | "penalties"
+  | "highest-auto" | "highest-teleop" | "highest-endgame" | "most-penalties" | "penalties" | "average-auto" | "average-teleop" | "average-endgame"
   | "easiest-opponent" | "vs-top" | "vs-rookies" | "early-late"
   // Family 5: at one event (its matches, rank and OPR there).
   | "results" | "event-rank" | "event-opr" | "match-lookup"
@@ -637,7 +637,10 @@ function readClimb(raw: string): LeaderboardQuestion | null {
   const nums: number[] = [];
   const q = ` ${raw.toLowerCase().replace(/(\d),(?=\d{3}\b)/g, "$1").replace(/['’]s\b/g, "")
     .replace(/(#|\b(?:rank(?:ed)?|top|from|to) )(\d{1,5})\b/g, (_, w: string, d: string) => `${w}n${nums.push(Number(d)) - 1}`)
-    .replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ");
+    .replace(/[?!,.]/g, " ")} `
+    // Every place said outright ("teams worldwide that climbed …"): the worldwide board, no place.
+    .replace(/\b(?:worldwide|world wide|globally|internationally|in the world|across the world|around the world|all over the world)\b/g, " ")
+    .replace(/\s+/g, " ");
   if (nums.length < 2) return null;
   const { scope, rest } = readScope(q);
   if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever || scope.place || scope.outOfState || scope.day || scope.window) return null;

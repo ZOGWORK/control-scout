@@ -6,6 +6,7 @@
 import type { StatAnswer, StatBlock, StatMatchRow } from "../../../../src/shared/searchStat.js";
 import type { Region } from "../../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
+import { eventTypeLabel } from "../../../../src/shared/labels.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 // A season's best matches walk every match of it (50–130 ms a read, measured 2026-11-13): kept as search's own reads
 // are (searchReads.ts, until the data moves), so the highlights questions asked over one season read them once.
@@ -134,13 +135,20 @@ const winnerOf = (r: Row): "red" | "blue" | null => { const red = Number(r.red_t
 
 type Window = TopMatchesQuestion["window"];
 
+/** The event named is one whose matches are no official record (a scrimmage, an off-season event): its own matches are
+ *  still what was asked about, so it is read whole. */
+type Named = { season: number; code: string; type?: string | null };
+export const unofficialEvent = (e: Named | null): boolean => !!e?.type && !(OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "");
+
 /** The matches' scope: official events of the season, in the place (a region, or a whole country when it has no
- *  state), the event and the date window asked. */
-function where(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null, window?: Window, official = false) {
-  const sql = [`m.season = ? AND m.played = 1 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})`];
+ *  state), the event and the date window asked. An event named that is no official one (`unofficialEvent`) reads its
+ *  own matches: only it was asked about, so nothing of another event's type can come in. */
+function where(season: number, region: Region | null, event: Named | null, phase: Phase | null = null, window?: Window, official = false) {
+  const types = unofficialEvent(event) ? [] : [...OFFICIAL_TYPES];
+  const sql = [`m.season = ? AND m.played = 1${types.length ? ` AND e.type IN (${types.map(() => "?").join(", ")})` : ""}`];
   // TeleOp and Endgame records only from reported splits, never a totals-only match's estimate.
   if (phase === "teleop" || phase === "endgame") sql.push("(m.breakdown IS NULL OR m.breakdown != 0)");
-  const args: (string | number)[] = [season, ...OFFICIAL_TYPES];
+  const args: (string | number)[] = [season, ...types];
   if (region) { sql.push(region.state ? "e.country = ? AND e.state = ?" : "e.country = ?"); args.push(region.country, ...(region.state ? [region.state] : [])); }
   if (window) { sql.push("substr(COALESCE(m.time, e.start), 1, 10) BETWEEN ? AND ?"); args.push(window.from, window.to); }
   if (event) { sql.push("(e.code = ? OR e.division_code = ?)"); args.push(event.code, event.code); }
@@ -152,14 +160,14 @@ const SIDE_FROM = "FROM matches m JOIN events e ON e.season = m.season AND e.cod
 const side = (s: "red" | "blue", w: string, season: number, phase: Phase | null = null) => `SELECT ${COLS}, '${s}' side, ${scoreSql(s, phase, season)} score ${SIDE_FROM} WHERE ${w} AND ${scoreSql(s, phase, season)} IS NOT NULL`;
 
 /** One season's best alliance score only (the "ever" table's row). */
-async function bestOf(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null, official = false) {
+async function bestOf(season: number, region: Region | null, event: Named | null, phase: Phase | null = null, official = false) {
   const w = where(season, region, event, phase, undefined, official);
   // select-star: the derived table's own columns (side() names each one), not a table's.
   return (await get<Row & { side: "red" | "blue"; score: number }>(`SELECT * FROM (${side("red", w.sql, season, phase)} UNION ALL ${side("blue", w.sql, season, phase)}) ORDER BY score DESC, start, code, label LIMIT 1`, [...w.args, ...w.args])) ?? null;
 }
 
 /** The top alliance scores (each side its own row) and the top combined scores, in one season's scope. */
-async function topOf(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null, window?: Window, n = TOP_MATCHES, official = false) {
+async function topOf(season: number, region: Region | null, event: Named | null, phase: Phase | null = null, window?: Window, n = TOP_MATCHES, official = false) {
   const w = where(season, region, event, phase, window, official);
   const from = SIDE_FROM;
   const [alliances, combined, count] = await Promise.all([
@@ -224,6 +232,9 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
   const links = await teamLinks([...ups.values()].flat());
   const named = (r: Row, side: string) => (ups.get(keyOf(r, side)) ?? []).map((n) => links.get(n)!).filter(Boolean);
   const scopeWords = `${gameOf(season)} ${seasonLabel(season)}${place ? ` · ${place}` : ""}${t.window ? ` · ${t.window.label}` : ""}`;
+  // A scrimmage or off-season event named: its own matches, said as that kind of event, never as official records.
+  const own = unofficialEvent(ev);
+  const kind = own ? eventTypeLabel(ev!.type) : "";
   const one = t.n === 1;
   const at = `${place ? ` ${ev ? "at" : "in"} ${place}` : ""}${t.window ? ` ${t.window.label}` : ""}`;
   // A period asked, or penalties said: the one score ranked, named with its season's game.
@@ -231,9 +242,9 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
     : t.noPenalties ? `Highest ${O}match score in ${gameOf(season)} (${seasonLabel(season)})${at} without penalties`
     : `Highest-scoring ${O}match${one ? "" : "es"}${at}, ${gameOf(season)} ${seasonLabel(season)}`;
   const base = {
-    family: "superlative" as const, intent: "season-top-matches", title, scope: [seasonLabel(season), ...(place ? [place] : []), ...(t.window ? [t.window.label.replace(/^./, (c) => c.toUpperCase())] : []), "Official events"],
-    definition: `${phase ? `An alliance's ${P!.toLowerCase()} score is its own points in that period${phase === "teleop" && reportedTeleopIncludesEndgame(season) ? ", with the endgame, as FIRST reports TeleOp this season" : ""} (penalties are never a period's points); a combined score is both alliances'.${phase !== "auto" ? " A match posted as totals only has no reported split and isn't counted." : ""} ` : ""}${ruleOf(season, !!t.noPenalties)}${t.season == null && !ev ? ` The season is ${gameOf(season)} (${seasonLabel(season)}), the latest with official matches played.` : ""}`,
-    source: `From ${top.count.toLocaleString("en-US")} played match${top.count === 1 ? "" : "es"} at official events, ${scopeWords}`,
+    family: "superlative" as const, intent: "season-top-matches", title, scope: [seasonLabel(season), ...(place ? [place] : []), ...(t.window ? [t.window.label.replace(/^./, (c) => c.toUpperCase())] : []), own ? kind : "Official events"],
+    definition: `${phase ? `An alliance's ${P!.toLowerCase()} score is its own points in that period${phase === "teleop" && reportedTeleopIncludesEndgame(season) ? ", with the endgame, as FIRST reports TeleOp this season" : ""} (penalties are never a period's points); a combined score is both alliances'.${phase !== "auto" ? " A match posted as totals only has no reported split and isn't counted." : ""} ` : ""}${own ? ruleOf(season, !!t.noPenalties).replace(/ Only official events count.*$/, ` ${shortEvent(ev!.name, ev!.type)} is ${/^[aeiou]/i.test(kind) ? "an" : "a"} ${kind.toLowerCase()} event: its own matches are listed, though they never count toward a season's records, which only official events set.`) : ruleOf(season, !!t.noPenalties)}${t.season == null && !ev ? ` The season is ${gameOf(season)} (${seasonLabel(season)}), the latest with official matches played.` : ""}`,
+    source: `From ${top.count.toLocaleString("en-US")} played match${top.count === 1 ? "" : "es"} ${own ? "at the event" : "at official events"}, ${scopeWords}`,
   };
   // "Official" said and every match here left out: they were played, but none is an official record, and why.
   if (!top.alliances.length && t.official) {
@@ -241,7 +252,7 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
     const why = played ? unofficialWhy(played) : null;
     if (played) return { ...base, blocks: [], none: `No official records${place ? ` ${ev ? "at" : "in"} ${place}` : ""}${t.window ? ` ${t.window.label}` : ` in ${seasonLabel(season)}`}: the matches played are not official records${why ? ` (${why})` : ""}.` };
   }
-  if (!top.alliances.length) return { ...base, blocks: [], none: `No played matches at official events${place ? ` in ${place}` : ""}${t.window ? ` ${t.window.label}` : ` in ${seasonLabel(season)}`} yet.` };
+  if (!top.alliances.length) return { ...base, blocks: [], none: `No played matches${own ? "" : " at official events"}${place ? ` in ${place}` : ""}${t.window ? ` ${t.window.label}` : ` in ${seasonLabel(season)}`} yet.` };
   // Penalties said to be left out: no score with them and no penalty points, only the scores without them.
   const noPen = (m: StatMatchRow): StatMatchRow => (t.noPenalties ? { ...m, noPenalties: true, phases: m.phases && (({ pen: _pen, ...rest }) => rest)(m.phases) } : m);
   const row = (r: Row & { side: "red" | "blue" }, i: number): StatMatchRow => noPen({ ...allianceRow(r, r.side, named), rank: i + 1, ...(phase ? { ranked: phase } : {}) });
