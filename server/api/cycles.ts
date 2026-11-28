@@ -68,7 +68,7 @@ export function reasonOf(r: Ranked, v: CreatorVideo, names: Map<number, string>,
     case "series": return `More ${seriesLabel(r.why.series) ?? "like this"}`;
     case "creator": return v.channel ? `More from ${v.channel}` : "More like this";
     case "star": return `${named(r.why.team)} has been on Behind the Bot ${episodes.get(r.why.team)} times`;
-    case "none": return seriesLabel(v.series) ?? (v.channel ? `From ${v.channel}` : "New on Cycles");
+    case "none": return seriesLabel(v.series) ?? (v.channel ? `From ${v.channel}` : "New on Clips");
   }
 }
 
