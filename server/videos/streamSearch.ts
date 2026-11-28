@@ -28,6 +28,8 @@ const SEARCH_GAP_MS = 4000;
 const RECENT_DAYS = 14, RECENT_AGAIN_MS = 2 * 864e5;
 /** Any other is searched again after this long. */
 const OLD_AGAIN_MS = 180 * 864e5;
+/** An event whose results couldn't be weighed (a Data API failure) is due again after this long, whatever its age. */
+const FAILED_AGAIN_MS = 6 * 3600_000;
 /** After YouTube turns the results page away (a consent or bot page, usually for minutes), no search for this long. */
 const BLOCKED_MS = 3600_000;
 /** Results weighed from one page. */
@@ -160,7 +162,9 @@ export async function searchStreams(log: (s: string) => void, opts: { apiKey?: s
         found = `failed: ${String((e as Error).message ?? e)}`;
         log(`stream search: ${t.code} ${t.season}: ${found.slice(0, 300)}`);
       }
-      const at = new Date(now()).toISOString();
+      // A failed one is stamped as searched long enough ago that it's due again in FAILED_AGAIN_MS, not in 2 or 180 days.
+      const recentlyEnded = t.end >= new Date(now() - RECENT_DAYS * 864e5).toISOString().slice(0, 10);
+      const at = new Date(now() - (found.startsWith("failed: ") ? (recentlyEnded ? RECENT_AGAIN_MS : OLD_AGAIN_MS) - FAILED_AGAIN_MS : 0)).toISOString();
       await locked(() => run(`INSERT INTO stream_searches (season, code, searched_at, query, results, note) VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT (season, code) DO UPDATE SET searched_at = excluded.searched_at, query = excluded.query, results = excluded.results, note = excluded.note, tries = stream_searches.tries + 1`,
         [t.season, t.code, at, q, hits.length, found.slice(0, 300) || null]));

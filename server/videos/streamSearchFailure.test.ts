@@ -1,11 +1,11 @@
 // The stream search (server/videos/streamSearch.ts) when writing for the owner fails partway: what it already added
 // is kept as read (stream_search_videos) at once, so a retry, which skips it as known, still counts it; the event is
-// noted as failed, so it waits its turn instead of stalling every later search. A result the rules put on another
+// noted as failed and due again in 6 hours, so it neither stalls every later search nor waits months. A result the rules put on another
 // event (here one that plays a Part 1 of that day already) isn't kept as read: that event's own search weighs it.
 import { beforeAll, expect, it } from "vitest";
 import { get, migrate, openDb, run, setDb } from "../db";
 import { record } from "./officialWatch";
-import { searchStreams, type SearchHit } from "./streamSearch";
+import { dueTargets, searchStreams, type SearchHit } from "./streamSearch";
 
 const NOW = Date.parse("2026-11-28T06:00:00Z");
 const QLD = "UCgVwYg-vSXKisZCIfKk6xxA";
@@ -43,5 +43,8 @@ it("keeps what it added as read when a later write fails, notes the event, and l
   // The one whose write failed is written nowhere, so the next search weighs it again.
   expect(await get("SELECT 1 AS x FROM stream_search_videos WHERE video_id = 'W6Sxrq6g5dI'")).toBeUndefined();
   expect(await get("SELECT note FROM stream_searches WHERE code = 'AUBRQ2'")).toEqual({ note: "failed: data lock busy" });
+  // Due again in 6 hours, not in the 2 days a searched event that just ended waits (or 180 for an old one).
+  expect((await dueTargets(NOW + 5 * 3600_000, 10)).map((t) => t.code)).not.toContain("AUBRQ2");
+  expect((await dueTargets(NOW + 7 * 3600_000, 10)).map((t) => t.code)).toContain("AUBRQ2");
   expect(await get("SELECT 1 AS x FROM stream_search_videos WHERE video_id = 'otherevent1'")).toBeUndefined();
 });
