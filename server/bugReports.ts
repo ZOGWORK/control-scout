@@ -51,6 +51,7 @@ import {
   type AttachmentType, type BugCategory, type BugContext, type BugFiling, type BugReportItem, type BugReportList,
 } from "../src/shared/bugReport.js";
 import { REDACTED, sanitizeRoute, sanitizeText } from "../src/shared/errorReport.js";
+import { visitorIp } from "./visitorIp.js";
 
 /** Per IP: at most this many accepted reports per window. */
 export const BUG_RATE = { max: 5, windowMs: 60 * 60_000 };
@@ -607,7 +608,7 @@ async function openForUpload(req: Request): Promise<{ ok: true; row: ReportRow }
  */
 async function checkUpload(req: Request, res: Response): Promise<Upload | null> {
   const fail = (status: number, error: string) => { res.status(status).json({ error }); return null; };
-  const slot = uploads.take(req.ip ?? "?");
+  const slot = uploads.take(visitorIp(req));
   if (!slot.ok) { res.setHeader("Retry-After", String(slot.retryAfter)); return fail(429, "Too many uploads in the last hour. Please try again later."); }
   const open = await openForUpload(req);
   if (!open.ok) return fail(open.status, open.error);
@@ -692,7 +693,7 @@ export function bugReportsRouter(): Router {
   r.post("/", h(async (req, res) => {
     // JSON only: a cross-site form can't post JSON without a preflight we never allow.
     if (!req.is("application/json")) { res.status(415).json({ error: "Send JSON" }); return; }
-    const ip = req.ip ?? "?";
+    const ip = visitorIp(req);
     // Honeypot filled: look like success, keep and send nothing (but count it, so a bot is still slowed).
     if (text(req.body?.website)) { reports.take(ip); return { id: 0, token: randomBytes(24).toString("hex") }; }
     const v = validateBugReport(req.body);

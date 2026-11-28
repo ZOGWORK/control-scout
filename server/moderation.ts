@@ -15,6 +15,7 @@ import { all, run, writeBatch } from "./db.js";
 import { isBot } from "./analytics.js";
 import { isMeasured } from "./metrics.js";
 import type { AbuseKind, OwnerModeration } from "../src/shared/owner.js";
+import { visitorIp } from "./visitorIp.js";
 
 export const ABUSE_KINDS: AbuseKind[] = ["rate_limited", "bot_ua", "burst"];
 /** Requests a minute from one range above which that minute counts as a burst. */
@@ -99,7 +100,7 @@ export function abuseMonitor() {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!isMeasured(req.path)) return next();
     // Cut to the range now: the full address isn't kept even until the response ends.
-    const range = ipRange(req.ip);
+    const range = ipRange(visitorIp(req));
     const ua = req.get("user-agent");
     res.once("finish", () => { try { recordRangeSignal(range, res.statusCode, ua, Date.now()); } catch { /* never break a response */ } });
     next();

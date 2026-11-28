@@ -14,6 +14,7 @@ import {
   ANSWER_BUCKET_COUNT, ANSWER_BUCKETS_MS, answerBucket, isoWeek, parseSearchBeacon, SEARCH_SAMPLE, weekStart,
   type AnswerSpeed, type SearchBeacon, type SearchScore, type SearchWeek,
 } from "../src/shared/searchScore.js";
+import { visitorIp } from "./visitorIp.js";
 
 const BCOLS = Array.from({ length: ANSWER_BUCKET_COUNT }, (_, i) => `b${i}`);
 const COUNTS = ["searches", "direct", "results", "page", "sorry", "error", "re_search", "via_related", "via_ask", "timed", "total_ms"] as const;
@@ -103,7 +104,7 @@ export function searchScoreRouter(): Router {
   const allow = rateLimiter(60, 60_000);
   // Beacons arrive as text/plain or application/json: read the raw text whatever the type.
   r.post("/", express.text({ type: () => true, limit: COLLECT_MAX_BYTES }), (req: Request, res: Response, next: NextFunction) => {
-    if (!allow(req.ip ?? "")) { res.status(429).end(); return; }
+    if (!allow(visitorIp(req))) { res.status(429).end(); return; }
     if (notCounted(req)) { res.status(204).end(); return; }
     let body: unknown;
     try { body = typeof req.body === "string" ? JSON.parse(req.body) : null; } catch { body = null; }
