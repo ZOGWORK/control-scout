@@ -143,9 +143,10 @@ export async function readLiveEntries(workspaceId: string, uuids: string[]): Pro
 /** How a writer is named on shared entries: their display name, else the part of their email before the @. */
 export const writerName = (u: User) => (u.displayName?.trim() || u.email?.split("@")[0] || "Member").slice(0, 60);
 
-/** `orphaned`: the space is read-only (Task 19, orphans.ts); reads go on, writes are refused. */
+/** `orphaned`: the space is read-only (Task 19, orphans.ts); reads go on, writes are refused.
+ *  503: Control Point unreachable past MEMBERSHIP_GRACE, so a write or admin route waits (CP_UNREACHABLE). */
 export type Access = { ok: true; membership: Membership; orphaned: OrphanState | null }
-  | { ok: false; status: 403 | typeof READ_ONLY_STATUS; error: string; code?: typeof READ_ONLY_CODE };
+  | { ok: false; status: 403 | 503 | typeof READ_ONLY_STATUS; error: string; code?: typeof READ_ONLY_CODE };
 
 /** The body of a refused access: the error, and for a read-only space its code (READ_ONLY_CODE). */
 export const accessError = (a: Extract<Access, { ok: false }>) => (a.code ? { error: a.error, code: a.code } : { error: a.error });
@@ -179,6 +180,8 @@ export async function workspaceAccess(user: User, workspaceId: string, opts: { w
   }
   if (!membership) return { ok: false, status: 403, error: "You're not a member of this workspace in Control Point." };
   if (orphaned && opts.write) return { ok: false, status: READ_ONLY_STATUS, error: READ_ONLY_ERROR, code: READ_ONLY_CODE };
+  // Control Point has been unreachable past the grace: the old row is good for reading, not for changing anything.
+  if (membership.stale && opts.write) return { ok: false, status: 503, error: CP_UNREACHABLE };
   return { ok: true, membership, orphaned };
 }
 
@@ -198,6 +201,9 @@ export function mayWrite(role: WorkspaceRole, writerAccountId: number, stored: {
 
 export const FORBIDDEN = "forbidden";
 
+/** A write or admin route refused because Control Point has been unreachable too long to trust the cached membership. */
+export const CP_UNREACHABLE = "Control Point can't be reached right now, so changes are paused. Reading still works; try again in a few minutes.";
+
 export const ADMIN_ONLY = "Only workspace admins can change this. Roles are managed in Control Point.";
 
 /**
@@ -208,6 +214,8 @@ export const ADMIN_ONLY = "Only workspace admins can change this. Roles are mana
  */
 export async function workspaceAdminAccess(user: User, workspaceId: string, opts: { write?: boolean } = {}): Promise<Access> {
   const access = await workspaceAccess(user, workspaceId, opts);
+  // An admin role is never taken from a stale row (Control Point unreachable past MEMBERSHIP_GRACE), reads included.
+  if (access.ok && access.membership.stale) return { ok: false, status: 503, error: CP_UNREACHABLE };
   if (access.ok && access.membership.role !== "admin") return { ok: false, status: 403, error: ADMIN_ONLY };
   return access;
 }

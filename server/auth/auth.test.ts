@@ -138,6 +138,21 @@ describe("accounts", () => {
     expect(again[0].notes).toBe("fast");
   });
 
+  it("first-sign-in migration takes at most 200 entries per request, and only a few requests a minute", async () => {
+    const call = client();
+    await signIn(call, "bulk@example.com");
+    const entry = (i: number) => ({ uuid: `22222222-2222-4222-8222-${String(i).padStart(12, "0")}`, season: 2025, team: 18360, eventCode: "AUBRQ2", matchLabel: `Q${i}`, kind: "match", data: {}, notes: "", updatedAt: 1000, deleted: false });
+    const big = await call("POST", "/api/me/migrate", { state: {}, scout: Array.from({ length: 201 }, (_, i) => entry(i)) });
+    expect(big.status).toBe(413);
+    expect((await call("GET", "/api/me/scout")).json.entries).toEqual([]); // nothing written
+    const ok = await call("POST", "/api/me/migrate", { state: {}, scout: Array.from({ length: 200 }, (_, i) => entry(i)) });
+    expect(ok.status).toBe(200);
+    expect(ok.json.scoutMerged).toBe(200);
+    const statuses: number[] = [];
+    for (let i = 0; i < 12; i++) statuses.push((await call("POST", "/api/me/migrate", { state: {}, scout: [] })).status);
+    expect(statuses).toContain(429);
+  });
+
   it("logout ends the session", async () => {
     const call = client();
     await signIn(call, "bye@example.com");
