@@ -41,9 +41,9 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, type SplitPick, halfGap, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, EmbedRefused, embedRefusal, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, type SplitPick, halfGap, holeToCheck, cardUnread, COUNTDOWN_CHECK, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, EmbedRefused, embedRefusal, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
-import { cornerBox, foundBox, sampleFinds, zoomCss } from "./lib/frameZoom";
+import { cornerBox, foundBox, outsidePart, reachesPart, sampleFinds, wholeBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS, gapOf, type Gap } from "./lib/videoFrames";
 import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type RecheckRead, type RecheckVerdict } from "./lib/reviewRecheck";
 
@@ -492,10 +492,12 @@ async function shrunkBar(page: Page, t: number): Promise<{ x0: number; x1: numbe
  *  for a recording whose producer shrank FTC Live's screen into a corner over the camera (USTXNAM1 2024: the top-left
  *  42% of the frame) and that isn't in CORNER_BOXES. Null: no bar found in one place on enough frames. A sample that
  *  fails counts as finding nothing (sampleFinds); one that hangs (ShrunkHung) fails the check, as does the event's limit. */
-async function findShrunk(page: Page, length: number): Promise<string | null> {
+async function findShrunk(page: Page, length: number, within?: { from: number; to: number }): Promise<string | null> {
   // The whole frame: a split check that found a side and still read nothing leaves its zoom on.
   await zoomTo(page, "");
-  const found = await sampleFinds(SPLIT_SAMPLES.map((f) => Math.round(length * f)), (t) => shrunkBar(page, t), (e) => e instanceof EventOverTime || e instanceof ShrunkHung);
+  // Over the whole video, or only the stretch a read left without starts (holeToCheck), at the same fractions of it.
+  const at = (f: number) => Math.round(within ? within.from + (within.to - within.from) * f : length * f);
+  const found = await sampleFinds(SPLIT_SAMPLES.map(at), (t) => shrunkBar(page, t), (e) => e instanceof EventOverTime || e instanceof ShrunkHung);
   const box = foundBox(found);
   return box && zoomCss(box.box, box.shift);
 }
@@ -683,7 +685,7 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
       if (countsThrough(left, ahead)) return `${ahead} s before it the card counted ${left} s down through its start (a timeout or reset, not a match)`;
       if (ahead <= 10 && cardStill(left)) break;
     }
-    if (!read) return `the card read nothing ${COUNTDOWN_CHECK.join(", ")} s before it, so no countdown through it was ruled out`;
+    if (!read) { const no = cardUnread(screenInBox.has(page)); if (no) return no; }
   }
   if (divisions.has(page) && !own && !byTeams) {
     // The bar scrolls the division's name off for most of a match: before giving up, more of the same match is read
@@ -699,9 +701,6 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   }
   return null;
 }
-/** Seconds before a start read off an audience display's card that the card is read for a countdown running through it.
- *  At 5 and 10 s, a real match's card stands at 2:30 or shows the last match's 0:00: never over 2:38. */
-const COUNTDOWN_CHECK = [5, 10, 25, 90, 170];
 /** The clock on an audience display's card at second t (secondsOf, as the start reads take it), as a frame read: counted in the page's
  *  budget, traced, and failed after READ_LIMIT_S like readAt. */
 function cardAt(page: Page, t: number, clip: TimerCrop["clip"]): Promise<number | null> {
@@ -1406,13 +1405,16 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-link, .ytp-gradient-top { display: none !important; }" });
   // FTC Live's screen drawn small in a box over the camera (scripts/lib/frameZoom.ts): scaled up to fill the frame, so
   // every crop reads it as a full-frame overlay.
-  const box = cornerBox(videoId);
+  const box = wholeBox(videoId);
   if (box) {
     await page.addStyleTag({ content: zoomCss(box.box, box.shift) });
     if (!zoomSaid.has(videoId)) { zoomSaid.add(videoId); console.error(`    ${videoId}: overlay in a box at ${box.box.join(", ")}, zoomed to the frame`); }
   }
   await hideTitle(page);
 }
+/** Player pages reading through a corner box listed for part of a recording (CORNER_BOXES' `part`): FTC Live's whole
+ *  screen drawn small, read zoomed (confirmStart's card check, cardUnread). */
+const screenInBox = new WeakSet<Page>();
 /** The videos whose zoom the run has said, so it says so once each (a video opens in several players). */
 const zoomSaid = new Set<string>();
 
@@ -1675,6 +1677,24 @@ async function doCode(code: string): Promise<void> {
       let splitHalf: SplitSide | null = null;
       // No player left to read the edges in (the shrunk-bar check's fresh player wouldn't open): the row goes without.
       let edgesLost = false;
+      // A fresh player for the edges' reads after a shrunk-bar sample hung (its seek or frame capture may still land on
+      // the old page), zoomed to `half` where the split check found one. One that won't open keeps the row without edges.
+      const reopenAfterHang = async (half: SplitSide | null) => {
+        await closePage(page);
+        try {
+          const fresh = await player();
+          page = fresh;
+          if (division) divisions.set(fresh, division);
+          { const e = eventNames.get(code); if (e) pageEvent.set(fresh, e); }
+          pageDeadline.set(fresh, deadline);
+          await open(fresh, v.videoId);
+          if (half) await zoom(fresh, half);
+        } catch (e) {
+          if (e instanceof EventOverTime) throw e;
+          edgesLost = true;
+          log(`    couldn't open a fresh player after the hang: ${(e as Error).message.split("\n")[0]} (the row is kept without edges)`);
+        }
+      };
       if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
         // The page as it is here (non-null), for the check's callbacks.
         const pg = page;
@@ -1715,7 +1735,7 @@ async function doCode(code: string): Promise<void> {
       // Still nothing: FTC Live's screen drawn small over the camera (findShrunk), every crop missing its bar. Read again
       // zoomed so the bar fills the frame's width where a bottom bar sits. A recording with a measured box (CORNER_BOXES)
       // is zoomed already. A check that fails keeps the read as it was, as the split check's does.
-      if (!cornerBox(v.videoId) && !j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
+      if (!wholeBox(v.videoId) && !j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
         const pg = page, half = splitHalf;
         // Back to the split check's zoom (its half, else the whole frame) where this check doesn't read the video.
         const restore = () => zoom(pg, half);
@@ -1740,22 +1760,46 @@ async function doCode(code: string): Promise<void> {
         // fresh player instead (on the split half, where the split check found one).
         // A player that won't open again keeps the video as read (nothing), its row written without edges: the video
         // played, so it isn't one that couldn't be (PLAY_FAILED).
-        if (hung) {
-          await closePage(page);
-          try {
-            const fresh = await player();
-            page = fresh;
-            if (division) divisions.set(fresh, division);
-            { const e = eventNames.get(code); if (e) pageEvent.set(fresh, e); }
-            pageDeadline.set(fresh, deadline);
-            await open(fresh, v.videoId);
-            if (half) await zoom(fresh, half);
-          } catch (e) {
-            if (e instanceof EventOverTime) throw e;
-            edgesLost = true;
-            log(`    couldn't open a fresh player after the hang: ${(e as Error).message.split("\n")[0]} (the row is kept without edges)`);
-          }
-        }
+        if (hung) await reopenAfterHang(half);
+      }
+      // Still a run of matches in a row without a start (HOLE_MIN or more) where others read: the producer may have drawn
+      // FTC Live's screen small over the camera for that part of the day only (2025 USNDBIQ's first two hours). The
+      // stretch they sit in is checked for a small bar (findShrunk over that stretch alone) and, where one is found, read
+      // zoomed to it as a gap read of what's placed (halfGap): those starts stand, its reads look only for the run's
+      // matches. Kept only where it places more. Not on a split half or a measured corner box: their zoom is the video's.
+      // A box listed for part of the recording (CORNER_BOXES' `part`, measured on a frame) is zoomed to as it is, no check.
+      const partBox = cornerBox(v.videoId)?.part ? cornerBox(v.videoId) : null;
+      const found = !wholeBox(v.videoId) && !splitHalf && (j.placed.size || j.review.size) ? holeToCheck(mine.map((x) => x.label), j.placed, m.length!) : null;
+      // A part box is read zoomed only over a stretch that reaches into its part: outside it the box isn't on screen.
+      const hole = found && (!partBox?.part || reachesPart(found.from, found.to, partBox.part)) ? found : null;
+      if (hole) {
+        const pg = page, before = j;
+        let hung = false;
+        await splitChecked(async () => {
+          const css = partBox ? zoomCss(partBox.box, partBox.shift) : await findShrunk(pg, m.length!, hole).catch((e) => { if (e instanceof ShrunkHung) hung = true; throw e; });
+          if (!css) { await zoom(pg, null); return; }
+          log(`    ${partBox ? "FTC Live's screen in its listed box" : "a score bar drawn small"} over ${hole.labels[0]}–${hole.labels.at(-1)} (${Math.round(hole.from)}–${Math.round(hole.to)} s): read zoomed to it`);
+          await zoomTo(pg, css);
+          const zoomedUnread = new Set<string>();
+          // Through a listed part box, FTC Live's whole screen: between matches it shows Up Next and results, not the
+          // card, so a card read nothing before a start is that screen, not a countdown hidden (cardUnread).
+          if (partBox) screenInBox.add(pg);
+          let more: Judged;
+          try { more = await placeVideo(pg, mine, offset, m.length!, log, zoomedUnread, live, liveMedium, halfGap(before, gap)); } finally { screenInBox.delete(pg); }
+          await zoom(pg, null);
+          if (more.placed.size <= before.placed.size) return;
+          // A start a part box's read placed outside the box's part is the camera's frame, not the box's: the read is set
+          // aside whole (the full-size read stands), never a start the box wasn't on screen for.
+          const stray = partBox?.part ? outsidePart(before.placed, more.placed, partBox.part) : [];
+          if (stray.length) { log(`    the box's read placed ${stray.join(", ")} outside its part (${partBox!.part!.join("–")} s): set aside`); return; }
+          j = more;
+          for (const l of zoomedUnread) if (j.placed.has(l)) unread.add(l);
+        }, {
+          cleanup: () => zoom(pg, null),
+          stops: (e) => e instanceof EventOverTime,
+          failed: (e) => log(`    couldn't check the unplaced stretch for a score bar drawn small: ${e.message.split("\n")[0]} (kept as read)`),
+        });
+        if (hung) await reopenAfterHang(null);
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
       for (const l of out.keys()) held.add(l);

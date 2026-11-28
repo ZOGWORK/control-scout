@@ -246,6 +246,30 @@ export function halfGap(first: Judged, under?: Gap): Gap {
   return { starts, opens, medium };
 }
 
+/** The fewest matches in a row a read must have left without a start before the stretch of video they sit in is checked
+ *  for a score bar drawn small there (holeToCheck). */
+export const HOLE_MIN = 4;
+/** The longest run of matches in a row (the order they were played) a read left without a start, at least HOLE_MIN, and
+ *  the stretch of the video they must sit in: from the start placed before them (else the video's start) to the one
+ *  after (else its end). Null: no such run. Where a producer drew FTC Live's screen small over the camera for part of a
+ *  day only, the matches of that part read nothing while the rest read, so the whole video's check for a small bar
+ *  (findShrunk, run only on a video that read nothing) never ran: 2025 USNDBIQ, Q1–Q10 with the bar in the bottom-right
+ *  corner box for the first two hours, Q11 on full size. */
+export function holeToCheck(order: readonly string[], placed: ReadonlyMap<string, { t: number }>, length: number, min = HOLE_MIN): { from: number; to: number; labels: string[] } | null {
+  let best: { from: number; to: number; labels: string[] } | null = null;
+  let run: string[] = [], from = 0;
+  const close = (to: number) => {
+    if (run.length >= min && (!best || run.length > best.labels.length) && to > from) best = { from, to, labels: run };
+    run = [];
+  };
+  for (const l of order) {
+    const p = placed.get(l);
+    if (p) { close(p.t); from = p.t; } else run.push(l);
+  }
+  close(length);
+  return best;
+}
+
 /**
  * The split-stream check (findSplit, then a zoomed read) run so that its failure keeps the read as it was: on any error
  * `cleanup` (the zoom cleared) runs first, then an error `stops` says ends the event (the reader's EventOverTime: its
@@ -386,6 +410,22 @@ export const cardStill = (left: number) => left === AUTO_S + TELEOP_S || left ==
 export function countsThrough(left: number, before: number): boolean {
   const atStart = left - before;
   return left > AUTO_S + SWITCH_S + TELEOP_S && atStart >= AUTO_S + TELEOP_S - 3 && atStart <= AUTO_S + SWITCH_S + TELEOP_S + 3;
+}
+
+/** Seconds before a start read off an audience display's card that the card is read for a countdown running through it.
+ *  At 5 and 10 s, a real match's card stands at 2:30 or shows the last match's 0:00: never over 2:38. */
+export const COUNTDOWN_CHECK = [5, 10, 25, 90, 170];
+
+/** Why a start read off a card that read nothing at every COUNTDOWN_CHECK second before it stays unconfirmed, or null
+ *  where it doesn't. On a stream's own card (a box over the field, under a bar) a card no check could read proves
+ *  nothing: a timeout's countdown may be hidden there, so the start stays unconfirmed. Through a corner box listed for
+ *  part of a recording (CORNER_BOXES' `part`, `screenInBox`), the box holds FTC Live's whole screen, which shows Up Next
+ *  and the last match's results between matches and the card only while one is played or timed out: a card absent at
+ *  every check is that screen, never a countdown hidden. A card read counting down through the start still rules it out
+ *  there too (countsThrough), and the start has been read running on its timer at each confirming second, a match's
+ *  label above it; judge's order, overlap and end-of-video checks follow (2025 USNDBIQ's first two hours). */
+export function cardUnread(screenInBox: boolean): string | null {
+  return screenInBox ? null : `the card read nothing ${COUNTDOWN_CHECK.join(", ")} s before it, so no countdown through it was ruled out`;
 }
 
 /** A match's start in the video, and how sure: "high" (a confirmed read, with another read or the broadcast's own
