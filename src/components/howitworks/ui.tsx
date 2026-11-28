@@ -136,8 +136,30 @@ export function Figure({ label, title, note, actions, caption, narrow, children,
 
 /** Horizontal scroll wrapper for charts on narrow screens. */
 export function ScrollX({ children, min = 520, label }: { children: ReactNode; min?: number; label: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Which edges have more chart past them. On a phone a chart wider than the card scrolls sideways; without a hint
+  // its bars and labels just stop at the card's edge and read as cut off, so the hidden side fades out instead.
+  const [more, setMore] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const read = () => {
+      const left = el.scrollLeft > 1, right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setMore((m) => (m.left === left && m.right === right ? m : { left, right }));
+    };
+    read();
+    el.addEventListener("scroll", read, { passive: true });
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(read);
+    ro?.observe(el);
+    return () => { el.removeEventListener("scroll", read); ro?.disconnect(); };
+  }, []);
+  const mask = more.left || more.right
+    ? `linear-gradient(to right,${more.left ? "transparent,#000 2.5rem" : "#000"},${more.right ? "#000 calc(100% - 2.5rem),transparent" : "#000"})`
+    : undefined;
   return (
-    <div data-scroll-x className="custom-scrollbar -mx-1 overflow-x-auto px-1 pb-1" role="region" aria-label={label} tabIndex={0}>
+    <div ref={ref} data-scroll-x data-more-left={more.left || undefined} data-more-right={more.right || undefined}
+      className="custom-scrollbar -mx-1 overflow-x-auto px-1 pb-1" role="region" aria-label={label} tabIndex={0}
+      style={mask ? { maskImage: mask, WebkitMaskImage: mask } : undefined}>
       <div style={{ minWidth: min }}>{children}</div>
     </div>
   );
