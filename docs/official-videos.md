@@ -310,6 +310,43 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   before the startup sync. Every deploy restarts the server and starts the wait over, so the first check comes early:
   at 17.5 minutes, a morning of deploys every 10 to 15 minutes (17 Nov) kept a run due at 10:27 from ever starting.
 
+## The stream search
+
+The watched channels are a hand-made list, and a team or a league often streams the event itself: 2026 Brisbane
+North (Robotics Events - Queensland), South Australia (Team RoboRoos) and South Bank (BotBuilders Robotics) had results
+and no video while their streams sat on channels nobody watched. `server/videos/streamSearch.ts` finds them without
+the list, on every half-hourly check after the watcher (`searchStreams`):
+
+- **What's searched**: each event with played matches, not remote, ended, with a day of play that no video covers
+  (`stream_searches`, migration 124). 2026 first, then each older season back to 2019; within a season, events never
+  searched first, then the most recently ended. 8 events a check, 4 seconds apart. An event ended in the last 14 days
+  is searched again every 2 days (streams are posted or made public late); any other after 180 days. An event whose
+  days are all covered when its turn comes is written as searched (`covered`) and waits its turn again.
+- **How**: YouTube's public results page for "<event name> FTC <year>" (no API quota), up to 20 results, then the
+  results' facts with the Data API (1 unit per 50). A page with no results data (a consent or bot page) stops the
+  search for an hour.
+- **The rules**: each result goes through the watcher's own `decide`, against every event on its date in any region:
+  a channel Scout doesn't watch says nothing of where it is, and like events share names across states ("Carver League
+  Meet 2" in Oklahoma, "ROBOT League Meet 2" in Florida, the same day), so its title must fit one event of them all. It
+  needs two more: a finished live broadcast (an upload has no broadcast date), and a title saying every distinctive
+  word of the event's name, its kind's words ("Scrimmage", "Invitational") left out: "Lakeshore Scrimmage, Day 1"
+  never lands on Vilnius's "November Scrimmage". A name that says no more than where it is ("Idaho State
+  Championship", "IL Chicago Meet 1A": its city, state or country) is said by any stream there, so its title must also
+  be of no other kind and carry the name's number: "2022 Storm Idaho Open Qualifying" and "FTC Chicago Qualifier" go
+  to review. One that
+  passes, on a day of this event no video covers, is **added** as that day's recording (`official_watch.decided_by =
+  'stream search'`, the channel named "(found by the stream search)"), then timed, clipped and checked by the audit
+  like any watcher add. One the rules fit to that day but can't settle (an upload, a title naming part of the name, a
+  second video of the day) and that would be a playable day's recording goes to the owner's **review** queue, with
+  why. A result the rules fit to another event is left for that event's own search. Everything else is kept as read
+  (`stream_search_videos`) and never weighed again; nothing is guessed.
+- **Channels to watch**: a channel the search found streaming two or more events (added, or in review) is proposed in
+  Owner › Official videos, "Channels found by the stream search", with the region rule its events share. Watch saves it
+  as a watched channel (the owner's add, audited); Not this one never proposes it again (audited,
+  `stream_search_channels`).
+- FIRST's own listing is already read: an event's `liveStreamUrl` is its livestream and is followed (short links,
+  channel pages). The FTC API's `webcasts` field is null for every event of 2024 to 2026 (checked 2026-11-28).
+
 ## The channel audit
 
 `server/videos/officialAudit.ts` runs after every watcher run (scheduled, or Run now). It compares each watched

@@ -17,7 +17,7 @@ import { apiFetch, ApiError, prime, useApi } from "../../lib/api";
 import { ago } from "../../lib/format";
 import { thumbnailUrl } from "../../shared/stream";
 import { watchUrl } from "../../shared/recording";
-import type { ManualStart, OfficialAddTally, OfficialAudit, OfficialAuditFinding, OfficialChannelRow, OfficialWatchRow, OwnerOfficialVideos } from "../../shared/api";
+import type { ManualStart, OfficialAddTally, OfficialAudit, OfficialAuditFinding, OfficialChannelRow, OfficialWatchRow, OwnerOfficialVideos, StreamSearchSummary } from "../../shared/api";
 
 const PATH = "/api/owner/official-videos";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
@@ -62,6 +62,7 @@ export function OfficialVideosPanel() {
             description="Not competition streams by their title: webinars, kickoffs, FRC and so on. Any can still be approved.">
             {d.ignored.length ? <ul className="grid gap-3">{d.ignored.map((w) => <Review key={w.videoId} w={w} />)}</ul> : <p className="text-sm text-muted-foreground">None.</p>}
           </Section>
+          <Proposals s={d.search} />
           <Channels channels={d.channels} />
         </div>
       )}
@@ -211,6 +212,34 @@ function MatchStarts({ videoId, season, code }: { videoId: string; season: numbe
         </ul>
       )}
     </div>
+  );
+}
+
+/** The stream search: what it has searched and found, and the channels it found streaming two or more events. */
+function Proposals({ s }: { s: StreamSearchSummary }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const go = async (id: string, what: "watch" | "dismiss", done: string) => { setBusy(id); await act(`/proposals/${id}/${what}`, { method: "POST" }, done); setBusy(null); };
+  return (
+    <Section title={<>Channels found by the stream search {s.proposals.length > 0 && <Badge variant="soft" className="ml-1 align-middle">{s.proposals.length}</Badge>}</>}
+      description={`Events with a played day no video covers are searched on YouTube by name, and each result is weighed by the watcher's rules. ${n(s.events)} events searched${s.lastAt ? `, the last ${ago(s.lastAt)}` : ""}: ${n(s.added)} recordings added, ${n(s.queued)} sent to review. A channel that streamed two or more of them shows here: watch it, and the watcher reads it from now on.`}>
+      {s.proposals.length ? (
+        <ul className="grid gap-2" data-proposals>
+          {s.proposals.map((p) => (
+            <li key={p.channelId} className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-border bg-card p-3 text-sm" data-proposal={p.channelId}>
+              <div className="min-w-0">
+                <a href={`https://www.youtube.com/channel/${p.channelId}`} target="_blank" rel="noreferrer noopener" className="font-medium hover:underline">{p.channel}</a>
+                <p className="font-mono text-xs text-muted-foreground">{p.region}</p>
+                <p className="text-xs text-muted-foreground">{p.events.length} events: {p.events.map((e, i) => <span key={`${e.season}/${e.code}`}>{i ? ", " : ""}<Link className="hover:underline" to={`/events/${e.season}/${e.code}`}>{e.season} {e.code}</Link></span>)}</p>
+              </div>
+              <span className="flex gap-2">
+                <Button size="sm" disabled={busy === p.channelId} onClick={() => void go(p.channelId, "watch", `Watching ${p.channel}.`)}><Check /> Watch</Button>
+                <Button variant="ghost" size="sm" disabled={busy === p.channelId} onClick={() => void go(p.channelId, "dismiss", "Won't be proposed again.")}><X /> Not this one</Button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="text-sm text-muted-foreground">No channel proposed yet.</p>}
+    </Section>
   );
 }
 

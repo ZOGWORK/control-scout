@@ -3264,6 +3264,48 @@ CREATE INDEX IF NOT EXISTS match_uploads_status ON match_uploads (status);
 CREATE UNIQUE INDEX IF NOT EXISTS match_uploads_one_add ON match_uploads (season, code, label) WHERE status = 'added' AND removed_at IS NULL;
 `,
   },
+  {
+    version: 124,
+    name: "official videos: the stream search",
+    sql: `
+-- The stream search (server/videos/streamSearch.ts): each event with played matches on a day no video covers, searched
+-- on YouTube by its name and year. When it was last searched, with what, and what it found ('covered': nothing missing then).
+CREATE TABLE IF NOT EXISTS stream_searches (
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  searched_at TEXT NOT NULL,
+  query TEXT,
+  results INTEGER NOT NULL DEFAULT 0,
+  note TEXT,
+  tries INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (season, code)
+);
+-- Every result weighed, once: its channel, the rules' verdict (add, review, ignore, duplicate, kept) and the event it fits.
+-- A channel with two or more events added or in review is proposed to the owner as one to watch.
+CREATE TABLE IF NOT EXISTS stream_search_videos (
+  video_id TEXT PRIMARY KEY,
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  channel_id TEXT,
+  channel TEXT,
+  title TEXT NOT NULL,
+  start TEXT,
+  duration INTEGER,
+  verdict TEXT NOT NULL,
+  event_season INTEGER,
+  event_code TEXT,
+  why TEXT NOT NULL,
+  seen_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS stream_search_videos_channel ON stream_search_videos (channel_id, verdict);
+-- A proposed channel the owner said no to: never proposed again.
+CREATE TABLE IF NOT EXISTS stream_search_channels (
+  channel_id TEXT PRIMARY KEY,
+  dismissed_at TEXT NOT NULL,
+  dismissed_by TEXT NOT NULL
+);
+`,
+  },
 ];
 
 export type Db = Client;

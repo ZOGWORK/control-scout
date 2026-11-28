@@ -42,7 +42,7 @@ export const PRIVATE_TABLES = [
   "workspaces",
   // The official-video watcher (migration 84): the owner's watchlist, review decisions (their email) and runs; clip coverage (88): who reviewed it;
   // the channel audit (91): its findings' decisions (their email), runs and checks.
-  "official_watch", "official_watch_runs", "official_channels", "clip_coverage", "official_audit_videos", "official_audit_channels", "official_audit_runs", "official_audit_adds",
+  "official_watch", "official_watch_runs", "official_channels", "clip_coverage", "official_audit_videos", "official_audit_channels", "official_audit_runs", "official_audit_adds", "stream_searches", "stream_search_videos", "stream_search_channels",
   "owner_audit", "feature_flags", "request_metrics_daily", "uptime_checks", "service_heartbeats", "owner_alerts", "workspace_activity", "inbox_items", "workspace_entry_comments",
   "workspace_picklist", "workspace_picklist_versions", "workspace_picklist_ops", "workspace_entry_versions", "push_subscriptions", "push_sent",
   // Search's click counts (migration 64): aggregate, but what visitors opened, so never shipped.

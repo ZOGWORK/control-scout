@@ -1226,7 +1226,11 @@ export interface OwnerOfficialVideos {
   pending: OfficialWatchRow[]; ignored: OfficialWatchRow[]; duplicates: OfficialWatchRow[]; decided: OfficialWatchRow[]; runs: OfficialWatchRunRow[]; channels: OfficialChannelRow[];
   /** The channel audit after each watcher run (server/videos/officialAudit.ts). */
   audit: OfficialAudit;
+  /** The stream search (server/videos/streamSearch.ts): events searched, results added and queued, channels proposed. */
+  search: StreamSearchSummary;
 }
+export interface StreamSearchProposal { channelId: string; channel: string; events: { season: number; code: string; videoId: string }[]; region: string }
+export interface StreamSearchSummary { events: number; lastAt: string | null; added: number; queued: number; proposals: StreamSearchProposal[] }
 /** A watched channel's short upload of one match, set aside: an event fits, but which match it is can't be told for
  *  sure (or two uploads name one match). season/code/label: the event (and match) it fits, when one does. */
 export interface OwnerMatchUpload { videoId: string; title: string; channel: string; season: number | null; code: string | null; label: string | null; why: string; seenAt: string }

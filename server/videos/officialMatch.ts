@@ -64,6 +64,33 @@ const STOP = new Set(("the a of and de la le at in on for by with from first tec
 export const GENERIC_WORDS: ReadonlySet<string> = new Set([...STOP].filter((w) => !US.split(" ").includes(w)));
 export const norm = (s: string | null | undefined) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 export const toks = (s: string, extra: Set<string>) => new Set(norm(s).split(" ").filter((t) => t.length > 2 && !/^\d+$/.test(t) && !STOP.has(t) && !extra.has(t)));
+/** Words of an event's kind, not its own: a stranger's title saying "Scrimmage" names no one scrimmage. */
+const KIND_WORDS = "scrimmage scrimmages invitational premier regional regionals open interleague inter tournament semi super meet showcase cup";
+/** Whether a title says every distinctive word of an event's name (at least one), leaving out the region's own words
+ *  and the words of its kind: the stream search (./streamSearch.ts) asks this of a channel Scout doesn't watch. */
+export function namesAll(title: string, name: string, words?: string | null, place?: readonly string[]): boolean {
+  const extra = new Set(norm(`${words ?? ""} ${KIND_WORDS}`).split(" ").filter(Boolean));
+  const said = toks(title, extra), own = [...toks(name, extra)];
+  if (!own.length || !own.every((t) => said.has(t))) return false;
+  // A name that says no more than where it is ("Idaho State Championship", "IL Chicago Meet 1A") is said by any stream
+  // there: its title must also be of the same kind ("Storm Idaho Open Qualifying" is another event) and carry the
+  // name's own number ("Meet 1A").
+  const where = new Set(norm((place ?? []).join(" ")).split(" ").filter(Boolean));
+  if (!own.every((t) => where.has(t))) return true;
+  const kinds = (s: string) => new Set(norm(s).split(" ").map((w) => KIND_FAMILY[w]).filter(Boolean));
+  const mine = kinds(name), theirs = kinds(title);
+  // A name of no kind ("Brăila Tech Challenge", "Santa Clara QT #2") says nothing a title's kind could contradict.
+  if (mine.size && [...theirs].some((k) => !mine.has(k))) return false;
+  const words2 = new Set(norm(title).split(" "));
+  // Its number, not its season's ("Vietnam FIRST Tech Challenge 2023-24" has none).
+  return norm(name.replace(/\b(?:19|20)\d\d\s*[-–/]\s*\d{2,4}\b/g, " ")).split(" ").filter((w) => /^\d{1,2}[a-z]?$/.test(w)).every((n) => words2.has(n));
+}
+/** The kind an event's name or a title says it is, by family: a league's tournament is often streamed as its championship. */
+const KIND_FAMILY: Record<string, string> = Object.fromEntries([
+  ["championship championships champs nationals national campionatul tournament", "championship"],
+  ["qualifier qualifiers qualifying qualification", "qualifier"], ["meet meets", "meet"], ["scrimmage scrimmages", "scrimmage"],
+  ["open", "open"], ["invitational", "invitational"],
+].flatMap(([ws, k]) => ws.split(" ").map((w) => [w, k])));
 /** The acronyms an event's name goes by: its all-capital words of 3 letters or more ("APOC"), lowercased, leaving out
  *  the common ones ("FTC") and the region's own words. */
 export const acronyms = (name: string, extra: Set<string>) => (name.match(/\b[A-Z]{3,}\b/g) ?? []).map((w) => w.toLowerCase()).filter((a) => !STOP.has(a) && !extra.has(a));
