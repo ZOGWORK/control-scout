@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, halfGap, type Judged, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, halfGap, holeToCheck, HOLE_MIN, type Judged, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, gapOf, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
@@ -953,6 +953,21 @@ describe("split streams (two meets side by side, each with a half-size bar)", ()
     // Both halves named this event's, but a read named another event: two meets alike, one misread. No half.
     expect(splitSide(reads(["own", "own", "other"], ["own", "own"]))).toBeNull();
     expect(splitSide(reads(["own", "own"], ["own", "own", "other"]))).toBeNull();
+  });
+
+  it("finds the longest run of matches a read left without a start, and the stretch of video they sit in", () => {
+    const order = ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9", "Q10", "Q11", "Q12"];
+    const at = (o: Record<string, number>) => new Map(Object.entries(o).map(([l, t]) => [l, { t }]));
+    // 2025 USNDBIQ: Q1–Q10 drawn small in a corner, Q11 on read full size at 7252 s.
+    expect(holeToCheck(order, at({ Q11: 7252, Q12: 7700 }), 20_000)).toEqual({ from: 0, to: 7252, labels: order.slice(0, 10) });
+    // In the middle: between the starts either side.
+    expect(holeToCheck(order, at({ Q1: 100, Q2: 500, Q8: 3000, Q9: 3400, Q10: 3800, Q11: 4200, Q12: 4600 }), 9000)).toEqual({ from: 500, to: 3000, labels: ["Q3", "Q4", "Q5", "Q6", "Q7"] });
+    // At the end: to the video's end. The longer of two runs wins.
+    expect(holeToCheck(order, at({ Q1: 100, Q2: 500, Q3: 900, Q7: 2600 }), 9000)).toEqual({ from: 2600, to: 9000, labels: ["Q8", "Q9", "Q10", "Q11", "Q12"] });
+    // Fewer than HOLE_MIN in a row: nothing to check.
+    expect(HOLE_MIN).toBe(4);
+    expect(holeToCheck(order, at({ Q1: 100, Q5: 1700, Q9: 3300 }), 9000)).toBeNull();
+    expect(holeToCheck(order, at(Object.fromEntries(order.filter((_, i) => i % 3 === 0).map((l, i) => [l, i * 1000]))), 9000)).toBeNull();
   });
 
   it("reads a two-field stream's second half as a gap read of the first", () => {

@@ -246,6 +246,30 @@ export function halfGap(first: Judged, under?: Gap): Gap {
   return { starts, opens, medium };
 }
 
+/** The fewest matches in a row a read must have left without a start before the stretch of video they sit in is checked
+ *  for a score bar drawn small there (holeToCheck). */
+export const HOLE_MIN = 4;
+/** The longest run of matches in a row (the order they were played) a read left without a start, at least HOLE_MIN, and
+ *  the stretch of the video they must sit in: from the start placed before them (else the video's start) to the one
+ *  after (else its end). Null: no such run. Where a producer drew FTC Live's screen small over the camera for part of a
+ *  day only, the matches of that part read nothing while the rest read, so the whole video's check for a small bar
+ *  (findShrunk, run only on a video that read nothing) never ran: 2025 USNDBIQ, Q1–Q10 with the bar in the bottom-right
+ *  corner box for the first two hours, Q11 on full size. */
+export function holeToCheck(order: readonly string[], placed: ReadonlyMap<string, { t: number }>, length: number, min = HOLE_MIN): { from: number; to: number; labels: string[] } | null {
+  let best: { from: number; to: number; labels: string[] } | null = null;
+  let run: string[] = [], from = 0;
+  const close = (to: number) => {
+    if (run.length >= min && (!best || run.length > best.labels.length) && to > from) best = { from, to, labels: run };
+    run = [];
+  };
+  for (const l of order) {
+    const p = placed.get(l);
+    if (p) { close(p.t); from = p.t; } else run.push(l);
+  }
+  close(length);
+  return best;
+}
+
 /**
  * The split-stream check (findSplit, then a zoomed read) run so that its failure keeps the read as it was: on any error
  * `cleanup` (the zoom cleared) runs first, then an error `stops` says ends the event (the reader's EventOverTime: its
