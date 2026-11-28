@@ -683,6 +683,10 @@ describe("the shipped list", () => {
       "Az6YSXVJ710": [NYC, "2022/USNYNYNYSQ2", "2023-02-12", null, 2],
       "R_CFejqerGI": [NYC, "2022/USNYNYCMP", "2023-03-05", "Part 1", null],
       "zTHqpOSK3zk": [NYC, "2022/USNYNYCMP", "2023-03-05", "Part 2", null],
+      // The same day's later restarts, 23, 19 and 11 min after the one before ends (M1, M2-2, F1-F2 by the clock).
+      "4n9LFwpo50A": [NYC, "2022/USNYNYCMP", "2023-03-05", "Part 3", null],
+      "UlXM26N7oPU": [NYC, "2022/USNYNYCMP", "2023-03-05", "Part 4", null],
+      "fvhsPCWUq-4": [NYC, "2022/USNYNYCMP", "2023-03-05", "Part 5", null],
       "S-zsWzkH9KI": [LI, "2025/USNYLIBAQ", "2025-12-07", null, 1],
       "dtQqffR7rr8": [LI, "2025/USNYLILVQ4", "2026-01-31", null, 4],
       "F7XYVwiMp-o": [LI, "2025/USNYLILVQ5", "2026-02-01", null, 5],
