@@ -11,6 +11,7 @@ import { resolveChannelStreams } from "./videos/channelStreams.js";
 import { seedOfficialVideos } from "./videos/officialVideos.js";
 import { applyVideoDecisions } from "./videos/videoDecisions.js";
 import { WATCH_CHECK_MS, WATCH_FIRST_MS, watchIfDue, watchLive } from "./videos/officialWatch.js";
+import { searchStreams } from "./videos/streamSearch.js";
 import { runChannelAudit } from "./videos/officialAudit.js";
 import { creatorIfDue } from "./videos/creatorVideos.js";
 import { dropWrongLinks } from "./videos/linkCheck.js";
@@ -323,7 +324,10 @@ if (!process.env.CS_NO_SCHEDULER) {
       .catch((e) => log(`official videos: watcher: ${(e as Error).message}`))
       // Then the creator channels (server/videos/creatorVideos.ts: FUN Robotics Network's uploads, playlists and
       // automatic team tags), every 4 hours on the same checks; its writes take the same writer lease.
-      .then(() => creatorIfDue(log)).catch((e) => log(`creator videos: ${(e as Error).message}`));
+      .then(() => creatorIfDue(log)).catch((e) => log(`creator videos: ${(e as Error).message}`))
+      // Then the stream search (server/videos/streamSearch.ts): a few events with a played day no video covers, each
+      // searched on YouTube by its name, its results weighed by the watcher's rules; channels found twice are proposed.
+      .then(() => searchStreams(log)).catch((e) => log(`stream search: ${(e as Error).message}`));
   };
   setTimeout(() => { watch(); setInterval(watch, WATCH_CHECK_MS).unref(); }, WATCH_FIRST_MS).unref();
 }

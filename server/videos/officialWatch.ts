@@ -314,8 +314,9 @@ export async function guessFor(v: WatchVideo, rule: ChannelRule): Promise<NonNul
   return bestGuess(v, rule, events);
 }
 
-/** Who added a recording: the 6-hourly watcher, the live pass (a broadcast on the air at its event), or the channel audit. */
-export type AddedBy = "watcher" | "live watcher" | "channel audit";
+/** Who added a recording: the 6-hourly watcher, the live pass (a broadcast on the air at its event), the channel audit,
+ *  or the stream search (a channel Scout doesn't watch: ./streamSearch.ts). */
+export type AddedBy = "watcher" | "live watcher" | "channel audit" | "stream search";
 
 /** A verdict written: the watcher's row, and for an add the recording on its event. by: who added it (the watcher, or
  *  the channel audit for one older than the watcher's window that passes every check: server/videos/officialAudit.ts).

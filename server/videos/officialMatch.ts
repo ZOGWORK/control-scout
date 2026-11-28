@@ -61,6 +61,13 @@ const STOP = new Set(("the a of and de la le at in on for by with from first tec
   + "quals finals final playoffs full recording part city usa remote hybrid " + US).split(" "));
 export const norm = (s: string | null | undefined) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const toks = (s: string, extra: Set<string>) => new Set(norm(s).split(" ").filter((t) => t.length > 2 && !/^\d+$/.test(t) && !STOP.has(t) && !extra.has(t)));
+/** Whether a title says every distinctive word of an event's name (at least one), leaving out the region's own words:
+ *  the stream search (./streamSearch.ts) asks this of a stranger's channel, where the region rule says little. */
+export function namesAll(title: string, name: string, words?: string | null): boolean {
+  const extra = new Set(norm(words).split(" ").filter(Boolean));
+  const said = toks(title, extra), own = [...toks(name, extra)];
+  return own.length > 0 && own.every((t) => said.has(t));
+}
 /** The acronyms an event's name goes by: its all-capital words of 3 letters or more ("APOC"), lowercased, leaving out
  *  the common ones ("FTC") and the region's own words. */
 const acronyms = (name: string, extra: Set<string>) => (name.match(/\b[A-Z]{3,}\b/g) ?? []).map((w) => w.toLowerCase()).filter((a) => !STOP.has(a) && !extra.has(a));

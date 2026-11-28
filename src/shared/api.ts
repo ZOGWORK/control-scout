@@ -1226,7 +1226,11 @@ export interface OwnerOfficialVideos {
   pending: OfficialWatchRow[]; ignored: OfficialWatchRow[]; duplicates: OfficialWatchRow[]; decided: OfficialWatchRow[]; runs: OfficialWatchRunRow[]; channels: OfficialChannelRow[];
   /** The channel audit after each watcher run (server/videos/officialAudit.ts). */
   audit: OfficialAudit;
+  /** The stream search (server/videos/streamSearch.ts): events searched, results added and queued, channels proposed. */
+  search: StreamSearchSummary;
 }
+export interface StreamSearchProposal { channelId: string; channel: string; events: { season: number; code: string; videoId: string }[]; region: string }
+export interface StreamSearchSummary { events: number; lastAt: string | null; added: number; queued: number; proposals: StreamSearchProposal[] }
 /** One channel audit: each watched channel's whole uploads list against Scout's records. missed: watcher misses it
  *  found (in the watcher's window, no Scout record: added when every check passes, else sent to review). added:
  *  uploads with no record that passed every check of the watcher's, added by the audit. */

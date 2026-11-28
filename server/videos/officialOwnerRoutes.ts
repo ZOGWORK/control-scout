@@ -8,6 +8,7 @@ import { markCoverageBulkReviewed, markCoverageReviewed, openCoverageCount, owne
 import type { CoverageTriage } from "../../src/shared/api.js";
 import { approveWatched, ownerOfficial, pendingCount, rejectWatched, removeChannel, removeOfficial, runNow, saveChannel } from "./officialWatch.js";
 import { dismissFinding, ownerAudit, queueFinding, runChannelAudit } from "./officialAudit.js";
+import { dismissProposal, searchSummary } from "./streamSearch.js";
 import { deleteManualStart, manualStarts, setManualStart } from "./manualStarts.js";
 import { approveAutoRead, approveReview, ownerAutoReads, pendingAutoReadCount, rejectAutoRead, rejectReview } from "./autoReads.js";
 import { addEventRecording, ownerEventRecordings, removeEventRecording, replaceEventRecording } from "./ownerRecordings.js";
@@ -66,7 +67,8 @@ export function clipCoverageOwnerRoutes(r: Router, h: H, actor: (req: Request) =
 
 export function officialVideoOwnerRoutes(r: Router, h: H, actor: (req: Request) => string, log: (s: string) => void = () => {}): void {
   // The panel's data: the watcher's, and the channel audit's (server/videos/officialAudit.ts).
-  const full = async () => ({ ...(await ownerOfficial()), audit: await ownerAudit() });
+  // And the stream search's (server/videos/streamSearch.ts): what it has searched and found, and the channels it proposes.
+  const full = async () => ({ ...(await ownerOfficial()), audit: await ownerAudit(), search: await searchSummary() });
   r.get("/official-videos", h(async () => full()));
   r.get("/official-videos/counts", h(async () => ({ pending: await pendingCount() })));
 
@@ -109,6 +111,20 @@ export function officialVideoOwnerRoutes(r: Router, h: H, actor: (req: Request) 
   r.delete("/official-videos/channels/:channelId", h(async (req, res) => {
     const out = await removeChannel(String(req.params.channelId), actor(req));
     if (!out.ok) { res.status(404).json({ error: out.error }); return; }
+    return full();
+  }));
+  // A channel the stream search proposes: Watch (saved as an official channel with the region its events share, the
+  // owner's own add, audited there), or Not this one (never proposed again, audited).
+  r.post("/official-videos/proposals/:channelId/watch", h(async (req, res) => {
+    const p = (await searchSummary()).proposals.find((x) => x.channelId === String(req.params.channelId));
+    if (!p) { res.status(404).json({ error: "That channel isn't proposed." }); return; }
+    const out = await saveChannel({ channelId: p.channelId, title: p.channel, region: p.region }, actor(req));
+    if (!out.ok) { res.status(400).json({ error: out.error }); return; }
+    return full();
+  }));
+  r.post("/official-videos/proposals/:channelId/dismiss", h(async (req, res) => {
+    const out = await dismissProposal(String(req.params.channelId), actor(req));
+    if (!out.ok) { res.status(400).json({ error: out.error }); return; }
     return full();
   }));
   r.post("/official-videos/run", h(async (req, res) => {
