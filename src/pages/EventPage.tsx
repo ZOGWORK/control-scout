@@ -160,7 +160,6 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const bundleOn = useFlag("eventBundle");
   const packsOn = useFlag("offlinePacks");
   const oddsOpen = predictable && !d.forecastUnsupported;
-  const [detailsOpen, setDetailsOpen] = useDetailsOpen();
   // Labels, not buttons: filled chips without a border (components/EventChips.tsx).
   const statusBadge = <EventStatusChip status={e.status} />;
   const typeChip = <EventTypeChip type={e.type} label={e.typeLabel} />;
@@ -406,14 +405,6 @@ const V8_STAT_CHIP = "v8:bg-ink/[0.05] v8:text-text-muted";
 
 /** Google Maps' search for a place, the address form that opens the Maps app on a phone. */
 export const mapsUrl = (q: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
-
-const DETAILS_KEY = "cs-event-details";
-/** "Event details" open or closed in the slim bar: remembered for the browser session (sessionStorage). */
-function useDetailsOpen(): [boolean, (open: boolean) => void] {
-  const [open, setOpen] = useState(() => { try { return sessionStorage.getItem(DETAILS_KEY) === "1"; } catch { return false; } });
-  const set = (v: boolean) => { setOpen(v); try { sessionStorage.setItem(DETAILS_KEY, v ? "1" : "0"); } catch { /* storage blocked: this page only */ } };
-  return [open, set];
-}
 
 /** "Refresh results" for a live event: shared by the header's live bar and the phone's sticky bar. */
 function useRefreshResults(path: string) {
