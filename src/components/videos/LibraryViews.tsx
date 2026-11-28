@@ -7,7 +7,7 @@ import { Bookmark, Clock, History, NotebookPen } from "lucide-react";
 import { clearList, libraryPage, notesPage, setInList, useLibraryVersion } from "../../lib/videoLibrary";
 import { LIBRARY_LABEL, noteTime, type LibraryEntry, type LibraryList, type VideoNote } from "../../shared/videoLibrary";
 import { watchHref } from "../../shared/watch";
-import { FeedCard } from "../FeedCard";
+import { FeedCard, type WatchState } from "../FeedCard";
 import { ClipImage } from "../search/page/ClipImage";
 import { ErrorState } from "../states";
 import { Button } from "../ui/button";
@@ -33,16 +33,24 @@ function Empty({ of }: { of: LibraryList | "notes" }) {
 }
 
 /** Pages of something, loaded one after another as the reader nears the end. A new `what` starts afresh; a new
- *  `version` of the same (the library changed) reads it again in place, keeping what's shown until the answer. */
+ *  `version` of the same (the library changed) reads it again in place, keeping what's shown until the answer, and
+ *  as far down as was shown: a change on item 60 doesn't cut the list back to its first page. */
 function usePages<T>(what: string, version: number, read: (cursor: string | null) => Promise<{ items: T[]; next: string | null }>) {
   const [s, set] = useState<{ what: string; items: T[]; next: string | null; loading: boolean; error: unknown }>({ what, items: [], next: null, loading: true, error: null });
   const asked = useRef(0);
+  // How many are shown now, of what: a read again of the same goes as far.
+  const shown = useRef({ what, n: 0 });
+  shown.current = { what: s.what, n: s.items.length };
   const load = useCallback(async (cursor: string | null) => {
     const ask = cursor ? asked.current : ++asked.current;
+    const want = !cursor && shown.current.what === what ? shown.current.n : 0;
     set((p) => (cursor || p.what === what ? { ...p, loading: true, error: null } : { what, items: [], next: null, loading: true, error: null }));
     try {
-      const a = await read(cursor);
-      if (ask === asked.current) set((p) => ({ what, items: [...(cursor ? p.items : []), ...a.items], next: a.next, loading: false, error: null }));
+      let a = await read(cursor);
+      const items = [...a.items];
+      // At most 20 pages more, so a list that keeps growing under it can't read forever.
+      for (let i = 0; i < 20 && a.next && items.length < want; i++) { a = await read(a.next); items.push(...a.items); }
+      if (ask === asked.current) set((p) => ({ what, items: [...(cursor ? p.items : []), ...items], next: a.next, loading: false, error: null }));
     } catch (e) { if (ask === asked.current) set((p) => ({ ...p, loading: false, error: e })); }
     // `read` follows `what` and `version`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,17 +140,17 @@ export function NotesView({ signedIn }: { signedIn: boolean }) {
               const item = g.notes[0].item;
               return (
                 <article key={g.key} className="grid gap-4 rounded-2xl border border-line bg-card p-3 sm:grid-cols-[14rem_minmax(0,1fr)] sm:p-4" data-notes-video={g.key}>
-                  <Link to={watchHref(item.videoId, { t: item.t, end: item.end })} className="group/play relative block aspect-video overflow-hidden rounded-xl bg-black outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Watch ${item.title}`}>
+                  <Link to={watchHref(item.videoId, { t: item.t, end: item.end })} state={{ item } satisfies WatchState} className="group/play relative block aspect-video overflow-hidden rounded-xl bg-black outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Watch ${item.title}`}>
                     <ClipImage v={item} />
                   </Link>
                   <div className="min-w-0">
-                    <Link to={watchHref(item.videoId, { t: item.t, end: item.end })} className="line-clamp-2 text-[0.9375rem] font-semibold leading-5 text-text-base hover:underline">{item.title}</Link>
+                    <Link to={watchHref(item.videoId, { t: item.t, end: item.end })} state={{ item } satisfies WatchState} className="line-clamp-2 text-[0.9375rem] font-semibold leading-5 text-text-base hover:underline">{item.title}</Link>
                     {(item.channel ?? item.event?.name) && <p className="mt-1 truncate text-xs text-text-muted">{item.channel ?? item.event?.name}</p>}
                     <ul className="mt-3 space-y-2">
                       {g.notes.map((n) => (
                         <li key={n.id} className="flex gap-3 text-sm leading-6">
                           {n.t != null
-                            ? <Link to={watchHref(n.videoId, { t: n.t })} className="h-6 shrink-0 rounded-md bg-accent/15 px-1.5 text-xs font-semibold leading-6 tabular-nums text-accent-text transition-colors duration-150 hover:bg-accent/25" aria-label={`Watch from ${noteTime(n.t)}`}>{noteTime(n.t)}</Link>
+                            ? <Link to={watchHref(n.videoId, { t: n.t })} state={{ item: n.item } satisfies WatchState} className="h-6 shrink-0 rounded-md bg-accent/15 px-1.5 text-xs font-semibold leading-6 tabular-nums text-accent-text transition-colors duration-150 hover:bg-accent/25" aria-label={`Watch from ${noteTime(n.t)}`}>{noteTime(n.t)}</Link>
                             : <span className="h-6 shrink-0 rounded-md bg-ink/[0.06] px-1.5 text-xs font-medium leading-6 text-text-faint">Video</span>}
                           <div className="min-w-0">
                             {n.author && !n.author.mine && <p className="text-xs font-medium leading-5 text-text-muted">{n.author.name}{n.author.team ? <span className="font-normal text-text-faint"> · {n.author.team}</span> : null}</p>}
@@ -156,6 +164,7 @@ export function NotesView({ signedIn }: { signedIn: boolean }) {
               );
             })}
             {pages.loading && <div className="h-40 animate-pulse rounded-2xl bg-ink/[0.05] motion-reduce:animate-none" aria-busy data-skeleton />}
+            {!!pages.error && pages.items.length > 0 && <div className="py-4 text-center"><Button variant="outline" onClick={pages.retry}>Couldn't load more. Try again</Button></div>}
             <div ref={pages.end} aria-hidden className="h-px" />
           </div>
         )}
