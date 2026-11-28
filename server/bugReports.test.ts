@@ -13,7 +13,7 @@ import { createApp } from "./app";
 import { setMailer, type MailOptions } from "./auth/email";
 import { randomUUID } from "node:crypto";
 import {
-  BUG_RATE, bugDir, bugIssueTitle, freshIssueStates, ISSUE_SYNC_MS, resetIssueSync, syncBugIssues, syncIssueStates, clearing, clearRetries, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
+  BUG_RATE, bugDir, bugIssueTitle, freshIssueStates, ISSUE_SYNC_MS, resetIssueSync, syncBugIssues, syncIssueStates, clearing, clearRetries, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits, resetFeatureLabel,
   STORAGE_CAP_BYTES, sweepBugReports, UPLOAD_ROUTE, UPLOAD_WINDOW_MS, validateBugReport,
 } from "./bugReports";
 import { closerOf, fingerprintOf, listErrorReports, resetRepositoryId, resolveErrorReport, setGithubFetch, storeReport, syncErrorIssues } from "./errorReports";
@@ -32,6 +32,8 @@ let calls: Call[] = [];
 type FakeIssue = { number: number; title: string; body: string; labels: string[]; state?: "OPEN" | "CLOSED"; stateReason?: string; closer?: unknown };
 let issues: FakeIssue[] = [];
 let gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0, graphqlError: "" };
+/** The repository's labels (made with POST /labels: 422 when it's already there). */
+let labels = new Set(["bug", "user-reported"]);
 const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) => {
   const url = new URL(String(input));
   const method = init?.method ?? "GET";
@@ -54,6 +56,11 @@ const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) =>
     if (!i) return new Response("{}", { status: 404 });
     if (body.state === "closed") { i.state = "CLOSED"; i.stateReason = String(body.state_reason ?? "completed").toUpperCase(); }
     return Response.json({ number: i.number, state: "closed" });
+  }
+  if (method === "POST" && path === "/labels") {
+    if (labels.has(body.name)) return new Response("{}", { status: 422 });
+    labels.add(body.name);
+    return Response.json({ name: body.name }, { status: 201 });
   }
   if (method === "POST" && path === "/issues") {
     if (gitHub.issue !== 201) return new Response("{}", { status: gitHub.issue });
@@ -114,6 +121,8 @@ beforeEach(async () => {
   calls = [];
   issues = [];
   gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0, graphqlError: "" };
+  labels = new Set(["bug", "user-reported"]);
+  resetFeatureLabel();
   resetBugFilingPause();
   resetIssueSync();
   resetRepositoryId();
@@ -180,6 +189,24 @@ describe("validateBugReport", () => {
     if (!v.ok) expect(Object.keys(v.fields).sort()).toEqual(["category", "email", "message"]);
     expect(validateBugReport({ ...good, email: undefined }).ok).toBe(true);
     expect(validateBugReport({ ...good, email: "" }).ok).toBe(true);
+  });
+  it("takes a feature request without a category, and an optional title: one line, trimmed, at most 100 characters", () => {
+    const f = validateBugReport({ ...good, kind: "feature", category: undefined, title: "  Compare\n two\tteams  " });
+    expect(f.ok && f.value).toMatchObject({ kind: "feature", category: "other", title: "Compare two teams" });
+    // No kind: a bug, as dialogs sent before feature requests; an empty title is none.
+    const b = validateBugReport({ ...good, title: "   " });
+    expect(b.ok && b.value).toMatchObject({ kind: "bug", category: "broken", title: null });
+    expect(validateBugReport({ ...good, title: "x".repeat(BUG_LIMITS.titleMax) }).ok).toBe(true);
+    const long = validateBugReport({ ...good, title: "x".repeat(BUG_LIMITS.titleMax + 1) });
+    expect(!long.ok && long.fields.title).toMatch(/under 100/);
+    const odd = validateBugReport({ ...good, kind: "praise", title: 42 });
+    expect(!odd.ok && Object.keys(odd.fields).sort()).toEqual(["kind", "title"]);
+    // A bug still needs its category.
+    const bug = validateBugReport({ ...good, kind: "bug", category: undefined });
+    expect(!bug.ok && bug.fields.category).toBeTruthy();
+    // A token in a title is redacted before it's stored.
+    const secret = validateBugReport({ ...good, title: `Login fails with ${TOKEN}` });
+    expect(secret.ok && secret.value.title).not.toContain(TOKEN);
   });
   it("refuses a video of 5 MB or more, a second video, too many screenshots and other file types", () => {
     const over = validateBugReport({ ...good, files: [{ type: "video/mp4", bytes: BUG_LIMITS.videoBytes + 1 }] });
@@ -411,6 +438,38 @@ describe("filing on GitHub", () => {
     const [item] = (await listBugReports()).reports;
     expect(item).toMatchObject({ issue: { number: issue.number, url: `https://github.com/ZOGWORK/control-scout/issues/${issue.number}` }, notFiled: null });
     expect(await audits("bugReport.filed")).toEqual([{ id: r.id, issue: issue.number, route: UPLOAD_ROUTE }]);
+  });
+
+  it("files a feature request: [feature] + its own title, feature-request + user-reported, the label made once", async () => {
+    const r = await send({ ...good, kind: "feature", category: undefined, title: "Compare two teams side by side", message: "Pick two teams and see their stats next to each other." });
+    const [issue] = issues;
+    expect(issue.title).toBe("[feature] Compare two teams side by side");
+    expect(issue.labels).toEqual(["feature-request", "user-reported"]);
+    expect(issue.body).toContain("### What they'd like\n```text\nPick two teams");
+    expect(issue.body).toContain("**Type:** Feature request");
+    expect(issue.body).not.toContain("**Category:**");
+    expect(issue.body.trimEnd().endsWith("Filed from the in-app Request a feature button.")).toBe(true);
+    expect(calls.filter((c) => c.url.endsWith("/labels"))).toHaveLength(1);
+    expect(mails[0].subject).toBe("[Control Scout feature] Feature request: Compare two teams side by side");
+    // A second one: the label is there now, not asked about again.
+    await send({ ...good, kind: "feature", category: undefined, message: "Dark mode for the printed pick list, please." });
+    expect(issues[1].title).toBe("[feature] Dark mode for the printed pick list, please.");
+    expect(calls.filter((c) => c.url.endsWith("/labels"))).toHaveLength(1);
+    const [, first] = (await listBugReports()).reports;
+    expect(first).toMatchObject({ id: r.id, kind: "feature", title: "Compare two teams side by side" });
+  });
+
+  it("a feature request when the label already exists: 422 is fine, the issue is filed with it", async () => {
+    labels.add("feature-request");
+    await send({ ...good, kind: "feature", category: undefined, message: "Let me export the rankings as a spreadsheet." });
+    expect(issues[0].labels).toEqual(["feature-request", "user-reported"]);
+  });
+
+  it("a bug with a title: the title is the issue's, the message stays in the body", async () => {
+    await send({ ...good, title: "Rankings jump", message: "On the event page, every time I scroll down." });
+    expect(issues[0].title).toBe("[user] Rankings jump");
+    expect(issues[0].labels).toEqual(["bug", "user-reported"]);
+    expect(calls.some((c) => c.url.endsWith("/labels"))).toBe(false);
   });
 
   it("uploads a screenshot first, embeds it inline, then deletes the local copy once its URL opens", async () => {
@@ -794,5 +853,12 @@ describe("bugIssueTitle", () => {
     expect(bugIssueTitle("  The bracket is wrong  \nmore", "data")).toBe("[user] The bracket is wrong");
     expect(bugIssueTitle("[redacted] !!\nthe rest", "layout")).toBe("[user] Bug report: Looks wrong / layout");
     expect(bugIssueTitle("x".repeat(200), "other")).toHaveLength(7 + 110);
+  });
+  it("uses the sender's own title when it says something, with [feature] for a feature request", () => {
+    expect(bugIssueTitle("The message", "data", "bug", "Bracket wrong")).toBe("[user] Bracket wrong");
+    expect(bugIssueTitle("Show OPR on the team page", "other", "feature", null)).toBe("[feature] Show OPR on the team page");
+    expect(bugIssueTitle("Show OPR on the team page", "other", "feature", "!!")).toBe("[feature] Show OPR on the team page");
+    expect(bugIssueTitle("??", "other", "feature", "")).toBe("[feature] Feature request");
+    expect(bugIssueTitle("msg", "other", "feature", "a\nb  c")).toBe("[feature] a b c");
   });
 });

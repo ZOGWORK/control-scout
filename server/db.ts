@@ -3198,6 +3198,17 @@ CREATE INDEX IF NOT EXISTS video_shares_item ON video_shares (item_key);
 CREATE INDEX IF NOT EXISTS video_shares_user ON video_shares (user_id);
 `,
   },
+  {
+    version: 122,
+    name: "bug reports: feature requests and an optional title",
+    sql: `
+-- The "Report a bug" dialog also sends feature requests (server/bugReports.ts): kind is bug | feature (a feature request
+-- is filed as "[feature] …" with the feature-request label). title: the sender's own title for the issue, or null (one
+-- is made from the message). Numbered 122: 121 is taken by an open PR.
+ALTER TABLE bug_reports ADD COLUMN kind TEXT NOT NULL DEFAULT 'bug';
+ALTER TABLE bug_reports ADD COLUMN title TEXT;
+`,
+  },
 ];
 
 export type Db = Client;
