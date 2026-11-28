@@ -12,7 +12,7 @@ import { useApi, qs } from "../../lib/api";
 import { useCurrentSeason } from "../../lib/meta";
 import { usePersonal } from "../../lib/personal";
 import { matchTime, oddsPct, place, seasonLabel } from "../../lib/format";
-import type { EventListItem, MatchView, SearchHit, TeamSummary } from "../../shared/api";
+import type { EventListItem, SearchHit, TeamSummary } from "../../shared/api";
 import type { RecordsResponse, TeamSeasonRecord } from "../../shared/statCatalog";
 import { SUGGESTION_HOUR_MS, suggestionLabel, suggestionsAt, type HomeSuggestion } from "../../shared/homeSuggestions";
 import { TIER_WORD } from "../../shared/tierWords";
@@ -20,7 +20,6 @@ import { SEARCH_HINT, usePageSearch, useSearch } from "../layout/Search";
 import { SearchBox, hitHref, searchPagePick } from "../search/SearchBox";
 import { glideTo, preloadSearchPage } from "../search/glide";
 import { addRecentSearch } from "../search/discover";
-import { nextMatch } from "./HomeSections";
 import { HomeTips } from "./HomeTips";
 import { myTeamsOf } from "../../lib/myTeams";
 import { cn } from "../cn";
@@ -285,33 +284,32 @@ function TopRow({ r, rank }: { r: TeamSeasonRecord; rank: number }) {
 
 // --- Your teams ------------------------------------------------------------------------------------------------------
 
-/** One match's call for a team: its side's chance to win, or null without a prediction. */
-function callFor(m: MatchView, team: number): number | null {
-  if (!m.prediction) return null;
-  return m.red.teams.some((x) => x.number === team) ? m.prediction.pRed : 1 - m.prediction.pRed;
-}
-
 /** v8: the team's side in a match, as its alliance text colour (so the chance reads as red's or blue's at a glance). */
-const sideText = (m: MatchView, team: number) => (m.red.teams.some((x) => x.number === team) ? "v8:text-red-alliance" : "v8:text-blue-alliance");
+const sideTone = (alliance: "red" | "blue") => (alliance === "red" ? "v8:text-red-alliance" : "v8:text-blue-alliance");
 
-const matchHref = (m: MatchView) => `/events/${m.season}/${encodeURIComponent(m.code)}/match/${encodeURIComponent(m.key)}`;
+/** The one answer the card draws from: every shown team's summary and next match, and the season before's summaries
+ *  (before=1) for a team with nothing this season yet. */
+type CardSummaries = { teams: TeamSummary[]; before?: { season: number; teams: TeamSummary[] } };
 
 /** Your teams: one team big (number, name, next match and its call); several as compact rows, each with its next match.
+ *  One request for the whole card (?next=1&before=1), never a schedule request per team.
  *  The card ends like the other two, with a quiet link: no button competing with search. */
 function TeamsCard({ teams, season }: { teams: number[]; season: number }) {
   const shown = teams.slice(0, TEAMS_MAX);
-  const info = useApi<{ teams: TeamSummary[] }>(`/api/teams-summary${qs({ season, teams: shown.join(",") })}`);
+  const info = useApi<CardSummaries>(`/api/teams-summary${qs({ season, teams: shown.join(","), next: 1, before: 1 })}`);
   const byTeam = new Map((info.data?.teams ?? []).map((t) => [t.team, t]));
+  const before = new Map((info.data?.before?.teams ?? []).map((t) => [t.team, t]));
   const one = teams.length === 1;
+  const loaded = !!info.data;
   return (
     <section data-card="team" aria-labelledby="home-team" className={cn(card, "max-lg:order-first")}>
       <div className="flex items-center justify-between gap-3">
         <h2 id="home-team" className={cardTitle}><Star className="size-4 fill-text-base text-text-base" aria-hidden /> {one ? "Your team" : "Your teams"}</h2>
         {!one && <span className="text-xs tabular-nums text-text-muted">{teams.length}</span>}
       </div>
-      {one ? <OneTeam team={teams[0]} season={season} t={byTeam.get(teams[0])} loaded={!!info.data} /> : (
+      {one ? <OneTeam team={teams[0]} season={season} t={byTeam.get(teams[0])} prev={before.get(teams[0])} loaded={loaded} failed={!!info.error} /> : (
         <ul className="flex flex-col gap-0.5">
-          {shown.map((n) => <TeamRow key={n} team={n} season={season} t={byTeam.get(n)} loaded={!!info.data} />)}
+          {shown.map((n) => <TeamRow key={n} team={n} t={byTeam.get(n)} loaded={loaded} />)}
         </ul>
       )}
       <Link to={one ? "/my-team" : "/my-teams"} className={cardLink}>
@@ -322,11 +320,9 @@ function TeamsCard({ teams, season }: { teams: number[]; season: number }) {
 }
 
 /** One team: the number big, its name, and the next match with its call. */
-function OneTeam({ team, season, t, loaded }: { team: number; season: number; t: TeamSummary | undefined; loaded: boolean }) {
-  const sched = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
-  const next = sched.data ? nextMatch(sched.data.matches) : undefined;
-  const pWin = next ? callFor(next, team) : null;
-  const eventName = next && t?.nextEvent?.code === next.code ? t.nextEvent.name : next?.code;
+function OneTeam({ team, season, t, prev, loaded, failed }: { team: number; season: number; t: TeamSummary | undefined; prev: TeamSummary | undefined; loaded: boolean; failed: boolean }) {
+  const next = t?.next ?? null;
+  const pWin = next?.pRed != null ? (next.alliance === "red" ? next.pRed : 1 - next.pRed) : null;
   return (
     <>
       <Link to={`/teams/${team}`} className="group -mt-1 flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
@@ -339,23 +335,23 @@ function OneTeam({ team, season, t, loaded }: { team: number; season: number; t:
       </Link>
       <div className="rounded-xl border border-ink/[0.08] bg-ink/[0.02] px-4 py-3 text-sm">
         {next ? (
-          <Link to={matchHref(next)} className="group flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+          <Link to={next.href} className="group flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
             <span className="min-w-0">
               <span className="block text-xs text-text-muted">Next match</span>
-              <span className="block font-medium group-hover:underline">{next.label} · {eventName}</span>
-              <span className="block text-xs text-text-muted">{matchTime(next.time)}</span>
+              <span className="block font-medium group-hover:underline">{next.label} · {next.event}</span>
+              <span className="block text-xs text-text-muted">{next.time ? matchTime(next.time) : "time not posted yet"}</span>
             </span>
-            {pWin != null && next.prediction && (
+            {pWin != null && next.tier && (
               <span data-team-call className="text-right">
-                <span className={cn("block font-display text-2xl font-semibold tabular-nums", sideText(next, team))}>{oddsPct(pWin)}</span>
-                <span className="block text-xs text-text-muted">to win · {TIER_WORD[next.prediction.tier].toLowerCase()}</span>
+                <span className={cn("block font-display text-2xl font-semibold tabular-nums", sideTone(next.alliance))}>{oddsPct(pWin)}</span>
+                <span className="block text-xs text-text-muted">to win · {TIER_WORD[next.tier].toLowerCase()}</span>
               </span>
             )}
           </Link>
-        ) : !sched.data ? (
-          <span className="text-text-muted">{sched.error ? "The schedule couldn’t load." : "Checking the schedule…"}</span>
+        ) : !loaded ? (
+          <span className="text-text-muted">{failed ? "The schedule couldn’t load." : "Checking the schedule…"}</span>
         ) : (
-          <LastEvent team={team} season={season} t={t} loaded={loaded} />
+          <LastEvent season={season} t={t} prev={prev} loaded={loaded} />
         )}
       </div>
     </>
@@ -366,14 +362,13 @@ const ordinal = (n: number) => { const v = n % 100; return `${n}${v >= 11 && v <
 const shortDay = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
 /** No schedule posted yet: the team's most recent event and how it went (rank, record, OPR), from the summary the
- *  card already has; last season's when it hasn't played yet this season. Then the next event, when one is known. */
-function LastEvent({ team, season, t, loaded }: { team: number; season: number; t: TeamSummary | undefined; loaded: boolean }) {
-  const before = useApi<{ teams: TeamSummary[] }>(loaded && t && !t.lastEvent ? `/api/teams-summary${qs({ season: season - 1, teams: String(team) })}` : null);
-  const prev = before.data?.teams.find((x) => x.team === team);
+ *  card already has; last season's when it hasn't played yet this season (both in the card's one answer). Then the
+ *  next event, when one is known. */
+function LastEvent({ season, t, prev, loaded }: { season: number; t: TeamSummary | undefined; prev: TeamSummary | undefined; loaded: boolean }) {
   const src = t?.lastEvent ? t : prev?.lastEvent ? prev : null;
   const evSeason = src === t ? season : season - 1;
   if (!src?.lastEvent) {
-    return <span className="text-text-muted">{!loaded || (t && !t.lastEvent && !before.data && !before.error) ? "Checking recent events…" : `No events played yet.${t?.nextEvent ? ` Next event: ${t.nextEvent.name}.` : ""}`}</span>;
+    return <span className="text-text-muted">{!loaded ? "Checking recent events…" : `No events played yet.${t?.nextEvent ? ` Next event: ${t.nextEvent.name}.` : ""}`}</span>;
   }
   const ev = src.lastEvent;
   const day = ev.end ?? ev.start;
@@ -404,10 +399,9 @@ function Stat({ label, value, sub }: { label: string; value: string | null; sub?
 }
 
 /** One of several teams: number and name, then its next match on one quiet line, and its call. */
-function TeamRow({ team, season, t, loaded }: { team: number; season: number; t: TeamSummary | undefined; loaded: boolean }) {
-  const sched = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
-  const next = sched.data ? nextMatch(sched.data.matches) : undefined;
-  const pWin = next ? callFor(next, team) : null;
+function TeamRow({ team, t, loaded }: { team: number; t: TeamSummary | undefined; loaded: boolean }) {
+  const next = t?.next ?? null;
+  const pWin = next?.pRed != null ? (next.alliance === "red" ? next.pRed : 1 - next.pRed) : null;
   return (
     <li data-your-team>
       <Link to={`/teams/${team}`} className={cn(rowLink, "py-1.5")}>
@@ -415,12 +409,12 @@ function TeamRow({ team, season, t, loaded }: { team: number; season: number; t:
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium group-hover:underline">{t?.name ?? (loaded ? `Team ${team}` : " ")}</span>
           <span data-team-next className="block truncate text-xs text-text-muted">
-            {next ? `Next: ${next.label} · ${matchTime(next.time)}` : !sched.data ? "Checking the schedule…" : t?.lastEvent ? `Last: ${t.lastEvent.name}${t.lastEvent.rank != null ? ` · ${ordinal(t.lastEvent.rank)}` : ""}${t.lastEvent.record ? ` · ${t.lastEvent.record}` : ""}` : t?.nextEvent ? `Next event: ${t.nextEvent.name}` : "No schedule yet"}
+            {next ? `Next: ${next.label}${next.time ? ` · ${matchTime(next.time)}` : ""}` : !loaded ? "Checking the schedule…" : t?.lastEvent ? `Last: ${t.lastEvent.name}${t.lastEvent.rank != null ? ` · ${ordinal(t.lastEvent.rank)}` : ""}${t.lastEvent.record ? ` · ${t.lastEvent.record}` : ""}` : t?.nextEvent ? `Next event: ${t.nextEvent.name}` : "No schedule yet"}
           </span>
         </span>
-        {pWin != null && next?.prediction && (
+        {pWin != null && next?.tier && (
           <span data-team-call className="shrink-0 text-right">
-            <span className={cn("block font-display text-base font-semibold tabular-nums", sideText(next, team))}>{oddsPct(pWin)}</span>
+            <span className={cn("block font-display text-base font-semibold tabular-nums", sideTone(next.alliance))}>{oddsPct(pWin)}</span>
             <span className="block text-[0.6875rem] text-text-muted">to win</span>
           </span>
         )}
