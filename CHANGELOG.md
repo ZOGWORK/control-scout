@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.3.3 — 2026-11-28
+
+Cycles is now Clips, with its own mark, and on a wide screen the video stands tall in the middle with its words beside it.
+
+### Highlights
+- [appearance] Cycles is now Clips, with its own mark
+- [appearance] On a wide screen the clip is tall and centred, its words beside it
+- [fixes] A playing clip shows Pause under the mouse
+- [fixes] Turning the sound on no longer starts a clip over
+
+### Clips
+- **A new name and mark** (`src/components/cycles/ClipsMark.tsx`): "Clips" in the Control Scout face, with a mark of two tall cards, the one behind tipped as if just swiped away. It's the sidebar, menu and tab-bar icon too. The page moved to `/clips`; `/cycles` links redirect there, query kept, and a device's picked tabs keep their place.
+- **A wide screen uses its width**: the creator, title, teams and why it's here sit left of the video, the buttons right of it, and the video fills the height under the top bar with the same room above and below. On a phone the words stay over the video and the buttons are a slim column of icons on its right edge.
+- **Fixes**: a playing clip shows Pause under a mouse and flashes Play when a tap starts it again; a paused clip no longer shows YouTube's own back and next buttons (the loop no longer needs a playlist); the sound button is a command to the player, so it no longer reloads the clip, and one pressed while the player loads still takes; a player that pauses itself shows Play; Enter, Space and a screen reader pause and play; a reason line that only repeated the creator's name is gone; and only clips near the screen ask whether they're saved. (#2452)
+
 ## 8.3.2 — 2026-11-28
 
 The leagues list fits a phone, and real places come first.

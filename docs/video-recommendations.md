@@ -1,6 +1,6 @@
 # Video recommendations
 
-One engine picks what every video list shows each person: **Cycles** (short videos, `server/api/cycles.ts`) and the
+One engine picks what every video list shows each person: **Clips** (short videos, `server/api/cycles.ts`; first called Cycles) and the
 long-form **Videos** feed (`server/api/videosFeed.ts`). The engine is `server/videos/recommend.ts` (pure, tested in
 `recommend.test.ts`); its reads are `server/videos/signals.ts`.
 
@@ -19,7 +19,7 @@ Every thing a person does with a video is a signal:
 | A Cycle left in under 3 s | −0.6 | `video_watch.watched_s` |
 | Not interested | −4 | `video_watch.hidden` |
 
-A signal fades by half every 21 days and counts 1.5 times while it's from the scroll in progress, so Cycles adapts
+A signal fades by half every 21 days and counts 1.5 times while it's from the scroll in progress, so Clips adapts
 within one session (each page of six is ranked again).
 
 ## How it ranks

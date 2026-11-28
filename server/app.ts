@@ -1406,6 +1406,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     const q = req.originalUrl.indexOf("?");
     res.redirect(301, `/donate${q >= 0 ? req.originalUrl.slice(q) : ""}`);
   });
+  // /cycles was Clips' first name: a shared /cycles/<video> link opens that clip.
+  app.get(/^\/cycles(\/[A-Za-z0-9_-]{11})?\/?$/, (req, res) => {
+    const q = req.originalUrl.indexOf("?");
+    res.redirect(301, `/clips${req.params[0] ?? ""}${q >= 0 ? req.originalUrl.slice(q) : ""}`);
+  });
   // /network: the Network & offline settings (a section of Settings).
   // 301 with the query kept, like /support: /network?lite=0 reaches the full screen while Lite is on.
   app.get("/network", (req, res) => {

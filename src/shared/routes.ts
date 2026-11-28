@@ -23,7 +23,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/weekend\/?$/i, "WeekendPage"],
   [/^\/videos(\/(later|saved|history|notes))?\/?$/i, "VideosPage"],
   [/^\/watch\/[A-Za-z0-9_-]{11}\/?$/, "WatchPage"],
-  [/^\/cycles(\/[A-Za-z0-9_-]{11})?\/?$/, "CyclesPage"],
+  [/^\/clips(\/[A-Za-z0-9_-]{11})?\/?$/, "CyclesPage"],
   [/^\/preview\/home\/?$/i, "PreviewHomePage"], // the v8 sample Home: noindex, linked from nowhere
   [/^\/preview\/kit\/?$/i, "KitPage"], // every v8 token and component (docs/design/v8-revamp-brief.md): noindex
   // A season alone (/events/2025) is no event: the page not found, as EventCodeRedirect renders it.
@@ -79,7 +79,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/, "Match report"],
   [/^\/events\/[^/]+\/[^/]+\/display$/, "Pit display"],
   [/^\/events\/[^/]+\/[^/]+\/highlights$/, "Event highlights"],
-  [/^\/teams\/[^/]+\/highlights$/, "Team highlights"], [/^\/teams\/[^/]+\/record-split$/, "Team record"], [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/rankings\/regions$/, "Region rankings"], [/^\/rankings\/regions\/[^/]+(\/[^/]+)?$/, "Region rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/weekend$/, "This weekend"], [/^\/videos\/later$/, "Watch later"], [/^\/videos\/saved$/, "Saved videos"], [/^\/videos\/history$/, "Watch history"], [/^\/videos\/notes$/, "Video notes"], [/^\/videos$/, "Videos"], [/^\/watch\/[^/]+$/, "Watch"], [/^\/cycles(\/[^/]+)?$/, "Cycles"], [/^\/preview\/home$/, "Sample home"], [/^\/predict(\/accuracy)?$/, "Predict"],
+  [/^\/teams\/[^/]+\/highlights$/, "Team highlights"], [/^\/teams\/[^/]+\/record-split$/, "Team record"], [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/rankings\/regions$/, "Region rankings"], [/^\/rankings\/regions\/[^/]+(\/[^/]+)?$/, "Region rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/weekend$/, "This weekend"], [/^\/videos\/later$/, "Watch later"], [/^\/videos\/saved$/, "Saved videos"], [/^\/videos\/history$/, "Watch history"], [/^\/videos\/notes$/, "Video notes"], [/^\/videos$/, "Videos"], [/^\/watch\/[^/]+$/, "Watch"], [/^\/clips(\/[^/]+)?$/, "Clips"], [/^\/preview\/home$/, "Sample home"], [/^\/predict(\/accuracy)?$/, "Predict"],
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/my-teams$/, "My teams"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Offline"],
   [/^\/bundle\/[^/]+\/[^/]+$/, "Event-day bundle"], [/^\/bundle\/[^/]+\/[^/]+\/picklist$/, "Pick list snapshot"],
   [/^\/(settings|network)$/, "Settings"], [/^\/(methodology|predict\/how-it-works|how-it-works)$/, "How it works"], [/^\/how-it-works\/search$/, "How FTC One Search works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/(donate|support)$/, "Donate"], [/^\/supporters$/, "Supporters"], [/^\/status$/, "Status"], [/^\/faq$/, "FAQ"], [/^\/rules$/, "Rules"],
