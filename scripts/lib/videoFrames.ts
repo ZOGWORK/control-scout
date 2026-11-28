@@ -412,6 +412,22 @@ export function countsThrough(left: number, before: number): boolean {
   return left > AUTO_S + SWITCH_S + TELEOP_S && atStart >= AUTO_S + TELEOP_S - 3 && atStart <= AUTO_S + SWITCH_S + TELEOP_S + 3;
 }
 
+/** Seconds before a start read off an audience display's card that the card is read for a countdown running through it.
+ *  At 5 and 10 s, a real match's card stands at 2:30 or shows the last match's 0:00: never over 2:38. */
+export const COUNTDOWN_CHECK = [5, 10, 25, 90, 170];
+
+/** Why a start read off a card that read nothing at every COUNTDOWN_CHECK second before it stays unconfirmed, or null
+ *  where it doesn't. On a stream's own card (a box over the field, under a bar) a card no check could read proves
+ *  nothing: a timeout's countdown may be hidden there, so the start stays unconfirmed. Through a corner box listed for
+ *  part of a recording (CORNER_BOXES' `part`, `screenInBox`), the box holds FTC Live's whole screen, which shows Up Next
+ *  and the last match's results between matches and the card only while one is played or timed out: a card absent at
+ *  every check is that screen, never a countdown hidden. A card read counting down through the start still rules it out
+ *  there too (countsThrough), and the start has been read running on its timer at each confirming second, a match's
+ *  label above it; judge's order, overlap and end-of-video checks follow (2025 USNDBIQ's first two hours). */
+export function cardUnread(screenInBox: boolean): string | null {
+  return screenInBox ? null : `the card read nothing ${COUNTDOWN_CHECK.join(", ")} s before it, so no countdown through it was ruled out`;
+}
+
 /** A match's start in the video, and how sure: "high" (a confirmed read, with another read or the broadcast's own
  *  clock agreeing on how far the video sits from the clock), "medium" (between two reads that agree). */
 export type Placed = { t: number; confidence: "high" | "medium" };
