@@ -85,6 +85,8 @@ describe("who advanced: first on the Awards tab, and on the Odds tab with no tea
     advancement: { slots: 5, advancesTo: "USNJCMP", advancesToName: "New Jersey Championship", rows: [[4215, 136], [207, 105], [15762, 55], [12853, 49], [13617, 48]].map(([t, p]) => ({ team: t, status: "FIRST", declined: false, points: p })) },
   });
   const chips = () => [...document.querySelectorAll("[data-advanced-teams] li")].map((li) => li.textContent);
+  // Who advanced in the open panel (the finished event's header card steps aside on these two tabs).
+  const panelSection = () => screen.getByRole("tabpanel").querySelector("[data-advanced-teams]");
   it("Awards: the section comes before the award cards, each team with its order, name and points; the next event by name", () => {
     current = advanced();
     mount("/events/2025/AUBRQ2?tab=awards");
@@ -105,7 +107,7 @@ describe("who advanced: first on the Awards tab, and on the Odds tab with no tea
     expect(chips()).toHaveLength(5);
     cleanup();
     mount("/events/2025/AUBRQ2?tab=odds&team=4215");
-    expect(document.querySelector("[data-advanced-teams]")).toBeNull();
+    expect(panelSection()).toBeNull();
   });
 });
 
@@ -151,7 +153,7 @@ describe("event page ?tab=", () => {
 
   it("opens the default tab for an unknown one and drops it from the address, replacing the entry", async () => {
     mount("/events/2025/AUBRQ2?tab=garbage&team=16321");
-    expect(selected()).toEqual(["Matches"]);
+    expect(selected()).toEqual(["Rankings"]);
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     await waitFor(() => expect(search).toBe("?team=16321"));
     expect(navType).toBe("REPLACE");
@@ -160,7 +162,7 @@ describe("event page ?tab=", () => {
   it("treats Odds on a history season as unknown", async () => {
     current = detail(2021);
     mount("/events/2021/AUBRQ2?tab=odds");
-    expect(selected()).toEqual(["Matches"]);
+    expect(selected()).toEqual(["Rankings"]);
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     await waitFor(() => expect(search).toBe(""));
   });

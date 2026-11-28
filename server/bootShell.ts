@@ -5,9 +5,8 @@
 // of it in one step. Self-contained: inline styles, no icons, plain links that
 // work without JS. The theme comes from the class the inline <head> script sets
 // on <html> (index.html): dark by default, html.light or html.dim otherwise.
-// v8 (docs/design/v8-revamp-brief.md: <html data-v8>, set by the same script before this paints) gets its own layer at the end of
-// BOOT_STYLE: the white mark (in ink on Light), the wash (the same colours on Light), a borderless top row, and on Home the search alone in the middle, so the old look
-// never flashes before the app.
+// The look (docs/design/v8-revamp-brief.md: <html data-v8>, set by the same script before this paints) gets its own layer at the end of
+// BOOT_STYLE: the white mark (in ink on Light), the wash (the same colours on Light), a borderless top row, and on Home the search alone in the middle.
 //
 // Offline, the service worker answers every page with the cached "/" HTML, so
 // the page block carries the path it was made for and hides itself on another.
@@ -128,7 +127,6 @@ export const BOOT_STYLE = `<style>
       .csbc-b i.csbc-a{font-style:normal;color:inherit}
       @media (max-width:767px){html[data-v8] .csbc{padding:12px}html[data-v8] .csbc-ico,html[data-v8] .csbc-h,html[data-v8] .csbc-a{display:none}html[data-v8] .csbc-btns{margin-top:8px}}
       html[data-v8] .csb{--b-side:#0e0e10;--b-line:#ffffff0f;--b-acc:#a3b6e0}
-      html[data-v8] .csb-brand img,html[data-v8] .csb-top>a img{content:url(/mark-white.webp)}
       html[data-v8] .csb-brand{height:56px;padding:0 16px;font-size:13.5px;font-weight:600}
       html[data-v8] .csb-brand img{width:18px;height:18px}
       html[data-v8] .csb-top>a img{width:20px;height:20px}
@@ -247,8 +245,8 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   const guard = `<script>(function(){var b=document.getElementById('cs-boot-page'),p=location.pathname.replace(/\\/+$/,'')||'/';if(b&&b.getAttribute('data-path').toLowerCase()!==p.toLowerCase())b.hidden=true})()</script>`;
   return [
     `<div class="csb">`,
-    `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/legacy/logo-56.webp" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
-    `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/legacy/logo-56.webp" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
+    `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/mark-white.webp" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
+    `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/mark-white.webp" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
     // A page with content in full scrolls with the document (before the app loads, or with no JavaScript at all).
     `<main class="csb-main${meta.bodyHtml && !meta.firstPaint && page ? " csb-scroll" : ""}">${page}${isBareRoute(p) ? "" : foot}${guard}${heroJson}</main></div>`,
     `<nav class="csb-tabs" aria-label="Main">${TABS.map((it) => link(p, it)).join("")}</nav>`,

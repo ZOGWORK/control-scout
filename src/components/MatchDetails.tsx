@@ -31,7 +31,7 @@ import { tierPhrase } from "../shared/tierWords";
 import { cn } from "./cn";
 import { hasTeamPage } from "../shared/teamPages";
 import { rowIcon, rpIcon } from "./BreakdownIcons";
-import { useIsV8 } from "../lib/v8";
+
 import { fixed } from "../shared/format";
 
 type Side = "red" | "blue";
@@ -311,7 +311,7 @@ export function Breakdown({ d }: { d: MatchDetail }) {
   const rows = breakdownRows(d);
   const groups = groupRows(rows);
   // v8 only: each phase's paired bar (with v8 off the table is exactly today's: no bars, the difference compares).
-  const max = useIsV8() ? barMax(rows) : undefined;
+  const max = barMax(rows);
   const [open, setOpen] = useState<ReadonlySet<number>>(() => new Set());
   const toggle = (i: number) => setOpen((o) => { const n = new Set(o); if (n.has(i)) n.delete(i); else n.add(i); return n; });
   const id = `breakdown-${d.match.code}-${d.match.key.replace(/:/g, "-")}`;

@@ -9,7 +9,7 @@ import { Badge, Input } from "./ui/basic";
 import { EmptyState } from "./page";
 import { ago, place } from "../lib/format";
 import { cn } from "./cn";
-import { isV8 } from "../lib/v8";
+
 
 /** "From FTC New Jersey (newjerseyftc.com), read 2 h ago. Not FIRST's official list yet." */
 function SourceNote({ p, what }: { p: ProvisionalInfo; what: string }) {
@@ -69,7 +69,7 @@ function TeamCards({ teams, season, team, label }: { teams: CardTeam[]; season: 
             <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
           </span>
         );
-        return <li key={t.team}>{t.known ? <Link to={`/teams/${t.team}?season=${season}`} className={cn(!isV8() && "lift", box, "v8:transition-colors v8:duration-150 v8:still-hover:bg-ink/[0.03]")}>{body}</Link> : <div className={box} data-team-unknown>{body}</div>}</li>;
+        return <li key={t.team}>{t.known ? <Link to={`/teams/${t.team}?season=${season}`} className={cn(box, "v8:transition-colors v8:duration-150 v8:still-hover:bg-ink/[0.03]")}>{body}</Link> : <div className={box} data-team-unknown>{body}</div>}</li>;
       })}
     </ul>
   );

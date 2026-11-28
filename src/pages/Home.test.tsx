@@ -1,342 +1,120 @@
 // @vitest-environment jsdom
-// The home page as a visitor meets it: search and both main actions are there
-// before any data (or the map) arrives; the atlas's selector changes the real
-// total and links to that country's teams; usage that isn't published says so
-// rather than showing zero; your team shows only when you've picked one, with
-// its confidence tier; and a signed-in scout lands on their dashboard once,
-// while coming back to / later stays on home.
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+// Home is the dashboard (src/components/home/HomeDashboard.tsx): the mark and search first, four Try chips,
+// then Events live now, Top teams and Your teams, in that order, with no headline. The shell draws the sidebar,
+// your picture, the wash and Report a bug, so Home draws none of them.
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import type { HomeOverview, PublicUsage } from "../shared/home";
-import type { MatchView } from "../shared/api";
-import { LIVE_THRESHOLD, pickHeadline } from "../shared/ledger";
-import { HOME_HEADLINES, HOME_HEADLINE_MS, homeHeadlineAt } from "../shared/boot";
-
-const OVERVIEW: HomeOverview = {
-  season: 2026, generatedAt: "2026-10-17T12:00:00Z", dataAsOf: "2026-10-17T10:00:00Z", statsAt: null,
-  coverage: { teamListings: 23, events: 4, matchScores: 9 },
-  readiness: { state: "ready", resultsAt: "2026-10-17T10:00:00Z", statsAt: "2026-10-17T10:05:00Z" },
-  countries: [
-    { code: "US", numeric: "840", name: "United States", listings: 15, withResults: 4 },
-    { code: "CA", numeric: "124", name: "Canada", listings: 5, withResults: 0 },
-  ],
-  unmapped: [{ label: "Independent", listings: 3 }],
-};
-const USAGE_OFF: PublicUsage = { status: "unavailable", reason: "not-published", from: "2026-09-18", to: "2026-10-17", measuredFrom: null, generatedAt: "2026-10-17T12:00:00Z", measuredThrough: null, coverage: "opt-in", totals: null, daily: [] };
-const NEXT = {
-  season: 2026, code: "USNJQ1", label: "Q12", played: false, startsAt: new Date(Date.now() + 3600_000).toISOString(), time: null,
-  red: { teams: [{ number: 4215 }, { number: 1 }] }, blue: { teams: [{ number: 2 }, { number: 3 }] },
-  prediction: { pRed: 0.64, tier: "moderate" },
-} as unknown as MatchView;
+import type { EventListItem } from "../shared/api";
 
 let data: Record<string, unknown> = {};
+const fetched: string[] = [];
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
+  apiFetch: async (path: string) => { fetched.push(path); return { hits: [] }; },
   useApi: (path: string | null) => {
     const key = path ? Object.keys(data).find((k) => path.startsWith(k)) : undefined;
     return { data: key ? data[key] : undefined, error: undefined, loading: !key, reload: () => {} };
   },
 }));
-let phone = false;
-vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useCurrentSeason: () => 2026, useTitle: () => {}, useMediaQuery: () => phone, useMeta: () => null }));
+vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useCurrentSeason: () => 2026, useTitle: () => {}, useMediaQuery: () => false, useMeta: () => null }));
 const st = (myTeam: number | null) => ({ myTeam, tracked: { teams: [], events: [] }, bookmarks: [] });
 let personal: { user: unknown; state: ReturnType<typeof st> } = { user: null, state: st(null) };
 vi.mock("../lib/personal", () => ({ usePersonal: () => personal, hasAccountOnDevice: () => false }));
-// The drawing itself is d3 on real boundaries: stood in for here (the selector and list are what's tested).
-vi.mock("../components/home/AtlasMap", async () => {
-  const { useEffect } = await import("react");
-  return {
-    default: ({ spinning, onLoaded }: { spinning?: boolean; onLoaded: (d: ReadonlySet<string>) => void }) => {
-      useEffect(() => onLoaded(new Set(["840", "124"])), []); // eslint-disable-line react-hooks/exhaustive-deps
-      return <div data-testid="map" data-spinning={String(!!spinning)} />;
-    },
-    loadWorld: () => Promise.resolve([]),
-  };
-});
 
-let reduced = false;
-vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/react")>()), useReducedMotion: () => reduced }));
+const event = (i: number, played: number, total: number): EventListItem => ({
+  season: 2026, code: `USXXQ${i}`, name: `Event ${i}`, type: "Qualifier", typeLabel: "Qualifier", city: "Town", state: "NJ", country: "USA",
+  start: "2026-11-18", end: "2026-11-18", teams: 20, matchesPlayed: played, matchesTotal: total, status: "live",
+} as EventListItem);
 
-let path = "";
-function Where() { path = useLocation().pathname; return null; }
-const { default: Home, readBootHeadline, startingHeadline } = await import("./Home");
-const { readBootLines } = await import("../lib/heroLines");
+const { default: Home } = await import("./Home");
+const { SEARCH_DEBOUNCE_MS } = await import("../components/search/SearchBox");
+let at = "";
+function Where() { at = useLocation().pathname + useLocation().search; return null; }
 const mount = () => render(<MemoryRouter initialEntries={["/"]}><Home /><Where /></MemoryRouter>);
 
-beforeEach(() => { phone = false; reduced = false; data = {}; personal = { user: null, state: st(null) }; sessionStorage.clear(); });
-afterEach(cleanup);
+beforeEach(() => { data = {}; personal = { user: null, state: st(null) }; });
+afterEach(() => { cleanup(); });
 
 describe("Home", () => {
-  it("has the headline, search and both actions before any data arrives", () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(5 * HOME_HEADLINE_MS + 60_000); // mid-hour, so the clock can't cross the hour mid-test
+
+  it("is the dashboard: the mark and search first, four chips, then the three cards in order, no headline", () => {
+    const { container } = mount();
+    const dash = container.querySelector("[data-home-dashboard]") as HTMLElement;
+    expect(dash).toBeTruthy();
+    expect(container.querySelector("h1")).toBeNull();
+    // Search comes before every card, with the mark above it.
+    const searchSection = screen.getByRole("region", { name: "Search" });
+    expect(searchSection.querySelector("[data-mark]")).toBeTruthy();
+    expect(within(searchSection).getByRole("combobox", { name: /Search teams, events and matches/ })).toBeTruthy();
+    const firstCard = container.querySelector("[data-card]")!;
+    expect(searchSection.compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelectorAll("[data-example-chip]")).toHaveLength(4);
+    expect([...container.querySelectorAll("[data-card]")].map((c) => c.getAttribute("data-card"))).toEqual(["live", "top", "team"]);
+  });
+
+  it("a Try chip runs like Enter: its words go in the box, then it glides to /search (plain navigation without the API)", async () => {
+    const { container } = mount();
+    const chip = container.querySelector<HTMLAnchorElement>("[data-example-chip]")!;
+    const box = within(screen.getByRole("region", { name: "Search" })).getByRole("combobox", { name: /Search teams, events and matches/ }) as HTMLTextAreaElement;
+    const doc = document as unknown as { startViewTransition?: unknown };
+    let update: (() => Promise<void> | void) | null = null;
+    doc.startViewTransition = (cb: () => Promise<void> | void) => { update = cb; return { finished: new Promise(() => {}), ready: Promise.resolve(), updateCallbackDone: Promise.resolve() }; };
     try {
-      mount();
-      const [a, b] = HOME_HEADLINES[homeHeadlineAt(Date.now())];
-      expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(`${a} ${b}`);
-    } finally { vi.useRealTimers(); }
-    expect(screen.getByLabelText("Search teams, events and matches")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Predict a match/ }).getAttribute("href")).toBe("/predict");
-    expect(screen.getByRole("link", { name: /Find an event/ }).getAttribute("href")).toBe("/events");
-    // No made-up numbers while loading.
-    expect(screen.queryByText("23")).toBeNull();
+      fireEvent.click(chip);
+      expect(document.documentElement.hasAttribute("data-search-glide")).toBe(true);
+      // The box shows the chip's words before the browser takes its first picture (the next frame, after this click).
+      const q = new URLSearchParams(chip.getAttribute("href")!.split("?")[1]).get("q");
+      expect(box.value).toBe(q);
+      expect(at).toBe("/");
+      // Shown, not searched: past the typing pause the box has asked the API nothing and shows no spinner.
+      fetched.length = 0;
+      await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 150));
+      expect(fetched.filter((f) => f.startsWith("/api/search"))).toEqual([]);
+      expect(box.closest("[data-search-field]")!.querySelector(".animate-spin")).toBeNull();
+      await update!();
+      expect(at).toBe(chip.getAttribute("href"));
+    } finally { delete doc.startViewTransition; document.documentElement.removeAttribute("data-search-glide"); }
   });
 
-  it("changes the headline every 10 minutes, still one H1, without moving the hero", () => {
-    expect(HOME_HEADLINE_MS).toBe(10 * 60_000);
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
-    try {
-      vi.setSystemTime(HOME_HEADLINES.length * HOME_HEADLINE_MS - HOME_HEADLINE_MS - 1000); // a second before the last line's turn
-      mount();
-      const h1 = () => screen.getByRole("heading", { level: 1 });
-      expect(h1().textContent).toBe(HOME_HEADLINES[HOME_HEADLINES.length - 2].join(" "));
-      expect(h1().className).not.toContain("cs-headline-in"); // the first paint never animates
-      // Every line holds its place invisibly beside the H1, so the tallest one sets the height.
-      expect(h1().parentElement!.querySelectorAll("[aria-hidden]")).toHaveLength(HOME_HEADLINES.length);
-      act(() => { vi.advanceTimersByTime(2000); });
-      expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-      expect(h1().textContent).toBe(HOME_HEADLINES[HOME_HEADLINES.length - 1].join(" "));
-      expect(h1().className).toContain("cs-headline-in");
-      act(() => { vi.advanceTimersByTime(HOME_HEADLINE_MS); });
-      expect(h1().textContent).toBe(HOME_HEADLINES[0].join(" ")); // round again
-    } finally { vi.useRealTimers(); }
+  it("a Try chip without View Transitions navigates at once; a modified click is left to the browser", () => {
+    const { container } = mount();
+    const chip = container.querySelector<HTMLAnchorElement>("[data-example-chip]")!;
+    // Not cancelled: the browser opens it in a new tab.
+    expect(fireEvent.click(chip, { ctrlKey: true })).toBe(true);
+    expect(at).toBe("/");
+    fireEvent.click(chip);
+    expect(at).toBe(chip.getAttribute("href"));
   });
 
-  it("shows the owner's lines from the console: same rotation by the hour, every line holding its place", () => {
-    const lines = [["Custom one,", "in colour."], ["Custom two,", "also."], ["Custom three,", "too."]];
-    data = { "/api/home/headlines": { lines, custom: true } };
-    vi.useFakeTimers({ toFake: ["Date"] });
-    try {
-      vi.setSystemTime(7 * HOME_HEADLINE_MS + 60_000); // hour 7: line 7 % 3 = 1
-      mount();
-      const h1 = screen.getByRole("heading", { level: 1 });
-      expect(h1.textContent).toBe("Custom two, also.");
-      expect(h1.querySelector("span")!.className).toContain("text-accent-display");
-      expect(h1.parentElement!.querySelectorAll("[aria-hidden]")).toHaveLength(3);
-      expect(screen.queryByText(/Know the match/)).toBeNull();
-    } finally { vi.useRealTimers(); }
+  it("leaves the sidebar, corner, wash and bug button to the shell, and the old Home's pieces out", () => {
+    const { container } = mount();
+    for (const sel of ["[data-sample-sidebar]", "[data-corner-tools]", "[data-wash]", "[data-sample-home]", "[data-testid=map]"]) expect(container.querySelector(sel)).toBeNull();
+    expect(screen.queryByRole("link", { name: /Predict a match/ })).toBeNull();
   });
 
-  it("reads the owner's lines from the first paint, and ignores a block that isn't a list of lines", () => {
-    const doc = document.implementation.createHTMLDocument("");
-    expect(readBootLines(doc)).toBeNull(); // none: the built-in lines
-    doc.body.innerHTML = '<script type="application/json" id="cs-hero">[["A,","b."],["C,","d."]]</script>';
-    expect(readBootLines(doc)).toEqual([["A,", "b."], ["C,", "d."]]);
-    for (const bad of ["{", "[]", '[["only one"]]', '[["", "x"]]', `[["${"x".repeat(41)}", "y"]]`]) {
-      doc.body.innerHTML = `<script type="application/json" id="cs-hero">${bad}</script>`;
-      expect(readBootLines(doc), bad).toBeNull();
-    }
-    // The first paint's line counts against those lines, not the built-in ones.
-    doc.body.innerHTML = '<div id="cs-boot-page"><h1 data-line="1">x</h1></div>';
-    expect(readBootHeadline(doc, 0, 2)).toEqual({ line: 1, hour: 0 });
-    expect(readBootHeadline(doc, 0, 1)).toBeNull();
-    expect(startingHeadline({ line: 5, hour: 0 }, 1000, 3)).toBe(0); // out of range for 3 lines: the clock's
-  });
-
-  it("starts on the server first paint's headline in the hour it loaded, then follows the clock", () => {
-    const doc = document.implementation.createHTMLDocument("");
-    doc.body.innerHTML = '<div id="cs-boot-page"><h1 data-line="7">x</h1></div>';
-    const loaded = 5 * HOME_HEADLINE_MS - 60_000; // a minute before the next change (clock's line: 4)
-    const boot = readBootHeadline(doc, loaded);
-    expect(boot).toEqual({ line: 7, hour: 4 });
-    expect(startingHeadline(boot, loaded + 30_000)).toBe(7); // same 10 minutes: the first paint's words, not the clock's
-    expect(startingHeadline(boot, loaded + 2 * 60_000)).toBe(homeHeadlineAt(loaded + 2 * 60_000)); // a later visit
-    expect(startingHeadline(null, loaded)).toBe(4);
-    for (const bad of ["", "x", "-1", String(HOME_HEADLINES.length), "1.5"]) {
-      doc.body.innerHTML = `<div id="cs-boot-page"><h1 data-line="${bad}">x</h1></div>`;
-      expect(readBootHeadline(doc, loaded)).toBeNull();
-    }
-    doc.body.innerHTML = "";
-    expect(readBootHeadline(doc, loaded)).toBeNull();
-  });
-
-  it("shows the season's real totals, and the atlas's selector changes the country's total and its link", async () => {
-    data = { "/api/home/overview": OVERVIEW };
-    mount();
-    expect(screen.getByText("23")).toBeTruthy();
-    const readout = () => screen.getByText("Selected country").parentElement!.textContent;
-    expect(readout()).toBe("Selected countryUnited States15team listings · 2026–27");
-    // Two ways into a country: every listed team, and the teams with results.
-    expect(screen.getByRole("link", { name: /All 15 listed teams/ }).getAttribute("href")).toBe("/teams?view=listed&country=US");
-    expect(screen.getByRole("link", { name: /4 teams with results/ }).getAttribute("href")).toBe("/teams?view=season&country=US");
-    // The app's own dropdown (Radix Select): open it, then choose.
-    Element.prototype.hasPointerCapture ??= () => false;
-    Element.prototype.scrollIntoView ??= () => {};
-    fireEvent.pointerDown(screen.getByRole("combobox", { name: /Explore/ }), { button: 0, ctrlKey: false, pointerType: "mouse" });
-    fireEvent.click(screen.getByRole("option", { name: /Canada/ }));
-    expect(readout()).toBe("Selected countryCanada5team listings · 2026–27");
-    // Statistics ready and nobody played: the true zero, and the country still has its directory.
-    expect(screen.getByText("No Canada team has played a match yet this season.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /All 5 listed teams/ }).getAttribute("href")).toBe("/teams?view=listed&country=CA");
-    // Healthy: a one-line status, no explanation panel and no retry.
-    expect(screen.getByText("Statistics up to date")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Check again/ })).toBeNull();
-    // The list reconciles every listing, including those without a country.
-    expect(screen.getByText("Reported as “Independent”")).toBeTruthy();
-    expect(screen.getByText(/= 23 team listings/)).toBeTruthy();
-    await waitFor(() => expect(screen.getByTestId("map")).toBeTruthy());
-  });
-
-  it("never states a factual zero while the season's statistics are still being prepared (DATA-F01)", async () => {
-    // Results have been played but no records are built: every withResults reads 0.
-    data = { "/api/home/overview": {
-      ...OVERVIEW,
-      readiness: { state: "preparing", resultsAt: "2026-10-17T10:00:00Z", statsAt: null },
-      countries: OVERVIEW.countries.map((c) => ({ ...c, withResults: 0 })),
-    } };
-    mount();
-    expect(screen.queryByText(/has played a match yet/)).toBeNull();
-    expect(screen.getByText("Results are still being prepared")).toBeTruthy();
-    // Discovery keeps working: every listed team is one tap away.
-    expect(screen.getByRole("link", { name: /All 15 listed teams/ })).toBeTruthy();
-    // The status says what's happening and offers a retry.
-    expect(screen.getByText("Statistics being prepared")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Check again/ })).toBeTruthy();
-    await waitFor(() => expect(screen.getByTestId("map")).toBeTruthy());
-  });
-
-  it("turns the globe by itself, with a button that stops and restarts it", async () => {
-    data = { "/api/home/overview": OVERVIEW };
-    mount();
-    const map = await screen.findByTestId("map");
-    expect(map.dataset.spinning).toBe("true");
-    fireEvent.click(await screen.findByRole("button", { name: "Stop the globe turning" }));
-    expect(screen.getByTestId("map").dataset.spinning).toBe("false");
-    fireEvent.click(screen.getByRole("button", { name: "Turn the globe" }));
-    expect(screen.getByTestId("map").dataset.spinning).toBe("true");
-    // The flat atlas doesn't turn, and offers no pause button.
-    fireEvent.click(screen.getByRole("radio", { name: "Flat atlas" }));
-    expect(screen.queryByRole("button", { name: /globe turning|Turn the globe/ })).toBeNull();
-  });
-
-  it("keeps the globe still for a visitor who asks for less motion, and lets them start it", async () => {
-    reduced = true;
-    data = { "/api/home/overview": OVERVIEW };
-    mount();
-    expect((await screen.findByTestId("map")).dataset.spinning).toBe("false");
-    fireEvent.click(await screen.findByRole("button", { name: "Turn the globe" }));
-    expect(screen.getByTestId("map").dataset.spinning).toBe("true");
-  });
-
-  const recBlk = (n: number, decided: number, accuracy: number, upsets: number) => ({
-    n, decided, accuracy, upsets, brier: 0.2, logLoss: 0.6, baselineBrier: 0.25, reliability: [], weekly: [],
-    byTier: { provisional: { n, accuracy, brier: 0.2 }, moderate: { n: 0, accuracy: 0, brier: 0 }, confident: { n: 0, accuracy: 0, brier: 0 } },
-    byLevel: { qual: { n, accuracy }, playoff: { n: 0, accuracy: 0 } },
-  });
-
-  it("opens on last season's replay as the headline, with this season's replay so far as the other tab and no live figure", () => {
-    const seasons = [
-      { season: 2026, label: "2026–27 BIOBUZZ", live: recBlk(706, 698, 415 / 698, 283), backtest: recBlk(1087, 1065, 728 / 1065, 337) },
-      { season: 2025, label: "2025–26 DECODE", live: null, backtest: recBlk(41743, 41405, 30554 / 41405, 10851) },
-    ];
-    data = { "/api/predict/accuracy": { seasons, engineVersion: "3.2.0", liveThreshold: LIVE_THRESHOLD, headline: pickHeadline(seasons), recentCalls: [], generatedAt: new Date().toISOString() } };
-    mount();
-    const radios = screen.getAllByRole("radio");
-    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["Last season, 36,572 scored", "This season so far, 1,087 scored"]);
-    expect(radios[0].getAttribute("aria-checked")).toBe("true");
-    // Last season leads with engine 3.5's month-by-month test; the site's full replay is named beside it.
-    expect(screen.getByText("Replayed test · Engine 3.5, month by month · the headline")).toBeTruthy();
-    expect(screen.getByText("74.8")).toBeTruthy();
-    expect(screen.getByText("27,354 correct")).toBeTruthy();
-    expect(screen.getByText("9,218 missed")).toBeTruthy();
-    expect(screen.getByText(/replay of every 2025–26 DECODE match in order scores 73\.8% on 41,405 decisive calls/)).toBeTruthy();
-    fireEvent.click(radios[1]);
-    expect(screen.getByText("Season replay · 2026–27 BIOBUZZ so far")).toBeTruthy();
-    // The "Last season" tab keeps its own count while the other tab is open.
-    expect(screen.getAllByRole("radio")[0].getAttribute("aria-label")).toBe("Last season, 36,572 scored");
-    expect(screen.getByText("68.4")).toBeTruthy();
-    expect(screen.getByText("728 correct")).toBeTruthy();
-    expect(screen.getByText("337 missed")).toBeTruthy();
-    // Live calls are never the card's figure, but the card says so with the live number beside the replay, labelled
-    // with its slice and sample, so neither number can be read as "the live accuracy" on its own.
-    expect(screen.queryByText(/Logged live/)).toBeNull();
-    const note = screen.getByTestId("live-calls-note");
-    expect(note.textContent).toMatch(/^The figure above is replayed from past matches, not calls made in advance\. Live calls made in advance, 2026–27 BIOBUZZ: 59\.5% of 698 decided called right, Brier 0\.2000 \(early season: 100% of them rough guesses, so the figure is still moving\)\. They lead the track record’s headline once 10,000 are scored \(706 so far\); this card always shows replays\.$/);
-    // The same note under the other tab.
-    fireEvent.click(radios[0]);
-    expect(screen.getByTestId("live-calls-note").textContent).toMatch(/59\.5% of 698 decided/);
-  });
-
-  it("shows one replay without tabs when only one season is replayed, and never 0% for undecided calls", () => {
-    data = { "/api/predict/accuracy": {
-      seasons: [{ season: 2025, label: "2025–26", live: null, backtest: recBlk(2, 0, 0, 0) }],
-      engineVersion: "2.1.1", liveThreshold: 10_000, headline: null, recentCalls: [], generatedAt: new Date().toISOString(),
-    } };
-    mount();
-    expect(screen.queryByRole("radio")).toBeNull();
-    expect(screen.getByLabelText("No percentage yet")).toBeTruthy();
-    expect(screen.queryByText(/^0(\.0)?$/)).toBeNull();
-    expect(screen.getByText(/All 2 scored calls were ties or 50:50 calls/)).toBeTruthy();
-  });
-
-  it("shows how much of the season the replay covers", () => {
-    data = { "/api/predict/accuracy": {
-      seasons: [{ season: 2026, label: "2026–27 BIOBUZZ", live: recBlk(33, 33, 16 / 33, 17), backtest: recBlk(207, 198, 126 / 198, 72), replay: { scored: 231, replayed: 207, eventSkipped: 0, shortHanded: 24, other: 0 } }],
-      engineVersion: "2.1.1", liveThreshold: 10_000, headline: null, recentCalls: [], generatedAt: new Date().toISOString(),
-    } };
-    mount();
-    expect(screen.getByText("Season replay", { selector: "p" })).toBeTruthy(); // not "the headline": nothing leads yet
-    expect(screen.getByText(/No headline yet: a replay needs 10,000 matches and live calls 10,000 scored/)).toBeTruthy();
-    expect(screen.getByText("126 correct")).toBeTruthy();
-    expect(screen.getByText("72 missed")).toBeTruthy();
-    expect(screen.getByText(/207 of 231 scored matches replayed; 24 had a robot missing/)).toBeTruthy();
-  });
-
-  it("says usage isn't published instead of showing zero", () => {
-    data = { "/api/public-usage": USAGE_OFF };
-    mount();
-    expect(screen.getByText(/Public usage totals aren’t published yet/)).toBeTruthy();
-    expect(screen.queryByText("Page views")).toBeNull();
-  });
-
-  it("shows a measured zero when usage is published", () => {
-    data = { "/api/public-usage": { ...USAGE_OFF, status: "available", reason: null, totals: { pageViews: 0, sessionStarts: 0 }, daily: [{ day: "2026-10-17", pageViews: 0, sessionStarts: 0 }] } };
-    mount();
-    expect(screen.getByText("Page views")).toBeTruthy();
-    expect(screen.getAllByText("0")).toHaveLength(2);
-  });
-
-  it("invites a visitor without a team to find one (no sign-in), and never shows someone else's", () => {
-    mount();
-    expect(screen.getByRole("button", { name: /Find your team/ })).toBeTruthy();
-    expect(screen.queryByText("4215")).toBeNull();
-  });
-
-  it("shows your team's next match with its odds and confidence tier", () => {
+  it("asks for a team with a plain button when none is set, and shows yours when it is", () => {
+    const { container, unmount } = mount();
+    const pick = container.querySelector("[data-pick-team]") as HTMLElement;
+    expect(pick.textContent).toContain("Pick your team");
+    expect(pick.className).not.toMatch(/(^|\s)bg-accent(\s|$)/);
+    unmount();
     personal = { user: null, state: st(4215) };
-    data = { "/api/teams/4215/matches": { matches: [NEXT] }, "/api/teams-summary": { teams: [{ team: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }] } };
-    mount();
-    expect(screen.getByText("Hypnotic Robotics")).toBeTruthy();
-    expect(screen.getByText(/64% to win/)).toBeTruthy();
-    expect(document.body.textContent).toContain("confidence: fair");
-    expect(path).toBe("/"); // not signed in: no redirect
+    data = { "/api/teams-summary": { teams: [{ team: 4215, name: "Gear Gremlins", place: "Oradell, NJ, USA" }] }, "/api/teams/4215/matches": { matches: [] } };
+    const again = mount();
+    expect(again.container.querySelector("[data-pick-team]")).toBeNull();
+    expect(screen.getByRole("heading", { name: /Your team/ })).toBeTruthy();
+    expect(screen.getByText("Gear Gremlins")).toBeTruthy();
   });
 
-  it("stays on Home for a signed-in scout with a team: their team shows here, no redirect to My team", () => {
-    personal = { user: { email: "a@b.c" }, state: st(4215) };
-    data = { "/api/teams/4215/matches": { matches: [NEXT] }, "/api/teams-summary": { teams: [{ team: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }] } };
-    mount();
-    expect(path).toBe("/");
-    expect(screen.getByText("Hypnotic Robotics")).toBeTruthy();
-  });
-
-  it("opens with a search arriving in the URL (/?q=, the site search search engines know), even for a signed-in scout", () => {
-    personal = { user: { email: "a@b.c" }, state: st(4215) };
-    render(<MemoryRouter initialEntries={["/?q=%20hypnotic%20"]}><Home /><Where /></MemoryRouter>);
-    expect(path).toBe("/");
-    const box = screen.getByLabelText("Search teams, events and matches") as HTMLInputElement;
-    expect(box.value).toBe("hypnotic");
-    expect(box.getAttribute("aria-expanded")).toBe("true");
-    // And says plainly what the site is.
-    expect(screen.getByText(/^Control Scout is free FTC scouting and match predictions/)).toBeTruthy();
-  });
-
-  it("opens the atlas on the globe on phones too", async () => {
-    phone = true;
-    data = { "/api/home/overview": OVERVIEW };
-    mount();
-    expect((await screen.findByRole("radio", { name: "Globe" })).getAttribute("aria-checked")).toBe("true");
+  it("keeps mint for progress and the #1 rank, and live red with the slow ring", () => {
+    data = { "/api/events": { events: [event(1, 10, 60)] } };
+    const { container } = mount();
+    const ring = container.querySelector("[data-live-dot] [data-live-pulse]")!;
+    expect(ring.getAttribute("class")).toContain("animate-[live-ring_2s");
+    expect(ring.getAttribute("class")).toContain("motion-reduce:hidden");
+    const fills = [...container.querySelectorAll("*")].filter((el) => /(^|\s)bg-accent(\s|$)/.test(el.getAttribute("class") ?? ""));
+    expect(fills.length).toBe(1);
+    expect(fills[0].hasAttribute("data-progress")).toBe(true);
   });
 });

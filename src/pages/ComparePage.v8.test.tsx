@@ -79,12 +79,3 @@ describe("Compare, v8 on", () => {
     expect(b.querySelector("span")!.className).toContain("v8:text-text-muted");
   });
 });
-
-describe("Compare, v8 off", () => {
-  it("is drawn as before: no verdict", async () => {
-    page();
-    await waitFor(() => expect(screen.getByRole("rowheader", { name: "OPR" })).toBeTruthy());
-    expect(document.querySelector("[data-verdict]")).toBeNull();
-    expect(document.querySelector("[data-compare-v8]")).toBeNull();
-  });
-});

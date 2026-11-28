@@ -48,14 +48,12 @@ const mount = (url: string) => render(
     <PersonalProvider><Routes><Route path="/events/:season/:code" element={<EventPage />} /></Routes></PersonalProvider>
   </MemoryRouter>,
 );
-const v8 = (on: boolean) => { if (on) document.documentElement.setAttribute("data-v8", ""); else document.documentElement.removeAttribute("data-v8"); };
 
 beforeEach(() => {
   sessionStorage.clear();
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ user: null }), { headers: { "Content-Type": "application/json" } })));
-  v8(true);
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); current = detail(); v8(false); localStorage.clear(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); current = detail(); localStorage.clear(); });
 
 describe("event page in v8", () => {
   const selected = () => screen.getAllByRole("tab").filter((t) => t.getAttribute("aria-selected") === "true").map((t) => t.textContent);
@@ -153,18 +151,7 @@ describe("event page in v8", () => {
     expect(selected()).toEqual([expect.stringContaining("Awards")]);
   });
 
-  it("leaves the page as it was with v8 off: the full header, the glance card, the old tab order and default", () => {
-    v8(false);
-    mount("/events/2025/AUBRQ2");
-    expect(document.querySelector("[data-event-header=full]")).not.toBeNull();
-    expect(screen.queryByText(/at a glance/i)).not.toBeNull();
-    expect(document.querySelector("[data-event-focus]")).toBeNull();
-    expect(tabNames()[0]).toBe("Matches");
-    expect(selected()).toEqual([expect.stringContaining("Matches")]);
-    expect(document.querySelector<HTMLElement>("[data-livestream]")!.className).toMatch(/(^| )bg-accent( |$)/);
-  });
-
-  it("drops the hover lift on the team cards, marks the podium ranks gold, silver and bronze, and keeps the lift with v8 off", () => {
+  it("drops the hover lift on the team cards, and marks the podium ranks gold, silver and bronze", () => {
     mount("/events/2025/AUBRQ2?tab=teams");
     const cards = () => [...document.querySelectorAll<HTMLAnchorElement>('a[href^="/teams/"]')].filter((a) => a.textContent?.includes("Rank"));
     expect(cards()).toHaveLength(2);
@@ -172,9 +159,6 @@ describe("event page in v8", () => {
     const rankOf = (team: number) => cards().find((c) => c.textContent?.includes(String(team)))!.querySelector(".font-display")!;
     expect(rankOf(1111).className).toMatch(/v8:text-yellow-400/); // #1 gold
     expect(rankOf(2222).className).toMatch(/v8:text-slate-300/); // #2 silver
-    cleanup(); v8(false);
-    mount("/events/2025/AUBRQ2?tab=teams");
-    for (const c of cards()) expect(c.className).toMatch(/(^| )lift( |$)/);
   });
 
   it("draws status and type chips as quiet outlined pills, live as the red dot with its slow ring (none under reduced motion)", () => {
@@ -218,14 +202,7 @@ describe("SortTable in v8", () => {
     expect(document.querySelector("[data-highlight]")!.className).toMatch(/v8:shadow-\[inset_2px_0_0_var\(--color-text-base\)\]/);
   });
 
-  it("keeps the heat colours with v8 off", () => {
-    v8(false);
-    table();
-    expect(document.querySelector("tbody td.font-semibold")).not.toBeNull();
-  });
-
-  it.each([true, false])("shades a shade column green (best) to red (worst) by value, v8 %s", (on) => {
-    v8(on);
+  it("shades a shade column green (best) to red (worst) by value", () => {
     const shaded: Col<R>[] = [{ key: "team", label: "Team", value: (r) => r.team }, { key: "rank", label: "Rank", value: (r) => r.team, asc: true, align: "right", shade: true, heat: true }];
     render(<SortTable rows={rows} cols={shaded} rowKey={(r) => r.team} initial={{ key: "rank", dir: "asc" }} />);
     const cells = [...document.querySelectorAll("tbody td[data-shade]")];

@@ -1,13 +1,12 @@
 // @vitest-environment node
 // The home page's rules, apart from its markup: live calls and replays never mix,
 // correct + missed come from one decisive-call denominator, an unavailable usage
-// feed is never shown as zero, the atlas's listings always add up, and a stale
-// left-over match is never "next".
+// feed is never shown as zero, and a stale left-over
+// match is never "next".
 import { describe, expect, it } from "vitest";
 import type { AccuracyBlock, MatchView, TrackRecord } from "../../shared/api";
 import type { HomeOverview, PublicUsage } from "../../shared/home";
 import { defaultEvidence, eventState, homeReplays, recordFor, usageView } from "./homeModel";
-import { countryHref, pickCountry, reconcile, unmappedLabel } from "./atlasModel";
 import { nextMatch } from "./HomeSections";
 
 const block = (o: Partial<AccuracyBlock>): AccuracyBlock => ({
@@ -149,40 +148,6 @@ describe("calendar status", () => {
     expect(eventState({ status: "live", matchesPlayed: 0, matchesTotal: 0 }).tone).toBe("today");
     expect(eventState({ status: "upcoming", matchesPlayed: 0, matchesTotal: 0 }).label).toBe("Scheduled");
     expect(eventState({ status: "finished", matchesPlayed: 40, matchesTotal: 40 }).label).toBe("Completed");
-  });
-});
-
-describe("atlas", () => {
-  const o: Pick<HomeOverview, "countries" | "unmapped" | "coverage"> = {
-    coverage: { teamListings: 20, events: 0, matchScores: 0 },
-    countries: [
-      { code: "US", numeric: "840", name: "United States", listings: 12, withResults: 3 },
-      { code: "SG", numeric: "702", name: "Singapore", listings: 3, withResults: 0 },
-      { code: "CA", numeric: "124", name: "Canada", listings: 2, withResults: 1 },
-    ],
-    unmapped: [{ label: null, listings: 2 }, { label: "Independent", listings: 1 }],
-  };
-  it("selects the country asked for, else the one with the most listings", () => {
-    expect(pickCountry(o, "CA")?.code).toBe("CA");
-    expect(pickCountry(o, "FR")?.code).toBe("US");
-    expect(pickCountry(o, null)?.code).toBe("US");
-    expect(pickCountry({ countries: [] }, "US")).toBeNull();
-  });
-  it("links to the country's team records, keeping a past season", () => {
-    expect(countryHref("CA", 2026, 2026)).toBe("/teams?view=season&country=CA");
-    expect(countryHref("CA", 2025, 2026)).toBe("/teams?view=season&season=2025&country=CA");
-  });
-  it("adds up: drawn + too small to draw + without a country = every listing", () => {
-    const before = reconcile(o, null);
-    expect(before).toMatchObject({ total: 20, drawn: 17, undrawn: 0, unmapped: 3 });
-    const after = reconcile(o, new Set(["840", "124"]));
-    expect(after).toMatchObject({ drawn: 14, undrawn: 3, unmapped: 3 });
-    expect(after.undrawnCountries.map((c) => c.code)).toEqual(["SG"]);
-    expect(after.drawn + after.undrawn + after.unmapped).toBe(after.total);
-  });
-  it("names listings without a country plainly", () => {
-    expect(unmappedLabel(null)).toBe("Country not reported");
-    expect(unmappedLabel("Independent")).toBe("Reported as “Independent”");
   });
 });
 

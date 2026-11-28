@@ -56,7 +56,7 @@ import { CreatorVideosPanel } from "../components/owner/CreatorVideosPanel";
 import { ClipCoveragePanel } from "../components/owner/ClipCoveragePanel";
 import { AnalyticsPanel } from "../components/owner/AnalyticsPanel";
 import { KeptLast, useKeepLast } from "../components/owner/keepLast";
-import { useIsV8 } from "../lib/v8";
+
 import { SYNC_LATE_HOURS, syncTone } from "../components/owner/syncTone";
 
 const PANELS = [
@@ -324,11 +324,9 @@ function WaitingSection({ badges, counting, onOpen }: { badges: Partial<Record<P
   );
 }
 
-/** v8's meaning for each health tile (the classic look keeps its own tones): green is fine, orange late, red wrong. */
-function healthTones(h: OwnerOverview["health"], v8: boolean) {
-  const late = !h.dataAsOf || Date.now() - new Date(h.dataAsOf).getTime() > SYNC_LATE_HOURS * 3600e3;
+/** The health tiles' tones: green is fine, orange late, red wrong. */
+function healthTones(h: OwnerOverview["health"]) {
   const errors = h.errors.server5xxToday + h.errors.reports24h;
-  if (!v8) return { sync: late ? "amber" : "sky", ledger: "accent", errors: h.errors.server5xxToday ? "amber" : "emerald" } as const;
   return { sync: syncTone(h.dataAsOf), ledger: "violet", errors: errors ? "rose" : "emerald" } as const;
 }
 
@@ -337,7 +335,7 @@ function HealthSection({ o, onOpen }: { o: OwnerOverview; onOpen: (id: string) =
   const h = o.health;
   const syncLate = !h.dataAsOf || Date.now() - new Date(h.dataAsOf).getTime() > SYNC_LATE_HOURS * 3600e3;
   const e = h.errors;
-  const tone = healthTones(h, useIsV8());
+  const tone = healthTones(h);
   return (
     <Section title="Health" description="Is the data fresh, is anything breaking, and is the public track record holding.">
       <TileGrid cols={3}>

@@ -26,7 +26,7 @@ import { callTally, pct } from "../lib/seasonSoFar";
 import { DiscordCard } from "../components/DiscordCard";
 import { defaultSeason } from "../lib/myTeamSeason";
 import { PROFILE_PERCENTILE_TEXT } from "../lib/textTones";
-import { useIsV8 } from "../lib/v8";
+
 import { oddsPct } from "../shared/share";
 import { cn } from "../components/cn";
 import { V8Empty, V8Figures, V8Heading, V8Title, V8_CARD, V8_LABEL, V8_PRESS, V8_ROW } from "../components/myteams/v8";
@@ -52,8 +52,8 @@ export default function MyTeamPage() {
     if (err) { setError(err); input.current?.focus(); return; }
     set("myTeam", Number(team));
   };
-  const v8 = useIsV8();
-  if (!state.myTeam && v8) {
+  
+  if (!state.myTeam) {
     return <V8Pick draft={draft} error={error} checking={checking} input={input} onDraft={(v) => { setDraft(v); setError(null); }} onSubmit={submit}
       user={!!user} tracked={state.tracked.teams.length + state.tracked.events.length > 0} season={current} />;
   }
@@ -89,7 +89,7 @@ export default function MyTeamPage() {
       </div>
     );
   }
-  return v8 ? <V8Dashboard team={state.myTeam} /> : <Dashboard team={state.myTeam} />;
+  return <V8Dashboard team={state.myTeam} />;
 }
 
 /** Everything the dashboard shows for a team, the season chosen the same way for both looks. */

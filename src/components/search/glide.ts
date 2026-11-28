@@ -5,7 +5,7 @@
 // no other navigation is ever animated. No API (or v8 off): the plain, instant navigation, exactly as before.
 import { useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
-import { isV8 } from "../../lib/v8";
+
 import "./glide.css";
 
 type ViewTransitionLike = { finished: Promise<void>; ready: Promise<void>; updateCallbackDone: Promise<void> };
@@ -31,9 +31,9 @@ function until(ok: () => boolean, ms: number): Promise<void> {
   });
 }
 
-/** True when `href` is the full results page and this browser can glide to it in the v8 look. */
+/** True when `href` is the full results page and this browser can glide to it. */
 export function canGlide(href: string): boolean {
-  if (typeof document === "undefined" || !isV8()) return false;
+  if (typeof document === "undefined") return false;
   if (typeof (document as DocWithVT).startViewTransition !== "function") return false;
   return /^\/search\?/.test(href);
 }

@@ -91,17 +91,10 @@ describe("ShortlistPage", () => {
     expect(screen.queryByRole("region", { name: "How the shortlist works" })).toBeNull();
     // Compare and the other secondary actions stay visible, with their words.
     expect(screen.getByRole("link", { name: /Compare top 2/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Order picks/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /CSV/ })).toBeTruthy();
-    const toggle = screen.getByRole("button", { name: /How it works/ });
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    const help = screen.getByRole("region", { name: "How the shortlist works" });
-    expect(toggle.getAttribute("aria-controls")).toBe(help.id);
-    expect(help.textContent).toMatch(/eight named colours/);
-    expect(help.textContent).toMatch(/Tick up to 4 teams to compare/);
-    fireEvent.click(toggle);
+    // Ordering, CSV and the instructions wait in More, not on the bar.
+    expect(screen.queryByRole("button", { name: /Order picks/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /CSV/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "More shortlist actions" })).toBeTruthy();
     expect(screen.queryByRole("region", { name: "How the shortlist works" })).toBeNull();
   });
 });

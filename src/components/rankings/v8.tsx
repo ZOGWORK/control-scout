@@ -8,7 +8,7 @@ import { Link } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
 import { qs } from "../../lib/api";
 import { useFlag } from "../../lib/flags";
-import { useIsV8 } from "../../lib/v8";
+
 import { cn } from "../cn";
 
 /** A wrapper around a PageHeader: its title becomes v8's page title (Inter, 22/28, 600, tight). */
@@ -55,15 +55,11 @@ export const V8_ICON = "v8:text-text-faint";
 type Tab = "world" | "regions" | "leagues" | "power";
 
 /**
- * v8's rankings sub-nav, as tabs (the sidebar keeps its Rankings arrow too): World, Regions, Leagues and Power
+ * The rankings sub-nav, as tabs (the sidebar keeps its Rankings arrow too): World, Regions, Leagues and Power
  * rankings (when that feature is on), the picked one white with the slate-blue line. The season rides along.
- * `ssr`: the page has a server-drawn first paint (the league page), where v8 can't be read; it's drawn there always
- * and shown by CSS in v8 only, so nothing moves when the app takes over. Elsewhere it's drawn in v8 only.
  */
-export function RankingsTabs({ at, season, ssr = false }: { at: Tab; season?: number | null; ssr?: boolean }) {
-  const v8 = useIsV8();
+export function RankingsTabs({ at, season }: { at: Tab; season?: number | null }) {
   const power = useFlag("powerRankings");
-  if (!ssr && !v8) return null;
   const s = qs({ season: season ?? null });
   const tabs: { id: Tab; to: string; label: string }[] = [
     { id: "world", to: `/rankings${s}`, label: "World" },
@@ -72,7 +68,7 @@ export function RankingsTabs({ at, season, ssr = false }: { at: Tab; season?: nu
     ...(power ? [{ id: "power" as const, to: "/power-rankings", label: "Power rankings" }] : []),
   ];
   return (
-    <nav aria-label="Rankings" data-rankings-tabs className={cn("tabs-fade mb-4 items-center overflow-x-auto overflow-y-hidden border-b border-line [scrollbar-width:none]", ssr ? "hidden v8:flex" : "flex")}>
+    <nav aria-label="Rankings" data-rankings-tabs className="tabs-fade mb-4 flex items-center overflow-x-auto overflow-y-hidden border-b border-line [scrollbar-width:none]">
       {tabs.map((t, i) => {
         const on = t.id === at;
         return (

@@ -2,7 +2,6 @@
 // The Shortlist in v8 (docs/design/v8-revamp-brief.md, <html data-v8>), rebuilt around "who do we pick?": the ranked
 // list is first under the title; Compare is the one primary; ordering, CSV and the instructions wait in More; the
 // pick numbers are neutral but for #1 in the accent; OPR, rank and record are white or grey, never coloured.
-// With v8 off the page is drawn as before.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -69,15 +68,5 @@ describe("Shortlist, v8 on", () => {
     const empty = document.querySelector("[data-v8-empty]")!;
     expect(empty.textContent).toContain("Your shortlist is empty");
     expect(empty.querySelector('[role="combobox"]')).not.toBeNull();
-  });
-});
-
-describe("Shortlist, v8 off", () => {
-  it("is drawn as before", async () => {
-    page();
-    await waitFor(() => expect(document.querySelectorAll("[data-reorder-key]")).toHaveLength(2));
-    expect(document.querySelector("[data-shortlist-v8]")).toBeNull();
-    expect(screen.getByRole("button", { name: /Order picks/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /CSV/ })).toBeTruthy();
   });
 });

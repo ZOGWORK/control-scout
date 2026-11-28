@@ -11,7 +11,7 @@ import { dateRange, seasonLabel } from "../lib/format";
 import type { EventListItem } from "../shared/api";
 import { EventStatusChip, LiveDot } from "./EventChips";
 import { cn } from "./cn";
-import { isV8 } from "../lib/v8";
+
 import { lookupPath, resolveTracked, TRACKED_LOOKUPS, TRACKED_SHOWN, type TrackedRef } from "../pages/trackedEvents";
 
 type Answer = (path: string, events: EventListItem[] | null) => void;
@@ -71,13 +71,13 @@ export function CurrentlyTracking({ season, current, events, listSettled, classN
     ...unknown.map((r) => ({ kind: "unknown" as const, r })),
   ];
   const shown = all ? items : items.slice(0, TRACKED_SHOWN);
-  const v8 = isV8();
+  
   const more = items.length - shown.length;
   return (
     <section aria-label="Currently tracking" className={cn("min-w-0", className)} data-currently-tracking>
       {lookupEls}
       <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold v8:text-text-base">
-        <Eye className="size-4 text-accent-text v8:text-text-faint" aria-hidden />{v8 ? "Tracking" : "Currently tracking:"}
+        <Eye className="size-4 text-accent-text v8:text-text-faint" aria-hidden />{"Tracking"}
         <span className="font-normal tabular-nums text-muted-foreground">{total} event{total === 1 ? "" : "s"}</span>
       </h2>
       {/* A phone scrolls the row sideways (edge to edge); wider screens lay it out as a grid. No scroll snapping:

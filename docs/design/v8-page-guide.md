@@ -2,9 +2,9 @@
 
 Read `docs/design/v8-revamp-brief.md` first. That's the design. This file covers how a page gets built.
 
-## The switch
-- v8 is on when `<html data-v8>` is set. Turn it on in a browser with `?v8=1` on any URL; `?v8=0` turns it off.
-- Style a page for v8 **only with the `v8:` Tailwind variant** (for example `v8:bg-white/10`, `v8:hidden`), or with `isV8()` / `useIsV8()` from `src/lib/v8.ts` when the markup itself must differ. **The old look must not change.** Tests and screenshots with v8 off must stay as they are.
+## The look
+- The look is always on: `index.html` sets `<html data-v8>` before the first paint (8.3.0 removed the classic one, and with it the switch).
+- Style a page **with the `v8:` Tailwind variant** (for example `v8:bg-white/10`, `v8:hidden`). Markup that must differ between looks is written once: `isV8()` / `useIsV8()` no longer exist.
 - These are already done; don't redo them:
   - tokens (surfaces, slate-blue accent, radii, strong easing, the 90% root);
   - shared components (`src/components/ui/*`: Button, Tabs, chips, menus, dialogs, sheets, tooltips, table head, skeleton);
@@ -48,11 +48,10 @@ If a page changes with state (live, finished or upcoming; signed in or out; has 
    - Then junction `node_modules` from the main checkout: `cmd /c mklink /J`.
    - **Watch out:** `push.default=upstream`. Always push with `git push -u origin HEAD:refs/heads/claude/v8-<page>`.
 2. **Touch only your page's files** and the components that belong to that page alone. Shared files owned by another wave session are listed in your brief; don't edit them.
-3. **Tests.** Add `<Page>.v8.test.tsx` (jsdom, set `document.documentElement.setAttribute("data-v8","")` in `beforeEach` and remove it in `afterEach`). Assert the v8 classes or markup and that v8-off is unchanged. Run your page's suites and `npx tsc --noEmit -p .`.
+3. **Tests.** Add `<Page>.test.tsx` (jsdom). Assert the classes or markup. Run your page's suites and `npx tsc --noEmit -p .`.
 4. **Check it yourself in a real browser.** Use headless Playwright, not the in-app browser pane:
    - API: `CS_NO_SCHEDULER=1 PORT=<free port> npx tsx server/index.ts`
    - Web: `PORT=<that port> npx vite --port <free port> --strictPort`, both from your worktree.
-   - Set `localStorage cs-v8=1` with `addInitScript`.
    - Take screenshots at 1440×900 and 390×844 (deviceScaleFactor 2). Look at them as a user and fix what's off.
    - Kill your servers by matching your worktree path in the process command line.
 5. **Commit and open the PR.**

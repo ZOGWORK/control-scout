@@ -18,8 +18,4 @@ describe("OprSpark tone", () => {
     render(<OprSpark events={falling} />);
     expect(tone()).toBe("accent");
   });
-  it("v8 off: a fall is drawn as before", () => {
-    render(<OprSpark events={falling} />);
-    expect(tone()).toBe("danger");
-  });
 });

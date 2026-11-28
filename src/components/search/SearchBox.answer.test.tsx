@@ -137,34 +137,6 @@ describe("typing on (the last answer stays while the next is on its way)", () =>
 });
 
 describe("Enter and the full results page", () => {
-  it("plain Enter (nothing highlighted) opens /search?q=…; the last row goes there too; ArrowUp from nothing reaches it", async () => {
-    const { input, onPick } = mount();
-    const ask = async () => { act(() => input.focus()); await type(input, "hypnotic"); await reply(/q=hypnotic/, answer("hypnotic", { hits: [t("4215", "Hypnotic Robotics")] })); };
-    await ask();
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ href: "/search?q=hypnotic" }));
-    await ask();
-    fireEvent.click(screen.getByRole("option", { name: /See all results for “hypnotic”/ }));
-    expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ href: "/search?q=hypnotic" }));
-    await ask();
-    fireEvent.keyDown(input, { key: "ArrowUp" });
-    expect(screen.getByRole("option", { name: /See all results/ }).getAttribute("aria-selected")).toBe("true");
-    expect(beacon).not.toHaveBeenCalled(); // the full page is no result: nothing counted
-  });
-  it("typing again drops the highlight: Enter on the older list opens the full page for what's typed, never the old row", async () => {
-    const { input, onPick } = mount();
-    await type(input, "4215");
-    await reply(/q=4215&/, answer("4215", { hits: [t("4215", "Hypnotic Robotics")] }));
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    expect(screen.getAllByRole("option")[0].getAttribute("aria-selected")).toBe("true");
-    await type(input, "4215 vs 6980");
-    expect(screen.getAllByRole("option").some((o) => o.getAttribute("aria-selected") === "true")).toBe(false);
-    fireEvent.keyDown(input, { key: "ArrowDown" }); // a row of the older list, still on screen
-    fireEvent.keyDown(input, { key: "Enter" });
-    await reply(/q=4215%20vs/, answer("4215 vs 6980", { hits: [{ ...t("4215", "Hypnotic Robotics vs 6980 Bad Wolf"), href: "/compare?teams=4215,6980" }] }));
-    expect(onPick).toHaveBeenCalledTimes(1);
-    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/search?q=4215%20vs%206980" }));
-  });
   it("where Bruno AI's suggestion isn't shown (refine off), he's never asked", async () => {
     const { useSearchHits } = await import("./SearchBox");
     function Page() { const { hits } = useSearchHits("zz", undefined, 15, null, false); return <p>{hits.length}</p>; }
@@ -212,25 +184,6 @@ describe("Enter and the full results page", () => {
 });
 
 describe("keyboard and screen readers (T16, T57, T58)", () => {
-  it("Down and Up move, Enter opens the highlighted one, the list is a listbox the field controls", async () => {
-    const { input, onPick } = mount();
-    await type(input, "robotics");
-    const hits = [t("4215", "Hypnotic Robotics"), t("6980", "Bad Wolf")];
-    await reply(/q=robotics/, answer("robotics", { hits }));
-    expect(input.getAttribute("aria-expanded")).toBe("true");
-    expect(input.getAttribute("aria-controls")).toBe(screen.getByRole("listbox").id);
-    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([expect.stringContaining("4215 Hypnotic Robotics"), expect.stringContaining("6980 Bad Wolf"), "See all results for “robotics”"]);
-    // Nothing is highlighted until a key or the pointer picks a row.
-    expect(screen.getAllByRole("option").some((o) => o.getAttribute("aria-selected") === "true")).toBe(false);
-    expect(input.hasAttribute("aria-activedescendant")).toBe(false);
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    expect(screen.getAllByRole("option")[1].getAttribute("aria-selected")).toBe("true");
-    expect(input.getAttribute("aria-activedescendant")).toBe(screen.getAllByRole("option")[1].id);
-    fireEvent.keyDown(input, { key: "ArrowUp" });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(onPick).toHaveBeenCalledWith(hits[0]);
-  });
   it("Escape closes the list and keeps the field focused; again, it clears", async () => {
     const { input } = mount();
     await type(input, "hypnotic");
@@ -257,25 +210,6 @@ describe("the answer's parts", () => {
     expect(screen.getByRole("group", { name: "Bruno AI suggestion" })).toBeTruthy();
     expect(screen.getByText(/Bruno AI read this as/)).toBeTruthy();
     expect(screen.getByRole("option", { name: /Dread Pirate Robots/ })).toBeTruthy();
-  });
-  it("Bruno AI's group arriving keeps the highlight on its row; a new query drops his old suggestion", async () => {
-    const onPick = vi.fn();
-    const { input } = mount(onPick);
-    await type(input, "robots that hypnotise");
-    const base = [t("11545", "Dread Pirate Robots"), t("7", "Robot Seven")];
-    await reply(/\/api\/search\?q=/, answer("robots that hypnotise", { step: "did-you-mean", weak: true, hits: base }));
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    fireEvent.keyDown(input, { key: "ArrowDown" }); // on "Robot Seven"
-    await reply(/\/api\/search\/refine/, answer("robots that hypnotise", { step: "ai", refined: "hypnotic robotics", hits: [t("4215", "Hypnotic Robotics")] }));
-    const selected = screen.getAllByRole("option").find((o) => o.getAttribute("aria-selected") === "true");
-    expect(selected?.textContent).toContain("Robot Seven");
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(onPick).toHaveBeenCalledWith(base[1]);
-    // Typed again: his old suggestion is gone until he answers the new query.
-    act(() => input.focus());
-    await type(input, "robots that hypnotise");
-    await reply(/\/api\/search\?q=/, answer("robots that hypnotise", { step: "did-you-mean", weak: true, hits: base }));
-    expect(screen.queryByRole("group", { name: "Bruno AI suggestion" })).toBeNull();
   });
   it("Bruno AI off: never asked", async () => {
     flags.brunoSearch = false;

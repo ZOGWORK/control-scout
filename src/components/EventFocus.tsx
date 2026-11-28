@@ -153,7 +153,7 @@ export function LiveFocus({ d, panel, next, mine, onAll }: { d: EventDetail; pan
 }
 
 /** Finished: the winning alliance and the awards (Inspire first), then the final standings and who advanced. */
-export function FinishedFocus({ d, mine, nameOf, onAll }: { d: EventDetail; mine: ReadonlySet<number>; nameOf: (t: number) => string; onAll: (t: EventTab) => void }) {
+export function FinishedFocus({ d, mine, nameOf, onAll, advancing = true }: { d: EventDetail; mine: ReadonlySet<number>; nameOf: (t: number) => string; onAll: (t: EventTab) => void; advancing?: boolean }) {
   const season = d.event.season;
   const won = glanceStats(d).winners;
   const rankOf = (a: EventDetail["awards"][number]) => (/inspire/i.test(a.name ?? awardLabel(a.type, a.placement)) ? 0 : 1) * 100 + (a.placement ?? 9);
@@ -196,7 +196,7 @@ export function FinishedFocus({ d, mine, nameOf, onAll }: { d: EventDetail; mine
       <FocusCard title="Final standings" aside={<CardLink onClick={() => onAll("rankings")}>Full rankings</CardLink>} label="Final standings" className="self-start lg:col-start-2 lg:row-span-2 lg:row-start-1">
         <TopStandings field={d.field} season={season} mine={mine} />
       </FocusCard>
-      {d.advancement && <FocusCard title="Advancing" label="Advancing" className="lg:col-start-1"><div className="p-4"><AdvancedTeams adv={d.advancement} season={season} nameOf={nameOf} /></div></FocusCard>}
+      {advancing && d.advancement && <FocusCard title="Advancing" label="Advancing" className="lg:col-start-1"><div className="p-4"><AdvancedTeams adv={d.advancement} season={season} nameOf={nameOf} /></div></FocusCard>}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import type { ScoutEvent } from "../../../lib/scoutEvent";
 import { Button } from "../../ui/button";
 import { Skeleton } from "../../states";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../ui/overlay";
-import { useIsV8 } from "../../../lib/v8";
+
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -35,10 +35,10 @@ export function EventBar({ event, onChange, onStop, status }: {
   status?: ReactNode;
 }) {
   const name = event.info?.name || event.schedule.eventName;
-  const v8 = useIsV8();
+  
   // v8 (docs/design/v8-revamp-brief.md §7.7): a quiet line under the page title, not a tinted box. Change event is
   // the one button beside it; Stop scouting (rare, and it ends the session) waits in More.
-  if (v8) return (
+  return (
     <section aria-label="Event you're scouting" data-event-bar="v8" className="mb-5 flex items-start gap-3 border-b border-line pb-4 max-sm:mb-4 max-sm:pb-3">
       <div className="min-w-0 flex-1">
         <p className="text-xs text-text-faint">Scouting · <span className="font-mono">{event.code}</span></p>
@@ -58,24 +58,6 @@ export function EventBar({ event, onChange, onStop, status }: {
           </DropdownMenu>
         )}
       </div>}
-    </section>
-  );
-  return (
-    <section aria-label="Event you're scouting" className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-accent/40 bg-accent/[0.06] px-5 py-4 max-sm:mb-4 max-sm:px-4 max-sm:py-3">
-      <div className="min-w-0 flex-1 basis-64">
-        <p className="text-xs font-semibold uppercase tracking-wider text-accent-text">Now scouting · <span className="font-mono">{event.code}</span></p>
-        {name ? <h2 className="mt-0.5 text-xl font-bold leading-tight text-foreground sm:text-2xl">{name}</h2>
-          : <Skeleton className="mt-1 h-7 w-56 rounded-md" />}
-        <p className="mt-1 text-sm text-muted-foreground">{eventFacts(event)}</p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {status}
-        {/* Side by side, the full width on a phone. */}
-        {(onChange || onStop) && <div className="flex gap-2 max-sm:w-full">
-          {onChange && <Button variant="outline" onClick={onChange} className="max-sm:h-11 max-sm:flex-1"><ArrowLeftRight /> Change event</Button>}
-          {onStop && <Button variant="outline" onClick={onStop} className="max-sm:h-11 max-sm:flex-1"><LogOut /> Stop scouting</Button>}
-        </div>}
-      </div>
     </section>
   );
 }

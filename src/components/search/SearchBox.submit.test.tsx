@@ -101,9 +101,8 @@ describe("Enter hands the dropdown's answer to /search", () => {
     // The answer is on screen in the dropdown before Enter…
     expect(shown().join("|")).toContain("Forever Knight");
     fireEvent.keyDown(input, { key: "Enter" });
-    // …so /search, which never waits, opens with it already in hand (src/components/search/handoff.ts).
-    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/search?q=top%20rookie%20teams" }));
-    expect(handedAnswer("top rookie teams")?.hits.map((h) => h.ref)).toEqual(["19666"]);
+    // …so Enter takes its one answer straight to that team's page.
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ kind: "team", ref: "19666" }));
   });
 
   it("a team number still goes straight to its page, handing nothing over", async () => {

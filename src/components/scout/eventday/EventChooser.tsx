@@ -20,7 +20,7 @@ import { cn } from "../../cn";
 import { chooserEventsPath } from "../../../lib/offline/warm";
 import { useSavedBundles } from "../../../lib/offline/bundleMeta";
 import { OfflineNote } from "../../OfflineNote";
-import { useIsV8 } from "../../../lib/v8";
+
 
 /** Today's date on this device, as event dates are written (YYYY-MM-DD, event-local). */
 export function localToday(now = new Date()): string {
@@ -61,7 +61,7 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
   const today = localToday();
   const start = (current ?? "").trim().toUpperCase();
   const titleId = useId();
-  const v8 = useIsV8();
+  
   const teamsKey = [...new Set(ourTeams)].sort((a, b) => a - b).join(",");
   // Every event type, practice days and the like too: a pit can be scouted at any of them. The list shows the
   // Events page's own set (no kickoffs, workshops, practice days…) until the Event type filter picks one of those,
@@ -126,13 +126,13 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
             Scouted: <span className="tabular-nums text-foreground">{count(pit)}</span> pits · <span className="tabular-nums text-foreground">{count(matches)}</span> matches
           </p>}
           {/* v8: at most one primary on the screen, the event already picked (or none); every other card's is outline. */}
-          <Button size="sm" variant={(v8 ? picked : strong) ? "default" : "outline"} className="w-full max-sm:min-h-11 v8:h-10" onClick={() => onPick(e.code)} aria-label={`Scout ${e.name}`}>
+          <Button size="sm" variant={(picked) ? "default" : "outline"} className="w-full max-sm:min-h-11 v8:h-10" onClick={() => onPick(e.code)} aria-label={`Scout ${e.name}`}>
             {picked ? "Keep scouting this event" : "Scout this event"} <ArrowRight />
           </Button>
         </div>
       ),
     };
-  }, [start, ours, byEvent, today, onPick, v8]);
+  }, [start, ours, byEvent, today, onPick, ]);
 
   const allEvents = state.data?.events;
   const events = useMemo(() => (allEvents && !isNoMatchType(type) ? allEvents.filter((e) => !isNoMatchType(e.type)) : allEvents), [allEvents, type]);

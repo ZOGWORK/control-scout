@@ -9,7 +9,7 @@ import { Button } from "../../ui/button";
 import { Label, Textarea } from "../../ui/basic";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { cn } from "../../cn";
-import { useIsV8 } from "../../../lib/v8";
+
 import { detailKey, MATCH_PHASES, phaseLabel, phasesFor, type FieldPhase, type ScoutField, type ScoutTemplate } from "../../../shared/scoutTemplate";
 import { NOTES_MAX, type ScoutValue } from "../../../lib/scouting";
 import { BigFieldInput, type FieldTone } from "./BigFieldInput";
@@ -81,7 +81,7 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
   const own = useMatchTimer(timer ? undefined : onPhase);
   const t = timer ?? own;
   // v8: Save is the screen's one primary, so starting the timer is an outline button.
-  const v8 = useIsV8();
+  
 
   // Undo: the field's value before the last tap, only while `value` is still the very record that tap
   // produced. Another team's answers (or anything changed from outside) are a different record, so undo
@@ -118,7 +118,7 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
               </div>
             </div>
             {t.startedAt == null
-              ? <Button type="button" size="sm" variant={v8 ? "outline" : "default"} disabled={disabled} onClick={t.start} className="h-[44px] px-4 text-sm v8:h-12">Match started</Button>
+              ? <Button type="button" size="sm" variant={"outline"} disabled={disabled} onClick={t.start} className="h-[44px] px-4 text-sm v8:h-12">Match started</Button>
               : t.running
                 ? <Button type="button" size="sm" variant="secondary" onClick={t.stop} className="h-[44px] px-4 text-sm v8:h-12">Stop</Button>
                 : <Button type="button" size="sm" variant="secondary" onClick={t.reset} className="h-[44px] px-4 text-sm v8:h-12">Reset</Button>}
