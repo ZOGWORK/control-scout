@@ -431,7 +431,7 @@ export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDo
         <Label htmlFor={ids.msg} className="flex items-center gap-1">{mode.ask} <RequiredMark /></Label>
         <Textarea id={ids.msg} rows={phone ? 3 : 4} value={message} maxLength={BUG_LIMITS.messageMax + 100} onChange={(e) => setMessage(e.target.value)}
           placeholder={mode.placeholder} aria-invalid={tried && !!errors.message}
-          aria-describedby={`${ids.msg}-hint`} className="resize-y" />
+          aria-describedby={`${ids.msg}-hint`} className="resize-y" data-testid="bug-message" />
         <p id={`${ids.msg}-hint`} className={cn("text-xs", tried && errors.message ? "text-danger" : "text-text-muted")}>{tried && errors.message ? errors.message : `At least ${BUG_LIMITS.messageMin} characters.`}</p>
       </div>
 
