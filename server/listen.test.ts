@@ -79,6 +79,22 @@ describe.skipIf(process.platform === "win32")("stopping", () => {
     expect(await exit).toBe(0);
     expect(Date.now() - t0).toBeGreaterThanOrEqual(2_900);
   }, 20_000);
+
+  it("cuts a request still open at the grace deadline, even while the exit is held", async () => {
+    const p = port();
+    const server = spawn(process.execPath, fixture, { env: { ...process.env, PORT: String(p), HOLD_MS: "4000", GRACE_MS: "500" }, stdio: "ignore", detached: true });
+    procs.push(server);
+    await get(`http://127.0.0.1:${p}/hello`);
+    const hang = once(`http://127.0.0.1:${p}/hang`).then(() => "answered", () => "cut");
+    await new Promise((r) => setTimeout(r, 300));
+    const exit = exited(server);
+    const t0 = Date.now();
+    server.kill("SIGTERM");
+    expect(await hang).toBe("cut");
+    // At the grace deadline, not when the held work lets the process go.
+    expect(Date.now() - t0).toBeLessThan(2_500);
+    expect(await exit).toBe(0);
+  }, 20_000);
 });
 
 // The real mechanism: systemd's own socket activation tool (part of systemd, on Linux CI).
