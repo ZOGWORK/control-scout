@@ -23,6 +23,9 @@ LANES_READY_SECONDS="${LANES_READY_SECONDS:-300}"
 LANES_POLL="${LANES_POLL:-1}"
 # What server/index.ts logs once it has taken the socket (after warm-up): the new lane is serving.
 LANES_MARK="${LANES_MARK:-listening on the systemd socket}"
+# What server/stopChildren.ts logs at boot: the lane's release understands a hand-off's SIGUSR2. (An older release
+# has no handler for it, and Node's default for SIGUSR2 is to exit at once, unfinished requests and all.)
+LANES_HANDOFF_MARK="${LANES_HANDOFF_MARK:-hand-off aware}"
 
 lanes_template_file() { echo "$LANES_SYSTEMD_DIR/$LANES_UNIT@.service"; }
 
@@ -75,6 +78,32 @@ lanes_wait_unit() {
 }
 lanes_wait_ready() { lanes_wait_unit "$LANES_UNIT@$1.service" "$2"; }
 
+# Stop a lane a new one has taken over from. When its release understands it, it's told first (SIGUSR2) so a data
+# cycle it's running may finish (server/stopChildren.ts caps that at 4 min), and the stop isn't waited for: it stops
+# taking requests at once all the same, and finishes those in progress as before. An older release is stopped as before.
+lanes_retire() {
+  local unit="$1" pid
+  pid="$(systemctl show -p MainPID --value "$unit" 2>/dev/null || true)"
+  if [ -n "$pid" ] && [ "$pid" != 0 ] && journalctl "_PID=$pid" -o cat --no-pager -q 2>/dev/null | grep -qF "$LANES_HANDOFF_MARK"; then
+    systemctl kill --kill-whom=main --signal=SIGUSR2 "$unit" 2>/dev/null || true
+    systemctl stop --no-block "$unit"
+  else
+    systemctl stop "$unit"
+  fi
+}
+
+# A lane still stopping after a hand-off (its data cycle finishing): end it now, children and all, so a stop or
+# restart that follows (the restart path below: requests wait in the socket meanwhile) takes seconds, not minutes.
+lanes_hurry() {
+  local l
+  for l in a b; do
+    if [ "$(systemctl is-active "$LANES_UNIT@$l.service" 2>/dev/null)" = deactivating ]; then
+      systemctl kill --kill-whom=all --signal=SIGTERM "$LANES_UNIT@$l.service" 2>/dev/null || true
+    fi
+  done
+  return 0
+}
+
 # Start a lane from `current` and make it the only one serving.
 #   handoff: start the idle lane; the live one keeps serving until the new one has taken the socket, then stops.
 #            If the new lane never gets ready it's stopped again and the live one carries on (returns 1).
@@ -84,6 +113,9 @@ lanes_wait_ready() { lanes_wait_unit "$LANES_UNIT@$1.service" "$2"; }
 lanes_switch() {
   local mode="$1" u="$LANES_UNIT" live new l t0 others=0
   live="$(lanes_live)"
+  # A lane still letting the last hand-off's data cycle finish is ended first: a restart or the next hand-off (which
+  # takes it as its idle lane) would otherwise wait out its stop.
+  lanes_hurry
   if [ "$mode" = restart ]; then
     new=a
     for l in $live; do [ "$l" = a ] || systemctl stop "$u@$l.service"; done
@@ -105,10 +137,13 @@ lanes_switch() {
     [ "$others" = 1 ] && systemctl stop "$u@$new.service"
     return 1
   fi
-  # The new lane is taking requests: stop the others. Each finishes the requests it's serving first (up to 10 s).
+  # The new lane is taking requests: stop the others. Each finishes the requests it's serving first (up to 10 s);
+  # after a hand-off, a data cycle the old lane is running may finish too (lanes_retire).
   for l in a b; do
     [ "$l" = "$new" ] && continue
-    if systemctl is-active --quiet "$u@$l.service"; then systemctl stop "$u@$l.service"; fi
+    if systemctl is-active --quiet "$u@$l.service"; then
+      if [ "$mode" = handoff ]; then lanes_retire "$u@$l.service"; else systemctl stop "$u@$l.service"; fi
+    fi
     systemctl disable --quiet "$u@$l.service" 2>/dev/null || true
   done
   if systemctl is-active --quiet "$u.service"; then systemctl stop "$u.service"; fi

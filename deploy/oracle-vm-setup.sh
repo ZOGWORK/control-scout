@@ -153,8 +153,12 @@ EnvironmentFile=$SHARED/.env
 ExecStart=$(command -v node) $START
 Restart=always
 RestartSec=5
-# On stop, the server finishes the requests in progress (up to 10 s) before exiting.
-TimeoutStopSec=30
+# On stop, the server finishes the requests in progress (up to 10 s) before exiting. Its child processes (the data
+# cycle, live follow-ups) are its own to end (KillMode=mixed: systemd's SIGTERM goes to the server only): it ends them
+# at once, except in a zero-gap hand-off (deploy/lanes.sh), where a data cycle may finish for up to 4 min
+# (server/stopChildren.ts), so the stop may take that long; whatever is left after TimeoutStopSec is killed.
+KillMode=mixed
+TimeoutStopSec=300
 # Hardening: the app may write only its data directory.
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -181,7 +185,7 @@ fi
 SWITCH=handoff
 if [ "$SOCKET_CHANGED" = 1 ] || ! systemctl is-active --quiet control-scout.socket; then
   systemctl stop control-scout || true
-  if lanes_on; then systemctl stop control-scout@a control-scout@b || true; fi
+  if lanes_on; then lanes_hurry; systemctl stop control-scout@a control-scout@b || true; fi
   systemctl restart control-scout.socket
   SWITCH=restart
 fi

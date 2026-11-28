@@ -211,7 +211,7 @@ https://controlscout.org.
   - **Why the overlap is safe.** Writers that must never run twice take the writer lease (`server/data/lock.ts`):
     the data cycle (also from its child process) and the live lane. Everything else on the schedule in
     `server/index.ts` (push, digest, power rankings, IndexNow, recordings, prunes, the first cycle) starts a minute
-    or more after the new server is ready, and the old lane is gone within 30 s of that (`TimeoutStopSec`).
+    or more after the new server is ready, and the old lane runs none of it from its stop on (`server/stopping.ts`).
     Projections start sooner but skip a run whose state is already stored, and the same state gives the same numbers.
     The Discord bot is its own unit and only reads.
   - **When it restarts instead.** Before anything changes, `deploy/handoff-gate.mjs` (run from the new release, as the
@@ -219,6 +219,16 @@ https://controlscout.org.
     database doesn't have yet, and a search index rebuild (`SEARCH_INDEX_SCHEMA` above the stored one). Either one, a
     port change, or anything it can't read means a plain restart: the live lane stops first, then lane a starts, and
     requests wait in the socket's queue meanwhile, as without lanes. The deploy log says which (`hand-off: …`).
+  - **A data cycle the old lane is running finishes** (up to 4 min) instead of dying part way through: before its
+    stop, `lanes_retire` sends the old lane SIGUSR2 (only to a release that logged `hand-off aware` at boot; Node's
+    default for SIGUSR2 is to exit), and doesn't wait for the stop. It stops taking requests at once and finishes
+    those in progress as before; its schedule runs nothing more; its other children end at once; after the cycle (or
+    the cap, `server/stopChildren.ts`) it exits. The unit stops with `KillMode=mixed`, so systemd's SIGTERM reaches the
+    server only and the cycle isn't killed with it, and `TimeoutStopSec=300` covers the cap. The new lane can't run a
+    second cycle beside it: its cycle waits for the writer lease (`server/stopChildren.test.ts`). Any other stop (a
+    restart, a socket change, an operator's) ends the cycle at once as before, and a restart or socket change first
+    ends a lane still finishing one (`lanes_hurry`). Before this, about half the startup cycles on busy days were
+    killed 1 to 3 minutes in by the next hand-off.
   - **If the new lane never gets ready** (300 s), it's stopped, `current` goes back to the release still serving, and
     the deploy fails; the site stays on the old release.
   - **Live streams** (scout entries, inbox, projections) are in-process: when the old lane stops, its streams end and
