@@ -15,6 +15,67 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.2.8 — 2026-11-27
+
+Fixes offline packs vanishing after a day's tenth build: the newest release is kept, not deleted.
+
+### Highlights
+- [fixes] A day's tenth offline pack build no longer deletes itself
+- [offline] Predictions and season packs download again on busy event days
+- [fixes] Old releases are pruned oldest first, by day and build number
+
+### Fixes
+- **The newest offline release was pruned as it was published** (`server/packs/build.ts` `prunedReleases`): a build keeps the newest three releases and deletes the rest, but it sorted their names as text, and "2026-11-27-10" sorts before "-7", "-8" and "-9". From a day's 10th build on, the release just published was deleted along with every file in it, while `latest.json` still named it. On 27 Nov release `.10` (23:23Z) left every pack URL answering 404, the lite pack included. The next cycle would then have read the packs as missing and rebuilt all of them, about 180 MB, only to delete them again. Event days only reached ten builds a day once the packs began following the sync (8.2.2). Releases are now ordered by day and then by the day's build number, and the one just published is never pruned. `server/packs/prune.test.ts` covers the 10th build, a new day's first, 100+ builds, and a stray newer-looking release. (#2420)
+
+## 8.2.7 — 2026-11-27
+
+Simulate the rankings answers right after a sync instead of waiting for the ratings to rebuild.
+
+### Highlights
+- [speed] Simulate the rankings no longer waits for a ratings rebuild
+- [rankings] The simulation uses the same ratings the event page shows
+- [live] The first click after new results starts at once on event days
+
+### Speed
+- **Simulated rankings read the last finished ratings build** (`server/projections/rankingSim.ts`): the Rankings tab's Simulate the rankings called `forecasterFor`, the build for the newest data version. After a sync moved that version, the first click waited for the whole window to be replayed into new ratings before its 2.5 s simulation budget even started. On an event day the version moves up to four times an hour. It now reads `liveForecaster`, like every other page: the last finished build at once, with the new one building in the background. The kept answer is keyed by the build it used (`liveVersion`, read together with it so a build that lands while the click waits its turn can't mislabel it) and by the event's own input (its field and any published schedule) instead of the data version, so a sync that only brought other events' results no longer throws the kept answer away, and one that added a team still does. This was finding F3 in `docs/engine/research-2026-11/precompute-check.md`. `server/projections/rankingSim.ratings.test.ts` fails on the old code: the click waited on a rebuild that never finished. (#2413)
+
+## 8.2.6 — 2026-11-27
+
+The raw season file downloads with its size shown, and the server no longer compresses it on every download.
+
+### Highlights
+- [offline] The raw season file shows its size and progress while it downloads
+- [speed] The server sends the stored compressed copy, not a fresh one each time
+- [offline] A paused raw-file download still resumes where it stopped
+
+### Speed
+- **The raw season file comes from its stored gzipped twin** (`server/packs/routes.ts`, `server/app.ts`): the Download page's small "raw SQLite file" link for analysts served the `.db` (13 MB for 2026, 45 MB for 2025) through the compression middleware, which Brotli-compressed the whole file again on every download and sent no `Content-Length`, so the browser had no size to show. Each `.db` already has a gzipped twin on disk (the file the app itself downloads). A download that takes gzip and asks for no range now gets those bytes as they are, marked `Content-Encoding: gzip`, with their length, and the browser saves the `.db` it unzips. A range request (a resumed download) or a client that takes no gzip (curl, wget) gets the raw file, resumable as before, and nothing under `/packs/` goes through the compression middleware any more. The app's own downloads (`.db.gz`, the lite `.json.gz`) are unchanged: they already had a length and come from Cloudflare's cache. `server/packs/routes.rawdb.test.ts` covers each case. (#2418)
+
+## 8.2.5 — 2026-11-27
+
+A phone left open at an event fetches the predictions pack once an hour, not every ten minutes.
+
+### Highlights
+- [offline] A page open at a venue fetches the predictions pack at most hourly
+- [speed] About 4 MB an hour of venue Wi-Fi per phone, down from about 26 MB
+- [offline] Update on the Download page still gets the newest pack at once
+
+### Offline
+- **The background check replaces a saved predictions pack at most hourly** (`src/lib/packPolicy.ts` `liteRefreshDue`, `src/lib/packs.ts` `syncLite`): since 8.2.2 an event day publishes a new lite pack each time a sync brings results, as often as every 15 minutes, and a tab open at a venue asks every 10 minutes. Each new release is the whole pack (4.4 MB: every season's ratings and every team's name), so a phone left open at a venue downloaded it nearly every check, about 26 MB an hour. A background check now leaves a pack saved within the hour in place and checks again later. Results that came in since are still folded into the device's own event estimate (`src/lib/localProjection/run.ts`, `liteLearned`), as they were between builds. It downloads at once when nothing is saved, or when the published pack comes from another engine version, whose ratings carry state the saved one lacks. A saved time in the future (a clock moved back) counts as old. The person's own Get it / Update never waits. `src/lib/packPolicy.test.ts` covers the rule, and `src/lib/packs.test.ts` a tab's hour at a venue: the 15-minute build is skipped, the hour's taken, and Update fetches the newest at once. The comments that still called the pack "about 1.6 MB" now say 4.4 MB. (#2416)
+
+## 8.2.4 — 2026-11-27
+
+On an event day the season pack updates hourly, not every 15 minutes, so phones stop re-downloading it all day.
+
+### Highlights
+- [offline] A saved season updates hourly on event days, not every 15 minutes
+- [offline] A saved season shows the time of its own data
+- [speed] Event-day builds skip the 13 MB season file between hourly builds
+
+### Offline
+- **The current season's full pack follows hourly on an event day** (`server/packs/due.ts`, `server/data/cycle.ts`): since 8.2.2 every event-day cycle that brought new data rebuilt the lite pack *and* the current season's full pack. The full pack is 13 MB on disk (about 11 s to build on the VM), and every saved copy updates by itself, so a phone that saved the season downloaded another 3.6 MB each time it came back to the page, as often as every 10 minutes all day. A new `lite` scope rebuilds only the lite pack and carries every full pack under the new release's name (the same bytes and hash, so nothing is downloaded again). The current season's pack is rebuilt once it is an hour old and behind the data. It also catches up within the hour when no more results arrive, so the day's last matches are in it that evening, not only at the next daily build. Its build time and data version are stamped apart from the lite pack's (`packs:current-last`, `packs:current-data`, written by `stampPacks`; the owner's Rebuild packs stamps both too). The predictions pack itself still follows every sync. `server/packs/due.test.ts` covers the hourly hold, the catch-up, missing stamps and a clock that moved back. (#2410)
+- **A season file keeps its own data time** (`server/packs/build.ts` `BuiltFile.dataAsOf`, `src/lib/offline/seasons.ts`): a saved season was labelled with the time of the release it came from. A carried file would then have claimed data up to an hour newer than its rows, and the offline event page prefers a season pack over an event-day bundle by that time. Each full file now records when the server last synced before it was built, read before any row, so it can only understate. The label survives carrying, and files built before this fall back to the release's time as before.
+
 ## 8.2.3 — 2026-11-27
 
 A first visit pays for the page it opened, not for every page the app has.
