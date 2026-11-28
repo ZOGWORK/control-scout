@@ -150,7 +150,9 @@ export function ScrollX({ children, min = 520, label }: { children: ReactNode; m
     read();
     el.addEventListener("scroll", read, { passive: true });
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(read);
+    // The box and the chart inside it: either changing width (a resize, a chart that redraws wider) changes what's past the edge.
     ro?.observe(el);
+    if (el.firstElementChild) ro?.observe(el.firstElementChild);
     return () => { el.removeEventListener("scroll", read); ro?.disconnect(); };
   }, []);
   const mask = more.left || more.right
