@@ -27,8 +27,8 @@ const SEARCH_GAP_MS = 4000;
 const RECENT_DAYS = 14, RECENT_AGAIN_MS = 2 * 864e5;
 /** Any other is searched again after this long. */
 const OLD_AGAIN_MS = 180 * 864e5;
-/** After YouTube turns the results page away (a consent or bot page), no search for this long. */
-const BLOCKED_MS = 6 * 3600_000;
+/** After YouTube turns the results page away (a consent or bot page, usually for minutes), no search for this long. */
+const BLOCKED_MS = 3600_000;
 /** Results weighed from one page. */
 const MAX_RESULTS = 20;
 /** Distinct events a channel must have streamed to be proposed as one to watch. */

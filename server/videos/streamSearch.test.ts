@@ -109,9 +109,9 @@ describe("the stream search", () => {
     expect(await channelProposals()).toEqual([]);
   });
 
-  it("stops for hours when YouTube turns the page away", async () => {
+  it("stops for an hour when YouTube turns the page away", async () => {
     const out = await searchStreams(() => {}, { apiKey: "k", fetchImpl: fakeFetch, search: async () => "blocked", now: () => NOW + 3 * 864e5, gapMs: 0 });
     expect(out).toMatchObject({ blocked: true, searched: 0 });
-    expect(await searchStreams(() => {}, { apiKey: "k", fetchImpl: fakeFetch, search, now: () => NOW + 3 * 864e5 + 3600_000, gapMs: 0 })).toBeNull();
+    expect(await searchStreams(() => {}, { apiKey: "k", fetchImpl: fakeFetch, search, now: () => NOW + 3 * 864e5 + 1800_000, gapMs: 0 })).toBeNull();
   });
 });

@@ -324,7 +324,7 @@ the list, on every half-hourly check after the watcher (`searchStreams`):
   days are all covered when its turn comes is written as searched (`covered`) and waits its turn again.
 - **How**: YouTube's public results page for "<event name> FTC <year>" (no API quota), up to 20 results, then the
   results' facts with the Data API (1 unit per 50). A page with no results data (a consent or bot page) stops the
-  search for 6 hours.
+  search for an hour.
 - **The rules**: each result goes through the watcher's own `decide`, against every event on its date in any region:
   a channel Scout doesn't watch says nothing of where it is, and like events share names across states ("Carver League
   Meet 2" in Oklahoma, "ROBOT League Meet 2" in Florida, the same day), so its title must fit one event of them all. It
