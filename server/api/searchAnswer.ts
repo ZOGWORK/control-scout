@@ -39,7 +39,7 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
-import { conferenceSearch, eventFit, eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
+import { conferenceSearch, eventFit, eventOrderSearch, eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
 import { withPlacePages } from "../../src/shared/placePages.js";
 import { cityShortForm } from "../../src/shared/regions.js";
 import { divisionFieldAnswer, oprPhaseOf, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
@@ -1150,6 +1150,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const evSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
   const evs = opts.intents === false ? null : await eventVersusSearch(evSeason.rest, evSeason.season ?? opts.season ?? null, { full: !!opts.full, pages: pagesFor(q), asked: q, alias: expandShortForms });
   if (evs) return evs;
+  // Which of two events came first ("did <event> happen before or after worlds"): each by its dates.
+  const order = opts.intents === false ? null : await eventOrderSearch(evSeason.rest, evSeason.season ?? opts.season ?? null, { full: !!opts.full, pages: pagesFor(q), alias: expandShortForms });
+  if (order) return order;
   // Which division of a championship was hardest or easiest, by its field's average OPR.
   const divs = opts.intents === false ? null : await divisionField(q, opts);
   if (divs) return divs;

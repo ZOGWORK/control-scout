@@ -72,6 +72,9 @@ export type Sym =
   | { k: "name-has" }
   /** No award in any season on record ("the highest OPR team that has never won an award"): a filter on a board. */
   | { k: "no-award" }
+  /** Never at the FIRST Championship, any season on record ("teams at <event> that have never been to worlds"): a
+   *  filter on an event's board. */
+  | { k: "no-worlds" }
   /** A number's rise over a season, from a team's first event to its last ("fastest growing team by rating gain"). */
   | { k: "gain" };
 
@@ -273,6 +276,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["should|shall", { k: "filler" }],
   // The catalog's filler (../../../server/api/searchCatalog.ts FILLER): what no reader takes for a team, stat or place.
   ["at this moment|quick|kindly|or what|on this site|on the site|on this website|on the website|on this app|on the app|on here", { k: "filler" }],
+  // How the answer is to be laid out ("… in a table"): every list answer is a table already.
+  ["in a table|as a table|in table form|in tabular form|in a chart|as a chart|table|tabular", { k: "filler" }],
   ["based on|based off", { k: "prep", v: "by" }],
   // "Can 12345 make it to states": a question about what is still to come.
   ["will|would|going to|can|could", { k: "future" }],
@@ -313,6 +318,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["with a name that includes|with a name that contains|with a name containing|name that includes|name that contains|name includes|name contains|whose name includes|whose name contains", { k: "name-has" }],
   // No award ever won, as a filter on a board: "the highest OPR team that has never won an award".
   ["never won an award|never won any award|never won any awards|never won awards", { k: "no-award" }],
+  ["never been to worlds|never been to the world championship|never been to the first championship|never gone to worlds|never went to worlds|never made it to worlds|never made worlds|never qualified for worlds|never attended worlds|never competed at worlds|not been to worlds|never been at worlds", { k: "no-worlds" }],
   // A number's rise over the season: "the fastest growing team by rating gain".
   ["fastest growing|gain|gained|gains|growth", { k: "gain" }],
   // Penalty points left out.
