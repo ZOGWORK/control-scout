@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BAR_FLOOR, CORNER_BOXES, FOUND_MIN, cornerBox, foundBox, sampleFinds, wholeBox, zoomCss, type CornerBox } from "./frameZoom";
+import { BAR_FLOOR, CORNER_BOXES, FOUND_MIN, cornerBox, foundBox, outsidePart, reachesPart, sampleFinds, wholeBox, zoomCss, type CornerBox } from "./frameZoom";
 
 /** Where a point of the unzoomed frame lands under zoomCss's transform. */
 function lands(css: string, px: number, py: number): [number, number] {
@@ -44,6 +44,21 @@ describe("the corner box list", () => {
     expect(wholeBox("rLKw84eo9cQ", [...list, part])).toBeNull();
     expect(cornerBox("rLKw84eo9cQ", [...list, part])?.part).toEqual([0, 7200]);
     expect(wholeBox("otherVideo1", list)).toBeNull();
+  });
+
+  it("reads a part box only over a stretch reaching into its part, and never keeps a start it placed outside it", () => {
+    const part: [number, number] = [0, 7200];
+    expect(reachesPart(0, 7252, part)).toBe(true);
+    expect(reachesPart(7000, 9000, part)).toBe(true);
+    // Wholly after the part (the full-size bar's hours): the box isn't on screen there.
+    expect(reachesPart(7300, 20_000, part)).toBe(false);
+    expect(reachesPart(9000, 12_000, [10_000, 11_000])).toBe(true);
+    expect(reachesPart(0, 9000, [10_000, 11_000])).toBe(false);
+    const at = (o: Record<string, number>) => new Map(Object.entries(o).map(([l, t]) => [l, { t }]));
+    const before = at({ Q11: 7252, Q12: 7700 });
+    expect(outsidePart(before, at({ Q2: 2509, Q3: 3071, Q11: 7252, Q12: 7700 }), part)).toEqual([]);
+    // A new start past the part's end: the camera's frame, not the box's. Ones the full-size read placed stand.
+    expect(outsidePart(before, at({ Q2: 2509, Q13: 8100, Q11: 7252, Q12: 7700 }), part)).toEqual(["Q13"]);
   });
 
   it("lists each video once, with a box inside the 1280×720 player, the day it was measured and what it showed", () => {

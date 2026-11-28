@@ -16,6 +16,14 @@ export const CORNER_BOXES: CornerBox[] = [
 
 /** The listed box of a video, or null. A box with a `part` zooms only the stretch read again for it (wholeBox: none). */
 export const cornerBox = (videoId: string, list: CornerBox[] = CORNER_BOXES): CornerBox | null => list.find((b) => b.videoId === videoId) ?? null;
+/** Whether a stretch of the video (from–to s) reaches into a box's `part`: a stretch wholly outside it holds no frame
+ *  the box is on, so it's never read zoomed to the box. */
+export const reachesPart = (from: number, to: number, part: readonly [number, number]): boolean => from < part[1] && to > part[0];
+/** The starts a read through a part box placed (in `after`, not in `before`) outside the box's `part`: where the box
+ *  isn't on screen a zoomed frame shows the camera, never FTC Live's screen, so such a start isn't the box's. */
+export function outsidePart(before: ReadonlyMap<string, { t: number }>, after: ReadonlyMap<string, { t: number }>, part: readonly [number, number]): string[] {
+  return [...after].filter(([l, p]) => !before.has(l) && (p.t < part[0] || p.t > part[1])).map(([l]) => l);
+}
 /** The listed box a video's every read is zoomed to: one without a `part`, or null. */
 export const wholeBox = (videoId: string, list: CornerBox[] = CORNER_BOXES): CornerBox | null => { const b = cornerBox(videoId, list); return b && !b.part ? b : null; };
 
