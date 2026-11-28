@@ -59,9 +59,11 @@ describe("a conference's rankings page", () => {
   it("puts the header, switch, note, count, winner and movers before the table", () => {
     open();
     const table = document.querySelector("[data-conference-table]")!;
-    for (const sel of ["[data-conference-switch]", "[data-season-note]", "[data-conference-count]", "[data-conference-winner]", "[data-movers]"]) {
+    for (const sel of ["[data-conference-switch]", "[data-conference-count]", "[data-conference-winner]", "[data-movers]"]) {
       expect(before(document.querySelector(sel)!, table), sel).toBe(true);
     }
+    // The season note sits under the table, with the page's other notes.
+    expect(before(table, document.querySelector("[data-season-note]")!), "season note").toBe(true);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Rankings: East Bergen Conference");
     expect(document.querySelector("[data-conference-label]")!.textContent).toBe("League meets only — excludes this tournament.");
     expect(document.querySelector("[data-rs-source]")!.textContent).toBe("Final league RS — league meets ended Feb 1, 2026, before this tournament.");

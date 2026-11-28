@@ -23,11 +23,11 @@ const page = (url: string) => render(<TooltipProvider><MemoryRouter initialEntri
 const selected = () => screen.getAllByRole("tab").find((t) => t.getAttribute("aria-selected") === "true")?.getAttribute("aria-label");
 
 describe("Predict's modes", () => {
-  it("three tabs in order, Advancement first and open by default", () => {
+  it("three tabs in order, the matchup first and open by default", () => {
     page("/predict");
     const tabs = within(screen.getByRole("tablist", { name: "Predict mode" })).getAllByRole("tab").map((t) => t.getAttribute("aria-label"));
-    expect(tabs).toEqual(["Advancement", "Scheduled", "Custom matchup"]);
-    expect(selected()).toBe("Advancement");
+    expect(tabs).toEqual(["Custom matchup", "Scheduled", "Advancement"]);
+    expect(selected()).toBe("Custom matchup");
   });
 
   it("arrow keys move between the modes and focus stays on the tab (Custom matchup's first box doesn't take it)", async () => {
@@ -35,10 +35,10 @@ describe("Predict's modes", () => {
     const scheduled = screen.getByRole("tab", { name: /Scheduled/ });
     scheduled.focus();
     fireEvent.keyDown(scheduled, { key: "ArrowRight" });
-    const match = screen.getByRole("tab", { name: /Custom matchup/ });
+    const nextMode = screen.getByRole("tab", { name: /Advancement/ });
     // Radix moves focus on the next tick; the focused tab is the chosen one (automatic activation).
-    await waitFor(() => expect(match.getAttribute("aria-selected")).toBe("true"));
-    expect(document.activeElement).toBe(match);
+    await waitFor(() => expect(nextMode.getAttribute("aria-selected")).toBe("true"));
+    expect(document.activeElement).toBe(nextMode);
   });
 
   it("old Lab links open the mode they meant", () => {

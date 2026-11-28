@@ -47,8 +47,9 @@ describe("match breakdown", () => {
       { label: "Fouls given away", red: String(r.pen), blue: String(b.pen), lead: "Red gave 20 more" },
       { label: "Total", red: String(r.total), blue: String(b.total), lead: "Red +42" },
     ]);
-    // No bars anywhere: the difference column is the comparison.
-    expect(document.querySelector("[style*='width']")).toBeNull();
+    // Each phase's paired bars, alongside the difference column that compares them.
+    expect(document.querySelector('[data-bar="red"]')).not.toBeNull();
+    expect(document.querySelector('[data-bar="blue"]')).not.toBeNull();
   });
 
   it("puts the score and the margin first, winner named, and says when penalties decided it", () => {

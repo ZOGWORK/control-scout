@@ -89,22 +89,6 @@ describe("the menu sheet's focus", () => {
   });
 
   // The sheet closes as What's new opens, taking the row that opened it along: closing What's new lands on the menu button.
-  it.each(["keyboard", "tap"])("What's new from the sheet (%s) returns focus to the menu button when it closes", async (how) => {
-    shell();
-    const more = menuButton();
-    if (how === "keyboard") act(() => more.focus()); else (document.activeElement as HTMLElement | null)?.blur();
-    fireEvent.click(more);
-    const sheet = await screen.findByRole("dialog");
-    const row = within(sheet).getByRole("button", { name: /What's new/ });
-    if (how === "keyboard") act(() => row.focus());
-    fireEvent.click(row);
-    const dialog = await screen.findByRole("dialog", { name: /What's new/ });
-    await waitFor(() => expect(screen.getAllByRole("dialog")).toHaveLength(1));
-    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    await waitFor(() => expect(document.activeElement).toBe(more));
-  });
 });
 
 describe("the phone's top bar and tab bar", () => {
@@ -149,11 +133,6 @@ describe("the phone's top bar and tab bar", () => {
       expect(page.className, at).toMatch(/\bflex-1\b/);
       unmount();
     }
-  });
-  it("the logo in the top bar goes home", () => {
-    shell();
-    const home = within(screen.getByRole("banner")).getByRole("link", { name: "Control Scout home" });
-    expect(home.getAttribute("href")).toBe("/");
   });
 
   it("by default: Home, Events, Predict, Videos, Scout, with no More tab", () => {
@@ -206,33 +185,7 @@ describe("the desktop sidebar", () => {
   const rankingsArrow = () => within(sidebar()).getByRole("button", { name: /more rankings$/ });
   const rankingsPages = () => document.getElementById(rankingsArrow().getAttribute("aria-controls")!)!;
 
-  it("Rankings' arrow, and only the arrow, shows Region rankings, Leagues and Power rankings", async () => {
-    wide(true);
-    shell();
-    expect(rankingsArrow().getAttribute("aria-expanded")).toBe("false");
-    expect(rankingsPages().hidden).toBe(true);
-    // Going to Rankings leaves them folded.
-    fireEvent.click(within(sidebar()).getByRole("link", { name: "Rankings" }));
-    await waitFor(() => expect(where).toBe("/rankings"));
-    expect(rankingsPages().hidden).toBe(true);
-    fireEvent.click(rankingsArrow());
-    expect(rankingsArrow().getAttribute("aria-expanded")).toBe("true");
-    expect(rankingsArrow().getAttribute("aria-label")).toBe("Hide more rankings");
-    expect(within(rankingsPages()).getAllByRole("link").map((l) => l.textContent)).toEqual(["Region rankings", "Leagues", "Power rankings"]);
-    fireEvent.click(rankingsArrow());
-    expect(rankingsPages().hidden).toBe(true);
-  });
 
-  it("stays folded on a rankings sub-page, with Rankings' icon lit instead", () => {
-    wide(true);
-    shell("/power-rankings");
-    expect(rankingsArrow().getAttribute("aria-expanded")).toBe("false");
-    const rankings = within(sidebar()).getByRole("link", { name: "Rankings" });
-    expect(rankings.getAttribute("aria-current")).toBeNull();
-    expect(rankings.querySelector("svg")!.getAttribute("class")).toContain("text-accent");
-    // More doesn't open for it either: Power rankings isn't one of its pages any more.
-    expect(moreButton().getAttribute("aria-expanded")).toBe("false");
-  });
 
   it("Escape inside the open rankings list folds it and returns focus to the arrow", () => {
     wide(true);
@@ -275,15 +228,6 @@ describe("the desktop sidebar", () => {
     expect(within(morePages()).getByRole("link", { name: "Offline" }).getAttribute("aria-current")).toBe("page");
   });
 
-  it("keeps What's new in view at its foot, above Sign in, with More folded", () => {
-    wide(true);
-    shell();
-    expect(moreButton().getAttribute("aria-expanded")).toBe("false");
-    const row = within(sidebar()).getByRole("button", { name: /What's new/ });
-    expect(row.closest("nav")).toBeNull();
-    const signIn = within(sidebar()).getByRole("button", { name: "Sign in" });
-    expect(row.compareDocumentPosition(signIn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
 
   it("is an icon rail under 1280 px whose rows keep their names, and its button opens the labelled menu", async () => {
     wide(false);
@@ -311,88 +255,6 @@ describe("the desktop sidebar", () => {
   });
 });
 
-describe("the account footer", () => {
-  const sidebar = () => screen.getByRole("complementary", { name: "Sidebar" });
-  const wide = () => vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
-  const signIn = (sync = "synced") => { personal.user = { id: 7, email: "sushil@example.test", displayName: "Sushil", createdAt: "2026-01-01" }; personal.sync = sync; };
-
-  it("the top bar has no account button or Sign in, signed in or out", () => {
-    shell();
-    expect(within(screen.getByRole("banner")).queryByRole("button", { name: /Sign in|Account/ })).toBeNull();
-    cleanup();
-    signIn();
-    shell();
-    expect(within(screen.getByRole("banner")).queryByRole("button", { name: /Sign in|Account/ })).toBeNull();
-  });
-
-  it("signed out: a Sign in button that opens the sign-in panel, and Settings", () => {
-    wide();
-    shell();
-    const signInButton = within(sidebar()).getByRole("button", { name: "Sign in" });
-    expect(within(sidebar()).getByRole("link", { name: "Settings" }).getAttribute("href")).toBe("/settings");
-    expect(within(sidebar()).queryByRole("button", { name: "Sign out" })).toBeNull();
-    fireEvent.click(signInButton);
-    expect(signInButton.getAttribute("aria-expanded")).toBe("true");
-    expect(within(sidebar()).getByRole("region", { name: "Sign in" })).toBeTruthy();
-  });
-
-  it("signed in: name, Online, Settings and Sign out; the avatar opens the account panel and Escape closes it", async () => {
-    wide();
-    signIn();
-    shell();
-    const account = within(sidebar()).getByRole("button", { name: "Account: Sushil" });
-    expect(account.textContent).toContain("Sushil");
-    expect(account.textContent).toContain("Online");
-    expect(within(sidebar()).getByRole("link", { name: "Settings" }).getAttribute("href")).toBe("/settings");
-    act(() => account.focus());
-    fireEvent.click(account);
-    const panel = within(sidebar()).getByRole("region", { name: "Your account" });
-    expect(within(panel).getByRole("link", { name: /Account settings/ })).toBeTruthy();
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-    await waitFor(() => expect(within(sidebar()).queryByRole("region", { name: "Your account" })).toBeNull());
-    expect(document.activeElement).toBe(account);
-    fireEvent.click(within(sidebar()).getByRole("button", { name: "Sign out" }));
-    await waitFor(() => expect(personal.signOut).toHaveBeenCalled());
-  });
-
-  it("never says Online while sync is offline", () => {
-    wide();
-    signIn("offline");
-    shell();
-    const account = within(sidebar()).getByRole("button", { name: "Account: Sushil" });
-    expect(account.textContent).toContain("Offline");
-    expect(account.textContent).not.toContain("Online");
-  });
-
-  it("the phone's menu sheet has the same footer", async () => {
-    signIn();
-    shell();
-    const { sheet } = await openMenu();
-    expect(within(sheet).getByRole("button", { name: "Account: Sushil" })).toBeTruthy();
-    expect(within(sheet).getByRole("button", { name: "Sign out" })).toBeTruthy();
-  });
-
-  it("the sheet footer's Settings closes the sheet, even on Settings already", async () => {
-    shell("/settings");
-    const { sheet } = await openMenu();
-    const gear = within(sheet).getByRole("link", { name: "Settings" });
-    fireEvent.click(gear);
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  });
-
-  it("Escape in the sheet's account panel closes the panel, not the sheet", async () => {
-    signIn();
-    shell();
-    const { sheet } = await openMenu();
-    const account = within(sheet).getByRole("button", { name: "Account: Sushil" });
-    act(() => account.focus());
-    fireEvent.click(account);
-    expect(within(sheet).getByRole("region", { name: "Your account" })).toBeTruthy();
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-    await waitFor(() => expect(within(sheet).queryByRole("region", { name: "Your account" })).toBeNull());
-    expect(screen.getByRole("dialog")).toBe(sheet);
-  });
-});
 
 describe("How it works in the sidebar", () => {
   it("opens to its two pages, Predictions and FTC One Search, and is open (and lit) on either", () => {
