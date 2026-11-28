@@ -6,7 +6,9 @@
 #              logs every call to calls.log. Starting a unit logs the server's "listening" line to its journal at
 #              once, unless the unit is named in $FAKE_DIR/never-ready (it then stays up but never takes the socket)
 #              or in $FAKE_DIR/fails (it fails to start).
-#   journalctl answers `-u <unit>` from that journal.
+#              A unit's main pid is $FAKE_DIR/pid/<unit> (`show -p MainPID --value`, 0 without one); a unit named in
+#              $FAKE_DIR/deactivating/ is still stopping (`is-active` says so) until a `kill --kill-whom=all` ends it.
+#   journalctl answers `-u <unit>` from that journal, and `_PID=<pid>` from $FAKE_DIR/pidlog/<pid>.
 # Nothing touches the real systemd. The hand-off itself was proven on the VM against throwaway units (docs/deploy.md).
 
 set -uo pipefail
@@ -14,12 +16,12 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 PASS=0 FAIL=0
 
 make_fakes() {
-  mkdir -p "$T/bin" "$T/fake/active" "$T/fake/enabled" "$T/fake/journal" "$T/fake/failed" "$T/systemd"
+  mkdir -p "$T/bin" "$T/fake/active" "$T/fake/enabled" "$T/fake/journal" "$T/fake/failed" "$T/fake/pid" "$T/fake/pidlog" "$T/fake/deactivating" "$T/systemd"
   cat >"$T/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
 echo "systemctl $*" >>"$FAKE_DIR/calls.log"
-quiet=0 args=()
-for a in "$@"; do case $a in --quiet|-q) quiet=1 ;; --*) ;; *) args+=("$a") ;; esac; done
+quiet=0 args=() all=0
+for a in "$@"; do case $a in --quiet|-q) quiet=1 ;; --kill-whom=all) all=1 ;; --*) ;; *) args+=("$a") ;; esac; done
 cmd=${args[0]:-}; units=("${args[@]:1}")
 unit() { case $1 in *.service|*.socket) echo "$1" ;; *) echo "$1.service" ;; esac; }
 start() {
@@ -29,21 +31,24 @@ start() {
   grep -qx "$u" "$FAKE_DIR/never-ready" 2>/dev/null || echo "[t] Control Scout listening on the systemd socket" >>"$FAKE_DIR/journal/$u"
 }
 case $cmd in
-  is-active) [ -e "$FAKE_DIR/active/$(unit "${units[0]}")" ] || { [ $quiet = 1 ] || echo inactive; exit 3; }; [ $quiet = 1 ] || echo active ;;
+  is-active) [ -e "$FAKE_DIR/deactivating/$(unit "${units[0]}")" ] && { [ $quiet = 1 ] || echo deactivating; exit 3; }
+    [ -e "$FAKE_DIR/active/$(unit "${units[0]}")" ] || { [ $quiet = 1 ] || echo inactive; exit 3; }; [ $quiet = 1 ] || echo active ;;
   is-failed) [ -e "$FAKE_DIR/failed/$(unit "${units[0]}")" ] || exit 1 ;;
   start) for u in "${units[@]}"; do start "$u"; done ;;
   stop) for u in "${units[@]}"; do rm -f "$FAKE_DIR/active/$(unit "$u")"; done ;;
   restart) for u in "${units[@]}"; do rm -f "$FAKE_DIR/active/$(unit "$u")"; start "$u"; done ;;
   enable) for u in "${units[@]}"; do touch "$FAKE_DIR/enabled/$(unit "$u")"; done ;;
   disable) for u in "${units[@]}"; do rm -f "$FAKE_DIR/enabled/$(unit "$u")"; done ;;
+  show) cat "$FAKE_DIR/pid/$(unit "${args[-1]}")" 2>/dev/null || echo 0 ;;
+  kill) [ $all = 1 ] && for u in "${units[@]}"; do rm -f "$FAKE_DIR/deactivating/$(unit "$u")"; done ;;
   daemon-reload|reset-failed) ;;
   *) echo "fake systemctl: unknown $cmd" >&2; exit 1 ;;
 esac
 EOF
   cat >"$T/bin/journalctl" <<'EOF'
 #!/usr/bin/env bash
-u=""; while [ $# -gt 0 ]; do [ "$1" = -u ] && { u=$2; shift; }; shift; done
-cat "$FAKE_DIR/journal/$u" 2>/dev/null || true
+u="" pid=""; while [ $# -gt 0 ]; do case $1 in -u) u=$2; shift ;; _PID=*) pid=${1#_PID=} ;; esac; shift; done
+if [ -n "$pid" ]; then cat "$FAKE_DIR/pidlog/$pid" 2>/dev/null || true; else cat "$FAKE_DIR/journal/$u" 2>/dev/null || true; fi
 EOF
   printf '#!/usr/bin/env bash\nexit 0\n' >"$T/bin/flock"
   chmod +x "$T/bin/"*
@@ -146,6 +151,36 @@ case_both_live() {
   lanes_switch handoff >/dev/null && [ "$(lanes_live)" = b ] && [ "$(at 'stop control-scout@b.service')" -lt "$(at 'start control-scout@b.service')" ]
 }
 
+# The outgoing lane's release logged it's hand-off aware: it's told (SIGUSR2) before its stop, which isn't waited for.
+case_handoff_aware() {
+  active control-scout@a.service
+  echo 4242 >"$FAKE_DIR/pid/control-scout@a.service"
+  echo "[t] stopping: hand-off aware (SIGUSR2 before a stop lets a running data cycle finish)" >"$FAKE_DIR/pidlog/4242"
+  lanes_switch handoff >/dev/null || return 1
+  local k s; k=$(at 'kill --kill-whom=main --signal=SIGUSR2 control-scout@a.service'); s=$(at 'stop --no-block control-scout@a.service')
+  [ "$k" -gt "$(at 'start control-scout@b.service')" ] && [ "$k" -lt "$s" ] &&
+    [ "$(at 'stop control-scout@a.service')" = 0 ] && [ "$(lanes_live)" = b ]
+}
+
+# An older release (no mark in its own log, though an earlier run of the unit logged it): no SIGUSR2, a plain stop.
+case_handoff_old_release() {
+  active control-scout@a.service
+  echo 4243 >"$FAKE_DIR/pid/control-scout@a.service"
+  echo "[t] Control Scout listening on the systemd socket" >"$FAKE_DIR/pidlog/4243"
+  echo "[t] stopping: hand-off aware (SIGUSR2 before a stop lets a running data cycle finish)" >>"$FAKE_DIR/journal/control-scout@a.service"
+  lanes_switch handoff >/dev/null || return 1
+  ! grep -q 'kill' "$FAKE_DIR/calls.log" && [ "$(at 'stop control-scout@a.service')" -gt 0 ]
+}
+
+# A restart while the last hand-off's old lane is still letting its cycle finish: that lane is ended first.
+case_restart_hurries() {
+  active control-scout@a.service; touch "$FAKE_DIR/deactivating/control-scout@b.service"
+  lanes_switch restart >/dev/null || return 1
+  local k; k=$(at 'kill --kill-whom=all --signal=SIGTERM control-scout@b.service')
+  [ "$k" -gt 0 ] && [ "$k" -lt "$(at 'restart control-scout@a.service')" ] && [ ! -e "$FAKE_DIR/deactivating/control-scout@b.service" ] &&
+    [ "$(lanes_live)" = a ]
+}
+
 case_enable() {
   mkdir -p "$T/app/current/server" && touch "$T/app/current/server/listen.ts"
   active control-scout.service; active control-scout.socket; touch "$FAKE_DIR/enabled/control-scout.service"
@@ -177,7 +212,7 @@ case_disable() {
     [ "$(at 'start control-scout.service')" -lt "$(at 'stop control-scout@a.service')" ]
 }
 
-for c in template handoff handoff_back never_ready failed_start restart restart_same_lane both_live enable enable_fails disable; do
+for c in template handoff handoff_back handoff_aware handoff_old_release never_ready failed_start restart restart_hurries restart_same_lane both_live enable enable_fails disable; do
   setup
   check "$c" "case_$c"
   teardown

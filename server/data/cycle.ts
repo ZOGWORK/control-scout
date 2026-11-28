@@ -179,6 +179,14 @@ export function childArgs(execArgv: readonly string[], script: string): string[]
   return [...flags, script];
 }
 
+/** A child process running now (runScriptInChild): what it is ("data cycle", "live follow-up", …), a promise that
+ *  settles when it exits, and a stop (SIGTERM). The server's stop (server/stopChildren.ts) reads these: the unit's
+ *  KillMode=mixed leaves the children to the server, so it ends them itself, or lets a data cycle finish. */
+export interface RunningChild { what: string; done: Promise<void>; stop: () => void }
+const running = new Set<RunningChild>();
+/** The child processes running now. */
+export const runningChildren = (): RunningChild[] => [...running];
+
 /** Run a TypeScript script in a child Node process from the app's folder (exported for its test).
  *  `onMessage`: the child gets an IPC channel (process.send), and each message it sends is handed over. */
 export function runScriptInChild(script: string, what: string, timeoutMs: number, execArgv: readonly string[] = process.execArgv, args: readonly string[] = [],
@@ -186,10 +194,14 @@ export function runScriptInChild(script: string, what: string, timeoutMs: number
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [...childArgs(execArgv, script), ...args], { cwd: APP_ROOT, env: process.env, stdio: o.onMessage ? ["ignore", "inherit", "inherit", "ipc"] : ["ignore", "inherit", "inherit"] });
     if (o.onMessage) child.on("message", o.onMessage);
+    const done = new Promise<void>((r) => child.once("exit", () => r()));
+    const entry: RunningChild = { what, done, stop: () => { if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM"); } };
+    running.add(entry);
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
-    child.once("error", (e) => { clearTimeout(timer); reject(e); });
+    child.once("error", (e) => { clearTimeout(timer); running.delete(entry); reject(e); });
     child.once("exit", (code, signal) => {
       clearTimeout(timer);
+      running.delete(entry);
       if (code === 0) resolve(); else reject(new Error(`${what} process exited with ${signal ?? `code ${code}`}`));
     });
   });
