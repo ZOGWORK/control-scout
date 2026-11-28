@@ -1227,6 +1227,10 @@ export interface OwnerOfficialVideos {
   /** The channel audit after each watcher run (server/videos/officialAudit.ts). */
   audit: OfficialAudit;
 }
+/** A watched channel's short upload of one match, set aside: an event fits, but which match it is can't be told for
+ *  sure (or two uploads name one match). season/code/label: the event (and match) it fits, when one does. */
+export interface OwnerMatchUpload { videoId: string; title: string; channel: string; season: number | null; code: string | null; label: string | null; why: string; seenAt: string }
+export interface OwnerMatchUploads { review: OwnerMatchUpload[]; added: number }
 /** One channel audit: each watched channel's whole uploads list against Scout's records. missed: watcher misses it
  *  found (in the watcher's window, no Scout record: added when every check passes, else sent to review). added:
  *  uploads with no record that passed every check of the watcher's, added by the audit. */
