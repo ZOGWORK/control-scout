@@ -305,6 +305,19 @@ describe("page head in the first HTML", () => {
     for (const bad of [null, "", "  ", "none", "javascript:alert(1)", "ftp://team.org"]) expect(teamWebsite(bad)).toBeNull();
   });
 
+  it("HTTP 404 for a watch address that names no video and a contributor who isn't there; 200 for real ones", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-404b-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, '<html><head></head><body><div id="root"></div></body></html>');
+    await run("INSERT INTO users (email, created_at, display_name, username) VALUES ('seo-contrib@example.test', ?, 'Real Scout', 'RealScout')", [new Date().toISOString()]);
+    for (const p of ["/watch/x", "/watch/%3Cb%3Ex", "/watch/aaaaaaaaaaaa", "/contributors/%3Cb%3Ex", "/contributors/ab", "/contributors/NoOneByThisName"]) {
+      const page = await renderPage(file, p);
+      expect(page.status, p).toBe(404);
+      expect(page.html, p).toContain("<title>Page not found · Control Scout</title>");
+    }
+    for (const p of ["/watch/dQw4w9WgXcQ", "/contributors/RealScout", "/contributors/realscout"]) expect((await renderPage(file, p)).status, p).toBe(200);
+  });
+
   it("HTTP 404 (app HTML, noindex, no canonical) for unknown routes, teams and events; 200 for every app route", async () => {
     const dir = mkdtempSync(join(tmpdir(), "cs-seo-404-"));
     const file = join(dir, "index.html");
