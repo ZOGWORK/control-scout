@@ -16,6 +16,8 @@ beforeEach(async () => {
 afterEach(() => { vi.useRealTimers(); });
 
 const tick = (ms: number) => vi.setSystemTime(Date.now() + ms);
+/** Lets what's under way run (the version check before a draw, a draw's own then). */
+const settle = () => new Promise((r) => setTimeout(r, 0));
 
 describe("kept pages", () => {
   it("draws a page once within its TTL, and again after", async () => {
@@ -178,6 +180,55 @@ describe("kept pages", () => {
     const draw = vi.fn(async () => "again");
     expect(await keptPage("/teams/0", draw)).toBe("again");
     expect(await keptPage(`/teams/${PAGES_KEPT + 4}`, draw)).toBe(`p${PAGES_KEPT + 4}`);
+  });
+
+  // People also ask's set takes ~10 s to make, and this process writes kv every few seconds (a lock, coin flips,
+  // disagreements): each write moved the store, dropped the set still being made, and the next ask started it over.
+  it("waits for an answer still being drawn across a move rather than drawing it again, and keeps it once made", async () => {
+    let release!: (v: string) => void;
+    const slow = vi.fn(() => new Promise<string>((r) => { release = r; }));
+    const first = keptAnswer("q", slow);
+    await settle();
+    await (await import("../db")).run("INSERT INTO teams (number, name) VALUES (1, 'One')");
+    const again = vi.fn(async () => "never");
+    const second = keptAnswer("q", again);
+    await settle();
+    expect(slow).toHaveBeenCalledTimes(1);
+    expect(again).not.toHaveBeenCalled();
+    release("set");
+    expect(await first).toBe("set");
+    expect(await second).toBe("set");
+    // Once made, it is served as any copy from before a move: at once, while one draw from the new data is made.
+    const redraw = vi.fn(async () => "set v2");
+    expect(await keptAnswer("q", redraw)).toBe("set");
+    expect(redraw).toHaveBeenCalledTimes(1);
+    await settle();
+    expect(await keptAnswer("q", async () => "v3")).toBe("set v2");
+  });
+
+  it("keeps a redraw that finishes after another move", async () => {
+    await keptAnswer("q", async () => "v1");
+    const run = (await import("../db")).run;
+    await run("INSERT INTO teams (number, name) VALUES (1, 'One')");
+    let release!: (v: string) => void;
+    expect(await keptAnswer("q", () => new Promise<string>((r) => { release = r; }))).toBe("v1");
+    await settle();
+    await run("INSERT INTO teams (number, name) VALUES (2, 'Two')");
+    await keptAnswer("other", async () => "x"); // the move is taken up by the next ask
+    release("v2");
+    await settle();
+    const next = vi.fn(async () => "v3");
+    expect(await keptAnswer("q", next)).toBe("v2");
+  });
+
+  it("draws again an answer that failed while carried over a move", async () => {
+    let fail!: (e: Error) => void;
+    const first = keptAnswer("q", () => new Promise<string>((_, no) => { fail = no; }));
+    await settle();
+    await (await import("../db")).run("INSERT INTO teams (number, name) VALUES (1, 'One')");
+    fail(new Error("db busy"));
+    await expect(first).rejects.toThrow("db busy");
+    expect(await keptAnswer("q", async () => "ok")).toBe("ok");
   });
 
   it("does not keep a page that failed to draw", async () => {
