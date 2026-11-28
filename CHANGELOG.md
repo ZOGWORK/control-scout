@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.3.1 — 2026-11-28
+
+Sign-in, contact and bug reports no longer lock out a whole venue when a few people retry.
+
+### Highlights
+- [fixes] One person's retries no longer block sign-in for others nearby
+- [fixes] Contact and bug-report limits count each visitor, not each network
+- [report] Abuse ranges in the owner console show visitors, not Cloudflare
+
+### Fixes
+- **Per-visitor limits are per visitor again** (`server/auth/routes.ts`, `server/contact.ts`, `server/bugReports.ts`, `server/errorReports.ts`, `server/analytics.ts`, `server/vitals.ts`, `server/onboardingStats.ts`, `server/searchScore.ts`, `server/moderation.ts`): these limits were keyed on `req.ip`. Behind Cloudflare that is the edge address, shared by every visitor it serves (`server/visitorIp.ts` already said so) (#2423). Some examples of what went wrong:
+  - About 20 sign-in attempts from different people at one venue closed email sign-in for everyone there for 15 minutes.
+  - Five contact messages an hour closed the contact form for all of them.
+  - The owner console's abuse ranges counted Cloudflare's ranges, not visitors'.
+
+  All twelve call sites now use `visitorIp(req)`, which reads CF-Connecting-IP and trusts it only when the request really came from Cloudflare. `server/visitorIpUse.test.ts` fails if any server code reads `req.ip` again outside `visitorIp.ts` (#2423).
+
 ## 8.3.0 — 2026-11-28
 
 One look everywhere: the classic design, the atlas and the toggle that chose between them are gone.

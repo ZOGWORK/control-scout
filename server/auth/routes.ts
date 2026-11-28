@@ -15,6 +15,7 @@ import { emailSignInEnabled, startEmailSignIn, verifyEmailCode } from "./email.j
 import { copyToAdminSpaces } from "../scout/adminCopies.js";
 import { accessError, checkScoutEntry, cleanScoutEntry, INVALID_ENTRY, pushWorkspaceEntries, storedEntryFields, supersedeBound, supersedes, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
 import { CP_PROVIDER, controlPointEnabled, isWorkspaceId, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff, issueSigninCode, vouchProofFor } from "./controlPoint.js";
+import { visitorIp } from "../visitorIp.js";
 
 export const authProviders = () => ({ email: emailSignInEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
 
@@ -30,7 +31,7 @@ const jsonOnly = (req: Request, res: Response, next: NextFunction) => {
 const attempts = new Map<string, { n: number; at: number }>();
 function ipLimit(max: number, windowMs: number) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const k = `${req.path}|${req.ip}`;
+    const k = `${req.path}|${visitorIp(req)}`;
     const now = Date.now();
     const a = attempts.get(k);
     if (a && now - a.at < windowMs && a.n >= max) { res.status(429).json({ error: "Too many attempts — wait a few minutes." }); return; }

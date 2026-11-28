@@ -12,6 +12,7 @@ import {
   parseVitals, VITAL_BUCKET_COUNT, VITAL_BUCKETS, VITAL_THRESHOLDS, VITALS, vitalBucket,
   type VitalName, type VitalStat, type VitalsBeacon, type VitalsRow,
 } from "../src/shared/vitals.js";
+import { visitorIp } from "./visitorIp.js";
 
 const BCOLS = Array.from({ length: VITAL_BUCKET_COUNT }, (_, i) => `b${i}`);
 const UPSERT = `INSERT INTO web_vitals_daily (day, path, screen, metric, count, total, max, ${BCOLS.join(", ")})
@@ -84,7 +85,7 @@ export function vitalsRouter(): Router {
   const allow = rateLimiter(120, 60_000);
   // Beacons arrive as text/plain or application/json: read the raw text whatever the type.
   r.post("/", express.text({ type: () => true, limit: COLLECT_MAX_BYTES }), (req: Request, res: Response, next: NextFunction) => {
-    if (!allow(req.ip ?? "")) { res.status(429).end(); return; }
+    if (!allow(visitorIp(req))) { res.status(429).end(); return; }
     // Bots, and browsers asking not to be tracked (a second check after the client's): accepted, not counted.
     if (isBot(req.get("user-agent")) || req.get("sec-gpc") === "1" || req.get("dnt") === "1") { res.status(204).end(); return; }
     let body: unknown;

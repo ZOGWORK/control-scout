@@ -8,6 +8,7 @@ import type { Client } from "@libsql/client";
 import { db } from "./db.js";
 import { COLLECT_MAX_BYTES, addDays, dayOf, isBot, rateLimiter } from "./analytics.js";
 import { parseOnboardingBeacon, type OnboardingBeacon, type OnboardingSummary } from "../src/shared/onboardingStats.js";
+import { visitorIp } from "./visitorIp.js";
 
 /** Add one beacon to its day's total. */
 export async function recordOnboarding(b: OnboardingBeacon, now = new Date(), c: Client = db()): Promise<void> {
@@ -43,7 +44,7 @@ export function onboardingStatsRouter(): Router {
   const allow = rateLimiter(60, 60_000);
   // Beacons arrive as text/plain or application/json: read the raw text whatever the type.
   r.post("/", express.text({ type: () => true, limit: COLLECT_MAX_BYTES }), (req: Request, res: Response, next: NextFunction) => {
-    if (!allow(req.ip ?? "")) { res.status(429).end(); return; }
+    if (!allow(visitorIp(req))) { res.status(429).end(); return; }
     // Bots, and browsers asking not to be tracked (a second check after the client's): accepted, not counted.
     if (isBot(req.get("user-agent")) || req.get("sec-gpc") === "1" || req.get("dnt") === "1") { res.status(204).end(); return; }
     let body: unknown;

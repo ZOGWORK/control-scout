@@ -10,6 +10,7 @@ import { get, run } from "./db.js";
 import { env } from "./env.js";
 import { emailEnabled, normalizeEmail, sendEmail, validEmail } from "./auth/email.js";
 import { CONTACT_LIMITS, CONTACT_TOPICS, type ContactTopic } from "../src/shared/contact.js";
+import { visitorIp } from "./visitorIp.js";
 
 /** Per IP: at most this many messages per window (only messages actually accepted count). */
 export const CONTACT_RATE = { max: 5, windowMs: 60 * 60_000 };
@@ -19,7 +20,7 @@ const sent = new Map<string, number[]>();
 export const resetContactLimits = () => sent.clear();
 
 function rateLimit(req: Request, res: Response, next: NextFunction) {
-  const ip = req.ip ?? "?";
+  const ip = visitorIp(req);
   const now = Date.now();
   const recent = (sent.get(ip) ?? []).filter((t) => now - t < CONTACT_RATE.windowMs);
   if (recent.length >= CONTACT_RATE.max) {
@@ -89,12 +90,12 @@ export function contactRouter(): Router {
   }, rateLimit, (req, res, next) => {
     (async () => {
       // Honeypot filled: look like success, keep and send nothing (but count it, so a bot is still slowed).
-      if (text(req.body?.website)) { record(req.ip ?? "?"); return res.json({ ok: true }); }
+      if (text(req.body?.website)) { record(visitorIp(req)); return res.json({ ok: true }); }
       const v = validateContact(req.body);
       if (!v.ok) return res.status(400).json({ error: "Check the highlighted fields.", fields: v.fields });
       const m = v.value;
       // Counted before the first await, so parallel requests can't all slip under the limit.
-      record(req.ip ?? "?");
+      record(visitorIp(req));
       const row = await get<{ id: number }>(
         "INSERT INTO contact_messages (created_at, topic, name, email, message, emailed) VALUES (?, ?, ?, ?, ?, 0) RETURNING id",
         [new Date().toISOString(), m.topic, m.name, m.email, m.message],
