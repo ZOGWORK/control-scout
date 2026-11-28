@@ -6,6 +6,14 @@ import { release, tryAcquire } from "./data/lock";
 import { runCycle, type RunningChild } from "./data/cycle";
 import { stopChildren } from "./stopChildren";
 
+// The cycle's work itself is stubbed (a real sync and stats run take minutes on CI): what's under test is runCycle's
+// lease. Its stats step logs, so a line shows the body ran.
+vi.mock("./sync", () => ({ syncAll: async () => {} }));
+vi.mock("./data/criResults", () => ({ syncCriResults: async () => ({ written: [] }) }));
+vi.mock("./stats/job", () => ({ statsRulesStale: async () => false, runStats: async (o: { log: (m: string) => void }) => { o.log("stats"); } }));
+vi.mock("./packs/build", () => ({ buildPacks: async () => {} }));
+vi.mock("./teamLogos", () => ({ refreshTeamLogosIfDue: async () => {} }));
+
 /** A child that exits `afterMs` after it starts, or as soon as it's stopped. */
 function child(what: string, afterMs = Infinity): RunningChild & { stopped: number } {
   let exit!: () => void;
@@ -69,7 +77,7 @@ describe("the incoming lane while the outgoing lane's cycle finishes", () => {
     await release(held!);
     await second;
     // Once it's free, the second runs (every line after the release).
-    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.map(([, m]) => m)).toContain("  stats");
     expect(lines.every(([t]) => t >= released)).toBe(true);
-  }, 120_000);
+  }, 30_000);
 });
