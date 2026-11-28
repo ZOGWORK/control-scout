@@ -13,7 +13,8 @@ import { applyVideoDecisions } from "./videos/videoDecisions.js";
 import { WATCH_CHECK_MS, WATCH_FIRST_MS, watchIfDue } from "./videos/officialWatch.js";
 import { runChannelAudit } from "./videos/officialAudit.js";
 import { runMatchUploads } from "./videos/matchUploads.js";
-import { loadMatchUploads } from "./videos/uploadClips.js";
+import { loadMatchUploads, refreshMatchUploads } from "./videos/uploadClips.js";
+import { clearClipCaches } from "./caches.js";
 import { creatorIfDue } from "./videos/creatorVideos.js";
 import { dropWrongLinks } from "./videos/linkCheck.js";
 import "./env.js";
@@ -321,8 +322,11 @@ if (!process.env.CS_NO_SCHEDULER) {
     dropWrongLinks(log).catch((e) => log(`official videos: link check: ${(e as Error).message}`))
       .then(() => watchIfDue(log)).then(async (r) => {
       if (r) await runChannelAudit(log).catch((e) => log(`official videos: audit: ${(e as Error).message}`));
+      // The audit may have read an added upload as private or gone: what plays is loaded again (not only on an add).
+      const dropped = r ? await refreshMatchUploads().catch((e) => { log(`match uploads: ${(e as Error).message}`); return false; }) : false;
+      if (dropped) clearClipCaches();
       const u = r ? await runMatchUploads(log).catch((e) => { log(`match uploads: ${(e as Error).message}`); return null; }) : null;
-      return r?.added || u?.added ? checkClipCoverage(log) : 0;
+      return r?.added || u?.added || dropped ? checkClipCoverage(log) : 0;
     })
       .catch((e) => log(`official videos: watcher: ${(e as Error).message}`))
       // Then the creator channels (server/videos/creatorVideos.ts: FUN Robotics Network's uploads, playlists and

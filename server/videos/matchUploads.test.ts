@@ -5,7 +5,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
 import { applyMatchUploads, approveMatchUpload, ownerMatchUploads, planMatchUploads, rejectMatchUpload, removeMatchUpload, runMatchUploads } from "./matchUploads";
-import { loadMatchUploads, uploadClip, uploadMatches, withUploads } from "./uploadClips";
+import { loadMatchUploads, refreshMatchUploads, uploadClip, uploadMatches, withUploads } from "./uploadClips";
 
 const CH = "UCaaaaaaaaaaaaaaaaaaaaaa";
 const NOW = Date.parse("2025-02-10T00:00:00Z");
@@ -95,6 +95,18 @@ describe("withUploads", () => {
     await run("UPDATE official_audit_videos SET privacy = 'public' WHERE video_id = 'uploadQ2aaa'");
     await loadMatchUploads();
     expect(uploadClip(2024, "CAONSCQ2", "Q2")).not.toBeNull();
+  });
+});
+
+describe("refreshMatchUploads", () => {
+  it("after an audit: an added upload it read as gone stops playing, and says so; nothing new says nothing", async () => {
+    expect(await refreshMatchUploads()).toBe(false);
+    await run("UPDATE official_audit_videos SET gone_at = 'x' WHERE video_id = 'uploadQ2aaa'");
+    expect(await refreshMatchUploads()).toBe(true);
+    expect(uploadClip(2024, "CAONSCQ2", "Q2")).toBeNull();
+    expect(await refreshMatchUploads()).toBe(false);
+    await run("UPDATE official_audit_videos SET gone_at = NULL WHERE video_id = 'uploadQ2aaa'");
+    expect(await refreshMatchUploads()).toBe(true);
   });
 });
 

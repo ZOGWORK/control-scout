@@ -25,6 +25,15 @@ export async function loadMatchUploads(): Promise<number> {
   return rows.length;
 }
 
+const playingNow = () => [...playing].map(([k, c]) => `${k} ${c.videoId} ${c.t} ${c.end ?? ""}`).sort().join("\n");
+/** After each channel audit: loads again, since the audit may have read an added upload as private, unplayable here or
+ *  gone. True when what plays changed (the caller clears the clip caches and checks coverage again). */
+export async function refreshMatchUploads(): Promise<boolean> {
+  const before = playingNow();
+  await loadMatchUploads();
+  return playingNow() !== before;
+}
+
 /** A match's upload clip, if it has one. */
 export function uploadClip(season: number, code: string, label: string): MatchClip | null {
   const c = playing.get(keyOf(season, code, label));
