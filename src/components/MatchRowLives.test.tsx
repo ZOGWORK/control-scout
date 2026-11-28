@@ -53,7 +53,11 @@ describe("double-elimination lives on a match row", () => {
     const boxes = c.querySelectorAll("[data-alliances] > div");
     expect(boxes[0].firstElementChild!.querySelector("[data-lives]")).not.toBeNull();
     expect(boxes[1].firstElementChild!.querySelector("[data-lives]")).not.toBeNull();
-    expect(boxes[1].firstElementChild!.className).toContain("@min-[330px]:order-last");
+    // A playoff row's boxes face each other only from a 520px row (on a phone they stack, so the numbers fit).
+    expect(boxes[1].firstElementChild!.className).toContain("@min-[520px]:order-last");
+    expect(boxes[1].className).toContain("@min-[520px]:flex-row-reverse");
+    expect(boxes[0].parentElement!.className).toContain("@min-[520px]:grid-cols-2");
+    expect(boxes[0].parentElement!.className).not.toContain("@min-[330px]:grid-cols-2");
   });
   it("no hearts on a qualification match or a playoff match with no lives (another format)", () => {
     expect(show(match({ level: "qual", key: "qual:0:9", series: 0, label: "Q9" })).querySelector("[data-heart]")).toBeNull();
