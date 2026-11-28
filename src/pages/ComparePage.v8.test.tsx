@@ -9,6 +9,9 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import type { CompareTeam, CompareView } from "../shared/api";
 
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, state: { myTeam: null, bookmarks: [], tracked: { teams: [], events: [] }, videoLinks: {} }, syncReady: false }) }));
+// The charts are their own deferred chunk (src/components/charts/defer.ts): this page test is about the table and the
+// verdict, and importing recharts here would spend the next test's debounce loading a chart nothing asserts.
+vi.mock("../components/charts/CompareCharts", () => ({ CompareCharts: () => null }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2025, useTitle: () => {}, usePredictable: () => true }));
 
 const { default: ComparePage, verdict } = await import("./ComparePage");

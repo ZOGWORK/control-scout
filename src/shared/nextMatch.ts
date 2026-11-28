@@ -15,3 +15,14 @@ export function nextMatchOf(matches: MatchView[], events: (EventCalendar & { cod
   // A match whose start passed over half an hour ago without a result is late, not next.
   return matches.find((m) => !m.played && live.has(m.code) && (!m.startsAt || Date.parse(m.startsAt) > now - LATE_MS)) ?? null;
 }
+
+/** A card's next match: the earliest unplayed one whose start hasn't passed by more than a schedule's slack (a match
+ *  with no posted instant gets a longer grace, read as event-local time in UTC). Home's "Your teams" card reads it,
+ *  and so does the compact `next` that /api/teams-summary returns (?next=1): one rule, one answer. */
+export function upcomingMatchOf(matches: MatchView[], now = Date.now()): MatchView | undefined {
+  const at = (m: MatchView) => (m.startsAt ? Date.parse(m.startsAt) : m.time ? Date.parse(`${m.time.replace(/Z$/, "")}Z`) : NaN);
+  const slack = (m: MatchView) => (m.startsAt ? 12 : 26) * 3600_000;
+  return matches
+    .filter((m) => !m.played && (!Number.isFinite(at(m)) || at(m) > now - slack(m)))
+    .sort((a, b) => (Number.isFinite(at(a)) ? at(a) : Infinity) - (Number.isFinite(at(b)) ? at(b) : Infinity))[0];
+}

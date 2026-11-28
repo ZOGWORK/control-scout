@@ -1090,9 +1090,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   // yet this season): one request, where the page used to send a second for it.
   api.get("/teams-summary", h(async (req) => {
     const s = season(req.query.season), teams = teamList(req.query.teams, "teams", 100);
+    // ?next=1: each team's next match in the same answer, so Home's card sends one request instead of a schedule one.
+    const next = req.query.next === "1";
     // The first covered season has no season before it to send (a direct ?season= for it is a 404).
-    if (req.query.before !== "1" || !SEASON_NUMBERS.includes(s - 1)) return { season: s, teams: await teamSummaries(teams, s) };
-    const [now, before] = await Promise.all([teamSummaries(teams, s), teamSummaries(teams, s - 1)]);
+    if (req.query.before !== "1" || !SEASON_NUMBERS.includes(s - 1)) return { season: s, teams: await teamSummaries(teams, s, { next }) };
+    const [now, before] = await Promise.all([teamSummaries(teams, s, { next }), teamSummaries(teams, s - 1)]);
     return { season: s, teams: now, before: { season: s - 1, teams: before } };
   }));
 

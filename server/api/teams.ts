@@ -4,7 +4,8 @@ import { dataVersion } from "../predict/engine.js";
 import { creatorVersion, featuredFor } from "../videos/creatorVideos.js";
 import { registerCache } from "../caches.js";
 import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
-import type { CompareTeam, CompareView, MatchView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
+import type { CompareTeam, CompareView, MatchView, ReportCard, ReportCardField, ShortlistTeam, TeamNextMatch, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
+import { upcomingMatchOf } from "../../src/shared/nextMatch.js";
 import { matchViews } from "./matches.js";
 import { REPORT_PRIOR } from "../stats/reportCards.js";
 import { RELIABILITY_COLUMNS, consistencyFieldKey, reliabilityFromRow, type ConsistencyField, type Reliability, type ReliabilityResponse } from "../../src/shared/reliability.js";
@@ -282,11 +283,31 @@ export async function compareTeams(numbers: number[], season: number): Promise<C
   return compareFromParts(numbers, season, blocks, (n) => matches.get(n) ?? []);
 }
 
-/** Compact summaries for many teams (shortlist, tracked-teams feed). */
-export async function teamSummaries(numbers: number[], season: number): Promise<TeamSummary[]> {
+/** The compact next match a summary carries with ?next=1 (Home's card: one request, no per-team schedule asks). */
+function summaryNext(m: MatchView, team: number, event: string): TeamNextMatch {
+  const side = m.red.teams.some((t) => t.number === team) ? "red" : "blue";
+  const own = side === "red" ? m.red : m.blue, other = side === "red" ? m.blue : m.red;
+  return {
+    season: m.season, code: m.code, event, key: m.key, label: m.label,
+    time: m.time, startsAt: m.startsAt,
+    alliance: side,
+    partners: own.teams.filter((t) => t.number !== team).map((t) => t.number),
+    opponents: other.teams.map((t) => t.number),
+    pRed: m.prediction?.pRed ?? null, tier: m.prediction?.tier ?? null,
+    href: `/events/${m.season}/${encodeURIComponent(m.code)}/match/${encodeURIComponent(m.key)}`,
+  };
+}
+
+/** The most teams ?next=1 works a next match out for (Home's card shows four): a request for a hundred teams can
+ *  never turn into a hundred prediction-heavy match lists. */
+const NEXT_MAX = 10;
+
+/** Compact summaries for many teams (shortlist, tracked-teams feed). `next`: also each team's next match on a
+ *  posted schedule, worked out by the same rule Home's card used per team (src/shared/nextMatch.ts). */
+export async function teamSummaries(numbers: number[], season: number, opts: { next?: boolean } = {}): Promise<TeamSummary[]> {
   if (!numbers.length) return [];
   const ph = numbers.map(() => "?").join(",");
-  const [infos, stats, lastEv, recRows, rel] = await Promise.all([
+  const [infos, stats, lastEv, recRows, rel, schedules] = await Promise.all([
     all<any>(`SELECT number, name, city, state, country FROM teams WHERE number IN (${ph})`, numbers),
     all<any>(`SELECT team, opr_np, rank_np, ranked_teams, rating_np, rating_sd, wins, losses, ties FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
     all<any>(
@@ -297,11 +318,14 @@ export async function teamSummaries(numbers: number[], season: number): Promise<
        WHERE et.season = ? AND et.team IN (${ph}) ORDER BY e.start DESC`, [season, ...numbers]),
     all<any>(recordSql(`mt.season = ? AND mt.team IN (${ph})`), [season, ...numbers]),
     all<any>(`SELECT team, idx, matches FROM team_reliability WHERE season = ? AND code = '' AND team IN (${ph})`, [season, ...numbers]),
+    opts.next ? Promise.all(numbers.map((n, i) => (i < NEXT_MAX ? matchViews({ season, team: n }, { predictUnplayed: true }) : null))) : Promise.resolve(null),
   ]);
   const recs = recordsFromRows(recRows);
   const today = new Date().toISOString().slice(0, 10);
-  return numbers.map((n) => {
+  return numbers.map((n, idx) => {
     const i = infos.find((x) => Number(x.number) === n);
+    const schedule = schedules?.[idx];
+    const nextMatch = schedule ? upcomingMatchOf(schedule) : null;
     const s = stats.find((x) => Number(x.team) === n);
     // Its events as the team page lists them (keepEvent): not a league meet it skipped, which a league's roster lists.
     const evs = lastEv.filter((x) => Number(x.team) === n && keepEvent(x, recs.get(`${n}|${x.code}`), today));
@@ -320,6 +344,7 @@ export async function teamSummaries(numbers: number[], season: number): Promise<
       rating: s?.rating_np ?? null, ratingSd: s?.rating_sd ?? null, record: s ? `${s.wins}-${s.losses}-${s.ties}` : null,
       reliability: r ? Number(r.idx) : null, reliabilityMatches: r ? Number(r.matches) : null,
       lastEvent: ev(last), nextEvent: ev(next),
+      ...(schedules ? { next: nextMatch ? summaryNext(nextMatch, n, evs.find((e) => e.code === nextMatch.code)?.name ?? nextMatch.code) : null } : {}),
     };
   });
 }
