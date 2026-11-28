@@ -55,6 +55,9 @@ import { answerVideo } from "./api/answers/video.js";
 import { matchViews } from "./api/matches.js";
 import { teamNextMatch, weekendEvents } from "./api/weekend.js";
 import { cleanWatch, FEED_CURSOR, recordWatch, videoFeed } from "./api/videosFeed.js";
+import { cyclesPage } from "./api/cycles.js";
+import { engagementFor, recordShare, setLike, setReaction } from "./api/videoReactions.js";
+import { CYCLES_CURSOR, isReaction } from "../src/shared/cycles.js";
 import { upNext } from "./api/upNext.js";
 import { UP_NEXT_CURSOR } from "../src/shared/watch.js";
 import { decodeHistory, FEED_FILTERS, FEED_KEY, isFeedFilter } from "../src/shared/videosFeed.js";
@@ -744,6 +747,18 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     return weekendEvents({ which: w, region: typeof req.query.region === "string" ? req.query.region.slice(0, 80) : null, today: typeof req.query.today === "string" ? req.query.today : null });
   }));
 
+  // Who's asking for a personal video list: the account, or a signed-out device's own My team (?my=), followed and
+  // shortlisted teams (?teams=) and watch history (?h=, src/shared/videosFeed.ts encodeHistory). `viewer` seeds the
+  // explore draws and binds kept lists: per account, or per device's teams (each list also has its own id in its cursor,
+  // so devices with the same teams never share one).
+  const feedViewer = async (req: Request) => {
+    const user = await currentUser(req).catch(() => null);
+    const n = (x: unknown) => { const v = Number(x); return Number.isInteger(v) && v > 0 && v <= 999_999 ? v : null; };
+    const teams = typeof req.query.teams === "string" ? [...new Set(req.query.teams.split(",").slice(0, 30).map(n).filter((v): v is number => v != null))] : [];
+    const hints = user ? { myTeam: null, teams: [], history: [] } : { myTeam: n(req.query.my), teams, history: decodeHistory(req.query.h) };
+    const viewer = user ? `u:${user.id}` : `d:${createHash("sha256").update(JSON.stringify([hints.myTeam, hints.teams])).digest("base64url").slice(0, 16)}`;
+    return { user, hints, viewer };
+  };
   // The Videos tab's feed (server/api/videosFeed.ts): ?filter= one of FEED_FILTERS, ?cursor= the last page's next.
   // Signed in, it's the account's; signed out, the device sends its own: ?my= My team, ?teams= followed and
   // shortlisted teams, ?h= its watch history (src/shared/videosFeed.ts encodeHistory). Personal, so never cached.
@@ -752,15 +767,53 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     if (!isFeedFilter(filter)) throw bad(`filter must be one of ${FEED_FILTERS.map((f) => f.id).join(", ")}`);
     const cursor = typeof req.query.cursor === "string" && req.query.cursor ? req.query.cursor : null;
     if (cursor && !FEED_CURSOR.test(cursor)) throw bad("cursor must be one the feed gave");
-    const user = await currentUser(req).catch(() => null);
-    const n = (x: unknown) => { const v = Number(x); return Number.isInteger(v) && v > 0 && v <= 999_999 ? v : null; };
-    const teams = typeof req.query.teams === "string" ? [...new Set(req.query.teams.split(",").slice(0, 30).map(n).filter((v): v is number => v != null))] : [];
-    const hints = user ? { myTeam: null, teams: [], history: [] } : { myTeam: n(req.query.my), teams, history: decodeHistory(req.query.h) };
-    // The explore draw's seed and whose kept lists these are: per account, or per device's teams (each first page's
-    // list has its own id in the cursor, so devices with the same teams never share one).
-    const viewer = user ? `u:${user.id}` : `d:${createHash("sha256").update(JSON.stringify([hints.myTeam, hints.teams])).digest("base64url").slice(0, 16)}`;
+    const { user, hints, viewer } = await feedViewer(req);
     res.setHeader("Cache-Control", "private, no-store");
     return videoFeed({ viewer, userId: user?.id ?? null, hints, filter, cursor });
+  }));
+  // Cycles (server/api/cycles.ts): short videos, ranked again on every page from what the person just did. ?cursor= the
+  // last page's next; ?start= a video id to show first (a shared link); signed out, the device's ?my=, ?teams=, ?h= as
+  // the feed's. Personal, so never cached.
+  api.get("/cycles", limiter(90), h(async (req, res) => {
+    const cursor = typeof req.query.cursor === "string" && req.query.cursor ? req.query.cursor : null;
+    if (cursor && !CYCLES_CURSOR.test(cursor)) throw bad("cursor must be one Cycles gave");
+    const start = typeof req.query.start === "string" && req.query.start ? req.query.start : null;
+    if (start && !/^[A-Za-z0-9_-]{11}$/.test(start)) throw bad("start must be a YouTube video id");
+    const { user, hints, viewer } = await feedViewer(req);
+    res.setHeader("Cache-Control", "private, no-store");
+    return cyclesPage({ viewer, userId: user?.id ?? null, hints, cursor, start });
+  }));
+  // Likes, emoji reactions and shares on any video (server/api/videoReactions.ts), by its feed key. A like and a
+  // reaction need an account; a share doesn't. JSON only, like every write from the app.
+  const videoKey = (v: unknown) => { if (typeof v !== "string" || !FEED_KEY.test(v)) throw bad("key must be a video's key"); return v; };
+  api.post("/videos/like", limiter(120), h(async (req, res) => {
+    if (!req.is("application/json")) { res.status(415).json({ error: "Send JSON" }); return; }
+    const user = await currentUser(req);
+    if (!user) { res.status(401).json({ error: "Sign in to like videos." }); return; }
+    const on = (req.body as { on?: unknown })?.on;
+    if (typeof on !== "boolean") throw bad("Send { key, on }");
+    return setLike(user.id, videoKey((req.body as { key?: unknown }).key), on);
+  }));
+  api.post("/videos/react", limiter(120), h(async (req, res) => {
+    if (!req.is("application/json")) { res.status(415).json({ error: "Send JSON" }); return; }
+    const user = await currentUser(req);
+    if (!user) { res.status(401).json({ error: "Sign in to react to videos." }); return; }
+    const emoji = (req.body as { emoji?: unknown })?.emoji ?? null;
+    if (emoji !== null && !isReaction(emoji)) throw bad("emoji must be one of the reactions, or null");
+    return setReaction(user.id, videoKey((req.body as { key?: unknown }).key), emoji);
+  }));
+  api.post("/videos/share", limiter(30), h(async (req, res) => {
+    if (!req.is("application/json")) { res.status(415).json({ error: "Send JSON" }); return; }
+    const user = await currentUser(req).catch(() => null);
+    return recordShare(user?.id ?? null, videoKey((req.body as { key?: unknown })?.key));
+  }));
+  // Likes, reactions and shares of up to 50 videos (?keys= comma-separated), with the person's own when signed in.
+  api.get("/videos/engagement", limiter(120), h(async (req, res) => {
+    const keys = typeof req.query.keys === "string" ? req.query.keys.split(",").slice(0, 50) : [];
+    if (!keys.length || keys.some((k) => !FEED_KEY.test(k))) throw bad("keys must be videos' keys, comma-separated");
+    const user = await currentUser(req).catch(() => null);
+    res.setHeader("Cache-Control", "private, no-store");
+    return Object.fromEntries(await engagementFor(keys, user?.id ?? null));
   }));
   // The watch page's video and what plays next (server/api/upNext.ts): ?team= puts that team's own episodes first,
   // ?cursor= the last page's next. Public, the same for everyone.

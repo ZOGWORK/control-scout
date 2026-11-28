@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.2.9 — 2026-11-27
+
+Cycles: short FTC videos, one at a time, swiped up for the next. Like them, react with an emoji, save and share, and the
+feed learns what you love as you scroll.
+
+### Highlights
+- [live] Cycles: short FTC videos, full screen, swipe for the next
+- [live] Like, react with an emoji, save and share any Cycle
+- [live] Your Cycles and Videos learn the teams, creators and series you love
+- [live] A Cycles row at the top of Videos
+
+### Videos
+- **Cycles** (#2425; `src/pages/CyclesPage.tsx`, `GET /api/cycles`: `server/api/cycles.ts`): FUN Robotics Network's videos of 3 minutes or less, full screen between the top and the tab bar on a phone, a tall column with its rail on a wide screen. Tap to pause, double-tap to like, arrow keys or j/k to step, m to mute. Its address follows the video on screen, so a refresh or a shared link (`/cycles/<id>`) opens that one first. In the menu under Videos, and as a tab you can add in Settings › Appearance.
+- **Likes, emoji reactions and shares** (migration 120: `video_likes`, `video_reactions`, `video_shares`, `video_watch.loops`; `server/api/videoReactions.ts`): on any video's key. Six reactions (🔥 🤯 👏 😂 🤖 💜), one per person per video. Counts are public; who did it never is. A like and a reaction need an account; a share doesn't.
+- **One recommendation engine for every video list** (`server/videos/recommend.ts`, docs/video-recommendations.md): taste per team, creator and series from weighted, fading signals; "people who loved this also loved that"; Behind the Bot star power; quality from what everyone did; Thompson-sampling explore; no team runs. Cycles ranks each page again from what you just did; the Videos feed is lifted by the same taste.
+
 ## 8.2.8 — 2026-11-27
 
 Fixes offline packs vanishing after a day's tenth build: the newest release is kept, not deleted.
