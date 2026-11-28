@@ -12,6 +12,7 @@ import { frameRow, outsideRecording, plausibleStarts, playableStarts } from "../
 import { noOverlayFor, noOverlayReason } from "../data/noOverlay.js";
 import { embedRefused } from "../data/frameRowRules.js";
 import { dayLabel, eventSpan, previousStart, seasonRecordings, withClips, withConfirmed, within, type EventSpan, type Recording, type RecordingVideo } from "./recordings.js";
+import { uploadClip, withUploads } from "./uploadClips.js";
 import type { ClipCoverage, CoverageMatch, CoverageReason, CoverageVideo, CoverageVideoCheck } from "../../src/shared/api.js";
 
 /** The fields of a match coverage reads (a MatchView has them all). */
@@ -279,12 +280,15 @@ function reasonFor(m: CoverageInput, videos: Judged[], now: number, timezone?: s
 /**
  * An event's clip coverage. `matches`: the event's matches (MatchView or the audit's own rows); `rec`: the recording the
  * page plays (seasonRecordings), `full`: the same with videos YouTube won't play kept (so their days are named, not
- * missing). Played matches only. No recording and no FIRST match video: "none".
+ * missing). Played matches only. No recording and no FIRST match video: "none". `at`: the event, for the matches its
+ * per-match uploads clip where nothing else does (./uploadClips.ts), counted as clipped.
  */
-export function clipCoverage(matches: CoverageInput[], rec: Recording | null, full: Recording | null, timezone: string | null | undefined, now = Date.now()): ClipCoverage {
+export function clipCoverage(matches: CoverageInput[], rec: Recording | null, full: Recording | null, timezone: string | null | undefined, now = Date.now(), at?: { season: number; code: string }): ClipCoverage {
   const played = matches.filter((m) => m.played);
   const placed = new Map<string, CoverageInput>();
-  for (const m of rec ? withClips(played as any[], rec, now) as CoverageInput[] : played) placed.set(m.key, m);
+  const clipped = rec ? withClips(played as any[], rec, now) as CoverageInput[] : played;
+  for (const m of at ? withUploads(clipped as any[], at.season, at.code) as CoverageInput[] : clipped) placed.set(m.key, m);
+  const isUpload = (label: string, videoId: string | null) => !!at && !!videoId && uploadClip(at.season, at.code, label)?.videoId === videoId;
   const r = full ?? rec;
   const whole = eventSpan(played.filter((x) => actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt })));
   const judged = r ? [r as RecordingVideo, ...(r.more ?? [])].map((v) => judge(v, r, whole, timezone, now)) : [];
@@ -299,7 +303,7 @@ export function clipCoverage(matches: CoverageInput[], rec: Recording | null, fu
     if (m.video || clip) {
       const vid = clip?.videoId ?? null;
       if (vid) { const c = counts.get(vid) ?? { matches: 0, clipped: 0 }; c.matches++; c.clipped++; counts.set(vid, c); }
-      out.push({ ...base, clip: true, videoId: vid, basis: m.video && !clip ? "FIRST's match video" : judged.find((j) => j.v.videoId === vid)?.basis ?? "clock" });
+      out.push({ ...base, clip: true, videoId: vid, basis: m.video && !clip ? "FIRST's match video" : isUpload(m.label, vid) ? "the match's own upload" : judged.find((j) => j.v.videoId === vid)?.basis ?? "clock" });
       continue;
     }
     let why: ReturnType<typeof reasonFor> = judged.length ? reasonFor(m, judged, now, timezone) : { reason: "no-first-video" as const, why: WHY["no-first-video"], videoId: null };
@@ -362,7 +366,7 @@ export async function eventClipCoverage(season: number, code: string, now = Date
   const ev = (await all<{ timezone: string | null }>("SELECT timezone FROM events WHERE season = ? AND code = ?", [season, code]))[0];
   if (!ev) return null;
   const [recs, full, rows] = await Promise.all([seasonRecordings(season), seasonRecordings(season, true), eventMatchRows(season, [code])]);
-  return clipCoverage(rows.get(code) ?? [], recs.get(code) ?? null, full.get(code) ?? null, ev.timezone, now);
+  return clipCoverage(rows.get(code) ?? [], recs.get(code) ?? null, full.get(code) ?? null, ev.timezone, now, { season, code });
 }
 
 /** An event's matches with no clip served right now that a video's frames saw, by label: the video and the second (its

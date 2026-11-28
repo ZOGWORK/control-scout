@@ -7,6 +7,7 @@ import { scheduleGate } from "./eventGates.js";
 import { hasEventHighlights } from "../eventHighlightsPage.js";
 import { eventRecording, recordingStream, seasonRecordings, withClips } from "../videos/recordings.js";
 import { eventHighlightVideos } from "../videos/officialVideos.js";
+import { withUploads } from "../videos/uploadClips.js";
 
 /** An event's detail with its recording (server/videos/recordings.ts: the owner's stream, else FIRST's YouTube link)
  *  and each played match's place in it, for every route that answers with one (the page and "Refresh results" alike,
@@ -14,10 +15,14 @@ import { eventHighlightVideos } from "../videos/officialVideos.js";
  *  data version); the shared objects are never changed. */
 export async function withStream<T extends { event: { season: number; code: string; timezone?: string | null }; matches: MatchView[] }>(d: T): Promise<T> {
   const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
-  if (rec) return { ...d, event: { ...d.event, stream: recordingStream(rec, d.event.timezone) }, matches: withClips(d.matches, rec) };
+  // A match nothing else clips plays its per-match upload (server/videos/matchUploads.ts), recording or none.
+  const uploads = (ms: MatchView[]) => withUploads(ms, d.event.season, d.event.code);
+  if (rec) return { ...d, event: { ...d.event, stream: recordingStream(rec, d.event.timezone) }, matches: uploads(withClips(d.matches, rec)) };
+  const matches = uploads(d.matches);
+  const e = matches === d.matches ? d : { ...d, matches };
   // Linked, but YouTube won't play it (private, removed): the page still says why its matches have no clip (RecordingGaps).
   const gone = (await seasonRecordings(d.event.season, true).catch(() => null))?.get(d.event.code);
-  return gone ? { ...d, event: { ...d.event, recordingUnavailable: [gone, ...(gone.more ?? [])].map((v) => v.videoId) } } : d;
+  return gone ? { ...e, event: { ...e.event, recordingUnavailable: [gone, ...(gone.more ?? [])].map((v) => v.videoId) } } : e;
 }
 
 /** What the event page shows beside the detail, for every route that answers with one (the page and "Refresh
