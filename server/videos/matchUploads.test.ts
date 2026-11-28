@@ -133,6 +133,15 @@ describe("runMatchUploads", () => {
     await run("UPDATE official_audit_videos SET gone_at = NULL WHERE video_id = 'uploadQ2aaa'");
     expect(await runMatchUploads(() => {}, NOW + 60 * 864e5)).toMatchObject({ changed: true });
   });
+  it("an add whose video stopped playing gives way to a new upload of its match, which comes off with why", async () => {
+    await run("UPDATE official_audit_videos SET privacy = 'private' WHERE video_id = 'uploadQ2aaa'");
+    await upload("uploadQ2new", "Qualification Match 2 - 2024 ONT North Scarborough Qualifier");
+    expect(await runMatchUploads(() => {}, NOW)).toMatchObject({ added: 1, changed: true });
+    expect(uploadClip(2024, "CAONSCQ2", "Q2")).toMatchObject({ videoId: "uploadQ2new" });
+    expect(await get("SELECT removed_at IS NOT NULL AS off, why FROM match_uploads WHERE video_id = 'uploadQ2aaa'")).toMatchObject({ off: 1, why: expect.stringContaining("uploadQ2new") });
+    const line = await get<{ details: string }>("SELECT details FROM owner_audit WHERE actor = 'match uploads' AND action = 'matchUpload.add' ORDER BY id DESC");
+    expect(JSON.parse(line!.details)).toMatchObject({ count: 1, sample: ["uploadQ2new 2024 CAONSCQ2 Q2"] });
+  });
   it("never lets a match hold two added uploads, whatever writes them", async () => {
     await expect(run(`INSERT INTO match_uploads (video_id, channel_id, title, season, code, level, series, number, label, t, status, why, seen_at)
       VALUES ('uploadQ2zzz', ?, 'x', 2024, 'CAONSCQ2', 'qual', 0, 2, 'Q2', 0, 'added', 'x', 'x')`, [CH])).rejects.toThrow(/UNIQUE/);

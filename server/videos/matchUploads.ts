@@ -16,11 +16,13 @@ import { eventsBetween } from "./officialWatch.js";
 import { MAX_MATCH_UPLOAD_S, MIN_MATCH_UPLOAD_S, claimOnce, matchUpload, nearEvents, type PlannedUpload, type UploadMatchRow, type UploadVideo } from "./uploadMatch.js";
 import type { ChannelRule } from "./officialMatch.js";
 import type { OwnerMatchUploads } from "../../src/shared/api.js";
-import { loadMatchUploads, refreshMatchUploads } from "./uploadClips.js";
+import { STILL_PLAYS, loadMatchUploads, refreshMatchUploads } from "./uploadClips.js";
 
 export const MATCH_UPLOADS_ACTOR = "match uploads";
 /** An ignored upload is read again while it went up this recently (its event's results may not be in yet). */
 export const REREAD_IGNORED_DAYS = 30;
+/** How many adds a run's audit line names (the rest are in match_uploads, by decided_at). */
+const AUDIT_SAMPLE = 30;
 export type { PlannedUpload };
 
 const yieldNow = () => new Promise<void>((r) => setImmediate(r));
@@ -77,9 +79,12 @@ export async function planMatchUploads(opts: { all?: boolean; now?: number } = {
   return claimOnce(out, opts.all ? [] : await claimed());
 }
 
-/** The matches an upload already plays, or one waits for the owner on (season|code|label). */
+/** The matches an upload already plays, or one waits for the owner on (season|code|label). An added upload whose video
+ *  stopped playing (private, gone, blocked: STILL_PLAYS) holds nothing: a new upload passing every check takes its place. */
 async function claimed(): Promise<string[]> {
-  return (await all<{ k: string }>("SELECT season || '|' || code || '|' || label AS k FROM match_uploads WHERE status IN ('added', 'review') AND removed_at IS NULL AND label IS NOT NULL")).map((r) => String(r.k));
+  return (await all<{ k: string }>(
+    `SELECT u.season || '|' || u.code || '|' || u.label AS k FROM match_uploads u LEFT JOIN official_audit_videos a ON a.video_id = u.video_id
+     WHERE u.removed_at IS NULL AND u.label IS NOT NULL AND (u.status = 'review' OR (u.status = 'added' AND ${STILL_PLAYS}))`)).map((r) => String(r.k));
 }
 
 /** Writes the plan's verdicts, each video once (an ignored one written again when read again). */
@@ -89,6 +94,12 @@ export async function applyMatchUploads(plan: PlannedUpload[], log: (s: string) 
   const n = { added: 0, review: 0, ignored: 0 };
   for (const { video: v, verdict: x } of plan) {
     const ev = x.kind === "ignore" ? undefined : x.event, m = x.kind === "ignore" ? undefined : x.match;
+    // An add takes the place of the match's earlier add whose video stopped playing (claimed() let it through): that
+    // one comes off, with why, so the match keeps one added upload.
+    if (x.kind === "add") writes.push({
+      sql: `UPDATE match_uploads SET removed_at = ?, decided_by = ?, why = ? WHERE season = ? AND code = ? AND label = ? AND status = 'added' AND removed_at IS NULL AND video_id != ?`,
+      args: [at, MATCH_UPLOADS_ACTOR, `stopped playing; ${v.videoId} plays this match now`, x.event.season, x.event.code, x.match.label, v.videoId],
+    });
     const status = x.kind === "add" ? "added" : x.kind === "review" ? "review" : "ignored";
     n[x.kind === "add" ? "added" : x.kind === "review" ? "review" : "ignored"]++;
     writes.push({
@@ -104,8 +115,9 @@ export async function applyMatchUploads(plan: PlannedUpload[], log: (s: string) 
   }
   for (let i = 0; i < writes.length; i += 100) await db().batch(writes.slice(i, i + 100), "write");
   const adds = plan.filter((p) => p.verdict.kind === "add");
-  // One audit line a run, naming every match it added (thousands on a first run would bury the log otherwise).
-  if (adds.length) await recordAudit(MATCH_UPLOADS_ACTOR, "matchUpload.add", { count: adds.length, adds: adds.map((p) => p.verdict.kind === "add" ? `${p.video.videoId} ${p.verdict.event.season} ${p.verdict.event.code} ${p.verdict.match.label}` : "") });
+  // One audit line a run: how many, and a few of them (an audit row holds 2,000 characters; a first run adds thousands).
+  // Every add is in match_uploads itself: decided_by 'match uploads', decided_at this run's `at`.
+  if (adds.length) await recordAudit(MATCH_UPLOADS_ACTOR, "matchUpload.add", { count: adds.length, at, sample: adds.slice(0, AUDIT_SAMPLE).map((p) => p.verdict.kind === "add" ? `${p.video.videoId} ${p.verdict.event.season} ${p.verdict.event.code} ${p.verdict.match.label}` : "") });
   if (n.added) { await loadMatchUploads(); clearClipCaches(); }
   if (n.added || n.review) log(`match uploads: ${n.added} added, ${n.review} set aside for the owner, ${n.ignored} not a match's upload`);
   return n;
@@ -154,13 +166,19 @@ export async function approveMatchUpload(videoId: string, body: { label?: unknow
     const m = await get<{ level: string; series: number; number: number; label: string; played: number }>("SELECT level, series, number, label, played FROM matches WHERE season = ? AND code = ? AND UPPER(label) = ?", [row.season, row.code, label]);
     if (!m) return { ok: false, status: 400, error: `${label || "That match"} isn't one of ${row.code}'s matches (Q12, M3, F1 …).` };
     if (!Number(m.played)) return { ok: false, status: 400, error: `${row.code} ${m.label} wasn't played.` };
-    const other = await get<{ video_id: string }>("SELECT video_id FROM match_uploads WHERE season = ? AND code = ? AND label = ? AND status = 'added' AND removed_at IS NULL AND video_id != ?", [row.season, row.code, m.label, videoId]);
-    if (other) return { ok: false, status: 409, error: `${row.code} ${m.label} already plays another upload (${other.video_id}).` };
-    const w = await db().batch([{
+    const other = await get<{ video_id: string; plays: number }>(
+      `SELECT u.video_id, (${STILL_PLAYS}) AS plays FROM match_uploads u LEFT JOIN official_audit_videos a ON a.video_id = u.video_id
+       WHERE u.season = ? AND u.code = ? AND u.label = ? AND u.status = 'added' AND u.removed_at IS NULL AND u.video_id != ?`, [row.season, row.code, m.label, videoId]);
+    if (other && Number(other.plays)) return { ok: false, status: 409, error: `${row.code} ${m.label} already plays another upload (${other.video_id}).` };
+    // An earlier add whose video stopped playing gives way, as it does to a run's add.
+    const w = await db().batch([...(other ? [{
+      sql: "UPDATE match_uploads SET removed_at = ?, decided_by = ?, why = ? WHERE video_id = ? AND status = 'added' AND removed_at IS NULL",
+      args: [at, actor, `stopped playing; ${videoId} plays this match now`, other.video_id],
+    }] : []), {
       sql: "UPDATE match_uploads SET status = 'added', level = ?, series = ?, number = ?, label = ?, decided_at = ?, decided_by = ? WHERE video_id = ? AND status = 'review'",
       args: [m.level, Number(m.series), Number(m.number), m.label, at, actor, videoId],
     }], "write");
-    if (!Number(w[0]?.rowsAffected ?? 0)) return { ok: false, status: 404, error: "That upload isn't waiting for you." };
+    if (!Number(w[w.length - 1]?.rowsAffected ?? 0)) return { ok: false, status: 404, error: "That upload isn't waiting for you." };
     return { ok: true, season: Number(row.season), code: String(row.code), label: String(m.label) };
   }, { ttlMs: 30_000, waitMs: 60_000, pollMs: 500 });
   if (!("season" in r)) return r;
