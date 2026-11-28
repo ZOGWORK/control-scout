@@ -318,7 +318,7 @@ and no video while their streams sat on channels nobody watched. `server/videos/
 the list, on every half-hourly check after the watcher (`searchStreams`):
 
 - **What's searched**: each event with played matches, not remote, ended, with a day of play that no video covers
-  (`stream_searches`, migration 123). 2026 first, then each older season back to 2019; within a season, events never
+  (`stream_searches`, migration 124). 2026 first, then each older season back to 2019; within a season, events never
   searched first, then the most recently ended. 8 events a check, 4 seconds apart. An event ended in the last 14 days
   is searched again every 2 days (streams are posted or made public late); any other after 180 days. An event whose
   days are all covered when its turn comes is written as searched (`covered`) and waits its turn again.

@@ -3233,6 +3233,39 @@ ALTER TABLE bug_reports ADD COLUMN title TEXT;
   },
   {
     version: 123,
+    name: "videos: per-match uploads",
+    sql: `
+-- A watched channel's short upload of one match (server/videos/matchUploads.ts, docs/official-videos.md "Per-match
+-- uploads"): its event and match when the title names exactly one, with why. status added (it's that match's clip,
+-- from second t, where nothing else clips the match), review (for the owner: an event fits, the match can't be told
+-- for sure), rejected (the owner said no: never proposed again), ignored (the rules say it isn't one match's upload:
+-- kept with why, and read again while it went up under 30 days ago). removed_at: an added one the owner took off.
+-- Each video once: decided (added, review, rejected), it's never read again. One added upload per match, at most.
+CREATE TABLE IF NOT EXISTS match_uploads (
+  video_id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  season INTEGER,
+  code TEXT,
+  level TEXT,
+  series INTEGER,
+  number INTEGER,
+  label TEXT,
+  t INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL,
+  why TEXT NOT NULL,
+  seen_at TEXT NOT NULL,
+  decided_at TEXT,
+  decided_by TEXT,
+  removed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS match_uploads_match ON match_uploads (season, code, label);
+CREATE INDEX IF NOT EXISTS match_uploads_status ON match_uploads (status);
+CREATE UNIQUE INDEX IF NOT EXISTS match_uploads_one_add ON match_uploads (season, code, label) WHERE status = 'added' AND removed_at IS NULL;
+`,
+  },
+  {
+    version: 124,
     name: "official videos: the stream search",
     sql: `
 -- The stream search (server/videos/streamSearch.ts): each event with played matches on a day no video covers, searched
