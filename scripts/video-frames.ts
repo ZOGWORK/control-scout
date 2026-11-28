@@ -452,11 +452,12 @@ async function seek(page: Page, t: number, still = false): Promise<boolean> {
     if (TRACE && (!drawn || waited > 250)) console.error(`    seek ${Math.round(t)} s: ${drawn ? `its frame drawn ${waited} ms after the fixed wait` : `no frame drawn there in ${DRAWN_WAIT_S} s more`}`);
   }
   // Several players on one connection: after a seek YouTube may play a few seconds at 144p before it steps back up,
-  // and nothing on a 144p frame reads. Waited out (QUALITY_WAIT_S at most) where this player has shown more before.
+  // and nothing on a 144p frame reads. Waited out (QUALITY_WAIT_S at most) where this player has shown more before;
+  // not paused (a paused player fetches nothing better, so the frame stays as it is, as before).
   const height = await page.evaluate(() => document.querySelector("video")!.videoHeight).catch(() => 0);
   const best = Math.max(bestHeight.get(page) ?? 0, height);
   bestHeight.set(page, best);
-  if (seeked && lowQuality(height, best)) {
+  if (seeked && !still && lowQuality(height, best)) {
     const waitFrom = Date.now();
     const up = await page.waitForFunction(`!(${lowQuality.toString()})(document.querySelector("video").videoHeight, ${best})`, null, { timeout: QUALITY_WAIT_S * 1000, polling: 100 }).then(() => true, () => false);
     if (up) await page.waitForTimeout(300);
