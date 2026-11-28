@@ -165,6 +165,9 @@ describe("nearEvents", () => {
     const near = nearEvents([ev(2024, "A", "A", "2024-11-01"), ev(2024, "B", "B", "2025-01-25"), ev(2024, "C", "C", "2025-03-01"), ev(2024, "W", "W", "2025-01-25", null, { state: "WA", country: "USA" })]);
     expect(near(ONT, "2025-02-04T00:00:00Z").map((e) => e.code)).toEqual(["B"]);
     expect(near(ONT, null)).toEqual([]);
+    // The lag's edge: ended 60 days before it went up is near, 62 days (or a year) isn't.
+    const edge = nearEvents([ev(2024, "D60", "D", "2024-12-06"), ev(2024, "D62", "D", "2024-12-04"), ev(2023, "Y", "Y", "2024-02-04")]);
+    expect(edge(ONT, "2025-02-04T00:00:00Z").map((e) => e.code)).toEqual(["D60"]);
   });
 });
 

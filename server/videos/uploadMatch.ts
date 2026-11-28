@@ -223,7 +223,7 @@ export function matchUpload(v: UploadVideo, rule: ChannelRule, events: WatchEven
 
 /**
  * The events an upload can be, found fast: a channel's region's competitions (by its rule), those under way or ended at
- * most a year before the day it went up. matchUpload checks each again; this only spares it every other event.
+ * most UPLOAD_LAG_DAYS (60) before the day it went up, a day's slack for time zones. matchUpload checks each again; this only spares it every other event.
  */
 export function nearEvents(events: WatchEvent[]): (rule: ChannelRule, published: string | null) => WatchEvent[] {
   const byRule = new Map<string, WatchEvent[]>();
