@@ -9,10 +9,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setMailer } from "../auth/email";
-import { clearInfoCache, MEMBERSHIP_TTL, rememberInfo } from "../auth/controlPoint";
+import { clearInfoCache, MEMBERSHIP_GRACE, MEMBERSHIP_TTL, rememberInfo } from "../auth/controlPoint";
 import { PRIVATE_TABLES } from "../data/snapshot";
 import { setFlag } from "../flags";
-import { WORKSPACE_PAUSED } from "./entries";
+import { CP_UNREACHABLE, WORKSPACE_PAUSED } from "./entries";
 
 const KEY = "k".repeat(40);
 let scout: Server, cp: Server;
@@ -229,6 +229,28 @@ describe("workspace scout entries", () => {
     cpDown = true;
     expect((await push(call, "91", [entry()])).status).toBe(200);
     expect((await call("GET", "/api/auth/me")).status).toBe(200); // and /me never fails over it
+  });
+
+  it("Control Point unreachable past the grace: a stale row still reads, but writes and admin routes are refused", async () => {
+    const a = accountFor("outage@example.com");
+    a.workspaces = [{ id: "93", name: "Team", role: "admin" }];
+    const call = await signIn("outage@example.com");
+    cpDown = true;
+    // Within MEMBERSHIP_GRACE: the row counts in full.
+    await run("UPDATE workspace_members SET updated_at = ? WHERE account_id = ?", [Date.now() - MEMBERSHIP_GRACE + 60_000, a.id]);
+    expect((await push(call, "93", [entry()])).status).toBe(200);
+    // Past it: reading goes on; writing, and anything admin (even its reads), waits for Control Point.
+    clearInfoCache();
+    await run("UPDATE workspace_members SET updated_at = ? WHERE account_id = ?", [Date.now() - MEMBERSHIP_GRACE - 1, a.id]);
+    expect((await pull(call, "93")).status).toBe(200);
+    const w = await push(call, "93", [entry()]);
+    expect(w.status).toBe(503);
+    expect(w.json.error).toBe(CP_UNREACHABLE);
+    expect((await call("PUT", "/api/scout/workspaces/93/settings", {})).status).toBe(503);
+    // Control Point back: the re-check answers and writes work again.
+    cpDown = false;
+    clearInfoCache();
+    expect((await push(call, "93", [entry()])).status).toBe(200);
   });
 
   it("server-side last-write-wins: an older updatedAt never overwrites a newer row", async () => {

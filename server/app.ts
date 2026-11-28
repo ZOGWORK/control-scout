@@ -1320,6 +1320,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   }));
 
   api.use("/auth", authRouter());
+  // A first-sign-in merge is one write batch of up to MIGRATE_MAX_ENTRIES entries: a few per device, not a stream.
+  api.post("/me/migrate", limiter(10));
   api.use("/me", meRouter());
   // Profile pictures (server/auth/avatars.ts): public, each URL cached for good.
   api.use("/avatars", avatarsRouter());

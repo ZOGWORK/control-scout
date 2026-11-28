@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.3.6 — 2026-11-28
+
+Security fixes from the launch review: tighter shared-workspace access while Control Point is down, a fuller account
+deletion, verified Google addresses only, and a capped first-sign-in merge.
+
+### Highlights
+- [workspace] A long Control Point outage pauses changes; reading goes on
+- [fixes] Deleting your account now clears your name history and codes too
+- [fixes] Google sign-in only takes an address Google has verified
+- [fixes] The first-sign-in merge takes at most 200 entries at a time
+
+### Fixes
+- **A cached workspace membership counted at any age while Control Point was unreachable** (`server/auth/controlPoint.ts` `workspaceMembership`, `server/scout/entries.ts`): a row older than a minute is re-checked with Control Point, but when that failed the old row was accepted however old, its role included, so someone removed or demoted during a long outage kept writing, and kept admin routes. Now a row counts in full for 10 minutes past its last refresh (`MEMBERSHIP_GRACE`); after that it is `stale`: reads go on, writes and every admin route answer 503 until Control Point answers again. `server/scout/workspaces.test.ts` covers both sides of the grace and the recovery. (#2430)
+- **Account deletion left personal data behind** (`server/auth/session.ts` `deleteUser`): a pending sign-in code, the account's name and username changes in the owner audit (its email as the actor, the old and new names), the contributor invite it claimed, and its address on bug reports and /contact messages. All are now deleted or anonymised; the audit rows stay as "deleted account" with no values, which migration 121 lets the append-only trigger allow for those two actions only. `server/auth/deleteUser.test.ts`.
+- **Google sign-in accepted an address with no `email_verified`** (`server/auth/routes.ts`): only an explicit `false` was refused, and sign-in links accounts by email. It now needs `email_verified === true`. `server/auth/google-verified.test.ts`.
+- **`/api/me/migrate` took up to 5,000 entries in one write, unlimited** (`server/auth/routes.ts`, `server/app.ts`): now at most 200 per request (413 past that, like `/scout/sync`) and 10 requests a minute per visitor. `server/auth/auth.test.ts`.
+
 ## 8.3.5 — 2026-11-28
 
 Broken links to a contributor or a team now say plainly that there's no such page.

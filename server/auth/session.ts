@@ -3,7 +3,7 @@
 // A shared Control Point account later is just one more provider.
 import { createHash, randomBytes } from "node:crypto";
 import type { Request, Response } from "express";
-import { all, get, run } from "../db.js";
+import { all, DELETED_ACCOUNT_ACTOR, get, run } from "../db.js";
 import { env } from "../env.js";
 import { publicAccessOpen } from "../flags.js";
 
@@ -132,6 +132,7 @@ export async function endSession(req: Request, res: Response): Promise<void> {
 
 /** Delete an account and everything personal attached to it. */
 export async function deleteUser(id: number): Promise<void> {
+  const email = (await get<{ email: string | null }>("SELECT email FROM users WHERE id = ?", [id]))?.email ?? null;
   // The account row goes first: anything written for it from then on checks it exists (the notification inbox
   // does), and whatever was written before is deleted below.
   await run("DELETE FROM users WHERE id = ?", [id]);
@@ -146,6 +147,16 @@ export async function deleteUser(id: number): Promise<void> {
   await run("DELETE FROM contributor_video_reports WHERE reporter_user_id = ? OR video_id IN (SELECT id FROM contributor_videos WHERE contributor_user_id = ?)", [id, id]);
   await run("DELETE FROM contributor_videos WHERE contributor_user_id = ?", [id]);
   for (const t of ["video_contributors", "verification_applications", "team_members"]) await run(`DELETE FROM ${t} WHERE user_id = ?`, [id]);
+  // Their name and username history in the owner audit: the row stays (something changed, and when), who and what don't.
+  await run(`UPDATE owner_audit SET actor = ?, old_value = NULL, new_value = NULL WHERE action IN ('account.name', 'account.username') AND json_extract(details, '$.userId') = ?`, [DELETED_ACCOUNT_ACTOR, id]);
+  // An invite they claimed stays claimed (it's single use), but no longer points at them.
+  await run("UPDATE contributor_invites SET claimed_by_user_id = NULL WHERE claimed_by_user_id = ?", [id]);
+  if (email) {
+    // A pending sign-in code, and the address on what they sent through /contact and bug reports (the message stays for the owner).
+    await run("DELETE FROM email_codes WHERE email = ?", [email]);
+    await run("UPDATE bug_reports SET email = NULL WHERE email = ? COLLATE NOCASE", [email]);
+    await run("UPDATE contact_messages SET email = '' WHERE email = ? COLLATE NOCASE", [email]);
+  }
 }
 
 export async function sessionsFor(id: number) {
