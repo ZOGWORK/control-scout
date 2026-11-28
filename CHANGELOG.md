@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.3.2 — 2026-11-28
+
+The leagues list fits a phone, and real places come first.
+
+### Highlights
+- [rankings] Leagues fit a phone screen: no more sideways scrolling
+- [rankings] Real places first; leagues FIRST lists with no place go last
+- [fixes] Long top-team lines shorten in place instead of widening the page
+
+### Rankings
+- **Leagues fit a phone** (`src/pages/LeaguesPage.tsx`): on a 390 px phone the list scrolled sideways by 43 px. Each card's one-line top-team text ("No. 1 by RS") is truncated, but the single column was an auto track, and that track grew to fit the full line. The column is now `minmax(0, 1fr)` (`grid-cols-1`) and each card may shrink, so the text truncates inside the screen.
+- **Real places first:** leagues FIRST lists with no place, often old ones with no meets (for example "San Diego League 1 - OLD"), opened the page as "Place not listed". That group now comes last. `src/pages/LeaguesPage.test.tsx` covers the order and the column, and fails on the old page (#2424).
+
 ## 8.3.1 — 2026-11-28
 
 Sign-in, contact and bug reports no longer lock out a whole venue when a few people retry.
