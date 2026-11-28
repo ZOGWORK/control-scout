@@ -403,8 +403,11 @@ function Cells({ x, open, max }: { x: BreakdownRow; open?: boolean; max?: number
       {value("red")}
       <span className={cn("text-center tabular-nums", sub ? "text-[11px]" : "text-xs", lead.side ? cn(TONE[lead.side].text, !sub && "font-semibold") : "text-text-muted")} data-testid="lead">{lead.text}</span>
       {value("blue")}
-      {/* v8: the row's paired bar under its cells, the phases on one zero-based scale. */}
-      {max != null && !sub && !x.total && !x.count && x.label !== "No penalties" && <PairedBar red={x.red} blue={x.blue} max={max} className="col-span-4 pt-1" />}
+      {/* v8: the row's paired bar under its own numbers only (Red → Difference → Blue), so its zero sits under the
+          Difference and each side grows toward the value it draws; the phases share one zero-based scale. A row
+          with nothing on either side (no fouls) gets no bar: an empty track reads as missing data. */}
+      {max != null && !sub && !x.total && !x.count && x.label !== "No penalties" && ((x.red ?? 0) > 0 || (x.blue ?? 0) > 0) &&
+        <PairedBar red={x.red} blue={x.blue} max={max} className="col-span-3 col-start-2 pt-1" />}
     </>
   );
 }
