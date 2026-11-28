@@ -59,7 +59,25 @@ export function packsRouter(): Router {
     const f = join(packsDir(), name);
     if (!existsSync(f)) { res.status(404).json({ error: "Not found" }); return; }
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    if (name.endsWith(".db")) {
+      // The raw season file (the Download page's link for analysts) depends on Accept-Encoding: a download that takes
+      // gzip and asks for no range gets the gzipped twin (packs/build.ts) as it is on disk, with its length. Nothing is
+      // compressed per request, and the browser saves the .db it unzips. A range (a resumed download: browsers ask for
+      // one uncompressed) or a client that takes no gzip (curl, wget) gets the raw file, resumable as before.
+      res.setHeader("Vary", "Accept-Encoding");
+      if (gzipWhole(req) && existsSync(`${f}.gz`)) {
+        res.setHeader("Content-Encoding", "gzip");
+        res.attachment(name); // sets a type from the name (octet-stream for .db): the right one goes after it
+        res.type("application/vnd.sqlite3");
+        // No ranges of the gzipped bytes: a resume asks for the raw file's offsets, never these.
+        res.sendFile(`${f}.gz`, { acceptRanges: false });
+        return;
+      }
+    }
     res.download(f, name);
   });
   return r;
 }
+
+/** A whole-file request from a client that takes gzip (said outright: no Accept-Encoding means none). */
+const gzipWhole = (req: Request) => !req.headers.range && req.headers["accept-encoding"] != null && req.acceptsEncodings("gzip") === "gzip";

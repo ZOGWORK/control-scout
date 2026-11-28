@@ -1,10 +1,13 @@
 // GET /api/events/:season/:code/simulated-rankings: the Rankings tab's "Simulate the rankings" for an event whose
 // qualification matches haven't started (src/shared/rankingSim.ts runs the engine's event simulation). Only on a
 // click, so it runs on request: one at a time across the server, within a compute budget, pausing every ~20 ms so
-// other requests are answered meanwhile, and kept per event, matches per team and data version, so a second click
-// or another visitor gets the same numbers at once.
+// other requests are answered meanwhile, and kept per ratings build, event input (its field and any published
+// schedule) and matches per team, so a second click or another visitor gets the same numbers at once. The ratings are
+// the ones pages use (liveForecaster: the last finished build), so the first click after a sync never waits for the new
+// build's replay, and a sync that changed nothing about this event doesn't throw the kept answer away.
+import { createHash } from "node:crypto";
 import { cachedEventDetail, toEventInput } from "../api/events.js";
-import { dataVersion, forecasterFor, liveVersion } from "../predict/engine.js";
+import { liveForecaster, liveVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
 import { rankingInput } from "./input.js";
 import { DEFAULT_PER_TEAM, PER_TEAM_CHOICES, simulateRankings, type SimRankResult } from "../../src/shared/rankingSim.js";
@@ -38,12 +41,21 @@ export async function simulatedRankings(season: number, code: string, perTeam: n
   }
   if (d.field.length < 4) return { status: "unavailable", reason: "Fewer than 4 teams are registered, too few to simulate a ranking." };
   const hasSchedule = d.matches.some((m) => m.level === "qual");
-  const key = `${await dataVersion()}|${await liveVersion(season)}|${season}|${code}|${hasSchedule ? "published" : perTeam}`;
+  // The build's version and the build itself are read together (both synchronously off the built map), so the key
+  // names the ratings the run uses even if a newer build lands while this one waits in the queue.
+  const ratingsVersion = liveVersion(season);
+  const ratings = liveForecaster(season);
+  ratings.catch(() => {}); // a kept answer never awaits it; a run that does still sees the failure
+  // Everything the simulation reads besides the ratings: a sync that adds a team or posts the schedule is a new answer,
+  // one that only moved other events' results keeps this one.
+  const event = toEventInput(d.event, d.field, d.matches, d.alliances);
+  const eventKey = createHash("sha1").update(JSON.stringify(event)).digest("base64url");
+  const key = `${await ratingsVersion}|${season}|${code}|${eventKey}|${hasSchedule ? "published" : perTeam}`;
   const hit = kept.get(key);
   if (hit) return hit;
   const run = queue.then(async (): Promise<SimRankAnswer> => {
-    const f = await forecasterFor(season);
-    const input = rankingInput(f, toEventInput(d.event, d.field, d.matches, d.alliances));
+    const f = await ratings;
+    const input = rankingInput(f, event);
     if (!input) return { status: "unavailable", reason: "There are no ratings for this season yet, so there's nothing to simulate from." };
     const r = await simulateRankings(input, d.field.map((t) => t.team), {
       runs: SIM_RANK_RUNS, minRuns: MIN_RUNS, budgetMs: BUDGET_MS, published: hasSchedule, perTeam,

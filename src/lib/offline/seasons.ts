@@ -164,7 +164,7 @@ async function store(season: number, file: PackFile, manifest: PackManifest, byt
   }
   // Before the season shows as saved (it opens offline only with the engine there), but never for long.
   await Promise.race([keepEngine(), new Promise((r) => setTimeout(r, ENGINE_WAIT_MS))]);
-  const meta: SavedSeason = { season, version: manifest.version, sha256: file.sha256, bytes: bytes.length, savedAt: Date.now(), dataAsOf: manifest.dataAsOf, builtAt: manifest.builtAt, ...(file.stats ? { stats: file.stats } : {}) };
+  const meta: SavedSeason = { season, version: manifest.version, sha256: file.sha256, bytes: bytes.length, savedAt: Date.now(), dataAsOf: file.dataAsOf ?? manifest.dataAsOf, builtAt: manifest.builtAt, ...(file.stats ? { stats: file.stats } : {}) };
   try { writeSaved([...savedSeasons().filter((s) => s.season !== season), meta]); }
   catch (e) {
     // Roll back: the previous copy (if any) stays listed and readable; the new bytes go.
