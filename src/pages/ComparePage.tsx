@@ -32,7 +32,7 @@ import { compareEventNames } from "../lib/compareBrief";
 import { cn } from "../components/cn";
 import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { useTeamColors } from "../components/TeamColorPicker";
-import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
+import { Reveal, Stagger, StaggerItem } from "../components/motion";
 import { predictHref } from "../shared/predictUrl";
 import { V8_NUM } from "../lib/v8";
 import { V8Title, V8_LABEL } from "../components/myteams/v8";
@@ -293,9 +293,6 @@ export function leaders(m: Pick<Metric, "better" | "value">, t: CompareTeam[]): 
   return new Set(t.filter((x) => m.value(x) === top).map((x) => x.team.number));
 }
 
-/** How a table cell fades in (a new team's column, or the rows on first load). */
-const CELL = { duration: 0.28, ease: [0.2, 0.8, 0.2, 1] as const };
-
 const ORDINAL = ["first", "second", "third", "fourth"];
 /** The first team's column, the one the others are measured against: a neutral tint. */
 // A neutral tint, not the accent: gold marks the interface, never a team or a value.
@@ -304,7 +301,6 @@ const BASELINE = "bg-foreground/[0.04]";
 function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number) => void; onMove: (team: number, to: number) => void }) {
   const t = d.teams;
   // No Motion fades (v8-page-guide: no layout/entrance animation on tables); plain cells.
-  const Th = m.th, Tr = m.tr, Td = m.td;
   const { colorOf } = useTeamColors();
   const COLORS = teamPalette(t.map((x) => x.team.number), colorOf);
   // Reordering: drag a column's grip onto another column (mouse, pen or touch), or arrow keys on the grip.
@@ -382,7 +378,7 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
           <tr className="v8:border-b v8:border-ink/[0.12]">
             <th scope="col" className="w-20 p-3 sm:w-24 v8:w-[4.75rem] sm:v8:w-32"><span className="sr-only">Stat</span></th>
             {t.map((x, i) => (
-              <Th key={x.team.number} scope="col" data-col={i} className={cn("border-l border-border p-3 text-left align-top font-normal v8:border-line", colClass(i))} style={{ boxShadow: `inset 0 ${2}px 0 ${COLORS[i]}` }}>
+              <th key={x.team.number} scope="col" data-col={i} className={cn("border-l border-border p-3 text-left align-top font-normal v8:border-line", colClass(i))} style={{ boxShadow: `inset 0 ${2}px 0 ${COLORS[i]}` }}>
                 {<>
                     <Link to={`/teams/${x.team.number}?season=${d.season}`} className="flex min-w-0 items-baseline gap-2 hover:underline" title={x.team.name ?? undefined}>
                       <TeamLogo team={x.team.number} size={20} className="self-center" />
@@ -402,7 +398,7 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
                     </div>
                   </>}
                 {!x.stats && <span className="mt-1 block text-xs text-muted-foreground v8:truncate v8:text-text-faint">No results this season</span>}
-              </Th>
+              </th>
             ))}
           </tr>
         </thead>
@@ -410,20 +406,20 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
           {METRICS.map((metric, row) => {
             const best = leaders(metric, t);
             return (
-              <Tr key={metric.label} className="border-t border-border v8:border-ink/[0.08] v8:first:border-t-0">
+              <tr key={metric.label} className="border-t border-border v8:border-ink/[0.08] v8:first:border-t-0">
                 <th scope="row" className={cn("px-3 py-2 text-left font-normal text-muted-foreground v8:h-11 v8:truncate v8:py-0", metric.phase ? V8_PHASE[metric.phase] : "v8:text-text-muted")} title={metric.title?.(null) ?? metric.label}>{metric.short ? <><span className="sm:hidden" aria-hidden>{metric.short}</span><span className="max-sm:sr-only">{metric.label}</span></> : metric.label}</th>
                 {t.map((x, i) => {
                   const lead = best.has(x.team.number);
                   const sub = metric.sub?.(x);
                   return (
-                    <Td key={x.team.number} data-col={i} data-lead={lead || undefined} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300 v8:h-11 v8:whitespace-nowrap v8:border-line v8:py-0 v8:text-right v8:duration-150", colClass(i), lead && "bg-foreground/[0.07] v8:bg-ink/[0.06]")}>
+                    <td key={x.team.number} data-col={i} data-lead={lead || undefined} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300 v8:h-11 v8:whitespace-nowrap v8:border-line v8:py-0 v8:text-right v8:duration-150", colClass(i), lead && "bg-foreground/[0.07] v8:bg-ink/[0.06]")}>
                       <span className={cn("whitespace-nowrap font-medium", lead ? cn("font-bold text-foreground v8:font-semibold", metric.phase ? V8_PHASE[metric.phase] : "v8:text-text-base") : best.size > 0 ? "v8:text-text-muted" : metric.phase && V8_PHASE[metric.phase])}>{metric.show(x)}</span>
                       {lead && <span className="sr-only"> (best)</span>}
                       {sub && <span className="whitespace-nowrap text-xs text-muted-foreground max-sm:block sm:ml-1.5 max-sm:v8:hidden v8:text-text-faint">{sub}</span>}
-                    </Td>
+                    </td>
                   );
                 })}
-              </Tr>
+              </tr>
             );
           })}
         </tbody>
