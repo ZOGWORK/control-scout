@@ -22,6 +22,7 @@ import { refreshSearchSeason, resetSearchSeason } from "./season";
 import { readEventOrder } from "./families/eventOrder";
 import { chipSeason, gapLine } from "../query/scopePair";
 import { readLeaderboard } from "./read";
+import { numberInPlace } from "../spelling";
 
 const full = (q: string) => searchAnswer(q, { limit: 25, full: true, learn: false });
 const parse = async (q: string) => parseQuery(q, await parseContext());
@@ -171,6 +172,13 @@ describe("a team number no team page has (#2373)", () => {
     expect(a.understood?.label).toMatch(/^No team page for 99999 \(a placeholder entry\): the closest team number/);
     expect(a.hits[0]).toMatchObject({ kind: "team", ref: "99998" });
     expect(a.didYouMean).toBe("what is team 99998's opr");
+  });
+  it("puts the closest number in the team number's own place, never an earlier run of the same digits", () => {
+    const re = /(?:\bteam\s*#?|#)(\d{2,6})\b|\b(\d{2,6})['’]s\b/iu;
+    const typed = "what is team 99999's opr";
+    expect(numberInPlace(typed, re.exec(typed)!, "99999", "99998")).toBe("what is team 99998's opr");
+    const twice = "99999 what is team 99999's opr";
+    expect(numberInPlace(twice, re.exec(twice)!, "99999", "99998")).toBe("99999 what is team 99998's opr");
   });
 });
 
