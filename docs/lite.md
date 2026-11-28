@@ -2,7 +2,7 @@
 
 A text-first rendering of the pages people open at a venue on one bar of signal. It is a rendering mode, not a
 second app: the server builds plain HTML from the same functions the API answers with, trimmed to the fields
-the page shows. Same data, same predictions, same brand (black and gold, the C-mark), the app's five themes and
+the page shows. Same data, same predictions, same brand (black and gold, the C-mark), the app's four themes (Light, Dim, Dark, System) and
 its text size.
 
 | Lite page | Full page | Data (the API route's own function) |
