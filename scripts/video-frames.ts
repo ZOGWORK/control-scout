@@ -41,7 +41,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, type SplitPick, halfGap, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, type SplitPick, halfGap, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, EmbedRefused, embedRefusal, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, foundBox, sampleFinds, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS, gapOf, type Gap } from "./lib/videoFrames";
@@ -202,6 +202,11 @@ const TIMERS = [
   { where: "bottom" as const, clip: { x: 580, y: 647, width: 120, height: 48 }, loose: true },
   // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
   { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
+  // A taller off-season bar ("FIRST IN SHOW", AUMPOS 2023, APOC): its timer large in a white box right of the middle
+  // (x 651–804, y 602–710), a gamepad icon under the digits. Every crop above cut its digits ("1:19" at 10936 s read
+  // nothing on all 58 quals, the match named on each frame). Only the digits' row, as FIRST AGE's (the icon breaks the
+  // read). After the others, so a standard bar is read by its own crop first.
+  { where: "bottom" as const, clip: { x: 655, y: 606, width: 146, height: 64 }, loose: true },
   TOP_BAR_TIMER,
   // FTC Live's audience display streamed whole (USMAWEQ 2025, MA FTC): the timer large in a white card over the middle
   // of the frame under "Field 2", the bar along the bottom naming the match. Last, so no other layout's field or
@@ -1237,7 +1242,7 @@ let done = 0;
 const report: string[] = [];
 // Linked recordings skipped (undetailed): for want of details a fetch would give, or gone/still live; and the events
 // left with nothing to read until their details are fetched.
-let undetailedVideos = 0, unreadableVideos = 0;
+let undetailedVideos = 0, unreadableVideos = 0, refusedVideos = 0;
 const undetailedEvents: string[] = [];
 
 /** Write the timings kept so far (after each event, so a run cut short keeps what it read). A file another program
@@ -1379,7 +1384,18 @@ const closePage = (page: Page | null) => (page ? within(page.context().close(), 
 const open = (page: Page, videoId: string) => within(openOnce(page, videoId), 90, "opening the video");
 async function openOnce(page: Page, videoId: string): Promise<void> {
   await page.goto(`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&rel=0&iv_load_policy=3&cc_load_policy=0`, { referer: "https://controlscout.org/" });
-  await page.waitForFunction(() => (document.querySelector("video")?.readyState ?? 0) >= 2, null, { timeout: 30000 });
+  // Playing, or the player's error in its place: a refusal no later read gets past (embedRefusal) settles the video;
+  // any other error fails this read as before (PLAY_FAILED), without waiting out the 30 s for a frame that never comes.
+  const shown = await (await page.waitForFunction(() => {
+    if ((document.querySelector("video")?.readyState ?? 0) >= 2) return { ok: true, text: "" };
+    const code = (document.querySelector("#movie_player") as any)?.getVideoData?.()?.errorCode;
+    return code ? { ok: false, text: String(document.body.innerText) } : null;
+  }, null, { timeout: 30000 })).jsonValue() as { ok: boolean; text: string };
+  if (!shown.ok) {
+    const why = embedRefusal(shown.text);
+    if (why) throw new EmbedRefused(why);
+    throw new Error(`its player showed an error: ${shown.text.split("\n").find((l) => l.trim()) ?? "no message"}`);
+  }
   // No captions over the overlay.
   await page.evaluate(() => { try { (document.querySelector("#movie_player") as any)?.unloadModule?.("captions"); } catch { /* none */ } });
   // Auto-captions sit right over the bottom bar's timer, and the embed's own bars over the top: hidden.
@@ -1781,11 +1797,19 @@ async function doCode(code: string): Promise<void> {
     } catch (e) {
       // Over the event's limit: no row for this video (its reads stopped part way); the event stops here, naming it.
       if (e instanceof EventOverTime) throw e.video ? e : new EventOverTime(code, e.ms, v.videoId);
+      const key = `${v.videoId}|${code}`;
+      // Refused for good by YouTube's embedded player: settled with the reason (EMBED_REFUSED), never a failed read.
+      if (e instanceof EmbedRefused) {
+        log(`    ${e.message}`);
+        console.error(`!! ${code}: ${v.videoId}: ${e.message}`);
+        refusedVideos++;
+        if (!CHECK && !Object.keys(kept.get(key)?.starts ?? {}).length) keep(key, { videoId: v.videoId, code, checked: today, starts: {}, missing: Object.fromEntries(mine.map((x) => [x.label, e.message])) });
+        continue;
+      }
       const why = (e as Error).message.split("\n")[0];
       log(`    couldn't play: ${why}`);
       failedVideos++;
       // Its matches get the reason; a row from an earlier read that worked is kept as it was.
-      const key = `${v.videoId}|${code}`;
       if (!CHECK && !Object.keys(kept.get(key)?.starts ?? {}).length) {
         keep(key, { videoId: v.videoId, code, checked: today, starts: {}, missing: Object.fromEntries(mine.map((x) => [x.label, `${PLAY_FAILED}: ${why}`])) });
       }
@@ -1827,6 +1851,8 @@ if (failedEvents) { console.error(`${failedEvents} events failed before their vi
 if (overTime) { console.error(`${overTime} events stopped at their limit (their finished videos written)`); process.exitCode = 1; }
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
+// Videos YouTube's embedded player refuses for good (EmbedRefused): written settled with the reason, not a failure.
+if (refusedVideos) console.error(`${refusedVideos} videos refused by YouTube's embedded player (written with the reason; not read again)`);
 // Linked recordings skipped (undetailed): counted by kind. Only an event left with nothing to read for want of details
 // a fetch would give is flagged in the exit, and with its own code (UNDETAILED_EXIT), not 1: the read ran, so a caller
 // (clip-autopilot's readFailed) doesn't take it for a crash. Any real failure above or below still exits 1.
