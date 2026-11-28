@@ -10,7 +10,7 @@ import { localToUtcMs } from "../../src/shared/time.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameRow, outsideRecording, plausibleStarts, playableStarts } from "../data/frameTimings.js";
 import { noOverlayFor, noOverlayReason } from "../data/noOverlay.js";
-import { embedRefused } from "../data/frameRowRules.js";
+import { embedRefused, nothingRead } from "../data/frameRowRules.js";
 import { dayLabel, eventSpan, previousStart, seasonRecordings, withClips, withConfirmed, within, type EventSpan, type Recording, type RecordingVideo } from "./recordings.js";
 import type { ClipCoverage, CoverageMatch, CoverageReason, CoverageVideo, CoverageVideoCheck } from "../../src/shared/api.js";
 
@@ -316,13 +316,15 @@ export function clipCoverage(matches: CoverageInput[], rec: Recording | null, fu
       continue;
     }
     let why: ReturnType<typeof reasonFor> = judged.length ? reasonFor(m, judged, now, timezone, day) : { reason: "no-first-video" as const, why: WHY["no-first-video"], videoId: null };
-    // Its video plays on youtube.com only (embedding off) and no frame read of it exists: what a frame read would settle
-    // never can be, as neither the frame reader nor the app's player can show it. A video read anyway keeps its check.
+    // Its video plays on youtube.com only (embedding off) and no frame read of it exists, or the only one played nothing
+    // of it (nothingRead): what a frame read would settle never can be, as neither the frame reader nor the app's player
+    // can show it. A failed read isn't a check: 2026 USIANON's embedding-off video, its every match "the video couldn't be
+    // played", stayed queued and was read four more times. A video read anyway, with anything placed, keeps its check.
     // The same where the reader found the embedded player refusing it for good (embedRefused: a content owner's block,
     // which YouTube's facts don't show), its reason said.
     const meta = why.videoId ? judged.find((j) => j.v.videoId === why.videoId)?.v.meta : null;
     const read = why.videoId && r?.code ? frameRow(why.videoId, r.code) : null;
-    if (why.videoId && meta?.status === "ok" && (FRAME_SETTLES.has(why.reason) || why.reason === "no-start") && ((meta.embeddable === false && !read) || embedRefused(read, m.label))) {
+    if (why.videoId && meta?.status === "ok" && (FRAME_SETTLES.has(why.reason) || why.reason === "no-start") && ((meta.embeddable === false && (!read || nothingRead(read))) || embedRefused(read, m.label))) {
       why = { reason: "video-no-embed", why: WHY["video-no-embed"] + (embedRefused(read, m.label) ? `; the reader found: ${read!.missing![m.label]}` : "") + unplayableDates(meta), videoId: why.videoId };
     }
     // A recording whose frames were looked at and can't place a match (server/data/noOverlay.ts: no overlay at all, or a
