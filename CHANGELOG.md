@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.3.8 — 2026-11-28
+
+The match breakdown's bars are easy to read again.
+
+### Highlights
+- [report] Each phase's bars sit under its own Red and Blue numbers
+- [fixes] Fouls given away get no bar: a long one read as winning
+- [report] The biggest scoring phase fills its side; empty phases draw no track
+
+### Match page
+- **Bars under their numbers** (`src/components/MatchDetails.tsx`): a phase's paired bar spanned the whole row, so the point where red meets blue sat mid-row, far from the Red, Difference and Blue columns. It now spans just those three columns: red meets blue under Difference, and each side grows toward its value.
+- **Fouls and empty rows:** fouls given away get no bar (a long red bar there read as Red winning a row it lost) and no longer set the shared scale, so the biggest scoring phase fills its side. A phase with 0 on both sides draws no empty track. `MatchDetails.breakdown.test.tsx` covers both (#2462).
+
 ## 8.3.7 — 2026-11-28
 
 A demo account anyone can open: Control Scout fully set up, the way a team uses all of it.
