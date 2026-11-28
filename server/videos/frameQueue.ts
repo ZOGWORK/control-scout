@@ -3,9 +3,10 @@
 // server/videos/coverageCheck.ts), so a recording the official-videos watcher links, the owner adds, or a refresh of
 // YouTube's facts makes due within one check pass (5 minutes), with nobody running anything.
 //
-// An event is due when it's over (the day after its last day) and a missing match sits in one of its videos that a
+// An event is due when it's over (its last day ended at the venue, or that day's matches all have results, quiet for
+// QUIET_MS with no recording still on air: eventOver) and a missing match sits in one of its videos that a
 // frame read can place: that video hasn't been read for this event yet (or its read couldn't play it), or it was read
-// on or before the event's last day, while matches could still be coming (read again once, after the event), or it was
+// on or before the event's last day and didn't look at that match (played after it: read again once), or it was
 // read by a reader older than its season's READER_SINCE (read again once by today's, for what that one missed). The
 // current season's events go first, then any event with an official video added in the last week, then the rest; the
 // most missing first within each (rankQueue). An event read after it ended whose rows hold a review entry not yet given
@@ -15,7 +16,7 @@
 // its video for the bar naming it (scripts/video-frames.ts, WALK_STEP_S), as it walks every upload.
 import { all, busyTurn } from "../db.js";
 import { WHY, videoCheck } from "./coverage.js";
-import { frameRow } from "../data/frameTimings.js";
+import { frameRow, type FrameTiming } from "../data/frameTimings.js";
 import { NOTHING_READ, SAME_S, nothingRead, secondLookDue } from "../data/frameRowRules.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
@@ -48,11 +49,20 @@ export const READER_SINCE: Readonly<Record<number, string>> = {
   // Two fields side by side read on both halves (#2408); the 11-18 cleanup's "event name not on a match line" rows.
   2024: "2026-11-27",
   2025: "2026-11-27",
+  // The current season too: its events read before these changes (2026 USMIHOQ, the Kansas City uploads) placed fewer
+  // matches than today's reader does, and an unlisted season is never read again for this.
+  2026: "2026-11-27",
 };
 
 /** One event as the queue reads it: its last day (YYYY-MM-DD, the venue's), the venue's time zone, and its missing
  *  matches with their video checks. */
-export interface QueueEvent { season: number; code: string; name: string; end: string | null; timezone?: string | null; missing: CoverageMatch[] }
+export interface QueueEvent {
+  season: number; code: string; name: string; end: string | null; timezone?: string | null; missing: CoverageMatch[];
+  /** Its latest played match's start, in the venue's local time as FIRST gives it (matches.time); `unplayed`, its
+   *  matches with no result yet; `onAir`, a video of it still broadcasting. They say when the last day is done before it
+   *  ends (eventOver). */
+  lastPlayed?: string | null; unplayed?: number; onAir?: boolean;
+}
 /** An event's place with the frame reader, before ranking: `due`, the missing matches a read could place now;
  *  `recheck`, those of them due only the second look at their review entry (the reader's --recheck). */
 export interface FrameStatus extends CoverageFrames { due: number; recheck?: number }
@@ -62,12 +72,32 @@ export type Rejected = (videoId: string, code: string, label: string, t: number)
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "es"}`;
 /** The UTC date of a moment, YYYY-MM-DD: the calendar a read's `checked` date is written in. */
 const utcDay = (t: number) => new Date(t).toISOString().slice(0, 10);
-/** The UTC date the venue's last day ends on (its 23:59:59 there): an evening in America is the next UTC day. A zone
- *  not known is taken as the latest on earth (UTC-12), so no event is called over while it may still be on. */
+/** The moment the venue's last day ends (its 23:59:59 there). A zone not known is taken as the latest on earth
+ *  (UTC-12), so no event is called over while it may still be on. */
+const lastDayEnds = (end: string, timezone: string | null | undefined) => localToUtcMs(`${end}T23:59:59`, timezone || "Etc/GMT+12");
+/** The UTC date the venue's last day ends on: an evening in America is the next UTC day. */
 function lastUtcDay(end: string, timezone: string | null | undefined): string {
-  const t = localToUtcMs(`${end}T23:59:59`, timezone || "Etc/GMT+12");
+  const t = lastDayEnds(end, timezone);
   return t == null ? end : utcDay(t);
 }
+
+/** How long the last day's results must have stood still before the event is taken as over while that day is on. */
+export const QUIET_MS = 2 * 3600_000;
+/** Whether the event is over: its last day has ended at the venue, or (on that day, its zone known) every match has a
+ *  result, the latest was played on the last day QUIET_MS or more ago, and no video of it is still on air. The old rule
+ *  (the UTC day after the venue's last day) held 2026's events 23 to 30 hours after their last match (median 25) before
+ *  any read. A match that turns up after all is in no read of it, so it's read again (matchState: stale). */
+export function eventOver(e: Pick<QueueEvent, "timezone" | "lastPlayed" | "unplayed" | "onAir">, end: string, now = Date.now()): boolean {
+  const ends = lastDayEnds(end, e.timezone);
+  if (ends != null && now > ends) return true;
+  if (!e.timezone || !e.lastPlayed || e.unplayed || e.onAir || e.lastPlayed.slice(0, 10) !== end) return false;
+  const at = localToUtcMs(e.lastPlayed.slice(0, 19), e.timezone);
+  return at != null && now - at >= QUIET_MS;
+}
+
+/** Whether a frame row's read looked at a match: placed it, held it for review, or said why it couldn't place it. A
+ *  match played after the read isn't in it at all. */
+const sawMatch = (row: FrameTiming, label: string) => label in row.starts || !!row.missing?.[label] || !!row.review?.[label] || !!row.earlyStart?.[label];
 
 /** The date a match's video was read for this event, or null: off the frame rows themselves, so a row merged since
  *  the last coverage check counts at once. A match between two recordings has no video of its own: its stored check
@@ -101,17 +131,25 @@ const recheckDue = (m: CoverageMatch, code: string, rejected?: Rejected) => {
 };
 
 /** How one missing match stands with the frame reader. */
-function matchState(m: CoverageMatch, checked: string | null, last: string | null, code: string, since: string | undefined, rejected?: Rejected): "unreadable" | "facts" | "unread" | "stale" | "older" | "edges" | "recheck" | "read" {
+function matchState(m: CoverageMatch, checked: string | null, last: string | null, code: string, since: string | undefined, rejected?: Rejected, end?: string | null): "unreadable" | "facts" | "unread" | "stale" | "older" | "edges" | "recheck" | "read" {
   const reason = m.reason ?? "unexplained";
   // Between two recordings it has no video of its own, only its check of both.
   const between = reason === "between-recordings" && !!m.video;
   if (!between && (!m.videoId || UNREADABLE.has(reason))) return "unreadable";
   if (reason === FACTS_PENDING) return "facts";
   if (!checked || failedRead(m, code)) return "unread";
-  // Read on or before the UTC day the event's last day ends on: matches played after that read may not be in it. The
-  // queue only reads after that day (frameStatus), so a read it makes settles: never read twice for this.
+  // Read on or before the UTC day the event's last day ends on: matches played after that read may not be in it. A read
+  // on the last day itself or later (the queue reads once the event is over: eventOver) that looked at this match
+  // settles it; one that didn't (it was played after), or one from an earlier day, is read again once.
   // No last day known: the event may still be on, so no read of it is taken as after it.
-  if (!last || checked.slice(0, 10) <= last) return "stale";
+  if (!last) return "stale";
+  // A match between two recordings has no row of its own, only its check of both (betweenCheck): a read of them on the
+  // last day or later settles it, since the queue reads them only once the event is over.
+  if (checked.slice(0, 10) <= last) {
+    if (!end || checked.slice(0, 10) < end) return "stale";
+    const row = between ? null : m.videoId ? frameRow(m.videoId, code) : null;
+    if (!between && (!row || !sawMatch(row, m.label))) return "stale";
+  }
   // Read after the event, but by a reader older than the season's READER_SINCE: read once more by today's.
   if (since && checked.slice(0, 10) < since) return "older";
   // Read after the event, but its video's edges never were: the autopilot's --bounds pass could still show it played
@@ -128,7 +166,7 @@ export function frameStatus(e: QueueEvent, now = Date.now(), rejected?: Rejected
   // The last day: the event's own, else its latest missing match's.
   const end = e.end ?? e.missing.map((m) => m.date).filter((d): d is string => !!d).sort().at(-1) ?? null;
   const last = end ? lastUtcDay(end, e.timezone) : null;
-  const states = e.missing.map((m) => { const checked = checkedOf(m, e.code); return { m, checked, s: matchState(m, checked, last, e.code, READER_SINCE[e.season], rejected) }; });
+  const states = e.missing.map((m) => { const checked = checkedOf(m, e.code); return { m, checked, s: matchState(m, checked, last, e.code, READER_SINCE[e.season], rejected, end) }; });
   const n = (s: string) => states.filter((x) => x.s === s).length;
   const due = n("unread") + n("stale") + n("older") + n("edges") + n("recheck"), readable = due + n("read") + n("facts");
   if (!readable) {
@@ -137,7 +175,7 @@ export function frameStatus(e: QueueEvent, now = Date.now(), rejected?: Rejected
   }
   // No last day known (no end stored, no missing match dated): it may still be on, so it waits rather than queue early.
   if (due && !last) return { state: "waiting", matches: due, due: 0, why: `Waits for the event's last day to be known: ${plural(due, "match")} to read then` };
-  if (due && last && last >= utcDay(now)) return { state: "waiting", matches: due, due: 0, why: `Waits for the event to finish (last day ${end}): ${plural(due, "match")} to read then` };
+  if (due && end && !eventOver(e, end, now)) return { state: "waiting", matches: due, due: 0, why: `Waits for the event to finish (last day ${end}): ${plural(due, "match")} to read then` };
   if (due) {
     const stale = n("stale"), older = n("older"), edges = n("edges"), recheck = n("recheck");
     const notes = [stale ? `${stale} read before the event finished` : "", older ? `${older} read by an older reader` : "", edges ? `${edges} in a video whose first and last frames aren't read yet` : "", recheck ? `${recheck} held for review, not looked at again yet` : ""].filter(Boolean);
@@ -182,11 +220,15 @@ const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["
 /** Every event with a played match missing a clip, as clip_coverage holds it, with its place with the frame reader. */
 export async function frameQueue(now = Date.now(), read: Read = all): Promise<{ season: number; code: string; name: string; added: string | null; frames: FrameStatus }[]> {
   // `added`: when the event's newest official video was added (rankQueue reads a new one ahead of the backlog).
-  const rows = await read<{ season: number; code: string; name: string | null; end: string | null; timezone: string | null; detail: string; added: string | null }>(
+  // `last_played`, `unplayed` and the videos on air: whether its last day is done before that day ends (eventOver).
+  const rows = await read<{ season: number; code: string; name: string | null; end: string | null; timezone: string | null; detail: string; added: string | null; last_played: string | null; unplayed: number | null }>(
     `SELECT c.season, c.code, e.name, e.end, e.timezone, c.detail,
-       (SELECT MAX(o.added_at) FROM official_videos o WHERE o.season = c.season AND o.code = c.code AND o.removed_at IS NULL) AS added
+       (SELECT MAX(o.added_at) FROM official_videos o WHERE o.season = c.season AND o.code = c.code AND o.removed_at IS NULL) AS added,
+       (SELECT MAX(m.time) FROM matches m WHERE m.season = c.season AND m.code = c.code AND m.played = 1) AS last_played,
+       (SELECT COUNT(*) FROM matches m WHERE m.season = c.season AND m.code = c.code AND m.played = 0) AS unplayed
      FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
      WHERE c.with_clip < c.played AND c.state != 'none'`);
+  const onAir = new Set((await read<{ video_id: string }>("SELECT video_id FROM video_meta WHERE live = 1")).map((r) => String(r.video_id)));
   // Review entries the owner rejected, at their second: never queued for a second look.
   const no = new Map<string, number>();
   try {
@@ -198,9 +240,10 @@ export async function frameQueue(now = Date.now(), read: Read = all): Promise<{ 
     // Parsing hundreds of missing lists is work between reads: let other requests in as it goes.
     if (i % 50 === 49) await busyTurn();
     const r = rows[i];
-    let missing: CoverageMatch[] = [];
-    try { missing = (JSON.parse(String(r.detail)) ?? {}).missing ?? []; } catch { /* an unreadable detail: nothing to queue */ }
-    const e: QueueEvent = { season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), end: r.end ?? null, timezone: r.timezone ?? null, missing };
+    let missing: CoverageMatch[] = [], videos: { videoId?: string }[] = [];
+    try { const d = JSON.parse(String(r.detail)) ?? {}; missing = d.missing ?? []; videos = Array.isArray(d.videos) ? d.videos : []; } catch { /* an unreadable detail: nothing to queue */ }
+    const e: QueueEvent = { season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), end: r.end ?? null, timezone: r.timezone ?? null, missing,
+      lastPlayed: r.last_played ? String(r.last_played) : null, unplayed: Number(r.unplayed ?? 0), onAir: videos.some((v) => !!v.videoId && onAir.has(v.videoId)) };
     out.push({ season: e.season, code: e.code, name: e.name, added: r.added ? String(r.added) : null, frames: frameStatus(e, now, rejected) });
   }
   rankQueue(out, now);

@@ -72,6 +72,17 @@ describe("Clip coverage for a recording that can't be played", () => {
     setFrameTimingsForTests([]);
   });
 
+  it("embedding off and its one read played nothing of it: settled as can't be read, never queued again", () => {
+    const failed = "the video couldn't be played: page.waitForFunction: Timeout 30000ms exceeded.";
+    setFrameTimingsForTests([{ videoId: ID, code: "DESTQ", checked: "2026-11-17", starts: {}, missing: { Q1: failed, Q2: failed } }]);
+    const r: Recording = { videoId: ID, code: "DESTQ", meta: { ...short, embeddable: false }, source: "official" };
+    expect(clipCoverage(ms, r, r, "UTC", NOW).matches.find((m) => m.label === "Q2")).toMatchObject({ clip: false, reason: "video-no-embed", videoId: ID });
+    // With embedding on, the same failed read is the player's bad hour: still to read.
+    const on: Recording = { ...r, meta: { ...short, embeddable: true } };
+    expect(clipCoverage(ms, on, on, "UTC", NOW).matches.find((m) => m.label === "Q2")?.reason).not.toBe("video-no-embed");
+    setFrameTimingsForTests([]);
+  });
+
   it("embedding off: only what a frame read alone would settle becomes can't be read; no reason found stays To review", () => {
     // "unexplained" (the clock places it, clear of the one before, yet no clip) is a coverage gap: its clock clip may
     // still be owed (embedding off, clips open on youtube.com), so it's never settled as can't be read.
