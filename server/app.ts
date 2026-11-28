@@ -183,6 +183,8 @@ const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Reque
 };
 
 const int = (x: unknown, name: string, { min = 0, max = 1e7 } = {}) => {
+  // Written out in digits: Number() also reads "1e3", "0x10" and " 12 " as whole numbers, which no address means.
+  if (typeof x === "string" && !/^-?\d+$/.test(x)) throw bad(`${name} must be a whole number`);
   const n = Number(x);
   if (!Number.isInteger(n)) throw bad(`${name} must be a whole number`);
   if (n < min || n > max) throw bad(`${name} must be between ${min} and ${max}`);

@@ -8,7 +8,7 @@ import { storedEventCode } from "../eventCodes.js";
 import { isEventCodeParam } from "../../src/shared/eventCode.js";
 import { eventView } from "../api/eventView.js";
 import {
-  addVideo, contributorProfile, coverageOf, editOwnVideo, eventVideos, matchKey, ownVideosOn, parseMatchKey, removeOwnVideo, reportVideo, setLike, statusOf, viewerOf,
+  PROFILE_USERNAME, addVideo, contributorProfile, coverageOf, editOwnVideo, eventVideos, matchKey, ownVideosOn, parseMatchKey, removeOwnVideo, reportVideo, setLike, statusOf, viewerOf,
   type MatchId,
 } from "./contributors.js";
 import { claimInvite, readInvite, requestFromInvite, submitApplication, withdrawApplication } from "./verification.js";
@@ -142,7 +142,7 @@ export function videosRouter(limit: (perMinute: number) => express.RequestHandle
   // A contributor's profile: their name, badge, teams and the videos THIS viewer may see. 404 for an unknown username.
   r.get("/contributors/:username", limit(60), h(async (req, res) => {
     const u = String(req.params.username ?? "");
-    const p = /^[A-Za-z][A-Za-z0-9_]{2,19}$/.test(u) ? await contributorProfile(u, await currentUser(req)) : null;
+    const p = PROFILE_USERNAME.test(u) ? await contributorProfile(u, await currentUser(req)) : null;
     if (!p) { res.status(404).json({ error: "No such contributor" }); return; }
     return p;
   }));
