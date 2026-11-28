@@ -151,7 +151,15 @@ export async function searchStreams(log: (s: string) => void, opts: { apiKey?: s
       const hits = await search(q);
       if (hits === "blocked") { out.blocked = true; blockedUntil = now() + BLOCKED_MS; log(`stream search: YouTube turned the results page away; no search for ${BLOCKED_MS / 3600_000} h`); break; }
       out.searched++;
-      const found = await weigh(t, q, hits, key, fetchImpl, now, locked, out, opts.recordImpl ?? record);
+      let found: string;
+      try {
+        found = await weigh(t, q, hits, key, fetchImpl, now, locked, out, opts.recordImpl ?? record);
+      } catch (e) {
+        // A busy data lock stops the run; any other failure is this event's alone: noted, so it waits its turn and the rest are searched.
+        if (e instanceof LockBusy || isBusy(e)) throw e;
+        found = `failed: ${String((e as Error).message ?? e)}`;
+        log(`stream search: ${t.code} ${t.season}: ${found.slice(0, 300)}`);
+      }
       const at = new Date(now()).toISOString();
       await locked(() => run(`INSERT INTO stream_searches (season, code, searched_at, query, results, note) VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT (season, code) DO UPDATE SET searched_at = excluded.searched_at, query = excluded.query, results = excluded.results, note = excluded.note, tries = stream_searches.tries + 1`,
@@ -214,7 +222,7 @@ async function weigh(t: Target, q: string, hits: SearchHit[], key: string, fetch
         // A stranger's channel: a finished broadcast only, its title naming the whole event, or the owner decides.
         const why = !v.start ? "an upload, not a live broadcast, on a channel Scout doesn't watch" : !namesAll(v.title, ev!.name, null, [ev!.city ?? "", ...placeNames(ev!.state, ev!.country)]) ? `its title doesn't say all of ${ev!.code}'s name, on a channel Scout doesn't watch` : null;
         if (why) verdict = { kind: "review", why: `found by the stream search ("${q}"): ${why}; the rules otherwise fit it to ${ev!.code} ${verdict.day}`, event: verdict.event, day: verdict.day, part: verdict.part };
-      } else if (verdict.kind === "add") {
+      } else if (verdict.kind === "add" || (verdict.kind === "review" && ev && (ev.season !== t.season || ev.code !== t.code))) {
         // Another event's video: not kept as read, so that event's own search weighs it.
         continue;
       } else if (verdict.kind === "review") {
