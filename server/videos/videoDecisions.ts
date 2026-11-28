@@ -6,7 +6,9 @@
 // reason and the evidence line in its why, so Owner › Official videos shows it as decided from evidence.
 //
 // A decision never overrides one already made: a video the owner (or the watcher) has decided keeps that, and a link
-// whose day is taken by another playable video, or whose event isn't in this database, isn't written (logged).
+// whose day is taken by another playable video, or whose event isn't in this database, isn't written (logged). One this
+// file made itself is the file's to change: an entry that no longer says what evidence wrote (a set-aside turned into a
+// link, or a link's part named) is applied again; moving or taking off a link evidence made is left to the owner.
 import { db, get } from "../db.js";
 import { withDataLock, LockBusy } from "../data/lock.js";
 import { recordAudit } from "../portal/audit.js";
@@ -83,13 +85,24 @@ export async function applyVideoDecisions(log: (s: string) => void, list: VideoD
   return out;
 }
 
+/** Whether the queue row evidence wrote still says what the entry says (its status, and a link's event, day and part). */
+export function decidedAsEntry(w: { status: unknown; season: unknown; code: unknown; day: unknown; part: unknown }, d: VideoDecision): boolean {
+  const want = d.decision === "link" ? ["approved", d.season, d.code, d.day, d.part ?? null] : ["rejected", null, null, null, null];
+  const has = [w.status, w.season == null ? null : Number(w.season), w.code ?? null, w.day ?? null, w.part ?? null];
+  return want.every((x, i) => x === has[i]);
+}
+
 /** One decision: "done", "kept" (already decided), "waiting" (no row to take its title from yet), or "skip:<why>". */
 async function applyOne(d: VideoDecision, at: string): Promise<"done" | "kept" | "waiting" | `skip:${string}`> {
-  const w = await get<any>("SELECT status, channel_id, title FROM official_watch WHERE video_id = ?", [d.videoId]);
-  if (w && !["pending", "ignored"].includes(String(w.status))) return "kept";
-  // A finding the owner (or an earlier decision) already dismissed is decided: never overridden, a link least of all.
-  const found = await get<any>("SELECT finding FROM official_audit_videos WHERE video_id = ?", [d.videoId]);
-  if (found?.finding === "dismissed") return "kept";
+  const w = await get<any>("SELECT status, channel_id, title, season, code, day, part, decided_by FROM official_watch WHERE video_id = ?", [d.videoId]);
+  // Decided by evidence, and the entry says otherwise now: decided again (an owner's or the watcher's decision never is).
+  const again = !!w && String(w.decided_by) === EVIDENCE && !["pending", "ignored"].includes(String(w.status)) && !decidedAsEntry(w, d);
+  if (w && !["pending", "ignored"].includes(String(w.status)) && !again) return "kept";
+  // A finding the owner (or an earlier decision) already dismissed is decided: never overridden, a link least of all,
+  // unless evidence dismissed it and is deciding again.
+  const found = await get<any>("SELECT finding, finding_by FROM official_audit_videos WHERE video_id = ?", [d.videoId]);
+  if (found?.finding === "dismissed" && !(again && found.finding_by === EVIDENCE)) return "kept";
+  if (again && String(w.status) === "approved") return nameLinkedPart(d, w, at);
   const a = w ? null : await get<any>("SELECT channel_id, title, start, published, duration FROM official_audit_videos WHERE video_id = ?", [d.videoId]);
   if (!w && !a) return "waiting";
   const why = decisionWhy(d);
@@ -97,16 +110,18 @@ async function applyOne(d: VideoDecision, at: string): Promise<"done" | "kept" |
   // The queue row (written for an audit finding, which has none), decided.
   const status = d.decision === "link" ? "approved" : "rejected";
   const claim = w
-    ? { sql: "UPDATE official_watch SET status = ?, season = ?, code = ?, day = ?, part = ?, why = ?, decided_at = ?, decided_by = ? WHERE video_id = ? AND status IN ('pending', 'ignored')",
+    ? { sql: `UPDATE official_watch SET status = ?, season = ?, code = ?, day = ?, part = ?, why = ?, decided_at = ?, decided_by = ? WHERE video_id = ?
+              AND ${again ? "decided_by = 'evidence' AND status NOT IN ('pending', 'ignored')" : "status IN ('pending', 'ignored')"}`,
         args: [status, d.season ?? null, d.code ?? null, d.day ?? null, d.part ?? null, why, at, EVIDENCE, d.videoId] }
     : { sql: `INSERT INTO official_watch (video_id, channel_id, title, start, published, duration, status, season, code, day, part, why, seen_at, decided_at, decided_by)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(video_id) DO NOTHING`,
         args: [d.videoId, channel, title, a.start ?? null, a.published ?? null, a.duration ?? null, status, d.season ?? null, d.code ?? null, d.day ?? null, d.part ?? null, why, at, at, EVIDENCE] };
   // The audit's finding is settled by it: a link is a record now; anything else is the owner's kind of dismissal.
+  const settles = again ? "(finding = 'open' OR (finding = 'dismissed' AND finding_by = 'evidence'))" : "finding = 'open'";
   const finding = d.decision === "link"
-    ? { sql: "UPDATE official_audit_videos SET finding = NULL, found_at = NULL WHERE video_id = ? AND finding = 'open'", args: [d.videoId] }
-    : { sql: "UPDATE official_audit_videos SET finding = 'dismissed', finding_why = ?, finding_by = ? WHERE video_id = ? AND finding = 'open'", args: [d.reason!.slice(0, 300), EVIDENCE, d.videoId] };
-  if (d.decision !== "link") return (await inOne(d.videoId, [claim, finding], 0)) ? "done" : "kept";
+    ? { sql: `UPDATE official_audit_videos SET finding = NULL, found_at = NULL WHERE video_id = ? AND ${settles}`, args: [d.videoId] }
+    : { sql: `UPDATE official_audit_videos SET finding = 'dismissed', finding_why = ?, finding_by = ? WHERE video_id = ? AND ${settles}`, args: [d.reason!.slice(0, 300), EVIDENCE, d.videoId] };
+  if (d.decision !== "link") return (await inOne(d.videoId, [claim, finding], 0, undefined, undefined, again)) ? "done" : "kept";
   // A link: its event and day, the day free (or held only by a video YouTube no longer plays, named in replaces).
   // Its days: the listed ones and the days it played (eventDays.ts).
   const ev = await get<any>(`SELECT e.season, e.code, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end FROM events e WHERE e.season = ? AND e.code = ?`, [d.season!, d.code!]);
@@ -135,19 +150,42 @@ async function applyOne(d: VideoDecision, at: string): Promise<"done" | "kept" |
   const taken = { sql: `SELECT 1 FROM official_videos WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL AND day = ? AND video_id != ?
             AND (? IS NULL OR part IS NULL OR part = ?)${dead.length ? ` AND video_id NOT IN (${dead.map(() => "?").join(", ")})` : ""} LIMIT 1`,
     args: [Number(ev.season), String(ev.code), d.day!, d.videoId, d.part ?? null, d.part ?? null, ...dead.map((h) => h.videoId)] };
-  return (await inOne(d.videoId, writes, dead.length, dead.length + 1, taken)) ? "done" : `skip:${d.code} ${d.day} is taken, the video is on another event, or the owner decided it meanwhile`;
+  return (await inOne(d.videoId, writes, dead.length, dead.length + 1, taken, again)) ? "done" : `skip:${d.code} ${d.day} is taken, the video is on another event, or the owner decided it meanwhile`;
 }
 
 /**
- * The writes in one transaction, committed only when the video's finding isn't dismissed (read inside it: an owner's
+ * A link evidence made whose entry now names another part of the same event's day (a restarted broadcast's Part 1/2):
+ * the part is renamed on the queue row and the recording, unless another recording holds that day and part (or the
+ * whole day). Any other change to a link (another event or day, or no link at all) is the owner's, on the event page.
+ */
+async function nameLinkedPart(d: VideoDecision, w: any, at: string): Promise<"done" | `skip:${string}`> {
+  if (d.decision !== "link" || Number(w.season) !== d.season || w.code !== d.code || w.day !== d.day)
+    return `skip:evidence linked it to ${w.season} ${w.code} ${w.day}: moving or taking off a link is the owner's, on the event page`;
+  const why = decisionWhy(d);
+  const writes = [
+    { sql: "UPDATE official_watch SET part = ?, why = ?, decided_at = ? WHERE video_id = ? AND status = 'approved' AND decided_by = 'evidence'",
+      args: [d.part ?? null, why, at, d.videoId] },
+    { sql: "UPDATE official_videos SET part = ?, why = ? WHERE video_id = ? AND season = ? AND code = ? AND day = ? AND source = 'evidence' AND removed_at IS NULL",
+      args: [d.part ?? null, why, d.videoId, d.season!, d.code!, d.day!] },
+  ];
+  const taken = { sql: `SELECT 1 FROM official_videos WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL AND day = ? AND video_id != ?
+            AND (? IS NULL OR part IS NULL OR part = ?) LIMIT 1`,
+    args: [d.season!, d.code!, d.day!, d.videoId, d.part ?? null, d.part ?? null] };
+  return (await inOne(d.videoId, writes, 0, 1, taken, true)) ? "done" : `skip:${d.code} ${d.day}${d.part ? ` (${d.part})` : ""} is taken, or the link isn't evidence's to rename`;
+}
+
+/**
+ * The writes in one transaction, committed only when the video's finding isn't dismissed (again: by anyone but evidence;
+ * read inside it: an owner's
  * dismissal since the first read stands), nothing holds the day (taken: a query that must find no row, for a link),
  * the queue row was claimed (at claimAt: an owner's decision made since the status read leaves it unclaimed) and, for
  * a link, its recording landed (at landAt). false: rolled back.
  */
-async function inOne(videoId: string, writes: { sql: string; args: (string | number | null)[] }[], claimAt: number, landAt?: number, taken?: { sql: string; args: (string | number | null)[] }): Promise<boolean> {
+async function inOne(videoId: string, writes: { sql: string; args: (string | number | null)[] }[], claimAt: number, landAt?: number, taken?: { sql: string; args: (string | number | null)[] }, again = false): Promise<boolean> {
   const tx = await db().transaction("write");
   try {
-    const dismissed = await tx.execute({ sql: "SELECT 1 FROM official_audit_videos WHERE video_id = ? AND finding = 'dismissed'", args: [videoId] });
+    // Deciding again, evidence's own dismissal is no bar; the owner's always is.
+    const dismissed = await tx.execute({ sql: `SELECT 1 FROM official_audit_videos WHERE video_id = ? AND finding = 'dismissed'${again ? " AND finding_by IS NOT 'evidence'" : ""}`, args: [videoId] });
     if (dismissed.rows.length) { await tx.rollback(); return false; }
     if (taken && (await tx.execute(taken)).rows.length) { await tx.rollback(); return false; }
     const results = [];
