@@ -77,7 +77,25 @@ export function parseLanes(s: string | undefined, shard: { k: number; n: number 
 /** A lane's state (its .data/lane/state.json): idle (or none), queued (a job sent, not started), running, done or
  *  failed (its results to collect). A lane holds no credentials and the coordinator does, so nothing a lane writes is
  *  trusted: its state only says which step comes next, checked against the coordinator's own record of the job. */
-export interface LaneState { state: "idle" | "queued" | "running" | "done" | "failed"; id?: string; at?: string; why?: string }
+export interface LaneState { state: "idle" | "queued" | "running" | "done" | "failed"; id?: string; at?: string; why?: string; beat?: string }
+/** A running lane rewrites its state's `beat` this often (its own clock), so a run that died is seen within minutes. */
+export const LANE_BEAT_MS = 60_000;
+/** A running lane whose last beat is older than this (by the lane's own clock) died without saying so. */
+export const LANE_BEAT_STALE_MS = 10 * 60_000;
+/** The lane's own clock, read with its state: its time now and when it last booted (ms; either missing when the lane
+ *  didn't say). Both are the lane's clock, so a beat and a boot are measured against the lane's time, not this computer's. */
+export interface LaneClock { now?: number; boot?: number }
+/** The marker line laneProbe's command prints after the state file. */
+const CLOCK_MARK = "@@lane-clock";
+/** The command a coordinator runs on a lane: its state file, then its clock (date +%s, and macOS's kern.boottime). */
+export const laneProbe = (stateFile: string) => `cat ${stateFile} 2>/dev/null; echo; echo "${CLOCK_MARK} $(date +%s) $(sysctl -n kern.boottime 2>/dev/null)"`;
+/** laneProbe's output split into the state file's text and the lane's clock. Output with no clock line is all state. */
+export function laneClock(out: string): { text: string; clock: LaneClock } {
+  const i = out.lastIndexOf(CLOCK_MARK);
+  if (i < 0) return { text: out, clock: {} };
+  const line = out.slice(i + CLOCK_MARK.length).split("\n")[0], now = /^\s*(\d{9,})/.exec(line), boot = /sec\s*=\s*(\d{9,})/.exec(line);
+  return { text: out.slice(0, i), clock: { ...(now ? { now: Number(now[1]) * 1000 } : {}), ...(boot ? { boot: Number(boot[1]) * 1000 } : {}) } };
+}
 /** A job the coordinator sent (its own record, .data/autopilot/lanes/<K>/job.json): never the lane's word for it. */
 export interface LaneJob { id: string; seasons: { season: number; codes: string[]; recheck?: string[] }[] }
 /** A job sent but not started within this long: the lane is started again. */
@@ -92,8 +110,12 @@ export const laneJobMs = (job: LaneJob, limitOf: (season: number, code: string) 
 export const LANE_ID = /^[\w-]{1,64}$/;
 /** What the coordinator does with a lane this run, from its state file's text ("" when it has none) and the job it sent
  *  that lane (null: none outstanding). "reset": the lane's state names no job sent to it (its results, if any, are
- *  left), so it's set idle. */
-export function laneStep(text: string, job: LaneJob | null, now = Date.now(), jobMs = job ? laneJobMs(job) : 0): { do: "collect" | "dispatch" | "wait" | "kick" | "reset"; state: LaneState } {
+ *  left), so it's set idle.
+ *  A job "running" is called dead (collected as failed: what it finished handed over, the rest read again) when the lane
+ *  booted after it started (a reboot, a power cut), when its beat is LANE_BEAT_STALE_MS old by the lane's clock (the run
+ *  died without writing so), or, the hard cap, past `jobMs`. A state with no beat (a lane on a runner from before beats)
+ *  is judged by its boot and the cap only. */
+export function laneStep(text: string, job: LaneJob | null, now = Date.now(), jobMs = job ? laneJobMs(job) : 0, clock: LaneClock = {}): { do: "collect" | "dispatch" | "wait" | "kick" | "reset"; state: LaneState } {
   let state: LaneState;
   try { state = text.trim() ? JSON.parse(text) : { state: "idle" }; } catch { return { do: "wait", state: { state: "failed", why: `its state file isn't JSON: ${text.trim().slice(0, 80)}` } }; }
   if (!state || typeof state !== "object" || typeof state.state !== "string") return { do: "wait", state: { state: "failed", why: "its state file isn't a state" } };
@@ -102,6 +124,10 @@ export function laneStep(text: string, job: LaneJob | null, now = Date.now(), jo
   if (state.state === "done" || state.state === "failed") return { do: ours ? "collect" : "reset", state };
   if (state.state === "queued") return ours ? { do: state.at && now - Date.parse(state.at) > LANE_KICK_MS ? "kick" : "wait", state } : { do: "reset", state };
   if (state.state === "running") {
+    const started = state.at ? Date.parse(state.at) : NaN, beat = typeof state.beat === "string" ? Date.parse(state.beat) : NaN, laneNow = clock.now ?? now;
+    const dead = (why: string) => ({ do: "collect" as const, state: { ...state, state: "failed" as const, why } });
+    if (ours && clock.boot && Number.isFinite(started) && clock.boot > started) return dead(`the lane booted at ${new Date(clock.boot).toISOString()}, after its job started: killed`);
+    if (ours && Number.isFinite(beat) && laneNow - beat > LANE_BEAT_STALE_MS) return dead(`still "running" but its last beat was ${Math.round((laneNow - beat) / 60_000)} min ago: its run died`);
     if (ours && state.at && now - Date.parse(state.at) > jobMs) return { do: "collect", state: { ...state, state: "failed", why: `still "running" ${Math.round((now - Date.parse(state.at)) / 3600_000)} h after it started, past any read's limits: killed` } };
     return { do: "wait", state };
   }
