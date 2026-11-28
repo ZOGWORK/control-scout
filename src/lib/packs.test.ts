@@ -102,6 +102,28 @@ describe("syncLite", () => {
     if (packStatus()) expect(await loadLite()).not.toBeNull();
   });
 
+  it("an event day's newer pack waits an hour in the background; Update fetches it at once", async () => {
+    vi.stubGlobal("fetch", server());
+    const t = Date.parse("2026-11-28T15:00:00Z");
+    const now = vi.spyOn(Date, "now").mockReturnValue(t);
+    expect(await syncLite({ allowed: () => true })).toMatchObject({ version: "v1" });
+    // 15 minutes on, a newer build is out (same engine): the tab's check reads the list and downloads nothing.
+    const newer = { ...manifest, version: "v2" };
+    const fetch = vi.fn(async (url: string) => (url === "/packs/latest.json" ? Response.json(newer) : new Response(gz)));
+    vi.stubGlobal("fetch", fetch);
+    now.mockReturnValue(t + 15 * 60_000);
+    expect(await syncLite({ allowed: () => true })).toMatchObject({ version: "v1" });
+    expect(fetch.mock.calls.map(([u]) => u)).toEqual(["/packs/latest.json"]);
+    // An hour after the save, the background check takes it.
+    now.mockReturnValue(t + 60 * 60_000);
+    expect(await syncLite({ allowed: () => true })).toMatchObject({ version: "v2" });
+    // A newer one again, a minute later: the person's own Update doesn't wait.
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url === "/packs/latest.json" ? Response.json({ ...manifest, version: "v3" }) : new Response(gz))));
+    now.mockReturnValue(t + 61 * 60_000);
+    expect(await syncLite({ allowed: () => true })).toMatchObject({ version: "v2" });
+    expect(await syncLite()).toMatchObject({ version: "v3" });
+  });
+
   it("downloads when allowed (or with no check: Get it now)", async () => {
     vi.stubGlobal("fetch", server());
     expect(await syncLite({ allowed: () => true })).toMatchObject({ version: "v1" });

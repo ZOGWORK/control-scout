@@ -347,8 +347,9 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   app.use(canonicalRedirects);
   // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
   // Live streams (text/event-stream, server/scout/stream.ts; Bruno's streamed answer, application/x-ndjson) are never
-  // compressed: gzip would hold events back.
-  app.use(compression({ filter: (req, res) => !/^(text\/(csv|event-stream)|application\/(vnd\.openxmlformats|x-ndjson))/.test(String(res.getHeader("Content-Type") ?? "")) && compression.filter(req, res) }));
+  // compressed: gzip would hold events back. Offline pack files (/packs/) never are either: they're stored compressed
+  // (packs/routes.ts), and a raw season file compressed per download cost 13 to 45 MB of Brotli each time, with no length.
+  app.use(compression({ filter: (req, res) => !req.originalUrl.startsWith("/packs/") && !/^(text\/(csv|event-stream)|application\/(vnd\.openxmlformats|x-ndjson))/.test(String(res.getHeader("Content-Type") ?? "")) && compression.filter(req, res) }));
   // /api/collect reads its own tiny body (1 KB cap), the digest's bounce webhook needs its raw body for the
   // signature, and CSP reports have their own 16 KB parser that never fails (server/securityHeaders.ts), so the
   // 2 MB JSON parser skips all three.
