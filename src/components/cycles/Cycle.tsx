@@ -105,7 +105,8 @@ export function Cycle({ item, index, active, near, muted, signedIn, ready, onMut
       try {
         const st = (JSON.parse(String(e.data)) as { info?: { playerState?: number } }).info?.playerState;
         if (st === 1) { setPlaying(true); setPaused(false); }
-        else if (st === 2) setPlaying(false);
+        // Paused, by a tap or by the player itself: Play shows, whatever an earlier "playing" said.
+        else if (st === 2) { setPlaying(false); setPaused(true); }
         else if (st === 0) { command("seekTo", [0, true]); command("playVideo"); }
       } catch { /* not ours */ }
       // Finished once: said at once (a replay or leaving adds to it).
