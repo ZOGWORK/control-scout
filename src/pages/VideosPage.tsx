@@ -21,6 +21,7 @@ import { Spacer, useVirtualRows } from "../components/ui/windowing";
 import { cn } from "../components/cn";
 import { LibraryButton, usePanelBeside, VideosFrame } from "../components/videos/VideosFrame";
 import { LibraryListView, NotesView } from "../components/videos/LibraryViews";
+import { CyclesShelf } from "../components/cycles/CyclesShelf";
 import { LIBRARY_LABEL, libraryViewOf } from "../shared/videoLibrary";
 import { encodeHistory, FEED_FILTERS, isFeedFilter, type FeedAnswer, type FeedFilter, type FeedItem } from "../shared/videosFeed";
 
@@ -133,6 +134,7 @@ function VideosBody() {
               filter === f.id ? "border-accent bg-accent text-accent-ink" : "border-ink/[0.12] text-text-muted hover:bg-ink/[0.04] hover:text-text-base")}>{f.label}</button>
         ))}
       </div>
+      {filter === "all" && <CyclesShelf ready={ready} device={device ? { myTeam: device.myTeam, teams: device.teams } : null} />}
       {feed.error && !feed.items.length ? (
         <ErrorState error={feed.error as Error} onRetry={() => void load(null)} />
       ) : !feed.loading && !shown.length ? (
