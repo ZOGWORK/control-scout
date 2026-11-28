@@ -67,6 +67,22 @@ describe("the stream search", () => {
     expect(namesAll("Lakeshore Scrimmage, Day 1", "November Scrimmage")).toBe(false);
     expect(namesAll("Lakeshore Scrimmage, Day 1", "Lakeshore Scrimmage Day 1")).toBe(true);
     expect(namesAll("2026 FIRST Tech Challenge - BioBuzz - South Australia Qualifier", "South Australia Qualifier")).toBe(true);
+    // A name that says only where it is: the title must be of its kind and carry its number.
+    const idaho = ["Boise", "id", "idaho", "usa"], chicago = ["Chicago", "il", "illinois", "usa"];
+    expect(namesAll("2022 Storm Idaho Open Qualifying", "Idaho State Championship", null, idaho)).toBe(false);
+    expect(namesAll("Idaho FTC State Championship 2022", "Idaho State Championship", null, idaho)).toBe(true);
+    expect(namesAll("FTC Chicago Qualifier", "IL Chicago Meet 1A", null, chicago)).toBe(false);
+    expect(namesAll("FTC Chicago Meet 2C", "IL Chicago Meet 1A", null, chicago)).toBe(false);
+    expect(namesAll("FTC Chicago League Meet 1A", "IL Chicago Meet 1A", null, chicago)).toBe(true);
+    // A national championship's own stream often names only the country: no other kind, so it's said.
+    expect(namesAll("FIRST TECH CHALLENGE VIETNAM 2025-2026 (Day 1)", "Vietnam Championship", null, ["Hanoi", "vietnam"])).toBe(true);
+    // A name of no kind can't be contradicted by one: Brăila's meet, Santa Clara's "QT #2" (its number still asked).
+    expect(namesAll("BRAILA TECH CHALLENGE - FTC Meet 2024", "Brăila Tech Challenge", null, ["Brăila", "romania"])).toBe(true);
+    expect(namesAll("FTC Qualifying Tournament #2 | Santa Clara HS", "Santa Clara QT #2", null, ["Santa Clara", "ca", "california"])).toBe(true);
+    expect(namesAll("FTC Qualifying Tournament #3 | Santa Clara HS", "Santa Clara QT #2", null, ["Santa Clara", "ca", "california"])).toBe(false);
+    expect(namesAll("FIRST Tech Challenge Vietnam Championship 2023-2024", "Vietnam FIRST Tech Challenge 2023-24", null, ["Hanoi", "vietnam"])).toBe(true);
+    // A name with words of its own isn't held to its kind: a league's tournament streamed as its championship.
+    expect(namesAll("FTC Space Coast League Championship", "FL Space Coast League Tournament", null, ["Melbourne", "fl", "florida"])).toBe(true);
   });
 
   it("picks the events with a played day no video covers, never one not played", async () => {

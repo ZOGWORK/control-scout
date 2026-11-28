@@ -19,6 +19,7 @@ import { MIN_RECORDING_S, eventVideosByDay, forgetOfficial } from "./officialVid
 import { NOT_EVENTS, namesAll, notCompetition, type WatchVideo } from "./officialMatch.js";
 import { decide, record, type WatchVerdict } from "./officialWatch.js";
 import { isoDuration } from "./youtube.js";
+import { placeNames } from "../../src/shared/regions.js";
 
 /** Events searched in one run (one results page each), a few seconds apart. */
 export const SEARCH_PER_RUN = 8;
@@ -206,7 +207,7 @@ async function weigh(t: Target, q: string, hits: SearchHit[], key: string, fetch
     let status: string = verdict.kind;
     if (verdict.kind === "add" && forThis) {
       // A stranger's channel: a finished broadcast only, its title naming the whole event, or the owner decides.
-      const why = !v.start ? "an upload, not a live broadcast, on a channel Scout doesn't watch" : !namesAll(v.title, ev!.name) ? `its title doesn't say all of ${ev!.code}'s name, on a channel Scout doesn't watch` : null;
+      const why = !v.start ? "an upload, not a live broadcast, on a channel Scout doesn't watch" : !namesAll(v.title, ev!.name, null, [ev!.city ?? "", ...placeNames(ev!.state, ev!.country)]) ? `its title doesn't say all of ${ev!.code}'s name, on a channel Scout doesn't watch` : null;
       if (why) verdict = { kind: "review", why: `found by the stream search ("${q}"): ${why}; the rules otherwise fit it to ${ev!.code} ${verdict.day}`, event: verdict.event, day: verdict.day, part: verdict.part };
     } else if (verdict.kind === "add") {
       // Another event's video: not kept as read, so that event's own search weighs it.
