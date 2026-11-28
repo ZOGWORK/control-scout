@@ -21,7 +21,7 @@ The match breakdown's bars are easy to read again.
 
 ### Highlights
 - [report] Each phase's bars sit under its own Red and Blue numbers
-- [fixes] No bar on fouls given away, so a long bar never means the side that lost points
+- [fixes] Fouls given away get no bar: a long one read as winning
 - [report] The biggest scoring phase fills its side; empty phases draw no track
 
 ### Match page
