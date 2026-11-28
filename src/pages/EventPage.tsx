@@ -807,8 +807,8 @@ function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt
                     <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent-text", "v8:text-text-base", v8Rank(t.rank))}>{t.rank ?? "–"}</span>
                   </span>
                 )}
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline gap-2"><TeamLogo team={t.team} size={18} className="self-center" /><span className={cn("font-mono font-semibold", t.team !== team && V8_NUM)}>{t.team}</span><span className="truncate text-sm" title={t.name ?? undefined}>{t.name}</span><FeaturedChip team={t.team} className="self-center" /></span>
+                <span className="@container/chiprow min-w-0 flex-1">
+                  <span className="flex items-baseline gap-2"><TeamLogo team={t.team} size={18} className="self-center" /><span className={cn("font-mono font-semibold", t.team !== team && V8_NUM)}>{t.team}</span><span className="truncate text-sm" title={t.name ?? undefined}>{t.name}</span><FeaturedChip team={t.team} className="self-center" fit /></span>
                   <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
                   <span className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] tabular-nums">
                     {t.opr.np != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.npOpr, V8_STAT_CHIP, V8_PHASE.np)}>npOPR {num(t.opr.np)}</span>}
