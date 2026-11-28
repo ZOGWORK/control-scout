@@ -53,6 +53,16 @@ describe("other public counts", () => {
   it.each(["-1", "1.5", "-Infinity"])("/api/events limit=%s is a 400", async (limit) => {
     expect((await get(`/api/events?limit=${encodeURIComponent(limit)}`)).status).toBe(400);
   });
+  // A team number is written in digits: "1e3" and "0x10" aren't team 1000 and team 16, they're a 400 like "1.5".
+  it.each(["1e3", "0x10", "1.5", "abc", " 16"])("/api/teams/%s is a 400", async (n) => {
+    const r = await get(`/api/teams/${encodeURIComponent(n)}`);
+    expect(r.status).toBe(400);
+    expect(r.json.error).toMatch(/team must be a whole number/);
+  });
+  it("/api/teams with plain digits still answers", async () => {
+    expect((await get("/api/teams/16")).status).not.toBe(400);
+    expect((await get("/api/teams/0016")).status).not.toBe(400);
+  });
   it("/api/events accepts a plain limit", async () => {
     expect((await get("/api/events?limit=5")).status).toBe(200);
   });

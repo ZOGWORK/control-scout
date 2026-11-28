@@ -64,7 +64,7 @@ export const OG_IMAGE_PATH = "/og-image.png?v=4";
 /** What the card says, for screen readers in apps that show it. */
 export const OG_IMAGE_ALT = "Control Scout: Scouting, Reimagined. Free FTC scouting and predictions.";
 import { finishPageAnswer } from "./api/searchPage.js";
-import { viewerOf } from "./videos/contributors.js";
+import { hasContributorProfile, viewerOf } from "./videos/contributors.js";
 import { answerDescription, badgeUnder, contextBadge, headingOver, isQualityQuestion, pageTitle, repeats, unreadNote } from "../src/shared/searchPage.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
@@ -971,8 +971,13 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   // The supporters list names people: never indexed, at any spelling of the address. Marked like /search's, so the
   // app drops it once the visitor moves on (src/lib/meta.tsx SearchRobotsSync).
   if (/^\/supporters$/i.test(p)) return { title: "Supporters", description: "The people who sponsor Control Scout on GitHub.", type: "website", searchPage: true };
-  // A contributor's profile names a person: never indexed (docs/contributors.md).
-  if (/^\/contributors\/[^/]+$/i.test(p)) return { title: "Contributor", description: "Match videos added by a Control Scout contributor.", type: "website", noindex: true };
+  // A contributor's profile names a person: never indexed (docs/contributors.md). No such contributor (an address no
+  // username can have, or no one by that name) is a 404, as the profile API answers; a database not ready is not.
+  const contributor = p.match(/^\/contributors\/([^/]+)$/i);
+  if (contributor) {
+    if (!(await hasContributorProfile(contributor[1]).catch(() => true))) return NOT_FOUND;
+    return { title: "Contributor", description: "Match videos added by a Control Scout contributor.", type: "website", noindex: true };
+  }
   // Download: the season files on offer, each with what it holds and its size, as the page lists them, so the first
   // HTML is the list itself (its sitemap entry needs that: server/sitemap.ts). Plain text, no links: a crawler never
   // fetches a 40 MB file from it. Offline packs off, or none built: the page's own words alone.
