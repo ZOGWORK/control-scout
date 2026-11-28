@@ -92,12 +92,3 @@ describe("My team, v8 on", () => {
     expect(sideOf(next, 1)).toBeNull();
   });
 });
-
-describe("My team, v8 off", () => {
-  it("is drawn as before", async () => {
-    page();
-    await waitFor(() => expect(screen.getByText("Season so far")).toBeTruthy());
-    expect(document.querySelector("[data-myteam-v8]")).toBeNull();
-    expect(document.querySelector("[data-next-chance]")).toBeNull();
-  });
-});

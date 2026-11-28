@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.2.4 — 2026-11-28
+
+One look everywhere: the classic design, the atlas and the toggle that chose between them are gone.
+
+### Highlights
+- [appearance] One look: the classic pages and the atlas are gone
+- [speed] The entry chunk is 180 kB lighter: 600 kB, down from 780 kB
+- [appearance] Lite draws the same look as the app, with no `cs-v8` switch of its own
+- [speed] Three map libraries leave the build: d3-geo, topojson and world-atlas
+
+### The classic look
+- **It's deleted, not hidden** (`src/pages/Home.tsx`, `src/components/home/`, `src/components/layout/Shell.tsx`): the classic home with the competition atlas, its 3,000-line season coverage table, `/legacy`, the Settings → Appearance switch, `ClassicProfile` on a team page, the owner-only switch and `src/lib/ownerLook.tsx` are gone, with their tests and the legacy brand images in `public/legacy/`. `isV8`, `useIsV8`, `setV8` and the `cs-v8` cookie went with them (`src/lib/v8.ts` now holds only `V8_NUM`).
+- **The `v8` classes are the look** (`index.html`, `vite.config.ts`): `<html data-v8>` is set on every page, first paint included, so the `v8:` Tailwind variant and `html[data-v8]` CSS rules still apply; every `v8 ? … : …` branch in `src/` is collapsed to the branch it always took, so no classic JSX is left in a bundle. 87 files: 2,606 lines deleted, 453 added.
+- **Lite draws it too** (`server/lite/render.ts`): the `cs-v8` cookie and the classic Lite stylesheet are gone; every Lite page is `<html lang="en" data-v8>` with the one stylesheet, whatever the cookie says.
+
+### Removed
+- `d3-geo`, `topojson-client`, `world-atlas` and their types: nothing draws a map any more.
+- `/legacy` and every link to it (the 404 page, the sitemap, the service worker's precache, the boot shell's brand image).
+
 ## 8.2.3 — 2026-11-27
 
 A first visit pays for the page it opened, not for every page the app has.

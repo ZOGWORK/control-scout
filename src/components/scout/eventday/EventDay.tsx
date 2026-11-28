@@ -15,7 +15,7 @@ import { MatchesList, shortTime, type OtherScout } from "../redesign/MatchesList
 import { ScheduleState } from "../redesign/MatchHeader";
 import { WatchStrip } from "./WatchStrip";
 import { NextUp } from "./NextUp";
-import { useIsV8 } from "../../../lib/v8";
+
 import { Badge } from "../../ui/basic";
 import { Button } from "../../ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../ui/controls";
@@ -81,33 +81,15 @@ export function EventDay(p: EventDayProps) {
   const today = useMemo(() => entriesToday(entries, session.eventCode), [entries, session.eventCode]);
   const nextMatch = next >= 0 && schedule.status === "ready" ? schedule.matches[next] : null;
   const nextTime = nextMatch ? shortTime(nextMatch.time) : "";
-  const v8 = useIsV8();
+  
   const pitDone = useMemo(() => pitScouted(entries, event.code), [entries, event.code]);
   const nextPit = event.teams.find((t) => !pitDone.has(t.team)) ?? null;
   // v8: the next thing to scout first (NextUp), then the queues; the strip and the tiles fold into it.
-  if (v8) return (
+  return (
     <div className="grid gap-5 max-sm:gap-4">
       <NextUp status={schedule.status} match={nextMatch} time={nextTime} watching={session.watching} onWatching={p.onWatching} readOnly={p.readOnly}
         onMatch={p.onMatch} onManualMatch={p.onManualMatch} pit={nextPit} onPit={p.onPit}
         progress={{ matches: { done: matches.done, total: schedule.matches.length ? matches.total : 0 }, pit, today }} />
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] max-sm:gap-4">
-        <MatchQueue {...p} scouted={scouted} next={next} done={matches.done} />
-        <div className="grid gap-5 max-sm:gap-4">
-          <PitQueue event={event} entries={entries} readOnly={p.readOnly} onPit={p.onPit} />
-          <OurTeams event={event} entries={entries} ourTeams={p.ourTeams} />
-        </div>
-      </div>
-    </div>
-  );
-  return (
-    <div className="grid gap-5 max-sm:gap-4">
-      {!p.readOnly && <WatchStrip watching={session.watching} onChange={p.onWatching} />}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 max-sm:gap-2">
-        <Kpi label="Next match" value={nextMatch ? nextMatch.label : "—"} hint={nextTime ? `~${nextTime}` : undefined} />
-        <Kpi label="Matches scouted" value={schedule.matches.length ? `${matches.done} / ${matches.total}` : "—"} />
-        <Kpi label="Pit scouting" value={pit.total ? `${pit.done} / ${pit.total}` : pit.done || "—"} />
-        <Kpi label="Entries today" value={today} />
-      </div>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] max-sm:gap-4">
         <MatchQueue {...p} scouted={scouted} next={next} done={matches.done} />
         <div className="grid gap-5 max-sm:gap-4">
@@ -135,19 +117,12 @@ export function MatchQueue({ event, session, readOnly, onMatch, onManualMatch, a
   const wanted = normalizeMatchLabel(current);
   const found = wanted ? schedule.matches.findIndex((m) => normalizeMatchLabel(m.label) === wanted) : -1;
   const ready = schedule.status === "ready" && schedule.matches.length > 0;
-  const v8 = useIsV8();
+  
   return (
     <Panel title="Match queue" className={className}
-      meta={ready ? v8 ? <span className="text-xs tabular-nums text-text-faint">{done} done</span> : <>
-        <Badge variant="success" className="tabular-nums">{done} done</Badge>
-        {nextMatch && found < 0 && <Badge variant="soft">{nextMatch.label} is next</Badge>}
-      </> : undefined}
+      meta={ready ? <span className="text-xs tabular-nums text-text-faint">{done} done</span> : undefined}
       // v8: Event day's Next up card has the one Scout button, so the queue keeps only the typed-in match.
-      action={readOnly ? undefined : v8 ? (
-        <Button size="sm" variant="ghost" onClick={onManualMatch}><PenLine /> Type a match in</Button>
-      ) : ready && nextMatch && found < 0 ? (
-        <Button size="sm" onClick={() => onMatch(nextMatch.label)} className="max-sm:h-10">Scout {nextMatch.label} <ArrowRight /></Button>
-      ) : <Button size="sm" variant="outline" onClick={onManualMatch} className="max-sm:h-10"><PenLine /> Type a match in</Button>}>
+      action={readOnly ? undefined : <Button size="sm" variant="ghost" onClick={onManualMatch}><PenLine /> Type a match in</Button>}>
       {ready ? (
         <div className="grid gap-2">
           <ScheduleState status="ready" fromDevice={schedule.fromDevice} />
@@ -174,7 +149,7 @@ export function PitQueue({ event, entries, readOnly, onPit, current, className }
   const nextTeam = teams.find((t) => !done.has(t.team) && t.team !== current)?.team ?? null;
   const shown = teams.filter((t) => filter === "all" || (filter === "done") === done.has(t.team));
   const pct = total ? Math.round((doneHere / total) * 100) : 0;
-  const v8 = useIsV8();
+  
   return (
     <Panel title="Pit queue" className={className} meta={total ? <span className="ml-auto text-sm font-semibold tabular-nums text-foreground v8:text-xs v8:font-normal v8:text-text-faint">{doneHere} / {total}</span> : undefined}>
       {!total ? (
@@ -182,15 +157,14 @@ export function PitQueue({ event, entries, readOnly, onPit, current, className }
           : <EmptyState icon={ListChecks} title="No team list yet" description="FIRST hasn't posted this event's teams. Pit scouting fills in once it does." />
       ) : (
         <div className="grid gap-3">
-          {v8 ? <div aria-hidden className="h-1 overflow-hidden rounded-full bg-ink/[0.06]"><div className="h-full origin-left rounded-full bg-accent transition-transform duration-300 ease-out" style={{ transform: `scaleX(${pct / 100})` }} /></div>
-            : <div aria-hidden className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${pct}%` }} /></div>}
+          {<div aria-hidden className="h-1 overflow-hidden rounded-full bg-ink/[0.06]"><div className="h-full origin-left rounded-full bg-accent transition-transform duration-300 ease-out" style={{ transform: `scaleX(${pct / 100})` }} /></div>}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <ToggleGroup type="single" variant="chips" value={filter} onValueChange={(v) => v && setFilter(v as PitFilter)} aria-label="Show pit teams">
               <ToggleGroupItem value="todo" className="max-sm:h-[44px]">To do <span className="tabular-nums text-text-muted">{total - doneHere}</span></ToggleGroupItem>
               <ToggleGroupItem value="done" className="max-sm:h-[44px]">Done <span className="tabular-nums text-text-muted">{doneHere}</span></ToggleGroupItem>
               <ToggleGroupItem value="all" className="max-sm:h-[44px]">All <span className="tabular-nums text-text-muted">{total}</span></ToggleGroupItem>
             </ToggleGroup>
-            {!readOnly && nextTeam != null && <Button size="sm" variant={v8 ? "outline" : "default"} onClick={() => onPit(nextTeam)} className="max-sm:h-10">Scout {nextTeam} next <ArrowRight /></Button>}
+            {!readOnly && nextTeam != null && <Button size="sm" variant={"outline"} onClick={() => onPit(nextTeam)} className="max-sm:h-10">Scout {nextTeam} next <ArrowRight /></Button>}
           </div>
           {!shown.length ? <p className="px-1 py-3 text-sm text-muted-foreground">{filter === "todo" ? "Every team's pit is scouted." : "No pit entries here yet."}</p> : (
             <ul aria-label="Pit teams" className="divide-y divide-border max-h-[20rem] overflow-y-auto overscroll-contain rounded-xl border border-border lg:max-h-[26rem] v8:divide-line v8:rounded-lg v8:border-line">
@@ -201,8 +175,7 @@ export function PitQueue({ event, entries, readOnly, onPit, current, className }
                     {isDone ? <span className="grid size-6 shrink-0 place-items-center rounded-full bg-success text-background v8:bg-ink/10 v8:text-emerald-400"><Check className="size-3.5" aria-hidden /></span>
                       : <CircleDashed className={cn("size-6 shrink-0", isNext || isCurrent ? "text-accent" : "text-muted-foreground/60")} aria-hidden />}
                     <span className="min-w-0 flex-1 truncate"><span className="font-mono font-semibold text-foreground">{t.team}</span>{t.name && <span className="ml-2 text-sm text-muted-foreground">{t.name}</span>}</span>
-                    {v8 ? (isCurrent || isDone || isNext) && <span className={cn("shrink-0 text-xs", isCurrent || isNext ? "text-text-base" : "text-text-faint")}>{isCurrent ? "Open" : isDone ? "Done" : "Next"}</span>
-                      : isCurrent ? <Badge variant="soft">Open</Badge> : isDone ? <Badge variant="success">Done</Badge> : isNext ? <Badge variant="soft">Next</Badge> : null}
+                    {(isCurrent || isDone || isNext) && <span className={cn("shrink-0 text-xs", isCurrent || isNext ? "text-text-base" : "text-text-faint")}>{isCurrent ? "Open" : isDone ? "Done" : "Next"}</span>}
                   </>
                 );
                 const cls = cn("flex min-h-12 w-full items-center gap-3 px-3 py-2 text-left", isCurrent && "bg-accent/[0.07] v8:bg-ink/[0.05]");

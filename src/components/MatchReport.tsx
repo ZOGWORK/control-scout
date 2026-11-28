@@ -21,7 +21,7 @@ import { sheetWinner } from "../shared/factorSheet";
 import { useFlag } from "../lib/flags";
 import { factorLabel } from "../lib/factorLabel";
 import { PairedBar, barMax, rowLead, type BreakdownRow } from "./MatchDetails";
-import { useIsV8 } from "../lib/v8";
+
 import { OprSpark, PARTS } from "./shortlist/charts";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/overlay";
 import { Skeleton } from "./ui/basic";
@@ -54,76 +54,12 @@ export function MatchReportView({ r, ws, watch }: { r: MatchReport } & ReportWor
   const byTeam = new Map(r.teams.map((t) => [t.team, t]));
   // A refusal (not a member any more, paused) or a failure: OPR-only, as for anyone without a workspace.
   const workspace = ws && !ws.state.error ? ws : null;
-  const v8 = useIsV8();
-  if (v8) return <ReportV8 r={r} ws={ws} workspace={workspace} watch={watch} byTeam={byTeam} />;
-  return (
-    <div className="space-y-5 max-sm:space-y-4">
-      <Call m={m} earned={r.bonus} />
-      <WorkspaceLine ws={ws} />
-      <div className="grid gap-4 lg:grid-cols-2">
-        {(["red", "blue"] as const).map((side) => (
-          <Alliance key={side} side={side} m={m} remote={r.event.remote} byTeam={byTeam} ws={workspace} watch={watch} />
-        ))}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        OPR is the points a robot adds to its alliance's score, worked out from every match it played (without penalties). The split is
-        auto, driver-controlled and endgame. Tap a flag to see why it's there.
-      </p>
-    </div>
-  );
+  
+  return <ReportV8 r={r} ws={ws} workspace={workspace} watch={watch} byTeam={byTeam} />;
 }
 
 /** The prediction (or, once played, the result next to the call made before it). */
-function Call({ m, earned }: { m: MatchView; earned?: MatchReport["bonus"] }) {
-  const cov = useRangeCoverage();
-  const p = m.prediction;
-  const scored = m.played && m.red.score && m.blue.score ? { red: m.red.score.total, blue: m.blue.score.total } : null;
-  const winner: Side | "tie" | null = scored ? (scored.red === scored.blue ? "tie" : scored.red > scored.blue ? "red" : "blue") : null;
-  const called = p && winner && winner !== "tie" ? (p.pRed > 0.5) === (winner === "red") : null;
-  const full = [m.red, m.blue].every((a) => a.teams.filter((t) => t.onField).length === 2);
-  return (
-    <section aria-label={scored ? "Result and prediction" : "Prediction"} className="rounded-xl border border-border bg-card p-4">
-      {scored && (
-        <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border pb-3" data-testid="report-result">
-          <span className="text-sm text-muted-foreground">Final</span>
-          <span className="font-display text-3xl font-bold tabular-nums"><span className="text-red-alliance">{scored.red}</span><span className="px-1.5 text-muted-foreground">–</span><span className="text-blue-alliance">{scored.blue}</span></span>
-          <span className={cn("text-sm font-semibold", winner === "red" ? "text-red-alliance" : winner === "blue" ? "text-blue-alliance" : "text-muted-foreground")}>{winner === "tie" ? "Tie" : `${SIDE[winner!].name} won`}</span>
-          {called != null && <span className={cn("rounded-full px-2 py-px text-xs font-medium", called ? "bg-success/15 text-success" : "bg-warning/15 text-warning")}>{called ? "Called it" : "Upset"}</span>}
-        </div>
-      )}
-      {p ? (
-        <>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">{KIND_LABEL[p.kind]}</p>
-            <ConfidenceBadge tier={p.tier} />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="w-11 text-right text-base font-semibold tabular-nums text-red-alliance">{oddsPct(p.pRed)}</span>
-            <WinBar pRed={p.pRed} className="flex-1" />
-            <span className="w-11 text-base font-semibold tabular-nums text-blue-alliance">{oddsPct(1 - p.pRed)}</span>
-          </div>
-          {!p.noScoreBasis && (
-            <p className="mt-2 text-sm text-muted-foreground">Predicted score <ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="text-red-alliance" /> – <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="text-blue-alliance" />
-              {p.redRange && p.blueRange && <span className="block text-xs">± is the {levelPct(p.rangeLevel)} range: red {p.redRange[0]}–{p.redRange[1]}, blue {p.blueRange[0]}–{p.blueRange[1]}. {rangeCoverageLine(cov) ?? ""}</span>}</p>
-          )}
-          {/* Once played, the call sits next to the bonuses actually earned (as on the match page). */}
-          {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} actual={scored ? earned : null} className="mt-3 bg-text-base/[0.02]" />}
-          {p.factors?.length ? (
-            <details className="group mt-2" open>
-              <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">Why</summary>
-              <FactorList factors={p.factors.slice(0, 3)} reasons={p.reasons} className="mt-1.5" />
-              {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}
-              {p.sheet && <FactorSheetPanel sheet={p.sheet} level={m.level} winner={winner ? (winner === "tie" ? "tie" : winner === "red" ? "A" : "B") : null} defaultOpen={!!scored} className="mt-3" />}
-            </details>
-          ) : null}
-          <PredictionBasis kind={matchBasis(m.level)} className="mt-2" />
-        </>
-      ) : (
-        <p className="text-sm text-muted-foreground">{!full ? "No prediction: the engine predicts full 2-against-2 matches only." : scored ? "No prediction was recorded before this match." : "No prediction for this match yet."}</p>
-      )}
-    </section>
-  );
-}
+
 
 /** v8: the score by phase as paired bars in the alliance colours, red from the middle leftward and blue rightward,
  *  every phase on one zero-based scale; the total under them as numbers. */
@@ -412,43 +348,7 @@ function WorkspaceLine({ ws }: { ws: ReportWorkspaceProps["ws"] }) {
   );
 }
 
-function Alliance({ side, m, remote, byTeam, ws, watch }: {
-  side: Side; m: MatchView; remote: boolean; byTeam: ReadonlyMap<number, ReportTeam>;
-} & ReportWorkspaceProps) {
-  const a = m[side];
-  const s = SIDE[side];
-  const p = m.prediction;
-  const score = m.played && a.score ? a.score.total : null;
-  const missing = 2 - a.teams.length;
-  return (
-    <section aria-label={`${s.name} alliance`} className={cn("min-w-0 rounded-xl border p-3 sm:p-4", s.card)}>
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 className={cn("font-display text-lg font-semibold", s.text)}>{s.name} alliance</h2>
-        <p className="text-sm tabular-nums text-muted-foreground">
-          {score != null ? <>Scored <span className={cn("font-semibold", s.text)}>{score}</span></>
-            : p ? <>{oddsPct(side === "red" ? p.pRed : 1 - p.pRed)} to win{!p.noScoreBasis && <> · <ScoreRange mean={side === "red" ? p.redMean : p.blueMean} range={side === "red" ? p.redRange : p.blueRange} level={p.rangeLevel} approx /> pts</>} <TierMark tier={p.tier} className="align-middle" /></> : null}
-        </p>
-      </div>
-      <ul className="space-y-3">
-        {a.teams.map((t) => {
-          const info = byTeam.get(t.number);
-          return (
-            <li key={t.number}>
-              <TeamCard side={side} season={m.season} t={t} info={info ?? null} ws={ws} watch={watch.get(t.number) ?? []} />
-            </li>
-          );
-        })}
-        {missing > 0 && Array.from({ length: missing }, (_, i) => (
-          <li key={`missing-${i}`} className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground" data-testid="missing-team">
-            {a.teams.length === 0
-              ? (remote ? "No alliance here: remote events score one robot at a time." : "Lineup not published yet.")
-              : (remote ? "Remote event: this robot plays on its own." : "No second robot on this alliance.")}
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
+
 
 const FLAG_ICON: Record<DataFlag["kind"] | WatchFlag["kind"], typeof Flag> = {
   mine: Star, assigned: ClipboardList, picklist: Flag, tracked: Eye,
@@ -486,80 +386,10 @@ function FlagChip({ f }: { f: DataFlag | WatchFlag }) {
   );
 }
 
-function TeamCard({ side, season, t, info, ws, watch }: {
-  side: Side; season: number; t: MatchView["red"]["teams"][number]; info: ReportTeam | null;
-  ws: ReportWorkspaceProps["ws"]; watch: WatchFlag[];
-}) {
-  const ev = info?.event ?? null, se = info?.season ?? null;
-  // The OPR that says most about this match: this event's, once it has a few matches here; else the season's.
-  const here = ev && ev.opr.np != null && (ev.qualPlayed ?? 0) >= MIN_EVENT_MATCHES;
-  const opr = here ? ev!.opr : se?.opr ?? null;
-  const flags: (DataFlag | WatchFlag)[] = [...watch, ...(info?.flags ?? [])];
-  return (
-    <article className={cn("min-w-0 rounded-lg border border-l-[3px] border-border bg-card p-3", SIDE[side].edge, !t.onField && "opacity-75")} data-testid="report-team" data-team={t.number}>
-      <header className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <Link to={`/teams/${t.number}?season=${season}`} className="tap-44 font-mono text-lg font-bold hover:underline">{t.number}</Link>
-        <span className="min-w-0 flex-1 truncate text-sm">{info?.name ?? ""}</span>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {ev?.rank ? <>#{ev.rank} here{ev.wins != null && <> · {ev.wins}-{ev.losses ?? 0}-{ev.ties ?? 0}</>}</> : "Unranked here"}
-        </span>
-      </header>
-      {(t.surrogate || t.dq || !t.onField) && (
-        <p className="mt-1 flex gap-1.5 text-[11px]">
-          {t.surrogate && <span className="rounded bg-muted px-1">Surrogate</span>}
-          {t.dq && <span className="rounded bg-destructive/15 px-1 text-destructive">DQ</span>}
-          {!t.onField && <span className="rounded bg-muted px-1">Not on field</span>}
-        </p>
-      )}
-      {flags.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5" aria-label={`${t.number} flags`}>{flags.map((f) => <FlagChip key={f.kind} f={f} />)}</div>}
 
-      <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1">
-        <div>
-          <p className="text-[11px] text-muted-foreground">{here ? "OPR at this time" : "Season OPR"}</p>
-          <p className="font-display text-2xl font-semibold leading-tight tabular-nums">{num(opr?.np)}</p>
-        </div>
-        <OprSplitBar opr={opr} />
-      </div>
-      <p className="mt-1.5 text-xs text-muted-foreground">
-        {here
-          ? (se ? <>Season <span className="text-foreground">{num(se.opr.np)}</span></> : "No other events this season")
-          : ev?.opr.np != null ? <>Here so far <span className="text-foreground">{num(ev.opr.np)}</span> ({int(ev.qualPlayed ?? 0)} {ev.qualPlayed === 1 ? "match" : "matches"})</> : "No matches here yet"}
-        {se?.rank && se.of ? <> · #{int(se.rank)} of {int(se.of)} this season</> : null}
-        {se && <> · {se.wins}-{se.losses}-{se.ties}</>}
-        {/* Penalty OPR can come out below zero (a team that draws fewer than average): only a real giveaway is worth a line. */}
-        {opr?.pen != null && opr.pen >= 0.5 && <> · gives away <span className="text-foreground">{num(opr.pen)}</span> pen. pts a match</>}
-      </p>
-      {info?.reliability && <ReliabilityLine r={info.reliability} />}
-      {info && info.trend.length >= 2 && (
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">OPR by event</span>
-          <OprSpark className="w-32 shrink-0" events={info.trend.map((x) => ({ code: x.code, name: x.name, start: x.start, rank: null, opr: x.opr, auto: null, teleop: null, endgame: null, avgNp: null }))} width={128} height={24} />
-          <span className="text-[11px] tabular-nums text-muted-foreground">{num(info.trend[0].opr)} → {num(info.trend[info.trend.length - 1].opr)}</span>
-        </div>
-      )}
-      <TeamTake team={t.number} season={season} ws={ws} reliability={info?.reliability ?? null} />
-    </article>
-  );
-}
 
 /** Auto / driver-controlled / endgame, as one bar with the numbers under it. */
-function OprSplitBar({ opr }: { opr: OprSplit | null }) {
-  if (!opr || (opr.auto == null && opr.teleop == null && opr.endgame == null)) return <p className="text-xs text-muted-foreground">No OPR split yet.</p>;
-  const v = { auto: Math.max(0, opr.auto ?? 0), teleop: Math.max(0, opr.teleop ?? 0), endgame: Math.max(0, opr.endgame ?? 0) };
-  const sum = v.auto + v.teleop + v.endgame;
-  return (
-    <div className="min-w-0">
-      <div className="flex h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={PARTS.map((p) => `${p.label} ${num(opr[p.k])}`).join(", ")}>
-        {sum > 0 && PARTS.map((p) => v[p.k] > 0 && <div key={p.k} className={cn("h-full", p.v8)} style={{ width: `${(v[p.k] / sum) * 100}%`, background: p.fill }} />)}
-      </div>
-      <p className="mt-1 flex flex-wrap gap-x-2.5 text-[11px] tabular-nums text-muted-foreground">
-        {PARTS.map((p) => (
-          <span key={p.k} className="inline-flex items-center gap-1"><span aria-hidden className={cn("size-1.5 rounded-full", p.v8)} style={{ background: p.fill }} />{p.short} <span className="text-foreground">{num(opr[p.k])}</span></span>
-        ))}
-      </p>
-    </div>
-  );
-}
+
 
 const avg = (x: { avg: number }) => (Number.isInteger(x.avg) ? String(x.avg) : fixed(x.avg));
 

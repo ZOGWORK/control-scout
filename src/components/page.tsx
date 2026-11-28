@@ -7,7 +7,7 @@ import { useLocation } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { cn } from './cn';
 import { Reveal } from './motion';
-import { useIsV8 } from '../lib/v8';
+
 
 /** Page body: max width 1200 (unless fullBleed), brief's gutters. */
 export function Page({ children, className, fullBleed }: { children: ReactNode; className?: string; fullBleed?: boolean }) {
@@ -106,9 +106,9 @@ function FoldedSection({ id, also, title, summary, tint: tintIn, icon: Icon, cou
   const hint = useId();
   // v8: the card header (icon, title, quiet count) keeps the colour wash taken from what's inside, about half as
   // strong as the classic look's (Sushil, 11-19: "bring back the clean gradients, more faint").
-  const v8 = useIsV8();
+  
   const tint = tintIn;
-  const faint = v8 ? 0.5 : 1;
+  const faint = 0.5;
   // Faint enough to sit under the event cards without competing with them.
   const wash = (pct: number) => tint && `linear-gradient(100deg, ${tint.map((c) => `color-mix(in srgb, ${c} ${pct}%, transparent)`).join(', ')})`;
   return (
@@ -119,7 +119,7 @@ function FoldedSection({ id, also, title, summary, tint: tintIn, icon: Icon, cou
         <h2 className={cn(open && 'mb-4')}>
           <button type="button" aria-expanded={open} aria-controls={body} aria-describedby={summary ? hint : undefined} style={tint && { backgroundImage: wash(7 * faint) }} onClick={() => { setOpen((o) => !o); setOpened(true); }}
             className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 text-left transition-colors hover:border-foreground/25 hover:bg-muted/50 motion-reduce:transition-none v8:min-h-[3.5rem] v8:border-line v8:bg-card v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.02]">
-            {v8 && Icon && <Icon aria-hidden className="size-4 shrink-0 self-start mt-[0.1875rem] text-text-faint" />}
+            {Icon && <Icon aria-hidden className="size-4 shrink-0 self-start mt-[0.1875rem] text-text-faint" />}
             <span className="min-w-0 v8:flex-1">
               <span className="block text-base font-semibold text-foreground v8:text-[0.9375rem] v8:leading-snug">{title}</span>
               {/* Its name stays the title; the hint is read as its description. */}
@@ -128,8 +128,8 @@ function FoldedSection({ id, also, title, summary, tint: tintIn, icon: Icon, cou
             {/* The words are for the eye; a screen reader hears aria-expanded. */}
             <span aria-hidden style={tint && { backgroundImage: wash(22 * faint), borderColor: `color-mix(in srgb, ${tint[0]} ${35 * faint}%, transparent)` }}
               className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm transition-[filter,transform] group-hover:brightness-125 group-active:scale-95 motion-reduce:transition-none v8:gap-1.5 v8:border-0 v8:bg-transparent v8:px-0 v8:font-normal v8:text-text-faint v8:shadow-none v8:group-hover:brightness-100 v8:group-hover:text-text-muted v8:group-active:scale-100">
-              {v8 && count != null && <span className="tabular-nums" data-section-count>{count}<span className="max-sm:hidden" aria-hidden> ·</span></span>}
-              <span className={cn(v8 && count != null && 'max-sm:sr-only')}>{open ? 'Hide' : <>Show<span className="max-sm:hidden">&nbsp;details</span></>}</span>
+              {count != null && <span className="tabular-nums" data-section-count>{count}<span className="max-sm:hidden" aria-hidden> ·</span></span>}
+              <span className={cn(count != null && 'max-sm:sr-only')}>{open ? 'Hide' : <>Show<span className="max-sm:hidden">&nbsp;details</span></>}</span>
               <ChevronDown className={cn('size-4 transition-transform motion-reduce:transition-none', open && 'rotate-180')} />
             </span>
           </button>

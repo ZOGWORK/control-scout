@@ -202,7 +202,6 @@ These names are suggestions for a small implementation, not required renames of 
 | Area | Suggested responsibility |
 | --- | --- |
 | `src/pages/Home.tsx` | Compose the responsive page and preserve page search/personal landing behavior |
-| `src/components/home/CompetitionAtlas.tsx` | Lazy geographic rendering, projection/selection controls, textual fallback |
 | `src/components/home/SeasonCoverage.tsx` | Season-scoped counts and source freshness |
 | `src/components/home/PublicUsage.tsx` | Aggregate totals, real daily trend, definitions and unavailable states |
 | Existing personal/events/track-record sections | Reuse or extract existing behavior while changing composition |

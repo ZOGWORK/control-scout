@@ -12,7 +12,7 @@ import { cn } from "../cn";
 import { useApi } from "../../lib/api";
 import { ago, int, pct, seasonLabel } from "../../lib/format";
 import { TIER_WORD } from "../../shared/tierWords";
-import { isV8 } from "../../lib/v8";
+
 import type { OwnerLedgerScore, OwnerPredictionEngine, TierCalibration } from "../../shared/ownerPredictions";
 
 export const ENGINE_PATH = "/api/owner/predictions/engine";
@@ -103,7 +103,7 @@ export function PredictionEnginePanel() {
               <StatTile tone="accent" icon={Crown} label="Champion" value={<span className="font-mono">v{e.engineVersion}</span>} hint="The engine this server runs" />
               <StatTile tone="emerald" icon={Cpu} label="Served model" value={<span className="break-all font-mono text-base">{e.servedModel ?? "—"}</span>} hint={e.lastLiveCall ? `Newest live call ${ago(e.lastLiveCall)}` : "No live call logged yet"} />
               <StatTile tone="violet" icon={FlaskConical} label="Shadow model" value={<span className="break-all font-mono text-base">{e.shadowModel ?? "None"}</span>} hint="Scored beside each live call, never shown" />
-              <StatTile tone={isV8() ? "violet" : "sky"} icon={ShieldCheck} label="Public headline" value={e.headline ? pct(e.headline.accuracy, 1) : "—"}
+              <StatTile tone={"violet"} icon={ShieldCheck} label="Public headline" value={e.headline ? pct(e.headline.accuracy, 1) : "—"}
                 hint={e.headline ? `${e.headline.kind === "live" ? "Live" : "Replay"}, ${seasonLabel(e.headline.season)}, ${int(e.headline.n)} calls` : `Waiting for ${int(e.liveThreshold)} calls`} />
             </div>
           </Section>

@@ -1,197 +1,22 @@
-// Home, the FTC observatory: search and the two main actions first, with the
-// season's coverage and your team under them, beside a country atlas of this
-// season's teams; then today's coin flips (the closest calls at every event on today), what's on the calendar, the public prediction record and Control Scout's own
-// opt-in usage. On a phone it reads in task order: search, the season, your team
-// and events come before the atlas. The brand lives in the shell's chrome.
-// Under v8 (src/lib/v8.ts) Home is the dashboard instead (src/components/home/HomeDashboard.tsx): search in the
-// middle, then live events, top teams and your teams, inside the v8 shell.
-import { useEffect, useRef, useState } from "react";
+// Home, the FTC observatory: the dashboard (src/components/home/HomeDashboard.tsx), with search in the
+// middle, then live events, top teams and your teams, inside the shell (which draws the sidebar, your
+// picture, the wash and Report a bug around it). The brand lives in the shell's chrome.
+import { Link } from "react-router-dom";
+import { CalendarDays, MapPin } from "lucide-react";
 import { UsernameBanner } from "../components/AccountSetup";
-import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, CalendarDays, Lightbulb, MapPin, Sparkles } from "lucide-react";
-import { useApi, qs } from "../lib/api";
-import { useCurrentSeason, useMediaQuery, useTitle } from "../lib/meta";
-import { usePersonal, type AccountUser } from "../lib/personal";
-import { myTeamsOf } from "../lib/myTeams";
-import { countryOf } from "../shared/countries";
-import type { EventListItem, TeamSummary } from "../shared/api";
-import type { HomeOverview } from "../shared/home";
-import { SEARCH_HINT, usePageSearch, useSearch } from "../components/layout/Search";
-import { HeroSearch } from "../components/home/HeroSearch";
 import { EventStatusChip } from "../components/EventChips";
-import { Button } from "../components/ui/button";
-import { Reveal } from "../components/motion";
-import { CompetitionAtlas, preloadAtlas } from "../components/home/CompetitionAtlas";
-import { FindYourTeam, OnTheCalendar, PredictionRecord, PublicUsagePanel, SeasonCoverage, YourTeam } from "../components/home/HomeSections";
-import { HOME_HEADLINE_MS, HOME_HEADLINES, HOME_LEAD, homeHeadlineAt } from "../shared/boot";
-import { cn } from "../components/cn";
 import { HomeDashboard } from "../components/home/HomeDashboard";
-import { HomeTips } from "../components/home/HomeTips";
-import { useIsV8 } from "../lib/v8";
-import { readBootLines, useHeroLines } from "../lib/heroLines";
+import { useTitle } from "../lib/meta";
 import { dateRange, place } from "../lib/format";
-
-/** The member's home team: their Control Point team (admin teams first), else the team they follow. */
-export function homeTeamOf(user: AccountUser, myTeam: number | null): number | null {
-  return myTeamsOf(user).teams[0]?.teamNumber ?? myTeam ?? null;
-}
-
-/** The country of a team's reported place ("Oradell, NJ, USA" is US), or null while unknown. Same request
- *  as the Your team card's, so it's usually answered from the cache. */
-function useHomeCountry(team: number | null, season: number): string | null {
-  const info = useApi<{ teams: TeamSummary[] }>(team ? `/api/teams-summary${qs({ season, teams: String(team) })}` : null);
-  const place = info.data?.teams[0]?.place;
-  return place ? countryOf(place.split(",").at(-1)?.trim())?.code ?? null : null;
-}
+import type { EventListItem } from "../shared/api";
 
 export default function Home() {
   useTitle(null);
-  return useIsV8() ? <V8Home /> : <ClassicHome />;
-}
-
-/** v8's Home: the dashboard. The shell draws the sidebar, your picture, the wash and Report a bug around it. */
-function V8Home() {
   return (
     <div data-v8-home>
       <UsernameBanner />
       <HomeDashboard />
     </div>
-  );
-}
-
-/** Home as it is without v8. */
-function ClassicHome() {
-  // Home stays Home for everyone: your team shows here, it never redirects to My team.
-  const { state, user } = usePersonal();
-  const season = useCurrentSeason();
-  // The atlas opens on the member's home team's country (signed out: the United States).
-  const homeCountry = useHomeCountry(user ? homeTeamOf(user, state.myTeam) : null, season);
-  // A search from outside (/?q=…, the site search named in the home page's structured data).
-  const [sp] = useSearchParams();
-  const query = sp.get("q")?.trim().slice(0, 100) || undefined;
-  // The atlas's code and boundaries load beside the page's data, after the hero has painted.
-  useEffect(() => { const t = setTimeout(preloadAtlas, 0); return () => clearTimeout(t); }, []);
-  const overview = useApi<HomeOverview>(`/api/home/overview${qs({ season })}`);
-  const phone = useMediaQuery("(max-width: 639px)");
-  const search = useSearch();
-  return (
-    <div className="@container/home">
-      <UsernameBanner />
-      <div className="home-grid">
-        <div className="[grid-area:hero]"><Hero query={query} /></div>
-        <div className="[grid-area:strip]"><SeasonCoverage state={overview} /></div>
-        <div className="[grid-area:team]">{state.myTeam ? <YourTeam team={state.myTeam} season={season} /> : <FindYourTeam onSearch={search.open} />}</div>
-        <div className="[grid-area:events]"><OnTheCalendar season={season} /></div>
-        <div className="[grid-area:atlas]">
-          {overview.data ? <CompetitionAtlas overview={overview.data} currentSeason={season} compact={phone} homeCountry={homeCountry} /> : <AtlasPending failed={!!overview.error} onRetry={overview.reload} />}
-        </div>
-        <div className="[grid-area:record]"><PredictionRecord /></div>
-        <div className="[grid-area:usage]"><PublicUsagePanel /></div>
-      </div>
-      <footer className="mt-10 max-sm:mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-sm text-text-muted">
-        <span>FTC, with a clearer view.</span>
-        <span className="flex flex-wrap gap-x-4 gap-y-1">
-          <Link to="/methodology" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">How the numbers work</Link>
-          <Link to="/how-it-works/search" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">How FTC One Search works</Link>
-          <Link to="/download" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Offline packs</Link>
-          <Link to="/settings#network" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Network & offline</Link>
-          <Link to="/rankings/regions" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Rankings by region</Link>
-          <Link to="/compare" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Compare teams</Link>
-          <Link to="/donate" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Support Control Scout</Link>
-        </span>
-      </footer>
-    </div>
-  );
-}
-
-/** The headline a server first paint in `doc` shows (its data-line, out of `count` lines) and the hour it was read in, or null. */
-export function readBootHeadline(doc: Document, now: number, count: number = HOME_HEADLINES.length): { line: number; hour: number } | null {
-  const raw = doc.querySelector<HTMLElement>("#cs-boot-page h1")?.dataset.line ?? "";
-  const line = /^\d+$/.test(raw) ? Number(raw) : -1;
-  return line >= 0 && line < count ? { line, hour: Math.floor(now / HOME_HEADLINE_MS) } : null;
-}
-
-/** The first paint's headline, read before the app replaces that paint (out of the lines that paint carried). */
-const BOOT_HEADLINE = typeof document === "undefined" ? null : readBootHeadline(document, Date.now(), readBootLines(document)?.length);
-
-/** The headline to start on, out of `count` lines: in the hour the page loaded, the first paint's line (that HTML
- *  may have been rendered a moment earlier, or come from the offline cache); after that, the clock's. */
-export function startingHeadline(boot: { line: number; hour: number } | null, now: number, count: number = HOME_HEADLINES.length): number {
-  return boot && boot.line < count && boot.hour === Math.floor(now / HOME_HEADLINE_MS) ? boot.line : homeHeadlineAt(now, count);
-}
-
-/** This hour's headline out of `count` lines, changing on the hour while the page stays open. When the lines
- *  themselves change (only without a first paint: they arrive from the API), it's the clock's line among the new ones. */
-export function useHomeHeadline(count: number = HOME_HEADLINES.length, boot = BOOT_HEADLINE): { line: number; changed: boolean } {
-  const [at, setAt] = useState(() => ({ count, line: startingHeadline(boot, Date.now(), count) }));
-  const [tick, setTick] = useState(0);
-  const countRef = useRef(count);
-  countRef.current = count;
-  useEffect(() => {
-    const t = setTimeout(() => { setAt({ count: countRef.current, line: homeHeadlineAt(Date.now(), countRef.current) }); setTick((n) => n + 1); }, HOME_HEADLINE_MS - (Date.now() % HOME_HEADLINE_MS) + 50);
-    return () => clearTimeout(t);
-  }, [tick]);
-  return { line: at.count === count ? at.line : homeHeadlineAt(Date.now(), count), changed: tick > 0 };
-}
-
-/** The hero's headline: one H1 with this hour's line. Every line sits invisibly in the same grid cell, so the
- *  hero is always as tall as the longest line and the hourly change never moves the page. A change fades in
- *  (no motion under reduced motion); it isn't announced, as nothing new happened on the page. */
-function Headline() {
-  const lines = useHeroLines();
-  const { line, changed } = useHomeHeadline(lines.length);
-  const [first, second] = lines[line];
-  return (
-    // Never wider than the column: 8.5% of its width keeps the longest line (about 11.4em) whole, so every line
-    // is two rows and no row of space sits under a short one.
-    <div className="@container"><div className="grid font-display text-[min(2.25rem,8.5cqi)] font-semibold leading-[1.05] tracking-[-0.02em] @lg/home:text-[min(2.5rem,8.5cqi)] @4xl/home:text-[min(2.75rem,8.5cqi)] @6xl/home:text-[min(3rem,8.5cqi)]">
-      {lines.map(([a, b], i) => (
-        <span key={i} aria-hidden className="invisible [grid-area:1/1]">{a} <span className="block">{b}</span></span>
-      ))}
-      <h1 key={line} className={cn("[grid-area:1/1] font-semibold tracking-[-0.02em]", changed && "cs-headline-in")}>
-        {first} <span className="block text-accent-display">{second}</span>
-      </h1>
-    </div></div>
-  );
-}
-
-function Hero({ query }: { query?: string }) {
-  // Home's search IS the page's search: the top-bar field steps aside here.
-  const searchRef = usePageSearch();
-  const { restoreFocus } = useSearch();
-  // The page's main content: full opacity on its first frame (no fade from 0).
-  return (
-    <Reveal fade={false} className="pt-2 @4xl/home:pt-8">
-      <Headline />
-      <p className="mt-4 max-w-[30rem] text-base text-text-muted">{HOME_LEAD}</p>
-      <HeroSearch inputRef={searchRef} onEscape={restoreFocus} hint={SEARCH_HINT} initialQuery={query} />
-      {/* The page's main actions, above the fold at every size; they paint with the rest of the hero. */}
-      <div className="mt-4 flex max-w-[36rem] flex-wrap gap-3">
-        <Button size="lg" asChild className="max-sm:flex-1"><Link to="/predict"><Sparkles /> Predict a match <ArrowUpRight /></Link></Button>
-        <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/events"><CalendarDays /> Find an event <ArrowRight /></Link></Button>
-      </div>
-      <HomeTips className="mt-3 max-w-[36rem] text-sm text-text-muted [&_p]:justify-start" icon={<Lightbulb className="mt-0.5 size-4 shrink-0" aria-hidden />} />
-    </Reveal>
-  );
-}
-
-/** The atlas's place while its numbers load (kept the same size), or a way back if they couldn't. */
-function AtlasPending({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
-  return (
-    <section aria-label="FTC Control Scout: teams by country" className="@container/atlas min-w-0">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">FTC Control Scout</p>
-      {failed ? (
-        <div className="mt-3 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-line p-5 max-sm:p-4 text-sm text-text-muted">
-          Where this season’s teams are from couldn’t load.
-          <Button variant="secondary" size="sm" onClick={onRetry}>Try again</Button>
-        </div>
-      ) : (
-        // The globe's place, beside its country panel where there's room (as CompetitionAtlas lays it out).
-        <div className="mt-3 @xl/atlas:grid @xl/atlas:grid-cols-[minmax(0,1fr)_15.5rem] @xl/atlas:gap-5" aria-hidden>
-          <div className="mx-auto aspect-square w-full max-w-[30rem] rounded-full border border-line @max-xl/home:max-w-[22rem]" />
-        </div>
-      )}
-    </section>
   );
 }
 

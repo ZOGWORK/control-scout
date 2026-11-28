@@ -42,7 +42,7 @@ import { SearchFilters } from "../components/search/page/SearchFilters";
 import { openFamilies, type FamilyStatus } from "../components/search/page/eventFamilies";
 import { eventSections, eventStatuses, localDay } from "../components/search/page/eventSections";
 import { TONE, V8_STAGGER, V8_STATUS } from "../components/search/page/v8tone";
-import { useIsV8 } from "../lib/v8";
+
 import { HighlightReel } from "../components/search/page/HighlightReel";
 import { EventRow, FollowChips, MatchRows, PlainRow, RowGroup, TeamRow, UnderstoodLine, V8TeamAnswer, standoutRows } from "../components/search/page/V8Results";
 import { EventTree } from "../components/search/page/EventTree";
@@ -128,7 +128,7 @@ export default function SearchPage() {
   const gliding = useGliding();
   const phone = useMediaQuery("(max-width: 767px)");
   // v8 (the PR's page plan): one column, the answer first, follow-ups as chips, the rest as plain rows. v8 off: as before.
-  const v8 = useIsV8();
+  
   const meta = useMeta();
   const season = useCurrentSeason();
   useTitle(query ? `Search: ${query}` : "Search");
@@ -261,13 +261,12 @@ export default function SearchPage() {
   const brunoAsks = useBrunoAsks(q, answered);
   // A shared name's reading, said as a plain line heading the names list, never as the page's biggest words: a names
   // reading, or a comparison whose sides are each a shared name (server/api/searchCompare.ts, "Which … · Which …").
-  const namesLine = v8 && (ax?.understood?.kind === "names" || ax?.understood?.kind === "compare")
+  const namesLine = ax?.understood?.kind === "names" || ax?.understood?.kind === "compare"
     ? namesSaid(ax.understood.label, hits.filter((h) => h.kind === "team").map((h) => teamParts(h.title)?.name ?? "").filter(Boolean))
     : null;
   // v8: a team asked for by itself (its highlights answer, or a team reading with nothing else to answer) is answered
   // with its compact summary; its standout matches go below as rows.
   const teamAnswer = useMemo(() => {
-    if (!v8) return null;
     const st = answer?.stat;
     if (st?.intent === "team-highlights" && st.team) {
       const hit = hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === st.team!.number);
@@ -277,17 +276,17 @@ export default function SearchPage() {
       return { number: Number(topTeam.ref), name: teamParts(topTeam.title)?.name ?? "", place: topTeam.subtitle };
     }
     return null;
-  }, [v8, answer, hits, ax, topTeam, compares.length]);
-  const standout = v8 ? standoutRows(answer?.stat) : null;
+  }, [answer, hits, ax, topTeam, compares.length]);
+  const standout = standoutRows(answer?.stat);
   // v8: a team's highlights as video cards. A team's answer (its card) comes first, with its related searches, so the
   // search reads as understood as that team; the videos follow them, then its standout matches (the owner, 11-26).
   // Only an answer with no team card of its own would lead with the videos.
-  const reel = v8 && answer?.stat?.intent === "team-highlights" ? (answer.stat.blocks.some((b) => b.kind === "videos") && !teamAnswer ? "lead" : "under") : null;
+  const reel = answer?.stat?.intent === "team-highlights" ? (answer.stat.blocks.some((b) => b.kind === "videos") && !teamAnswer ? "lead" : "under") : null;
   // Decided from what's known at first paint: a standing question about a found team may get its computed summary
   // once the team's numbers load, and that summary keeps his card lower down, so his card never leads it (it would
   // move when they arrived).
   const mayStand = !!topTeam && isQualityQuestion(query) && !answer?.card;
-  const brunoLeads = v8 && brunoAsks && !apps.length && !quality && !mayStand;
+  const brunoLeads = brunoAsks && !apps.length && !quality && !mayStand;
   // He had nothing to add to this question (with these preferred teams): its heading is full size again, as his slot
   // is let go. A new question or preference is pending again until he answers it.
   const askKey = brunoKey(q, prefer, afterKey(followFrom)); // trimmed, as his card keys it
@@ -326,24 +325,17 @@ export default function SearchPage() {
   // nothing either.
   const askAside = wide && (follow.ask.length > 0 || (follow.pending && !!query && !error));
   // v8 on a wide screen: the places go beside the results too (with People also ask), as the classic look had them.
-  const placesAside = v8 && wide ? view.find((x) => x.id === "place") : undefined;
+  const placesAside = wide ? view.find((x) => x.id === "place") : undefined;
   // A card or stat answer's one match, to watch under People also ask (./search/page/AnswerVideo.tsx clipLabel).
   const clipAbout = clipLabel(answer);
   // v8: the side column holds People also ask and the places only (a summary or head-to-head stays in the results).
-  const side = v8 ? askAside || !!placesAside : !!panel || askAside;
+  const side = askAside || !!placesAside;
   // Its "Watch this match" shows once: in the side column when there is one on a wide screen, else in the results.
   const clipAside = wide && side ? clipAbout : null;
   const clipFor = clipAside ? null : clipAbout;
   // The right-hand column: the panel, kept in view while scrolling (beside the results, or beside "nothing found").
   const sideColumn = side ? (
     <div className="space-y-5 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-side>
-      {!v8 && panel === "summary" && (
-        <aside aria-label="Summary" className="mb-4 space-y-3 lg:mb-0" data-panel="summary">
-          {summary}
-          {aboutTeam && <TeamLinks team={aboutTeam} season={apps.length ? null : quality?.season} />}
-        </aside>
-      )}
-      {!v8 && panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
       {askAside && (follow.ask.length ? <PeopleAlsoAsk ask={follow.ask} /> : follow.pending ? <PeopleAlsoAskPending /> : null)}
       {placesAside && <V8Group s={placesAside} statuses={statuses} summaries={summaries} skip={null} picks={picks} onPick={pick} phone={false} twoCol={false} onOpen={open} />}
       {/* The match a card or stat answer is about, to watch: under People also ask (./search/page/AnswerVideo.tsx). */}
@@ -365,7 +357,7 @@ export default function SearchPage() {
     {/* One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
     // card); a page with a side panel keeps that column and puts the panel beside it. */}
     <SeasonPickContext.Provider value={seasonPick}>
-    <div className={cn("w-full pt-4 sm:pt-8", side ? cn("max-w-6xl", v8 && "mx-auto") : "mx-auto max-w-[720px]")} data-results-column={side ? "with-panel" : ""}>
+    <div className={cn("w-full pt-4 sm:pt-8", side ? cn("max-w-6xl", "mx-auto") : "mx-auto max-w-[720px]")} data-results-column={side ? "with-panel" : ""}>
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
           The query itself lives in the top bar (refine there): the page never repeats it. */}
       {/* Phones: the bar (above the column), then a short header ("Results: …"), no eyebrow. */}
@@ -387,16 +379,11 @@ export default function SearchPage() {
       {/* Not when the heading already says the reading (a shared name's line). */}
       {/* With the answer already in hand (the first paint's, or the box's), from the first frame: it used to wait for
           the page's refresh of that same answer, and pushed everything under it down when it came (phones: 42px). */}
-      {v8 && query && found && (!busy || seeded) && !error && !namesLine && <UnderstoodLine query={query} understood={ax?.understood} className="mt-2" />}
+      {query && found && (!busy || seeded) && !error && !namesLine && <UnderstoodLine query={query} understood={ax?.understood} className="mt-2" />}
       {/* A follow-up: the tab's last search, which Bruno reads it with, as a tap back to it. */}
       {followFrom && found && (!busy || seeded) && !error && (
         <p className="mt-1.5 break-words text-xs text-muted-foreground" data-follow-from>
           Your last search: <Link to={`/search?q=${encodeURIComponent(followFrom.q)}${followFrom.season != null ? `&in=${followFrom.season}` : ""}`} className="font-medium text-foreground underline-offset-2 hover:underline">{followFrom.q}{followFrom.season != null && ` (${seasonLabel(followFrom.season)})`}</Link>
-        </p>
-      )}
-      {badge && !v8 && (
-        <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground v8:bg-transparent v8:text-muted-foreground" data-context-badge>
-          <ScanSearch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span className="min-w-0 break-words">{badge}</span>
         </p>
       )}
       {/* A long or wordy query said the short way: quietly, under the heading, which keeps the answer's own words. */}
@@ -432,8 +419,7 @@ export default function SearchPage() {
                   </div>
                 </>
               )
-          ) : v8 ? (
-            <AnswerVideoProvider video={answer?.video}>
+          ) : <AnswerVideoProvider video={answer?.video}>
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined} data-v8-results>
               <AnswerNotesView notes={{ ...notes, understood: [] }} query={query} className="mb-4 text-sm" onDidYouMean={runFix} />
               {ax?.understood?.fallback && (
@@ -493,83 +479,7 @@ export default function SearchPage() {
               </div>
               </div>
             </div>
-            </AnswerVideoProvider>
-          ) : (
-            <AnswerVideoProvider video={answer?.video}>
-            <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>
-              {/* The badge carries what was understood; a correction ("Did you mean …") and a gap still say so here. */}
-              <AnswerNotesView notes={{ ...notes, understood: [] }} query={query} className="mb-4 text-sm" onDidYouMean={runFix} />
-              {/* The server found nothing for all of it and shows the nearest set instead: said plainly, above that set. */}
-              {ax?.understood?.fallback && (
-                <p className="mb-4 flex items-start gap-1.5 rounded-lg border border-warning/40 bg-warning/[0.08] px-3 py-2 text-sm text-foreground v8:border-line v8:bg-card" data-fallback-label>
-                  <Info className="mt-0.5 size-4 shrink-0 text-warning v8:text-muted-foreground" aria-hidden />{ax.understood.fallback}
-                </p>
-              )}
-              {/* The team was found but not the answer: what search can answer about it, one tap each. */}
-              {ax?.sorry ? <SorryNote sorry={ax.sorry} className="mb-5" />
-                : !!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Related searches" className="mb-5" />}
-              {/* A yes-or-no question's answer, first: above the summary and the card that proves it. */}
-              {answer?.verdict && <Verdict v={answer.verdict} />}
-              {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
-              {/* Desktop: results left (at most 720px, narrower before the panel gets under 20rem), at most one panel
-                  right, chosen by the query: a versus query's
-                  head-to-head; else a question's summary (timeline, stats or standing) with the team's pages. With
-                  both, the head-to-head keeps the column and the summary goes below the results. Phone: one column,
-                  the summary first (H1, badge, summary, cards). */}
-              <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")} data-layout={panel ?? "single"}>
-                {sideColumn}
-                <div className={cn("min-w-0 lg:col-start-1 lg:row-start-1", V8_STAGGER)} data-stagger>
-                  {!panel && summary}
-                  {/* A stat question's answer ("4215 highest score in worlds"): ./search/page/StatAnswer.tsx. */}
-                  {/* A word's explainer with it ("how is OPR calculated, with 4215") is drawn inside its card: one answer card. */}
-                  {answer?.stat && <StatAnswerCard stat={answer.stat} heading={title ?? undefined} explain={inStat ? answer.card : undefined} />}
-                  {/* A question's records: as cards the timeline jumps to (championships, newest first: a "when" question reads
-                      from the latest), else the answer card as before. */}
-                  {apps.length ? (
-                    // Worlds or states trips: one card with the team up top, a record card per trip inside.
-                    <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} headline={answer!.card!.headline} trip={answer!.card!.trip} apps={apps} />
-                  ) : answer?.card?.kind === "event-awards" ? <EventAwardsAnswer card={answer.card} heading={title ?? undefined} />
-                    : answer?.card && !inStat && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
-                  {/* A compound question's other parts, each its own card, in the order asked. */}
-                  <ClauseCards clauses={answer?.clauses} />
-                  {/* A match or event searched by name (no answer card): its video above the results (./search/page/AnswerVideo.tsx). */}
-                  {!answer?.stat && !answer?.card && <AnswerVideo className="mb-5 mt-0 max-sm:mx-0" />}
-                  {!!compares.length && (
-                    <section aria-label="Compare" className="mb-5" data-section="compare">
-                      <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground v8:font-medium v8:text-text-faint">Compare</h2>
-                      <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? (from) => { if (!stale) setSheet({ hit: c, from, of: answer }); } : undefined} />)}</div>
-                    </section>
-                  )}
-                  {/* Phones: a versus query's side-by-side numbers under its Compare (desktop has them beside it). */}
-                  {shownH2h && <div className="mb-5 lg:hidden"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
-                  {view.map((s) => <ResultSection key={s.id} s={s} statuses={statuses} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={side} onOpen={open} />)}
-                  {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
-                    // Never a dead end: what's empty, said plainly, and each choice that isn't, one tap away.
-                    <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
-                      <p className="text-foreground">{emptyLine(filters, hits)}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {filterAlternatives(hits, filters, undefined, statusesFor).map((a) => (
-                          <Button key={a.label} size="sm" variant="secondary" onClick={() => setFilters(a.f)} data-alternative>
-                            Show {a.label}
-                          </Button>
-                        ))}
-                        <button type="button" onClick={() => setFilters({ when: askedTime, season: null, type: null })} className="text-sm font-medium text-foreground underline-offset-2 hover:underline">Clear filters</button>
-                      </div>
-                    </div>
-                  )}
-                  {panel === "versus" && summary}
-                  {/* The next questions search answers directly: after the results here, in the right column when wide. */}
-                  {!wide && <PeopleAlsoAsk ask={follow.ask} className="mt-5" />}
-                  {/* Under People also ask here too: on a phone, or a wide page with no side column. */}
-                  {(!wide || !side) && clipFor && <AnswerClip about={clipFor} className="mt-5" />}
-                  {/* The team's highlights and the related searches, after the results. */}
-                  <TeamHighlights h={follow.highlights} className="mt-5" />
-                  <RelatedSearches related={follow.related} seeAll={follow.asked ?? query} className="mt-5" />
-                </div>
-              </div>
-            </div>
-            </AnswerVideoProvider>
-          )}
+            </AnswerVideoProvider>}
       {phone && (
         <>
           <CompareBar picks={picks} names={pickNames} season={asked} onDrop={pick} />

@@ -73,7 +73,7 @@ import { eventRoster, eventStanding } from "../shared/eventStanding";
 import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, OddsHeading } from "../components/PlayoffBracket";
 import { EventPackButton } from "../components/offline/EventPackButton";
-import { isV8, useIsV8, V8_NUM } from "../lib/v8";
+import { V8_NUM } from "../lib/v8";
 import { V8_AWARD, v8Rank } from "../lib/v8colour";
 import { WLT_TONE } from "../lib/rankShade";
 import { Disclosure, eventState, FinishedFocus, noAwardsNote, LiveFocus, UpcomingFocus, V8_DEFAULT_TAB, V8_TAB_ORDER } from "../components/EventFocus";
@@ -103,7 +103,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const [sp, setSp] = useSearchParams();
   const e = d.event;
   // v8: the page is built around the event's state (live / finished / upcoming), components/EventFocus.tsx.
-  const v8 = useIsV8();
+  
   const st = eventState(e.status);
   // From what's saved on this device (no connection): its videos can't play (components/EventActions.tsx).
   const saved = !!offlineSource(d);
@@ -126,7 +126,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   // The records tables follow the live results: fetched again whenever the event's results are checked or the stats are rebuilt.
   const statsAt = useMeta()?.statsAt ?? "";
   const recordsKey = `${d.live?.checkedAt ?? ""}|${statsAt}`;
-  const fallback: EventTab = sp.get("match") ? "matches" : v8 ? V8_DEFAULT_TAB[st] : e.status === "upcoming" && !d.matches.length ? (predictable ? "odds" : "teams") : "matches";
+  const fallback: EventTab = sp.get("match") ? "matches" : V8_DEFAULT_TAB[st];
   const { tab, valid: validTab } = eventTab(sp.get("tab"), { predictable, fallback });
   // An unknown ?tab= (or Odds on a history season) opens the default tab, and leaves the address without it.
   useEffect(() => { if (!validTab) setSp((x) => { x.delete("tab"); return x; }, { replace: true }); }, [validTab, setSp]);
@@ -160,15 +160,12 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const bundleOn = useFlag("eventBundle");
   const packsOn = useFlag("offlinePacks");
   const oddsOpen = predictable && !d.forecastUnsupported;
-  // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
-  // v8 has one compact header for every visit, so no slim bar.
-  const slim = useArrivedOnTab(sp.has("tab") && validTab) && !v8;
   const [detailsOpen, setDetailsOpen] = useDetailsOpen();
   // Labels, not buttons: filled chips without a border (components/EventChips.tsx).
   const statusBadge = <EventStatusChip status={e.status} />;
   const typeChip = <EventTypeChip type={e.type} label={e.typeLabel} />;
   // Right under the name, so the countdown is on a phone's first screen (in the slim bar too).
-  const live = liveMode && <div ref={livePanel} className="scroll-mt-bar-20"><LivePanel d={d} target={target} refresh={refresh} track={v8 ? undefined : track} noWatch={v8} /></div>;
+  const live = liveMode && <div ref={livePanel} className="scroll-mt-bar-20"><LivePanel d={d} target={target} refresh={refresh} track={undefined} noWatch /></div>;
   // The summary: everything about the event but its name, status and dates (the slim bar's).
   const facts = (full: boolean) => (
     <>
@@ -237,7 +234,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
     odds: <TabsTrigger key="odds" value="odds"><OddsTabIcon />Odds</TabsTrigger>,
   };
   // v8: the tabs follow the state's priority (EventFocus.tsx); the old order otherwise.
-  const tabOrder = (v8 ? V8_TAB_ORDER[st] : EVENT_TABS).filter((t) => t !== "odds" || predictable);
+  const tabOrder = (V8_TAB_ORDER[st]).filter((t) => t !== "odds" || predictable);
   // v8's actions beyond Stream and Track, in one menu.
   const more = (
     <DropdownMenu>
@@ -254,8 +251,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
     </DropdownMenu>
   );
   // v8's top of the page: a compact header, then what this state's visitor came for, then the details folded away.
-  const v8Top = v8 && (
-    <>
+  const v8Top = <>
       <header className="mb-5 max-sm:mb-4" data-event-header="v8">
         <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
           <div className="min-w-0 flex-1">
@@ -297,57 +293,12 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <TeamsSource d={d} provisional={!!provisionalTeams} />
         </div>
       </Disclosure>
-    </>
-  );
+    </>;
   return (
     <EventClipsProvider season={e.season} code={e.code}>
     <div>
       <OfflineNote data={d} />
-      {v8 ? v8Top : slim ? (
-        <Reveal fade={false} className={cn("relative mb-4 overflow-hidden rounded-2xl border border-border bg-card px-4 py-3.5 sm:px-6 sm:py-4", V8_HEADER)} data-event-header="slim">
-          <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent opacity-15 blur-3xl v8:hidden" />
-          <div className="relative flex items-start gap-3">
-            <div className="min-w-0 flex-1">
-              <h1 className={cn("font-display text-xl font-semibold tracking-tight sm:text-2xl", V8_TITLE)}>{e.name}</h1>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                {statusBadge}
-                <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>
-              </div>
-            </div>
-            <Button variant="outline" size="sm" className="shrink-0" aria-expanded={detailsOpen} aria-controls="event-details" onClick={() => setDetailsOpen(!detailsOpen)}>
-              Event details <ChevronDown className={cn("transition-transform motion-reduce:transition-none", detailsOpen && "rotate-180")} />
-            </Button>
-          </div>
-          <div className="relative">{live}</div>
-          <div id="event-details" hidden={!detailsOpen} className="relative mt-4 border-t border-border pt-4 v8:border-line">
-            {detailsOpen && (
-              <div className="grid gap-6 max-sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
-                <div className="min-w-0">{facts(false)}</div>
-                {glance}
-              </div>
-            )}
-          </div>
-          <div ref={setHeaderEnd} aria-hidden />
-        </Reveal>
-      ) : (
-        <Reveal fade={false} className={cn("relative mb-6 max-sm:mb-4 overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-8", V8_HEADER)} data-event-header="full">
-          <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent opacity-15 blur-3xl v8:hidden" />
-          <div className="relative grid gap-6 max-sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              {statusBadge}
-              {typeChip}
-              <span className="font-mono text-xs text-muted-foreground v8:text-text-faint">{e.code} · {seasonLabel(e.season)}</span>
-            </div>
-            <h1 className={cn("mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl", V8_TITLE)}>{e.name}</h1>
-            {live}
-            {facts(true)}
-          </div>
-          {glance}
-          </div>
-          <div ref={setHeaderEnd} aria-hidden />
-        </Reveal>
-      )}
+      {v8Top}
       {sticky && (
         <StickyActions after={headerEnd} label="Event actions">
           {liveMode
@@ -428,10 +379,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           ) : (
             <>
             {/* The stored Monte Carlo projection of the rest of the event (server/projections), live as results land. */}
-            {v8
-              // v8: the full Monte Carlo table is for the curious, behind a disclosure; advancement odds lead.
-              ? <Disclosure title="Projections" hint="Simulated final ranks and playoff odds" className="mb-6 max-sm:mb-4" id="projections-disclosure"><Projections d={d} team={teamParam} /></Disclosure>
-              : <div className="mb-10 max-sm:mb-6"><Projections d={d} team={teamParam} /></div>}
+            {<Disclosure title="Projections" hint="Simulated final ranks and playoff odds" className="mb-6 max-sm:mb-4" id="projections-disclosure"><Projections d={d} team={teamParam} /></Disclosure>}
             <section aria-label="Advancement odds" className="mb-10 max-sm:mb-6">
               <h2 className="mb-3 font-display text-lg font-semibold text-foreground v8:font-sans v8:text-base">Advancement odds</h2>
               <AdvancementView season={e.season} code={e.code} team={teamParam} nameOf={nameOf} onPickTeam={setTeam} />
@@ -457,21 +405,6 @@ const V8_STAT_CHIP = "v8:bg-ink/[0.05] v8:text-text-muted";
 
 /** Google Maps' search for a place, the address form that opens the Maps app on a phone. */
 export const mapsUrl = (q: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
-
-/**
- * True when the page was opened on a panel: `now` (a valid ?tab=) for the entry it arrived at. A tab click
- * or a table filter replaces the entry, so it keeps the header as it was; a new visit or Back/Forward
- * reads the address again.
- */
-function useArrivedOnTab(now: boolean): boolean {
-  const { key } = useLocation();
-  const nav = useNavigationType();
-  const [s, setS] = useState({ key, on: now });
-  if (s.key === key) return s.on;
-  const on = nav === "REPLACE" ? s.on : now;
-  setS({ key, on });
-  return on;
-}
 
 const DETAILS_KEY = "cs-event-details";
 /** "Event details" open or closed in the slim bar: remembered for the browser session (sessionStorage). */
@@ -772,7 +705,7 @@ function WLT({ rec: [w, l, t] }: { rec: (number | null)[] }) {
 function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt }: { field: FieldRow[]; season: number; team: number | null; predictable: boolean; registered: EventDetail["registered"]; syncedAt?: string | null }) {
   const field = eventRoster(all).map((t) => ({ ...t, ...eventStanding(t) }));
   // v8: no hover lift on the team cards (brief §4.2); a fill on hover instead.
-  const v8 = isV8();
+  
   const anyRank = field.some((t) => t.rank != null);
   const [q, setQ] = useState("");
   const f = q.trim().toLowerCase();
@@ -797,10 +730,10 @@ function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt
         <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((t) => (
             <li key={t.team}>
-              <TeamPageLink team={t.team} name={t.name} season={season} className={cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3 v8:border-line v8:transition-colors v8:duration-150 v8:still-hover:bg-ink/[0.03]", hasTeamPage(t.team, t.name) && !v8 && "lift", t.team === team && "border-accent/60 bg-accent/[0.06] v8:bg-card")}>
+              <TeamPageLink team={t.team} name={t.name} season={season} className={cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3 v8:border-line v8:transition-colors v8:duration-150 v8:still-hover:bg-ink/[0.03]", t.team === team && "border-accent/60 bg-accent/[0.06] v8:bg-card")}>
                 {/* Registrations have no rank yet: no empty rank box. */}
                 {/* v8: no column of empty rank boxes before anyone is ranked. */}
-                {!registered && (!v8 || anyRank) && (
+                {!registered && anyRank && (
                   <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center v8:bg-ink/[0.04]">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground v8:text-[0.6875rem] v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint">Rank</span>
                     {/* v8: gold, silver and bronze for the top three ranks, white below (lib/v8colour.ts). */}

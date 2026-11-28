@@ -93,13 +93,3 @@ describe("My teams, v8 on", () => {
     expect(buttons[1].className).toContain("v8:bg-transparent");
   });
 });
-
-describe("My teams, v8 off", () => {
-  it("is drawn as before", async () => {
-    h.user = user([{ teamNumber: 18360, name: "Hypnotic Robotics" }]);
-    page();
-    const card = within(await screen.findByRole("article", { name: "Team 18360" }));
-    expect(card.getByRole("link", { name: /Full team page/ })).toBeTruthy();
-    expect(document.querySelector("[data-myteams-v8]")).toBeNull();
-  });
-});

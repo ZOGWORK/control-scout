@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The /search page in v8 (docs/design/v8-revamp-brief.md §7 item 2): the page title at v8's size in Inter, a quiet
 // eyebrow, one entrance stagger on the results column, neutral section heads (the live dot in live red, no coloured
-// fills), calm palette classes after the v8-off ones. v8 off keeps every class it had.
+// fills), calm palette classes after the older, louder ones.
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -204,28 +204,5 @@ describe("v8 answer pieces", () => {
     const table = { by: "opr" as const, rows: Array.from({ length: 10 }, (_, i) => row(i + 1, 100 - i)) };
     const { container } = render(<MemoryRouter><TeamTable table={table} label="Top" limit={5} /></MemoryRouter>);
     expect([...container.querySelectorAll("[data-team-row]")].map((r) => r.getAttribute("data-team-row"))).toEqual(["101", "102", "103", "104", "105"]);
-  });
-});
-
-describe("search page, v8 off", () => {
-  it("keeps today's title and eyebrow classes", () => {
-    state.answer = answer([team(4215, "Hypnotic Robotics"), team(6980, "Bad Wolf")]);
-    const { container } = show("/search?q=robotics");
-    expect(document.documentElement.hasAttribute("data-v8")).toBe(false);
-    const h1 = container.querySelector("h1")!;
-    for (const c of ["font-display", "text-xl", "md:text-2xl", "lg:text-3xl"]) expect(h1.classList.contains(c)).toBe(true);
-    expect(container.querySelector("[data-eyebrow]")!.classList.contains("font-semibold")).toBe(true);
-    // None of v8's layout: no understood line, no compact team answer, no row groups.
-    expect(container.querySelector("[data-understood]")).toBeNull();
-    expect(container.querySelector("[data-v8-results]")).toBeNull();
-    expect(container.querySelector("[data-v8-group]")).toBeNull();
-    expect(container.querySelectorAll('[data-result="team"]').length).toBe(2);
-  });
-
-  it("keeps the palette's colours as the classes v8 off reads", () => {
-    const off = (c: string) => !/^v8(light)?:/.test(c);
-    expect(TONE.auto.fill.split(" ").filter(off).join(" ")).toBe(SEARCH_PALETTE.auto.fill);
-    expect(TONE.live.text.split(" ").filter(off).join(" ")).toBe(SEARCH_PALETTE.live.text);
-    expect(TEAM_BAR.split(" ").filter(off)).toEqual(["bg-team-a"]);
   });
 });

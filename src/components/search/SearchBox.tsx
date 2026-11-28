@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { ArrowLeftRight, ArrowRight, BookOpen, CalendarDays, ChevronDown, Clock, Compass, FileText, Info, Loader2, MapPin, Search, Shield, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
 import { m } from "../motion";
-import { useIsV8 } from "../../lib/v8";
+
 import { ApiError, apiFetch } from "../../lib/api";
 import { onInternetChange } from "../../lib/connection";
 import { offlineSource } from "../../lib/offline/saved";
@@ -472,7 +472,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
   // v8 (the page plan): the top hit is highlighted as soon as current results arrive, so Enter goes straight to it.
   const [active, setActive] = useState(-1);
-  const v8 = useIsV8();
+  
   const { hits, answer, ai, refining, busy, error, logPick, stale, searchNow } = useSearchHits(idle ? "" : q, kinds);
   const { sections: answered, notes: answerNotes } = useSections(hits, answer, ai);
   // The page's order, a Compare first in its own group, and the live "we understood" line (Requirement 17).
@@ -508,8 +508,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     shownHits.current = hits;
     const i = !fresh && activeKey.current ? ordered.findIndex((r) => r.key === activeKey.current) : -1;
     // v8: with nothing highlighted yet and the results current, the top hit.
-    setActive(i >= 0 ? i : v8 && !activeKey.current && !stale && !busy && ordered.length ? 0 : -1);
-  }, [ordered, hits, v8, stale, busy]);
+    setActive(i >= 0 ? i : !activeKey.current && !stale && !busy && ordered.length ? 0 : -1);
+  }, [ordered, hits, stale, busy]);
   useEffect(() => { activeKey.current = ordered[active]?.key ?? null; }, [ordered, active]);
   // Typing again: nothing highlighted (an older query's row is never Enter's pick).
   useEffect(() => { setActive(-1); activeKey.current = null; }, [q]);
@@ -788,7 +788,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
         </>, !q ? "max-sm:hidden" : undefined)}
       </div>
       {showList && (
-        <DropPanel v8={v8} grow={!!query}>
+        <DropPanel grow={!!query}>
         <div ref={list} id={listId} role="listbox" aria-label={`${label} results`} aria-busy={stale || undefined} onScroll={measure}
           style={room != null ? { maxHeight: `min(26rem, ${room}px)` } : undefined}
           className={cn("relative max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain p-1.5 transition-opacity", stale && "opacity-60")}>
@@ -844,7 +844,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-14 items-end justify-center bg-gradient-to-t from-popover via-popover/85 to-transparent pb-2">
             <button type="button" tabIndex={-1} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={() => list.current?.scrollBy({ top: list.current.clientHeight * 0.8 })}
               className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-accent/40 bg-popover px-3 py-1 text-xs font-medium text-accent-text shadow-sm hover:border-accent v8:border-input v8:text-foreground v8:hover:border-ink/25">
-              {below} more below <ChevronDown className={cn("size-3.5", !v8 && "motion-safe:animate-bounce")} data-more-chevron />
+              {below} more below <ChevronDown className="size-3.5" data-more-chevron />
             </button>
           </div>
         )}
@@ -867,19 +867,12 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
 
 const PANEL = "absolute inset-x-0 top-full z-40 mt-1.5 overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]";
 
-/** The dropdown's panel. v8 off: Motion's short drop, as before. v8 (brief §4.2): on the menu surface, grown from
- *  the field (0.97 to 1, 180ms, the strong ease-out; only a fade under reduced motion), and only when it opens on
- *  results being typed (`grow`, read once when it opens). Opening search (Ctrl K, `/`, a tap in the field) shows the
- *  empty field's list at once: no animation on something seen that often. */
-function DropPanel({ v8, grow, children }: { v8: boolean; grow: boolean; children: ReactNode }) {
+/** The dropdown's panel (brief §4.2): on the menu surface, grown from the field (0.97 to 1, 180ms, the strong
+ *  ease-out; only a fade under reduced motion), and only when it opens on results being typed (`grow`, read once when
+ *  it opens). Opening search (Ctrl K, `/`, a tap in the field) shows the empty field's list at once: no animation on
+ *  something seen that often. */
+function DropPanel({ grow, children }: { grow: boolean; children: ReactNode }) {
   const [animate] = useState(grow);
-  if (!v8) {
-    return (
-      <m.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }} className={PANEL}>
-        {children}
-      </m.div>
-    );
-  }
   return (
     <div data-drop-panel data-grow={animate ? "" : undefined}
       className={cn(PANEL, "v8:border-line v8:shadow-[0_16px_40px_-12px_rgba(0,0,0,.6)] v8:origin-top",

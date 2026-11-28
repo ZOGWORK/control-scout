@@ -1,8 +1,6 @@
-// /preview/kit: every v8 token and shared component on one page (docs/design/v8-revamp-brief.md §8, step 1), for
-// review and for the Figma capture. Noindex, linked from nowhere. It draws in v8 while it's open even when this device
-// hasn't turned v8 on: it sets <html data-v8> for the visit and takes it off on the way out; the theme follows the
-// attribute (useIsV8 in src/hooks/useTheme.ts), so the device's own theme comes back by itself, never a stale copy.
-import { useEffect, useLayoutEffect, useState } from "react";
+// /preview/kit: every token and shared component of the app's look on one page (docs/design/v8-revamp-brief.md §8),
+// for review and for the Figma capture. Noindex, linked from nowhere.
+import { useEffect, useState } from "react";
 import { ArrowRight, Bell, MoreHorizontal, Radio, Search, Settings, Star, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/basic";
@@ -10,17 +8,6 @@ import { Checkbox, Progress, RadioGroup, RadioGroupItem, Select, SelectContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Popover, PopoverContent, PopoverTrigger, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger, Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/overlay";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { toast } from "../components/ui/sonner";
-import { isV8 } from "../lib/v8";
-
-/** v8 for as long as the kit is open (the CSS is all `v8:` and html[data-v8], so it switches live). */
-function useV8WhileOpen() {
-  const [was] = useState(isV8);
-  useLayoutEffect(() => {
-    if (was) return;
-    document.documentElement.setAttribute("data-v8", "");
-    return () => document.documentElement.removeAttribute("data-v8");
-  }, [was]);
-}
 
 const SURFACES = [
   ["bg", "bg-background", "#0a0a0b"], ["surface-1", "bg-card", "#0e0e10"], ["surface-2", "bg-popover", "#141416"], ["surface-3", "bg-muted", "#1b1b1e"],
@@ -47,7 +34,6 @@ function Section({ id, title, note, children }: { id: string; title: string; not
 }
 
 export default function KitPage() {
-  useV8WhileOpen();
   const [chip, setChip] = useState("season");
   useEffect(() => { document.title = "Kit · Control Scout"; }, []);
   return (

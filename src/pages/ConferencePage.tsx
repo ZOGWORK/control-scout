@@ -21,7 +21,7 @@ import { leagueHref, leagueTitle, type LeagueStandings } from "../shared/leagues
 import { regionHref, regionName } from "../shared/regionRankings";
 import { SeasonPick, weekLabel } from "./RankingsPage";
 import { cn } from "../components/cn";
-import { useIsV8 } from "../lib/v8";
+
 import { Disclosure, RankingsTabs, V8_CAPTION, V8_EYEBROW, V8_HEAD, V8_ICON, V8_LINK, V8_NOTE } from "../components/rankings/v8";
 
 export default function ConferencePage() {
@@ -102,7 +102,7 @@ function ConferenceView({ c, team }: { c: Conference; team: number | null }) {
   const movers = conferenceMovers(c);
   const next = c.seasons.filter((o) => o.season > c.season).sort((a, b) => a.season - b.season)[0];
   const prev = c.seasons.filter((o) => o.season < c.season).sort((a, b) => b.season - a.season)[0];
-  const v8 = useIsV8();
+  
   // The season note: a card above everything in the classic look; v8 has it behind the disclosure under the table.
   const note = (
     <p className={cn("rounded-lg border border-line bg-card px-3 py-2 text-sm text-text-muted", "v8:rounded-none v8:border-0 v8:bg-transparent v8:p-0")} data-season-note>
@@ -115,7 +115,7 @@ function ConferenceView({ c, team }: { c: Conference; team: number | null }) {
     // v8: the table comes right after the event line and the winner; movers and the unranked follow it.
     <div className="space-y-6 v8:flex v8:flex-col v8:gap-6 v8:space-y-0" data-conference={c.slug}>
       <div className="space-y-2">
-        {!v8 && note}
+        
         <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-text-muted" data-conference-event>
           <CalendarDays className={cn("size-4 shrink-0", V8_ICON)} aria-hidden />
           <Link to={`/events/${c.season}/${encodeURIComponent(c.code)}`} className="text-accent-text hover:underline">{c.event}</Link>
@@ -159,17 +159,15 @@ function ConferenceView({ c, team }: { c: Conference; team: number | null }) {
       <section aria-labelledby="conference-table" className="space-y-2 v8:order-2">
         <h2 id="conference-table" className="sr-only">{c.name} table</h2>
         <ConferenceTable c={c} team={team} />
-        {!v8 && <p className="text-xs text-text-muted">Scout rating and OPR are Control Scout's, this season's: ratings only compare within one season, never against another season's.</p>}
+        
       </section>
 
       <div className="v8:order-4"><ConferenceUnranked c={c} team={team} /></div>
 
-      {v8 && (
-        <Disclosure title="How conference rankings work" className="order-6">
+      {<Disclosure title="How conference rankings work" className="order-6">
           {note}
           <p>Scout rating and OPR are Control Scout's, this season's: ratings only compare within one season, never against another season's.</p>
-        </Disclosure>
-      )}
+        </Disclosure>}
 
       {(next || prev) && (
         <nav className="flex flex-wrap gap-x-4 gap-y-2 text-sm v8:order-5" aria-label="Other seasons" data-conference-seasons>
