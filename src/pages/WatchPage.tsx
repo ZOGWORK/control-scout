@@ -210,7 +210,8 @@ function WatchBody() {
   const watched: Watched | null = fromFeed
     ? { key: fromFeed.key, kind: watchKindOf(fromFeed), t: fromFeed.t, end: fromFeed.end, duration: fromFeed.duration }
     : creator ? { key: `c:${creator.videoId}`, kind: creator.series === "behind-the-bot" ? "behindTheBot" : "creator", t: 0, duration: creator.durationS ?? undefined } : null;
-  useWatchReports(frame, watched, !!user);
+  // The player is made again when the moment changes (its key below): reports follow the new one.
+  useWatchReports(frame, watched, !!user, `${videoId}:${t}:${end ?? ""}`);
 
   // The video as a card, for Save, Watch later, History and notes: the feed's own, else its creator video's.
   const card: FeedItem | null = useMemo(() => fromFeed ? { ...fromFeed, reason: "" }

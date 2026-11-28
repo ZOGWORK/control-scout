@@ -17,12 +17,13 @@ export function milestones(item: Pick<FeedItem, "t" | "end" | "duration">, p: Vi
 export interface Watched { key: string; kind: WatchKind; t: number; end?: number | null; duration?: number }
 
 /** Reports `item`'s watch while `frame` plays it; a new key starts afresh. Nothing when `item` is null (a video the
- *  feed doesn't know). */
-export function useWatchReports(frame: RefObject<HTMLIFrameElement | null>, item: Watched | null, signedIn: boolean): void {
-  const sent = useRef({ five: false, half: false, done: false });
+ *  feed doesn't know). `player` names the player in `frame`: a new one (the page loads the video again, at a note's
+ *  moment say) is listened to in its turn, its milestones kept from before for the same key. */
+export function useWatchReports(frame: RefObject<HTMLIFrameElement | null>, item: Watched | null, signedIn: boolean, player?: string): void {
+  const sent = useRef({ key: null as string | null, five: false, half: false, done: false });
   const key = item?.key ?? null;
   useEffect(() => {
-    sent.current = { five: false, half: false, done: false };
+    if (sent.current.key !== key) sent.current = { key, five: false, half: false, done: false };
     const f = frame.current;
     if (!item || !f) return;
     const report = (w: { watchedS: number; completed?: boolean }) => { void reportWatch({ key: item.key, kind: item.kind, ...w }, signedIn); };
@@ -47,5 +48,5 @@ export function useWatchReports(frame: RefObject<HTMLIFrameElement | null>, item
     return () => { window.removeEventListener("message", onMessage); f.removeEventListener("load", hello); clearInterval(timer); };
     // The item is fixed per key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, signedIn]);
+  }, [key, signedIn, player]);
 }

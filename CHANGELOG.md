@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.3.4 — 2026-11-28
+
+Fixes from an audit of Videos: notes open their video, lists keep their place, and the feed keeps its order however slowly it's read.
+
+### Highlights
+- [fixes] A match clip opened from your notes plays with Save and notes
+- [fixes] Saving or removing a video keeps a long list where it was
+- [fixes] A feed read slowly no longer skips or repeats videos
+- [fixes] Watch history keeps counting after jumping to a note
+
+### Videos
+- **Notes open their video** (`src/components/videos/LibraryViews.tsx`, `VideosFrame.tsx`): a note's links carry the video, as a feed card's do, so a match clip (which has no creator video to look up) opens a working watch page instead of one titled "Video" with Save, Watch later and notes off.
+- **Lists keep their place**: a change to the library re-reads as many pages as were shown instead of cutting a long list back to its first 24; Notes can try a failed later page again; and a card removed from one list no longer stays hidden in another.
+- **Watches are counted right**: the watch page's reports follow its player when it loads again at a note's moment (`src/lib/useWatchReports.ts`), and a clip swiped past before it played is no longer kept as a view (`src/lib/videoHistory.ts`).
+- **The feed keeps its order** (`server/api/videosFeed.ts`): a list being paged is no longer rebuilt after 10 minutes, which shifted it under the reader, skipping some videos and repeating others. (#2456)
+
 ## 8.3.3 — 2026-11-28
 
 Cycles is now Clips, with its own mark, and on a wide screen the video stands tall in the middle with its words beside it.
