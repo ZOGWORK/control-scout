@@ -42,7 +42,8 @@ export function drainOnSigterm(server: () => Server | null, log: (m: string) => 
       log("stopping: finishing requests in progress");
       closed = new Promise<void>((r) => s.close(() => r()));
       s.closeIdleConnections();
-      const late = setTimeout(() => log("stopping: requests still open after the grace period, exiting"), graceMs);
+      // At the grace deadline whatever is still open is cut, held work or not: requests get the same 10 s as before.
+      const late = setTimeout(() => { log("stopping: requests still open after the grace period, closing them"); s.closeAllConnections(); }, graceMs);
       late.unref();
       void closed.then(() => clearTimeout(late));
     }

@@ -113,9 +113,11 @@ lanes_hurry() {
 lanes_switch() {
   local mode="$1" u="$LANES_UNIT" live new l t0 others=0
   live="$(lanes_live)"
+  # A lane still letting the last hand-off's data cycle finish is ended first: a restart or the next hand-off (which
+  # takes it as its idle lane) would otherwise wait out its stop.
+  lanes_hurry
   if [ "$mode" = restart ]; then
     new=a
-    lanes_hurry
     for l in $live; do [ "$l" = a ] || systemctl stop "$u@$l.service"; done
     systemctl stop "$u.service" 2>/dev/null || true
     t0="$(date +%s)"

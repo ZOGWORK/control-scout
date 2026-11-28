@@ -181,6 +181,14 @@ case_restart_hurries() {
     [ "$(lanes_live)" = a ]
 }
 
+# The next hand-off within the cap: the lane still finishing is its idle lane, ended before it's started again.
+case_handoff_hurries() {
+  active control-scout@a.service; touch "$FAKE_DIR/deactivating/control-scout@b.service"
+  lanes_switch handoff >/dev/null || return 1
+  local k; k=$(at 'kill --kill-whom=all --signal=SIGTERM control-scout@b.service')
+  [ "$k" -gt 0 ] && [ "$k" -lt "$(at 'start control-scout@b.service')" ] && [ "$(lanes_live)" = b ]
+}
+
 case_enable() {
   mkdir -p "$T/app/current/server" && touch "$T/app/current/server/listen.ts"
   active control-scout.service; active control-scout.socket; touch "$FAKE_DIR/enabled/control-scout.service"
@@ -212,7 +220,7 @@ case_disable() {
     [ "$(at 'start control-scout.service')" -lt "$(at 'stop control-scout@a.service')" ]
 }
 
-for c in template handoff handoff_back handoff_aware handoff_old_release never_ready failed_start restart restart_hurries restart_same_lane both_live enable enable_fails disable; do
+for c in template handoff handoff_back handoff_aware handoff_old_release never_ready failed_start restart restart_hurries handoff_hurries restart_same_lane both_live enable enable_fails disable; do
   setup
   check "$c" "case_$c"
   teardown
