@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.3.1 — 2026-11-28
+
+The rankings table's Behind the Bot chip now means this season: a team featured in an episode from an earlier season
+no longer wears it on this year's ranking.
+
+### Highlights
+- [rankings] Behind the Bot chips on rankings show only this season's episodes
+- [rankings] A past season's ranking shows the teams featured that season
+- [teams] A team's own Behind the Bot badge still counts every episode
+
+### Rankings
+- **Behind the Bot by season** (`server/videos/creatorVideos.ts`, `src/pages/RankingsPage.tsx`): `GET /api/featured-teams?season=` keeps only the teams named in that season's episodes, and the world rankings table asks for the season it shows. Search, event pages and a team's own badge still count every episode. (#2463)
+
 ## 8.3.0 — 2026-11-28
 
 One look everywhere: the classic design, the atlas and the toggle that chose between them are gone.

@@ -332,7 +332,7 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
                       <TeamLogo team={r.team} size={18} className="self-center" />
                       <span className={cn("font-mono font-semibold tabular-nums group-hover:text-accent-text", "v8:font-sans", !me && V8_NUM)}>{r.team}</span>
                       <span className={cn("truncate group-hover:text-accent-text", "v8:text-text-muted v8:group-hover:text-text-base", me && "v8:text-text-base")}>{r.name ?? ""}</span>
-                      <FeaturedChip team={r.team} className="self-center" fit />
+                      <FeaturedChip team={r.team} season={data.season} className="self-center" fit />
                     </span>
                     <span className={cn("block truncate text-xs text-text-muted md:hidden", V8_CAPTION)}>{homeOf(r)}</span>
                   </Link>

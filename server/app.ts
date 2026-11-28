@@ -697,10 +697,10 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   }));
 
   // Every team featured on Behind the Bot (server/videos/creatorVideos.ts), for the small chip on team rows: one short
-  // list of numbers, the same for every visitor.
-  api.get("/featured-teams", h(async (_req, res) => {
+  // list of numbers, the same for every visitor. ?season= keeps only that season's episodes (the rankings table).
+  api.get("/featured-teams", h(async (req, res) => {
     res.setHeader("Cache-Control", "public, max-age=300");
-    return { teams: [...(await featuredTeamSet())].sort((a, b) => a - b) };
+    return { teams: [...(await featuredTeamSet(req.query.season ? season(req.query.season) : undefined))].sort((a, b) => a - b) };
   }));
 
   api.get("/teams/:number", h(async (req) => {

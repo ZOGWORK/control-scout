@@ -64,6 +64,13 @@ describe("Featured on Behind the Bot", () => {
     expect(screen.getByTitle("Featured on Behind the Bot").textContent).toBe("Behind the Bot");
   });
 
+  it("with a season, reads only that season's featured teams (the rankings table)", () => {
+    prime("/api/featured-teams", { teams: [21229, 4215] });
+    prime("/api/featured-teams?season=2026", { teams: [21229] });
+    render(<><FeaturedChip team={21229} season={2026} /><FeaturedChip team={4215} season={2026} /></>);
+    expect(document.querySelectorAll("[data-featured-chip]")).toHaveLength(1);
+  });
+
   it("in a tight table row (fit) keeps only the clapperboard, the words still read, so it never spills into the next column", () => {
     prime("/api/featured-teams", { teams: [21229] });
     render(<><FeaturedChip team={21229} fit /><FeaturedChip team={21229} /></>);
@@ -73,7 +80,7 @@ describe("Featured on Behind the Bot", () => {
     expect(plain.className).not.toContain("sr-only");
     // The two table rows that use it are the container it measures.
     const read = (f: string) => readFileSync(f, "utf8");
-    expect(read("src/pages/RankingsPage.tsx")).toMatch(/@container\/chiprow[\s\S]*<FeaturedChip team=\{r\.team\} className="self-center" fit \/>/);
+    expect(read("src/pages/RankingsPage.tsx")).toMatch(/@container\/chiprow[\s\S]*<FeaturedChip team=\{r\.team\} season=\{data\.season\} className="self-center" fit \/>/);
     expect(read("src/pages/EventPage.tsx")).toMatch(/@container\/chiprow[\s\S]*<FeaturedChip team=\{t\.team\} className="self-center" fit \/>/);
   });
 });

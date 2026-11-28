@@ -95,6 +95,9 @@ describe("the creator-video intake", () => {
 
   it("shows the badge's teams: titles only, Behind the Bot only", async () => {
     expect([...(await featuredTeamSet())].sort()).toEqual([13684, 21229]);
+    // By season (the rankings table): both episodes are BIOBUZZ (2026), none from the season before.
+    expect([...(await featuredTeamSet(2026))].sort()).toEqual([13684, 21229]);
+    expect([...(await featuredTeamSet(2025))]).toEqual([]);
     expect(await featuredFor(21229)).toEqual([{ series: "behind-the-bot", videoId: "qcqcqcqcqc1", season: 2026, title: "21229 Quality Control | Behind the Bot | FTC BIOBUZZ Robot" }]);
     // Named in a description only: tagged, but not featured.
     expect(await featuredFor(7777)).toEqual([]);
