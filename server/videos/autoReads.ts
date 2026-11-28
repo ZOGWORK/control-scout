@@ -6,7 +6,8 @@
 //   - a row that keeps every rule goes live at once (auto_reads.live_json, laid over the code's row: setAutoFrameRows);
 //   - a row that breaks any waits for the owner (pending_json, with its problems in plain words): Owner › Clip coverage,
 //     Waiting for approval, Approve (live as read) or Reject (dropped; the event can be read again);
-//   - a row whose video showed the reader nothing (nothingRead) is a failed read: dropped, logged, never the owner's.
+//   - a row whose video showed the reader nothing, or whose edges show matches yet placed none (nothingRead), is a
+//     failed read: dropped, logged, never the owner's.
 // A later read of the same video and event replaces a waiting one. Every delivery and decision is audited.
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
