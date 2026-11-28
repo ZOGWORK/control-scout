@@ -462,6 +462,14 @@ async function withOrphans(info: ControlPointInfo): Promise<ControlPointInfo> {
  */
 export const MEMBERSHIP_TTL = 60_000;
 
+/**
+ * How long past its last refresh a cached membership still counts in full when Control Point can't be reached:
+ * a short outage mid-event shouldn't stop a team scouting. Past this, the row is `stale`: reads go on, but
+ * writes and admin routes are refused (workspaceAccess) until Control Point answers again, so a member removed
+ * or demoted during a long outage can't keep changing the workspace on an old row.
+ */
+export const MEMBERSHIP_GRACE = 10 * 60_000;
+
 /** When Control Point last answered for each account (any fetch that rewrote its memberships): the stream sweep's clock. */
 const answeredAt = new Map<number, number>();
 /** When Control Point last answered for this account (ms since epoch), 0 when this server hasn't asked since it started. */
@@ -749,14 +757,17 @@ export async function refreshAccount(accountId: number): Promise<Workspace[] | n
   return p;
 }
 
-export interface Membership { accountId: number; workspaceId: string; workspaceName: string; role: "admin" | "member" }
+/** `stale`: served from a cached row older than MEMBERSHIP_GRACE because Control Point couldn't answer (read only). */
+export interface Membership { accountId: number; workspaceId: string; workspaceName: string; role: "admin" | "member"; stale?: true }
 
 /**
  * Is this shared account a member of the workspace, and with what role?
  * Uses the cached membership while it's fresh; on a miss (or a stale row) asks
  * Control Point once and goes by its answer. If Control Point can't be
- * reached, a stale row still counts: losing the link mid-event shouldn't stop
- * a team scouting. Null: not a member (or Control Point isn't configured).
+ * reached, a row refreshed within MEMBERSHIP_GRACE still counts in full: losing
+ * the link mid-event shouldn't stop a team scouting. An older row comes back
+ * marked `stale`, good for reads only. Null: not a member (or Control Point
+ * isn't configured).
  */
 export async function workspaceMembership(accountId: number, workspaceId: string): Promise<Membership | null> {
   if (!controlPointEnabled() || !isWorkspaceId(workspaceId)) return null;
@@ -770,7 +781,9 @@ export async function workspaceMembership(accountId: number, workspaceId: string
     const w = list.find((x) => x.id === workspaceId);
     return w ? { accountId, workspaceId, workspaceName: w.name, role: w.role } : null;
   }
-  return row ? { accountId, workspaceId, workspaceName: String(row.workspace_name), role: row.role === "admin" ? "admin" : "member" } : null;
+  if (!row) return null;
+  const m: Membership = { accountId, workspaceId, workspaceName: String(row.workspace_name), role: row.role === "admin" ? "admin" : "member" };
+  return Date.now() - Number(row.updated_at) < MEMBERSHIP_GRACE ? m : { ...m, stale: true };
 }
 
 // ---------------------------------------------------------------------------

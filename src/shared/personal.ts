@@ -66,6 +66,10 @@ export interface PersonalState {
 }
 
 export type PersonalKey = keyof PersonalState;
+/** The most scout entries one first-sign-in merge (POST /api/me/migrate) carries: the same as one /scout/sync push.
+ *  A device holding more sends its newest; the rest stay queued and go up with the next sync. */
+export const MIGRATE_MAX_ENTRIES = 200;
+
 export const PERSONAL_KEYS: PersonalKey[] = ["myTeam", "tracked", "bookmarks", "settings", "videoLinks", "predictionHistory", "shortlistNotes", "teamColors"];
 
 const NOTIFY_KEYS = new Set<string>(["myTeamMatches", "trackedTeams", "upsets", "eventStart", ...INBOX_TOGGLE_KEYS]);
