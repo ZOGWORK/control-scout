@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, halfGap, holeToCheck, HOLE_MIN, cardUnread, COUNTDOWN_CHECK, type Judged, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, embedRefusal, EmbedRefused, EMBED_REFUSED, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, readAsUpload, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, halfGap, holeToCheck, HOLE_MIN, cardUnread, COUNTDOWN_CHECK, type Judged, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, embedRefusal, EmbedRefused, EMBED_REFUSED, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, gapOf, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
@@ -525,6 +525,24 @@ describe("the frame reader", () => {
     expect(leadIn(117_000, 1, w)).toBe(true); // Sunday morning before Sunday's broadcast
     expect(leadIn(70_000, 1, w)).toBe(false); // Saturday evening, after Saturday's end: more than 6 h before Sunday's
     expect(leadIn(35_000, 0, [{ start: null, end: null }])).toBe(false); // an upload has no broadcast to be before
+  });
+
+  it("reads an only video as an upload when its clock holds none of the matches, or only a lead-in tail of them", () => {
+    // 2022 USMOKSKCEM3: broadcast 04:29:51Z–07:00:39Z the next day; Q1–Q17 played 20:36–22:57Z (epoch seconds below).
+    const start = Date.parse("2022-12-11T04:29:51Z") / 1000, end = Date.parse("2022-12-11T07:00:39Z") / 1000;
+    const times = [0, 7, 16, 24, 31, 41, 54, 61, 72, 82, 90, 100, 106, 114, 123, 133, 140].map((m) => Date.parse("2022-12-10T20:36:11Z") / 1000 + m * 60);
+    const lead = (t: number) => leadIn(t, 0, [{ start, end }]);
+    expect(times.filter(lead).length).toBe(4); // the clock alone would look for Q14–Q17 only
+    expect(readAsUpload({ only: true, start, end, held: 4, times, lead })).toBe(true);
+    // Every match a lead-in (2019IALT6: the broadcast started late): the clock is kept, its order still helps.
+    const late = times.map((t) => t + 3 * 3600);
+    expect(readAsUpload({ only: true, start, end, held: 17, times: late, lead })).toBe(false);
+    // One match inside the broadcast: the clock holds, as it always did.
+    expect(readAsUpload({ only: true, start, end, held: 5, times: [...times, start + 600], lead })).toBe(false);
+    // None near it at all (USMOKSKCWM4's re-stream): an upload, as before. Not the event's only video, or no clock: never.
+    expect(readAsUpload({ only: true, start, end, held: 0, times, lead })).toBe(true);
+    expect(readAsUpload({ only: false, start, end, held: 4, times, lead })).toBe(false);
+    expect(readAsUpload({ only: true, start: null, end: null, held: 4, times, lead })).toBe(false);
   });
 
   it("tells a division's overlay from its sibling's on a shared stream", () => {
