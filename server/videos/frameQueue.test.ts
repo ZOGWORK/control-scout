@@ -67,6 +67,19 @@ describe("frameStatus", () => {
       .toMatchObject({ state: "read", due: 0, at: "2026-11-15", why: "Read 2026-11-15: 1 match still without a clip, as the video shows (see each match)" });
   });
 
+  it("reads again a video whose live row saw matches at its edges yet placed none: a failed read, not a read", () => {
+    // 2025 FRCMP's kind: opens on Q1, ends on M10, 0 of 55 placed. Read after the event, yet still to read.
+    const R = "no frame read of it, and no agreeing reads on both sides";
+    const missing = Object.fromEntries(["Q1", "Q2", "Q3", "Q4", "Q5"].map((l) => [l, R]));
+    ROWS.push({ videoId: "BLINDaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: {}, missing, opensOn: { at: 2390, label: "Q1", clear: true } });
+    setFrameTimingsForTests(ROWS);
+    expect(frameStatus(ev([miss("Q1", { videoId: "BLINDaaaaa1" })]), NOW)).toMatchObject({ state: "queued", due: 1 });
+    // The same read with its edges showing no match: what the video shows, settled.
+    ROWS.push({ videoId: "BLANKaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: {}, missing, opensOn: { at: 3, played: 0, of: 40 } });
+    setFrameTimingsForTests(ROWS);
+    expect(frameStatus(ev([miss("Q1", { videoId: "BLANKaaaaa1" })]), NOW).state).toBe("read");
+  });
+
   it("reads once more a match a reader older than its season's READER_SINCE missed; today's read settles it", () => {
     const since = READER_SINCE[2025];
     expect(since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
