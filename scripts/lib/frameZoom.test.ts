@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BAR_FLOOR, CORNER_BOXES, FOUND_MIN, cornerBox, foundBox, sampleFinds, zoomCss, type CornerBox } from "./frameZoom";
+import { BAR_FLOOR, CORNER_BOXES, FOUND_MIN, cornerBox, foundBox, sampleFinds, wholeBox, zoomCss, type CornerBox } from "./frameZoom";
 
 /** Where a point of the unzoomed frame lands under zoomCss's transform. */
 function lands(css: string, px: number, py: number): [number, number] {
@@ -37,6 +37,15 @@ describe("the corner box list", () => {
     expect(cornerBox("otherVideo1", list)).toBeNull();
   });
 
+  it("zooms every read to a box listed for the whole recording, none to one listed for part of it", () => {
+    const part: CornerBox = { ...list[0], code: "USNDBIQ", videoId: "rLKw84eo9cQ", box: [859, 483, 421, 237], shift: 0, part: [0, 7200] };
+    expect(wholeBox("w36Zw_uqfms", [...list, part])?.box).toEqual([877, 418, 403, 302]);
+    // Part of it: the video read full size, the box only for the stretch read again (cornerBox still finds it).
+    expect(wholeBox("rLKw84eo9cQ", [...list, part])).toBeNull();
+    expect(cornerBox("rLKw84eo9cQ", [...list, part])?.part).toEqual([0, 7200]);
+    expect(wholeBox("otherVideo1", list)).toBeNull();
+  });
+
   it("lists each video once, with a box inside the 1280×720 player, the day it was measured and what it showed", () => {
     const ids = CORNER_BOXES.map((b) => b.videoId);
     expect(new Set(ids).size).toBe(ids.length);
@@ -46,6 +55,7 @@ describe("the corner box list", () => {
       expect(b.videoId).toMatch(/^[\w-]{11}$/);
       expect(b.checked).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(b.seen.length).toBeGreaterThan(10);
+      if (b.part) expect(b.part[0] >= 0 && b.part[1] > b.part[0]).toBe(true);
     }
   });
 });

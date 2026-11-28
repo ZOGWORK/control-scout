@@ -43,7 +43,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, type SplitPick, halfGap, holeToCheck, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
-import { cornerBox, foundBox, sampleFinds, zoomCss } from "./lib/frameZoom";
+import { cornerBox, foundBox, sampleFinds, wholeBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS, gapOf, type Gap } from "./lib/videoFrames";
 import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type RecheckRead, type RecheckVerdict } from "./lib/reviewRecheck";
 
@@ -1392,7 +1392,7 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-link, .ytp-gradient-top { display: none !important; }" });
   // FTC Live's screen drawn small in a box over the camera (scripts/lib/frameZoom.ts): scaled up to fill the frame, so
   // every crop reads it as a full-frame overlay.
-  const box = cornerBox(videoId);
+  const box = wholeBox(videoId);
   if (box) {
     await page.addStyleTag({ content: zoomCss(box.box, box.shift) });
     if (!zoomSaid.has(videoId)) { zoomSaid.add(videoId); console.error(`    ${videoId}: overlay in a box at ${box.box.join(", ")}, zoomed to the frame`); }
@@ -1719,7 +1719,7 @@ async function doCode(code: string): Promise<void> {
       // Still nothing: FTC Live's screen drawn small over the camera (findShrunk), every crop missing its bar. Read again
       // zoomed so the bar fills the frame's width where a bottom bar sits. A recording with a measured box (CORNER_BOXES)
       // is zoomed already. A check that fails keeps the read as it was, as the split check's does.
-      if (!cornerBox(v.videoId) && !j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
+      if (!wholeBox(v.videoId) && !j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
         const pg = page, half = splitHalf;
         // Back to the split check's zoom (its half, else the whole frame) where this check doesn't read the video.
         const restore = () => zoom(pg, half);
@@ -1751,14 +1751,16 @@ async function doCode(code: string): Promise<void> {
       // stretch they sit in is checked for a small bar (findShrunk over that stretch alone) and, where one is found, read
       // zoomed to it as a gap read of what's placed (halfGap): those starts stand, its reads look only for the run's
       // matches. Kept only where it places more. Not on a split half or a measured corner box: their zoom is the video's.
-      const hole = !cornerBox(v.videoId) && !splitHalf && (j.placed.size || j.review.size) ? holeToCheck(mine.map((x) => x.label), j.placed, m.length!) : null;
+      // A box listed for part of the recording (CORNER_BOXES' `part`, measured on a frame) is zoomed to as it is, no check.
+      const partBox = cornerBox(v.videoId)?.part ? cornerBox(v.videoId) : null;
+      const hole = !wholeBox(v.videoId) && !splitHalf && (j.placed.size || j.review.size) ? holeToCheck(mine.map((x) => x.label), j.placed, m.length!) : null;
       if (hole) {
         const pg = page, before = j;
         let hung = false;
         await splitChecked(async () => {
-          const css = await findShrunk(pg, m.length!, hole).catch((e) => { if (e instanceof ShrunkHung) hung = true; throw e; });
+          const css = partBox ? zoomCss(partBox.box, partBox.shift) : await findShrunk(pg, m.length!, hole).catch((e) => { if (e instanceof ShrunkHung) hung = true; throw e; });
           if (!css) { await zoom(pg, null); return; }
-          log(`    a score bar drawn small over ${hole.labels[0]}–${hole.labels.at(-1)} (${Math.round(hole.from)}–${Math.round(hole.to)} s): read zoomed to it`);
+          log(`    ${partBox ? "FTC Live's screen in its listed box" : "a score bar drawn small"} over ${hole.labels[0]}–${hole.labels.at(-1)} (${Math.round(hole.from)}–${Math.round(hole.to)} s): read zoomed to it`);
           await zoomTo(pg, css);
           const zoomedUnread = new Set<string>();
           const more = await placeVideo(pg, mine, offset, m.length!, log, zoomedUnread, live, liveMedium, halfGap(before, gap));
