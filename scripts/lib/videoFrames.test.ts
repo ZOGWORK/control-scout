@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, halfGap, holeToCheck, HOLE_MIN, type Judged, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, halfGap, holeToCheck, HOLE_MIN, cardUnread, COUNTDOWN_CHECK, type Judged, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, gapOf, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
@@ -985,6 +985,15 @@ describe("split streams (two meets side by side, each with a half-size bar)", ()
     // Both halves named this event's, but a read named another event: two meets alike, one misread. No half.
     expect(splitSide(reads(["own", "own", "other"], ["own", "own"]))).toBeNull();
     expect(splitSide(reads(["own", "own"], ["own", "own", "other"]))).toBeNull();
+  });
+
+  it("keeps a start unconfirmed when a stream's own card read nothing before it; not through a part box's whole screen", () => {
+    // A normal card-read stream (no listed part box): exactly as before, unconfirmed, with why.
+    expect(cardUnread(false)).toBe("the card read nothing 5, 10, 25, 90, 170 s before it, so no countdown through it was ruled out");
+    expect(COUNTDOWN_CHECK).toEqual([5, 10, 25, 90, 170]);
+    // Through a CORNER_BOXES entry with a part (FTC Live's whole screen in the box: Up Next and results between matches),
+    // no card before a start is that screen: the check doesn't hold it (countsThrough still rules out a countdown read).
+    expect(cardUnread(true)).toBeNull();
   });
 
   it("finds the longest run of matches a read left without a start, and the stretch of video they sit in", () => {

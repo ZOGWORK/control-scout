@@ -41,7 +41,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, type SplitPick, halfGap, holeToCheck, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, type SplitPick, halfGap, holeToCheck, cardUnread, COUNTDOWN_CHECK, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, foundBox, sampleFinds, wholeBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS, gapOf, type Gap } from "./lib/videoFrames";
@@ -680,7 +680,7 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
       if (countsThrough(left, ahead)) return `${ahead} s before it the card counted ${left} s down through its start (a timeout or reset, not a match)`;
       if (ahead <= 10 && cardStill(left)) break;
     }
-    if (!read) return `the card read nothing ${COUNTDOWN_CHECK.join(", ")} s before it, so no countdown through it was ruled out`;
+    if (!read) { const no = cardUnread(screenInBox.has(page)); if (no) return no; }
   }
   if (divisions.has(page) && !own && !byTeams) {
     // The bar scrolls the division's name off for most of a match: before giving up, more of the same match is read
@@ -696,9 +696,6 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   }
   return null;
 }
-/** Seconds before a start read off an audience display's card that the card is read for a countdown running through it.
- *  At 5 and 10 s, a real match's card stands at 2:30 or shows the last match's 0:00: never over 2:38. */
-const COUNTDOWN_CHECK = [5, 10, 25, 90, 170];
 /** The clock on an audience display's card at second t (secondsOf, as the start reads take it), as a frame read: counted in the page's
  *  budget, traced, and failed after READ_LIMIT_S like readAt. */
 function cardAt(page: Page, t: number, clip: TimerCrop["clip"]): Promise<number | null> {
@@ -1399,6 +1396,9 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   }
   await hideTitle(page);
 }
+/** Player pages reading through a corner box listed for part of a recording (CORNER_BOXES' `part`): FTC Live's whole
+ *  screen drawn small, read zoomed (confirmStart's card check, cardUnread). */
+const screenInBox = new WeakSet<Page>();
 /** The videos whose zoom the run has said, so it says so once each (a video opens in several players). */
 const zoomSaid = new Set<string>();
 
@@ -1763,7 +1763,11 @@ async function doCode(code: string): Promise<void> {
           log(`    ${partBox ? "FTC Live's screen in its listed box" : "a score bar drawn small"} over ${hole.labels[0]}–${hole.labels.at(-1)} (${Math.round(hole.from)}–${Math.round(hole.to)} s): read zoomed to it`);
           await zoomTo(pg, css);
           const zoomedUnread = new Set<string>();
-          const more = await placeVideo(pg, mine, offset, m.length!, log, zoomedUnread, live, liveMedium, halfGap(before, gap));
+          // Through a listed part box, FTC Live's whole screen: between matches it shows Up Next and results, not the
+          // card, so a card read nothing before a start is that screen, not a countdown hidden (cardUnread).
+          if (partBox) screenInBox.add(pg);
+          let more: Judged;
+          try { more = await placeVideo(pg, mine, offset, m.length!, log, zoomedUnread, live, liveMedium, halfGap(before, gap)); } finally { screenInBox.delete(pg); }
           await zoom(pg, null);
           if (more.placed.size <= before.placed.size) return;
           j = more;
