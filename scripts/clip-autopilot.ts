@@ -36,13 +36,13 @@
 //   --dry     in the current checkout: read and check, print what it would hand the server, leave the files as they were
 //   --no-merge  accepted and ignored (nothing is merged any more)
 //   AUTOPILOT_SSH (ubuntu@132.145.202.89), AUTOPILOT_SSH_KEY (~/.ssh/oracle-controlpoint), TESSERACT_JS: passed on.
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, appendFileSync, copyFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, appendFileSync, copyFileSync, renameSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { forgetSettled, recheckOnly, laneJobMs, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberFailure, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup } from "./lib/autopilotRun";
+import { forgetSettled, recheckOnly, laneJobMs, laneClock, laneProbe, LANE_BEAT_MS, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberFailure, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup } from "./lib/autopilotRun";
 import { clipCheckProblems } from "./lib/autopilotClips";
 import { streamRun } from "./lib/streamRun";
 import { eventLimitMs, readFailed as readFailedExit } from "./lib/videoFrames";
@@ -227,11 +227,22 @@ if (LANE) {
   if (state.state !== "queued" || !job || state.id !== job.id) { log(`lane: no job queued (${state.state}${state.id ? ` ${state.id}` : ""})`); process.exit(0); }
   const out = join(LANE_DIR, "results", job.id), at = () => new Date().toISOString();
   mkdirSync(out, { recursive: true });
-  let finished = false;
+  let finished = false, beat: ReturnType<typeof setInterval> | undefined;
+  // The state is written only while it still names this job: a coordinator that called the run dead (a stale beat) has
+  // collected it and may have queued the next job, which a late write of this one's must never overwrite.
+  const ours = () => { try { return JSON.parse(readFileSync(LANE_STATE, "utf8")).id === job.id; } catch { return false; } };
+  // Through a temporary file and a rename: the coordinator's cat never sees half a state.
+  const put = (s: object) => { writeFileSync(`${LANE_STATE}.tmp`, JSON.stringify(s)); renameSync(`${LANE_STATE}.tmp`, LANE_STATE); };
+  const write = (s: object) => { if (ours()) put(s); };
   // However the run ends before its job is read (a crash, a near-black player): failed, for the coordinator to collect
   // and send again; its events aren't counted as tried.
-  process.on("exit", (code) => { if (!finished) writeFileSync(LANE_STATE, JSON.stringify({ state: "failed", id: job.id, at: at(), why: `the lane's run ended (exit ${code}) before its job was read: its log ${LOG}` })); });
-  writeFileSync(LANE_STATE, JSON.stringify({ state: "running", id: job.id, at: at() }));
+  process.on("exit", (code) => { clearInterval(beat); if (!finished) write({ state: "failed", id: job.id, at: at(), why: `the lane's run ended (exit ${code}) before its job was read: its log ${LOG}` }); });
+  // A beat every minute while it runs: a run killed with no chance to say so (a reboot, a kill -9) stops beating, and
+  // the coordinator calls it dead within LANE_BEAT_STALE_MS instead of at the job's hard cap (laneJobMs, many hours).
+  const started = at(), running = () => write({ state: "running", id: job.id, at: started, beat: at() });
+  put({ state: "running", id: job.id, at: started, beat: started });
+  beat = setInterval(() => { try { running(); } catch { /* next beat */ } }, LANE_BEAT_MS);
+  beat.unref();
   const gz = join(LANE_DIR, "snapshot.db.gz"), db = join(LANE_DIR, "snapshot.db");
   // A new snapshot drops the old one's -wal and -shm: SQLite lays a WAL left by a run that died over whatever file
   // sits beside it, and a fresh copy read through a stale WAL is "database disk image is malformed".
@@ -246,7 +257,8 @@ if (LANE) {
   });
   copyFileSync(LOG, join(out, "run.log"));
   finished = true;
-  writeFileSync(LANE_STATE, JSON.stringify({ state: "done", id: job.id, at: at() }));
+  clearInterval(beat);
+  write({ state: "done", id: job.id, at: at() });
   log("lane: done, for its coordinator to collect");
   process.exit(0);
 }
@@ -481,7 +493,10 @@ for (const lane of DRY ? [] : LANES as Exclude<typeof LANES, string>) {
     // How long its job may run before it's called killed: from its events' own limits (eventLimits), as the lane reads them.
     const limits = new Map<number, Map<string, number>>();
     for (const x of job?.seasons ?? []) limits.set(x.season, await eventLimits(x.season));
-    const step = laneStep(laneSsh(lane.host, `cat ${there}/state.json 2>/dev/null || true`).out, job, Date.now(), job ? laneJobMs(job, (season, code) => limits.get(season)?.get(code) ?? 0) : 0);
+    // Its state with its clock (its time and last boot): a job "running" on a lane that rebooted since, or whose beat
+    // stopped, is called dead now, not at the job's hard cap.
+    const { text, clock } = laneClock(laneSsh(lane.host, laneProbe(`${there}/state.json`)).out);
+    const step = laneStep(text, job, Date.now(), job ? laneJobMs(job, (season, code) => limits.get(season)?.get(code) ?? 0) : 0, clock);
     if (step.do === "wait") {
       log(`${name}: ${step.state.state}${step.state.id ? ` job ${step.state.id}` : ""}${step.state.at ? ` since ${step.state.at}` : ""}${step.state.why ? `: ${step.state.why}` : ""}`);
       continue;
