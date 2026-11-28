@@ -1,7 +1,7 @@
 // The clip autopilot's choices (scripts/lib/autopilotRun.ts): which queued events a run reads, when one that gave
 // nothing new is tried again, and what a delivery's rows change.
 import { describe, expect, it } from "vitest";
-import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, FAILS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, laneClock, laneProbe, LANE_BEAT_STALE_MS, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberFailure, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
+import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, FAILS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, laneClock, laneProbe, LANE_BEAT_STALE_MS, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readBatch, BACKLOG_MAX, READ_FAILED_MS, readOutcome, remember, rememberFailure, rememberReadFailed, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 import { EMBED_REFUSED } from "../../server/data/frameRowRules";
 
@@ -45,6 +45,62 @@ describe("pickEvents", () => {
     expect(m["2025/A"]).toBeUndefined();
     forgetSettled(m, new Set());
     expect(m).toEqual({});
+  });
+});
+
+describe("readBatch", () => {
+  const at = (season: number, code: string): Queued => ({ season, code, name: code, frames: { state: "queued", due: 5 } });
+  it("reads the current season's events alone when any is due, whatever their place among older ones", () => {
+    const picked = [at(2024, "OLD1"), at(2026, "MITEQ"), at(2025, "OLD2"), at(2026, "WALAM2"), at(2022, "OLD3")];
+    expect(readBatch(picked, 2026).map((x) => x.code)).toEqual(["MITEQ", "WALAM2"]);
+  });
+  it("reads only the first few of the backlog otherwise, so the next run comes soon", () => {
+    const picked = ["A", "B", "C", "D", "E", "F"].map((c) => at(2024, c));
+    expect(readBatch(picked, 2026).map((x) => x.code)).toEqual(["A", "B", "C"].slice(0, BACKLOG_MAX));
+    expect(readBatch(picked, 2026, 0).map((x) => x.code)).toEqual(["A"]);
+    expect(readBatch([], 2026)).toEqual([]);
+  });
+});
+
+describe("a whole read that failed", () => {
+  it("composes with rememberFailure: the 6 h wait and its two strikes stand, the 1 h hold never counts a strike", () => {
+    const m: Memory = {};
+    // A blind read (its own video showed nothing): strike one, 6 h. A whole read failing meanwhile keeps it.
+    expect(rememberFailure(m, "2025/A", NOW)).toBe("again");
+    rememberReadFailed(m, "2025/A", NOW + 3600_000);
+    expect(m["2025/A"]).toMatchObject({ tries: 0, fails: 1, last: new Date(NOW).toISOString(), readFailedAt: new Date(NOW + 3600_000).toISOString() });
+    // Past the 1 h hold, still inside the 6 h wait from the blind read: skipped for that.
+    expect(pickEvents([q("A", 1)], new Set(), m, 5, NOW + 2 * 3600_000 + 1).skipped[0].why).toMatch(/^its read failed/);
+    expect(pickEvents([q("A", 1)], new Set(), m, 5, NOW + WAIT_MS).picked.map((x) => x.code)).toEqual(["A"]);
+    // Whole failures never add a strike: the next blind read is strike two, a try, as before.
+    rememberReadFailed(m, "2025/A", NOW + WAIT_MS);
+    rememberReadFailed(m, "2025/A", NOW + WAIT_MS + READ_FAILED_MS);
+    expect(m["2025/A"].fails).toBe(1);
+    expect(rememberFailure(m, "2025/A", NOW + WAIT_MS + 2 * READ_FAILED_MS)).toBe("counted");
+    expect(m["2025/A"]).toEqual({ tries: 1, last: new Date(NOW + WAIT_MS + 2 * READ_FAILED_MS).toISOString(), result: "the read failed 2 runs in a row" });
+    // And a hold after a whole failure gives way to a blind read's 6 h wait at once.
+    const n: Memory = {};
+    rememberReadFailed(n, "2025/B", NOW);
+    expect(rememberFailure(n, "2025/B", NOW + 60_000)).toBe("again");
+    expect(n["2025/B"]).toEqual({ tries: 0, last: new Date(NOW + 60_000).toISOString(), result: "the read failed", fails: 1 });
+  });
+
+  it("isn't a try, and the event waits READ_FAILED_MS before it's sent again", () => {
+    const m: Memory = {};
+    rememberReadFailed(m, "2025/A", NOW);
+    expect(m["2025/A"]).toEqual({ tries: 0, last: new Date(NOW).toISOString(), result: "the read failed", readFailedAt: new Date(NOW).toISOString() });
+    expect(pickEvents([q("A", 1)], new Set(), m, 5, NOW + READ_FAILED_MS - 1).skipped[0].why).toBe("a read of it failed (2026-11-17T12:00Z): read again after 2026-11-17T13:00Z");
+    // Past it: read again, not held for RETRY_MS as a read with nothing new would be.
+    expect(pickEvents([q("A", 1)], new Set(), m, 5, NOW + READ_FAILED_MS).picked.map((x) => x.code)).toEqual(["A"]);
+  });
+  it("keeps what was remembered before: an event waiting out a retry still waits it out", () => {
+    const m: Memory = { "2025/B": { tries: 1, last: new Date(NOW - 3600_000).toISOString(), result: "no new rows" } };
+    rememberReadFailed(m, "2025/B", NOW);
+    expect(m["2025/B"]).toMatchObject({ tries: 1, result: "no new rows", readFailedAt: new Date(NOW).toISOString() });
+    expect(pickEvents([q("B", 1)], new Set(), m, 5, NOW + READ_FAILED_MS).skipped[0].why).toMatch(/^read 2026-11-17 with nothing new/);
+    // A read that then ships forgets it all.
+    remember(m, "2025/B", 2, "live", NOW);
+    expect(m["2025/B"]).toBeUndefined();
   });
 });
 
