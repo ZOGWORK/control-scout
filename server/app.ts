@@ -145,6 +145,7 @@ import { normalizeRoute, requestMetrics } from "./metrics.js";
 import { featureDisabled, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFlags } from "./flags.js";
 import type { FlagsAnswer } from "../src/shared/flags.js";
 import { currentUser } from "./auth/session.js";
+import { demoReadOnly } from "./demo/demo.js";
 import { linkedAccountId } from "./auth/controlPoint.js";
 import { formerWorkspaces } from "./scout/orphans.js";
 import { readProjections } from "./projections/store.js";
@@ -381,6 +382,9 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     errorsNeverKept(res);
     next();
   });
+
+  // The demo account is read-only: any change from its session is refused here, before every router (server/demo/demo.ts).
+  api.use(demoReadOnly());
 
   api.get("/health", h(async () => ({ ok: true, engine: ENGINE_VERSION, release: RELEASE })));
 

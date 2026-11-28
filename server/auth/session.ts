@@ -79,6 +79,9 @@ function rawCookie(req: Request, name: string): string | null {
   return null;
 }
 
+/** Does the request carry a session cookie at all (read as currentUser reads it)? A cheap test before a lookup. */
+export const hasSessionCookie = (req: Request): boolean => rawCookie(req, SESSION_COOKIE) !== null;
+
 /** A cookie's value, or null when it's absent or not valid percent-encoding (a corrupt cookie counts as no cookie). */
 function readCookie(req: Request, name: string): string | null {
   const v = rawCookie(req, name);

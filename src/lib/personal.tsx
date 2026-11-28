@@ -3,7 +3,9 @@
 // pushed (last write wins); the first sign-in on a device merges the device's
 // data into the account so nothing is lost.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { apiFetch } from "./api";
+import { apiFetch, setDemoSession } from "./api";
+import { toast } from "../components/ui/sonner";
+import { DEMO_READ_ONLY, DEMO_WORKSPACE_ID } from "../shared/demo";
 import { onBackOnline } from "./connection";
 import type { OrphanState } from "../shared/orphaned";
 import { cleanValue, EMPTY_STATE, MIGRATE_MAX_ENTRIES, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
@@ -25,6 +27,8 @@ export interface AccountUser { id: number; email: string | null; displayName: st
   session?: string | null;
   /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
   isOwner?: true;
+  /** Only present (true) for the shared, read-only demo account (/demo, server/demo/demo.ts). */
+  demo?: true;
   /** The signed-in owner's Control Point side: whether they're a member there, and their teams. */
   controlPoint?: { /** The shared account id (author/editor ids on workspace entries). Missing from older servers. */ accountId?: number; member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[];
     /** Control Point workspaces (one shared scout space each). Missing from older servers: treat as none. */
@@ -187,6 +191,19 @@ function cachedAccount(): AccountUser | null {
   } catch { return null; }
 }
 
+/**
+ * Entering the demo (a shared, read-only account) puts this device's own data aside like any account switch, and
+ * notes whose it was: leaving the demo (signing out of it, or straight into another account) puts it back, so the
+ * demo never absorbs a visitor's data and its sample data never stays on their device.
+ */
+const DEMO_RETURN = "cs-demo-return";
+function demoReturn(): { owner: string; demo: string } | null {
+  try { const v = JSON.parse(localStorage.getItem(DEMO_RETURN) ?? "null"); return v && typeof v.owner === "string" && typeof v.demo === "string" ? v : null; } catch { return null; }
+}
+/** The demo said once in a while, not on every refused change. */
+let demoToldAt = 0;
+const tellDemo = () => { if (Date.now() - demoToldAt > 8000) { demoToldAt = Date.now(); toast.info(DEMO_READ_ONLY); } };
+
 const getOwner = () => { try { return localStorage.getItem(OWNER) ?? ""; } catch { return ""; } };
 const setOwner = (v: string) => { try { localStorage.setItem(OWNER, v); } catch { /* ignore */ } };
 /** Whether this device's personal data was last synced with an account: its account's copy may still be on its way
@@ -237,10 +254,28 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     return stored;
   }, []);
 
+  /** Leave the demo on this device: its sample copy goes, and the data that was here before comes back. */
+  const leaveDemo = useCallback(() => {
+    const back = demoReturn();
+    if (!back) return;
+    // The switch into the demo never finished (this device's data is still its own): nothing to swap back.
+    if (getOwner() !== back.demo) { try { localStorage.removeItem(DEMO_RETURN); } catch { /* blocked */ } return; }
+    for (const k of PERSONAL_KEYS) { try { localStorage.removeItem(LS(k)); } catch { /* ignore */ } stamped.current[k] = null; }
+    setPendingMap({});
+    clearLocalScouting();
+    // The demo workspace's own keys on this device (its chosen event: lib/scoutSession.ts) go with it.
+    try { for (const k of Object.keys(localStorage)) if (k.includes(DEMO_WORKSPACE_ID)) localStorage.removeItem(k); } catch { /* blocked */ }
+    try { localStorage.removeItem(STASH(back.demo)); localStorage.removeItem(DEMO_RETURN); } catch { /* blocked */ }
+    setOwner(back.owner);
+    const mine = peekStash(back.owner);
+    if (mine) restoreStash(back.owner, mine, apply);
+    setState(toState(stamped.current));
+  }, [apply]);
+
   // One upload loop at a time; edits made meanwhile stay pending and go next.
   const pushing = useRef<Promise<void> | null>(null);
   const push = useCallback(async (): Promise<void> => {
-    if (!userRef.current || !readyRef.current) return;
+    if (!userRef.current || !readyRef.current || userRef.current.demo) return; // the demo keeps nothing
     if (pushing.current) { await pushing.current; if (!Object.keys(pending()).length) return; }
     const run = (async () => {
       setSync("syncing");
@@ -303,6 +338,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     const mine = ++generation.current;
     const alive = () => generation.current === mine;
     connectingFor.current = String(u.id);
+    setDemoSession(!!u.demo, tellDemo);
     offlineRef.current = false; setOfflineAccount(false);
     cacheAccount(u);
     setUser(u);
@@ -311,12 +347,19 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     setSyncReady(false);
     setSync("syncing");
     try {
+      // Back from the demo straight into a real account: the device's own data goes back in place first.
+      if (!u.demo) leaveDemo();
       const owner = getOwner();
-      if (owner === "") { await migrate(alive); if (!alive()) return; }
+      if (owner === "" && !u.demo) { await migrate(alive); if (!alive()) return; }
       else if (owner !== String(u.id)) {
         // This device holds another account's copy: keep it aside (unsent edits
         // included) rather than absorbing it into this account or deleting it.
         stashOwner(owner, stamped.current);
+        // Into the demo: whose data was put aside, written only once it really was (a full device throws above), so
+        // leaving never wipes data that was never stashed.
+        if (u.demo && !demoReturn()) {
+          try { localStorage.setItem(DEMO_RETURN, JSON.stringify({ owner, demo: String(u.id) })); } catch { /* storage blocked */ }
+        }
         for (const k of PERSONAL_KEYS) { try { localStorage.removeItem(LS(k)); } catch { /* ignore */ } stamped.current[k] = null; }
         setPendingMap({});
         clearLocalScouting();
@@ -341,7 +384,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       if (alive() && !Object.keys(pending()).length) setSync("synced");
     } catch (e: any) { if (alive()) setSync(e?.offline ? "offline" : "error"); }
     finally { if (alive()) connectingFor.current = null; }
-  }, [apply, migrate, pull, push]);
+  }, [apply, leaveDemo, migrate, pull, push]);
 
   useEffect(() => {
     // Opened offline: /me can't answer, so the account this device last saw stands in (offlineAccount) until it can.
@@ -353,6 +396,10 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
         setAccountAnswered(true);
         if (r.user) { connect(r.user); return; }
         cacheAccount(null);
+        // No session now, though the device may still hold the demo's copy (its cookie expired or was cleared): the
+        // visitor's own data goes back, and writes are no longer refused.
+        setDemoSession(false);
+        leaveDemo();
         if (offlineRef.current) { offlineRef.current = false; setOfflineAccount(false); generation.current++; userRef.current = null; setUser(null); setSync("local"); }
       })
       .catch((e: { offline?: boolean }) => {
@@ -381,13 +428,15 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("storage", onStorage);
     return () => { offBack(); window.removeEventListener("storage", onStorage); clearInterval(t); };
-  }, [connect, push]);
+  }, [connect, leaveDemo, push]);
 
   const set = useCallback(<K extends PersonalKey>(key: K, value: PersonalState[K]) => {
     const s = { value, updatedAt: Date.now() };
     const stored = apply(key, s);
-    // Signed out, edits stay local; they're compared with the account on the next sign-in.
-    if (userRef.current) { markPending(key, s.updatedAt); push(); }
+    // Signed out, edits stay local; they're compared with the account on the next sign-in. The demo's stay on screen
+    // until it's left, and are never sent.
+    if (userRef.current?.demo) tellDemo();
+    else if (userRef.current) { markPending(key, s.updatedAt); push(); }
     return stored;
   }, [apply, push]);
 
@@ -396,9 +445,12 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   }, [set]);
 
   const signOut = useCallback(async () => {
+    const wasDemo = !!userRef.current?.demo;
     // Push is the account's: this device stops getting it (while the session can still say which subscription).
-    await dropPushOnSignOut();
+    if (!wasDemo) await dropPushOnSignOut();
     await apiFetch("/api/auth/logout", { method: "POST", json: {} }).catch(() => {});
+    setDemoSession(false);
+    if (wasDemo) leaveDemo();
     // The device keeps its copy, still marked as this account's (never treated as anonymous).
     generation.current++; // any connection still in flight is now stale
     cacheAccount(null); offlineRef.current = false; setOfflineAccount(false);
@@ -408,7 +460,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     readyRef.current = false;
     setSyncReady(false);
     setSync("local");
-  }, []);
+  }, [leaveDemo]);
 
   const clearLocal = useCallback(() => {
     for (const k of PERSONAL_KEYS) { try { localStorage.removeItem(LS(k)); } catch { /* ignore */ } stamped.current[k] = null; }

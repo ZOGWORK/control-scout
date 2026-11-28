@@ -19,8 +19,9 @@ export type FlagScope = "global" | "workspace";
 export const isFlag = (x: unknown): x is Flag => typeof x === "string" && (FLAGS as readonly string[]).includes(x);
 
 /** Flags a fresh server starts with off, until the owner turns them on: Bruno AI in search waits on the owner's pick
- *  from its experiment report (docs/search.md); the dog theme is the owner's to turn on when they like. */
-export const OFF_BY_DEFAULT: readonly Flag[] = ["brunoSearch", "dogTheme", "teamLogos"];
+ *  from its experiment report (docs/search.md); the dog theme is the owner's to turn on when they like; the particle
+ *  wave is off on the live site, so a fresh server (and every screenshot) draws the background the way visitors see it. */
+export const OFF_BY_DEFAULT: readonly Flag[] = ["brunoSearch", "dogTheme", "teamLogos", "particleWave"];
 
 /** Every flag on but OFF_BY_DEFAULT: what a fresh server, or one whose flags can't be read, runs with. */
 export const DEFAULT_FLAGS: FlagSet = Object.fromEntries(FLAGS.map((f) => [f, !OFF_BY_DEFAULT.includes(f)])) as FlagSet;

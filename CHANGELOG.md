@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.3.7 — 2026-11-28
+
+A demo account anyone can open: Control Scout fully set up, the way a team uses all of it.
+
+### Highlights
+- [home] A demo account at /demo or from the sign-in menu, no email needed
+- [workspace] A five-scout workspace with entries, comments and a pick list
+- [picklist] Shortlist, saved predictions, inbox and videos, all filled in
+- [fixes] Read-only, real FTC data; leaving puts your own data back
+
+### Accounts
+- **The demo account** (`server/demo/demo.ts`, `src/pages/DemoPage.tsx`, `docs/demo.md`): `/demo` opens a shared account seeded from the latest finished event. It has My team, followed teams and events, an eight-team shortlist with notes and colours, three saved predictions (real engine calls), personal pit and match scouting, and a sample workspace with five scouts. The workspace holds one entry per robot each match for up to 30 matches, pit entries, comments, a 12-team pick list with notes, pit and match assignments and an activity feed. It also has an inbox and a video library (saved, watch later, history, notes) built from real feed cards. Every FTC number is real. Only what a person would type (scouting answers, notes, comments) is sample content, and a banner on every page says so. The seed is redone in the background from the current data every 6 hours, in one transaction.
+- **Read-only, two ways:** `demoReadOnly()` sits in front of every API router and refuses any change from the demo session with 405 `demo_read_only`, apart from signing out, signing in for real, telemetry and reports. The app stops the same requests before they're sent and shows one toast. A 405 was chosen because the app reacts to it nowhere else: a 403 would read as "removed from the workspace" and a 423 as "workspace deleted".
+- **Your data stays yours** (`src/lib/personal.tsx`): entering the demo puts this device's data aside like an account switch, including a signed-out device's (never merged into the demo). Leaving, by signing out or straight into a real account, puts it back and drops the demo's copy. A headless walkthrough at desktop and phone size checked this: My team 18360 and a one-team shortlist came back exactly.
+- **Never reaches Control Point:** the demo workspace and its sample accounts (ids from 2,100,000,000) are answered by Scout itself in `controlPointInfo`, `refreshAccount`, `workspaceMembership`, `listWorkspaceMembers`, `getAccount` and `fetchAccountAvatar`. `server/demo/demo.test.ts` covers opening it, every list it shows, the 405 on seven kinds of write, re-seeding in place and signing out (#2421)
+- **Looks like the live site** (`src/shared/flags.ts`): the demo draws the same background every visitor sees, since the owner console's Appearance switches are site-wide. The particle wave now starts off on a fresh server too (it's off on the live site), so local runs and screenshots match what visitors see.
+- **An expired demo session lets go** (`src/lib/personal.tsx`): when the demo's cookie is gone, the next page load puts the visitor's own data back and stops refusing their changes. A re-seed that finds no teams also drops the old summary, so `/demo` never links an empty event.
+
 ## 8.3.6 — 2026-11-28
 
 Security fixes from the launch review: tighter shared-workspace access while Control Point is down, a fuller account
