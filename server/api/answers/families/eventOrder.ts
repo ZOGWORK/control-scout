@@ -45,7 +45,7 @@ export function eventOrderAnswer(x: EventRow & { end?: string | null }, y: Event
     family: "event", intent: "event-order",
     title: `${nx} ${asked === "either" ? "before or after" : asked} ${ny}?`,
     scope: sameSeason ? [seasonLabel(x.season)] : [seasonLabel(x.season), seasonLabel(y.season)],
-    headline: { value: yes == null ? order.replace(/^./, (c) => c.toUpperCase()) : yes ? "Yes" : "No", label: verdict, sub: `${when(x)} · ${when(y)}`, href: eventHref(x.season, x.code) },
+    headline: { value: yes == null ? order.replace(/^./, (c) => c.toUpperCase()) : yes ? "Yes" : "No", label: verdict, sub: `${verdict} (${when(x)}; ${when(y)})`, href: eventHref(x.season, x.code) },
     blocks: [{ kind: "kpis", items: [
       { label: nx, value: when(x), sub: seasonLabel(x.season), href: eventHref(x.season, x.code) },
       { label: ny, value: when(y), sub: seasonLabel(y.season), href: eventHref(y.season, y.code) },
