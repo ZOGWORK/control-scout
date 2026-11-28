@@ -9,6 +9,7 @@ import { crc32 } from "../xlsx";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { all, db, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
+import { flushMetrics } from "../metrics";
 import { loadSeason } from "../stats/load";
 import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "../stats/records";
 import { forecasterFor } from "../predict/engine";
@@ -528,6 +529,12 @@ describe("Excel export limits", () => {
       expect(busy.status).toBe(503);
       expect(busy.headers.get("retry-after")).toBe("30");
       expect((await busy.json()).error).toMatch(/try again/);
+      // Turned away on purpose: not a server error in the owner's count (a crawler's burst of exports read as "10 server").
+      await new Promise((r) => setTimeout(r, 20));
+      await flushMetrics();
+      const [m] = await all<{ errors: number; count: number }>("SELECT errors, count FROM request_metrics_daily WHERE route = ? AND day = ?", ["GET /api/records/:n/teams", new Date().toISOString().slice(0, 10)]);
+      expect(m?.count).toBeGreaterThan(0);
+      expect(m?.errors).toBe(0);
       release();
       for (const r of await Promise.all(first)) {
         expect(r.status).toBe(200);
