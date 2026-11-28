@@ -44,6 +44,7 @@ import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, type SplitPick, halfGap, holeToCheck, cardUnread, COUNTDOWN_CHECK, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, EmbedRefused, embedRefusal, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, readAsUpload, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, foundBox, outsidePart, reachesPart, sampleFinds, wholeBox, zoomCss } from "./lib/frameZoom";
+import { DRAWN_AFTER_S, DRAWN_BEFORE_S, DRAWN_TRACKER, DRAWN_WAIT_S, QUALITY_WAIT_S, drawnAt, lowQuality, shotSecond } from "./lib/frameClock";
 import { between, edgeReject, eventLimitMs, GAP_READS, gapOf, type Gap } from "./lib/videoFrames";
 import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type RecheckRead, type RecheckVerdict } from "./lib/reviewRecheck";
 
@@ -252,14 +253,15 @@ type CropId = TimerCrop | "box";
  *  championship (USAZCMPGC23), its bar flipped to the top: the bottom crops read "4", "1", "5" off the field, paired
  *  with the top's "114" and "52", and no start was confirmed. Dropped when its pair doesn't run. */
 const timerCrop = new WeakMap<Page, CropId>();
-async function timer(page: Page, first?: CropId | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: CropId | null } | null> {
+/** at: the video's second the reading's own screenshot shows (shoot), not the second once its OCR is done. */
+async function timer(page: Page, first?: CropId | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: CropId | null; at: number } | null> {
   let found: { top: number; bottom: number } | null | undefined, boxUnread = false;
   const bandOf = async () => (found === undefined ? (found = await barBand(page)) : found);
   for (const t of timerSteps(TIMER_CROPS, first ?? timerCrop.get(page), TOP_BAR_TIMER)) {
     if (t === "band") break;
     if (boxUnread && !afterUnreadBox(t, TOP_BAR_TIMER)) continue;
     if (t === "box") { const b = await bandOf(); const r = b && await boxTimer(page, b); if (r === "unread") boxUnread = true; else if (r) return r; continue; }
-    const shot = await page.screenshot({ clip: t.clip });
+    const { png: shot, at } = await shoot(page, t.clip);
     const text = (await digits.recognize(shot)).data.text;
     let left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
     // Nothing that places a match read off a box with a fill behind it: its ink alone (inkOnly), taken only for a reading
@@ -277,7 +279,7 @@ async function timer(page: Page, first?: CropId | null): Promise<{ where: "botto
       if (darkLeft != null) left = darkLeft;
     }
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
-    return { where: t.where, left, auto: false, crop: t };
+    return { where: t.where, left, auto: false, crop: t, at };
   }
   // None of the known places: the bar found in the frame itself (overlayBand), its timer read in the centre column.
   // Read as a bottom bar: a reading over 2:00 is then a 2:30 count's Auto (elapsed), which a 2:00 TeleOp never shows.
@@ -288,8 +290,9 @@ async function timer(page: Page, first?: CropId | null): Promise<{ where: "botto
   // too ("1:17" as "127").
   const top = Math.max(0, band.top - 4);
   const clip = { x: 565, y: top, width: 150, height: Math.min(720, band.top + Math.round((band.bottom - band.top) * 0.55) + 4) - top };
-  const left = secondsOf((await digits.recognize(await page.screenshot({ clip }))).data.text);
-  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null };
+  const { png, at } = await shoot(page, clip);
+  const left = secondsOf((await digits.recognize(png)).data.text);
+  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null, at };
 }
 
 /** A crop through `step` (inkOnly or darkInk, as source: run in the page on the shot's own pixels). Null: the step
@@ -333,22 +336,29 @@ const BOX_LIMIT_S = 20;
 /** The timer read in its own box in the bar found in the frame (overlayBand, timerDigits): only the digits' rows, so
  *  neither the icon under them nor the bar round them is read (boxSeconds). Its crop is "box" (found again on each
  *  frame); "unread": a box whose digits didn't read. */
-async function boxTimer(page: Page, band: { top: number; bottom: number }): Promise<{ where: "bottom" | "plain"; left: number; auto: boolean; crop: "box" } | "unread" | null> {
+async function boxTimer(page: Page, band: { top: number; bottom: number }): Promise<{ where: "bottom" | "plain"; left: number; auto: boolean; crop: "box"; at: number } | "unread" | null> {
   const clip = await page.evaluate(`(${timerDigits.toString()})(window.__frame.data, window.__frame.width, window.__frame.height, ${JSON.stringify(band)})`) as { x: number; y: number; width: number; height: number } | null;
   if (!clip) return null;
   // Bounded on its own (BOX_LIMIT_S), well inside the frame read's READ_LIMIT_S: a box read that stalls the digit
   // worker replaces the workers (waited on, so the next crop reads on the new ones) and counts as a box that didn't read.
-  const shot = await page.screenshot({ clip });
+  const { png: shot, at } = await shoot(page, clip);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const text = await Promise.race([
     digits.recognize(shot).then((o: { data: { text: string } }) => o.data.text),
     new Promise<null>((ok) => { timer = setTimeout(() => { console.error(`a timer box read hung over ${BOX_LIMIT_S} s`); void renewOcr().then(() => ok(null)); }, BOX_LIMIT_S * 1000); }),
   ]).finally(() => clearTimeout(timer));
   const r = text == null ? null : boxSeconds(text, season <= 2022);
-  return r ? { ...r, auto: false, crop: "box" } : "unread";
+  return r ? { ...r, auto: false, crop: "box", at } : "unread";
 }
 
 const now = (page: Page) => page.evaluate(() => document.querySelector("video")!.currentTime);
+/** A screenshot (of `clip`, or the whole frame) and the video's second it shows (shotSecond): read off the player
+ *  around the shot itself, so the OCR after it, seconds long on a busy machine, isn't counted as time played. */
+async function shoot(page: Page, clip?: { x: number; y: number; width: number; height: number }): Promise<{ png: Buffer; at: number }> {
+  const before = await now(page);
+  const png = await page.screenshot(clip ? { clip } : undefined);
+  return { png, at: shotSecond(before, await now(page)) };
+}
 
 /** FTC Live's bottom bar's top row, over the timer's row: the event (or division) on its left half, the match
  *  ("Qualification 8 of 23", "Playoff Match 1") on its right half, read on its own (readRow). */
@@ -419,6 +429,9 @@ async function frameLabel(page: Page, text: string, ctx: { own: string; others: 
  *  stretch of a long stream YouTube won't play: 2024 USMSCMP's last hour, each seek there 35 s for nothing) shows the
  *  frame from before. */
 async function seek(page: Page, t: number, still = false): Promise<boolean> {
+  // The drawn-frame count before the seek (frameClock): the frame read has to be one drawn after it.
+  const n0 = await page.evaluate(`${DRAWN_TRACKER} ? (window.__drawn?.n ?? -1) : null`).catch(() => null) as number | null;
+  const began = Date.now();
   const seeked = await page.evaluate(([t, still]) => new Promise<boolean>((r) => {
     const v = document.querySelector("video")!;
     if (still) v.pause(); else void v.play().catch(() => {});
@@ -426,9 +439,41 @@ async function seek(page: Page, t: number, still = false): Promise<boolean> {
   }), [t, still] as const);
   await page.waitForFunction((still) => document.querySelector("video")!.readyState >= (still ? 2 : 3), still, { timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(900);
+  // On a busy machine the player says it's there before it has drawn a frame there: the screenshot would show the
+  // frame from before the seek. Waited for (DRAWN_WAIT_S at most); a fast machine has drawn it already.
+  if (n0 != null && seeked) {
+    const waitFrom = Date.now();
+    const drawn = await page.waitForFunction(
+      `(${drawnAt.toString()})(window.__drawn, { t: ${t}, n0: ${n0} }, (Date.now() - ${began}) / 1000, ${still}, ${DRAWN_BEFORE_S}, ${DRAWN_AFTER_S})`,
+      null, { timeout: DRAWN_WAIT_S * 1000, polling: 50 },
+    ).then(() => true, () => false);
+    const waited = Date.now() - waitFrom;
+    drawnWaits.push(waited);
+    if (TRACE && (!drawn || waited > 250)) console.error(`    seek ${Math.round(t)} s: ${drawn ? `its frame drawn ${waited} ms after the fixed wait` : `no frame drawn there in ${DRAWN_WAIT_S} s more`}`);
+  }
+  // Several players on one connection: after a seek YouTube may play a few seconds at 144p before it steps back up,
+  // and nothing on a 144p frame reads. Waited out (QUALITY_WAIT_S at most) where this player has shown more before;
+  // not paused (a paused player fetches nothing better, so the frame stays as it is, as before).
+  const height = await page.evaluate(() => document.querySelector("video")!.videoHeight).catch(() => 0);
+  const best = Math.max(bestHeight.get(page) ?? 0, height);
+  bestHeight.set(page, best);
+  if (seeked && !still && lowQuality(height, best)) {
+    const waitFrom = Date.now();
+    const up = await page.waitForFunction(`!(${lowQuality.toString()})(document.querySelector("video").videoHeight, ${best})`, null, { timeout: QUALITY_WAIT_S * 1000, polling: 100 }).then(() => true, () => false);
+    if (up) await page.waitForTimeout(300);
+    lowWaits.push(up ? Date.now() - waitFrom : -1);
+    if (TRACE) console.error(`    seek ${Math.round(t)} s: drawn at ${height}p (this player has shown ${best}p): ${up ? `back up in ${Date.now() - waitFrom} ms` : `still low after ${QUALITY_WAIT_S} s`}`);
+  }
   // Landed: at the second asked for (seeked, or there anyway) with a frame to show.
   return page.evaluate(([t, seeked]) => { const v = document.querySelector("video")!; return (seeked || Math.abs(v.currentTime - (t as number)) <= 1) && v.readyState >= 2; }, [t, seeked] as const);
 }
+/** How long each seek waited for its frame past the fixed 900 ms (ms), and how far the video ran on between a timer
+ *  reading's screenshot and the end of its OCR (s): what a start read off the second after the OCR came out late by.
+ *  For the run's closing line. */
+const drawnWaits: number[] = [], ocrLags: number[] = [];
+/** The tallest picture each player has drawn (videoHeight), and how long seeks waited for a low one to step back up
+ *  (ms; -1: it didn't in QUALITY_WAIT_S). */
+const bestHeight = new WeakMap<Page, number>(), lowWaits: number[] = [];
 
 /** Zoom the player onto one half of a split stream (splitZoomCss), or back to the whole frame (null). */
 const zoom = (page: Page, side: SplitSide | null) => zoomTo(page, side ? splitZoomCss(side) : "");
@@ -582,11 +627,12 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   if (division === "other") return { label: null, start: null, at, text, why: event === "other" ? "another event's overlay" : "another division's overlay", division };
   if (!label || labelOnly) return { label, start: null, at, text, division };
   const a = await timer(page, first);
-  const atA = await now(page);
+  const atA = a ? a.at : await now(page);
+  if (a) ocrLags.push((await now(page)) - a.at);
   await page.waitForTimeout(1500);
   // The second reading from the first's crop: two numbers from two places aren't one clock.
   const b = a && await timer(page, a.crop ?? first);
-  const atB = await now(page);
+  const atB = b ? b.at : await now(page);
   if (!a || !b || a.where !== b.where || a.crop !== b.crop) return { label, start: null, at, text, why: `timer read ${a ? `${a.where} ${a.left}` : "nothing"}, then ${b ? `${b.where} ${b.left}` : "nothing"}` };
   const ran = a.left - b.left, played = atB - atA;
   // Running: down by the time played (to the second either side). A paused or standing timer: not in play (timerRan).
@@ -602,7 +648,7 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   if (a.left <= AUTO_S) {
     await seek(page, atA + 45);
     const c = await timer(page, a.crop ?? first);
-    const atC = await now(page);
+    const atC = c ? c.at : await now(page);
     const { label: named } = await frameLabel(page, (await worker.recognize(await page.screenshot())).data.text as string, ctx);
     a.auto = !!c && c.where === a.where && c.left > AUTO_S && (named === label || (!named && autoLeadsTo(a.left, atC - atA, c.left)));
   }
@@ -1885,6 +1931,15 @@ const lane = async () => {
   }
 };
 await Promise.all(Array.from({ length: lanes }, lane));
+if (drawnWaits.length) {
+  const late = drawnWaits.filter((w) => w > 250).length, missed = drawnWaits.filter((w) => w >= DRAWN_WAIT_S * 1000).length;
+  console.error(`seeks: ${drawnWaits.length}, ${late} waited for their frame past the fixed 900 ms${missed ? ` (${missed} never drawn in ${DRAWN_WAIT_S} s)` : ""}`);
+}
+if (lowWaits.length) console.error(`low-quality frames after a seek: ${lowWaits.length}, ${lowWaits.filter((w) => w < 0).length} still low after ${QUALITY_WAIT_S} s`);
+if (ocrLags.length) {
+  const q = (f: number) => [...ocrLags].sort((x, y) => x - y)[Math.min(ocrLags.length - 1, Math.floor(f * ocrLags.length))].toFixed(1);
+  console.error(`timer readings: ${ocrLags.length}, the video ran on ${q(0.5)} s (median), ${q(0.9)} s (90th) between a reading's screenshot and its OCR's end`);
+}
 // The last save's retry comes before cleanup, and no cleanup step can skip what follows it.
 if (!CHECK && !DRY && unsaved) save();
 await browser.close().catch(() => {});
