@@ -25,6 +25,9 @@ const edge = (v: string) => `color-mix(in srgb,${tint(v)} calc(55% * var(--wash-
 /** `c` turned toward the page's own colour as the page scrolls (--top-cover, 0% at the top, 100% once scrolled: TopPatch). */
 const covered = (c: string) => `color-mix(in srgb,var(--color-background) var(--top-cover,0%),${c})`;
 export const TOP_PATCH = edge("--wash-b");
+/** The same edge left to right (the wash's left, middle and right colours): drawn under the solid edge, it shows from
+ *  just below the patch, so the top of the page follows the wash's colours instead of one band of its middle colour. */
+export const TOP_EDGE_IMAGE = `linear-gradient(to right,${edge("--wash-a")} 5%,${edge("--wash-b")} 50%,${edge("--wash-c")} 95%)`;
 /** How far the page scrolls before the top patch has turned fully into the page's colour. */
 export const COVER_PX = 160;
 /** --top-cover for a scroll position: 0% at the top, 100% from COVER_PX down. */
@@ -56,14 +59,21 @@ export function TopPatch() {
   }, []);
   return (
     <>
+      {/* Under the solid edge: the wash's own three colours, easing into the glows by 48px. */}
+      <div aria-hidden data-top-edge className="pointer-events-none absolute inset-x-0 top-0 md:hidden"
+        style={{ height: "calc(var(--top-inset,0px) + 48px)", backgroundImage: TOP_EDGE_IMAGE, maskImage: TOP_FADE, WebkitMaskImage: TOP_FADE }} />
+      {/* The solid edge: only the patch's own 6px (plus the clock's strip), so the patch shows no band, then a quick
+          ease into the colours above, never a tall band of one colour. */}
       <div aria-hidden data-top-fade className="pointer-events-none absolute inset-x-0 top-0 md:hidden"
-        style={{ height: "calc(var(--top-inset,0px) + 48px)", backgroundColor: TOP_PATCH, maskImage: TOP_FADE, WebkitMaskImage: TOP_FADE }} />
+        style={{ height: "calc(var(--top-inset,0px) + 20px)", backgroundColor: TOP_PATCH, maskImage: SOLID_FADE, WebkitMaskImage: SOLID_FADE }} />
       <div ref={ref} aria-hidden data-top-patch className="fixed inset-x-0 top-0 z-50 h-[6px] before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-24 before:bg-inherit md:hidden"
         style={{ backgroundColor: covered(TOP_PATCH) }} />
     </>
   );
 }
-/** The wash's top edge (data-top-fade): solid for the patch's 6px (plus the clock's strip when installed: --top-inset),
+/** The solid edge (data-top-fade): solid for the patch's 6px (plus the clock's strip), gone by 20px (1 - smoothstep). */
+const SOLID_FADE = `linear-gradient(to bottom,#000 calc(var(--top-inset,0px) + 6px),rgb(0 0 0/.85) calc(var(--top-inset,0px) + 9px),rgb(0 0 0/.5) calc(var(--top-inset,0px) + 13px),rgb(0 0 0/.15) calc(var(--top-inset,0px) + 17px),transparent calc(var(--top-inset,0px) + 20px))`;
+/** The three-colour edge (data-top-edge): solid for the patch's 6px (plus the clock's strip when installed: --top-inset),
  *  then easing out (1 - smoothstep) into the glows by 48px, so neither edge shows as a line. */
 const TOP_FADE = `linear-gradient(to bottom,#000 calc(var(--top-inset,0px) + 6px),rgb(0 0 0/.97) calc(var(--top-inset,0px) + 10px),rgb(0 0 0/.9) calc(var(--top-inset,0px) + 14px),rgb(0 0 0/.78) calc(var(--top-inset,0px) + 18px),rgb(0 0 0/.65) calc(var(--top-inset,0px) + 23px),rgb(0 0 0/.5) calc(var(--top-inset,0px) + 27px),rgb(0 0 0/.35) calc(var(--top-inset,0px) + 31px),rgb(0 0 0/.22) calc(var(--top-inset,0px) + 35px),rgb(0 0 0/.1) calc(var(--top-inset,0px) + 40px),rgb(0 0 0/.03) calc(var(--top-inset,0px) + 44px),transparent calc(var(--top-inset,0px) + 48px))`;
 /** How long the wash's rise takes (index.css `.wash-rise`, and the first paint's copy in server/bootShell.ts). */

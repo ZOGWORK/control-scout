@@ -78,7 +78,7 @@ export function shouldPopUp(action: UpdateAction, pending: string[], shown: stri
   return action === "prompt" && pending.some((id) => !shown.includes(id) && !later.includes(id));
 }
 
-/** May the lite pack (offline predictions, about 1.6 MB) download by itself on this connection? Same network
+/** May the lite pack (offline predictions, about 4.4 MB) download by itself on this connection? Same network
  *  setting: never on mobile data when Wi-Fi only. Where the browser doesn't say, it still does: it's small and
  *  has no prompt, and it's what makes predictions work at a venue (the Download page says so). */
 export function liteAllowed(network: UpdateNetwork, c: ConnectionInfo | null | undefined): boolean {

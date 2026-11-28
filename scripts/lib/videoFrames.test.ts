@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, halfGap, type Judged, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, gapOf, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
@@ -475,6 +475,38 @@ describe("the frame reader", () => {
     expect([...j.placed]).toEqual([["Q1", { t: 1000, confidence: "high" }], ["Q2", { t: 1400, confidence: "medium" }], ["Q3", { t: 1800, confidence: "high" }]]);
   });
 
+  it("keeps a second stretch of agreeing reads in the video's order between the kept ones, where FIRST's times rise", () => {
+    // 2025 USOKOKBKLT's kind: Q1–Q4 read 25 s early, Q9–Q10 72 s early, and between them Q5–Q8 read off their own
+    // frames in order, but FIRST's times for them run 300 s early, so the distance rises (+275) there.
+    const ms: M[] = Array.from({ length: 10 }, (_, i) => ({ label: `Q${i + 1}`, epoch: 1000 + i * 400 - (i >= 4 && i <= 7 ? 300 : 0) }));
+    const t = (i: number, off: number) => [i, ms[i].epoch + off] as [number, number];
+    const seen = new Map([t(0, -25), t(3, -25), t(4, 275), t(5, 275), t(7, 275), t(8, -72), t(9, -72)]);
+    const j = judge(ms, seen, null, 10_000);
+    expect([...j.placed.keys()]).toEqual(["Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9", "Q10"]);
+    expect(j.placed.get("Q5")).toEqual({ t: seen.get(4), confidence: "high" });
+    // Filled between the stretch's own agreeing reads, by its own distance.
+    expect(j.placed.get("Q7")).toEqual({ t: ms[6].epoch + 275, confidence: "medium" });
+    expect(j.missing.size).toBe(0);
+  });
+
+  it("never keeps a second stretch out of the video's order, a lone read, or one of two that differ", () => {
+    const ms: M[] = Array.from({ length: 10 }, (_, i) => ({ label: `Q${i + 1}`, epoch: 1000 + i * 400 }));
+    const t = (i: number, off: number) => [i, ms[i].epoch + off] as [number, number];
+    // Each time the reads set aside lie between agreeing kept ones (Q4 and Q9), so those matches are filled from them
+    // by the clock (medium), never placed at the reads.
+    const filled = (j: ReturnType<typeof judge>, labels: string[]) => labels.map((l) => j.placed.get(l));
+    const clock = (labels: number[]) => labels.map((i) => ({ t: ms[i].epoch, confidence: "medium" }));
+    // Q5 and Q6 agree on a rise, but sit in the video after Q10 (a replay of them): out of order, set aside.
+    const replay = judge(ms, new Map([t(0, 0), t(3, 0), t(4, 2400), t(5, 2400), t(8, 0), t(9, 0)]), null, 10_000);
+    expect(filled(replay, ["Q5", "Q6"])).toEqual(clock([4, 5]));
+    // A lone rise between kept reads is set aside (a misread).
+    const lone = judge(ms, new Map([t(0, 0), t(3, 0), t(4, 120), t(8, 0), t(9, 0)]), null, 10_000);
+    expect(filled(lone, ["Q5"])).toEqual(clock([4]));
+    // Two pairs as long that differ (Q5–Q6 at +100, Q7–Q8 at +160, each agreeing within itself): neither stands.
+    const two = judge(ms, new Map([t(0, 0), t(3, 0), t(4, 100), t(5, 100), t(6, 160), t(7, 160), t(8, 0), t(9, 0)]), null, 10_000);
+    expect(filled(two, ["Q5", "Q6", "Q7", "Q8"])).toEqual(clock([4, 5, 6, 7]));
+  });
+
   it("says nothing was read only when no frame named a match", () => {
     const ms: M[] = Array.from({ length: 3 }, (_, i) => ({ label: `Q${i + 1}`, epoch: i * 400 }));
     const j = judge(ms, new Map(), null, 10_000, new Set([1]));
@@ -938,10 +970,35 @@ describe("split streams (two meets side by side, each with a half-size bar)", ()
       [...l.map((event) => ({ side: "left" as const, event })), ...r.map((event) => ({ side: "right" as const, event }))];
     expect(splitSide(reads(["own", null, "own"], ["other", "other", null]))).toBe("left");
     expect(splitSide(reads([null, "other"], ["own", "own", "own"]))).toBe("right");
-    // One read alone, or both halves named (two meets alike), or neither (no split): no half.
+    // One read alone, or neither (no split): no half.
     expect(splitSide(reads(["own", null], [null, null]))).toBeNull();
     expect(splitSide(reads(["own", "own"], ["own", null]))).toBeNull();
     expect(splitSide(reads([null, null], [null, "other"]))).toBeNull();
+  });
+
+  it("reads both halves of one event's two fields side by side, never two meets alike", () => {
+    const reads = (l: ("own" | "other" | null)[], r: ("own" | "other" | null)[]) =>
+      [...l.map((event) => ({ side: "left" as const, event })), ...r.map((event) => ({ side: "right" as const, event }))];
+    // USTXTBSQLM 2024 (zxv6atknGas): "Qualification 25 of 30" on the left, "Qualification 26 of 30" on the right, both
+    // halves the Lise Meitner Division's, at two reads or more each.
+    expect(splitSide(reads(["own", "own", null], ["own", null, "own"]))).toBe("both");
+    // Both halves named this event's, but a read named another event: two meets alike, one misread. No half.
+    expect(splitSide(reads(["own", "own", "other"], ["own", "own"]))).toBeNull();
+    expect(splitSide(reads(["own", "own"], ["own", "own", "other"]))).toBeNull();
+  });
+
+  it("reads a two-field stream's second half as a gap read of the first", () => {
+    const first: Judged = {
+      placed: new Map([["Q1", { t: 100, confidence: "high" }], ["Q3", { t: 700, confidence: "medium" }]]),
+      review: new Map(), missing: new Map([["Q2", "no frame read of it, and no agreeing reads on both sides"]]), earlyStart: new Map(),
+      opens: new Map([["Q1", 90]]),
+    };
+    // A first read (no --gaps): only the first half's starts stand, each with its opening and confidence.
+    expect(halfGap(first)).toEqual({ starts: { Q1: 100, Q3: 700 }, opens: { Q1: 90 }, medium: new Set(["Q3"]) });
+    // A --gaps re-read: the live starts under it stand too; one the first half read again takes the first half's
+    // second, opening and confidence.
+    const under = { starts: { Q1: 104, Q5: 1500 }, opens: { Q1: 95, Q5: 1490 }, medium: new Set(["Q1"]) };
+    expect(halfGap(first, under)).toEqual({ starts: { Q1: 100, Q3: 700, Q5: 1500 }, opens: { Q1: 90, Q5: 1490 }, medium: new Set(["Q3"]) });
   });
 
   it("zooms twice from the half's own edge at mid-height", () => {

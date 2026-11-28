@@ -216,13 +216,34 @@ export const splitZoomCss = (side: SplitSide): string =>
   `video { transform-origin: ${side === "left" ? "0" : "100%"} 50% !important; transform: scale(2) !important; }`;
 /** The half a split stream shows this event on, from its bar's row read zoomed to each half at a few seconds of the
  *  video (overlayEvent: "own" where the row names this event or its match total): a half named this event's at two
- *  reads or more while the other half never was. Null: neither (not a split stream), or both (two meets alike). */
-export function splitSide(reads: readonly { side: SplitSide; event: "own" | "other" | null }[]): SplitSide | null {
+ *  reads or more while the other half never was. "both": each half named this event's at two reads or more and no
+ *  read on either naming another event: one event's two fields side by side, each half its own bar and its own
+ *  matches (RoboticsFun's FiT-Central streams, letterboxed: USTXTBSQLM 2024 "Qualification 25 of 30" on the left,
+ *  "Qualification 26 of 30" on the right), read a half at a time. Null: neither (not a split stream), or both halves
+ *  named this event's with another event's read too (two meets alike, one of them misread as this one). */
+export type SplitPick = SplitSide | "both";
+export function splitSide(reads: readonly { side: SplitSide; event: "own" | "other" | null }[]): SplitPick | null {
   const own = (side: SplitSide) => reads.filter((r) => r.side === side && r.event === "own").length;
   const [l, r] = [own("left"), own("right")];
   if (l >= 2 && r === 0) return "left";
   if (r >= 2 && l === 0) return "right";
+  if (l >= 2 && r >= 2 && !reads.some((x) => x.event === "other")) return "both";
   return null;
+}
+/** A two-field stream's second half read as a gap read of the first (placeVideo's `gap`): what the first half placed
+ *  stands, with its checked openings and medium fills, so the second half's reads only look for the matches still
+ *  without a start, and the two halves' starts are judged together (in played order, a match apart). The first half's
+ *  own gap (a --gaps re-read) is under it: a start it kept and the first half didn't read again still stands. */
+export function halfGap(first: Judged, under?: Gap): Gap {
+  const starts: Record<string, number> = { ...(under?.starts ?? {}) }, opens: Record<string, number> = { ...(under?.opens ?? {}) };
+  const medium = new Set(under?.medium ?? []);
+  for (const [l, p] of first.placed) {
+    starts[l] = p.t;
+    if (p.confidence === "medium") medium.add(l); else medium.delete(l);
+    const o = first.opens.get(l);
+    if (o != null) opens[l] = o; else delete opens[l];
+  }
+  return { starts, opens, medium };
 }
 
 /**
@@ -993,7 +1014,32 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   let kept: number[] = [];
   const longest = Math.max(0, ...len);
   len.forEach((l, k) => { if (l === longest) { const r = runOf(k); if (!kept.length || agreeing(r) >= agreeing(kept)) kept = r; } });
-  const dropped = new Set(idx.filter((i) => !kept.includes(i)));
+  // A second stretch the longest run left out: reads in a row that agree among themselves (their own run, as above)
+  // and sit in the video in the order the matches were played, a match apart, between the kept reads either side.
+  // FIRST's times for part of a day can be off from the rest (a scorekeeping clock reset after lunch), so the
+  // distance rises there although the stream ran on: 2025 USOKOKBKLT's Q27–M3, twelve matches read off their own
+  // frames in order between Q26 and M4, dropped as a rise. Two reads at least, so a lone misread still goes; and the
+  // one longest such stretch, so two that differ can't say which is right and neither stands.
+  const keptSet = new Set(kept);
+  const apart = MATCH_S - LOSS_S;
+  for (let k = -1; k < kept.length; k++) {
+    const lo = k >= 0 ? kept[k] : -1, hi = k + 1 < kept.length ? kept[k + 1] : Infinity;
+    const lower = lo >= 0 ? seen.get(lo)! + apart : 0, upper = hi !== Infinity ? seen.get(hi)! - apart : length;
+    const group = idx.filter((i) => i > lo && i < hi && !keptSet.has(i) && seen.get(i)! >= lower && seen.get(i)! <= upper);
+    if (group.length < 2) continue;
+    const gl = group.map(() => 1), gf = group.map(() => -1), glow = group.map((i) => d(i));
+    for (let b = 0; b < group.length; b++) for (let a = 0; a < b; a++) {
+      const ok = d(group[b]) <= glow[a] + SAME_S && seen.get(group[b])! - seen.get(group[a])! >= apart;
+      if (ok && gl[a] + 1 > gl[b]) { gl[b] = gl[a] + 1; gf[b] = a; glow[b] = Math.min(glow[a], d(group[b])); }
+    }
+    const best = Math.max(...gl);
+    if (best < 2 || gl.filter((l) => l === best).length > 1) continue;
+    const run: number[] = [];
+    for (let at = gl.indexOf(best); at >= 0; at = gf[at]) run.unshift(group[at]);
+    for (const i of run) keptSet.add(i);
+  }
+  kept = idx.filter((i) => keptSet.has(i));
+  const dropped = new Set(idx.filter((i) => !keptSet.has(i)));
   // The scheduled matches' reads: those on every longest run rising with the matches' order (a match apart at least,
   // less what a cut in the recording loses, as for two high starts below). Two runs as long that differ can't say which read is wrong, so neither of theirs stands.
   const sched = [...seen.keys()].filter((i) => !timed(i)).sort((a, b) => a - b);
