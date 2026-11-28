@@ -442,9 +442,14 @@ export async function watchLive(log: (s: string) => void, opts: { apiKey?: strin
     const open = await all<{ video_id: string; season: number; code: string }>(
       `SELECT w.video_id, w.season, w.code FROM official_watch w JOIN official_videos o ON o.video_id = w.video_id AND o.removed_at IS NULL
        WHERE w.status = 'added' AND w.decided_by = 'live watcher' AND w.duration IS NULL AND w.decided_at >= ? LIMIT 50`, [since]);
+    // A failed facts call (a timeout, a 5xx) leaves them for the next check, and the pass goes on to what's on the air.
+    let body: any = null;
     if (open.length) {
       out.units++;
-      const body = await api("videos", { part: "snippet,contentDetails,status", id: open.map((o) => o.video_id).join(","), maxResults: "50" }, key, fetchImpl);
+      try { body = await api("videos", { part: "snippet,contentDetails,status", id: open.map((o) => o.video_id).join(","), maxResults: "50" }, key, fetchImpl); }
+      catch (e) { if (e instanceof QuotaError) throw e; log(`official videos: live pass: checking ended adds: ${(e as Error).message}`); }
+    }
+    if (body) {
       const items = new Map<string, any>((Array.isArray(body?.items) ? body.items : []).map((i: any) => [String(i.id), i]));
       const at = new Date(now()).toISOString();
       const writes: { sql: string; args: (string | number | null)[] }[] = [];

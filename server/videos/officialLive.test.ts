@@ -72,6 +72,12 @@ describe("the live pass", () => {
     items = [{ id: LIVE, title: "x", state: "none", minutes: 0 }];
     expect(await watchLive(() => {}, opts(NOW + 7 * 3600_000))).toMatchObject({ settled: 0, dropped: 0 });
     expect(await get("SELECT removed_at FROM official_videos WHERE video_id = ?", [LIVE])).toEqual({ removed_at: null });
+    // Its facts call fails: logged, and left for the next check.
+    const failing = (async (url: string) => (String(url).includes("/videos?") && !String(url).includes("liveStreamingDetails")
+      ? ({ ok: false, status: 503, json: async () => ({}) }) as Response : fakeFetch(url))) as unknown as typeof fetch;
+    const logs: string[] = [];
+    expect(await watchLive((m) => logs.push(m), { ...opts(NOW + 7 * 3600_000), fetchImpl: failing })).toMatchObject({ settled: 0, dropped: 0 });
+    expect(logs.join(" ")).toMatch(/checking ended adds: YouTube videos answered 503/);
     // Over, 7 hours: kept, its length written.
     items = [{ id: LIVE, title: "x", state: "none", minutes: 420 }];
     expect(await watchLive(() => {}, opts(NOW + 8 * 3600_000))).toMatchObject({ settled: 1, dropped: 0 });
