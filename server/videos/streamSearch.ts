@@ -47,8 +47,11 @@ export function resultsOf(html: string): SearchHit[] | null {
   try { data = JSON.parse(m[1]); } catch { return null; }
   const out: SearchHit[] = [];
   const seen = new Set<string>();
-  const walk = (o: any): void => {
-    if (!o || typeof o !== "object" || out.length >= MAX_RESULTS) return;
+  // A loop over a stack, not a self-call: depth first, children in their own order, as YouTube lists the results.
+  const stack: any[] = [data];
+  while (stack.length && out.length < MAX_RESULTS) {
+    const o = stack.pop();
+    if (!o || typeof o !== "object") continue;
     const v = o.videoRenderer;
     if (v && VIDEO_ID.test(String(v.videoId ?? ""))) {
       if (!seen.has(v.videoId)) {
@@ -57,11 +60,11 @@ export function resultsOf(html: string): SearchHit[] | null {
         const ch = String(owner?.navigationEndpoint?.browseEndpoint?.browseId ?? "");
         out.push({ videoId: v.videoId, title: String(v.title?.runs?.map((r: any) => r.text).join("") ?? v.title?.simpleText ?? ""), channelId: CHANNEL_ID.test(ch) ? ch : null, channel: owner?.text ? String(owner.text) : null });
       }
-      return;
+      continue;
     }
-    for (const k of Object.keys(o)) walk(o[k]);
-  };
-  walk(data);
+    const keys = Object.keys(o);
+    for (let i = keys.length - 1; i >= 0; i--) stack.push(o[keys[i]]);
+  }
   return out;
 }
 
