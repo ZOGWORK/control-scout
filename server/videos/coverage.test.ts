@@ -188,6 +188,27 @@ describe("clipCoverage", () => {
     expect(clipCoverage([noStart("Q1", "2026-03-07T10:00:00")], u, u, "UTC", NOW).matches[0]).toMatchObject({ reason: "no-start", videoId: "UPLOADvid01" });
   });
 
+  it("counts a one-day event's schedule-only match dated off its day on the event's day, where no video has that date (2019VAQ4)", () => {
+    // Charlottesville 2019: listed 2020-01-04, its one video an upload dated that day; FIRST's schedule says 2020-01-18.
+    const upload = { ...meta("UPLOADvaq04", "", "", 22_154), start: null, end: null } as unknown as VideoMeta;
+    const r: Recording = { videoId: upload.videoId, meta: upload, source: "official", day: "2020-01-04" } as Recording;
+    const sched = (label: string, at: string, o: Partial<CoverageInput> = {}) => ({ ...m(label, at), time: at, startsAt: `${at}Z`, listedDay: "2020-01-04", ...o });
+    const c = clipCoverage([sched("Q1", "2020-01-18T09:00:00"), sched("Q2", "2020-01-18T09:07:00")], r, r, "America/New_York", NOW);
+    expect(c.matches.map((x) => [x.label, x.date, x.reason, x.videoId])).toEqual([["Q1", "2020-01-04", "no-start", "UPLOADvaq04"], ["Q2", "2020-01-04", "no-start", "UPLOADvaq04"]]);
+    expect(c.daysMissing).toEqual([]);
+    expect(c.videos[0]).toMatchObject({ matches: 2, clipped: 0 });
+    // A real start keeps its own day (FIRST's dates can leave a day out): still a day with no video.
+    const real = clipCoverage([sched("Q1", "2020-01-18T09:00:00.123")], r, r, "America/New_York", NOW);
+    expect(real.matches[0]).toMatchObject({ date: "2020-01-18", videoId: null });
+    expect(real.daysMissing).toEqual([{ date: "2020-01-18", label: "Saturday", matches: 1 }]);
+    // A video dated on the schedule's day: the schedule's day stands.
+    const two: Recording = { ...r, more: [{ videoId: "UPLOADday18", meta: { ...upload, videoId: "UPLOADday18" }, day: "2020-01-18" }] } as Recording;
+    expect(clipCoverage([sched("Q1", "2020-01-18T09:00:00")], two, two, "America/New_York", NOW).matches[0]).toMatchObject({ date: "2020-01-18", videoId: "UPLOADday18" });
+    // No listed day (an event over several days, or none known): as before.
+    const multi = clipCoverage([sched("Q1", "2020-01-18T09:00:00", { listedDay: null })], r, r, "America/New_York", NOW);
+    expect(multi.matches[0]).toMatchObject({ date: "2020-01-18", videoId: null });
+  });
+
   it("never says a length matched when it couldn't be compared (still live, or no end)", () => {
     const live = { ...meta("LIVEvideo01", "2026-03-06T13:00:00Z", "", 0), end: null, length: null, live: true };
     const l = clipCoverage([m("Q1", "2026-03-06T14:00:00")], { videoId: live.videoId, meta: live, source: "first" }, null, "UTC", Date.parse("2026-03-06T16:00:00Z"));
