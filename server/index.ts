@@ -10,7 +10,7 @@ import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
 import { seedOfficialVideos } from "./videos/officialVideos.js";
 import { applyVideoDecisions } from "./videos/videoDecisions.js";
-import { WATCH_CHECK_MS, WATCH_FIRST_MS, watchIfDue } from "./videos/officialWatch.js";
+import { WATCH_CHECK_MS, WATCH_FIRST_MS, watchIfDue, watchLive } from "./videos/officialWatch.js";
 import { runChannelAudit } from "./videos/officialAudit.js";
 import { creatorIfDue } from "./videos/creatorVideos.js";
 import { dropWrongLinks } from "./videos/linkCheck.js";
@@ -314,6 +314,8 @@ if (!process.env.CS_NO_SCHEDULER) {
   // (server/videos/linkCheck.ts): a stream that never aired for a past event, a title naming another meet.
   const watch = () => {
     dropWrongLinks(log).catch((e) => log(`official videos: link check: ${(e as Error).message}`))
+      // A watched channel's broadcast on the air now at an event on today joins that event at once (the live pass).
+      .then(() => watchLive(log)).then((l) => (l?.added ? checkClipCoverage(log) : 0)).catch((e) => log(`official videos: live pass: ${(e as Error).message}`))
       .then(() => watchIfDue(log)).then(async (r) => {
       if (r) await runChannelAudit(log).catch((e) => log(`official videos: audit: ${(e as Error).message}`));
       return r?.added ? checkClipCoverage(log) : 0;
