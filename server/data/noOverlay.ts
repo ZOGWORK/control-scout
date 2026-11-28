@@ -45,7 +45,7 @@ export const NO_OVERLAY: NoOverlay[] = [
  *  could place. A match it doesn't hold keeps its own reason: another day's, between two recordings, or played before
  *  the broadcast or the video starts, after either ends, or outside every recording's time. */
 const SETTLES: ReadonlySet<CoverageReason> = new Set<CoverageReason>([
-  "no-clock", "gap-unplaced", "unexplained", "overlaps-previous", "before-chapters", "past-chapters", "past-checked",
+  "no-start", "no-clock", "gap-unplaced", "unexplained", "overlaps-previous", "before-chapters", "past-chapters", "past-checked",
 ]);
 
 /** The reason an entry's matches are settled with: its picture stutters, or it has no overlay at all. */
