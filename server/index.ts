@@ -20,7 +20,9 @@ import { migrate, all, openReplicaIfRemote } from "./db.js";
 import { loadManualStarts } from "./videos/manualStarts.js";
 import { loadAutoReads, startAutoReadsInbox } from "./videos/autoReads.js";
 import { packsDir } from "./packs/routes.js";
-import { backfillDue } from "./data/cycle.js";
+import { backfillDue, runningChildren } from "./data/cycle.js";
+import { isHandoff, listenForHandoff, stopChildren } from "./stopChildren.js";
+import { guardSchedule, isStopping, markStopping, scheduleStarted } from "./stopping.js";
 import { eventDayNow, eventDaySyncMinutes } from "./data/cadence.js";
 import { cycleRunning, runDataCycle } from "./data/jobs.js";
 import { flushMetrics } from "./metrics.js";
@@ -84,7 +86,13 @@ process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); closePro
 // Queued inbox fan-outs (activity already written) finish before the process exits.
 // On the way out, failed searches still in memory (settling or buffered) are written to the table too.
 // The most-asked searches too, for the next process to make before it answers (./api/searchWarm.ts).
-drainOnSigterm(() => http, log, 10_000, () => Promise.all([inboxSettled(), flushSearchFailures(Date.now(), true).catch(() => 0), saveHot().catch(() => 0)]));
+// Child processes (the data cycle, live follow-ups) are ended by the server itself (the unit's KillMode=mixed); in a
+// zero-gap hand-off (SIGUSR2 first) a data cycle may finish, capped, while the new lane serves (./stopChildren.ts).
+listenForHandoff(log);
+// From the stop on, the schedule below runs nothing more (./stopping.ts): the new lane runs it.
+process.once("SIGTERM", markStopping);
+drainOnSigterm(() => http, log, 10_000, () => Promise.all([inboxSettled(), flushSearchFailures(Date.now(), true).catch(() => 0), saveHot().catch(() => 0)]),
+  () => stopChildren(runningChildren(), { finishCycle: isHandoff(), log }));
 let ready = false;
 // Every warm-up step done (server/warm.ts): `ready` waits for them only up to WARM_CAP_MS; this says when the rest are.
 let warm = false;
@@ -157,6 +165,8 @@ ready = true;
 if (socket) http = server.listen(socket, listening("the systemd socket"));
 log("ready");
 if (!handover) void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(hot);
+// The background schedule, from here to scheduleStarted() below: it stops with the server (./stopping.ts).
+guardSchedule();
 // The most-asked list written every few minutes too: a process that dies without SIGTERM still leaves a recent one.
 setInterval(() => { void saveHot().catch(() => {}); }, 5 * 60_000).unref();
 // The questions with video offered when nothing near a search's answer plays in time (server/api/answers/
@@ -176,7 +186,7 @@ setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRec
 
 // One cycle at a time in this process, whether the schedule or the owner portal started it (data/jobs.ts).
 async function cycle(reason: string) {
-  if (cycleRunning() || process.env.CS_NO_SCHEDULER) return;
+  if (cycleRunning() || isStopping() || process.env.CS_NO_SCHEDULER) return;
   try {
     await runDataCycle(reason, log);
   } catch (e) {
@@ -320,4 +330,5 @@ if (!process.env.CS_NO_SCHEDULER) {
 startLiveSync(log);
 // Monte Carlo projections of live and upcoming events, re-run when their results move (server/projections/job.ts).
 startProjections(log);
+scheduleStarted();
 

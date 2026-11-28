@@ -27,15 +27,25 @@ export function systemdSocket(env: NodeJS.ProcessEnv = process.env, pid = proces
  * process's copy of the socket; systemd keeps it open for the next server.
  * `settle`: work a finished request left behind (the notification inbox's fan-out), awaited before exiting
  * (within the same grace period).
+ * `hold`: work begun at SIGTERM that the exit waits for beyond the grace period (a data cycle a hand-off lets finish:
+ * server/stopChildren.ts, which caps it). The socket is closed at once all the same: requests go to the next server.
  */
-export function drainOnSigterm(server: () => Server | null, log: (m: string) => void, graceMs = 10_000, settle?: () => Promise<unknown>) {
+export function drainOnSigterm(server: () => Server | null, log: (m: string) => void, graceMs = 10_000, settle?: () => Promise<unknown>,
+  hold?: () => Promise<unknown>) {
   process.once("SIGTERM", () => {
     const s = server();
-    const exit = () => { void Promise.resolve(settle?.()).catch(() => undefined).finally(() => process.exit(0)); };
-    if (!s) { exit(); return; }
-    log("stopping: finishing requests in progress");
-    s.close(exit);
-    s.closeIdleConnections();
-    setTimeout(() => { log("stopping: requests still open after the grace period, exiting"); process.exit(0); }, graceMs).unref();
+    const held = Promise.resolve().then(() => hold?.()).catch(() => undefined);
+    const deadline = Date.now() + graceMs;
+    const within = (p: Promise<unknown>) => Promise.race([p.catch(() => undefined), new Promise((r) => setTimeout(r, Math.max(0, deadline - Date.now())).unref())]);
+    let closed: Promise<unknown> = Promise.resolve();
+    if (s) {
+      log("stopping: finishing requests in progress");
+      closed = new Promise<void>((r) => s.close(() => r()));
+      s.closeIdleConnections();
+      const late = setTimeout(() => log("stopping: requests still open after the grace period, exiting"), graceMs);
+      late.unref();
+      void closed.then(() => clearTimeout(late));
+    }
+    void within(closed).then(() => within(Promise.resolve().then(() => settle?.()))).then(() => held).finally(() => process.exit(0));
   });
 }
