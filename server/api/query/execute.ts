@@ -291,10 +291,14 @@ async function namePrefixTeam(q: string, p: Parsed, prefer?: ReadonlySet<string>
   const idx = await names();
   if (idx.teamsNamed(w).length || idx.teamsCalled(w).length || idx.place(w, typed)) return null;
   const hits = (await search(w, 12, new Set(), new Set(["team"]))).filter((h) => h.kind === "team");
-  const teams = hits.map((h) => idx.team(Number(h.ref))).filter((t): t is NonNullable<typeof t> => !!t && t.lastPlayed != null && fold(t.name ?? "").split(" ").some((x) => x.startsWith(w)));
+  const starting = hits.map((h) => idx.team(Number(h.ref))).filter((t): t is NonNullable<typeof t> => !!t && fold(t.name ?? "").split(" ").some((x) => x.startsWith(w)));
+  // The teams that have played, when any has; else every registration (its answer then says it has played nothing).
+  const played = starting.filter((t) => t.lastPlayed != null);
+  const teams = played.length ? played : starting;
   if (!teams.length) return null;
-  const pick = pickShared(teams, { mine: (n) => !!prefer?.has(`team:${n}`), place: p.place ?? null });
-  if (!("team" in pick)) return null;
+  const shared = pickShared(teams, { mine: (n) => !!prefer?.has(`team:${n}`), place: p.place ?? null });
+  // Still tied (none has played or been ranked): search's own first match for the word, as a team's stats read a name.
+  const pick = "team" in shared ? shared : { team: shared.tied[0], rule: "search's first match" };
   const at = wordsAt([typed]);
   if (!at.test(q)) return null;
   return { q: q.replace(at, `$1${pick.team.number}`), typed, ...(teams.length > 1 ? { candidates: teams.map((t) => t.number), rule: pick.rule } : {}) };
