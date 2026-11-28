@@ -475,6 +475,38 @@ describe("the frame reader", () => {
     expect([...j.placed]).toEqual([["Q1", { t: 1000, confidence: "high" }], ["Q2", { t: 1400, confidence: "medium" }], ["Q3", { t: 1800, confidence: "high" }]]);
   });
 
+  it("keeps a second stretch of agreeing reads in the video's order between the kept ones, where FIRST's times rise", () => {
+    // 2025 USOKOKBKLT's kind: Q1–Q4 read 25 s early, Q9–Q10 72 s early, and between them Q5–Q8 read off their own
+    // frames in order, but FIRST's times for them run 300 s early, so the distance rises (+275) there.
+    const ms: M[] = Array.from({ length: 10 }, (_, i) => ({ label: `Q${i + 1}`, epoch: 1000 + i * 400 - (i >= 4 && i <= 7 ? 300 : 0) }));
+    const t = (i: number, off: number) => [i, ms[i].epoch + off] as [number, number];
+    const seen = new Map([t(0, -25), t(3, -25), t(4, 275), t(5, 275), t(7, 275), t(8, -72), t(9, -72)]);
+    const j = judge(ms, seen, null, 10_000);
+    expect([...j.placed.keys()]).toEqual(["Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9", "Q10"]);
+    expect(j.placed.get("Q5")).toEqual({ t: seen.get(4), confidence: "high" });
+    // Filled between the stretch's own agreeing reads, by its own distance.
+    expect(j.placed.get("Q7")).toEqual({ t: ms[6].epoch + 275, confidence: "medium" });
+    expect(j.missing.size).toBe(0);
+  });
+
+  it("never keeps a second stretch out of the video's order, a lone read, or one of two that differ", () => {
+    const ms: M[] = Array.from({ length: 10 }, (_, i) => ({ label: `Q${i + 1}`, epoch: 1000 + i * 400 }));
+    const t = (i: number, off: number) => [i, ms[i].epoch + off] as [number, number];
+    // Each time the reads set aside lie between agreeing kept ones (Q4 and Q9), so those matches are filled from them
+    // by the clock (medium), never placed at the reads.
+    const filled = (j: ReturnType<typeof judge>, labels: string[]) => labels.map((l) => j.placed.get(l));
+    const clock = (labels: number[]) => labels.map((i) => ({ t: ms[i].epoch, confidence: "medium" }));
+    // Q5 and Q6 agree on a rise, but sit in the video after Q10 (a replay of them): out of order, set aside.
+    const replay = judge(ms, new Map([t(0, 0), t(3, 0), t(4, 2400), t(5, 2400), t(8, 0), t(9, 0)]), null, 10_000);
+    expect(filled(replay, ["Q5", "Q6"])).toEqual(clock([4, 5]));
+    // A lone rise between kept reads is set aside (a misread).
+    const lone = judge(ms, new Map([t(0, 0), t(3, 0), t(4, 120), t(8, 0), t(9, 0)]), null, 10_000);
+    expect(filled(lone, ["Q5"])).toEqual(clock([4]));
+    // Two pairs as long that differ (Q5–Q6 at +100, Q7–Q8 at +160, each agreeing within itself): neither stands.
+    const two = judge(ms, new Map([t(0, 0), t(3, 0), t(4, 100), t(5, 100), t(6, 160), t(7, 160), t(8, 0), t(9, 0)]), null, 10_000);
+    expect(filled(two, ["Q5", "Q6", "Q7", "Q8"])).toEqual(clock([4, 5, 6, 7]));
+  });
+
   it("says nothing was read only when no frame named a match", () => {
     const ms: M[] = Array.from({ length: 3 }, (_, i) => ({ label: `Q${i + 1}`, epoch: i * 400 }));
     const j = judge(ms, new Map(), null, 10_000, new Set([1]));
