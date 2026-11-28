@@ -120,6 +120,18 @@ describe("matchUpload", () => {
     // Within the lag, but still a championship's title.
     expect(matchUpload(vid("2025 Detroit City Championship   Qualification Match 27", "2024-12-01"), MI, [DQ], () => quals(40)).kind).toBe("ignore");
   });
+  it("a place-only name matches only its own event: the kind it says, and no other place", () => {
+    const kq = ev(2024, "CAONKIQ", "Kingston Qualifier", "2025-01-11", null, { city: "Kingston" });
+    const kc = ev(2024, "CAONKICMP", "Kingston Championship", "2025-01-18", null, { city: "Kingston", type: "Championship" });
+    const wq = ev(2024, "CAONWAQ", "Waterloo Qualifier", "2025-01-12", null, { city: "Waterloo" });
+    const all = [kq, kc, wq], ms = () => quals(30);
+    const at = (title: string) => matchUpload(vid(title, "2025-01-25"), ONT, all, ms);
+    expect(at("Qualification 5 - 2024 FTC Kingston Qualifier")).toMatchObject({ kind: "add", event: { code: "CAONKIQ" } });
+    expect(at("Qualification 5 - 2024 FTC Kingston Championship")).toMatchObject({ kind: "add", event: { code: "CAONKICMP" } });
+    expect(at("Qualification 5 - 2024 FTC Waterloo Qualifier")).toMatchObject({ kind: "add", event: { code: "CAONWAQ" } });
+    // Two places said: neither event's own.
+    expect(at("Qualification 5 - 2024 FTC Kingston Qualifier at Waterloo").kind).toBe("ignore");
+  });
   it("tells a year's seasons apart by when it went up", () => {
     const a = ev(2024, "CAONMIQ", "FIRST Tech Challenge Mississauga Qualifier", "2024-11-30");
     const b = ev(2025, "CAONMIQ", "Mississauga Qualifier", "2025-11-29");
