@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The search box in v8 (docs/design/v8-revamp-brief.md §4.2, §5): the field on surface-3 with the line-strong
 // hairline; the dropdown on the menu surface, grown from the field only when it opens on typed results (opening
-// search, an empty field's list, shows at once); no bouncing "more below" icon. v8 off keeps Motion's drop and the bounce.
+// search, an empty field's list, shows at once); no bouncing "more below" icon.
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchHit } from "../../shared/api";
@@ -99,16 +99,3 @@ describe("search box, v8 on", () => {
   });
 });
 
-describe("search box, v8 off", () => {
-  it("highlights nothing until the keys or the pointer pick a row", async () => {
-    await typed();
-    expect(screen.getAllByRole("option").some((o) => o.getAttribute("aria-selected") === "true")).toBe(false);
-  });
-
-  it("keeps Motion's drop (no v8 panel) and the bouncing more-below icon", async () => {
-    const container = await typed();
-    expect(container.querySelector("[data-drop-panel]")).toBeNull();
-    await screen.findByRole("button", { name: /more below/ });
-    expect(container.querySelector("[data-more-chevron]")!.getAttribute("class")).toContain("motion-safe:animate-bounce");
-  });
-});

@@ -280,7 +280,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         <div ref={setHeaderEnd} aria-hidden />
       </header>
       {st === "live" ? <LiveFocus d={d} panel={live} next={liveMode ? target.next : null} mine={mine} onAll={showTab} />
-        : st === "finished" ? <FinishedFocus d={d} mine={mine} nameOf={nameOf} onAll={showTab} />
+        // The Awards and Odds (no team picked) panels show who advanced themselves: the card would say it twice.
+        : st === "finished" ? <FinishedFocus d={d} mine={mine} nameOf={nameOf} onAll={showTab} advancing={tab !== "awards" && !(tab === "odds" && teamParam == null)} />
         : <UpcomingFocus d={d} mine={mine} registered={registeredCount} onAll={showTab} />}
       <Disclosure title="Event details" hint="Recording, sources, offline" className="mb-6 max-sm:mb-4" id="event-details">
         <div className="text-sm text-text-muted [&>*:first-child]:mt-0">

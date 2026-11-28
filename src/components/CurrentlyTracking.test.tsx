@@ -50,7 +50,7 @@ describe("Currently tracking", () => {
   it("links each tracked event, live first, with the LIVE dot, and asks for nothing more", () => {
     tracked = ["2026:DONE1", "2026:UP1", "2026:LIVE1"];
     mount();
-    expect(screen.getByRole("heading", { name: /Currently tracking/ }).textContent).toContain("3 events");
+    expect(screen.getByRole("region", { name: "Currently tracking" }).textContent).toContain("3 events");
     expect(links()).toEqual(["/events/2026/LIVE1", "/events/2026/UP1", "/events/2026/DONE1"]);
     expect(document.querySelectorAll("[data-stream-live]")).toHaveLength(1);
     expect(screen.getAllByText(/^(Live|Upcoming|Finished)$/).map((x) => x.textContent!.trim())).toEqual(["Live", "Upcoming", "Finished"]);
