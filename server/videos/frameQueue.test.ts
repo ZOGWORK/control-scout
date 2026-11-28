@@ -9,13 +9,14 @@ import { forgetOfficial } from "./officialVideos";
 import { currentSeason } from "../api/answers/season";
 import { FRAME_TIMINGS, setAutoFrameRows, setFrameTimingsForTests, type FrameTiming } from "../data/frameTimings";
 import { checkClipCoverage, ownerClipCoverage } from "./coverageCheck";
-import { frameQueue, frameStatus, queueSummary, rankQueue, type QueueEvent } from "./frameQueue";
+import { READER_SINCE, frameQueue, frameStatus, queueSummary, rankQueue, type QueueEvent } from "./frameQueue";
 import type { CoverageMatch } from "../../src/shared/api";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
 const miss = (label: string, o: Partial<CoverageMatch> = {}): CoverageMatch =>
   ({ key: label, label, date: "2026-11-14", clip: false, videoId: "VIDEOaaaaa1", reason: "gap-unplaced", video: { checked: null }, ...o });
-const ev = (missing: CoverageMatch[], o: Partial<QueueEvent> = {}): QueueEvent => ({ season: 2025, code: "USXXQ", name: "X Qualifier", end: "2026-11-14", timezone: "UTC", missing, ...o });
+// A season READER_SINCE doesn't list, so a read after the event settles as it always did (2024 and 2025 are listed).
+const ev = (missing: CoverageMatch[], o: Partial<QueueEvent> = {}): QueueEvent => ({ season: 2023, code: "USXXQ", name: "X Qualifier", end: "2026-11-14", timezone: "UTC", missing, ...o });
 
 // A video of the event read on `checked` (a frame row for it, as the reader writes one): its id, for a missing match.
 const ROWS: FrameTiming[] = [];
@@ -64,6 +65,23 @@ describe("frameStatus", () => {
     expect(frameStatus(ev([miss("Q9", { date: "2026-11-15", ...readOn("2026-11-14") })], { end: null }), NOW).state).toBe("queued");
     expect(frameStatus(ev([miss("Q9", readOn("2026-11-15"))]), NOW))
       .toMatchObject({ state: "read", due: 0, at: "2026-11-15", why: "Read 2026-11-15: 1 match still without a clip, as the video shows (see each match)" });
+  });
+
+  it("reads once more a match a reader older than its season's READER_SINCE missed; today's read settles it", () => {
+    const since = READER_SINCE[2025];
+    expect(since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const before = new Date(Date.parse(since) - 86_400_000).toISOString().slice(0, 10);
+    const later = Date.parse(since) + 2 * 86_400_000;
+    // Read after the event (it ended the 14th), but before the season's reader day: due again, said why.
+    expect(frameStatus(ev([miss("Q9", readOn(before))], { season: 2025 }), later))
+      .toMatchObject({ state: "queued", due: 1, why: "Queued for a frame read: 1 match, read by an older reader" });
+    // Read on the reader's day or after: settled, as before.
+    expect(frameStatus(ev([miss("Q9", readOn(since))], { season: 2025 }), later)).toMatchObject({ state: "read", due: 0, at: since });
+    // The same old read in a season READER_SINCE doesn't list: never read again for this.
+    expect(frameStatus(ev([miss("Q9", readOn(before))]), later).state).toBe("read");
+    // Beside other reasons it's due for, named with them.
+    expect(frameStatus(ev([miss("Q1", readOn(before)), miss("Q2", { ...readOn("2026-11-14") })], { season: 2025 }), later).why)
+      .toBe("Queued for a frame read: 2 matches (1 read before the event finished; 1 read by an older reader)");
   });
 
   it("dates a read by the matches it read, never by a match it can't place whose video was read another day", () => {
