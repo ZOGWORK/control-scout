@@ -90,8 +90,8 @@ export const FAQ: FaqGroup[] = [
         "[Videos](/videos) is a feed of FTC videos that all play in the app: match clips, this weekend's streams, top plays, close finishes, upsets, creators' videos and Behind the Bot. Filter it by Matches, Creators, Behind the Bot, My teams or This weekend.",
         "Save videos or keep them for later from the watch page; your Saved, Watch later and History lists sync to your account when you're signed in, and stay on your device when you're not.",
       ] },
-      { id: "cycles", q: "What are Cycles?", a: [
-        "[Cycles](/cycles) are short FTC videos, one at a time and full screen: swipe up (or press the down arrow) for the next. Like them, react with an emoji, save them, or share a link to one.",
+      { id: "clips", q: "What are Clips?", a: [
+        "[Clips](/clips) are short FTC videos, one at a time and full screen: swipe up (or press the down arrow) for the next. Like them, react with an emoji, save them, or share a link to one.",
       ] },
     ],
   },
