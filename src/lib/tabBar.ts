@@ -2,12 +2,14 @@
 // menu the top-left button opens. People pick their own in Settings › Appearance; the choice is kept on this
 // device (it's about this phone's screen, not the account). Pure rules below, tested in tabBar.test.ts.
 import { useSyncExternalStore } from "react";
-import { BookOpen, Bookmark, CalendarDays, ClipboardList, House, ListOrdered, MonitorPlay, Scale, Settings, Sparkles, Star, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
+import { BookOpen, Bookmark, CalendarDays, ClipboardList, House, ListOrdered, MonitorPlay, Scale, Settings, Sparkles, Star, Trophy, Users } from "lucide-react";
+import type { ComponentType } from "react";
+import { ClipsIcon } from "../components/cycles/ClipsMark";
 
 export type TabId = "home" | "events" | "teams" | "rankings" | "powerRankings" | "predict" | "videos" | "cycles" | "compare" | "myTeam" | "shortlist" | "scout" | "methodology" | "settings";
 
 /** `label` fits under a tab; `name` (when it differs) is the page's full name, for Settings. */
-export interface TabDef { id: TabId; to: string; label: string; name?: string; icon: LucideIcon; end?: boolean }
+export interface TabDef { id: TabId; to: string; label: string; name?: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
 /** Every page that can sit in the bar, in the menu's order. "myTeam" opens My team / My teams (src/lib/yoursRow.ts). */
 export const TAB_OPTIONS: TabDef[] = [
@@ -18,7 +20,8 @@ export const TAB_OPTIONS: TabDef[] = [
   { id: "powerRankings", to: "/power-rankings", label: "Power", name: "Power rankings", icon: Trophy },
   { id: "predict", to: "/predict", label: "Predict", icon: Sparkles, end: true },
   { id: "videos", to: "/videos", label: "Videos", icon: MonitorPlay },
-  { id: "cycles", to: "/cycles", label: "Cycles", icon: Zap },
+  // Clips (the id stays "cycles": a device keeps its picked tabs by id).
+  { id: "cycles", to: "/clips", label: "Clips", icon: ClipsIcon },
   { id: "compare", to: "/compare", label: "Compare", icon: Scale },
   { id: "myTeam", to: "/my-team", label: "My team", icon: Star },
   { id: "shortlist", to: "/shortlist", label: "Shortlist", icon: Bookmark },

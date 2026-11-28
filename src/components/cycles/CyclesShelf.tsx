@@ -1,8 +1,9 @@
-// The Cycles row at the top of the Videos tab (src/pages/VideosPage.tsx): the first few Cycles picked for this person,
-// tall like the videos they are; one opens Cycles at it.
+// The Clips row at the top of the Videos tab (src/pages/VideosPage.tsx): the first few clips picked for this person,
+// tall like the videos they are; one opens Clips at it.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, Zap } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { ClipsMark } from "./ClipsMark";
 import { cyclesPage, type DeviceTaste } from "../../lib/cycles";
 import { cycleHref, type CycleItem } from "../../shared/cycles";
 
@@ -21,9 +22,9 @@ export function CyclesShelf({ ready, device }: { ready: boolean; device: DeviceT
     <section aria-labelledby="cycles-shelf" className="mb-10" data-cycles-shelf>
       <div className="mb-3 flex items-center justify-between">
         <h2 id="cycles-shelf" className="flex items-center gap-2 text-base font-semibold tracking-tight text-text-base">
-          <Zap className="size-4 text-accent" aria-hidden />Cycles
+          <ClipsMark className="size-5" />Clips
         </h2>
-        <Link to="/cycles" className="inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-text-muted outline-none transition-colors duration-150 hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
+        <Link to="/clips" className="inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-text-muted outline-none transition-colors duration-150 hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
           Watch all<ChevronRight className="size-4" aria-hidden />
         </Link>
       </div>

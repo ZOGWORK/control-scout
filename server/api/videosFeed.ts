@@ -41,7 +41,6 @@ import type { MatchClip, SearchVideoItem } from "../../src/shared/api.js";
 import { FEED_KEY, WATCH_KINDS, watchKindOf, type FeedAnswer, type FeedFilter, type FeedItem, type FeedSource, type HistoryState, type WatchKind, type WatchReport } from "../../src/shared/videosFeed.js";
 
 export const POOL_TTL_MS = 5 * 60_000;
-const LIST_TTL_MS = 10 * 60_000;
 export const PAGE_SIZE = 12;
 const DAY = 86_400_000;
 
@@ -376,7 +375,9 @@ export async function videoFeed(opts: { viewer: string; userId: number | null; h
   let list = cur ? lists.get(listKey(id)) : undefined;
   // A list gone (kept too long, or the server restarted): built afresh under a new id; the app skips repeats.
   if (cur && !list) id = randomBytes(9).toString("base64url");
-  if (!list || now - list.at > LIST_TTL_MS) {
+  // A list being paged stays the list it was, however long the person takes over it: built again from what they've
+  // watched since, the order would shift under the offset, and the items that moved above it would never be shown.
+  if (!list) {
     const p = await profileOf(opts.userId, opts.hints);
     const pool = await pools(now);
     const mine = (await Promise.all([...p.teams.keys()].map((n) => teamClips(n, now).catch(() => [])))).flat();

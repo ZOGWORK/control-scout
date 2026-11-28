@@ -15,7 +15,7 @@ import { isBareRoute, pageTitle } from "../src/shared/routes.js";
 import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, PAGE_DATA_ID, PAGE_FRAME, homeHeadlineAt } from "../src/shared/boot.js";
 import { DEFAULT_HERO_LINES, HERO_LINES_ID, type HeroLinesResponse } from "../src/shared/heroLines.js";
 import { LITE_BOOT_S } from "../src/shared/lite.js";
-import { WASH_MIX, softStops } from "../src/shared/wash.js";
+import { WASH_FADE, WASH_MIX, softStops } from "../src/shared/wash.js";
 import { footerLinks } from "../src/shared/footer.js";
 import type { Flag } from "../src/shared/flags.js";
 
@@ -131,23 +131,45 @@ export const BOOT_STYLE = `<style>
       html[data-v8] .csb-brand img{width:18px;height:18px}
       html[data-v8] .csb-top>a img{width:20px;height:20px}
       html[data-v8] .csb-nav a[aria-current] .csb-ico{background:var(--b-fg);opacity:.9}
-      html[data-v8] .csb-top{position:static;height:56px;border-bottom-color:transparent;background:transparent}
+      html[data-v8] .csb-top{position:relative;height:56px;border-bottom-color:transparent;background:transparent}
+      /* Home draws its own mark under the top row, as the app does (no mark in the phone top row there). */
+      html[data-v8] .csb-tophome>a{display:none}
       @media (display-mode:standalone){html .csb-top{box-sizing:content-box;padding-top:env(safe-area-inset-top)}}
       html[data-v8] .csb .csb-crumb{display:none}
       html[data-v8] .csb-main{background:none}
-      html[data-v8] .csb-col{position:relative;isolation:isolate}html[data-v8] .csb-col::before{content:"";position:absolute;top:0;left:0;right:0;height:100vh;z-index:-1;pointer-events:none;transform-origin:50% 0;animation:wash-rise 1400ms cubic-bezier(0.22,1,0.36,1) both;background-repeat:no-repeat;background-image:radial-gradient(52% calc(37vh * var(--wash-spread,1)) at 12% 0,${softStops("color-mix(in srgb,color-mix(in srgb,var(--wash-a,#5a76ad) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent)")}),radial-gradient(48% calc(35vh * var(--wash-spread,1)) at 52% 0,${softStops("color-mix(in srgb,color-mix(in srgb,var(--wash-b,#5f5785) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent)")}),radial-gradient(52% calc(37vh * var(--wash-spread,1)) at 90% 0,${softStops("color-mix(in srgb,color-mix(in srgb,var(--wash-c,#91689c) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent)")})}
-      @keyframes wash-rise{from{opacity:0;transform:translate3d(0,-4vh,0) scaleY(0.8)}to{opacity:1;transform:none}}@media (prefers-reduced-motion:reduce){html[data-v8] .csb-col::before{animation:none}}
+      /* The app's wash geometry (src/components/layout/Wash.tsx): a box the wash's height, faded by WASH_FADE and as opaque as
+         --wash-strength, its glows painted 20% wider and half again as tall, half their height above the screen (size 120% 150%,
+         position 50% 100%), so only each glow's soft lower half shows, as in the app. */
+      html[data-v8] .csb-col{position:relative;isolation:isolate}html[data-v8] .csb-col::before{content:"";position:absolute;top:0;left:0;right:0;height:clamp(16rem,calc(42vh * var(--wash-spread,1)),calc(30rem * var(--wash-spread,1)));z-index:-1;pointer-events:none;opacity:var(--wash-strength,1);-webkit-mask-image:${WASH_FADE};mask-image:${WASH_FADE};background-repeat:no-repeat;background-size:120% 150%;background-position:50% 100%;background-image:radial-gradient(48% 84% at 12% 0%,${softStops("color-mix(in srgb,var(--wash-a,#5a76ad) var(--wash-mix,100%),var(--b-bg))")}),radial-gradient(44% 80% at 52% 0%,${softStops("color-mix(in srgb,var(--wash-b,#5f5785) var(--wash-mix,100%),var(--b-bg))")}),radial-gradient(48% 84% at 90% 0%,${softStops("color-mix(in srgb,var(--wash-c,#91689c) var(--wash-mix,100%),var(--b-bg))")});transform-origin:50% 33%;animation:csb-wash-rise 1400ms cubic-bezier(0.22,1,0.36,1) both}
+      html[data-v8] .csb-col.csb-wshort::before{height:clamp(13rem,calc(34vh * var(--wash-spread,1)),calc(23rem * var(--wash-spread,1)))}
+      @keyframes csb-wash-rise{from{opacity:0;transform:translate3d(0,-4vh,0) scaleY(0.8)}to{opacity:var(--wash-strength,1);transform:none}}@media (prefers-reduced-motion:reduce){html[data-v8] .csb-col::before{animation:none}}
       html[data-v8] .csb-home .csb-hl,html[data-v8] .csb-home>p{display:none}
-      html[data-v8] .csb-home{display:flex;flex-direction:column;align-items:center;padding-top:15vh}
-      html[data-v8] .csb-home>div:not(.csb-hl){width:100%;max-width:40rem;height:50px;margin:0;border-color:#ffffff1f;border-radius:13px;background:#1b1b1e}
+      html[data-v8] .csb-home{display:flex;flex-direction:column;align-items:center}
+      /* v8 Home (src/components/home/HomeDashboard.tsx at the app's 90% root): mark, search, suggestion row, three cards. */
+      html[data-v8] .csb-home{padding-top:max(0px,calc(11vh - 40px))}
+      html[data-v8] .csb-home>div:not(.csb-hl){display:none}
+      .csb-v8h{display:none}html[data-v8] .csb-v8h{display:flex;flex-direction:column;align-items:center;width:100%}
+      .csb-v8h>img{width:36px;height:36px;margin-bottom:25px}
+      .csb-v8h .csb-sb{display:flex;align-items:center;gap:12px;width:100%;max-width:634px;height:50px;padding:0 9px 0 22px;border:1px solid #ffffff1f;border-radius:13px;background:#1b1b1e;color:var(--b-mut);font-size:15px}
+      .csb-sb i{width:16px;height:16px;flex-shrink:0;border:2px solid currentColor;border-radius:50%;opacity:.7}.csb-sb span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .csb-sb kbd{display:none;padding:2px 7px;border:1px solid var(--b-line);border-radius:6px;font:500 11px ui-monospace,monospace;opacity:.8}
+      .csb-chips{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:7px;margin-top:15px;font-size:13px;color:var(--b-mut)}
+      .csb-chips b{display:block;height:29px;border:1px solid color-mix(in srgb,var(--b-fg) 15%,transparent);border-radius:999px;background:color-mix(in srgb,var(--b-fg) 3%,transparent)}
+      .csb-cards{display:grid;gap:15px;width:100%;max-width:1037px;margin-top:35px}
+      .csb-cards>div{display:flex;flex-direction:column;gap:7px;min-height:300px;padding:22px;border:1px solid #ffffff14;border-radius:13px;background:#121214}.csb-cards>div:last-child{min-height:160px}
+      .csb-cards p{width:40%;height:13px;margin:0 0 12px;border-radius:5px}.csb-cards b{display:block;height:40px;border-radius:8px}
+      .csb-cards p,.csb-cards b{background:color-mix(in srgb,var(--b-fg) 5%,transparent);animation:csb-pulse 1.6s ease-in-out infinite}.csb-cards>div:nth-child(2) *{animation-delay:.2s}.csb-cards>div:nth-child(3) *{animation-delay:.4s}
+      @keyframes csb-pulse{50%{opacity:.45}}@media (prefers-reduced-motion:reduce){.csb-cards p,.csb-cards b{animation:none}}
+      @media (min-width:640px){html[data-v8] .csb-home{padding-top:max(0px,calc(15vh - 31px))}.csb-cards{margin-top:58px}.csb-sb kbd{display:block}}
+      @media (min-width:1024px){.csb-cards{grid-template-columns:repeat(3,1fr)}.csb-cards>div,.csb-cards>div:last-child{min-height:346px}}
+      html[data-v8].light .csb-v8h .csb-sb{border-color:#00000017;background:#fff}html[data-v8].light .csb-cards>div{border-color:#00000014;background:#fff}html[data-v8].light .csb-v8h>img{filter:invert(.9)}
+      html[data-v8].dim .csb-v8h .csb-sb{border-color:#ffffff26;background:#2d2e33}html[data-v8].dim .csb-cards>div{border-color:#ffffff14;background:#26272b}
       @media (min-width:768px){html[data-v8] .csb-side{width:223px}}
       html[data-v8].light{background:#fafafa;--wash-mix:${WASH_MIX.light}}html[data-v8].dim{--wash-mix:${WASH_MIX.dim}}
       html[data-v8].light .csb{--b-bg:#fafafa;--b-side:#fff;--b-fg:#18181b;--b-mut:#52525b;--b-line:#00000017;--b-acc:#3f5a96;--b-tab:#fffffff2}
       html[data-v8].light .csbc{--b-fg:#18181b;--b-line:#00000017;--b-acc:#3f5a96;--b-soft:#3f5a961a}
       html[data-v8].light .csb-brand img,html[data-v8].light .csb-top>a img{filter:invert(.9)}
-      html[data-v8].light .csb-home>div:not(.csb-hl){border-color:#00000017;background:#fff}
       html[data-v8].dim .csb{--b-side:#232428;--b-line:#ffffff14}
-      html[data-v8].dim .csb-home>div:not(.csb-hl){border-color:#ffffff26;background:#2d2e33}
     </style>`;
 
 // The app's ConsentBanner (src/components/layout/ConsentBanner.tsx) takes over from the static banner by
@@ -183,8 +205,8 @@ export function bootConsent(): string {
 interface Item { to: string; label: string; end?: boolean; children?: Item[]; sub?: Item[] }
 // The sidebar's everyday pages, then its "More" group: a <details>, so it opens without the app too. Open on one of
 // its own pages, or when this device left it open (html.cs-nav-more, set in index.html from cs-nav-more).
-const PRIMARY: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/rankings", label: "Rankings", end: true, sub: [{ to: "/rankings/regions", label: "Region rankings" }, { to: "/leagues", label: "Leagues" }, { to: "/power-rankings", label: "Power rankings" }] }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
-const MORE: Item[] = [{ to: "/compare", label: "Compare" }, { to: "/shortlist", label: "Shortlist" }, { to: "/download", label: "Offline" }, { to: "/methodology", label: "How it works", children: [{ to: "/methodology", label: "Predictions" }, { to: "/how-it-works/search", label: "FTC One Search" }] }];
+const PRIMARY: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/rankings", label: "Rankings", end: true, sub: [{ to: "/rankings/regions", label: "Region rankings" }, { to: "/leagues", label: "Leagues" }, { to: "/power-rankings", label: "Power rankings" }] }, { to: "/predict", label: "Predict", end: true }, { to: "/videos", label: "Videos" }, { to: "/cycles", label: "Cycles" }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
+const MORE: Item[] = [{ to: "/compare", label: "Compare" }, { to: "/shortlist", label: "Shortlist" }, { to: "/rules", label: "Rules" }, { to: "/download", label: "Offline" }, { to: "/methodology", label: "How it works", children: [{ to: "/methodology", label: "Predictions" }, { to: "/how-it-works/search", label: "FTC One Search" }] }];
 // The phone tab bar's default (src/lib/tabBar.ts DEFAULT_TABS); a device with its own choice gets it once the app loads.
 const TABS: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/predict", label: "Predict", end: true }, { to: "/videos", label: "Videos" }, { to: "/scout", label: "Scout" }];
 
@@ -203,12 +225,21 @@ const link = (path: string, it: Item): string => it.sub
   ? `<details class="csb-more csb-sub"${within(path, it) ? " open" : ""}><summary><i class="csb-ico"></i><span>${esc(it.label)}</span></summary><div>${it.children.map((k) => link(path, k)).join("")}</div></details>`
   : `<a href="${it.to}"${active(path, it) ? ' aria-current="page"' : ""}><i class="csb-ico"></i><span>${esc(it.label)}</span></a>`;
 
+// v8's Home before the app loads (shown only under html[data-v8]): the app's mark, search, suggestion row and its three
+// cards as placeholders (src/components/home/HomeDashboard.tsx), so nothing moves when the app takes over and the footer
+// stays below the fold instead of rising up under the search.
+const V8_HOME = `<section class="csb-v8h" aria-hidden="true"><img src="/mark-white.webp" alt="" /><div class="csb-sb"><i></i><span>Search teams, events, matches…</span><kbd>Ctrl K</kbd></div>`
+  + `<div class="csb-chips">Try: ${[150, 150, 92, 130].map((w) => `<b style="width:${w}px"></b>`).join("")}</div>`
+  + `<div class="csb-cards">${[4, 5, 0].map((n) => `<div><p></p>${"<b></b>".repeat(n)}</div>`).join("")}</div></section>`;
+
 /** The static first paint for a page path (see the top of this file). `path` is the request path; `hero`: the
  *  home page's lines in use (server/heroLines.ts liveHeroLines), the built-in ones by default; `lite`: the page's
  *  light twin (src/shared/lite.ts), offered when the app's code still hasn't run after LITE_BOOT_S seconds. */
 export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse = { lines: [...DEFAULT_HERO_LINES], custom: false }, lite: string | null = null, flagOn: (flag: Flag) => boolean = () => true): string {
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   const home = p === "/";
+  // The app's short wash below top-level pages (Wash.tsx washSize).
+  const washShort = p.split("/").filter(Boolean).length > 1;
   const nav = `<div class="csb-grp">${PRIMARY.map((it) => link(p, it)).join("")}</div>`
     + `<details class="csb-more"${MORE.some((it) => within(p, it)) ? " open" : ""}><summary><i class="csb-ico"></i><span>More</span></summary><div>${MORE.map((it) => link(p, it)).join("")}</div></details>`
     + `<script>if(document.documentElement.classList.contains('cs-nav-more'))document.querySelector('.csb-more').open=true</script>`;
@@ -219,7 +250,7 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   // A page with no title of its own (not found) gets the shell alone.
   const liteLink = lite ? `<p class="csb-lite" data-nosnippet>Slow connection? <a href="${esc(lite)}">Open Control Scout Lite</a>: text only, a fraction of the data.</p>` : "";
   const page = home
-    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${lines.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(lines[line][0])} <span>${esc(lines[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
+    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${lines.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(lines[line][0])} <span>${esc(lines[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p>${V8_HOME}</div>`
     // A page the server drew whole (a team or event page: server/firstPaint.ts): the app's own markup, in the app's page
     // frame, styled by the app's stylesheet (server/seo.ts loads it before this paints). Under it, the lists it leaves
     // closed or on another tab (PageMeta.moreHtml), so crawlers read them too. Its data follows for the app.
@@ -246,7 +277,7 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   return [
     `<div class="csb">`,
     `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/mark-white.webp" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
-    `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/mark-white.webp" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
+    `<div class="csb-col${washShort ? " csb-wshort" : ""}"><header class="csb-top${home ? " csb-tophome" : ""}"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/mark-white.webp" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
     // A page with content in full scrolls with the document (before the app loads, or with no JavaScript at all).
     `<main class="csb-main${meta.bodyHtml && !meta.firstPaint && page ? " csb-scroll" : ""}">${page}${isBareRoute(p) ? "" : foot}${guard}${heroJson}</main></div>`,
     `<nav class="csb-tabs" aria-label="Main">${TABS.map((it) => link(p, it)).join("")}</nav>`,

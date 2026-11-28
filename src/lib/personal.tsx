@@ -6,7 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { apiFetch } from "./api";
 import { onBackOnline } from "./connection";
 import type { OrphanState } from "../shared/orphaned";
-import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
+import { cleanValue, EMPTY_STATE, MIGRATE_MAX_ENTRIES, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
 import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, setScoutViewer, storedScoutEntry } from "./scouting";
 import { LOST_PREFIX, lostBackupFailed, mergeLostLists } from "./lostEdits";
 import { dropPushOnSignOut } from "./push";
@@ -196,6 +196,11 @@ export const hasAccountOnDevice = () => getOwner() !== "";
 const toState = (s: Record<PersonalKey, Stamped<any> | null>): PersonalState =>
   Object.fromEntries(PERSONAL_KEYS.map((k) => [k, s[k]?.value ?? EMPTY_STATE[k]])) as unknown as PersonalState;
 
+/** The scout entries a first-sign-in merge sends: the newest MIGRATE_MAX_ENTRIES. */
+export function migrateScoutEntries<T extends { updatedAt: number }>(entries: T[]): T[] {
+  return entries.length <= MIGRATE_MAX_ENTRIES ? entries : [...entries].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MIGRATE_MAX_ENTRIES);
+}
+
 export function PersonalProvider({ children }: { children: ReactNode }) {
   const stamped = useRef(readLocal());
   const [state, setState] = useState<PersonalState>(() => toState(stamped.current));
@@ -275,7 +280,9 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   /** First sign-in with anonymous data on this device: merge it into the account. */
   const migrate = useCallback(async (alive: () => boolean = () => true) => {
     const snapshot = Object.fromEntries(PERSONAL_KEYS.filter((k) => stamped.current[k]).map((k) => [k, stamped.current[k]])) as Record<PersonalKey, Stamped<any>>;
-    const r = await apiFetch<{ state: Record<PersonalKey, Stamped<any>> }>("/api/me/migrate", { method: "POST", json: { state: snapshot, scout: localScoutEntries().map(storedScoutEntry) } });
+    // The newest entries ride along (the server takes MIGRATE_MAX_ENTRIES); every one is still queued, so the rest go up with the next sync.
+    const scout = migrateScoutEntries(localScoutEntries()).map(storedScoutEntry);
+    const r = await apiFetch<{ state: Record<PersonalKey, Stamped<any>> }>("/api/me/migrate", { method: "POST", json: { state: snapshot, scout } });
     if (!alive()) return;
     for (const [k, s] of Object.entries(r.state) as [PersonalKey, Stamped<any>][]) {
       const now = stamped.current[k];

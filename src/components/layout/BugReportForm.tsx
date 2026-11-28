@@ -1,4 +1,7 @@
-// The "Report a bug" dialog (a bottom sheet on phones), loaded when its button (./BugReport.tsx) is first pressed. No account needed. The person picks what kind of problem, describes it, and can attach screenshots
+// The "Report a bug" dialog (a bottom sheet on phones), loaded when its button (./BugReport.tsx) is first pressed. No account needed.
+// A switch at the top makes it a feature request instead (its own heading and prompts, no problem kinds; filed as
+// "[feature] …" with the feature-request label). Both take an optional title, the issue's title when given. For a bug
+// the person picks what kind of problem, describes it, and can attach screenshots
 // (pasted with Ctrl+V / ⌘V anywhere in the dialog, picked from disk, dropped on it, or taken of the page behind the
 // dialog with "Capture this screen" where the browser can share a tab: captureScreen.ts) and one short video under 5 MB.
 // The page, version, screen, device and theme go with it and are listed in the dialog, so nothing is hidden.
@@ -8,7 +11,7 @@
 // The message is sanitized here and again on the server (src/shared/errorReport.ts sanitizeText).
 import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { useLocation } from "react-router-dom";
-import { AlertCircle, ArrowLeft, Bug, Camera, CheckCircle2, Clapperboard, ExternalLink, Globe, Gauge, ImagePlus, LayoutTemplate, Loader2, MessageCircle, Send, DatabaseZap, Wrench, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Bug, Camera, CheckCircle2, Clapperboard, ExternalLink, Globe, Gauge, ImagePlus, LayoutTemplate, Lightbulb, Loader2, MessageCircle, Send, DatabaseZap, Wrench, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../ui/overlay";
 import { Button } from "../ui/button";
 import { Input, Label, RequiredMark, Textarea } from "../ui/basic";
@@ -22,8 +25,26 @@ import { PRIVATE_EMAIL, PUBLIC_NOTE } from "./BugReport";
 import { canCaptureScreen, captureScreen } from "./captureScreen";
 import {
   attachmentProblem, attachmentsProblem, BUG_CATEGORIES, BUG_LIMITS, formatBytes, IMAGE_TYPES, isImageType, isVideoType, VIDEO_TYPES,
-  type BugCategory, type BugContext, type BugFiling, type BugReportCreated,
+  type BugCategory, type BugContext, type BugFiling, type BugReportCreated, type ReportKind,
 } from "../../shared/bugReport";
+
+/** What changes with the switch at the top: a bug report or a feature request (same form, same filing). */
+const MODE = {
+  bug: {
+    tab: "Report a bug", Icon: Bug, iconTone: "bg-danger/15 text-danger",
+    desc: (phone: boolean) => phone ? "Tell us what went wrong. A screenshot or a short screen recording helps." : <>Tell us what went wrong. Paste a screenshot with {pasteKeys()} to show us.</>,
+    titleHint: "e.g. Rankings table jumps when I scroll",
+    ask: "What happened?", placeholder: "What you did, what you expected, what happened instead…",
+    send: "Send report", sentTitle: "Bug report sent", mailSubject: "Control Scout bug report", sending: "Sending your report…",
+  },
+  feature: {
+    tab: "Request a feature", Icon: Lightbulb, iconTone: "bg-accent-soft text-accent-text",
+    desc: (phone: boolean) => phone ? "Tell us what you'd like Control Scout to do. A sketch or screenshot helps." : <>Tell us what you'd like Control Scout to do. Paste a sketch or screenshot with {pasteKeys()} if it helps.</>,
+    titleHint: "e.g. Compare two teams side by side",
+    ask: "What would you like?", placeholder: "What should it do, and why would it help?",
+    send: "Send request", sentTitle: "Feature request sent", mailSubject: "Control Scout feature request", sending: "Sending your request…",
+  },
+} as const;
 
 const ICONS: Record<BugCategory, typeof Bug> = { data: DatabaseZap, broken: Wrench, layout: LayoutTemplate, slow: Gauge, other: MessageCircle };
 const HINTS: Record<BugCategory, string> = {
@@ -35,14 +56,14 @@ const HINTS: Record<BugCategory, string> = {
 };
 
 /** The public notice, large enough to be read, with the private way out. */
-function PublicNotice() {
+function PublicNotice({ subject }: { subject: string }) {
   return (
     <div className="flex items-start gap-2.5 rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-3 text-left" data-testid="bug-public-note">
       <Globe className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
       <div className="space-y-1 text-sm">
         <p className="font-medium text-foreground">{PUBLIC_NOTE}</p>
         <p className="text-text-muted" data-testid="bug-private-note">
-          Want it private? Email <a href={`mailto:${PRIVATE_EMAIL}?subject=${encodeURIComponent("Control Scout bug report")}`}
+          Want it private? Email <a href={`mailto:${PRIVATE_EMAIL}?subject=${encodeURIComponent(subject)}`}
             className="font-medium text-accent-text underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60">{PRIVATE_EMAIL}</a> instead.
         </p>
       </div>
@@ -144,7 +165,10 @@ export async function waitForIssue(id: number, token: string, stop: () => boolea
 
 export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () => void }) {
   const context = useContextDetails();
+  const [kind, setKind] = useState<ReportKind>("bug");
+  const mode = MODE[kind];
   const [category, setCategory] = useState<BugCategory | null>(null);
+  const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   // Never filled in for them: whatever is typed here shows on the public issue.
   const [email, setEmail] = useState("");
@@ -189,14 +213,14 @@ export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDo
     return done;
   }, [confirming]);
   // Anything changed after the question was asked is asked about again.
-  useEffect(() => { setConfirming(false); }, [category, message, email, files]);
+  useEffect(() => { setConfirming(false); }, [kind, category, title, message, email, files]);
   const [filed, setFiled] = useState<Filed>({ state: "asking" });
   const gone = useRef(false);
   // Set on every mount (StrictMode mounts, unmounts and mounts again), cleared when the dialog closes.
   useEffect(() => { gone.current = false; return () => { gone.current = true; }; }, []);
   const [dragging, setDragging] = useState(false);
   const pick = useRef<HTMLInputElement>(null);
-  const ids = { cat: useId(), msg: useId(), email: useId(), files: useId() };
+  const ids = { kind: useId(), cat: useId(), title: useId(), msg: useId(), email: useId(), files: useId() };
   const pasted = useRef(0);
   // "Capture this screen": only where the browser can share a tab (not phones), checked once per dialog.
   const [canCapture] = useState(() => !phone && canCaptureScreen());
@@ -258,8 +282,11 @@ export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDo
   const onDrop = (e: DragEvent) => { e.preventDefault(); setDragging(false); attach(filesFrom(e.dataTransfer)); };
 
   const msgLen = message.trim().length;
+  const titleLen = title.trim().length;
   const errors = {
-    category: category ? null : "Choose what kind of problem it is.",
+    // A feature request has no kinds of problem to choose from.
+    category: category || kind === "feature" ? null : "Choose what kind of problem it is.",
+    title: titleLen > BUG_LIMITS.titleMax ? `Keep the title under ${BUG_LIMITS.titleMax} characters.` : null,
     message: msgLen < BUG_LIMITS.messageMin ? `Tell us a little more (at least ${BUG_LIMITS.messageMin} characters).` : msgLen > BUG_LIMITS.messageMax ? `Keep it under ${BUG_LIMITS.messageMax.toLocaleString("en-US")} characters.` : null,
     email: email.trim() && !EMAIL.test(email.trim()) ? "That doesn't look like an email address." : null,
   };
@@ -269,10 +296,10 @@ export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDo
     e?.preventDefault();
     setTried(true);
     setFailure(null);
-    const first = (["category", "message", "email"] as const).find((k) => errors[k]);
+    const first = (["category", "title", "message", "email"] as const).find((k) => errors[k]);
     if (first) {
       if (first === "category") document.querySelector<HTMLInputElement>(`input[name="${ids.cat}"]`)?.focus();
-      else document.getElementById(first === "message" ? ids.msg : ids.email)?.focus();
+      else document.getElementById(first === "title" ? ids.title : first === "message" ? ids.msg : ids.email)?.focus();
       return;
     }
     if (!confirmed) {
@@ -283,10 +310,12 @@ export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDo
     setConfirming(false);
     setStatus("sending");
     try {
-      setProgress("Sending your report…");
+      setProgress(mode.sending);
       const created = await apiFetch<BugReportCreated>("/api/bug-reports", {
         method: "POST", _online: true,
-        json: { category, message: sanitizeText(message.trim(), BUG_LIMITS.messageMax), email: email.trim() || undefined, context, website, files: files.map((a) => ({ type: a.file.type, bytes: a.file.size })) },
+        json: {
+          kind, ...(kind === "bug" ? { category } : {}), title: sanitizeText(title.trim(), BUG_LIMITS.titleMax) || undefined,
+          message: sanitizeText(message.trim(), BUG_LIMITS.messageMax), email: email.trim() || undefined, context, website, files: files.map((a) => ({ type: a.file.type, bytes: a.file.size })) },
       });
       const headers = { "X-Bug-Token": created.token };
       const skipped: string[] = [];
@@ -322,7 +351,7 @@ export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDo
       : "Thanks! Filing it on GitHub…";
     return (
       <div role="status" className="flex flex-col items-center py-6 text-center" data-testid="bug-report-sent" data-filed={filed.state}>
-        <Header className="sr-only"><Title>Bug report sent</Title><Desc>Thanks for the report.</Desc></Header>
+        <Header className="sr-only"><Title>{mode.sentTitle}</Title><Desc>Thanks for the {kind === "feature" ? "idea" : "report"}.</Desc></Header>
         <span className={cn("mb-3 flex size-12 items-center justify-center rounded-full", filed.state === "failed" ? "bg-warning/12 text-warning" : "bg-success/12 text-success v8:bg-emerald-400/12 v8:text-emerald-400")}>
           {filed.state === "asking" ? <Loader2 className="size-6 animate-spin" aria-hidden /> : filed.state === "failed" ? <AlertCircle className="size-6" aria-hidden /> : <CheckCircle2 className="size-6" aria-hidden />}
         </span>
@@ -349,11 +378,28 @@ export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDo
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }}
       onDrop={onDrop}>
       <Header>
-        <Title className="flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-lg bg-danger/15 text-danger"><Bug className="size-4" aria-hidden /></span>Report a bug</Title>
-        <Desc>{phone ? "Tell us what went wrong. A screenshot or a short screen recording helps." : <>Tell us what went wrong. Paste a screenshot with {pasteKeys()} to show us.</>}</Desc>
+        <Title className="flex items-center gap-2"><span className={cn("flex size-7 items-center justify-center rounded-lg", mode.iconTone)}><mode.Icon className="size-4" aria-hidden /></span>{mode.tab}</Title>
+        <Desc>{mode.desc(phone)}</Desc>
       </Header>
 
-      <fieldset>
+      {/* The switch: a bug report or a feature request. Two radios drawn as one segmented control. */}
+      <div role="radiogroup" aria-label="What are you sending?" className="grid grid-cols-2 gap-1 rounded-xl border border-line p-1" data-testid="bug-kind">
+        {(["bug", "feature"] as const).map((k) => {
+          const on = kind === k;
+          const { Icon, tab } = MODE[k];
+          return (
+            <label key={k} className={cn(
+              "flex min-h-10 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/60 pointer-coarse:min-h-11",
+              on ? "bg-accent-soft text-foreground" : "text-text-muted hover:text-foreground",
+            )} data-kind={k}>
+              <input type="radio" name={ids.kind} value={k} checked={on} onChange={() => { setKind(k); setTried(false); }} className="sr-only" />
+              <Icon className={cn("size-4 shrink-0", on ? "text-accent-text" : "")} aria-hidden />{tab}
+            </label>
+          );
+        })}
+      </div>
+
+      {kind === "bug" && <fieldset>
         <legend className="mb-2 flex items-center gap-1 text-sm font-medium text-foreground">What kind of problem? <RequiredMark /></legend>
         <div role="radiogroup" aria-invalid={tried && !!errors.category} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {BUG_CATEGORIES.map((c) => {
@@ -372,13 +418,20 @@ export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDo
         </div>
         {category && <p className="mt-2 text-xs text-text-muted">{HINTS[category]}</p>}
         {tried && errors.category && <p className="mt-1.5 text-xs text-danger">{errors.category}</p>}
-      </fieldset>
+      </fieldset>}
 
       <div className="space-y-1.5">
-        <Label htmlFor={ids.msg} className="flex items-center gap-1">What happened? <RequiredMark /></Label>
+        <Label htmlFor={ids.title}>Title <span className="font-normal text-text-muted">(optional)</span></Label>
+        <Input id={ids.title} value={title} maxLength={BUG_LIMITS.titleMax} onChange={(e) => setTitle(e.target.value)} placeholder={mode.titleHint}
+          autoComplete="off" enterKeyHint="next" aria-invalid={tried && !!errors.title} aria-describedby={tried && errors.title ? `${ids.title}-err` : undefined} data-testid="bug-title" />
+        {tried && errors.title && <p id={`${ids.title}-err`} className="text-xs text-danger">{errors.title}</p>}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={ids.msg} className="flex items-center gap-1">{mode.ask} <RequiredMark /></Label>
         <Textarea id={ids.msg} rows={phone ? 3 : 4} value={message} maxLength={BUG_LIMITS.messageMax + 100} onChange={(e) => setMessage(e.target.value)}
-          placeholder="What you did, what you expected, what happened instead…" aria-invalid={tried && !!errors.message}
-          aria-describedby={`${ids.msg}-hint`} className="resize-y" />
+          placeholder={mode.placeholder} aria-invalid={tried && !!errors.message}
+          aria-describedby={`${ids.msg}-hint`} className="resize-y" data-testid="bug-message" />
         <p id={`${ids.msg}-hint`} className={cn("text-xs", tried && errors.message ? "text-danger" : "text-text-muted")}>{tried && errors.message ? errors.message : `At least ${BUG_LIMITS.messageMin} characters.`}</p>
       </div>
 
@@ -453,7 +506,7 @@ export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDo
         </div>
       )}
 
-      <PublicNotice />
+      <PublicNotice subject={mode.mailSubject} />
 
       {confirming ? (
         <div ref={confirmBox} role="alertdialog" aria-labelledby={`${ids.msg}-confirm`} className="space-y-3 rounded-xl border border-warning/60 bg-warning/10 px-3.5 py-3" data-testid="bug-confirm">
@@ -469,7 +522,7 @@ export function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDo
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-text-muted" aria-live="polite">{progress || "No account needed."}</p>
           <Button ref={sendRef} type="submit" disabled={status === "sending"} className="w-full sm:w-auto">
-            {status === "sending" ? <><Loader2 className="animate-spin" /> Sending…</> : <><Send /> Send report</>}
+            {status === "sending" ? <><Loader2 className="animate-spin" /> Sending…</> : <><Send /> {mode.send}</>}
           </Button>
         </div>
       )}

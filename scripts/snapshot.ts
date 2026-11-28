@@ -13,7 +13,7 @@ import { constants, createBrotliCompress } from "node:zlib";
 import { createClient } from "@libsql/client";
 import "../server/env.js";
 import { env } from "../server/env.js";
-import { all, OWNER_AUDIT_TRIGGERS } from "../server/db.js";
+import { all, CURRENT_OWNER_AUDIT_TRIGGERS } from "../server/db.js";
 
 import { PRIVATE_TABLES as PRIVATE } from "../server/data/snapshot.js";
 const tmp = join(env.dataDir, "snapshot-build.db");
@@ -30,7 +30,7 @@ const present = new Set((await c.execute("SELECT name FROM sqlite_master WHERE t
 const triggers = new Set((await c.execute("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'owner_audit'")).rows.map((r) => String(r.name)));
 for (const name of triggers) await c.execute(`DROP TRIGGER ${name}`);
 for (const t of PRIVATE) if (present.has(t)) await c.execute(`DELETE FROM ${t}`);
-for (const sql of OWNER_AUDIT_TRIGGERS) if (triggers.has(sql.split(" ")[2])) await c.execute(sql);
+for (const sql of CURRENT_OWNER_AUDIT_TRIGGERS) if (triggers.has(sql.split(" ")[2])) await c.execute(sql);
 await c.execute("DELETE FROM kv WHERE key LIKE 'packs:%'"); // packs aren't shipped
 await c.execute("PRAGMA journal_mode = DELETE");
 await c.execute("VACUUM");

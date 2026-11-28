@@ -1,4 +1,4 @@
-// Per-match uploads (docs/official-videos.md, "Per-match uploads"; migration 121): a watched channel's short upload of
+// Per-match uploads (docs/official-videos.md, "Per-match uploads"; migration 123): a watched channel's short upload of
 // one match ("Qualification 8 - 2025 FTC North Scarborough Qualifier") becomes that match's clip, the whole video.
 // The channel audit (./officialAudit.ts) already keeps every watched channel's uploads with their facts
 // (official_audit_videos); after each audit, runMatchUploads decides the short ones not decided yet by ./uploadMatch.ts

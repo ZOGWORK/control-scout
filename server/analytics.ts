@@ -16,6 +16,7 @@ import { registerCache } from "./caches.js";
 import { publishUsageSetting } from "./ownerSettings.js";
 import { parsePageView, statsDay, STATS_TIME_ZONE, type PageView } from "../src/shared/analytics.js";
 import { PUBLIC_USAGE_DAYS, type PublicUsage } from "../src/shared/home.js";
+import { visitorIp } from "./visitorIp.js";
 
 /** Crawlers, link previews, monitors, scripts and automated browsers. */
 export const BOT_UA = /bot|crawl|spider|slurp|archiver|scrape|headless|lighthouse|pagespeed|gtmetrix|preview|facebookexternalhit|embedly|whatsapp|telegram|discord|slack|curl|wget|python|httpclient|okhttp|axios|node-fetch|undici|go-http|java\/|libwww|phantom|puppeteer|playwright|selenium|uptime|monitor|pingdom/i;
@@ -164,7 +165,7 @@ export function collectRouter(): Router {
   const allow = rateLimiter(120, 60_000);
   // Beacons arrive as text/plain or application/json: read the raw text whatever the type.
   r.post("/", express.text({ type: () => true, limit: COLLECT_MAX_BYTES }), (req: Request, res: Response, next: NextFunction) => {
-    if (!allow(req.ip ?? "")) { res.status(429).end(); return; }
+    if (!allow(visitorIp(req))) { res.status(429).end(); return; }
     // Bots, and browsers asking not to be tracked (a second check after the client's): accepted, not counted.
     if (isBot(req.get("user-agent")) || req.get("sec-gpc") === "1" || req.get("dnt") === "1") { res.status(204).end(); return; }
     let body: unknown;

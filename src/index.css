@@ -888,3 +888,8 @@ html.compact .density-card { padding: 0.875rem; }
 @keyframes cycle-burst-still { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
 .cycle-burst { animation: cycle-burst 700ms cubic-bezier(0.23, 1, 0.32, 1) both; }
 @media (prefers-reduced-motion: reduce) { .cycle-burst { animation: cycle-burst-still 500ms ease both; } }
+/* Clips: the Play a tap shows as it starts the clip again, fading out where it is (Cycle.tsx). */
+@keyframes clip-flash { 0% { opacity: 1; scale: 0.9; } 100% { opacity: 0; scale: 1.2; } }
+@keyframes clip-flash-still { 0%, 40% { opacity: 1; } 100% { opacity: 0; } }
+.clip-flash { animation: clip-flash 550ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@media (prefers-reduced-motion: reduce) { .clip-flash { animation: clip-flash-still 450ms ease both; } }

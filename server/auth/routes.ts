@@ -6,7 +6,7 @@
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all, db, get, run, writeBatch } from "../db.js";
 import { env } from "../env.js";
-import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
+import { cleanValue, mergeValue, MIGRATE_MAX_ENTRIES, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { isOwnerEmail } from "../owner.js";
 import { clearMalformedSession, currentUser, deleteUser, endSession, readCookie, sessionMark, SignupsClosedError, startSession, token, userForIdentity, type User } from "./session.js";
 import { avatarUrlFor, handleSetAvatar, removeAvatar } from "./avatars.js";
@@ -15,6 +15,7 @@ import { emailSignInEnabled, startEmailSignIn, verifyEmailCode } from "./email.j
 import { copyToAdminSpaces } from "../scout/adminCopies.js";
 import { accessError, checkScoutEntry, cleanScoutEntry, INVALID_ENTRY, pushWorkspaceEntries, storedEntryFields, supersedeBound, supersedes, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
 import { CP_PROVIDER, controlPointEnabled, isWorkspaceId, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff, issueSigninCode, vouchProofFor } from "./controlPoint.js";
+import { visitorIp } from "../visitorIp.js";
 
 export const authProviders = () => ({ email: emailSignInEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
 
@@ -30,7 +31,7 @@ const jsonOnly = (req: Request, res: Response, next: NextFunction) => {
 const attempts = new Map<string, { n: number; at: number }>();
 function ipLimit(max: number, windowMs: number) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const k = `${req.path}|${req.ip}`;
+    const k = `${req.path}|${visitorIp(req)}`;
     const now = Date.now();
     const a = attempts.get(k);
     if (a && now - a.at < windowMs && a.n >= max) { res.status(429).json({ error: "Too many attempts — wait a few minutes." }); return; }
@@ -142,7 +143,8 @@ export function authRouter(): Router {
       body: new URLSearchParams({ code: req.query.code, client_id: env.googleClientId!, client_secret: env.googleClientSecret!, redirect_uri: googleRedirect(), grant_type: "authorization_code" }),
     }).then((x) => x.json()).catch(() => null);
     const info = tok?.access_token ? await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { Authorization: `Bearer ${tok.access_token}` } }).then((x) => x.json()).catch(() => null) : null;
-    if (!info?.sub || !info.email || info.email_verified === false) { res.redirect("/settings?section=profile&signin=failed"); return; }
+    // Only an address Google says it verified: userForIdentity links by email, so an unverified (or unstated) one could take over an account.
+    if (!info?.sub || !info.email || info.email_verified !== true) { res.redirect("/settings?section=profile&signin=failed"); return; }
     const user = await userForIdentity("google", String(info.sub), String(info.email).toLowerCase(), info.name ?? null).catch(signupsClosed(res));
     if (!user) return;
     await linkToSharedAccount(user, "google", String(info.email).toLowerCase());
@@ -317,7 +319,9 @@ export function meRouter(): Router {
   }));
 
   /** First sign-in on a device: merge its local data into the account. */
-  r.post("/migrate", h(async (req) => {
+  r.post("/migrate", h(async (req, res) => {
+    // One device's personal entries, like a sync push: at most MIGRATE_MAX_ENTRIES (the app sends its newest; the rest sync after).
+    if (Array.isArray(req.body?.scout) && req.body.scout.length > MIGRATE_MAX_ENTRIES) { res.status(413).json({ error: `Send at most ${MIGRATE_MAX_ENTRIES} entries per request` }); return; }
     const local = (req.body?.state ?? {}) as Record<string, Stamped<unknown>>;
     const merged: Record<string, Stamped<unknown>> = {};
     // Read, merge and write in one transaction: a concurrent PUT can't slip
@@ -338,7 +342,7 @@ export function meRouter(): Router {
       }
       await tx.commit();
     } catch (e) { await tx.rollback().catch(() => {}); throw e; } finally { tx.close(); }
-    const entries = Array.isArray(req.body?.scout) ? req.body.scout.slice(0, 5000).filter((x: any) => x?.workspaceId == null).map(cleanScoutEntry).filter(Boolean) as ScoutEntryInput[] : [];
+    const entries = Array.isArray(req.body?.scout) ? req.body.scout.filter((x: any) => x?.workspaceId == null).map(cleanScoutEntry).filter(Boolean) as ScoutEntryInput[] : [];
     if (entries.length) await upsertScout(uid(req), entries);
     return { state: merged, scoutMerged: entries.length };
   }));

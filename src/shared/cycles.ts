@@ -56,5 +56,5 @@ export const CYCLES_CURSOR = /^([A-Za-z0-9_-]{12})\.(\d{1,4})$/;
 /** Cycles per page: few, as each page is ranked again from what the person just did. */
 export const CYCLES_PAGE = 6;
 
-/** The share link of a Cycle: opens Cycles with that video first. */
-export const cycleHref = (videoId: string) => `/cycles/${videoId}`;
+/** The share link of a clip: opens Clips with that video first. */
+export const cycleHref = (videoId: string) => `/clips/${videoId}`;

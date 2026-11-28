@@ -329,6 +329,17 @@ export async function reportVideo(user: User, id: number, reason: unknown, note:
 
 // --- The contributor's profile --------------------------------------------------------------------------------
 
+/** The address a contributor profile can have (the profile route and the page's head both check it first). */
+export const PROFILE_USERNAME = /^[A-Za-z][A-Za-z0-9_]{2,19}$/;
+
+/** Is there a profile at /contributors/<username>? The same test as contributorProfile's, without reading the videos
+ *  (the page's head, server/seoMeta.ts, serves a 404 when there isn't). */
+export async function hasContributorProfile(username: string): Promise<boolean> {
+  if (!PROFILE_USERNAME.test(username)) return false;
+  const u = await get<{ display_name: string | null }>("SELECT display_name FROM users WHERE lower(username) = lower(?)", [username]);
+  return !!u && !!String(u.display_name ?? "").trim();
+}
+
 export async function contributorProfile(username: string, viewerUser: User | null): Promise<ContributorProfile | null> {
   const u = await get<any>(
     `SELECT u.id, u.display_name, u.username, a.version avatar_version FROM users u

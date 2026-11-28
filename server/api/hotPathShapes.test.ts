@@ -14,6 +14,7 @@ import { clearAllCaches } from "../caches";
 vi.mock("./searchBrunoAnswer", async (orig) => ({ ...(await orig<typeof import("./searchBrunoAnswer")>()), brunoAnswer: vi.fn(async (q: string) => (q.includes("101") ? { text: "Strong auto.", points: [] } : null)) }));
 import { createApp } from "../app";
 import { SEASON_NUMBERS } from "../data/seasons";
+import { upcomingMatchOf } from "../../src/shared/nextMatch";
 
 // Pinned (not CURRENT_SEASON): the snapshot's routes and bodies name it, so a new season must not move it.
 const S = 2026;
@@ -178,6 +179,20 @@ describe("hot-path API responses", () => {
     const last = await (await fetch(`${base}/api/teams-summary?season=${S - 1}&teams=101,102`)).json();
     const both = await (await fetch(`${base}/api/teams-summary?season=${S}&teams=101,102&before=1`)).json();
     expect(both).toEqual({ ...one, before: last });
+  });
+  it("teams-summary with ?next=1: each team's next match in the same answer, by the card's rule", async () => {
+    const r = await (await fetch(`${base}/api/teams-summary?season=${S}&teams=101,102&next=1&before=1`)).json();
+    const list = await (await fetch(`${base}/api/teams/101/matches?season=${S}`)).json();
+    const want = upcomingMatchOf(list.matches)!;
+    expect(want).toBeTruthy();
+    expect(r.teams[0].next).toMatchObject({
+      season: S, code: "NEXT", event: "Event NEXT", key: want.key, label: want.label, alliance: "red",
+      partners: [102], opponents: [103, 104], pRed: want.prediction?.pRed, tier: want.prediction?.tier,
+      href: `/events/${S}/NEXT/match/${encodeURIComponent(want.key)}`,
+    });
+    expect(r.teams[1].next.label).toBe(want.label);
+    // The season before's summaries are numbers only: no next match is worked out for a season gone by.
+    expect(r.before.teams.every((t: { next?: unknown }) => t.next === undefined)).toBe(true);
   });
   it("teams-summary with ?before=1 for the first season covered: no season before it is sent", async () => {
     const first = Math.min(...SEASON_NUMBERS);
