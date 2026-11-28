@@ -25,7 +25,7 @@ const fakeFetch = (async (url: string) => {
   const ids = (u.searchParams.get("id") ?? "").split(",");
   return json({ items: items.filter((i) => ids.includes(i.id)).map((i) => ({
     id: i.id, snippet: { title: i.title, liveBroadcastContent: i.state },
-    contentDetails: { duration: i.state === "live" ? "P0D" : `PT${i.minutes ?? 420}M` }, status: { privacyStatus: "public", embeddable: true },
+    contentDetails: { duration: i.state === "live" || i.minutes === 0 ? "P0D" : `PT${i.minutes ?? 420}M` }, status: { privacyStatus: "public", embeddable: true },
     liveStreamingDetails: { actualStartTime: i.start ?? "2026-11-27T23:52:04Z" },
   })) });
 }) as unknown as typeof fetch;
@@ -68,6 +68,10 @@ describe("the live pass", () => {
   });
 
   it("keeps an add that ran a day's recording, and takes off one that ended short", async () => {
+    // Just over, still processing (no length yet): left for the next check, never taken off as 0 minutes.
+    items = [{ id: LIVE, title: "x", state: "none", minutes: 0 }];
+    expect(await watchLive(() => {}, opts(NOW + 7 * 3600_000))).toMatchObject({ settled: 0, dropped: 0 });
+    expect(await get("SELECT removed_at FROM official_videos WHERE video_id = ?", [LIVE])).toEqual({ removed_at: null });
     // Over, 7 hours: kept, its length written.
     items = [{ id: LIVE, title: "x", state: "none", minutes: 420 }];
     expect(await watchLive(() => {}, opts(NOW + 8 * 3600_000))).toMatchObject({ settled: 1, dropped: 0 });

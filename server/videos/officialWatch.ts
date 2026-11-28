@@ -453,6 +453,8 @@ export async function watchLive(log: (s: string) => void, opts: { apiKey?: strin
         const state = String(it?.snippet?.liveBroadcastContent ?? "none");
         if (it && (state === "live" || state === "upcoming")) continue;
         const length = it ? isoDuration(it?.contentDetails?.duration) : null;
+        // Just ended, still processing: YouTube gives no length yet ("P0D"). Not final: checked again next time.
+        if (it && !length) continue;
         const playable = !!it && it?.status?.privacyStatus === "public" && it?.status?.embeddable !== false
           && !((it?.contentDetails?.regionRestriction?.blocked?.length ?? 0) >= 50);
         if (playable && length != null && length >= MIN_RECORDING_S) {
