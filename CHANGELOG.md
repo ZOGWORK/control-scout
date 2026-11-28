@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.3.5 — 2026-11-28
+
+Broken links to a contributor or a team now say plainly that there's no such page.
+
+### Highlights
+- [fixes] A link to a contributor who isn't there is a real "not found"
+- [fixes] Team numbers like "1e3" are refused instead of read as 1000
+- [fixes] Bad watch links already open "Page not found", now tested
+
+### Fixes
+- **Contributor links that lead nowhere** (`server/seoMeta.ts`, `server/videos/contributors.ts`): `/contributors/<a name no one has>` was served with HTTP 200 and a blank page title. Search engines read that as a real, empty page. It's now a 404 with the app's not-found page, the same answer the profile API gives. A `/watch/` address that isn't a YouTube id was already a 404 (`src/shared/routes.ts`); the tests now cover it. A contributor is checked with the profile's own rule (`hasContributorProfile`), and a database that can't answer is never a 404.
+- **Team numbers written in digits only** (`server/app.ts`): the shared number check took anything `Number()` reads as whole, so `/api/teams/1e3` looked up team 1000 and `0x10` team 16, while `1.5` was a 400. All of them are 400 now. `server/inputBounds.test.ts` and `server/seo.test.ts` cover both (#2455).
+
 ## 8.3.4 — 2026-11-28
 
 Fixes from an audit of Videos: notes open their video, lists keep their place, and the feed keeps its order however slowly it's read.
