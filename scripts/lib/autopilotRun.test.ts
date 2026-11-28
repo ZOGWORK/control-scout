@@ -1,7 +1,7 @@
 // The clip autopilot's choices (scripts/lib/autopilotRun.ts): which queued events a run reads, when one that gave
 // nothing new is tried again, and what a delivery's rows change.
 import { describe, expect, it } from "vitest";
-import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, FAILS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberFailure, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
+import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, FAILS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, laneClock, laneProbe, LANE_BEAT_STALE_MS, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberFailure, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 import { EMBED_REFUSED } from "../../server/data/frameRowRules";
 
@@ -234,6 +234,48 @@ describe("lanes: computers with no credentials, each reading a shard for the one
     expect(late.state.state).toBe("failed");
     // Running some other job (not this computer's): waited on, never collected.
     expect(laneStep(st({ state: "running", id: "2026-11-17T01-00-00", at }), job, NOW + 100 * 3600_000).do).toBe("wait");
+  });
+  it("a running job whose beat went stale died: collected within minutes, not at the hard cap", () => {
+    const at = new Date(NOW).toISOString(), beat = new Date(NOW + 3600_000).toISOString();
+    const run = st({ state: "running", id: job.id, at, beat });
+    // Measured by the lane's clock: 10 min after its last beat, waited on; past that, dead.
+    expect(laneStep(run, job, NOW, laneJobMs(job), { now: NOW + 3600_000 + LANE_BEAT_STALE_MS }).do).toBe("wait");
+    const dead = laneStep(run, job, NOW, laneJobMs(job), { now: NOW + 3600_000 + LANE_BEAT_STALE_MS + 1 });
+    expect(dead.do).toBe("collect");
+    expect(dead.state.state).toBe("failed");
+    expect(dead.state.why).toMatch(/last beat/);
+    // No lane clock given: this computer's own.
+    expect(laneStep(run, job, NOW + 3600_000 + LANE_BEAT_STALE_MS + 1).do).toBe("collect");
+    // Some other job's stale beat: not this computer's to collect.
+    expect(laneStep(st({ state: "running", id: "2026-11-17T01-00-00", at, beat }), job, NOW + 100 * 3600_000).do).toBe("wait");
+  });
+  it("a running job on a lane that booted after it started died (11-27: lexie rebooted mid-job)", () => {
+    const at = "2026-11-27T18:29:03.209Z", started = Date.parse(at);
+    // A runner from before beats: no beat, so only the boot tells.
+    const old = st({ state: "running", id: job.id, at });
+    const rebooted = laneStep(old, job, started + 2 * 3600_000, laneJobMs(job), { now: started + 2 * 3600_000, boot: Date.parse("2026-11-27T19:48:31Z") });
+    expect(rebooted.do).toBe("collect");
+    expect(rebooted.state.why).toMatch(/booted at 2026-11-27T19:48:31/);
+    // Booted before the job started: the job's still running.
+    expect(laneStep(old, job, started + 2 * 3600_000, laneJobMs(job), { boot: started - 60_000 }).do).toBe("wait");
+  });
+  it("a healthy long job (beating, no reboot) is waited on for hours, up to the hard cap", () => {
+    const at = new Date(NOW).toISOString(), t = NOW + 20 * 3600_000;
+    const run = st({ state: "running", id: job.id, at, beat: new Date(t - 50_000).toISOString() });
+    expect(laneStep(run, job, t, laneJobMs(job), { now: t, boot: NOW - 86_400_000 }).do).toBe("wait");
+    // The cap still holds over a beating lane (a reader stuck in a loop that keeps the beat going).
+    const t2 = NOW + laneJobMs(job) + 1;
+    expect(laneStep(st({ state: "running", id: job.id, at, beat: new Date(t2).toISOString() }), job, t2, laneJobMs(job), { now: t2 }).do).toBe("collect");
+  });
+  it("reads a lane's probe: its state file's text, then its clock", () => {
+    const state = st({ state: "running", id: job.id });
+    expect(laneClock(`${state}\n@@lane-clock 1795830000 { sec = 1795808911, usec = 450981 } Fri Nov 27 14:48:31 2026\n`)).toEqual({ text: `${state}\n`, clock: { now: 1795830000_000, boot: 1795808911_000 } });
+    // No sysctl (not a Mac): no boot.
+    expect(laneClock(`${state}\n@@lane-clock 1795830000 \n`).clock).toEqual({ now: 1795830000_000 });
+    // No state file, an old output with no clock line.
+    expect(laneClock("\n@@lane-clock 1795830000 x\n").text.trim()).toBe("");
+    expect(laneClock(state)).toEqual({ text: state, clock: {} });
+    expect(laneProbe(".data/lane/state.json")).toContain("cat .data/lane/state.json");
   });
   it("keeps a lane's results to the job: its seasons, its codes, rows of them; a missing or broken file is a failed read", () => {
     const row = (code: string, videoId = "v1") => ({ videoId, code, starts: {} });
