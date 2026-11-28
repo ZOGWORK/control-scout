@@ -26,7 +26,7 @@ no longer wears it on this year's ranking.
 - [teams] A team's own Behind the Bot badge still counts every episode
 
 ### Rankings
-- **Behind the Bot by season** (`server/videos/creatorVideos.ts`, `src/pages/RankingsPage.tsx`): `GET /api/featured-teams?season=` keeps only the teams named in that season's episodes, and the world rankings table asks for the season it shows. Search, event pages and a team's own badge still count every episode.
+- **Behind the Bot by season** (`server/videos/creatorVideos.ts`, `src/pages/RankingsPage.tsx`): `GET /api/featured-teams?season=` keeps only the teams named in that season's episodes, and the world rankings table asks for the season it shows. Search, event pages and a team's own badge still count every episode. (#2463)
 
 ## 8.3.0 — 2026-11-28
 
