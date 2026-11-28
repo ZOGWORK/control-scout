@@ -14,6 +14,17 @@ export const OWNER_AUDIT_TRIGGERS = [
   "CREATE TRIGGER owner_audit_no_edit BEFORE UPDATE ON owner_audit WHEN NEW.id IS NOT OLD.id OR NEW.at IS NOT OLD.at OR NEW.actor IS NOT OLD.actor OR NEW.action IS NOT OLD.action OR NEW.details IS NOT OLD.details OR NEW.old_value IS NOT OLD.old_value OR NEW.new_value IS NOT OLD.new_value OR (NEW.result IS NOT OLD.result AND OLD.result IS NOT NULL AND OLD.result IS NOT 'started') BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;",
 ];
 
+/** The actor an account's own name/username audit rows take once the account is deleted (deleteUser). */
+export const DELETED_ACCOUNT_ACTOR = "deleted account";
+
+/** Migration 121's owner_audit_no_edit: as migration 52's, plus the one edit deleteUser makes, erasing a deleted
+ *  account's own name/username change (the actor and both values), and nothing else about the row. */
+export const OWNER_AUDIT_NO_EDIT_121 = `CREATE TRIGGER owner_audit_no_edit BEFORE UPDATE ON owner_audit WHEN NEW.id IS NOT OLD.id OR NEW.at IS NOT OLD.at OR NEW.action IS NOT OLD.action OR NEW.details IS NOT OLD.details OR ((NEW.actor IS NOT OLD.actor OR NEW.old_value IS NOT OLD.old_value OR NEW.new_value IS NOT OLD.new_value) AND NOT (OLD.action IN ('account.name', 'account.username') AND NEW.actor = '${DELETED_ACCOUNT_ACTOR}' AND NEW.old_value IS NULL AND NEW.new_value IS NULL)) OR (NEW.result IS NOT OLD.result AND OLD.result IS NOT NULL AND OLD.result IS NOT 'started') BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;`;
+
+/** owner_audit's triggers as the latest migration leaves them (52's no-delete, 121's no-edit): what a copy that
+ *  empties the table (scripts/snapshot.ts) puts back. */
+export const CURRENT_OWNER_AUDIT_TRIGGERS = [OWNER_AUDIT_TRIGGERS[0], OWNER_AUDIT_NO_EDIT_121];
+
 export const MIGRATIONS: { version: number; name: string; sql: string }[] = [
   {
     version: 1,
@@ -3196,6 +3207,17 @@ CREATE TABLE IF NOT EXISTS video_shares (
 );
 CREATE INDEX IF NOT EXISTS video_shares_item ON video_shares (item_key);
 CREATE INDEX IF NOT EXISTS video_shares_user ON video_shares (user_id);
+`,
+  },
+  {
+    version: 121,
+    name: "owner audit: a deleted account's name and username changes are erased",
+    sql: `
+-- Deleting an account (server/auth/session.ts deleteUser) erases its own account.name / account.username rows:
+-- the actor (its email) becomes '${DELETED_ACCOUNT_ACTOR}' and the old and new values are cleared. The row stays,
+-- so the log still shows that something changed and when. Every other edit is refused as before.
+DROP TRIGGER IF EXISTS owner_audit_no_edit;
+${OWNER_AUDIT_NO_EDIT_121}
 `,
   },
   {
