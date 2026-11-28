@@ -75,6 +75,8 @@ export type Sym =
   /** Never at the FIRST Championship, any season on record ("teams at <event> that have never been to worlds"): a
    *  filter on an event's board. */
   | { k: "no-worlds" }
+  /** Got better over a run of seasons ("who improved most since <season>"): read only beside several teams and a run. */
+  | { k: "improved" }
   /** A number's rise over a season, from a team's first event to its last ("fastest growing team by rating gain"). */
   | { k: "gain" };
 
@@ -319,6 +321,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   // No award ever won, as a filter on a board: "the highest OPR team that has never won an award".
   ["never won an award|never won any award|never won any awards|never won awards", { k: "no-award" }],
   ["never been to worlds|never been to the world championship|never been to the first championship|never gone to worlds|never went to worlds|never made it to worlds|never made worlds|never qualified for worlds|never attended worlds|never competed at worlds|not been to worlds|never been at worlds", { k: "no-worlds" }],
+  ["improved|improve|improves|improvement|improvements|got better|gotten better|grew|grown", { k: "improved" }],
   // A number's rise over the season: "the fastest growing team by rating gain".
   ["fastest growing|gain|gained|gains|growth", { k: "gain" }],
   // Penalty points left out.

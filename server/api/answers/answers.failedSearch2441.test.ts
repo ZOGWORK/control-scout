@@ -35,7 +35,7 @@ beforeAll(async () => {
   const teams: [number, string, string, string][] = [
     [4215, "Hypnotic Robotics", "Oradell", "NJ"], [6980, "Bad Wolf", "Oradell", "NJ"], [207, "Critical Mass", "Oradell", "NJ"],
     [23268, "Ultraviolet", "Hackettstown", "NJ"], [31111, "Ultraviolet", "Austin", "TX"], [20764, "UltraBots", "Cedar Hill", "TX"], [32651, "UltraBot", "San Jose", "CA"],
-    [11115, "Gluten Free", "Tulsa", "OK"], [23314, "Robo Rangers", "Oradell", "NJ"], [99999, "Off-Season Demo Team", "Manchester", "NH"], [99998, "Late Bloomers", "Tulsa", "OK"],
+    [11115, "Gluten Free", "Tulsa", "OK"], [23314, "Robo Rangers", "Oradell", "NJ"], [7149, "ENFORCERS", "Hoboken", "NJ"], [30030, "Exodus", "Austin", "TX"], [99999, "Off-Season Demo Team", "Manchester", "NH"], [99998, "Late Bloomers", "Tulsa", "OK"],
   ];
   for (const [n, name, city, state] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (?, ?, ?, ?, 'USA', 2018)", [n, name, city, state]);
@@ -86,6 +86,26 @@ beforeAll(async () => {
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, matches) VALUES (2025, 'USTXQ9', ?, 50, 10, 30, 10, 1)", [t]);
     await run("UPDATE team_season_stats SET rank_np = ?, ranked_teams = 1000 WHERE season = 2025 AND team = ?", [rank, t]);
   }
+  // Each season's OPR ranks of three teams (of 100 ranked): 7149 rose most since 2024–25, 6980 fell.
+  for (const [s, ranks] of [[2024, [[4215, 50], [6980, 10], [7149, 80]]], [2025, [[4215, 40], [6980, 20], [7149, 30]]], [2026, [[4215, 30], [6980, 30], [7149, 5]]]] as const) {
+    for (const [t, rank] of ranks) {
+      await run(`INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_endgame, matches, wins, losses, ties, rank_np, ranked_teams) VALUES (?, ?, 100, 30, 20, 10, 5, 5, 0, ?, 100)
+        ON CONFLICT (season, team) DO UPDATE SET rank_np = excluded.rank_np, ranked_teams = 100`, [s, t, rank]);
+    }
+    for (let k = 0; k < 97; k++) await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties, rank_np, ranked_teams) VALUES (?, ?, 10, 10, 5, 5, 0, ?, 100)", [s, 50000 + k, 100 - k]);
+  }
+  // Exodus at Worlds, two matches with their score breakdown (TeleOp 100 and 80).
+  await run("INSERT INTO team_seasons (season, team) VALUES (2025, 30030)");
+  for (const [n, tele, auto] of [[2, 100, 40], [3, 80, 30]] as const) {
+    await run(`INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, red_auto, red_teleop, red_endgame, blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, source)
+      VALUES (2025, 'FTCCMP1', 'qual', 0, ?, ?, '2026-04-30T10:00:00Z', 1, ?, ?, ?, ?, 0, 50, 50, 10, 40, 0, 't')`, [n, `Q${n}`, tele + auto, tele + auto, auto, tele]);
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'FTCCMP1', 'qual', 0, ?, 30030, 'red', 1), (2025, 'FTCCMP1', 'qual', 0, ?, 31111, 'blue', 1)", [n, n]);
+  }
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'FTCCMP1', 30030, 1)");
+  // The invitational's best Auto, with its breakdown.
+  await run(`INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, red_auto, red_teleop, red_endgame, blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, source)
+    VALUES (2025, 'USCHSLAOS', 'qual', 0, 2, 'Q2', '2026-06-26T10:00:00Z', 1, 150, 150, 60, 80, 10, 90, 90, 20, 60, 10, 't')`);
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USCHSLAOS', 'qual', 0, 2, 30030, 'red', 1), (2025, 'USCHSLAOS', 'qual', 0, 2, 207, 'blue', 1)");
   await rebuildSearch();
   clearAllCaches();
   await refreshSearchSeason();
@@ -237,5 +257,36 @@ describe("how many times one team met another, asked with compare (#2376)", () =
     expect((await parse("4215 and 6980 matches")).intent).toBe("shared-matches");
     const a = await full("compare how many times 4215 got it to 23314");
     expect(a.stat?.intent).toBe((await full("4215 vs 23314 head to head")).stat?.intent);
+  });
+});
+
+describe("compare three teams by two phases in a season, and who improved most since then (#2381)", () => {
+  const q = "compare 4215, 6980 and 7149 by auto and endgame in 2024-25 and tell me who improved most since then";
+  it("is two questions: the compare in that season, and the teams' rise since it", async () => {
+    const a = await full(q);
+    expect(a.intent?.kind).toBe("stat-clauses");
+    expect(a.understood?.label).toContain("Compare");
+    const second = a.clauses?.[0]?.stat;
+    expect(second?.intent).toBe("teams-improved");
+    expect(second?.title).toBe("Who improved most by OPR rank, since 2024–25: Hypnotic Robotics (4215), Bad Wolf (6980), ENFORCERS (7149)");
+    expect(second?.headline).toMatchObject({ value: "7149 ENFORCERS", label: "Improved most: Top 80% in 2024–25 to Top 5% in 2026–27" });
+  });
+});
+
+describe("videos of an event's best Auto, then a team at Worlds and its average TeleOp there (#2370)", () => {
+  const q = "can u show me videos best auto from like mti of them (how did exodus do at worlds and tell me the average teleop points)";
+  it("is three questions, the last asked of the team and the scope before it", async () => {
+    const a = await full(q);
+    expect(a.intent?.kind).toBe("stat-clauses");
+    expect(a.understood?.label).toMatch(/Multinational Tech Invitational/);
+    const [results, average] = a.clauses ?? [];
+    expect(results?.stat?.team?.number ?? results?.stat?.headline?.value).toBeTruthy();
+    expect(average?.stat?.intent).toBe("average-teleop");
+    expect(average?.stat?.headline).toMatchObject({ value: "90.0 points" });
+  });
+  it("a team's average TeleOp points at Worlds alone", async () => {
+    const a = await full("exodus average teleop points at worlds");
+    expect(a.stat?.intent).toBe("average-teleop");
+    expect(a.stat?.headline?.value).toBe("90.0 points");
   });
 });
