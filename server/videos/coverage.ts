@@ -10,6 +10,7 @@ import { localToUtcMs } from "../../src/shared/time.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameRow, outsideRecording, plausibleStarts, playableStarts } from "../data/frameTimings.js";
 import { noOverlayFor, noOverlayReason } from "../data/noOverlay.js";
+import { embedRefused } from "../data/frameRowRules.js";
 import { dayLabel, eventSpan, previousStart, seasonRecordings, withClips, withConfirmed, within, type EventSpan, type Recording, type RecordingVideo } from "./recordings.js";
 import type { ClipCoverage, CoverageMatch, CoverageReason, CoverageVideo, CoverageVideoCheck } from "../../src/shared/api.js";
 
@@ -55,7 +56,7 @@ export const WHY: Record<CoverageReason, string> = {
   "after-broadcast": "Played after the broadcast ended",
   "video-unavailable": "Recording can't be played: unavailable on YouTube (private or removed)",
   "video-no-embed": "Recording can't be read: its owner turned off playing it on other sites, so its frames can't be read",
-  "video-no-overlay": "Recording shows no match overlay (no score bar, timer or match name), so no frame can place its matches",
+  "video-no-overlay": "Recording shows no readable match overlay (no score bar at all, or one with no timer or no match name), so no frame can place its matches",
   "video-stutters": "Recording stutters (its picture holds still, then skips ahead), so its overlay timer never runs and no frame can confirm where a match starts",
   "video-unread": "Video's facts not read from YouTube yet",
   "no-clock": "Video has no broadcast clock (an upload, not a live stream)",
@@ -220,7 +221,12 @@ function reasonFor(m: CoverageInput, videos: Judged[], now: number, timezone?: s
     // video whose day can't be told is the only other one it may be.
     const part = day.find((j) => j.v.meta?.status === "ok" && j.v.meta.start && within(m.startsAt, j.v.meta, now)) ?? day[0];
     const reason = noZone ? "no-zone" as const : "no-start" as const;
-    return { reason, why: WHY[reason], videoId: (part ?? (videos.length === 1 && !videos[0].date ? videos[0] : null))?.v.videoId ?? null };
+    const own = part ?? (videos.length === 1 && !videos[0].date ? videos[0] : null);
+    // Its video can't be played, or its facts aren't in yet: that's what stands in the way, not FIRST's missing time (a
+    // frame read places a match without one, walking the video for its bar: frameQueue.ts). Not an upload's missing
+    // broadcast clock (no-clock) or a stream shorter than its broadcast (gap-unplaced): a frame read is just what those need.
+    if (own?.dead && (UNPLAYABLE.has(own.dead.reason) || own.dead.reason === "video-unread")) return { ...own.dead, videoId: own.v.videoId };
+    return { reason, why: WHY[reason], videoId: own?.v.videoId ?? null };
   }
   // The video that holds its start, else that day's.
   const holding = videos.find((j) => j.v.meta?.status === "ok" && j.v.meta.start && within(m.startsAt, j.v.meta, now));
@@ -299,9 +305,12 @@ export function clipCoverage(matches: CoverageInput[], rec: Recording | null, fu
     let why: ReturnType<typeof reasonFor> = judged.length ? reasonFor(m, judged, now, timezone) : { reason: "no-first-video" as const, why: WHY["no-first-video"], videoId: null };
     // Its video plays on youtube.com only (embedding off) and no frame read of it exists: what a frame read would settle
     // never can be, as neither the frame reader nor the app's player can show it. A video read anyway keeps its check.
+    // The same where the reader found the embedded player refusing it for good (embedRefused: a content owner's block,
+    // which YouTube's facts don't show), its reason said.
     const meta = why.videoId ? judged.find((j) => j.v.videoId === why.videoId)?.v.meta : null;
-    if (why.videoId && meta?.status === "ok" && meta.embeddable === false && FRAME_SETTLES.has(why.reason) && !(r?.code && frameRow(why.videoId, r.code))) {
-      why = { reason: "video-no-embed", why: WHY["video-no-embed"] + unplayableDates(meta), videoId: why.videoId };
+    const read = why.videoId && r?.code ? frameRow(why.videoId, r.code) : null;
+    if (why.videoId && meta?.status === "ok" && (FRAME_SETTLES.has(why.reason) || why.reason === "no-start") && ((meta.embeddable === false && !read) || embedRefused(read, m.label))) {
+      why = { reason: "video-no-embed", why: WHY["video-no-embed"] + (embedRefused(read, m.label) ? `; the reader found: ${read!.missing![m.label]}` : "") + unplayableDates(meta), videoId: why.videoId };
     }
     // A recording whose frames were looked at and can't place a match (server/data/noOverlay.ts: no overlay at all, or a
     // picture that stutters): what only its frames could place never can be. Settled, with the day it was looked at.

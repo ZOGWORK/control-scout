@@ -9,13 +9,14 @@ import { forgetOfficial } from "./officialVideos";
 import { currentSeason } from "../api/answers/season";
 import { FRAME_TIMINGS, setAutoFrameRows, setFrameTimingsForTests, type FrameTiming } from "../data/frameTimings";
 import { checkClipCoverage, ownerClipCoverage } from "./coverageCheck";
-import { frameQueue, frameStatus, queueSummary, rankQueue, type QueueEvent } from "./frameQueue";
+import { READER_SINCE, frameQueue, frameStatus, queueSummary, rankQueue, type QueueEvent } from "./frameQueue";
 import type { CoverageMatch } from "../../src/shared/api";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
 const miss = (label: string, o: Partial<CoverageMatch> = {}): CoverageMatch =>
   ({ key: label, label, date: "2026-11-14", clip: false, videoId: "VIDEOaaaaa1", reason: "gap-unplaced", video: { checked: null }, ...o });
-const ev = (missing: CoverageMatch[], o: Partial<QueueEvent> = {}): QueueEvent => ({ season: 2025, code: "USXXQ", name: "X Qualifier", end: "2026-11-14", timezone: "UTC", missing, ...o });
+// A season READER_SINCE doesn't list, so a read after the event settles as it always did (2019–2025 are listed).
+const ev = (missing: CoverageMatch[], o: Partial<QueueEvent> = {}): QueueEvent => ({ season: 2018, code: "USXXQ", name: "X Qualifier", end: "2026-11-14", timezone: "UTC", missing, ...o });
 
 // A video of the event read on `checked` (a frame row for it, as the reader writes one): its id, for a missing match.
 const ROWS: FrameTiming[] = [];
@@ -66,16 +67,66 @@ describe("frameStatus", () => {
       .toMatchObject({ state: "read", due: 0, at: "2026-11-15", why: "Read 2026-11-15: 1 match still without a clip, as the video shows (see each match)" });
   });
 
+  it("reads again a video whose live row saw matches at its edges yet placed none: a failed read, not a read", () => {
+    // 2025 FRCMP's kind: opens on Q1, ends on M10, 0 of 55 placed. Read after the event, yet still to read.
+    const R = "no frame read of it, and no agreeing reads on both sides";
+    const missing = Object.fromEntries(["Q1", "Q2", "Q3", "Q4", "Q5"].map((l) => [l, R]));
+    ROWS.push({ videoId: "BLINDaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: {}, missing, opensOn: { at: 2390, label: "Q1", clear: true } });
+    setFrameTimingsForTests(ROWS);
+    expect(frameStatus(ev([miss("Q1", { videoId: "BLINDaaaaa1" })]), NOW)).toMatchObject({ state: "queued", due: 1 });
+    // The same read with its edges showing no match: what the video shows, settled.
+    ROWS.push({ videoId: "BLANKaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: {}, missing, opensOn: { at: 3, played: 0, of: 40 } });
+    setFrameTimingsForTests(ROWS);
+    expect(frameStatus(ev([miss("Q1", { videoId: "BLANKaaaaa1" })]), NOW).state).toBe("read");
+  });
+
+  it("reads again a match whose row's latest read played no frame of the video, though the row keeps live starts", () => {
+    // 2022 USTXSOBEOS: Q34, Q35 and the playoffs live from an earlier read; the latest read played nothing, so its other
+    // matches say "no frame of the video could be read". Those weren't read; a match the read did look at is.
+    ROWS.push({ videoId: "KEPTaaaaaa1", code: "USXXQ", checked: "2026-11-16", starts: { Q34: 254, Q35: 536 }, missing: { Q1: "no frame of the video could be read", Q2: "its frames didn't confirm a start" }, opensOn: { at: 20, label: "Q33", underway: true }, endsOn: { at: 9000, label: "F2", fromEnd: 3 } });
+    setFrameTimingsForTests(ROWS);
+    expect(frameStatus(ev([miss("Q1", { videoId: "KEPTaaaaaa1" })]), NOW)).toMatchObject({ state: "queued", due: 1 });
+    expect(frameStatus(ev([miss("Q2", { videoId: "KEPTaaaaaa1" })]), NOW).state).toBe("read");
+  });
+
+  it("lists every season the reader has outgrown, 2019 on", () => {
+    for (const season of [2019, 2020, 2021, 2022, 2023, 2024, 2025]) expect(READER_SINCE[season]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("reads once more a match a reader older than its season's READER_SINCE missed; today's read settles it", () => {
+    const since = READER_SINCE[2025];
+    expect(since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const before = new Date(Date.parse(since) - 86_400_000).toISOString().slice(0, 10);
+    const later = Date.parse(since) + 2 * 86_400_000;
+    // Read after the event (it ended the 14th), but before the season's reader day: due again, said why.
+    expect(frameStatus(ev([miss("Q9", readOn(before))], { season: 2025 }), later))
+      .toMatchObject({ state: "queued", due: 1, why: "Queued for a frame read: 1 match, read by an older reader" });
+    // Read on the reader's day or after: settled, as before.
+    expect(frameStatus(ev([miss("Q9", readOn(since))], { season: 2025 }), later)).toMatchObject({ state: "read", due: 0, at: since });
+    // The same old read in a season READER_SINCE doesn't list: never read again for this.
+    expect(frameStatus(ev([miss("Q9", readOn(before))]), later).state).toBe("read");
+    // Beside other reasons it's due for, named with them.
+    expect(frameStatus(ev([miss("Q1", readOn(before)), miss("Q2", { ...readOn("2026-11-14") })], { season: 2025 }), later).why)
+      .toBe("Queued for a frame read: 2 matches (1 read before the event finished; 1 read by an older reader)");
+  });
+
   it("dates a read by the matches it read, never by a match it can't place whose video was read another day", () => {
-    const f = frameStatus(ev([miss("Q1", readOn("2026-11-15")), miss("Q2", { reason: "no-start", ...readOn("2026-11-20") })]), NOW);
+    const f = frameStatus(ev([miss("Q1", readOn("2026-11-15")), miss("Q2", { reason: "video-unavailable", ...readOn("2026-11-20") })]), NOW);
     expect(f).toMatchObject({ state: "read", at: "2026-11-15", why: "Read 2026-11-15: 1 match still without a clip, as the video shows (see each match)" });
   });
 
-  it("never queues what no frame read can place: no video, a private one, no start time", () => {
-    for (const o of [{ videoId: null, reason: "no-recording-day" as const }, { reason: "video-unavailable" as const }, { reason: "video-no-embed" as const }, { reason: "no-start" as const }, { reason: "no-first-video" as const, videoId: null }]) {
+  it("never queues what no frame read can place: no video, a private one", () => {
+    for (const o of [{ videoId: null, reason: "no-recording-day" as const }, { reason: "video-unavailable" as const }, { reason: "video-no-embed" as const }, { reason: "no-start" as const, videoId: null }, { reason: "no-first-video" as const, videoId: null }]) {
       expect(frameStatus(ev([miss("Q1", o)]), NOW)).toMatchObject({ state: "unreadable", due: 0 });
     }
     expect(frameStatus(ev([miss("Q1", { reason: "video-unavailable" })]), NOW).why).toBe("Nothing a frame read can place: Recording can't be played: unavailable on YouTube (private or removed)");
+  });
+
+  it("queues a match with no real start time from FIRST in a video not read yet: the reader walks it for the bar (2019)", () => {
+    // 2019 NYCCHAMP, 20MOMT9: no real start times at all, videos never read, so never queued before.
+    expect(frameStatus(ev([miss("Q1", { reason: "no-start" }), miss("Q2", { reason: "no-start" })]), NOW)).toMatchObject({ state: "queued", due: 2 });
+    // Read after the event: settled, as any read is (2019MOQ6: its one video holds the playoffs only).
+    expect(frameStatus(ev([miss("Q1", { reason: "no-start", ...readOn("2026-11-16") })]), NOW)).toMatchObject({ state: "read", at: "2026-11-16" });
   });
 
   it("waits for a video's YouTube facts before reading it", () => {

@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, halfGap, type Judged, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, halfGap, holeToCheck, HOLE_MIN, cardUnread, COUNTDOWN_CHECK, type Judged, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, embedRefusal, EmbedRefused, EMBED_REFUSED, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, gapOf, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
@@ -473,6 +473,38 @@ describe("the frame reader", () => {
     const j = judge(ms, new Map([[0, 1000], [1, 1400 - 120], [2, 1800]]), null, 10_000);
     // Q2's misread is set aside; it sits between two agreeing reads, so it's placed from them.
     expect([...j.placed]).toEqual([["Q1", { t: 1000, confidence: "high" }], ["Q2", { t: 1400, confidence: "medium" }], ["Q3", { t: 1800, confidence: "high" }]]);
+  });
+
+  it("keeps a second stretch of agreeing reads in the video's order between the kept ones, where FIRST's times rise", () => {
+    // 2025 USOKOKBKLT's kind: Q1–Q4 read 25 s early, Q9–Q10 72 s early, and between them Q5–Q8 read off their own
+    // frames in order, but FIRST's times for them run 300 s early, so the distance rises (+275) there.
+    const ms: M[] = Array.from({ length: 10 }, (_, i) => ({ label: `Q${i + 1}`, epoch: 1000 + i * 400 - (i >= 4 && i <= 7 ? 300 : 0) }));
+    const t = (i: number, off: number) => [i, ms[i].epoch + off] as [number, number];
+    const seen = new Map([t(0, -25), t(3, -25), t(4, 275), t(5, 275), t(7, 275), t(8, -72), t(9, -72)]);
+    const j = judge(ms, seen, null, 10_000);
+    expect([...j.placed.keys()]).toEqual(["Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9", "Q10"]);
+    expect(j.placed.get("Q5")).toEqual({ t: seen.get(4), confidence: "high" });
+    // Filled between the stretch's own agreeing reads, by its own distance.
+    expect(j.placed.get("Q7")).toEqual({ t: ms[6].epoch + 275, confidence: "medium" });
+    expect(j.missing.size).toBe(0);
+  });
+
+  it("never keeps a second stretch out of the video's order, a lone read, or one of two that differ", () => {
+    const ms: M[] = Array.from({ length: 10 }, (_, i) => ({ label: `Q${i + 1}`, epoch: 1000 + i * 400 }));
+    const t = (i: number, off: number) => [i, ms[i].epoch + off] as [number, number];
+    // Each time the reads set aside lie between agreeing kept ones (Q4 and Q9), so those matches are filled from them
+    // by the clock (medium), never placed at the reads.
+    const filled = (j: ReturnType<typeof judge>, labels: string[]) => labels.map((l) => j.placed.get(l));
+    const clock = (labels: number[]) => labels.map((i) => ({ t: ms[i].epoch, confidence: "medium" }));
+    // Q5 and Q6 agree on a rise, but sit in the video after Q10 (a replay of them): out of order, set aside.
+    const replay = judge(ms, new Map([t(0, 0), t(3, 0), t(4, 2400), t(5, 2400), t(8, 0), t(9, 0)]), null, 10_000);
+    expect(filled(replay, ["Q5", "Q6"])).toEqual(clock([4, 5]));
+    // A lone rise between kept reads is set aside (a misread).
+    const lone = judge(ms, new Map([t(0, 0), t(3, 0), t(4, 120), t(8, 0), t(9, 0)]), null, 10_000);
+    expect(filled(lone, ["Q5"])).toEqual(clock([4]));
+    // Two pairs as long that differ (Q5–Q6 at +100, Q7–Q8 at +160, each agreeing within itself): neither stands.
+    const two = judge(ms, new Map([t(0, 0), t(3, 0), t(4, 100), t(5, 100), t(6, 160), t(7, 160), t(8, 0), t(9, 0)]), null, 10_000);
+    expect(filled(two, ["Q5", "Q6", "Q7", "Q8"])).toEqual(clock([4, 5, 6, 7]));
   });
 
   it("says nothing was read only when no frame named a match", () => {
@@ -955,6 +987,30 @@ describe("split streams (two meets side by side, each with a half-size bar)", ()
     expect(splitSide(reads(["own", "own"], ["own", "own", "other"]))).toBeNull();
   });
 
+  it("keeps a start unconfirmed when a stream's own card read nothing before it; not through a part box's whole screen", () => {
+    // A normal card-read stream (no listed part box): exactly as before, unconfirmed, with why.
+    expect(cardUnread(false)).toBe("the card read nothing 5, 10, 25, 90, 170 s before it, so no countdown through it was ruled out");
+    expect(COUNTDOWN_CHECK).toEqual([5, 10, 25, 90, 170]);
+    // Through a CORNER_BOXES entry with a part (FTC Live's whole screen in the box: Up Next and results between matches),
+    // no card before a start is that screen: the check doesn't hold it (countsThrough still rules out a countdown read).
+    expect(cardUnread(true)).toBeNull();
+  });
+
+  it("finds the longest run of matches a read left without a start, and the stretch of video they sit in", () => {
+    const order = ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9", "Q10", "Q11", "Q12"];
+    const at = (o: Record<string, number>) => new Map(Object.entries(o).map(([l, t]) => [l, { t }]));
+    // 2025 USNDBIQ: Q1–Q10 drawn small in a corner, Q11 on read full size at 7252 s.
+    expect(holeToCheck(order, at({ Q11: 7252, Q12: 7700 }), 20_000)).toEqual({ from: 0, to: 7252, labels: order.slice(0, 10) });
+    // In the middle: between the starts either side.
+    expect(holeToCheck(order, at({ Q1: 100, Q2: 500, Q8: 3000, Q9: 3400, Q10: 3800, Q11: 4200, Q12: 4600 }), 9000)).toEqual({ from: 500, to: 3000, labels: ["Q3", "Q4", "Q5", "Q6", "Q7"] });
+    // At the end: to the video's end. The longer of two runs wins.
+    expect(holeToCheck(order, at({ Q1: 100, Q2: 500, Q3: 900, Q7: 2600 }), 9000)).toEqual({ from: 2600, to: 9000, labels: ["Q8", "Q9", "Q10", "Q11", "Q12"] });
+    // Fewer than HOLE_MIN in a row: nothing to check.
+    expect(HOLE_MIN).toBe(4);
+    expect(holeToCheck(order, at({ Q1: 100, Q5: 1700, Q9: 3300 }), 9000)).toBeNull();
+    expect(holeToCheck(order, at(Object.fromEntries(order.filter((_, i) => i % 3 === 0).map((l, i) => [l, i * 1000]))), 9000)).toBeNull();
+  });
+
   it("reads a two-field stream's second half as a gap read of the first", () => {
     const first: Judged = {
       placed: new Map([["Q1", { t: 100, confidence: "high" }], ["Q3", { t: 700, confidence: "medium" }]]),
@@ -1171,5 +1227,28 @@ describe("gapOf (--gaps)", () => {
     const g = gapOf(row, { Q1: 100 });
     expect(g.opens).toEqual({ Q1: 95 });
     expect([...g.medium]).toEqual([]);
+  });
+});
+
+describe("embedRefusal", () => {
+  it("names a refusal no later read gets past", () => {
+    // USIABALLT 2024's FEoSIhRlU3g, as the embed shows it (2026-11-27): every read waited 30 s and failed.
+    expect(embedRefusal(["Video unavailable", "This video contains content from Natalia Media, Inc., who has blocked it from display on this website or application", "Watch on YouTube"].join("\n"))).toMatch(/content owner blocks it/);
+    expect(embedRefusal(["Video unavailable", "Playback on other websites has been disabled by the video owner.", "Watch on YouTube"].join("\n"))).toMatch(/turned off playing it/);
+    expect(embedRefusal(["Sign in to confirm your age", "This video may be inappropriate for some users."].join("\n"))).toMatch(/age-restricted/);
+    expect(embedRefusal("This video is age-restricted and only available on YouTube.")).toMatch(/age-restricted/);
+    // USILCSSLT 2024's lJunlYy5uls (2026-11-27): public in the Data API, blocked by a claim everywhere it was tried.
+    expect(embedRefusal(["Video unavailable", "It was blocked due to the claimed content by SME."].join("\n"))).toBe("a copyright claim by SME blocks it (on youtube.com too)");
+  });
+  it("is null for anything a later read may get past, or YouTube's facts settle", () => {
+    expect(embedRefusal("Sign in to confirm you're not a bot")).toBeNull();
+    expect(embedRefusal("This video is unavailable")).toBeNull();
+    expect(embedRefusal("An error occurred. Please try again later.")).toBeNull();
+    expect(embedRefusal("")).toBeNull();
+  });
+  it("says its reason after EMBED_REFUSED, never the reason a failed read gives", () => {
+    const e = new EmbedRefused("it's age-restricted (it plays only on youtube.com, signed in)");
+    expect(e.message.startsWith(EMBED_REFUSED)).toBe(true);
+    expect(e.message.startsWith("the video couldn't be played")).toBe(false);
   });
 });

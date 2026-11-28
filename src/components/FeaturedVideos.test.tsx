@@ -2,6 +2,7 @@
 // A team featured on Behind the Bot: one badge under the team's actions, for Behind the Bot episodes only, counting
 // them ("×4") when there are several and opening the watch page on the newest with the team's own first; Featured in
 // lists every video whose title names the team, each opening the watch page; the row chip shows only for a featured team.
+import { readFileSync } from "node:fs";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -61,5 +62,18 @@ describe("Featured on Behind the Bot", () => {
     render(<><FeaturedChip team={21229} /><FeaturedChip team={4215} /></>);
     expect(document.querySelectorAll("[data-featured-chip]")).toHaveLength(1);
     expect(screen.getByTitle("Featured on Behind the Bot").textContent).toBe("Behind the Bot");
+  });
+
+  it("in a tight table row (fit) keeps only the clapperboard, the words still read, so it never spills into the next column", () => {
+    prime("/api/featured-teams", { teams: [21229] });
+    render(<><FeaturedChip team={21229} fit /><FeaturedChip team={21229} /></>);
+    const [fit, plain] = document.querySelectorAll("[data-featured-chip] > span");
+    expect(fit.className).toContain("@max-[17rem]/chiprow:sr-only");
+    expect(fit.textContent).toBe("Behind the Bot");
+    expect(plain.className).not.toContain("sr-only");
+    // The two table rows that use it are the container it measures.
+    const read = (f: string) => readFileSync(f, "utf8");
+    expect(read("src/pages/RankingsPage.tsx")).toMatch(/@container\/chiprow[\s\S]*<FeaturedChip team=\{r\.team\} className="self-center" fit \/>/);
+    expect(read("src/pages/EventPage.tsx")).toMatch(/@container\/chiprow[\s\S]*<FeaturedChip team=\{t\.team\} className="self-center" fit \/>/);
   });
 });

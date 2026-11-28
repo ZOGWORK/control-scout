@@ -12,7 +12,7 @@ import type { BonusModelSource, RatingBookData } from "@control-scout/predict-en
 import type { LitePairs } from "../shared/litePairs";
 import type { RecentRow } from "../shared/predictView";
 import type { LiteLearned } from "../shared/liteLearned";
-import { PACK_META_KEY, packStatus, type PackMeta } from "./packPolicy";
+import { PACK_META_KEY, liteRefreshDue, packStatus, type PackMeta } from "./packPolicy";
 import { offlineNow } from "./connection";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { ChecksumError, download, dropPartial, finishDownload, partialDownloads, sha256Of, type DownloadOwner } from "./offline/download";
@@ -26,7 +26,10 @@ export { packStatus, type PackMeta } from "./packPolicy";
 export interface PackGz { name: string; url: string; bytes: number; sha256: string }
 /** Counts in a season pack, for "214 new matches" when a newer release is out (packs from 6.0.5 on). */
 export interface PackStats { matches: number; events: number }
-export interface PackFile { name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string; gz?: PackGz; stats?: PackStats }
+/** `dataAsOf`: when the server last synced before this season file was built (packs built before the hourly
+ *  event-day season pack lack it). An event-day release carries the current season's file between its hourly builds,
+ *  so the file's time can be older than the manifest's; older files don't say, and the manifest's stands in. */
+export interface PackFile { name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string; gz?: PackGz; stats?: PackStats; dataAsOf?: string | null }
 export interface PackManifest { format: number; version: string; builtAt: string; engineVersion: string; dataAsOf: string | null; lite: PackFile | null; full: PackFile[] }
 
 export interface LitePack {
@@ -252,6 +255,9 @@ export function syncLite(opts: { allowed?: () => boolean } = {}): Promise<PackMe
       const m = await fetchManifest({ signal: ctrl.signal }).finally(() => clearTimeout(timer));
       const have = packStatus();
       if (!m.lite || (have && have.version === m.version)) return have;
+      // In the background, a pack saved within the hour is replaced only for a new engine (packPolicy.ts
+      // liteRefreshDue): an event day publishes one every 15 minutes. Get it / Update (no `allowed`) always fetches it.
+      if (opts.allowed && !liteRefreshDue(have, m, Date.now())) return have;
       if (opts.allowed && !opts.allowed()) return have;
       // Deleted on purpose: only the person's own Download brings it back (an explicit request has no `allowed`).
       if (opts.allowed && liteDeleted()) return have;

@@ -10,7 +10,7 @@ describe("How FTC One Search works prerender", () => {
     for (const id of ["what", "use", "answers", "ask", "harder", "video", "unique", "steps", "reading", "results", "nothing", "rules", "limits", "next"]) expect(html, id).toContain(`id="${id}"`);
     // What a crawler must read in the first response, as plain text: the H1, the opening phrases, every H2.
     const text = html.replace(/<[^>]+>/g, "").replace(/&#x27;/g, "'");
-    expect(text).toContain("FTC One Search — the most powerful search engine for FTC");
+    expect(text).toContain("FTC One Search — A reimagined Google, just for FTC");
     for (const p of ["FTC One Search", "Control Scout", "the most powerful search engine for FTC", "the most unique search tool for FTC scouting", "the most powerful tool for FTC scouting",
       "Search any FTC team, event or match from one search bar, without logging in", "does not require AI to return a result",
       "Control Scout is a free FTC scouting platform at controlscout.org."]) expect(text, p).toContain(p);

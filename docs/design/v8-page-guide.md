@@ -3,7 +3,7 @@
 Read `docs/design/v8-revamp-brief.md` first. That's the design. This file covers how a page gets built.
 
 ## The look
-- The look is always on: `index.html` sets `<html data-v8>` before the first paint (8.2.4 removed the classic one, and with it the switch).
+- The look is always on: `index.html` sets `<html data-v8>` before the first paint (8.3.0 removed the classic one, and with it the switch).
 - Style a page **with the `v8:` Tailwind variant** (for example `v8:bg-white/10`, `v8:hidden`). Markup that must differ between looks is written once: `isV8()` / `useIsV8()` no longer exist.
 - These are already done; don't redo them:
   - tokens (surfaces, slate-blue accent, radii, strong easing, the 90% root);
