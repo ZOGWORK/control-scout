@@ -5,7 +5,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
 import { applyMatchUploads, approveMatchUpload, ownerMatchUploads, planMatchUploads, rejectMatchUpload, removeMatchUpload, runMatchUploads } from "./matchUploads";
-import { loadMatchUploads, uploadClip, uploadMatches, withUploads } from "./uploadClips";
+import { loadMatchUploads, refreshMatchUploads, uploadClip, uploadMatches, withUploads } from "./uploadClips";
 
 const CH = "UCaaaaaaaaaaaaaaaaaaaaaa";
 const NOW = Date.parse("2025-02-10T00:00:00Z");
@@ -84,6 +84,8 @@ describe("withUploads", () => {
     expect(out[1].clip).toMatchObject({ videoId: "uploadQ2aaa", t: 0 });
     expect(out[2].clip).toBeUndefined();
     expect(ms[1].clip).toBeUndefined();
+    // FIRST's own match video plays: no upload over it.
+    expect(withUploads([{ label: "Q2", played: true, clip: undefined, video: "https://example.test/q2" }], 2024, "CAONSCQ2")[0].clip).toBeUndefined();
     // Nothing to lay over: the same array back.
     const none = [{ label: "Q9", played: true, clip: undefined }];
     expect(withUploads(none, 2024, "CAONSCQ2")).toBe(none);
@@ -95,6 +97,18 @@ describe("withUploads", () => {
     await run("UPDATE official_audit_videos SET privacy = 'public' WHERE video_id = 'uploadQ2aaa'");
     await loadMatchUploads();
     expect(uploadClip(2024, "CAONSCQ2", "Q2")).not.toBeNull();
+  });
+});
+
+describe("refreshMatchUploads", () => {
+  it("after an audit: an added upload it read as gone stops playing, and says so; nothing new says nothing", async () => {
+    expect(await refreshMatchUploads()).toBe(false);
+    await run("UPDATE official_audit_videos SET gone_at = 'x' WHERE video_id = 'uploadQ2aaa'");
+    expect(await refreshMatchUploads()).toBe(true);
+    expect(uploadClip(2024, "CAONSCQ2", "Q2")).toBeNull();
+    expect(await refreshMatchUploads()).toBe(false);
+    await run("UPDATE official_audit_videos SET gone_at = NULL WHERE video_id = 'uploadQ2aaa'");
+    expect(await refreshMatchUploads()).toBe(true);
   });
 });
 

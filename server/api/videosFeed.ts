@@ -23,6 +23,7 @@ import { all, get, run } from "../db.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
 import { registerCache } from "../caches.js";
 import { eventRecording, seasonClipKeys, seasonRecordings, withClips } from "../videos/recordings.js";
+import { withUploads } from "../videos/uploadClips.js";
 import { withStills } from "../videos/storyboards.js";
 import { membershipOf } from "../videos/membership.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
@@ -65,7 +66,7 @@ async function readEventClips(season: number, code: string): Promise<Map<string,
     return { label: String(r.label), time: r.time, startsAt: at == null ? null : new Date(at).toISOString(), played: true, clip: undefined as MatchClip | undefined, key: `${r.level}:${Number(r.series)}:${Number(r.number)}`, video: r.video };
   });
   const out = new Map<string, SearchVideoItem>();
-  for (const v of withClips(views, rec)) {
+  for (const v of withUploads(withClips(views, rec), season, code)) {
     const own = v.video ? youtubeId(v.video) : null;
     if (own) out.set(v.key, { videoId: own, t: linkStart(v.video!), kind: "match", match: v.label });
     else if (v.clip) out.set(v.key, { videoId: v.clip.videoId, t: v.clip.t, ...(v.clip.end != null ? { end: v.clip.end } : {}), kind: "recording", match: v.label, ...(rec?.meta?.live ? { live: true } : {}), ...(v.clip.youtubeOnly ? { youtubeOnly: true as const } : {}) });

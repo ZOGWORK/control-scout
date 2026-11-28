@@ -116,9 +116,9 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    list: Chicago Robotics Invitational 2026 has a "Matches" video and a "Full stream" each day, Sunday's full stream
    being FIRST's own link.
 
-Per-match clips are never mapped from a title outside FIRST's own per-match videos (the Championship's are already
-FIRST's match videos, `matches.video`). A recording never hides FIRST's per-match video or a verified contributor's
-link: it's the fallback, the clip of the match inside the day's broadcast.
+A day's recording's clips are never mapped from a title: they come from its timing or its frames. The one title-mapped
+clip is a per-match upload's, by the strict rules below. A recording never hides FIRST's per-match video or a verified
+contributor's link: it's the fallback, the clip of the match inside the day's broadcast.
 
 ## How it plays
 
@@ -408,6 +408,49 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
 - **Owner › Official videos › Channel audit** shows the last audit and its error, the uploads with a Scout record,
   the watcher misses, and the watcher's own adds over its last 10 runs and its last 100 videos read (added, wrong, not
   checked yet). It also lists the wrong adds, the findings, each channel's counts and the set-aside reasons.
+
+## Per-match uploads
+
+Some channels upload each match as its own short video ("Qualification 8 - 2025 FTC North Scarborough Qualifier",
+"Frozen Frenzy II Qualifier - Playoff Match 6 - FTC 2024-2025", "Maryland Tech Invitational 2021 Q35") instead of, or as
+well as, a day's broadcast. `server/videos/matchUploads.ts` reads the channel audit's uploads (`official_audit_videos`,
+every watched channel's whole list with its facts) after each audit and decides each short one once, by
+`server/videos/uploadMatch.ts`. It becomes that match's clip, the whole video from its start, only when all of these hold:
+
+- It's one to fifteen minutes long, never a broadcast, public, embeddable and playable in most countries.
+- Its title names exactly one match: a qualification ("Q12", "Qualification Match 12", "Qualifying Match 012"), a final
+  ("Final Match 2"), a 2019-2023 semifinal ("Semifinal 1 Match 2") or a double-elimination match ("Playoff Match 4",
+  "Upper Bracket Round 1 Match 4", 2024 on). A bare "Match 3" can be either and is set aside. "QM12", "SF1M2" and "F1M2"
+  are how FRC's tools name matches: such a title must also say FTC. A quarterfinal or tiebreaker names no match of
+  Scout's.
+- Its title names exactly one event, both ways: every distinctive word of the event's name is in it, and every word it
+  says is the event's own (its name, city, venue, or the channel's region words) or says nothing (FTC, Qualifier, the
+  season's game, a score). So "Indiana Robotics Invitational" (FRC's) is not "Maryland Tech Invitational", and "New
+  England FIRST District Championship" is not "New Hampshire Championship". A title saying "Championship" is never a
+  qualifier's, nor one saying "Qualifier" a championship's or an off-season event's. Of two names one inside the other
+  ("Frozen Frenzy" and "Frozen Frenzy II"), the title must say the longer to be it; saying the shorter only is set aside.
+- The event is a competition in the channel's region, it had started when the video went up, and the video went up at
+  most 60 days after it ended (every add in the first dry run went up within 60 days). A year in the title narrows the
+  season but never stretches the 60 days: FIRST in Michigan's "2025 Detroit City Championship" uploads, a year after
+  Detroit's FTC qualifier, are FRC's. A date in the title must be one of the event's.
+- The match is one of the event's and was played, and every team number the title names is on it.
+- No other upload names the same match (a re-upload, a mislabelled one): both are set aside.
+
+A title cut off ("… Ontario Provincial ...") is set aside: what's missing may name a division. Anything short of these is
+never guessed: when an event fits, the owner decides in Owner › Official videos › Per-match uploads (Approve as the match
+it names or one typed in, or Reject: never proposed again); when none does, it's kept as ignored with why, and read again
+while it's under 30 days old (a match's results can come in after its upload).
+
+An added upload is the clip only of a match nothing else clips, a recording or FIRST's own match video (`server/videos/uploadClips.ts` `withUploads`, laid over
+every surface that plays a clip: the event page, a match's page, search's answers, the videos feed, a team's clips): how
+full-day streams are linked never changes. It plays while the audit last read it as public, embeddable and on its
+channel; the owner can take one off its match for good. Every add is audited (`match uploads`, one entry a run naming
+each match), and so is each of the owner's decisions. The list's Clips badge, search's "with video" and the clip coverage
+pass count them as clips ("the match's own upload").
+
+The first dry run (2026-11-28, prod's 88 watched channels, 16,511 uploads of one to fifteen minutes) added 2,220 matches,
+948 of which had no clip at all (2019: 119, 2020: 70, 2024: 628, 2025: 131, across 33 events), and set 232 aside. 21
+adds were checked in their videos' own score bars (match number and teams): all right.
 
 ## Decisions from evidence
 

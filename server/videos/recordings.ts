@@ -21,6 +21,7 @@ import { linkAiredOff, linkTooShort, localDate, officialRecordingIds, seasonOffi
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameApproved, frameOpen, frameStart, hasFrames } from "../data/frameTimings.js";
 import { clipPulled } from "../data/clipChecks.js";
+import { uploadMatches } from "./uploadClips.js";
 
 /** unplayableSince: when it was first read as one no one can play here (unavailable, or embedding off), kept while it
  *  stays so (migration 96); absent while it plays. */
@@ -288,6 +289,8 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
     }
     for (const [code] of recs) out.set(code, withClip.has(code) ? "clips" : "recording");
     for (const code of official) out.set(code, "clips");
+    // A match's own upload played as its clip (./matchUploads.ts).
+    for (const u of uploadMatches(season)) out.set(u.code, "clips");
     // A championship's divisions are filmed, the event above them rarely is (FIRST links each division's stream): it
     // shows the best of its divisions' video, so the list's Video filter and badge find it (USTXCMP4 2026: its Aero
     // and Terra Divisions had video, it had none).
@@ -308,7 +311,7 @@ registerCache("Match clip keys", () => { clipKeys = new Map(); });
 
 /**
  * Every played match of a season with video to play, as "code|level|series|number": FIRST's own video of it
- * (matches.video), else its place in its event's recording, by the same check as the event page and an answer's video
+ * (matches.video), its own upload (./matchUploads.ts), else its place in its event's recording, by the same check as the event page and an answer's video
  * (withClips, each event's whole span). Search's "with video" filter reads it (server/api/query/matchFind.ts). A video
  * someone added is the viewer's own (docs/contributors.md), never a filter's. Kept for 10 minutes.
  */
@@ -320,6 +323,8 @@ export function seasonClipKeys(season: number, now = Date.now()): Promise<Set<st
     const own = await all<{ code: string; level: string; series: number; number: number; video: string }>("SELECT code, level, series, number, video FROM matches WHERE season = ? AND played = 1 AND video IS NOT NULL AND video != ''", [season]);
     // Only a video an answer can play (a YouTube link), as answerVideo and the event page read it.
     for (const r of own) if (youtubeId(String(r.video))) out.add(`${r.code}|${r.level}|${Number(r.series)}|${Number(r.number)}`);
+    // A match's own upload played as its clip (./matchUploads.ts): only ever a played match's.
+    for (const u of uploadMatches(season)) out.add(`${u.code}|${u.level}|${u.series}|${u.number}`);
     // A recording with a broadcast start, or one with matches read off its own frames (an upload, a cut-short video).
     const recs = [...(await seasonRecordings(season))].filter(([code, r]) => [r.meta, ...(r.more ?? []).map((d) => d.meta)].some((m) => m?.status === "ok" && m.start)
       || [r, ...(r.more ?? [])].some((d) => hasFrames(d.videoId, code)));

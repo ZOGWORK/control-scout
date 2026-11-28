@@ -8,6 +8,7 @@ import { linkStart } from "../../src/shared/recording.js";
 import { youtubeId } from "../../src/shared/personal.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import { eventMatchSpan, seasonRecordings, withClips, type Recording } from "./recordings.js";
+import { withUploads } from "./uploadClips.js";
 import type { MatchClip, SearchVideoItem } from "../../src/shared/api.js";
 import { withStills } from "./storyboards.js";
 import { featuredFor } from "./creatorVideos.js";
@@ -63,7 +64,7 @@ export async function latestClips(team: number, now = Date.now()): Promise<TeamC
       const at = localToUtcMs(r.time, r.timezone);
       return { row: r, label: String(r.label), time: r.time, startsAt: at == null ? null : new Date(at).toISOString(), played: true as const, clip: undefined as MatchClip | undefined };
     });
-    const placed = rec ? withClips(views, rec, now, await eventMatchSpan(ev.season, ev.code)) : views;
+    const placed = withUploads(rec ? withClips(views, rec, now, await eventMatchSpan(ev.season, ev.code)) : views, ev.season, ev.code);
     for (const v of placed) {
       const r = v.row;
       if (!r.mine) continue;
