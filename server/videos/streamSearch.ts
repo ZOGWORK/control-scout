@@ -124,7 +124,7 @@ let blockedUntil = 0;
 let busy = false;
 
 /** One run: up to SEARCH_PER_RUN events searched (see above). Needs YOUTUBE_API_KEY for the results' facts. */
-export async function searchStreams(log: (s: string) => void, opts: { apiKey?: string | null; fetchImpl?: typeof fetch; search?: Searcher; now?: () => number; gapMs?: number; perRun?: number; lockWaitMs?: number } = {}): Promise<SearchRun | null> {
+export async function searchStreams(log: (s: string) => void, opts: { apiKey?: string | null; fetchImpl?: typeof fetch; search?: Searcher; now?: () => number; gapMs?: number; perRun?: number; lockWaitMs?: number; recordImpl?: typeof record } = {}): Promise<SearchRun | null> {
   const key = opts.apiKey === undefined ? env.youtubeApiKey : opts.apiKey;
   const now = opts.now ?? Date.now;
   if (!key || busy || now() < blockedUntil) return null;
@@ -151,7 +151,7 @@ export async function searchStreams(log: (s: string) => void, opts: { apiKey?: s
       const hits = await search(q);
       if (hits === "blocked") { out.blocked = true; blockedUntil = now() + BLOCKED_MS; log(`stream search: YouTube turned the results page away; no search for ${BLOCKED_MS / 3600_000} h`); break; }
       out.searched++;
-      const found = await weigh(t, q, hits, key, fetchImpl, now, locked, out);
+      const found = await weigh(t, q, hits, key, fetchImpl, now, locked, out, opts.recordImpl ?? record);
       const at = new Date(now()).toISOString();
       await locked(() => run(`INSERT INTO stream_searches (season, code, searched_at, query, results, note) VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT (season, code) DO UPDATE SET searched_at = excluded.searched_at, query = excluded.query, results = excluded.results, note = excluded.note, tries = stream_searches.tries + 1`,
@@ -168,7 +168,7 @@ export async function searchStreams(log: (s: string) => void, opts: { apiKey?: s
 }
 
 /** One event's results, each weighed once: added, queued for the owner, or kept as read. Returns what it found. */
-async function weigh(t: Target, q: string, hits: SearchHit[], key: string, fetchImpl: typeof fetch, now: () => number, locked: <T>(fn: () => Promise<T>) => Promise<T>, out: SearchRun): Promise<string> {
+async function weigh(t: Target, q: string, hits: SearchHit[], key: string, fetchImpl: typeof fetch, now: () => number, locked: <T>(fn: () => Promise<T>) => Promise<T>, out: SearchRun, recordFn: typeof record): Promise<string> {
   const ids = hits.map((h) => h.videoId);
   if (!ids.length) return "";
   const qs = ids.map(() => "?").join(",");
@@ -188,52 +188,60 @@ async function weigh(t: Target, q: string, hits: SearchHit[], key: string, fetch
   const done: string[] = [];
   const seen: { sql: string; args: (string | number | null)[] }[] = [];
   out.results += fresh.length;
-  for (const h of fresh) {
-    const it = facts.get(h.videoId);
-    const state = String(it?.snippet?.liveBroadcastContent ?? "none");
-    // Still to come or on the air: weighed again on the event's next search, once it's over.
-    if (it && (state === "live" || state === "upcoming")) continue;
-    const channelId = String(it?.snippet?.channelId ?? h.channelId ?? "");
-    const channel = String(it?.snippet?.channelTitle ?? h.channel ?? channelId);
-    const v: WatchVideo = {
-      videoId: h.videoId, title: String(it?.snippet?.title ?? h.title).slice(0, 300), start: it?.liveStreamingDetails?.actualStartTime ?? null,
-      published: it?.snippet?.publishedAt ?? null, durationS: it ? isoDuration(it?.contentDetails?.duration) : null,
-      privacy: String(it?.status?.privacyStatus ?? "public"), embeddable: it?.status?.embeddable !== false,
-      blockedIn: Array.isArray(it?.contentDetails?.regionRestriction?.blocked) ? it.contentDetails.regionRestriction.blocked.length : 0,
-    };
-    const nc = notCompetition(v.title);
-    let verdict: WatchVerdict = nc ? { kind: "ignore", why: nc } : !it ? { kind: "ignore", why: "YouTube gave no facts for it (private or gone)" } : await decide(v, ANY_EVENT);
-    const ev = verdict.kind === "add" || verdict.kind === "review" ? verdict.event : undefined;
-    // Which of the events this search is for, and a day of it no video covers: the only ones it may add to or queue for.
-    const forThis = !!ev && ev.season === t.season && ev.code === t.code && !!(verdict as { day?: string }).day && t.missing.includes((verdict as { day: string }).day);
-    const playable = v.privacy === "public" && v.embeddable && v.blockedIn < 50 && (v.durationS ?? 0) >= MIN_RECORDING_S;
-    let status: string = verdict.kind;
-    if (verdict.kind === "add" && forThis) {
-      // A stranger's channel: a finished broadcast only, its title naming the whole event, or the owner decides.
-      const why = !v.start ? "an upload, not a live broadcast, on a channel Scout doesn't watch" : !namesAll(v.title, ev!.name, null, [ev!.city ?? "", ...placeNames(ev!.state, ev!.country)]) ? `its title doesn't say all of ${ev!.code}'s name, on a channel Scout doesn't watch` : null;
-      if (why) verdict = { kind: "review", why: `found by the stream search ("${q}"): ${why}; the rules otherwise fit it to ${ev!.code} ${verdict.day}`, event: verdict.event, day: verdict.day, part: verdict.part };
-    } else if (verdict.kind === "add") {
-      // Another event's video: not kept as read, so that event's own search weighs it.
-      continue;
-    } else if (verdict.kind === "review") {
-      verdict = { ...verdict, why: `found by the stream search ("${q}"): ${verdict.why}` };
+  try {
+    for (const h of fresh) {
+      const it = facts.get(h.videoId);
+      const state = String(it?.snippet?.liveBroadcastContent ?? "none");
+      // Still to come or on the air: weighed again on the event's next search, once it's over.
+      if (it && (state === "live" || state === "upcoming")) continue;
+      const channelId = String(it?.snippet?.channelId ?? h.channelId ?? "");
+      const channel = String(it?.snippet?.channelTitle ?? h.channel ?? channelId);
+      const v: WatchVideo = {
+        videoId: h.videoId, title: String(it?.snippet?.title ?? h.title).slice(0, 300), start: it?.liveStreamingDetails?.actualStartTime ?? null,
+        published: it?.snippet?.publishedAt ?? null, durationS: it ? isoDuration(it?.contentDetails?.duration) : null,
+        privacy: String(it?.status?.privacyStatus ?? "public"), embeddable: it?.status?.embeddable !== false,
+        blockedIn: Array.isArray(it?.contentDetails?.regionRestriction?.blocked) ? it.contentDetails.regionRestriction.blocked.length : 0,
+      };
+      const nc = notCompetition(v.title);
+      let verdict: WatchVerdict = nc ? { kind: "ignore", why: nc } : !it ? { kind: "ignore", why: "YouTube gave no facts for it (private or gone)" } : await decide(v, ANY_EVENT);
+      const ev = verdict.kind === "add" || verdict.kind === "review" ? verdict.event : undefined;
+      // Which of the events this search is for, and a day of it no video covers: the only ones it may add to or queue for.
+      const forThis = !!ev && ev.season === t.season && ev.code === t.code && !!(verdict as { day?: string }).day && t.missing.includes((verdict as { day: string }).day);
+      const playable = v.privacy === "public" && v.embeddable && v.blockedIn < 50 && (v.durationS ?? 0) >= MIN_RECORDING_S;
+      let status: string = verdict.kind;
+      let wrote = false;
+      if (verdict.kind === "add" && forThis) {
+        // A stranger's channel: a finished broadcast only, its title naming the whole event, or the owner decides.
+        const why = !v.start ? "an upload, not a live broadcast, on a channel Scout doesn't watch" : !namesAll(v.title, ev!.name, null, [ev!.city ?? "", ...placeNames(ev!.state, ev!.country)]) ? `its title doesn't say all of ${ev!.code}'s name, on a channel Scout doesn't watch` : null;
+        if (why) verdict = { kind: "review", why: `found by the stream search ("${q}"): ${why}; the rules otherwise fit it to ${ev!.code} ${verdict.day}`, event: verdict.event, day: verdict.day, part: verdict.part };
+      } else if (verdict.kind === "add") {
+        // Another event's video: not kept as read, so that event's own search weighs it.
+        continue;
+      } else if (verdict.kind === "review") {
+        verdict = { ...verdict, why: `found by the stream search ("${q}"): ${verdict.why}` };
+      }
+      const ch = { channelId: CHANNEL_ID.test(channelId) ? channelId : "unknown", title: `${channel} (found by the stream search)` };
+      // Written to the owner's queue: an add, or a review of this event's missing day that would be a day's recording.
+      if (verdict.kind === "add" || (verdict.kind === "review" && forThis && playable)) {
+        const w = verdict;
+        const put = await locked(() => recordFn(v, ch, w, v.published ?? null, now(), "stream search"));
+        // Added; or queued (a review, or an add whose day another recording took meanwhile); or decided meanwhile by the owner.
+        if (w.kind === "add" && put === "added") { out.added++; status = "add"; done.push(`added ${v.videoId} (${w.day})`); }
+        else if (w.kind === "review" || put === "queued") { out.queued++; status = "review"; done.push(`to review ${v.videoId}`); }
+        else status = "kept";
+        wrote = true;
+      } else if (verdict.kind === "review") status = "ignore";
+      const row = { sql: `INSERT INTO stream_search_videos (video_id, season, code, channel_id, channel, title, start, duration, verdict, event_season, event_code, why, seen_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (video_id) DO NOTHING`,
+        args: [v.videoId, t.season, t.code, CHANNEL_ID.test(channelId) ? channelId : null, channel.slice(0, 120), v.title, v.start, v.durationS, status,
+          ev?.season ?? null, ev?.code ?? null, String(verdict.why).slice(0, 500), new Date(now()).toISOString()] };
+      // What it wrote for the owner is kept as read at once: a later failure must not leave it known but unrecorded here.
+      if (wrote) await locked(() => run(row.sql, row.args));
+      else seen.push(row);
     }
-    const ch = { channelId: CHANNEL_ID.test(channelId) ? channelId : "unknown", title: `${channel} (found by the stream search)` };
-    // Written to the owner's queue: an add, or a review of this event's missing day that would be a day's recording.
-    if (verdict.kind === "add" || (verdict.kind === "review" && forThis && playable)) {
-      const w = verdict;
-      const put = await locked(() => record(v, ch, w, v.published ?? null, now(), "stream search"));
-      // Added; or queued (a review, or an add whose day another recording took meanwhile); or decided meanwhile by the owner.
-      if (w.kind === "add" && put === "added") { out.added++; status = "add"; done.push(`added ${v.videoId} (${w.day})`); }
-      else if (w.kind === "review" || put === "queued") { out.queued++; status = "review"; done.push(`to review ${v.videoId}`); }
-      else status = "kept";
-    } else if (verdict.kind === "review") status = "ignore";
-    seen.push({ sql: `INSERT INTO stream_search_videos (video_id, season, code, channel_id, channel, title, start, duration, verdict, event_season, event_code, why, seen_at)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (video_id) DO NOTHING`,
-      args: [v.videoId, t.season, t.code, CHANNEL_ID.test(channelId) ? channelId : null, channel.slice(0, 120), v.title, v.start, v.durationS, status,
-        ev?.season ?? null, ev?.code ?? null, String(verdict.why).slice(0, 500), new Date(now()).toISOString()] });
+  } finally {
+    if (seen.length) await locked(() => db().batch(seen, "write"));
   }
-  if (seen.length) await locked(() => db().batch(seen, "write"));
   return done.join("; ");
 }
 
