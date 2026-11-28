@@ -3,7 +3,8 @@
 // is added; anything short of that for that day goes to the owner's review; channels found twice are proposed.
 import { beforeAll, describe, expect, it } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
-import { channelProposals, dismissProposal, dueTargets, resultsOf, ruleFor, searchQuery, searchStreams, type SearchHit } from "./streamSearch";
+import { namesAll } from "./officialMatch";
+import { channelProposals, dismissProposal, dueTargets, regionOf, resultsOf, searchQuery, searchStreams, type SearchHit } from "./streamSearch";
 
 const NOW = Date.parse("2026-11-28T06:00:00Z");
 const QLD = "UCgVwYg-vSXKisZCIfKk6xxA", ROOS = "UCxiwXTpSyP-fomk4poTpuqg";
@@ -60,8 +61,12 @@ describe("the stream search", () => {
     expect(resultsOf(page)).toEqual([{ videoId: "W6Sxrq6g5dI", title: "FTC Brisbane North Qualifier 2026 - Day 2", channelId: QLD, channel: "Robotics Events - Queensland" }]);
     expect(resultsOf("<html>consent</html>")).toBeNull();
     expect(searchQuery({ name: "IA  Western Iowa Super Qualifier", start: "2023-02-04" })).toBe("IA Western Iowa Super Qualifier FTC 2023");
-    expect(ruleFor({ state: "IA", country: "USA" })).toEqual({ region: "state=IA", words: "usa" });
-    expect(ruleFor({ state: "QLD", country: "Australia" })).toEqual({ region: "country=Australia", words: "australia" });
+    expect(regionOf({ state: "IA", country: "USA" })).toBe("state=IA");
+    expect(regionOf({ state: "QLD", country: "Australia" })).toBe("country=Australia");
+    // A title must name the event by its own words, not its kind: "November Scrimmage" has none to name.
+    expect(namesAll("Lakeshore Scrimmage, Day 1", "November Scrimmage")).toBe(false);
+    expect(namesAll("Lakeshore Scrimmage, Day 1", "Lakeshore Scrimmage Day 1")).toBe(true);
+    expect(namesAll("2026 FIRST Tech Challenge - BioBuzz - South Australia Qualifier", "South Australia Qualifier")).toBe(true);
   });
 
   it("picks the events with a played day no video covers, never one not played", async () => {

@@ -1,9 +1,9 @@
 // The stream search (docs/official-videos.md, "The stream search"): recordings found without the watched channels.
 // Every event with played matches and a day of them no video covers is searched on YouTube by its name and year (the
 // public results page, no API quota), 2026 first, then older seasons. Each result goes through the watcher's own
-// rules (./officialWatch.ts decide, ./officialMatch.ts), with the event's own state or country as the region, and for
-// a stranger's channel two more: it must be a finished live broadcast, and its title must say every distinctive word
-// of the event's name. One that passes is added as that day's recording (by "stream search"); one the rules fit to a
+// rules (./officialWatch.ts decide, ./officialMatch.ts) against every event on its date, any region (its channel says
+// nothing of where it is), and two more: it must be a finished live broadcast, and its title must say every
+// distinctive word of the event's name. One that passes is added as that day's recording (by "stream search"); one the rules fit to a
 // day still missing its video but can't settle goes to the owner's review queue, never guessed; the rest are only
 // kept as read (stream_search_videos), so they aren't weighed again. A channel found streaming two or more events this
 // way is proposed to the owner as a channel to watch (Owner › Official videos).
@@ -16,7 +16,7 @@ import { env } from "../env.js";
 import { withDataLock, LockBusy, isBusy } from "../data/lock.js";
 import { EVENT_FIRST_DAY, EVENT_LAST_DAY, EVENT_PLAYED_DAYS, playedDays } from "./eventDays.js";
 import { MIN_RECORDING_S, eventVideosByDay, forgetOfficial } from "./officialVideos.js";
-import { NOT_EVENTS, namesAll, notCompetition, norm, type WatchVideo } from "./officialMatch.js";
+import { NOT_EVENTS, namesAll, notCompetition, type WatchVideo } from "./officialMatch.js";
 import { decide, record, type WatchVerdict } from "./officialWatch.js";
 import { isoDuration } from "./youtube.js";
 
@@ -76,11 +76,16 @@ export interface Target { season: number; code: string; name: string; city: stri
  *  region prefix ("IA ", "TX-North ") stays: organisers title streams with it as often as not, and YouTube ignores it. */
 export const searchQuery = (t: Pick<Target, "name" | "start">) => `${t.name.replace(/\s+/g, " ").trim()} FTC ${t.start.slice(0, 4)}`;
 
-/** The region rule an event's own videos are weighed in: its state (a US event, with FIRST's region code), else its country. */
-export function ruleFor(t: Pick<Target, "state" | "country">): { region: string; words: string } {
+/** The rule a stranger's video is weighed by: every event in the world on its date, not one region's. A watched
+ *  channel's region narrows its videos to its own events; a stranger's channel says nothing of where it is, and like
+ *  events share names across states ("Carver League Meet 2" in Oklahoma and "ROBOT League Meet 2" in Florida on one
+ *  day), so the title must fit one event of them all. */
+export const ANY_EVENT = { region: "name=.", words: "", titlePattern: null };
+
+/** The region rule a proposed channel's events share: their state (US), else their country. */
+export function regionOf(t: { state: string | null; country: string | null }): string {
   const us = /^(usa|us|united states)$/i.test(t.country ?? "");
-  if (us && t.state && /^[A-Za-z]{2}$/.test(t.state)) return { region: `state=${t.state}`, words: "usa" };
-  return { region: `country=${t.country ?? ""}`, words: norm(t.country) };
+  return us && t.state && /^[A-Za-z]{2}$/.test(t.state) ? `state=${t.state}` : `country=${t.country ?? ""}`;
 }
 
 /** The events due a search, best first: 2026 first, then each older season; within one, never searched, then the most
@@ -176,7 +181,6 @@ async function weigh(t: Target, q: string, hits: SearchHit[], key: string, fetch
     if (!res.ok) throw new Error(`YouTube videos answered ${res.status}`);
     for (const it of (await res.json())?.items ?? []) facts.set(String(it.id), it);
   }
-  const rule = ruleFor(t);
   const done: string[] = [];
   const seen: { sql: string; args: (string | number | null)[] }[] = [];
   out.results += fresh.length;
@@ -194,7 +198,7 @@ async function weigh(t: Target, q: string, hits: SearchHit[], key: string, fetch
       blockedIn: Array.isArray(it?.contentDetails?.regionRestriction?.blocked) ? it.contentDetails.regionRestriction.blocked.length : 0,
     };
     const nc = notCompetition(v.title);
-    let verdict: WatchVerdict = nc ? { kind: "ignore", why: nc } : !it ? { kind: "ignore", why: "YouTube gave no facts for it (private or gone)" } : await decide(v, { ...rule, titlePattern: null });
+    let verdict: WatchVerdict = nc ? { kind: "ignore", why: nc } : !it ? { kind: "ignore", why: "YouTube gave no facts for it (private or gone)" } : await decide(v, ANY_EVENT);
     const ev = verdict.kind === "add" || verdict.kind === "review" ? verdict.event : undefined;
     // Which of the events this search is for, and a day of it no video covers: the only ones it may add to or queue for.
     const forThis = !!ev && ev.season === t.season && ev.code === t.code && !!(verdict as { day?: string }).day && t.missing.includes((verdict as { day: string }).day);
@@ -202,7 +206,7 @@ async function weigh(t: Target, q: string, hits: SearchHit[], key: string, fetch
     let status: string = verdict.kind;
     if (verdict.kind === "add" && forThis) {
       // A stranger's channel: a finished broadcast only, its title naming the whole event, or the owner decides.
-      const why = !v.start ? "an upload, not a live broadcast, on a channel Scout doesn't watch" : !namesAll(v.title, ev!.name, rule.words) ? `its title doesn't say all of ${ev!.code}'s name, on a channel Scout doesn't watch` : null;
+      const why = !v.start ? "an upload, not a live broadcast, on a channel Scout doesn't watch" : !namesAll(v.title, ev!.name) ? `its title doesn't say all of ${ev!.code}'s name, on a channel Scout doesn't watch` : null;
       if (why) verdict = { kind: "review", why: `found by the stream search ("${q}"): ${why}; the rules otherwise fit it to ${ev!.code} ${verdict.day}`, event: verdict.event, day: verdict.day, part: verdict.part };
     } else if (verdict.kind === "add") {
       // Another event's video: not kept as read, so that event's own search weighs it.
@@ -248,8 +252,8 @@ export async function channelProposals(): Promise<ChannelProposal[]> {
     for (const r of rs) if (!first.has(`${r.event_season}/${r.event_code}`)) first.set(`${r.event_season}/${r.event_code}`, { season: Number(r.event_season), code: String(r.event_code), videoId: String(r.video_id) });
     const events = [...first.values()];
     if (events.length < PROPOSE_AT) continue;
-    const rules = [...new Set(rs.map((r) => ruleFor({ state: r.state, country: r.country }).region))];
-    const states = rs.every((r) => ruleFor({ state: r.state, country: r.country }).region.startsWith("state=")) ? [...new Set(rs.map((r) => String(r.state)))] : null;
+    const rules = [...new Set(rs.map((r) => regionOf(r)))];
+    const states = rs.every((r) => regionOf(r).startsWith("state=")) ? [...new Set(rs.map((r) => String(r.state)))] : null;
     out.push({ channelId, channel: String(rs[rs.length - 1].channel ?? channelId), events, region: rules.length === 1 ? rules[0] : states ? `state=${states.join(",")}` : `country=${[...new Set(rs.map((r) => String(r.country)))].join(",")}` });
   }
   return out;

@@ -325,9 +325,12 @@ the list, on every half-hourly check after the watcher (`searchStreams`):
 - **How**: YouTube's public results page for "<event name> FTC <year>" (no API quota), up to 20 results, then the
   results' facts with the Data API (1 unit per 50). A page with no results data (a consent or bot page) stops the
   search for 6 hours.
-- **The rules**: each result goes through the watcher's own `decide`, with the event's own state (a US event, with
-  FIRST's region code) or country as the region. A channel Scout doesn't watch needs two more: a finished live
-  broadcast (an upload has no broadcast date), and a title saying every distinctive word of the event's name. One that
+- **The rules**: each result goes through the watcher's own `decide`, against every event on its date in any region:
+  a channel Scout doesn't watch says nothing of where it is, and like events share names across states ("Carver League
+  Meet 2" in Oklahoma, "ROBOT League Meet 2" in Florida, the same day), so its title must fit one event of them all. It
+  needs two more: a finished live broadcast (an upload has no broadcast date), and a title saying every distinctive
+  word of the event's name, its kind's words ("Scrimmage", "Invitational") left out: "Lakeshore Scrimmage, Day 1"
+  never lands on Vilnius's "November Scrimmage". One that
   passes, on a day of this event no video covers, is **added** as that day's recording (`official_watch.decided_by =
   'stream search'`, the channel named "(found by the stream search)"), then timed, clipped and checked by the audit
   like any watcher add. One the rules fit to that day but can't settle (an upload, a title naming part of the name, a
