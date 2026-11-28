@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { contrast, parseColor, toHex } from "../lib/contrast";
 import { css, value, type Theme } from "../lib/themeTokens.testkit";
-import { THEME_TOKENS, TOKEN_SOURCE, V8_THEME_TOKENS, V8_TOKENS, v8FromCookie, cookieValue, textSizeFromCookie, themeFromCookie, type Token } from "./themeTokens";
+import { THEME_TOKENS, TOKEN_SOURCE, V8_THEME_TOKENS, V8_TOKENS, cookieValue, textSizeFromCookie, themeFromCookie, type Token } from "./themeTokens";
 
 const THEMES: Theme[] = ["light", "dim", "dark"];
 const hex = (s: string) => toHex(parseColor(s)!) + (parseColor(s)![3] < 1 ? Math.round(parseColor(s)![3] * 255).toString(16).padStart(2, "0") : "");
@@ -72,11 +72,6 @@ describe("Lite's v8 tokens", () => {
       expect(contrast(c("accInk"), c("acc")), `${p} accInk on acc`).toBeGreaterThanOrEqual(4.5);
     });
   }
-  it("reads the look's cookie: only 0 is the classic look", () => {
-    expect(v8FromCookie("0")).toBe(false);
-    expect(v8FromCookie("1")).toBe(true);
-    expect(v8FromCookie("")).toBe(true);
-  });
 });
 
 describe("the cookies Lite reads", () => {

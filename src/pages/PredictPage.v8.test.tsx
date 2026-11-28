@@ -2,7 +2,7 @@
 // Predict in v8 (docs/design/v8-revamp-brief.md, <html data-v8>), rebuilt around "who wins this match, and why?":
 // a bare /predict opens on the matchup, the call (each side's chance and the called score) comes straight after the
 // pick, the reasons under it, and the detail and the what-if tool behind disclosures. On a phone the picked teams
-// fold to one line. Your teams fill the boxes in a tap. With v8 off the page is drawn as before.
+// fold to one line. Your teams fill the boxes in a tap.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -127,19 +127,5 @@ describe("Predict, v8 on", () => {
     await screen.findByRole("region", { name: "The call" });
     expect((screen.getByTestId("call-what-if") as HTMLDetailsElement).open).toBe(true);
     expect(screen.getByTestId("what-if")).toBeTruthy();
-  });
-});
-
-describe("Predict, v8 off", () => {
-  it("draws the classic page: Advancement first on a bare link, the classic matchup card", async () => {
-    mount("/predict");
-    expect(document.querySelector("[data-predict-v8]")).toBeNull();
-    expect(screen.getAllByRole("tab").map((t) => t.getAttribute("aria-label"))).toEqual(["Advancement", "Scheduled", "Custom matchup"]);
-    expect(screen.getByRole("tab", { name: "Advancement" }).getAttribute("aria-selected")).toBe("true");
-    cleanup();
-    mount(MATCH);
-    expect(await screen.findByRole("button", { name: /Predict this match/ })).toBeTruthy();
-    expect(document.querySelector("[data-call-v8]")).toBeNull();
-    expect(document.querySelector("[data-matchup-summary]")).toBeNull();
   });
 });

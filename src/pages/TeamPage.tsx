@@ -54,16 +54,16 @@ import { ReportCardSection } from "../components/ReportCard";
 import { ReliabilitySection } from "../components/Reliability";
 import { TeamScheduleSection } from "../components/ScheduleDifficulty";
 import { predictHref } from "../shared/predictUrl";
-import { useIsV8 } from "../lib/v8";
+
 import { V8_PHASE } from "../lib/records/describe";
 import { btbEpisodes, FeaturedBadge, FeaturedSection } from "../components/FeaturedVideos";
 import { TeamLogo } from "../components/TeamLogo";
 
 /** v8 (docs/design/v8-revamp-brief.md): a small label, sentence case and faint (the uppercase tracked eyebrows today). */
 const V8_LABEL = "v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint";
-/** A row or card that answers the pointer: the .lift class today (rise and glow); in v8 a faint hover fill only.
- *  .lift is plain CSS outside the layers, so no v8: class can undo it: it's left off in v8. */
-const v8Row = (v8: boolean) => (v8 ? "transition-colors hover:bg-ink/[0.03] border-line" : "lift");
+/** A row or card that answers the pointer: a faint hover fill. (The classic .lift, rise and glow, is plain CSS outside
+ *  the layers, so it is left off: no v8: class could undo it.) */
+const v8Row = "transition-colors hover:bg-ink/[0.03] border-line";
 
 /** Track and stop-tracking notes share one toast, so tapping Track twice replaces the note rather than stacking two. */
 const TRACK_NOTE = "team-track-note";
@@ -100,60 +100,7 @@ export default function TeamPage() {
 }
 
 function Profile(props: { p: TeamProfile; drawn?: boolean; asked: boolean; onSeason: (s: number) => void }) {
-  // v8 is a page of its own (V8Profile below); without it the page is drawn as it always was.
-  return useIsV8() ? <V8Profile {...props} drawn={props.drawn ?? false} /> : <ClassicProfile {...props} />;
-}
-
-function ClassicProfile({ p, drawn = false, asked, onSeason }: { p: TeamProfile; drawn?: boolean; asked: boolean; onSeason: (s: number) => void }) {
-  const hasResults = p.events.length > 0;
-  // 2019–2022: results and stats only (no ratings, predictions or scouting templates).
-  const predictable = usePredictable(p.season);
-  // The hero paints first; the sections under it (charts, tables) mount right after. Unless the server drew the
-  // whole page already: then all of it at once, as drawn.
-  const rest = useAfterFirstPaint(drawn);
-  const fellBackFrom = useFellBackFrom(p, asked);
-  return (
-    <div className="min-w-0">
-      <OfflineNote data={p} />
-      <Hero p={p} onSeason={onSeason} fellBackFrom={fellBackFrom} asked={asked} />
-      {!rest ? null : !hasResults ? (
-        <EmptyState className="mb-8 max-sm:mb-5" icon={CalendarDays} title={`No ${seasonLabel(p.season)} results for ${p.team.number} yet`}
-          description={p.seasons.length > 1 ? "Pick another season above to see past results." : "This team hasn't played an event we have data for."} />
-      ) : (
-        <>
-          {/* Wide desktops: two columns, so the side space carries content instead of margins. */}
-          <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:gap-x-8">
-            <OprSection p={p} />
-            <TrendChart events={p.events} season={p.season} />
-          </div>
-          {/* Closed at first, each asked for (or drawn) only when opened; closed again for another team or season. */}
-          <Fragment key={`${p.team.number}-${p.season}`}>
-            {p.stats?.reliability !== undefined && <ReliabilitySection r={p.stats.reliability} />}
-            {predictable && <ReportCardSection team={p.team.number} season={p.season} />}
-            {predictable && <TeamScheduleSection team={p.team.number} season={p.season} events={p.events} />}
-          </Fragment>
-          <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
-            <Section id="events" also={["ranking", "history"]} title={`Season Road Map (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
-              <EventHistory events={p.events} team={p.team.number} />
-              {p.events.some((e) => e.played) && <p className="mt-2 text-xs text-muted-foreground">Records count {RECORD_RULE_LOWER}</p>}
-            </Section>
-            <div className="min-w-0">
-              <AwardsAllTime p={p} />
-              {predictable && <ScoutNotes team={p.team.number} season={p.season} />}
-            </div>
-          </div>
-          <MatchesSection team={p.team.number} season={p.season} events={p.events} predictable={predictable} />
-        </>
-      )}
-      {rest && !hasResults && <><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
-      {rest && <FeaturedSection key={p.team.number} featured={p.featured} team={p.team.number} />}
-      {/* Workspace members only: their workspace's scouting on this team (nothing for anyone else). Last, after
-          the team's own numbers and matches: it's the members' take, not the first thing a search opens on. */}
-      {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} reliability={p.stats?.reliability} />}
-      {/* The scouting commons: other workspaces' shared pit scouting, a separate layer after the reader's own take. */}
-      {rest && predictable && <CommonsSection team={p.team.number} season={p.season} />}
-    </div>
-  );
+  return <V8Profile {...props} drawn={props.drawn ?? false} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -172,138 +119,7 @@ function useFellBackFrom(p: TeamProfile, asked: boolean): number | null {
   return !asked && p.season < current && p.seasons.includes(current) ? current : null;
 }
 
-function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; onSeason: (s: number) => void; fellBackFrom: number | null; asked?: boolean }) {
-  const t = p.team;
-  const { flags, track, shortlist, workspaceUser } = useTeamActions(t.number);
-  const loc = place(t.city, t.state, t.country);
-  const s = p.stats;
-  // Over or not on the event's own calendar (a California event's last evening is already tomorrow in UTC).
-  const clock = Date.now();
-  const next = p.events.find((e) => !eventOver(e, clock)) ?? null;
-  const last = [...p.events].reverse().find((e) => eventOver(e, clock)) ?? null;
-  const current = useCurrentSeason();
-  const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
-  const predictable = usePredictable(p.season);
-  const share = () => copyLink();
-  // The end of the header: the phone action bar shows once it has scrolled away.
-  const [headerEnd, setHeaderEnd] = useState<HTMLDivElement | null>(null);
-  const matchHref = predictHref({ mode: "match", season: p.season, red: [t.number] });
-  return (
-    <>
-    <Reveal fade={false} className="mb-8 max-sm:mb-5 overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-        {/* Who this is */}
-        <div className="relative min-w-0 p-4 sm:p-8">
-          <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 size-64 rounded-full bg-accent opacity-[0.12] blur-3xl" />
-          <p className="relative text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">FTC team · {seasonLabel(p.season)}</p>
-          {/* The heading is the number and name together (what people search for), styled as two lines. */}
-          <TeamLogo team={t.number} size={40} className="relative mt-3 block rounded-md" />
-          <h1 className="relative mt-1">
-            <span className="block w-fit font-display text-5xl font-semibold leading-none tracking-tight sm:text-6xl">{t.number}</span>
-            {t.name && <span className="mt-2 block break-words font-sans text-xl font-normal tracking-normal text-foreground/90"><span className="sr-only"> </span>{t.name}</span>}
-          </h1>
-          {!t.name && <p className="relative mt-2 break-words text-xl text-foreground/90">Name not on file</p>}
-          <div className="relative mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
-            {t.school && <span className="flex min-w-0 items-center gap-1.5"><GraduationCap className="size-4 shrink-0" /><span className="truncate sm:max-w-[22rem]">{t.school}</span></span>}
-            {loc && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{loc}</span>}
-            {t.rookieYear && <span>Rookie year {t.rookieYear}</span>}
-            {t.website && <a href={t.website.startsWith("http") ? t.website : `https://${t.website}`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
-          </div>
-          {t.sponsors.length > 0 && (
-            <Collapsible className="relative mt-3">
-              <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-10 pointer-coarse:min-h-[44px]">
-                <span className="shrink-0 whitespace-nowrap font-medium text-foreground">Sponsors ({t.sponsors.length})</span>
-                <span className="truncate group-data-[state=open]:hidden">{t.sponsors.slice(0, 2).join(" · ")}{t.sponsors.length > 2 ? " …" : ""}</span>
-                <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-1 text-sm text-muted-foreground">{t.sponsors.join(" · ")}</CollapsibleContent>
-            </Collapsible>
-          )}
-          <div className="relative mt-5 max-sm:mt-4"><SeasonToggle seasons={p.seasons} value={p.season} onChange={onSeason} /></div>
-          {fellBackFrom != null && (
-            <p className="relative mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-season-fallback>
-              <Info className="size-3.5 shrink-0 text-accent-text" aria-hidden />
-              <span>No {seasonLabel(fellBackFrom)} results yet, so this shows {seasonLabel(p.season)}.</span>
-              <button type="button" onClick={() => onSeason(fellBackFrom)} className="tap-44 -my-1 py-1 font-medium text-accent-text underline-offset-2 hover:underline">See {seasonLabel(fellBackFrom)}</button>
-            </p>
-          )}
-          <div className="relative mt-4 flex flex-wrap gap-2">
-            <Button variant={flags.isMine ? "secondary" : "outline"} size="sm" aria-pressed={flags.isMine} onClick={() => flags.setMine(!flags.isMine)} className="max-sm:h-10">
-              <Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "My team" : "Mark as my team"}
-            </Button>
-            <Button variant={flags.tracked ? "secondary" : "outline"} size="sm" aria-pressed={flags.tracked} onClick={track} className="max-sm:h-10" title={flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search"}>
-              <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
-            </Button>
-            <Button variant={flags.bookmarked ? "secondary" : "outline"} size="sm" aria-pressed={flags.bookmarked} onClick={shortlist} className="max-sm:h-10">
-              {flags.bookmarked ? <BookmarkCheck /> : <Bookmark />} {flags.bookmarked ? "Shortlisted" : "Shortlist"}
-            </Button>
-            <Button variant="outline" size="sm" asChild className="max-sm:h-10"><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
-            {p.highlights && <Button variant="outline" size="sm" asChild className="max-sm:h-10"><Link to={`/teams/${t.number}/highlights`} data-highlights-link><Sparkles /> Highlights</Link></Button>}
-            {p.recordSplit && <Button variant="outline" size="sm" asChild className="max-sm:h-10"><Link to={`/teams/${t.number}/record-split`} data-record-split-link><Trophy /> Quals vs playoffs</Link></Button>}
-            <Button variant="outline" size="sm" onClick={share} className="max-sm:h-10"><Link2 /> Share</Button>
-          </div>
-          <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="tap-44 relative mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground underline decoration-current/40 underline-offset-2 hover:text-accent-text">
-            Manage this team in Control Point <ExternalLink className="size-3" />
-          </a>
-          <div className="relative mt-4"><FeaturedBadge featured={p.featured} team={t.number} /></div>
-          {workspaceUser && flags.isMine && (
-            <Link to={FOLLOWED_TEAM_PATH} className="relative ml-4 mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent-text">
-              <Star className="size-3" aria-hidden /> My followed team dashboard
-            </Link>
-          )}
-        </div>
-        {/* At a glance: the five-second answer to "is this team good?" */}
-        <div className="min-w-0 border-t border-border bg-secondary/60 p-4 sm:p-8 lg:border-l lg:border-t-0">
-          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">At a glance · {seasonLabel(p.season)}</p>
-          {!s ? (
-            <div className="mt-4 space-y-3 text-sm">
-              <p className="text-muted-foreground">No results this season yet.</p>
-              {p.seasons.filter((x) => x < p.season).slice(0, 1).map((prev) => (
-                <button key={prev} onClick={() => onSeason(prev)} className="lift flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left">
-                  <span>See how {t.number} did in {seasonLabel(prev)}</span><span className="text-accent-text">→</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <>
-              <p className={cn("mt-3 font-display text-5xl font-semibold tabular-nums", PROFILE_PERCENTILE_TEXT)}>{top ?? "Unranked"}</p>
-              <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()} teams with an OPR` : ""}</p>
-              <dl className={cn("mt-5 max-sm:mt-4 grid gap-3", s.reliability ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
-                <div><dt className="text-xs text-muted-foreground" title={OPR_TERM}>OPR</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.opr.np.value)}</dd></div>
-                {predictable
-                  ? <div><dt className="text-xs text-muted-foreground" title={RATING_TERM}>Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
-                  : <div><dt className="text-xs text-muted-foreground">Avg score</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.avg.np)}</dd></div>}
-                <div><dt className="text-xs text-muted-foreground" title={`${OFFICIAL_RULE} ${RECORD_RULE}`}>Record</dt><dd className="font-display text-2xl font-semibold tabular-nums" title={`${OFFICIAL_RULE} ${RECORD_RULE}`}>{s.record.wins}-{s.record.losses}-{s.record.ties}</dd><dd className="text-xs text-muted-foreground" data-record-scope>{OFFICIAL_ONLY}</dd></div>
-                {s.reliability && <div><dt className="text-xs text-muted-foreground" title="An estimate from match results: no-shows, DQs, near-zero matches, swing, penalties">Reliability</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.reliability.index}<span className="text-sm font-normal text-muted-foreground"> /100</span></dd></div>}
-              </dl>
-              <OffSeasonLine events={p.events} />
-            </>
-          )}
-          {/* What's next: on the team's own page (its newest season, or the current one); a past season asked for shows only its last event. */}
-          {!asked || p.season >= current ? <Upcoming p={p} next={next} last={last} /> : last && <LastEvent last={last} team={t.number} className="mt-5 max-sm:mt-4" />}
-          {p.league && <LeagueStanding league={p.league} season={p.season} team={t.number} />}
-          {p.league?.region.toUpperCase() === CONFERENCE_REGION && <ConferenceStanding season={p.season} team={t.number} />}
-          {p.region && <RegionStanding region={p.region} season={p.season} team={t.number} />}
-          {predictable ? (
-            <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2">
-              <Button size="sm" asChild><Link to={matchHref}><Sparkles /> Predict a match with {t.number}</Link></Button>
-              {!(next && ADVANCING.has(next.type ?? "")) && <Button size="sm" variant="secondary" asChild><Link to={predictHref({ mode: "advancement", season: p.season, team: t.number })}><Trophy /> Advancement odds</Link></Button>}
-            </div>
-          ) : <p className="mt-5 max-sm:mt-4 text-xs text-muted-foreground">{seasonLabel(p.season)} is shown for history: results and stats, no predictions (those start with 2023–24).</p>}
-        </div>
-      </div>
-      <div ref={setHeaderEnd} aria-hidden />
-    </Reveal>
-    {/* Phones: once the header has scrolled away, its main actions stay in reach (history seasons: Track only, no predictions). */}
-    <StickyActions after={headerEnd} label={`Actions for team ${t.number}`}>
-      {predictable && <Button asChild><Link to={matchHref}><Sparkles /> <span className="truncate">Predict with {t.number}</span></Link></Button>}
-      <Button variant={flags.tracked ? "secondary" : "outline"} aria-pressed={flags.tracked} onClick={track} className={cn(predictable && "!flex-none")}>
-        <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
-      </Button>
-    </StickyActions>
-    </>
-  );
-}
+
 
 // ---------------------------------------------------------------------------
 // OPR + rating
@@ -313,7 +129,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
 
 /** The hero's headline numbers, explained where they first appear (hover, or long-press on a phone; the
  *  Offensive power rating section right below says the same in full). */
-const OPR_TERM = "OPR, offensive power rating: the points a team adds to its alliance's score per match, from least squares over its event (penalty points left out)";
+
 const RATING_TERM = "Rating: what the prediction engine expects this robot to add now. Unlike OPR it updates after every match and carries over from last season; ± is its uncertainty";
 
 /** Exported for its test. */
@@ -405,7 +221,7 @@ const TRENDS: { key: TrendKey; label: string; suffix?: string; lowerIsBetter?: b
 function TrendChart({ events, season }: { events: TeamEventRow[]; season: number }) {
   const [key, setKey] = useState<TrendKey>("opr");
   // v8: mint is the chart's one highlight series (brief §5, charts).
-  const v8 = useIsV8();
+  
   const t = TRENDS.find((x) => x.key === key)!;
   const rows = useMemo(() => events.map((e, i) => ({ i, name: e.name, value: t.get(e) == null ? null : Math.round(t.get(e)! * 10) / 10 })), [events, t]);
   const vals = rows.map((r) => r.value);
@@ -424,7 +240,7 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
           {dir && <Badge variant={good == null ? "secondary" : good ? "success" : "destructive"}>{dir === "up" ? <TrendingUp /> : dir === "down" ? <TrendingDown /> : null}{trendLabel(dir)}</Badge>}
         </div>
         {rows.length < 2 ? <p className="py-8 max-sm:py-5 text-center text-sm text-muted-foreground">One event so far — the trend line appears after a second event.</p> : (
-          <ChartContainer config={{ value: { label: t.label, color: v8 ? "var(--color-accent)" : "var(--color-chart-1)" } }} className="h-56 w-full">
+          <ChartContainer config={{ value: { label: t.label, color: "var(--color-accent)" } }} className="h-56 w-full">
             <LineChart data={rows} margin={{ top: 8, right: 12, left: 4, bottom: 14 }}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="i" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(i: number) => `E${i + 1}`} label={{ value: "Event, oldest to newest", position: "insideBottom", offset: -12, className: "fill-muted-foreground text-xs" }} />
@@ -482,11 +298,11 @@ export function RowRecord({ e }: { e: TeamEventRow }) {
 }
 
 function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }) {
-  const v8 = useIsV8();
+  
   return (
     <div className="space-y-2">
       {[...events].reverse().map((e) => (
-        <Link key={e.code} to={`/events/${e.season}/${e.code}?team=${team}`} className={cn(v8Row(v8), "flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 sm:flex-nowrap")}>
+        <Link key={e.code} to={`/events/${e.season}/${e.code}?team=${team}`} className={cn(v8Row, "flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 sm:flex-nowrap")}>
           <RankMedal rank={e.rank} />
           <div className="min-w-0 flex-1">
             {/* Two lines on a phone before it cuts off: long event names are the norm, and a tooltip needs a mouse. */}
@@ -536,7 +352,7 @@ function MatchesSection({ team, season, events, predictable }: { team: number; s
 const V8_GOLD = "v8:text-[#fcd34d] v8light:text-amber-700";
 
 export function AwardsAllTime({ p }: { p: TeamProfile }) {
-  const v8 = useIsV8();
+  
   if (!p.awardsAllTime.length) return null;
   return (
     <Section id="awards" title={`Awards (${p.awardsAllTime.length})`} description="Every award in the seasons we cover">
@@ -544,7 +360,7 @@ export function AwardsAllTime({ p }: { p: TeamProfile }) {
       <div className="flex flex-wrap gap-2 pointer-coarse:gap-y-[10px]">
         {p.awardsAllTime.map((a, i) => (
           // The event on its own muted line: a tooltip never opens on a tap.
-          <Link key={i} to={`/events/${a.season}/${a.code}`} className={cn("tap-44", v8Row(v8), "inline-flex max-w-[18rem] flex-col rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs")}>
+          <Link key={i} to={`/events/${a.season}/${a.code}`} className={cn("tap-44", v8Row, "inline-flex max-w-[18rem] flex-col rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs")}>
             <span className="inline-flex items-center gap-1.5"><Award className={cn("size-3.5 shrink-0 text-accent", V8_GOLD)} /><span className={cn("v8:font-medium", V8_GOLD)} data-award-name>{awardLabel(a.type, a.placement)}</span><span className="text-muted-foreground">· {seasonLabel(a.season)}</span></span>
             <span className="truncate pl-5 text-muted-foreground" title={a.event}>{a.event}</span>
           </Link>
@@ -557,14 +373,14 @@ export function AwardsAllTime({ p }: { p: TeamProfile }) {
 function ScoutNotes({ team, season }: { team: number; season: number }) {
   const { syncReady } = usePersonal();
   const { entries } = useScouting({ season, team }, syncReady);
-  const v8 = useIsV8();
+  
   return (
     <Section title="My scouting notes" description="Only you see these. They're saved on this device and sync to your account when you're signed in."
       action={<Button variant="secondary" size="sm" asChild><Link to={`/scout?team=${team}&season=${season}&new=1`}><ClipboardList /> Scout this team</Link></Button>}>
       {!entries.length ? <p className="rounded-xl border border-dashed border-border px-4 py-6 max-sm:py-4 text-center text-sm text-muted-foreground">No notes for {team} in {seasonLabel(season)} yet.</p> : (
         <div className="grid gap-2 sm:grid-cols-2">
           {entries.slice(0, 6).map((e) => (
-            <Link key={e.uuid} to={`/scout?team=${team}&season=${season}&space=personal&entry=${e.uuid}`} className={cn(v8Row(v8), "rounded-xl border border-border bg-card p-3 text-sm")}>
+            <Link key={e.uuid} to={`/scout?team=${team}&season=${season}&space=personal&entry=${e.uuid}`} className={cn(v8Row, "rounded-xl border border-border bg-card p-3 text-sm")}>
               <p className="font-medium">{e.kind === "pit" ? "Pit scouting" : `Match ${e.matchLabel ?? ""}`} {e.eventCode && <span className="text-muted-foreground">· {e.eventCode}</span>}</p>
               <p className="mt-1 line-clamp-2 text-muted-foreground">{e.notes || `${Object.keys(e.data).length} fields recorded`}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">{int(Object.keys(e.data).length)} fields · {dayDate(e.updatedAt)}</p>
@@ -583,7 +399,7 @@ export function NextChance({ chance, tier }: { chance: number; tier: ConfidenceT
 
 const ROW_BASE = "flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm pointer-coarse:min-h-[44px] v8:border-line";
 /** A row under the glance (standings, last and next event), drawn for this page load's look (v8: no lift). */
-const useRow = () => cn(v8Row(useIsV8()), ROW_BASE);
+const useRow = () => cn(v8Row, ROW_BASE);
 
 /** The team's last event, one tap to its page: where it ranked and what it won. */
 /** The team's place in its league (FIRST's league rankings, every meet so far), linking to the league's standings
@@ -629,11 +445,11 @@ function RegionStanding({ region, season, team }: { region: NonNullable<TeamProf
 
 function LastEvent({ last, team, className }: { last: TeamEventRow; team: number; className?: string }) {
   const row = useRow();
-  const v8 = useIsV8();
+  
   return (
     <Link to={`/events/${last.season}/${last.code}?team=${team}`} className={cn(row, "border-border bg-card", className)}>
       <span className="min-w-0 truncate" title={last.name}><span className="text-muted-foreground">Last · </span>{last.name}</span>
-      <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{v8 && last.wins != null ? ` · ${last.wins}-${last.losses ?? 0}-${last.ties ?? 0}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
+      <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{last.wins != null ? ` · ${last.wins}-${last.losses ?? 0}-${last.ties ?? 0}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
     </Link>
   );
 }

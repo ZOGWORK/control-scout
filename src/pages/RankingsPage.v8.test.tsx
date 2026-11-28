@@ -2,10 +2,9 @@
 // The rankings area in v8 (docs/design/v8-revamp-brief.md §5 Tables, <html data-v8>): the rankings sub-nav is a tab
 // strip (the current page white with the slate-blue line); the table has no box, a quiet head and 44px rows; #1 is the
 // only rank in the accent; your team's row is white (a white edge, never the accent); the explanations sit behind one
-// disclosure under the table; the league table (server-drawn first paint) is styled by CSS alone. With v8 off, every
-// page draws as before: no tabs, the season note in its card, the swing line under the table.
+// disclosure under the table; the league table (server-drawn first paint) is styled by CSS alone.
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { RegionRankingsResponse, RegionRow } from "../shared/regionRankings";
 import type { RankingsResponse, RankingRow } from "../shared/rankings";
@@ -46,11 +45,9 @@ const { RankingsTabs } = await import("../components/rankings/v8");
 
 const region = () => render(<MemoryRouter initialEntries={["/rankings/regions/USA/NJ"]}><Routes><Route path="/rankings/regions/:country/:state?" element={<RegionRankingsPage />} /></Routes></MemoryRouter>);
 const world = () => render(<MemoryRouter initialEntries={["/rankings"]}><Routes><Route path="/rankings" element={<RankingsPage />} /></Routes></MemoryRouter>);
-const v8 = (on: boolean) => { if (on) document.documentElement.setAttribute("data-v8", ""); else document.documentElement.removeAttribute("data-v8"); };
 const cls = (el: Element | null) => (el?.getAttribute("class") ?? "").split(/\s+/);
 
-beforeEach(() => v8(true));
-afterEach(() => { cleanup(); v8(false); });
+afterEach(() => cleanup());
 
 describe("rankings in v8", () => {
   it("has the rankings tabs, the current page marked", () => {
@@ -107,27 +104,11 @@ describe("rankings in v8", () => {
   });
 });
 
-describe("rankings with v8 off", () => {
-  beforeEach(() => v8(false));
-
-  it("has no tabs, keeps the season note card and the table's own notes", () => {
-    region();
-    expect(screen.queryByRole("navigation", { name: "Rankings" })).toBeNull();
-    expect(document.querySelector("details[data-disclosure]")).toBeNull();
-    expect(cls(document.querySelector("[data-season-note]"))).toEqual(expect.arrayContaining(["rounded-lg", "border", "bg-card"]));
-    expect(document.querySelector("[data-region-table]")?.textContent).toMatch(/Sorted by rank/);
-  });
-
-  it("world rankings keep the swing line under the table and the regions link", () => {
-    world();
-    expect(document.querySelector("[data-swing-line]")?.closest("details")).toBeNull();
-    expect(screen.getByRole("link", { name: "Rankings by region" })).toBeTruthy();
-  });
-
-  it("the server-drawn tabs are in the markup but hidden by CSS until v8", () => {
-    render(<MemoryRouter><RankingsTabs at="leagues" season={2025} ssr /></MemoryRouter>);
+describe("rankings tabs", () => {
+  it("draws them on every rankings page, the page you're on marked", () => {
+    render(<MemoryRouter><RankingsTabs at="leagues" season={2025} /></MemoryRouter>);
     const nav = screen.getByRole("navigation", { name: "Rankings" });
-    expect(cls(nav)).toEqual(expect.arrayContaining(["hidden", "v8:flex"]));
+    expect(cls(nav)).toContain("flex");
     expect(nav.querySelector("[aria-current=page]")?.getAttribute("href")).toBe("/leagues?season=2025");
   });
 });

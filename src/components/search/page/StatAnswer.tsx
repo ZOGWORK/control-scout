@@ -6,7 +6,7 @@ import { ArrowRight, BarChart3, CalendarDays, Hash, Info, Medal, Sparkles, Targe
 import { eventTypeLabel } from "../../../shared/labels";
 import { seasonLabel, recordWords, fixed } from "../../../shared/format";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
-import { useIsV8 } from "../../../lib/v8";
+
 import type { StatAnswer, StatBlock, StatLink, StatRecord } from "../../../shared/searchStat";
 import type { SearchCard } from "../../../shared/api";
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
@@ -95,12 +95,12 @@ function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string;
   // About one team: its hue on the card's numbers and bars; about none (a season's top matches): ink.
   const one = teams?.length === 1;
   const profile = useTeamProfile(teams?.length === 1 ? teams[0].number : null, season);
-  const v8 = useIsV8();
+  
   // An answer about no team shows its season as the frame's picker (./SeasonPick.tsx): not again among the chips.
   const picked = !!useSeasonPick() && !teams?.length && stated != null;
   const chips = picked ? stat.scope.filter((s) => !(statedSeason(s) != null && s.length <= 7)) : stat.scope;
   // v8 draws a ranked list with no headline number: the list itself is the answer.
-  const listOnly = v8 && stat.family === "leaderboard" && stat.blocks.some((b) => b.kind === "leaderboard");
+  const listOnly = stat.family === "leaderboard" && stat.blocks.some((b) => b.kind === "leaderboard");
   // A list that opens the card: its label and what it counts join the frame's header block (chips, label, meta on one
   // left edge, the season picker beside them), not a second header of its own under it.
   const lead = (listOnly || !stat.headline) && stat.blocks[0]?.kind === "leaderboard" ? stat.blocks[0] : null;
@@ -657,18 +657,18 @@ function LeaderboardCaption({ b, className }: { b: Extract<StatBlock, { kind: "l
 function Leaderboard({ b, captioned = true }: { b: Extract<StatBlock, { kind: "leaderboard" }>; captioned?: boolean }) {
   const table = useMemo(() => teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame, b.lowest), [b]);
   // v8: a ranking is sized to the question, its top five, the rest in place with one tap (the page plan).
-  const v8 = useIsV8();
+  
   const [all, setAll] = useState(false);
   // Another answer in the same place (the page stays mounted from one search to the next) opens short again.
   const [shownFor, setShownFor] = useState(b);
   if (shownFor !== b) { setShownFor(b); setAll(false); }
   // A count asked for ("top 10 teams") is shown whole: the question sized it.
-  const short = v8 && !all && !b.whole && table.rows.length > V8_TOP;
+  const short = !all && !b.whole && table.rows.length > V8_TOP;
   return (
     <figure data-block="leaderboard">
       {captioned && <figcaption className="mb-2"><LeaderboardCaption b={b} /></figcaption>}
       <TeamTable table={table} label={b.title} limit={short ? V8_TOP : undefined} />
-      {v8 && !b.whole && table.rows.length > V8_TOP && (
+      {!b.whole && table.rows.length > V8_TOP && (
         <button type="button" onClick={() => setAll((a) => !a)} aria-expanded={all}
           className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm text-text-muted hover:bg-ink/[0.06] hover:text-foreground max-md:min-h-[44px]" data-show-all>
           {all ? "Show top 5" : `Show all ${table.rows.length}`}

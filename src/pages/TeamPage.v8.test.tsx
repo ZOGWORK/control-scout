@@ -3,7 +3,6 @@
 // now, and what's next?": identity, the standing in one row (numbers in the slate-blue accent) and what's next first,
 // every action in a row under the standing (one primary), then the matches; OPR and the rating as one quiet Strength table (mint only on its bars), how
 // it's computed behind a disclosure; no hover lift or glow; the closed sections as card headers with no colour wash.
-// With v8 off the page is drawn exactly as before.
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -218,25 +217,5 @@ describe("team page, v8 on", () => {
       expect(b.querySelectorAll("svg")).toHaveLength(2); // the icon before the title, and the chevron
     }
     expect(folded("Reliability").querySelector("[data-section-count]")!.textContent).toContain("32 matches");
-  });
-});
-
-describe("team page, v8 off (unchanged)", () => {
-  it("draws the classic header, OPR tiles and coloured section wash", () => {
-    mount();
-    expect(document.querySelector("[data-team-v8]")).toBeNull();
-    expect(document.querySelector("[data-standing]")).toBeNull();
-    expect(screen.getAllByRole("radio").length).toBeGreaterThan(0); // the season pills
-    expect(screen.getByRole("button", { name: /Share/ })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Highlights/ })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /Season Road Map \(1\)/ })).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: /Show event by event$/ })).toHaveLength(4);
-    expect(document.querySelectorAll(".lift").length).toBeGreaterThan(0);
-    for (const name of FOLDED) {
-      const b = folded(name);
-      expect(b.style.backgroundImage).toContain("gradient");
-      expect(b.querySelectorAll("svg")).toHaveLength(1); // the chevron only: no icon
-      expect(b.querySelector("[data-section-count]")).toBeNull();
-    }
   });
 });

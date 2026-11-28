@@ -17,7 +17,7 @@ import { useFlag } from "../lib/flags";
 import { NotFoundView } from "../components/NotFoundView";
 import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
-import { useIsV8, V8_NUM } from "../lib/v8";
+import { V8_NUM } from "../lib/v8";
 import { RankingsTabs, V8_CAPTION, V8_DOWN, V8_EYEBROW, V8_HEAD, V8_ICON, V8_LINK, V8_NOTE, V8_UP, v8Medal } from "../components/rankings/v8";
 import {
   generatedNote, isWeekId, publishedLine, statsLine, weekLabel,
@@ -141,15 +141,15 @@ function GeneratedNote({ text }: { text: string }) {
 }
 
 function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRankingsSummary[]; onLink: (ev: MouseEvent<HTMLElement>) => void }) {
-  const v8 = useIsV8();
+  
   return (
     <div className={V8_HEAD}>
       <PageHeader
         eyebrow={<span className={V8_EYEBROW}>{weekLabel(w.week)} · {seasonLabel(w.season)}</span>}
         title={w.title}
         description={`${publishedLine(w)}${w.comparedWith ? `. Moves are since week ${Number(w.comparedWith.slice(6))}.` : "."} ${statsLine(w)}`}
-        actions={<Button variant={v8 ? "outline" : "secondary"} onClick={() => void share(w)}><Share2 /> Share</Button>}
-      >{v8 ? <RankingsTabs at="power" season={w.season} /> : null}</PageHeader>
+        actions={<Button variant={"outline"} onClick={() => void share(w)}><Share2 /> Share</Button>}
+      >{<RankingsTabs at="power" season={w.season} />}</PageHeader>
       {w.sample && (
         <div role="note" className={cn("-mt-4 mb-6 max-sm:mb-4 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-accent-text", V8_NOTE)}>
           <FlaskConical className={cn("mt-0.5 size-4 shrink-0", V8_ICON)} aria-hidden />
@@ -175,8 +175,8 @@ function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRank
         </p>
       )}
       <nav aria-label="Other weeks" className="mb-10 max-sm:mb-6 flex flex-wrap items-center gap-2">
-        {w.previous && <Button variant={v8 ? "outline" : "secondary"} asChild><Link to={`/power-rankings/${w.previous}`}><ArrowLeft /> Week {Number(w.previous.slice(6))}</Link></Button>}
-        {w.next && <Button variant={v8 ? "outline" : "secondary"} asChild><Link to={`/power-rankings/${w.next}`}>Week {Number(w.next.slice(6))} <ArrowRight /></Link></Button>}
+        {w.previous && <Button variant={"outline"} asChild><Link to={`/power-rankings/${w.previous}`}><ArrowLeft /> Week {Number(w.previous.slice(6))}</Link></Button>}
+        {w.next && <Button variant={"outline"} asChild><Link to={`/power-rankings/${w.next}`}>Week {Number(w.next.slice(6))} <ArrowRight /></Link></Button>}
         <Button variant="ghost" asChild className={V8_LINK}><Link to={w.worldRankings}><ListOrdered /> Every team in the world rankings</Link></Button>
       </nav>
       <Archive archive={archive} current={w.week} />

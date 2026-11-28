@@ -2,8 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { act, cleanup, render } from "@testing-library/react";
-import { V8_DEFAULT, useIsV8 } from "../lib/v8";
+import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import KitPage from "./KitPage";
 import { TooltipProvider } from "../components/ui/overlay";
@@ -16,7 +15,7 @@ const mount = () => render(<MemoryRouter><TooltipProvider><KitPage /></TooltipPr
 
 afterEach(() => { cleanup(); document.documentElement.removeAttribute("data-v8"); document.documentElement.className = ""; });
 
-describe("v8 kit (/preview/kit)", () => {
+describe("the kit (/preview/kit)", () => {
   it("is its own noindex route", () => {
     expect(pageModule("/preview/kit")).toBe("KitPage");
     expect(pageTitle("/preview/kit")).toBe("Kit");
@@ -27,40 +26,21 @@ describe("v8 kit (/preview/kit)", () => {
     expect([...container.querySelectorAll("[data-kit]")].map((s) => s.getAttribute("data-kit"))).toEqual(["colour", "type", "buttons", "inputs", "tabs", "cards", "overlays"]);
   });
 
-  it("draws in v8 while open and takes it off after, touching no theme class itself", () => {
+  it("leaves the look to <html>, touching no theme class itself", () => {
     const root = document.documentElement;
     root.classList.add("light");
     const { unmount } = mount();
-    expect(root.hasAttribute("data-v8")).toBe(true);
     unmount();
-    expect(root.hasAttribute("data-v8")).toBe(false);
     expect(root.classList.contains("light")).toBe(true);
-  });
-
-  it("the theme follows the switch live: dark while v8 is on, the saved one once it's off", async () => {
-    const seen: string[] = [];
-    function Probe() { seen.push(useIsV8() ? "v8" : "off"); return null; }
-    render(<Probe />);
-    await act(async () => { document.documentElement.setAttribute("data-v8", ""); });
-    await act(async () => { document.documentElement.removeAttribute("data-v8"); });
-    expect(seen.filter((x, i) => x !== seen[i - 1])).toEqual(["off", "v8", "off"]);
-  });
-
-  it("leaves v8 on when the device already has it", () => {
-    document.documentElement.setAttribute("data-v8", "");
-    const { unmount } = mount();
-    unmount();
-    expect(document.documentElement.hasAttribute("data-v8")).toBe(true);
   });
 });
 
-describe("v8 foundations", () => {
-  it("is on by default before first paint, off only for a device that picked the classic look, and takes the saved theme", () => {
-    expect(html).toContain("/[?&]v8=([01])/");
-    // v8 is the default (V8_DEFAULT): only a stored "0" (the classic look, /legacy) turns it off.
-    expect(V8_DEFAULT).toBe(true);
-    expect(html).toContain("var v8 = q ? q[1] === '1' : stored !== '0';");
-    // v8 has its own Light and Dim now (index.css html[data-v8].light / .dim): the saved theme applies in both looks.
+describe("foundations", () => {
+  it("is on before first paint, and takes the saved theme", () => {
+    // <html data-v8> is set unconditionally by index.html's first script: there is no other look to pick.
+    expect(html).toContain("document.documentElement.setAttribute('data-v8', '');");
+    expect(html).not.toContain("cs-v8");
+    // Its own Light and Dim (index.css html[data-v8].light / .dim): the saved theme applies.
     expect(html).toContain("var t = s && s.value && s.value.theme;");
     expect(html).not.toContain("v8 ? 'dark'");
   });

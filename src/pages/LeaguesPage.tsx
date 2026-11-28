@@ -15,7 +15,7 @@ import { Async } from "../components/states";
 import { Input } from "../components/ui/basic";
 import { SeasonPick } from "./RankingsPage";
 import { cn } from "../components/cn";
-import { useIsV8 } from "../lib/v8";
+
 import { RankingsTabs, V8_CAPTION, V8_CARD_LINK, V8_EYEBROW, V8_HEAD, V8_ICON, V8_LINK, V8_SEARCH } from "../components/rankings/v8";
 import { conferenceShown, useMyConference } from "../lib/conferenceGate";
 import { CONFERENCE_REGION, conferenceHref } from "../shared/conferences";
@@ -57,7 +57,7 @@ export default function LeaguesPage() {
 }
 
 function Groups({ d, q }: { d: LeaguesResponse; q: string }) {
-  const v8 = useIsV8();
+  
   if (!d.leagues.length) return <EmptyState icon={ListOrdered} title={`No leagues in ${seasonLabel(d.season)} yet`} description="Leagues show here once FIRST lists their meets." />;
   const f = fold(q.trim());
   const shown = f ? d.leagues.filter((l) => fold(`${leagueTitle(l.name, l.code)} ${l.placeName ?? ""} ${l.code}`).includes(f)) : d.leagues;
@@ -76,7 +76,7 @@ function Groups({ d, q }: { d: LeaguesResponse; q: string }) {
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {list.map((l) => (
               <li key={`${l.region}-${l.code}`}>
-                <Link to={leagueHref(d.season, l.region, l.code)} data-league={`${l.region}/${l.code}`} className={cn(!v8 && "lift", "flex h-full flex-col gap-0.5 rounded-xl border border-border bg-card p-3 hover:border-accent/60 v8:transition-colors v8:duration-150", V8_CARD_LINK)}>
+                <Link to={leagueHref(d.season, l.region, l.code)} data-league={`${l.region}/${l.code}`} className={cn("flex h-full flex-col gap-0.5 rounded-xl border border-border bg-card p-3 hover:border-accent/60 v8:transition-colors v8:duration-150", V8_CARD_LINK)}>
                   <span className="flex items-center gap-2 text-sm font-medium"><CalendarDays className={cn("size-4 shrink-0 text-muted-foreground", V8_ICON)} aria-hidden /><span className="truncate">{leagueTitle(l.name, l.code)}</span></span>
                   <span className={cn("text-xs text-muted-foreground tabular-nums", V8_CAPTION)}>{l.meetsPlayed} of {l.meets} meet{l.meets === 1 ? "" : "s"} played{l.teams ? ` · ${l.teams} teams` : ""}</span>
                   <span className={cn("truncate text-xs text-muted-foreground", "v8:text-text-muted")}>{l.top ? <>#1 by RS: <span className="font-mono tabular-nums v8:font-sans">{l.top.team}</span> {l.top.name ?? ""}{l.top.rs != null ? ` (${rankingScore(l.top.rs)})` : ""}</> : "No standings yet"}</span>

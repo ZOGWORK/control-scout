@@ -5,12 +5,11 @@ import { RadioGroup as RadioP } from "radix-ui";
 import { Check } from "lucide-react";
 import { cn } from "../cn";
 import { THEMES, type ThemeChoice } from "../../shared/personal";
-import { useIsV8 } from "../../lib/v8";
+
 
 type Swatch = { bg: string; card: string; fg: string; mut: string; line: string; acc: string; wash?: string };
 
-/** Each palette's page, card, text, muted text and line colours, copied from src/index.css (:root is Dark), for
- *  the classic look (/legacy): its gold accent. */
+/** Each palette's page, card, text, muted text and line colours, copied from src/index.css (:root is Dark). */
 export const SWATCH: Record<"light" | "dim" | "dark", Swatch> = {
   light: { bg: "#ffffff", card: "#f4f4f5", fg: "#09090b", mut: "#a1a1aa", line: "#e4e4e7", acc: "#eab308" },
   dim: { bg: "#1e1f23", card: "#232428", fg: "#e4e4e7", mut: "#6b6c75", line: "#ffffff1a", acc: "#ffc700" },
@@ -46,7 +45,7 @@ function Preview({ p }: { p: Swatch }) {
 }
 
 export function ThemePicker({ value, onChange }: { value: ThemeChoice; onChange: (t: ThemeChoice) => void }) {
-  const sw = useIsV8() ? V8_SWATCH : SWATCH;
+  const sw = V8_SWATCH;
   return (
     <RadioP.Root
       value={value}

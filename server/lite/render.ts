@@ -8,7 +8,7 @@
 // 44px tall (LITE_TAP_CLASSES; lite.test.ts holds the stylesheet to it).
 import { awardLabel, dateRange, int, matchTime, num, oddsPct, place, rankPct, seasonLabel } from "../../src/shared/format.js";
 import { TIER_WORD } from "../../src/shared/tierWords.js";
-import { THEME_TOKENS, V8_THEME_TOKENS, type Palette, type TextSizeCookie, type ThemeCookie, type Token } from "../../src/shared/themeTokens.js";
+import { V8_THEME_TOKENS, type Palette, type TextSizeCookie, type ThemeCookie, type Token } from "../../src/shared/themeTokens.js";
 import type { LiteCall, LiteEvent, LiteMatch, LiteMatchRow, LitePicks, LiteSide, LiteTeam } from "./trim.js";
 
 export const esc = (s: string | number | null | undefined) =>
@@ -18,17 +18,13 @@ export const esc = (s: string | number | null | undefined) =>
 
 const VAR: Record<Token, string> = { bg: "bg", fg: "fg", card: "card", muted: "mu", mutedFg: "mf", line: "line", acc: "acc", accText: "at", accInk: "ink", red: "red", blue: "blue", ok: "ok" };
 const tokenVars = (t: Record<Token, string>) => (Object.keys(VAR) as Token[]).map((k) => `--${VAR[k]}:${t[k]}`).join(";");
-const vars = (p: Palette) => tokenVars(THEME_TOKENS[p]);
 
 /** The classes a link may carry; each is a tap target at least 44px tall. */
 export const LITE_TAP_CLASSES = ["btn", "cell", "row", "chip"] as const;
 
-// The app's themes (src/shared/themeTokens.ts, the values of src/index.css): dark on :root, the others on
+// The app's themes (src/shared/themeTokens.ts, the values of src/index.css): the v8 ones, dark on :root, the others on
 // html's class as in the app, System following the device. Text size as the app's (index.css): rem sizes, the root
 // font 14px on phones and 16px wider, times this device's choice. Tap targets are in px, so they stay 44px at any size.
-const CLASSIC_THEMES = `:root{color-scheme:dark;${vars("dark")}}`
-  + `html.light{color-scheme:light;${vars("light")}}html.dim{${vars("dim")}}`
-  + `html.sys{color-scheme:dark light}@media(prefers-color-scheme:light){html.sys{${vars("light")}}}`;
 const BASE = `html{--b:1;--s:1;font-size:calc(100% * var(--b) * var(--s))}@media(max-width:767px){html{--b:.875}}`
   + `html[data-text-size=s]{--s:.9}html[data-text-size=l]{--s:1.125}html[data-text-size=xl]{--s:1.25}`
   + `*{box-sizing:border-box}[hidden]{display:none!important}.stack>*+*{margin-top:12px}.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}`
@@ -80,9 +76,6 @@ const BASE = `html{--b:1;--s:1;font-size:calc(100% * var(--b) * var(--s))}@media
   + `.mr.my{grid-template-columns:9rem minmax(0,1fr) auto minmax(0,1fr) minmax(15rem,17rem) 4.5rem;grid-template-areas:"l r s b c m" "w r s b c m"}`
   + `.mx{display:contents}.mw{grid-area:w;font-size:.75rem;white-space:normal}.mc{grid-area:c;justify-content:flex-end;font-size:.75rem}.mm{grid-area:m;margin-left:0;text-align:right;font-size:.75rem}}`;
 
-/** Lite in the classic look (a device that picked /legacy): the app's five themes. */
-export const LITE_STYLE = CLASSIC_THEMES + BASE;
-
 // v8 (docs/design/v8-revamp-brief.md §3, §6): near-black surfaces and hairlines (or near-white ones on Light), no yellow, the slate
 // blue only for bars, lines and the #1 rank, Inter when the device has it (no font download: one bar of signal),
 // big tabular numbers, the 90% root, plain buttons that answer a press.
@@ -127,13 +120,8 @@ export interface LiteView {
   sticky: boolean;
   /** This page's own address (path and query), for "Always open Lite". */
   here: string;
-  /** Drawn in v8 (the app's default look; false when this device picked the classic one: the cs-v8 cookie). Both
-   *  looks take the theme choice, as in the app. */
-  v8: boolean;
 }
-export const DEFAULT_VIEW: LiteView = { theme: "dark", textSize: null, sticky: false, here: "/lite", v8: true };
-
-const THEME_COLOR: Record<Palette, string> = { dark: THEME_TOKENS.dark.bg, light: THEME_TOKENS.light.bg, dim: THEME_TOKENS.dim.bg };
+export const DEFAULT_VIEW: LiteView = { theme: "dark", textSize: null, sticky: false, here: "/lite" };
 
 /** A link that is a button: `primary` is the page's one main action (gold). */
 export const button = (href: string, text: string, primary = false, cls = "") =>
@@ -157,7 +145,7 @@ export const stickyNote = (full: string) =>
  *  `noindex`: the full page is noindex (nothing on it yet but a name: server/indexable.ts), so this twin is too. */
 export function liteDocument(p: LitePage, canonical: string | null, view: LiteView = DEFAULT_VIEW, noindex = false): string {
   const theme = view.theme;
-  const bar = view.v8 ? (p: Palette) => V8_THEME_TOKENS[p].bg : (p: Palette) => THEME_COLOR[p];
+  const bar = (p: Palette) => V8_THEME_TOKENS[p].bg;
   const cls = theme === "system" ? "sys" : theme === "dark" ? "" : theme;
   const scheme = theme === "system" ? "dark light" : theme === "light" ? "light" : "dark";
   const color = theme === "system"
@@ -165,9 +153,9 @@ export function liteDocument(p: LitePage, canonical: string | null, view: LiteVi
     : `<meta name="theme-color" content="${bar(theme)}">`;
   const keep = view.sticky ? ""
     : `<p>${button(`/lite/on?next=${encodeURIComponent(view.here)}`, "Always open Lite")}</p><p>Pages with a Lite version then open in Lite every time, until you turn it off.</p>`;
-  return `<!doctype html><html lang="en"${cls ? ` class="${cls}"` : ""}${view.v8 ? " data-v8" : ""}${view.textSize ? ` data-text-size="${view.textSize}"` : ""}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
+  return `<!doctype html><html lang="en"${cls ? ` class="${cls}"` : ""} data-v8${view.textSize ? ` data-text-size="${view.textSize}"` : ""}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${esc(p.title)} · Control Scout Lite</title>${canonical ? `<link rel="canonical" href="${esc(canonical)}">` : ""}${noindex ? `<meta name="robots" content="noindex">` : ""}`
-    + `<meta name="color-scheme" content="${scheme}">${color}<style>${view.v8 ? LITE_V8_STYLE : LITE_STYLE}</style></head><body>`
+    + `<meta name="color-scheme" content="${scheme}">${color}<style>${LITE_V8_STYLE}</style></head><body>`
     + header(p.full, view) + `<main class="in">${view.sticky ? stickyNote(p.full) : ""}${p.body}</main>`
     + `<footer><div class="in"><p>Control Scout Lite: text only, for a weak signal. The same data and predictions as the full version.</p>${keep}</div></footer></body></html>`;
 }

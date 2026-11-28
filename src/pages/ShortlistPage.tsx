@@ -18,7 +18,7 @@ import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../components/ui/overlay";
-import { useIsV8 } from "../lib/v8";
+
 import { V8Empty, V8Title } from "../components/myteams/v8";
 import { toast } from "../components/ui/sonner";
 import { SeasonToggle } from "../components/SeasonToggle";
@@ -125,7 +125,7 @@ export default function ShortlistPage() {
   });
 
   // No signal: the change is on this device and goes up by itself once it's back (lib/personal.tsx's queue).
-  const v8 = useIsV8();
+  
   const synced = user ? (offlineAccount || sync === "offline" ? "Saved on this device · syncs when you're back online." : "Synced to your account.") : <>Saved on this device; <Link to="/settings?section=profile" className="underline">sign in</Link> to sync.</>;
   const seasonPick = <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />;
   const viewToggle = (
@@ -157,7 +157,7 @@ export default function ShortlistPage() {
     </>
   );
 
-  if (v8) {
+  {
     // v8 (docs/design/v8-revamp-brief.md): "who do we pick?". The ranked list is the first thing under the title;
     // Compare is the one primary; ordering, CSV and the instructions wait in More; adding a team and the season
     // sit in one quiet toolbar. An empty list is one empty state with the add box as its action.
@@ -204,76 +204,4 @@ export default function ShortlistPage() {
       </div>
     );
   }
-
-  if (!list.length) {
-    // A first visit: what the list is for, how to fill it, and everything it can do once it has picks.
-    return (
-      <div>
-        <PageHeader title="Shortlist" description={<>Your pick list for alliance selection: drag to rank it, open a team for its numbers, keep private notes. {synced}</>} />
-        <EmptyState icon={Bookmark} title="Your shortlist is empty" description="Type a team number or name to add it here, or press Shortlist on any team page. Building a pick list? An event's Rankings tab is the place to start." action={<div className="flex w-full max-w-md flex-col items-center gap-3">{addBox("w-full text-left")}<Button variant="outline" asChild><Link to="/events"><CalendarDays /> Browse events</Link></Button></div>} />
-        <HowItWorks className="mt-6 max-sm:mt-4" />
-      </div>
-    );
-  }
-
-  // A returning scout: candidates first. The title row keeps Compare; the instructions wait behind "How it works".
-  return (
-    <div>
-      <header className="mb-4">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[2rem] sm:leading-tight">Shortlist</h1>
-          {shown.length >= 2 && <Button variant="secondary" asChild data-print-hide><Link to={compareHref(compareTeams, season)}><Scale /> {compareLabel}</Link></Button>}
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
-          <p className="min-w-0">{list.length} {list.length === 1 ? "pick" : "picks"} for alliance selection. {synced}</p>
-          <HowItWorksToggle open={help} onToggle={() => setHelp((v) => !v)} className="h-8" />
-        </div>
-        {/* Always in the page (the toggle controls it), shown only when asked for. */}
-        <HowItWorks title={false} hidden={!help} className="mt-3" />
-        {list.length > MAX_SHOWN && <p className="mt-2 text-sm text-warning">Showing the first {MAX_SHOWN} of {list.length}.</p>}
-        <div className="mt-3 flex flex-wrap items-center gap-2" data-print-hide>
-          <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
-          <div className="flex flex-wrap items-center gap-2 max-sm:w-full sm:ml-auto">
-            {addBox("max-sm:w-full sm:w-72")}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="secondary" size="sm" disabled={!data.data}><ArrowDownWideNarrow /> Order picks</Button></DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Reorder the whole list by</DropdownMenuLabel>
-                <DropdownMenuItem onSelect={() => sortBy("OPR", (r) => r.opr)}>OPR (highest first)</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => sortBy("rating", (r) => r.rating)}>Rating (highest first)</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => sortBy("auto OPR", (r) => r.breakdown.auto)}>Auto OPR</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => sortBy("endgame OPR", (r) => r.breakdown.endgame)}>Endgame OPR</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button variant="secondary" size="sm" disabled={!data.data} onClick={() => data.data && downloadCsv(`shortlist-${season}`, shortlistCsvRows(rowsFor(data.data), notes))}><Download /> CSV</Button>
-            <ToggleGroup type="single" aria-label="View" value={view} onValueChange={(v) => { if (v) setView(v as ShortlistView); }}>
-              <ToggleGroupItem value="list" aria-label="List view"><List /> <span className="max-sm:sr-only">List</span></ToggleGroupItem>
-              <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid /> <span className="max-sm:sr-only">Grid</span></ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-        </div>
-      </header>
-      <p className="sr-only" aria-live="polite" aria-atomic="true">{reorder.message}</p>
-      <OfflineNote data={data.data} />
-      <Async state={data}>{(d) => {
-        const rows = rowsFor(d);
-        return (
-          <>
-            {view === "list" ? (
-              <div className="overflow-hidden rounded-2xl border border-border bg-card">
-                <ListHeader />
-                <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative" aria-label="Pick list">
-                  {rows.map((t) => <ListRow key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
-                </ol>
-              </div>
-            ) : (
-              <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Pick list">
-                {rows.map((t) => <GridCard key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
-              </ol>
-            )}
-          </>
-        );
-      }}</Async>
-    </div>
-  );
 }

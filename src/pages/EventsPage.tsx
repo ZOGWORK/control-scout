@@ -19,7 +19,7 @@ import { seasonLabel } from "../lib/format";
 import { useCompactFilters } from "../components/CompactFilters";
 import { EventFilterBar, EventWeeks } from "../components/EventBrowse";
 import { EventsNow } from "../components/EventsNow";
-import { useIsV8 } from "../lib/v8";
+
 import { readFilters, statusParam, weekOf } from "./eventsList";
 
 export default function EventsPage() {
@@ -52,7 +52,7 @@ export default function EventsPage() {
   const active = !!(region || type !== "all" || status !== "all" || from || to || q || video !== "all");
   const compact = useCompactFilters();
   const nav = useNavigate();
-  const v8 = useIsV8();
+  
   const events = state.data?.events;
   const filterBar = <EventFilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={events ?? []} {...{ region, type, status, from, to, q, video, listQ, onQ, set, active }} onClear={clear} />;
   const list = (
@@ -60,7 +60,7 @@ export default function EventsPage() {
       {(d) => <><OfflineNote data={d} what="Events list" /><EventWeeks events={d.events} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} /></>}
     </Async>
   );
-  if (v8) {
+  {
     // v8 (docs/design/v8-revamp-brief.md §7.9, the PR's page plan): what's on now and next first, then search and
     // filters, then the long list. The summary line is one line whether the list is in or not, so nothing moves.
     const live = events?.filter((e) => e.status === "live").length ?? 0;
@@ -87,27 +87,5 @@ export default function EventsPage() {
       </div>
     );
   }
-  return (
-    <div>
-      <PageHeader
-        eyebrow={<span className="text-accent-text">{seasonLabel(season)} season</span>}
-        title="Events"
-        description="Every FTC event — results, rankings, brackets and advancement odds. Filter by place, type and dates."
-        phoneDescription="Every FTC event: results, rankings and odds."
-        actions={<Button variant="outline" size="sm" asChild><Link to={`/teams${season !== current ? `?season=${season}` : ""}`}><Users /> Team records <ArrowRight /></Link></Button>}
-      />
-      {/* On a phone the text filter sits in the sheet, so the page gets Home's search at the top, for events only. */}
-      {compact && <SearchBox kinds={["event", "place"]} label="Search events" placeholder="Find an event…" onPick={(h) => nav(hitHref(h))} className="mb-6 [&>div:first-child]:h-11" />}
-      {/* The events you track, one tap away: above the coin flips and the list, so a phone's first screen has them. */}
-      <CurrentlyTracking season={season} current={current} events={state.data?.events} listSettled={!state.loading} className="mb-6 max-sm:mb-5" />
-      {/* Today's coin flips across every event on today: only this season's events can be on today. Left out on a day with none. */}
-      {season === current && <CoinFlipRadarSection className="mb-8" />}
-      {/* The filter bar stays up while loading or on an error, so another season can always be picked. */}
-      {filterBar}
-      {/* The placeholder is a screen tall, so the footer starts below the fold: the list arriving pushes nothing
-          a reader can see (it used to shove a footer in view down the screen, the page's layout shift on a phone). */}
-      {list}
-    </div>
-  );
 }
 

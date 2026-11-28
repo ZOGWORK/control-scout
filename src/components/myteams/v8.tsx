@@ -1,6 +1,6 @@
 // The small v8 pieces My team, My teams, Shortlist and Compare share (docs/design/v8-revamp-brief.md): the page title
 // row, a card, a faint label, the empty state (icon, one line, one plain action), and the standing figures. Drawn only
-// while <html data-v8> is set: the pages pick them with useIsV8(), so the classic look never sees them.
+// under <html data-v8>, which every page sets.
 import type { ComponentType, ReactNode } from "react";
 import { cn } from "../cn";
 

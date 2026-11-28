@@ -70,11 +70,6 @@ export const V8_THEME_TOKENS: Record<Palette, Record<Token, string>> = {
   dim: { ...V8_TOKENS, bg: "#1e1f23", fg: "#e4e4e7", card: "#232428", muted: "#2d2e33", mutedFg: "#b4b4bd", line: "#ffffff14", accText: "#e4e4e7", red: "#fb7185" },
 };
 
-/** Which look this device picked (src/lib/v8.ts), mirrored by the app for Lite (src/lib/liteCookies.ts): "0" is the
- *  classic look (/legacy), anything else (no cookie included) v8, the default. */
-export const V8_COOKIE = "cs-v8";
-export const v8FromCookie = (v: string) => v !== "0";
-
 /** A cookie header's value for `name` ("" when absent). */
 export function cookieValue(header: string | undefined, name: string): string {
   if (!header) return "";
