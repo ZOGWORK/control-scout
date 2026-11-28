@@ -180,22 +180,6 @@ describe("v8 shell", () => {
   });
 });
 
-describe("without v8", () => {
-  it("keeps the shell as it was", () => {
-    document.documentElement.removeAttribute("data-v8");
-    const { container } = shell();
-    expect(container.querySelector("[data-v8-sidebar]")).toBeNull();
-    expect(container.querySelector("[data-wash]")).toBeNull();
-    expect(container.querySelector("[data-ambient]")).toBeTruthy();
-    expect(container.querySelector("header [data-profile]")).toBeNull();
-  });
-  it("keeps the top bar's centred logo on Home", () => {
-    document.documentElement.removeAttribute("data-v8");
-    const header = shell("/").container.querySelector("header") as HTMLElement;
-    expect(within(header).getByRole("link", { name: "Control Scout home" })).toBeTruthy();
-  });
-});
-
 describe("v8 Rankings in the sidebar", () => {
   beforeEach(() => document.documentElement.setAttribute("data-v8", ""));
   it("opens its sub-pages on the Rankings page and on a sub-page", () => {

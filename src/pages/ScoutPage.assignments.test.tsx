@@ -157,7 +157,10 @@ describe("assignments on the Scout page", () => {
     matchList = [masg(11, ME, { kind: "slot", slot: "red2" })];
     show(`/scout?space=${WS}&season=2025&tab=event`);
     await pickTestEvent();
-    await waitFor(() => expect(screen.getByRole("radio", { name: /Red 2/ }).getAttribute("aria-checked")).toBe("true"));
+    // The next-up card says what's watched; Change opens the strip it sets it with.
+    await waitFor(() => expect(screen.getByText(/Watching Red 2/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByRole("radio", { name: /Red 2/ }).getAttribute("aria-checked")).toBe("true");
   });
 
   it("match scouting: setup choices made in one workspace don't carry into another", async () => {
@@ -165,11 +168,15 @@ describe("assignments on the Scout page", () => {
     matchList = [masg(11, ME, { kind: "slot", slot: "red2" })];
     show(`/scout?space=${WS}&season=2025&tab=event`);
     await pickTestEvent();
-    await waitFor(() => expect(screen.getByRole("radio", { name: /Red 2/ }).getAttribute("aria-checked")).toBe("true"));
+    // The next-up card says what's watched; Change opens the strip it sets it with.
+    await waitFor(() => expect(screen.getByText(/Watching Red 2/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByRole("radio", { name: /Red 2/ }).getAttribute("aria-checked")).toBe("true");
     fireEvent.click(screen.getByRole("radio", { name: /^All 4 teams/ }));
     fireEvent.click(screen.getByRole("button", { name: /Bolt Bots/ }));
     // Bolt Bots has no event picked yet: its own picker, and its own watching once picked (the default).
     await pickTestEvent();
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
     await waitFor(() => expect(screen.getByRole("radio", { name: /^One alliance/ }).getAttribute("aria-checked")).toBe("true")); // the default, not the other workspace's pick
   });
 

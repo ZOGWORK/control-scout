@@ -16,7 +16,7 @@ import { cn } from "./cn";
 import { EVENT_FILTER_COUNT, EVENT_TYPE_TONE } from "../lib/textTones";
 import { EventStatusChip, LiveDot } from "./EventChips";
 import { dateRange, place } from "../lib/format";
-import { useIsV8 } from "../lib/v8";
+
 import { eventTypeLabel } from "../shared/labels";
 import { regionLabel, regionNames } from "../shared/regions";
 import { WatchChip } from "./WatchChip";
@@ -69,7 +69,7 @@ export function EventFilterBar({ season, onSeason, events, typeEvents = events, 
   const counts = { all: base.length, live: 0, upcoming: 0, finished: 0 } as Record<Status, number>;
   for (const e of base) counts[e.status]++;
   const compact = useCompactFilters();
-  const v8 = useIsV8();
+  
   const place = <PlacePicker events={events} value={region} onChange={(r) => set({ region: r }, false)} />;
   const typePicker = (
     <Select value={type} onValueChange={(v) => set({ type: v }, false)}>
@@ -107,8 +107,8 @@ export function EventFilterBar({ season, onSeason, events, typeEvents = events, 
       className={cn("inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10",
         status === s.v ? "border-accent bg-accent text-accent-ink" : "border-line text-muted-foreground hover:border-text-base/25 hover:text-foreground",
         V8_STATUS, status === s.v && V8_STATUS_ON)}>
-      {v8 ? s.v === "live" && counts.live > 0 && <LiveDot className="size-1.5" /> : <span className={cn("size-1.5 rounded-full", status === s.v ? "bg-accent-ink" : s.dot)} />}
-      {s.label}<span className={cn(EVENT_FILTER_COUNT, "v8:font-normal v8:text-text-faint v8:tabular-nums")}>{v8 ? counts[s.v].toLocaleString() : counts[s.v]}</span>
+      {s.v === "live" && counts.live > 0 && <LiveDot className="size-1.5" />}
+      {s.label}<span className={cn(EVENT_FILTER_COUNT, "v8:font-normal v8:text-text-faint v8:tabular-nums")}>{counts[s.v].toLocaleString()}</span>
     </button>
   ));
 
@@ -131,7 +131,7 @@ export function EventFilterBar({ season, onSeason, events, typeEvents = events, 
       </CompactFilters>
     );
   }
-  if (v8) return (
+  return (
     <div className="mb-6" data-event-filters="v8">
       <div className="flex flex-wrap items-center gap-2 [&_[aria-label=Season]_svg]:text-text-faint [&_[aria-label^='Date_range']_svg]:text-text-faint">
         {search}
@@ -144,24 +144,6 @@ export function EventFilterBar({ season, onSeason, events, typeEvents = events, 
       <div className="mt-3 flex items-center gap-1 border-b border-line" role="group" aria-label="Status">
         <div className="-mb-px flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{statusChips}</div>
         {active && <Button variant="ghost" size="sm" className="shrink-0" onClick={onClear}><X /> Clear filters</Button>}
-      </div>
-    </div>
-  );
-  return (
-    <div className="mb-8 max-sm:mb-5 space-y-3 rounded-2xl border border-border bg-card p-3 sm:p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <SeasonSelect value={season} onChange={onSeason} />
-        {place}
-        {typePicker}
-        {dates}
-        {videoPicker}
-        {search}
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {statusChips}
-        {active && (
-          <Button variant="ghost" size="sm" className="ml-auto text-danger hover:text-danger max-sm:h-10" onClick={onClear}><X /> Clear filters</Button>
-        )}
       </div>
     </div>
   );
@@ -261,9 +243,9 @@ export const EventWeeks = memo(function EventWeeks({ events, region, type, statu
     io.observe(el);
     return () => io.disconnect();
   }, [shown, hidden, more]);
-  const v8 = useIsV8();
+  
   if (!weeks.length) return <EmptyState icon={Search} title="No events match" description="Try another place, type or date range." action={<Button onClick={onClear}><X /> Clear filters</Button>} />;
-  if (v8) return (
+  return (
     <div data-event-weeks="v8">
       <p className="mb-3 text-sm text-text-muted"><span className="font-medium tabular-nums text-text-base">{list.length.toLocaleString()}</span> event{list.length === 1 ? "" : "s"} in {weeks.length} week{weeks.length === 1 ? "" : "s"}</p>
       <div className="space-y-6">
@@ -283,30 +265,6 @@ export const EventWeeks = memo(function EventWeeks({ events, region, type, statu
       {hidden > 0 && (
         <div ref={sentinel} className="mt-6 text-center">
           <Button variant="outline" onClick={more}>Show more events <span className="text-text-faint">({hidden.toLocaleString()} more)</span></Button>
-        </div>
-      )}
-    </div>
-  );
-  return (
-    <div>
-      <p className="mb-4 text-sm text-muted-foreground max-md:mb-2"><span className="font-semibold tabular-nums text-foreground">{list.length.toLocaleString()}</span> events in {weeks.length} week{weeks.length === 1 ? "" : "s"}</p>
-      <div className="space-y-8 max-sm:space-y-5">
-        {shown.map(([w, evs, all]) => (
-          <section key={w} aria-label={w === "TBA" ? "Date to be announced" : `Week of ${fmtDay(w, true)}`}>
-            <div className="mb-3 flex items-baseline gap-3 border-b border-border pb-2">
-              <h2 className="font-display text-lg font-semibold">{w === "TBA" ? "Date TBA" : `${fmtDay(w)} – ${fmtDay(addDays(w, 6), true)}`}</h2>
-              {w === thisWeek && <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-ink">This week</span>}
-              <span className="ml-auto text-xs tabular-nums text-muted-foreground">{all} event{all === 1 ? "" : "s"}</span>
-            </div>
-            {tileAction
-              ? <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{evs.map((e) => <EventTile key={e.code} e={e} action={tileAction} />)}</ul>
-              : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{evs.map((e) => <EventTile key={e.code} e={e} />)}</div>}
-          </section>
-        ))}
-      </div>
-      {hidden > 0 && (
-        <div ref={sentinel} className="mt-8 max-sm:mt-5 text-center">
-          <Button variant="outline" onClick={more}>Show more events <span className="text-muted-foreground">({hidden.toLocaleString()} more)</span></Button>
         </div>
       )}
     </div>
@@ -382,66 +340,6 @@ const EventRowV8 = memo(function EventRowV8({ e, action }: { e: EventListItem; a
   );
 });
 
-const EventTile = memo(function EventTile({ e, action }: { e: EventListItem; action?: TileAction }) {
-  const href = `/events/${e.season}/${e.code}`;
-  const bar = <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", toneOfType(e.type).bar)} />;
-  if (!action && !hasWatch(e)) return <Link to={href} className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5">{bar}<TileBody e={e} /></Link>;
-  // A recording on record: its chip under the card's link, never inside it.
-  if (!action) return (
-    <div className="lift relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card">
-      {bar}
-      <Link to={href} className="group flex flex-1 flex-col p-4 pb-3 pl-5"><TileBody e={e} /></Link>
-      <div className="px-4 pb-4 pl-5"><EventWatch e={e} pill /></div>
-    </div>
-  );
-  // With an action the card is a list item: the link to the event on top, the action (a button) under it, never inside it.
-  const { node, ring } = action(e);
-  return (
-    <li aria-label={e.name} className={cn("lift relative flex h-full flex-col overflow-hidden rounded-xl border bg-card", ring ? "border-accent/70" : "border-border")}>
-      {bar}
-      <Link to={href} className="group flex flex-1 flex-col p-4 pb-3 pl-5"><TileBody e={e} /></Link>
-      <div className="px-4 pb-4 pl-5">{node}</div>
-    </li>
-  );
-});
 
-function TileBody({ e }: { e: EventListItem }) {
-  const tone = toneOfType(e.type);
-  // A finished event fills its bar even with results missing; the count still says how many were posted.
-  const played = e.matchesTotal ? Math.round((e.matchesPlayed / e.matchesTotal) * 100) : 0;
-  return (
-    <>
-      <div className="flex items-center gap-2 text-xs">
-        <EventStatusChip status={e.status} className="px-2 py-0.5" />
-        <span className={cn("truncate font-semibold", tone.text)}>{e.typeLabel}</span>
-        {/* On now with a stream to watch on its page (Watch live). */}
-        {e.status === "live" && e.stream && <span className="inline-flex shrink-0 items-center gap-1 font-bold text-danger" title="Live stream on the event page" data-stream-live><LiveDot />LIVE<span className="sr-only"> stream</span></span>}
-        {/* Finished with something to watch: the recording, or matches that link to their own second in it. */}
-        {e.status === "finished" && e.video && <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-video" title={e.video === "clips" ? "Recording with a Watch button on each match" : "Recording on the event page"} data-video={e.video}><MonitorPlay className="size-3.5" aria-hidden />{e.video === "clips" ? "Clips" : "Video"}</span>}
-        {e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" />{e.teams}</span>}
-      </div>
-      <p className="mt-2 line-clamp-2 font-medium leading-snug group-hover:text-accent-text">{e.name}</p>
-      <div className="mt-auto space-y-1 pt-3 text-xs text-muted-foreground">
-        <p className="flex items-center gap-1.5"><CalendarDays className="size-3.5 shrink-0" />{dateRange(e.start, e.end)}</p>
-        <p className="flex items-center gap-1.5 truncate"><MapPin className="size-3.5 shrink-0" />{place(e.city, e.state ? regionLabel(`${e.country}:${e.state}`) : null, e.country === "USA" ? null : e.country) || "Location TBA"}</p>
-      </div>
-      {e.matchesPlayed > 0 && e.status !== "upcoming" ? (
-        <div className="mt-3 flex items-center gap-2" title={`${e.matchesPlayed} of ${e.matchesTotal} matches played`} data-match-bar>
-          <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", e.status === "live" ? "bg-danger" : "bg-success")} style={{ width: `${e.status === "finished" ? 100 : played}%` }} /></div>
-          <span className="text-[11px] tabular-nums text-muted-foreground">{e.matchesPlayed}/{e.matchesTotal}</span>
-        </div>
-      ) : e.status === "finished" ? (
-        // Finished with no results posted (most scrimmages, some meets): still a full bar, so every finished card reads as done.
-        <div className="mt-3 flex items-center gap-2" title="Finished; no match results posted" data-match-bar>
-          <div className="h-1 flex-1 rounded-full bg-success" />
-          <span className="text-[11px] text-muted-foreground">Done</span>
-        </div>
-      ) : e.status === "live" && e.matchesTotal > 0 && (
-        <div className="mt-3 flex items-center gap-2" title={`0 of ${e.matchesTotal} matches played`} data-match-bar>
-          <div className="h-1 flex-1 rounded-full bg-muted" />
-          <span className="text-[11px] tabular-nums text-muted-foreground">0/{e.matchesTotal}</span>
-        </div>
-      )}
-    </>
-  );
-}
+
+

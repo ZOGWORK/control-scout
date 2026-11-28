@@ -8,7 +8,7 @@ import { cn } from "./cn";
 import { WATCH_ID } from "./WatchLive";
 import { scrollToElement } from "../lib/pageScroll";
 import { useNoVideoSignal } from "../lib/offline/online";
-import { useIsV8 } from "../lib/v8";
+
 import type { EventDetail } from "../shared/api";
 
 /** Tracking state for an event, and the page's one toggle for it. */
@@ -26,8 +26,8 @@ export interface WatchTarget { url: string | null | undefined; stream: boolean; 
 export function LivestreamButton({ watch, className, offline, variant: asked }: { watch: WatchTarget; className?: string; offline?: boolean; variant?: "default" | "outline" | "ghost" }) {
   const noSignal = useNoVideoSignal(offline);
   // v8 (brief §7 Event header): the stream link is a plain button, so the page keeps at most one primary.
-  const v8 = useIsV8();
-  const variant = asked ?? (v8 ? "ghost" : "default");
+  
+  const variant = asked ?? ("ghost");
   // No connection: the stream plays from the internet, so instead of a player that can't load or a tab that opens
   // on an error, the button says so.
   if (noSignal && (watch.stream || watch.url)) {

@@ -2,7 +2,7 @@
 // checks (for triage: nothing here edits match data, the fix for wrong FTC data is a re-sync), and the
 // re-sync and cache jobs behind a confirmation (OpsCards). Read from /api/owner/data.
 import { useCallback, useState } from "react";
-import { isV8 } from "../../lib/v8";
+
 import { syncTone } from "./syncTone";
 import { Link } from "react-router-dom";
 import { AlertTriangle, BarChart3, CheckCircle2, CloudDownload, PackageOpen, Radio, RefreshCw, XCircle } from "lucide-react";
@@ -39,7 +39,7 @@ export function DataPanel() {
         {(d) => (
           <Section title="Sync status" description="Results come from the FIRST Events API on a schedule (often on event days); stats, ratings and live results are rebuilt after each sync.">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <StatTile tone={isV8() ? syncTone(d.timestamps.syncAt) : "accent"} icon={CloudDownload} label="Last sync" value={since(d.timestamps.syncAt)} hint={when(d.timestamps.syncAt)} />
+              <StatTile tone={syncTone(d.timestamps.syncAt)} icon={CloudDownload} label="Last sync" value={since(d.timestamps.syncAt)} hint={when(d.timestamps.syncAt)} />
               <StatTile tone="sky" icon={BarChart3} label="Stats rebuilt" value={since(d.timestamps.statsAt)} hint={when(d.timestamps.statsAt)} />
               <StatTile tone="emerald" icon={Radio} label="Live results" value={since(d.timestamps.recordsAt)} hint={when(d.timestamps.recordsAt)} />
               <StatTile tone="violet" icon={PackageOpen} label="Packs built" value={since(d.timestamps.packsAt)} hint={when(d.timestamps.packsAt)} />

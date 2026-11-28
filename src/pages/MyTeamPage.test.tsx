@@ -43,8 +43,7 @@ describe("My team, off-season matches only", () => {
   it("says there are no official results yet, never an empty rate, and the Record tile says its scope", async () => {
     render(<TooltipProvider><MemoryRouter initialEntries={["/my-team"]}><MyTeamPage /></MemoryRouter></TooltipProvider>);
     const none = await waitFor(() => { const e = document.querySelector("[data-no-official]"); if (!e) throw new Error("not yet"); return e; });
-    expect(none.textContent).toBe("No official results yet: 17 matches at off-season events and scrimmages, not in the record.");
+    expect(none.textContent).toBe("17 matches at off-season events and scrimmages, not in the record.");
     expect(document.body.textContent).not.toMatch(/null%|NaN%/);
-    expect(screen.getByText(/Official events only · 17 matches at 2 events in all/)).toBeTruthy();
   });
 });

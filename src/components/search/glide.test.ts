@@ -18,12 +18,10 @@ describe("glideTo", () => {
     expect(document.documentElement.hasAttribute("data-search-glide")).toBe(false);
   });
 
-  it("only the results page glides, and only in v8", () => {
+  it("only the results page glides", () => {
     doc.startViewTransition = () => ({});
     expect(canGlide("/search?q=x")).toBe(true);
     expect(canGlide("/teams/6980")).toBe(false);
-    document.documentElement.removeAttribute("data-v8");
-    expect(canGlide("/search?q=x")).toBe(false);
   });
 
   it("with the API: marks the page while it runs, runs the navigation inside the transition, clears the mark after", async () => {

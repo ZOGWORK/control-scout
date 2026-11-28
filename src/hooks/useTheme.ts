@@ -3,8 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePersonal } from "../lib/personal";
 import type { Settings, ThemeChoice } from "../shared/personal";
 import { useFlag } from "../lib/flags";
-import { takeLitePick, writeThemeCookie, writeV8Cookie } from "../lib/liteCookies";
-import { useIsV8 } from "../lib/v8";
+import { takeLitePick, writeThemeCookie } from "../lib/liteCookies";
 
 const prefersLight = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches;
 
@@ -46,13 +45,12 @@ export function ThemeSync() {
   const { palette, theme } = useTheme();
   const { state, update } = usePersonal();
   const dog = useFlag("dogTheme");
-  const v8 = useIsV8();
   useEffect(() => {
     const root = document.documentElement.classList;
     for (const p of ["light", "dim"] as const) root.toggle(p, palette === p);
     root.toggle("dog", dog);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", (dog ? DOG_THEME_COLOR : v8 ? V8_THEME_COLOR : THEME_COLOR)[palette]);
-  }, [palette, dog, v8]);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", (dog ? DOG_THEME_COLOR : V8_THEME_COLOR)[palette]);
+  }, [palette, dog]);
   // A theme picked on Lite's Settings page since the app last ran (only its cookie changed there): taken once, as this
   // device's choice, before the app's older one is written back over it (src/lib/liteCookies.ts).
   const [fromLite] = useState(() => takeLitePick("theme"));
@@ -65,8 +63,6 @@ export function ThemeSync() {
     if (waiting.current) { if (theme !== fromLite) return; waiting.current = false; }
     writeThemeCookie(theme);
   }, [theme, fromLite]);
-  // The look too (v8 or the classic one), so Lite draws in the same one.
-  useEffect(() => { writeV8Cookie(v8); }, [v8]);
   // The dark theme in use, however it was picked (Settings or the top bar's switch), is the one the switch comes back
   // to from Light. Only a change is written: Dark, the default, is what a missing value already means.
   const remembered = state.settings.darkTheme ?? "dark";

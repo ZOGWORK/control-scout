@@ -24,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { cn } from "../components/cn";
 import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../components/CompactFilters";
-import { useIsV8, V8_NUM } from "../lib/v8";
+import { V8_NUM } from "../lib/v8";
 import {
   Disclosure, RankingsTabs, V8_CAPTION, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_RANK, V8_NEW, V8_ROW, V8_TH, V8_UP, v8Medal, v8Trend,
 } from "../components/rankings/v8";
@@ -196,9 +196,9 @@ function Summary({ data }: { data: RankingsResponse }) {
 /** The way to the region pages: the one place filtered on (its own table: record, OPR, movers), and the regions list.
  *  v8: the regions list is a tab, and "where does my team stand" gets its own link, to its row in its region's table. */
 function RegionLinks({ data, mine, myTeam }: { data: RankingsResponse; mine: string | null; myTeam: number | null }) {
-  const v8 = useIsV8();
+  
   const one = data.places.length === 1 ? data.places[0] : null;
-  const findMine = v8 && myTeam != null && mine != null && !data.rows.some((r) => r.team === myTeam);
+  const findMine = myTeam != null && mine != null && !data.rows.some((r) => r.team === myTeam);
   return (
     <p className="-mt-1 mb-3 flex flex-wrap gap-x-4 gap-y-1 text-sm v8:mt-0 v8:mb-4" data-region-links>
       {one && <Link to={regionHref(one, { season: data.season })} className={cn("font-medium text-accent-text hover:underline", V8_LINK)}>{placeName(one)} page: record, OPR and this week's movers →</Link>}
@@ -301,7 +301,7 @@ const th = cn("sticky top-(--header-h) z-10 h-11 whitespace-nowrap bg-card px-2 
 const td = "px-2 py-2.5 sm:px-4 v8:py-1.5";
 
 function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | null }) {
-  const v8 = useIsV8();
+  
   const moves = data.baseline != null;
   // Swing (the consistency stat) comes with the live ranking only (today's number, not a past week's), on rows that have one.
   const swing = data.rows.some((r) => r.swing !== undefined);
@@ -350,7 +350,6 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
         </tbody>
       </table>
       {/* v8: the swing line is part of the explanation, behind the disclosure under the table. */}
-      {swing && !v8 && <p className="border-t border-text-base/10 px-2 py-2 text-xs text-text-muted sm:px-4" data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>}
     </div>
   );
 }
@@ -398,7 +397,7 @@ export function Pager({ data, sp }: { data: Pick<RankingsResponse, "total" | "pa
 }
 
 function Explainer({ swing }: { swing: boolean }) {
-  const v8 = useIsV8();
+  
   const body = (
     <>
       <p>The rating is the prediction engine's estimate of the points a team's robot adds to its alliance in a match (auto, TeleOp and endgame, penalties left out). It updates after every rated match, and a team is ranked once it has played three. It's read from alliance scores, which works because qualification partners are random; playoff matches, with fixed partners, count half. Equal ratings are ordered by team number.</p>
@@ -407,17 +406,11 @@ function Explainer({ swing }: { swing: boolean }) {
     </>
   );
   // v8: the explanation sits behind one quiet row under the table, the swing line with it.
-  if (v8) return (
+  return (
     <Disclosure title="How the rankings work" className="mt-6">
       {body}
       {swing && <p data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline underline-offset-2">How it's computed</Link></p>}
     </Disclosure>
-  );
-  return (
-    <div className="mt-8 max-sm:mt-5 max-w-3xl space-y-2 text-sm text-text-muted">
-      <h2 className="font-display text-base font-semibold text-text-base">How the rankings work</h2>
-      {body}
-    </div>
   );
 }
 

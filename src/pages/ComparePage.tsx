@@ -32,9 +32,9 @@ import { compareEventNames } from "../lib/compareBrief";
 import { cn } from "../components/cn";
 import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { useTeamColors } from "../components/TeamColorPicker";
-import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
+import { Reveal, Stagger, StaggerItem } from "../components/motion";
 import { predictHref } from "../shared/predictUrl";
-import { useIsV8, V8_NUM } from "../lib/v8";
+import { V8_NUM } from "../lib/v8";
 import { V8Title, V8_LABEL } from "../components/myteams/v8";
 import { COMPARE_MAX as MAX, compareApiPath, compareSeasonOf, compareTeamsOf, compareTitle } from "../shared/compareUrl";
 import { V8_PHASE, type V8Phase } from "../lib/records/describe";
@@ -126,11 +126,11 @@ export default function ComparePage() {
   useTitle(teams.length && view?.teams.length ? compareTitle(view.teams) : "Compare");
   const full = teams.length >= MAX;
   const suggestions = useSuggestions(teams.map(Number));
-  const v8 = useIsV8();
+  
   // v8: the title row of the content (docs/design/v8-page-guide.md); the controls below it are the same.
-  const Header = v8 ? V8CompareHeader : PageHeader;
+  const Header = V8CompareHeader;
   return (
-    <div className={cn(v8 && "min-w-0")} data-compare-v8={v8 ? "" : undefined}>
+    <div className={cn("min-w-0")} data-compare-v8={""}>
       <Header title="Compare" description="Up to four teams side by side: season stats, OPR by phase, event-by-event form and every match they've met in."
 >
         {/* The search stays first, at the same place, however many teams are chosen. */}
@@ -194,11 +194,10 @@ function SuggestionChip({ s, onPick, big }: { s: Suggestion; onPick: (n: number)
   const name = useTeamName(s.team);
   const color = useTeamColors().colorOf(s.team);
   // .lift (rise and glow) is plain CSS no v8: class can undo: left off in v8.
-  const v8 = useIsV8();
+  
   return (
     <button type="button" onClick={() => onPick(s.team)}
-      className={cn(v8 ? "inline-flex min-w-0 items-center gap-2 rounded-lg border border-line bg-card text-left transition-colors duration-150 hover:bg-ink/[0.04] active:scale-[0.97] motion-reduce:active:scale-100"
-        : "lift inline-flex min-w-0 items-center gap-2 rounded-xl border border-border bg-card text-left hover:border-accent/50",
+      className={cn("inline-flex min-w-0 items-center gap-2 rounded-lg border border-line bg-card text-left transition-colors duration-150 hover:bg-ink/[0.04] active:scale-[0.97] motion-reduce:active:scale-100",
         big ? "w-full px-3.5 py-3" : "h-9 px-3 text-sm max-sm:h-10")}>
       {/* The name is the chip's own text with "Add" in front ("Add 18360 Robo Raiders"); the spaces are explicit
           because a name from content joins inline pieces without them. */}
@@ -227,7 +226,7 @@ function QuickPicks({ list, onPick }: { list: Suggestion[]; onPick: (n: number) 
 /** No teams yet: where to start, and the member's own teams one click away. */
 function Start({ suggestions, onPick, onPickAll }: { suggestions: Suggestion[]; onPick: (n: number) => void; onPickAll: (ns: number[]) => void }) {
   const yours = suggestions.filter((s) => s.why === "Your team" || s.why === "Followed").slice(0, MAX);
-  const v8 = useIsV8();
+  
   return (
     <Reveal className="rounded-2xl border border-border bg-card p-4 sm:p-6 v8:rounded-xl v8:border-line sm:v8:p-5">
       <div className="flex items-start gap-3">
@@ -251,7 +250,7 @@ function Start({ suggestions, onPick, onPickAll }: { suggestions: Suggestion[]; 
         </div>
       )}
       <ul className="mt-5 max-sm:mt-4 grid list-disc gap-x-8 gap-y-1.5 border-t border-border pl-4 pt-4 text-sm text-muted-foreground marker:text-accent sm:grid-cols-2 lg:grid-cols-4 v8:border-line v8:marker:text-text-faint" aria-label="What you'll see">
-        <li>{v8 ? "Who leads each stat, counted up first" : "Season OPR, rating and record, with the best of each marked"}</li>
+        <li>{"Who leads each stat, counted up first"}</li>
         <li>OPR split into auto, TeleOp and endgame</li>
         <li>Event-by-event OPR, to see who's improving</li>
         <li>Every match they've played with or against each other</li>
@@ -294,9 +293,6 @@ export function leaders(m: Pick<Metric, "better" | "value">, t: CompareTeam[]): 
   return new Set(t.filter((x) => m.value(x) === top).map((x) => x.team.number));
 }
 
-/** How a table cell fades in (a new team's column, or the rows on first load). */
-const CELL = { duration: 0.28, ease: [0.2, 0.8, 0.2, 1] as const };
-
 const ORDINAL = ["first", "second", "third", "fourth"];
 /** The first team's column, the one the others are measured against: a neutral tint. */
 // A neutral tint, not the accent: gold marks the interface, never a team or a value.
@@ -304,10 +300,7 @@ const BASELINE = "bg-foreground/[0.04]";
 
 function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number) => void; onMove: (team: number, to: number) => void }) {
   const t = d.teams;
-  // v8: no Motion fades (v8-page-guide: no layout/entrance animation on tables); plain cells, same markup.
-  const v8 = useIsV8();
-  const Th = (v8 ? "th" : m.th) as typeof m.th, Tr = (v8 ? "tr" : m.tr) as typeof m.tr, Td = (v8 ? "td" : m.td) as typeof m.td;
-  const fade = <T,>(x: T) => (v8 ? {} : x);
+  // No Motion fades (v8-page-guide: no layout/entrance animation on tables); plain cells.
   const { colorOf } = useTeamColors();
   const COLORS = teamPalette(t.map((x) => x.team.number), colorOf);
   // Reordering: drag a column's grip onto another column (mouse, pen or touch), or arrow keys on the grip.
@@ -379,16 +372,14 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
       <p className="sr-only" aria-live="polite">{said}</p>
       {/* v8 (Sushil's table note): visible hairlines, a header rule, 44px rows, numbers right-aligned, the team on one
           line, and narrow enough that three teams fit a phone without scrolling sideways. */}
-      <table ref={table} className="w-full table-fixed border-collapse text-sm" style={{ minWidth: v8 ? `${4.75 + t.length * 6.5}rem` : `${5 + t.length * 8}rem` }}>
+      <table ref={table} className="w-full table-fixed border-collapse text-sm" style={{ minWidth: `${4.75 + t.length * 6.5}rem` }}>
         <caption className="sr-only">Season stats; the best in each row is marked</caption>
         <thead>
           <tr className="v8:border-b v8:border-ink/[0.12]">
             <th scope="col" className="w-20 p-3 sm:w-24 v8:w-[4.75rem] sm:v8:w-32"><span className="sr-only">Stat</span></th>
             {t.map((x, i) => (
-              <Th key={x.team.number} scope="col" data-col={i} className={cn("border-l border-border p-3 text-left align-top font-normal v8:border-line", colClass(i))} style={{ boxShadow: `inset 0 ${v8 ? 2 : 3}px 0 ${COLORS[i]}` }}
-                {...fade({ initial: { opacity: 0, y: -4 }, animate: { opacity: 1, y: 0 }, transition: CELL })}>
-                {v8 ? (
-                  <>
+              <th key={x.team.number} scope="col" data-col={i} className={cn("border-l border-border p-3 text-left align-top font-normal v8:border-line", colClass(i))} style={{ boxShadow: `inset 0 ${2}px 0 ${COLORS[i]}` }}>
+                {<>
                     <Link to={`/teams/${x.team.number}?season=${d.season}`} className="flex min-w-0 items-baseline gap-2 hover:underline" title={x.team.name ?? undefined}>
                       <TeamLogo team={x.team.number} size={20} className="self-center" />
                       <span className="shrink-0 font-display text-lg font-semibold tabular-nums text-text-base">{x.team.number}</span>
@@ -405,26 +396,9 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
                       {i === 0 && t.length > 1 && <span className="truncate text-[0.6875rem] text-text-faint max-sm:sr-only">Baseline</span>}
                       <Button variant="ghost" size="icon-sm" className="ml-auto shrink-0 text-text-faint pointer-coarse:size-[44px]" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
                     </div>
-                  </>
-                ) : (
-                <div className="flex items-start justify-between gap-1 pointer-coarse:flex-wrap pointer-coarse:gap-0">
-                  {t.length > 1 && (
-                    <button type="button" {...gripProps(x.team.number, i)}
-                      aria-label={`Reorder ${x.team.number}, ${ORDINAL[i]} of ${t.length}: drag, or use the arrow keys`} title="Drag to reorder: the first team is the one the others are measured against"
-                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 pointer-coarse:mt-0 pointer-coarse:-ml-3 pointer-coarse:h-[44px] pointer-coarse:w-[44px] cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing max-sm:h-10">
-                      <GripVertical className="size-4" aria-hidden />
-                    </button>
-                  )}
-                  <Link to={`/teams/${x.team.number}?season=${d.season}`} className="min-w-0 hover:underline pointer-coarse:order-first pointer-coarse:min-h-[44px] pointer-coarse:basis-full">
-                    <span className="block font-display text-xl font-semibold tabular-nums v8:text-text-base">{x.team.number}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{x.team.name ?? "—"}</span>
-                    {i === 0 && t.length > 1 && <span className="mt-1 inline-block rounded-full border border-border bg-muted px-1.5 text-[10px] font-semibold text-foreground/80 v8:border-line v8:bg-transparent v8:text-[0.6875rem] v8:font-normal v8:text-text-faint">Baseline</span>}
-                  </Link>
-                  <Button variant="ghost" size="icon-sm" className="-mr-1.5 -mt-1 shrink-0 max-sm:size-10 pointer-coarse:ml-auto pointer-coarse:mt-0 pointer-coarse:size-[44px]" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
-                </div>
-                )}
+                  </>}
                 {!x.stats && <span className="mt-1 block text-xs text-muted-foreground v8:truncate v8:text-text-faint">No results this season</span>}
-              </Th>
+              </th>
             ))}
           </tr>
         </thead>
@@ -432,34 +406,30 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
           {METRICS.map((metric, row) => {
             const best = leaders(metric, t);
             return (
-              <Tr key={metric.label} className="border-t border-border v8:border-ink/[0.08] v8:first:border-t-0" {...fade({ initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { ...CELL, delay: 0.05 + row * 0.03 } })}>
-                <th scope="row" className={cn("px-3 py-2 text-left font-normal text-muted-foreground v8:h-11 v8:truncate v8:py-0", metric.phase ? V8_PHASE[metric.phase] : "v8:text-text-muted")} title={metric.title?.(null) ?? metric.label}>{v8 && metric.short ? <><span className="sm:hidden" aria-hidden>{metric.short}</span><span className="max-sm:sr-only">{metric.label}</span></> : metric.label}</th>
+              <tr key={metric.label} className="border-t border-border v8:border-ink/[0.08] v8:first:border-t-0">
+                <th scope="row" className={cn("px-3 py-2 text-left font-normal text-muted-foreground v8:h-11 v8:truncate v8:py-0", metric.phase ? V8_PHASE[metric.phase] : "v8:text-text-muted")} title={metric.title?.(null) ?? metric.label}>{metric.short ? <><span className="sm:hidden" aria-hidden>{metric.short}</span><span className="max-sm:sr-only">{metric.label}</span></> : metric.label}</th>
                 {t.map((x, i) => {
                   const lead = best.has(x.team.number);
                   const sub = metric.sub?.(x);
                   return (
-                    <Td key={x.team.number} data-col={i} data-lead={lead || undefined} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300 v8:h-11 v8:whitespace-nowrap v8:border-line v8:py-0 v8:text-right v8:duration-150", colClass(i), lead && "bg-foreground/[0.07] v8:bg-ink/[0.06]")}
-                      {...fade({ initial: { opacity: 0 }, animate: { opacity: 1 }, transition: CELL })}>
+                    <td key={x.team.number} data-col={i} data-lead={lead || undefined} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300 v8:h-11 v8:whitespace-nowrap v8:border-line v8:py-0 v8:text-right v8:duration-150", colClass(i), lead && "bg-foreground/[0.07] v8:bg-ink/[0.06]")}>
                       <span className={cn("whitespace-nowrap font-medium", lead ? cn("font-bold text-foreground v8:font-semibold", metric.phase ? V8_PHASE[metric.phase] : "v8:text-text-base") : best.size > 0 ? "v8:text-text-muted" : metric.phase && V8_PHASE[metric.phase])}>{metric.show(x)}</span>
                       {lead && <span className="sr-only"> (best)</span>}
                       {sub && <span className="whitespace-nowrap text-xs text-muted-foreground max-sm:block sm:ml-1.5 max-sm:v8:hidden v8:text-text-faint">{sub}</span>}
-                    </Td>
+                    </td>
                   );
                 })}
-              </Tr>
+              </tr>
             );
           })}
         </tbody>
       </table>
-      {v8 ? (
-        // v8: the explanation waits behind a disclosure.
-        <details className="group border-t border-ink/[0.08] text-xs text-text-faint" data-swing-line>
+      {<details className="group border-t border-ink/[0.08] text-xs text-text-faint" data-swing-line>
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-3 hover:text-text-muted [&::-webkit-details-marker]:hidden">
             <Info className="size-3.5" aria-hidden />About these numbers
           </summary>
           <p className="px-3 pb-3">{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>
-        </details>
-      ) : <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground" data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>}
+        </details>}
     </Reveal>
   );
 }
@@ -489,11 +459,11 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
   const trend = Array.from({ length: maxEvents }, (_, i) => ({ i: `E${i + 1}`, ...Object.fromEntries(t.map((x) => [String(x.team.number), x.events[i]?.opr ?? null])) }));
   // 2019–2022 are history only: their predict routes 404, so no "Predict" button.
   const predictable = usePredictable(d.season);
-  const v8 = useIsV8();
+  
   const lab = t.length === 4 && predictable ? predictHref({ mode: "match", season: d.season, red: [t[0].team.number, t[1].team.number], blue: [t[2].team.number, t[3].team.number] }) : null;
   return (
     <div className="space-y-6 max-sm:space-y-4">
-      {v8 && t.length > 1 && <Verdict t={t} colors={COLORS} season={d.season} />}
+      {t.length > 1 && <Verdict t={t} colors={COLORS} season={d.season} />}
       {/* The stats and both charts share the first screen from lg up. */}
       <div className="grid gap-4 lg:grid-cols-2">
         <StatsTable d={d} onRemove={onRemove} onMove={onMove} />

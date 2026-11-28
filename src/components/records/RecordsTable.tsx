@@ -40,7 +40,7 @@ import { placeFor, SCHEDULE_STATS, ScheduleValue, type SchedulePlaces } from "..
 import { useFlag } from "../../lib/flags";
 import { HEAT_MIN, heatable, heatBand } from "../../shared/statTones";
 import { Spacer, useSteadyColumns, useVirtualRows } from "../ui/windowing";
-import { useIsV8, V8_NUM } from "../../lib/v8";
+import { V8_NUM } from "../../lib/v8";
 import { columnShade, SHADE_COLS, WLT_TONE } from "../../lib/rankShade";
 import { V8_ICON } from "../rankings/v8";
 
@@ -100,7 +100,7 @@ const writeCols = (k: string, cols: string[] | null) => { try { if (cols) localS
 const thresholds = new Map<string, Promise<number | null>>();
 
 export function RecordsTable(p: RecordsTableProps) {
-  const v8 = useIsV8();
+  
   const { scope, season, predictable, code } = p;
   const defaultSort = p.defaultSort ?? (scope === "match" ? "highScore" : "totalPointsOpr");
   const [sp] = useSearchParams();
@@ -409,11 +409,11 @@ export function RecordsTable(p: RecordsTableProps) {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card p-1.5 v8:contents">
-        <Button variant={v8 ? "outline" : "secondary"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { setBuilder(false); setColumns(!columns); }} aria-pressed={columns}>
+        <Button variant={"outline"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { setBuilder(false); setColumns(!columns); }} aria-pressed={columns}>
           {/* The name is the visible text (plus words a phone hides): "Statistics 12 columns". */}
           <Columns3 className={cn("text-sky-500", V8_ICON)} /> <span className="max-sm:sr-only">Statistics</span> <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums v8:text-[0.6875rem]">{cols.length}{" "}<span className="sr-only">columns</span></span>
         </Button>
-        <Button variant={conditions ? "default" : v8 ? "outline" : "secondary"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { if (builder) setBuilder(false); else openBuilder(); }} aria-pressed={builder} aria-label={`Filters${conditions ? `: ${conditions} conditions` : ""}`}>
+        <Button variant={conditions ? "default" : "outline"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { if (builder) setBuilder(false); else openBuilder(); }} aria-pressed={builder} aria-label={`Filters${conditions ? `: ${conditions} conditions` : ""}`}>
           <ListFilter className={cn(conditions ? "" : "text-accent", V8_ICON)} /> Filters{conditions > 0 && <span className="rounded bg-accent-ink/15 px-1.5 text-[11px] tabular-nums v8:bg-ink/10 v8:text-[0.6875rem]">{conditions}</span>}
         </Button>
         {presets.length > 0 && (

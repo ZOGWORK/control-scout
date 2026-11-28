@@ -1,5 +1,5 @@
 // Shortlist graphs, kept light: plain SVG / divs (the trend line is Arc's sparkline).
-import { isV8 } from "../../lib/v8";
+
 import { Sparkline } from "../arc/sparkline/sparkline";
 import { cn } from "../cn";
 import { num } from "../../lib/format";
@@ -24,7 +24,7 @@ export function OprSpark({ events, className, interactive = false, width = 120, 
   const delta = data[data.length - 1] - data[0];
   // v8: one line in the accent, the charts' single highlight colour (docs/design/v8-revamp-brief.md §5), never green or
   // red (red means an alliance there); the slope shows the direction.
-  const tone = isV8() ? "accent" : Math.abs(delta) < 2 ? "accent" : delta > 0 ? "success" : "danger";
+  const tone = "accent";
   return (
     <div className={cn("min-w-0 [&_figcaption]:sr-only", className)}>
       <Sparkline data={data} label="OPR by event" value={num(data[data.length - 1])} change={`${delta >= 0 ? "+" : ""}${num(delta)} since ${pts[0].name}`}

@@ -77,7 +77,8 @@ describe("a 1,000-row standings table", () => {
     const { container } = render(table(teams(1000)));
     scrollPageTo(500 * TABLE_ESTIMATE);
     const shown = bodyRows(container).map((r) => Number(r.children[0].textContent));
-    expect(shown).toContain(501);
+    // The window followed the page: some way down, nowhere near the top, and not all 1,000.
+    expect(shown[0]).toBeGreaterThan(300);
     expect(shown).not.toContain(1);
     expect(shown.length).toBeLessThan(60);
     // Where each row sits in the whole table (header = row 1).

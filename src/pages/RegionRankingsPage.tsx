@@ -23,7 +23,7 @@ import { TeamNumber } from "../components/records/RecordsTable";
 import { cn } from "../components/cn";
 import { Move, Pager, SeasonPick, TrendBadge, WeekPick, weekLabel } from "./RankingsPage";
 import { MoverCards } from "../components/rankings/MoverCards";
-import { useIsV8, V8_NUM } from "../lib/v8";
+import { V8_NUM } from "../lib/v8";
 import { fixed } from "../shared/format";
 import {
   Disclosure, RankingsTabs, V8_CAPTION, V8_CARD_LINK, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_NOTE, V8_RANK, V8_ROW, V8_TH, V8_UP, v8Medal,
@@ -41,7 +41,7 @@ export default function RegionRankingsPage() {
   const current = useCurrentSeason();
   const { state: personal } = usePersonal();
   const myTeam = personal.myTeam;
-  const v8 = useIsV8();
+  
   // The route's place, read as the API reads a ?region= key ("USA" + "NJ" → USA:NJ).
   const place = useMemo(() => parsePlaces(state ? `${country}:${state}` : country)?.[0] ?? null, [country, state]);
   const key = place ? placeKey(place) : null;
@@ -90,7 +90,7 @@ export default function RegionRankingsPage() {
           {data && data.weeks.length > 0 && <WeekPick weeks={data.weeks} value={week} liveLabel={liveLabel} onChange={(w) => go({ week: w })} />}
         </div>
       </PageHeader>
-      {!v8 && <SeasonNote season={season} />}
+      
 
       {res.error && !data ? <ErrorState error={res.error} onRetry={res.reload} /> : !data ? <Skeleton /> : (
         // v8: the table comes first (it is the page); the week's movers follow it, then the rest.
@@ -122,13 +122,11 @@ export default function RegionRankingsPage() {
             <Link to={`/rankings${qs({ season: data.season })}`} className={cn("text-accent-text hover:underline", V8_LINK)}>World rankings</Link>
             <Link to={`/rankings/regions${qs({ season: data.season })}`} className={cn("text-accent-text hover:underline", V8_LINK)}>All regions</Link>
           </nav>
-          {v8 && (
-            <Disclosure title="How region rankings work" className="order-5">
+          {<Disclosure title="How region rankings work" className="order-5">
               <p data-season-note>Ratings are only comparable inside one season. Do not compare a {seasonLabel(season - 1)} rating to a {seasonLabel(season)} rating.</p>
               <p>The rank is the place in {name} by prediction rating, the same rating as the world rankings; the small W number under it is the world rank. A team is ranked after its third rated match. Sorting by another column doesn't change the rank.</p>
               {data.rows.some((r) => r.swing !== undefined) && <p>{SWING_LINE} <Link to="/methodology#swing" className="underline underline-offset-2">How it's computed</Link></p>}
-            </Disclosure>
-          )}
+            </Disclosure>}
         </div>
       )}
     </div>
@@ -176,7 +174,7 @@ function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRanking
   const stats = data.stats;
   const swing = data.rows.some((r) => r.swing !== undefined);
   const name = data.region.name;
-  const v8 = useIsV8();
+  
   /** A header that sorts: the rank numbers stay as they are. */
   const H = ({ s, label, title, className }: { s: RegionSort; label: React.ReactNode; title?: string; className?: string }) => (
     <th scope="col" className={cn(th, className)} aria-sort={sort === s ? (s === "rank" ? "ascending" : "descending") : undefined} title={title}>
@@ -244,9 +242,7 @@ function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRanking
         </tbody>
       </table>
       {/* v8: what the rank means is in the disclosure under the page; the sort is marked on its column head. */}
-      {!v8 && <p className="border-t border-text-base/10 px-2 py-2 text-xs text-text-muted sm:px-3">
-        Sorted by {SORT_LABEL[sort].toLowerCase()}. The rank is always the place in {name} by rating; sorting doesn't change it.{swing && <> {SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></>}
-      </p>}
+      
     </div>
   );
 }
@@ -273,7 +269,7 @@ function Unranked({ data, team }: { data: RegionRankingsResponse; team: number |
 
 /** The region's leagues, each to its standings (FIRST's league ranking). */
 function Leagues({ leagues, name, season }: { leagues: LeagueListItem[]; name: string; season: number }) {
-  const v8 = useIsV8();
+  
   return (
     <section aria-labelledby="region-leagues" className="space-y-2" data-region-leagues>
       <h2 id="region-leagues" className="flex flex-wrap items-baseline gap-x-3 font-display text-lg font-semibold v8:font-sans v8:text-base">Leagues in {name}<Link to={`/leagues?season=${season}`} className={cn("text-sm font-normal text-accent-text hover:underline", V8_LINK)}>All leagues →</Link></h2>
@@ -281,7 +277,7 @@ function Leagues({ leagues, name, season }: { leagues: LeagueListItem[]; name: s
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {leagues.map((l) => (
             <li key={`${l.region}-${l.code}`}>
-              <Link to={leagueHref(season, l.region, l.code)} className={cn(!v8 && "lift", "flex h-full flex-col gap-0.5 rounded-xl border border-border bg-card p-3 hover:border-accent/60 v8:transition-colors v8:duration-150", V8_CARD_LINK)}>
+              <Link to={leagueHref(season, l.region, l.code)} className={cn("flex h-full flex-col gap-0.5 rounded-xl border border-border bg-card p-3 hover:border-accent/60 v8:transition-colors v8:duration-150", V8_CARD_LINK)}>
                 <span className="flex items-center gap-2 text-sm font-medium"><CalendarDays className={cn("size-4 shrink-0 text-muted-foreground", V8_ICON)} aria-hidden /><span className="truncate">{leagueTitle(l.name, l.code)}</span></span>
                 <span className="text-xs text-muted-foreground">{l.meetsPlayed} of {l.meets} meet{l.meets === 1 ? "" : "s"} played{l.teams ? ` · ${l.teams} teams` : ""}</span>
                 <span className="truncate text-xs text-muted-foreground">{l.top ? <>#1 by RS: <span className="font-mono tabular-nums">{l.top.team}</span> {l.top.name ?? ""}{l.top.rs != null ? ` (${rankingScore(l.top.rs)})` : ""}</> : "No standings yet"}</span>

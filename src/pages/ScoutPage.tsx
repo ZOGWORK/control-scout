@@ -61,7 +61,7 @@ import { matchQueueProgress } from "../shared/scoutProgress";
 import { workspaceExportUrl } from "../shared/scoutExport";
 import { useScoutSession } from "../lib/scoutSession";
 import { myMatchAssignment, useMatchAssignments } from "../lib/slotAssignments";
-import { useIsV8 } from "../lib/v8";
+
 import { cn } from "../components/cn";
 
 /** v8 (docs/design/v8-revamp-brief.md): notices are a neutral card with a muted icon, never an orange fill. */
@@ -353,13 +353,13 @@ export default function ScoutPage() {
   const syncChip = spaces.resolving ? undefined : <SyncChip status={offlineAccount ? "offline" : status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />;
   const exportHref = workspace ? dataExportUrl(workspace.id, sp, season) : null;
   const seasonRow = <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; })} />;
-  const v8 = useIsV8();
+  
   // v8: the page title at the top of the content with where saving stands on its right (on every screen, so the
   // event bar under it is only the event); the classic header otherwise.
-  const Header = v8 ? V8Header : PageHeader;
+  const Header = V8Header;
   return (
     <div>
-      <Header title="Scout" actions={v8 ? syncChip : session && !picking ? undefined : syncChip}>
+      <Header title="Scout" actions={syncChip}>
         {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} onRefresh={syncReady ? refreshSpace : undefined} className="mb-4" />}
         {/* Edits this device lost to newer ones from other members (Task 16): each until dismissed, with its diff. */}
         {space != null && !spaces.resolving && <ConflictNotices space={space} me={me && { ...me, readOnly: !!readOnly }} />}
@@ -395,7 +395,7 @@ export default function ScoutPage() {
         </>}
         <div hidden={picking}>
         {/* v8 on a phone: while a match is open, the match comes first; the event bar and tabs fold away. */}
-        {session && <div className={scoutingMatch ? "v8:max-md:hidden" : undefined}><EventBar event={scoutEvent} status={v8 ? undefined : syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} onStop={readOnly ? null : stopScouting} /></div>}
+        {session && <div className={scoutingMatch ? "v8:max-md:hidden" : undefined}><EventBar event={scoutEvent} status={undefined} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} onStop={readOnly ? null : stopScouting} /></div>}
         <ScoutSections section={section} onSection={setSection} sections={sections} folded={scoutingMatch}>
           {/* A match typed in stays mounted (hidden in other sections) until Save or Cancel, so stepping to another
               section and back keeps its team, match, answers and notes. */}
@@ -546,16 +546,14 @@ function V8Header({ title, actions, children }: { title: string; actions?: React
 }
 
 function SyncChip({ status, pending, onSync, signedIn, live }: { status: string; pending: number; onSync: () => void; signedIn: boolean; live: LiveMode }) {
-  const v8 = useIsV8();
+  
   // Signed out: personal scouting lives on this device (nothing to sync to).
-  if (!signedIn) return v8
-    ? <span data-sync-state="device" className="inline-flex items-center gap-1.5 text-xs text-text-muted"><HardDriveDownload className="size-3.5" aria-hidden /> Saved on this device</span>
-    : <Badge variant="secondary" data-sync-state="device"><HardDriveDownload /> Saved on this device</Badge>;
+  if (!signedIn) return <span data-sync-state="device" className="inline-flex items-center gap-1.5 text-xs text-text-muted"><HardDriveDownload className="size-3.5" aria-hidden /> Saved on this device</span>;
   const synced = status !== "syncing" && status !== "offline" && status !== "error" && !pending;
   // No signal is calm, not a warning: every entry is saved here and goes up by itself once the signal is back.
   const offline = status === "offline";
   // v8: small text, not a box (brief §7.7 "saving and syncing are shown with small text"); still a button that syncs.
-  if (v8) return (
+  return (
     <button type="button" onClick={onSync} data-sync-state={status}
       className="tap-44 -mr-1.5 inline-flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-text-muted transition-colors duration-150 still-hover:text-text-base">
       {status === "syncing" ? <Loader2 className="size-3.5 shrink-0 animate-spin [animation-duration:0.6s]" aria-hidden /> : offline ? <HardDriveDownload className="size-3.5 shrink-0" aria-hidden />
@@ -565,14 +563,6 @@ function SyncChip({ status, pending, onSync, signedIn, live }: { status: string;
       </span>
       {synced && live === "live" && <span className="inline-flex shrink-0 items-center gap-1"><span aria-hidden className="size-1.5 rounded-full bg-text-base" />Live</span>}
       {synced && live === "polling" && <span className="shrink-0 max-sm:hidden">· checks every 15 s</span>}
-    </button>
-  );
-  return (
-    <button onClick={onSync} data-sync-state={status} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground max-sm:min-h-11">
-      {status === "syncing" ? <Loader2 className="size-3.5 animate-spin" /> : offline ? <HardDriveDownload className="size-3.5" /> : status === "error" ? <CloudOff className="size-3.5 text-warning" /> : <Cloud className="size-3.5 text-success v8:text-emerald-400" />}
-      {status === "syncing" ? "Syncing…" : offline ? (pending ? `Saved on this device · ${pending} will sync` : "Saved on this device") : status === "error" ? `Sync failed — ${pending} pending · retry` : pending ? `${pending} pending` : "Synced"}
-      {synced && live === "live" && <span className="inline-flex items-center gap-1 text-success v8:text-emerald-400"><span aria-hidden className="size-1.5 rounded-full bg-success v8:bg-emerald-400" />Live</span>}
-      {synced && live === "polling" && <span>· checks every 15 s</span>}
     </button>
   );
 }

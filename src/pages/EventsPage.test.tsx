@@ -9,6 +9,9 @@ import { MemoryRouter, useLocation, useNavigate, type NavigateFunction } from "r
 import type { EventListItem } from "../shared/api";
 import { FIRST_EVENTS, MORE_EVENTS } from "./eventsList";
 
+// jsdom has no scrollIntoView, and the search box scrolls its highlighted row into view.
+Element.prototype.scrollIntoView = () => {};
+
 const today = new Date().toISOString().slice(0, 10);
 const day = (n: number) => { const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 // 150 upcoming events over ~10 weeks; every third one is in Texas.
@@ -60,7 +63,7 @@ function Probe() { const l = useLocation(); loc = l.search; path = l.pathname; n
 
 const { default: EventsPage } = await import("./EventsPage");
 const mount = (url = "/events") => render(<MemoryRouter initialEntries={[url]}><EventsPage /><Probe /></MemoryRouter>);
-const cards = () => document.querySelectorAll('a[href^="/events/2026/"]').length;
+const cards = () => document.querySelectorAll("[data-event-row]").length;
 const box = () => screen.getByLabelText("Filter events") as HTMLInputElement;
 const type = (text: string) => { for (const ch of text) fireEvent.change(box(), { target: { value: box().value + ch } }); };
 
@@ -75,7 +78,7 @@ describe("Events page filter box", () => {
     expect(new URLSearchParams(loc).get("q")).toBe("texas");
     expect(document.body.textContent).toContain(`${TEXAS} events in`);
     expect(cards()).toBe(Math.min(TEXAS, FIRST_EVENTS));
-    expect([...document.querySelectorAll('a[href^="/events/2026/"]')].every((a) => a.textContent!.includes("Texas"))).toBe(true);
+    expect([...document.querySelectorAll("[data-event-row]")].every((a) => a.textContent!.includes("Austin"))).toBe(true);
   });
 
   it("keeps fast typing while the URL update is still pending", () => {
@@ -249,24 +252,3 @@ describe("Events page default status", () => {
   }));
 });
 
-describe("Events page cards", () => {
-  it("gives every finished event a full bar, with Done when it has no results posted", () => {
-    const kept = EVENTS.slice(0, 6);
-    EVENTS[0] = { ...kept[0], status: "finished" };
-    EVENTS[1] = { ...kept[1], status: "finished", matchesPlayed: 9, matchesTotal: 9 };
-    EVENTS[3] = { ...kept[3], status: "finished", matchesTotal: 12 };
-    EVENTS[4] = { ...kept[4], status: "live", matchesTotal: 12 };
-    EVENTS[2] = { ...kept[2], status: "finished", matchesPlayed: 1, matchesTotal: 2 };
-    try {
-      mount("/events?status=all"); // EV4 is live, which would open on Live now
-      const bar = (code: string) => document.querySelector(`a[href="/events/2026/${code}"] [data-match-bar]`);
-      expect(bar("EV0")?.textContent).toBe("Done");
-      expect(bar("EV1")?.textContent).toBe("9/9");
-      expect(bar("EV2")?.textContent).toBe("1/2");
-      expect((bar("EV2")?.querySelector("[style]") as HTMLElement).style.width).toBe("100%");
-      expect(bar("EV5")).toBeNull();
-      expect(bar("EV3")?.textContent).toBe("Done");
-      expect(bar("EV4")?.textContent).toBe("0/12");
-    } finally { EVENTS.splice(0, 6, ...kept); }
-  });
-});

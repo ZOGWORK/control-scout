@@ -17,7 +17,7 @@ import { TierMark } from "./predict";
 import { cn } from "./cn";
 import { topSeed } from "../lib/eventRankingNotes";
 import { hasTeamPage } from "../shared/teamPages";
-import { useIsV8 } from "../lib/v8";
+
 
 const PHASE: Record<Phase, string> = { upcoming: "Not started", quals: "Qualification", playoffs: "Playoffs", done: "Complete" };
 
@@ -114,7 +114,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   </Cell>);
 
   // Match predictions need a schedule: with none yet (and no advancement odds) the button led to an empty tab.
-  const v8 = useIsV8();
+  
   const oddsButton = predictable && e.status !== "finished" && !(d.forecastUnsupported && !s.progress);
   return (
     <div className="@container flex min-w-0 flex-col rounded-xl border border-border/70 bg-background/40 p-4 backdrop-blur-sm v8:border-line v8:bg-card v8:backdrop-blur-none" data-glance-card>
@@ -154,7 +154,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
       {oddsButton && (
         <div className="mt-auto pt-3">
           {/* v8: the header keeps the one primary (watch), so this is an outline button. */}
-          <Button size="sm" variant={v8 ? "outline" : "default"} className="w-full" onClick={() => onTab("odds")}>
+          <Button size="sm" variant={"outline"} className="w-full" onClick={() => onTab("odds")}>
             <Trophy /> {d.forecastUnsupported ? "See the match predictions" : "Who advances? See the odds"}
           </Button>
         </div>

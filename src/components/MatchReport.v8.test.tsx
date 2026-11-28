@@ -125,14 +125,3 @@ describe("paired bar", () => {
     expect((document.querySelector('[data-bar="blue"]') as HTMLElement).style.width).toBe("0%");
   });
 });
-
-describe("match report with v8 off", () => {
-  beforeEach(() => document.documentElement.removeAttribute("data-v8"));
-  it("is the old report: the call card on top, team cards, no v8 layout", () => {
-    show(report(played()));
-    expect(document.querySelector("[data-report-layout]")).toBeNull();
-    expect(screen.queryByTestId("report-hero")).toBeNull();
-    expect(screen.getByTestId("report-result").textContent).toMatch(/Called it/);
-    expect(document.querySelectorAll("article")).toHaveLength(4);
-  });
-});

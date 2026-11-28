@@ -11,7 +11,7 @@ import { usePageSearch, useSearch } from "../../layout/Search";
 import { SearchBox, hitHref } from "../SearchBox";
 import { cn } from "../../cn";
 import { Wash, washSize } from "../../layout/Wash";
-import { isV8 } from "../../../lib/v8";
+
 
 /** Scrolled past the page's top: the bar draws in. */
 function useScrolled(px = 24) {
@@ -40,10 +40,10 @@ function usePhoneSearchHeight() {
 
 /** v8: keeps the bar's own copy of the wash (`--bar-wash-y`) lined up with the page's, which scrolls under it, so the
  *  bar is solid (no row shows through, no frosted blur: #2148) yet looks like the wash it sits on (no black band). */
-function useWashUnder(el: RefObject<HTMLDivElement | null>, on: boolean) {
+function useWashUnder(el: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const bar = el.current;
-    if (!on || !bar) return;
+    if (!bar) return;
     let frame = 0;
     const place = () => {
       frame = 0;
@@ -55,7 +55,7 @@ function useWashUnder(el: RefObject<HTMLDivElement | null>, on: boolean) {
     window.addEventListener("scroll", later, { passive: true });
     window.addEventListener("resize", later);
     return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", later); window.removeEventListener("resize", later); };
-  }, [el, on]);
+  }, [el]);
 }
 
 export function PhoneSearchBar({ query }: { query: string }) {
@@ -64,16 +64,16 @@ export function PhoneSearchBar({ query }: { query: string }) {
   const nav = useNavigate();
   const small = useScrolled();
   const ref = usePhoneSearchHeight();
-  const v8 = isV8();
+  
   const { pathname } = useLocation();
-  useWashUnder(ref, v8);
+  useWashUnder(ref);
   return (
     <div ref={ref} data-phone-search={small ? "compact" : "full"}
       className={cn("sticky top-(--header-h) z-20 -mx-4 -mb-1 border-b bg-primary px-4 sm:-mx-6 sm:-mb-5 sm:px-6 transition-[padding,border-color,background-color] duration-150 md:hidden",
         // v8: solid, never see-through or blurred (#2148), drawn with its own copy of the wash behind the field, so at the
         // top it is the wash itself and once scrolled it is a strip of it, never a black band across the wash.
         small ? "border-line py-1.5 v8:border-transparent" : "border-transparent py-2")}>
-      {v8 && <div aria-hidden data-bar-wash className="pointer-events-none absolute inset-0 overflow-hidden">
+      {<div aria-hidden data-bar-wash className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-x-0 top-0" style={{ transform: "translateY(var(--bar-wash-y, 0px))" }}><Wash size={washSize(pathname)} includeParticleWave={false} /></div>
       </div>}
       <div className="relative">

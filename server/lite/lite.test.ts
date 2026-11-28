@@ -21,7 +21,7 @@ import { factorLabel } from "../../src/shared/factorLabel";
 import { sharePct } from "../../src/shared/factorSheet";
 import type { RankingsResponse } from "../../src/shared/rankings";
 import { liteEvent, nextMatches } from "./trim";
-import { LITE_STYLE, LITE_TAP_CLASSES, LITE_V8_STYLE, esc, eventPage, matchList } from "./render";
+import { LITE_TAP_CLASSES, LITE_V8_STYLE, esc, eventPage, matchList } from "./render";
 import { searchPage, textBar } from "./pages";
 import { LITE_CSP, LITE_NET_CSP, pageVary, safeNext } from "./routes";
 import { NET_SCRIPT } from "./network";
@@ -204,36 +204,35 @@ describe("light pages", () => {
 });
 
 describe("the app's theme and text size (cookies)", () => {
-  // The classic look (a device that picked /legacy) draws the app's themes; v8 draws them too (below).
   const page = async (cookie: string) => {
-    const r = await get(`/lite/teams/10005`, { headers: { cookie: `cs-v8=0; ${cookie}` } });
+    const r = await get(`/lite/teams/10005`, { headers: { cookie: cookie || "a=1" } });
     expect(r.headers.get("vary")).toMatch(/Cookie/);
     return r.text();
   };
   it("draws each theme as the app does: a class on <html>, System following the device", async () => {
-    expect(await page("")).toMatch(/<html lang="en"><head>/);
-    expect(await page("cs-theme=dark")).toMatch(/<html lang="en"><head>/);
-    for (const t of ["light", "dim"]) expect(await page(`a=1; cs-theme=${t}`)).toContain(`<html lang="en" class="${t}">`);
+    expect(await page("")).toMatch(/<html lang="en" data-v8><head>/);
+    expect(await page("cs-theme=dark")).toMatch(/<html lang="en" data-v8><head>/);
+    for (const t of ["light", "dim"]) expect(await page(`a=1; cs-theme=${t}`)).toContain(`<html lang="en" class="${t}" data-v8>`);
     // The retired Midnight draws as Dark, the default.
-    expect(await page("cs-theme=midnight")).toMatch(/<html lang="en"><head>/);
+    expect(await page("cs-theme=midnight")).toMatch(/<html lang="en" data-v8><head>/);
     const sys = await page("cs-theme=system");
-    expect(sys).toContain(`<html lang="en" class="sys">`);
+    expect(sys).toContain(`<html lang="en" class="sys" data-v8>`);
     expect(sys).toContain(`<meta name="color-scheme" content="dark light">`);
-    expect(LITE_STYLE).toContain("@media(prefers-color-scheme:light){html.sys{");
+    expect(LITE_V8_STYLE).toContain("@media(prefers-color-scheme:light){html.sys{");
     expect(await page("cs-theme=light")).toContain(`<meta name="color-scheme" content="light">`);
     // Anything else is the default, never markup.
-    expect(await page("cs-theme=%22%3E%3Cb%3E")).toMatch(/<html lang="en"><head>/);
+    expect(await page("cs-theme=%22%3E%3Cb%3E")).toMatch(/<html lang="en" data-v8><head>/);
   });
   it("scales the root font size with the app's text size", async () => {
-    for (const t of ["s", "l", "xl"]) expect(await page(`cs-text-size=${t}`)).toContain(`<html lang="en" data-text-size="${t}">`);
-    expect(await page("cs-text-size=m")).toMatch(/<html lang="en"><head>/);
-    expect(await page("cs-theme=dim; cs-text-size=xl")).toContain(`<html lang="en" class="dim" data-text-size="xl">`);
-    expect(LITE_STYLE).toContain("html[data-text-size=xl]{--s:1.25}");
-    expect(LITE_STYLE).toContain("font-size:calc(100% * var(--b) * var(--s))");
+    for (const t of ["s", "l", "xl"]) expect(await page(`cs-text-size=${t}`)).toContain(`<html lang="en" data-v8 data-text-size="${t}">`);
+    expect(await page("cs-text-size=m")).toMatch(/<html lang="en" data-v8><head>/);
+    expect(await page("cs-theme=dim; cs-text-size=xl")).toContain(`<html lang="en" class="dim" data-v8 data-text-size="xl">`);
+    expect(LITE_V8_STYLE).toContain("html[data-text-size=xl]{--s:1.25}");
+    expect(LITE_V8_STYLE).toContain("font-size:calc(100% * var(--b) * var(--s))");
   });
 });
 
-describe("the look: v8 unless this device picked the classic one", () => {
+describe("the look: always v8", () => {
   const html = async (path: string, cookie = "") => (await get(path, cookie ? { headers: { cookie } } : {})).text();
   it("draws v8 by default: its own stylesheet, no gold anywhere", async () => {
     const v8 = await html("/lite/teams/10005");
@@ -265,13 +264,9 @@ describe("the look: v8 unless this device picked the classic one", () => {
     // The retired Midnight is Dark.
     expect(await html("/lite/teams/10005", "cs-theme=midnight")).toMatch(/<html lang="en" data-v8><head>/);
   });
-  it("the classic look from the app's cookie, or ?v8= for this load", async () => {
-    const classic = await html("/lite/teams/10005", "cs-v8=0");
-    expect(classic).toMatch(/<html lang="en"><head>/);
-    expect(classic).toContain(`<style>${LITE_STYLE}</style>`);
-    expect(await html("/lite/teams/10005", "cs-v8=1")).toContain("data-v8");
-    expect(await html("/lite/teams/10005?v8=0")).toMatch(/<html lang="en"><head>/);
-    expect(await html("/lite/teams/10005?v8=1", "cs-v8=0")).toContain("<html lang=\"en\" data-v8>");
+  it("takes no look from a cookie or ?v8=: the old ones are ignored", async () => {
+    expect(await html("/lite/teams/10005", "cs-v8=0")).toMatch(/<html lang="en" data-v8><head>/);
+    expect(await html("/lite/teams/10005?v8=0")).toMatch(/<html lang="en" data-v8><head>/);
   });
   it("every v8 link class is a 44px tap target too", () => {
     for (const c of LITE_TAP_CLASSES) {
@@ -306,14 +301,14 @@ describe("the look: v8 unless this device picked the classic one", () => {
 describe("tap targets", () => {
   it("every link class is at least 44px tall in the stylesheet", () => {
     for (const c of LITE_TAP_CLASSES) {
-      const rule = new RegExp(`(?:^|})\\.${c}\\{([^}]*)\\}`).exec(LITE_STYLE);
+      const rule = new RegExp(`(?:^|})\\.${c}\\{([^}]*)\\}`).exec(LITE_V8_STYLE);
       expect(rule, c).toBeTruthy();
       const h = /min-height:(\d+)px/.exec(rule![1]);
       expect(Number(h?.[1]), `.${c} min-height`).toBeGreaterThanOrEqual(44);
     }
     // Table cells and list rows keep their padding (nothing touching).
-    expect(LITE_STYLE).toContain("th,td{padding:10px 12px;");
-    expect(LITE_STYLE).toMatch(/\.in\{[^}]*padding:0 16px/);
+    expect(LITE_V8_STYLE).toContain("th,td{padding:10px 12px;");
+    expect(LITE_V8_STYLE).toMatch(/\.in\{[^}]*padding:0 16px/);
   });
 });
 
@@ -697,12 +692,12 @@ describe("network & offline (journey 10)", () => {
   });
 
   it("Lite on: its switch turns it off, back to the full screen; Settings links here", async () => {
-    const html = await (await get("/lite/network", { headers: { cookie: "cs-v8=0; cs-lite=1; cs-theme=light" } })).text();
+    const html = await (await get("/lite/network", { headers: { cookie: "cs-lite=1; cs-theme=light" } })).text();
     expect(html).toContain(`<b id="n-lite">Lite is on</b>`);
     expect(html).toContain(`<a class="btn" href="/lite/off?next=%2Flite%2Fnetwork">Turn off Lite</a>`);
     // The full pages it links open this once (Lite would bring them straight back).
     expect(html).toContain(`href="/download?lite=0"`);
-    expect(html).toContain(`<html lang="en" class="light">`);
+    expect(html).toContain(`<html lang="en" class="light" data-v8>`);
     const off = await get("/lite/off?next=%2Flite%2Fnetwork");
     expect(off.headers.get("location")).toBe("/network");
   });

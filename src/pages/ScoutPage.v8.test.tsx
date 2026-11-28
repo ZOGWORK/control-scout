@@ -3,9 +3,8 @@
 // (the next match as a big label with the one primary button, then the next pit team), the watch strip folds
 // behind Change, the event bar is a quiet line with Stop scouting in More, the match chips and the save bar's
 // controls carry the v8 look (no green, orange or slate-blue fill behind words), and the forms are 48px.
-// With v8 off, each piece draws as before.
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { ScoutEvent } from "../lib/scoutEvent";
 import type { ScoutSession } from "../lib/scoutSession";
@@ -16,7 +15,6 @@ import { watchingWords } from "../components/scout/eventday/NextUp";
 import { MatchHeader } from "../components/scout/redesign/MatchHeader";
 import { BigFieldInput } from "../components/scout/redesign/BigFieldInput";
 
-const v8 = (on: boolean) => { if (on) document.documentElement.setAttribute("data-v8", ""); else document.documentElement.removeAttribute("data-v8"); };
 const own = (c: string) => c.split(/\s+/).filter((t) => t && !t.startsWith("v8:") && !t.includes(":v8:"));
 
 const m = (n: number, played = false): ScheduleMatch => ({
@@ -41,8 +39,7 @@ const day = (over: Partial<Parameters<typeof EventDay>[0]> = {}) => {
   return { onMatch, onPit, onWatching };
 };
 
-beforeEach(() => v8(true));
-afterEach(() => { cleanup(); v8(false); });
+afterEach(() => cleanup());
 
 describe("Event day in v8", () => {
   it("opens on the next match with the one primary button, and the next pit team", () => {
@@ -85,14 +82,6 @@ describe("Event day in v8", () => {
     const next = screen.getByRole("region", { name: "Next to scout" });
     expect(within(next).queryAllByRole("button")).toHaveLength(0);
   });
-
-  it("classic look: the strip, the four tiles and no Next up card", () => {
-    v8(false);
-    day();
-    expect(screen.queryByRole("region", { name: "Next to scout" })).toBeNull();
-    expect(screen.getByText("What are you watching?")).toBeTruthy();
-    expect(screen.getByText("Entries today")).toBeTruthy();
-  });
 });
 
 describe("the event bar in v8", () => {
@@ -104,13 +93,6 @@ describe("the event bar in v8", () => {
     expect(within(bar).getByRole("button", { name: "Change event" })).toBeTruthy();
     expect(within(bar).queryByRole("button", { name: /Stop scouting/ })).toBeNull();
     expect(within(bar).getByRole("button", { name: "More event options" })).toBeTruthy();
-  });
-  it("classic look: the tinted box with both buttons", () => {
-    v8(false);
-    render(<EventBar event={event()} onChange={() => {}} onStop={() => {}} />);
-    const bar = screen.getByRole("region", { name: "Event you're scouting" });
-    expect(bar.dataset.eventBar).toBeUndefined();
-    expect(within(bar).getByRole("button", { name: /Stop scouting/ })).toBeTruthy();
   });
 });
 
