@@ -9,7 +9,7 @@ import { createApp } from "../app";
 import { deleteUser, sha256 } from "../auth/session";
 import { clearAllCaches } from "../caches";
 import { CURRENT_SEASON } from "../data/seasons";
-import { cleanWatch, upsetPercent } from "./videosFeed";
+import { cleanWatch, upsetPercent, videoFeed } from "./videosFeed";
 import { decodeHistory, encodeHistory, type FeedAnswer } from "../../src/shared/videosFeed";
 
 const S = CURRENT_SEASON;
@@ -165,6 +165,21 @@ describe("GET /api/videos/feed", () => {
     // A cursor for a list that's gone starts a fresh one rather than failing.
     const stale = await feed(`?my=1111&cursor=zzzzzzzzzzzz.12`);
     expect(stale.items.length).toBeGreaterThan(0);
+  });
+
+  it("pages through the same list however long the person takes, so nothing is skipped or shown twice", async () => {
+    const t0 = Date.now();
+    const ask = (cursor: string | null, history: { key: string; state: "d" }[], now: number) =>
+      videoFeed({ viewer: "d:slow-reader", userId: null, hints: { myTeam: 1111, teams: [], history }, filter: "all", cursor, now });
+    const p1 = await ask(null, [], t0);
+    expect(p1.next).not.toBeNull();
+    // Twenty minutes on, having finished everything on page 1 (finished items sink when a list is built).
+    const p2 = await ask(p1.next, p1.items.map((i) => ({ key: i.key, state: "d" as const })), t0 + 20 * 60_000);
+    const keys = [...p1.items, ...p2.items].map((i) => i.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    const fresh = await ask(null, [], t0 + 20 * 60_000);
+    const whole = [...fresh.items, ...(fresh.next ? (await ask(fresh.next, [], t0 + 20 * 60_000)).items : [])];
+    expect(keys).toEqual(whole.map((i) => i.key));
   });
 
   it("does the same for a signed-out device's own history", async () => {

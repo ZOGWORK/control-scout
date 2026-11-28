@@ -82,3 +82,16 @@ describe("feedPath", () => {
     expect(feedPath("all", null, { myTeam: 4215, teams: [1, 2], history: "c:x~d" })).toBe("/api/videos/feed?my=4215&teams=1%2C2&h=c%3Ax%7Ed");
   });
 });
+
+describe("reportWatch", () => {
+  it("keeps nothing for a video passed by before it played (it isn't a view)", async () => {
+    const { reportWatch, readHistory } = await import("./videoHistory");
+    const before = readHistory().length;
+    await reportWatch({ key: "c:zzzzzzzzzzz", kind: "creator", watchedS: 0 }, false);
+    expect(readHistory().length).toBe(before);
+    await reportWatch({ key: "c:zzzzzzzzzzz", kind: "creator", watchedS: 3 }, false);
+    expect(readHistory().find((e) => e.key === "c:zzzzzzzzzzz")?.state).toBe("p");
+    await reportWatch({ key: "c:yyyyyyyyyyy", kind: "creator", watchedS: 0, hidden: true }, false);
+    expect(readHistory().find((e) => e.key === "c:yyyyyyyyyyy")?.state).toBe("x");
+  });
+});

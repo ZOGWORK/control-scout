@@ -47,6 +47,9 @@ export function sentHistory(list = readHistory()): Entry[] {
 
 /** Keep a watch: on the account when signed in (on this device if the server can't take it), else on this device. */
 export async function reportWatch(w: WatchReport, signedIn: boolean): Promise<void> {
+  // Nothing seen and nothing said (a clip swiped past before it played): no watch to keep. Kept, it would count as
+  // started, a view, and lean the feed toward what was skipped.
+  if (!(w.watchedS > 0) && !w.completed && !w.hidden && !w.more) return;
   if (signedIn) {
     try { await apiFetch("/api/videos/watch", { method: "POST", json: w }); return; } catch { /* kept here instead */ }
   }
