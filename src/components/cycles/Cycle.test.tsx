@@ -97,6 +97,23 @@ describe("a clip's play and pause", () => {
     r.rerender(<MemoryRouter><Cycle {...props} muted={false} /></MemoryRouter>);
     expect(r.container.querySelector("[data-cycle-player]")!.getAttribute("src")).toBe(src);
   });
+
+  it("a sound switch pressed while the player loads is said again once it answers", () => {
+    const props = { item: item(), index: 0, active: true, near: true, signedIn: false, ready: true, onMute: () => {}, onSignIn: () => {} };
+    const r = render(<MemoryRouter><Cycle {...props} muted /></MemoryRouter>);
+    const frame = r.container.querySelector<HTMLIFrameElement>("[data-cycle-player]")!;
+    const sent: string[] = [];
+    vi.spyOn(frame.contentWindow!, "postMessage").mockImplementation((m: unknown) => { const c = JSON.parse(String(m)); if (c.event === "command") sent.push(c.func); });
+    // Sound on before the player is ready: the address still says muted.
+    r.rerender(<MemoryRouter><Cycle {...props} muted={false} /></MemoryRouter>);
+    sent.length = 0;
+    act(() => { window.dispatchEvent(new MessageEvent("message", { origin: YT_ORIGIN, source: frame.contentWindow, data: JSON.stringify({ event: "infoDelivery", info: { playerState: 1, currentTime: 0.1, duration: 45 } }) })); });
+    expect(sent).toContain("unMute");
+    // Only on its first answer.
+    sent.length = 0;
+    act(() => { window.dispatchEvent(new MessageEvent("message", { origin: YT_ORIGIN, source: frame.contentWindow, data: JSON.stringify({ event: "infoDelivery", info: { playerState: 1, currentTime: 0.6, duration: 45 } }) })); });
+    expect(sent).not.toContain("unMute");
+  });
 });
 
 describe("a clip's words", () => {
