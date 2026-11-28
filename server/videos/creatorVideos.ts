@@ -441,19 +441,23 @@ export async function featuredFor(team: number): Promise<FeaturedVideo[]> {
 }
 
 const FEATURED_TTL_MS = 60_000;
-let featuredSet: { at: number; value: Promise<Set<number>> } | null = null;
-/** Every team featured on Behind the Bot (its title names the team), for the chip on team rows. Cached a minute,
- *  and dropped after every run and tag removal. */
-export function featuredTeamSet(): Promise<Set<number>> {
-  if (featuredSet && Date.now() - featuredSet.at < FEATURED_TTL_MS) return featuredSet.value;
+const featuredSets = new Map<string, { at: number; value: Promise<Set<number>> }>();
+/** Every team featured on Behind the Bot (its title names the team), for the chip on team rows. With a season, only
+ *  the episodes from that season (the rankings table: a team featured three seasons ago isn't news on this year's
+ *  ranking). Cached a minute, and dropped after every run and tag removal. */
+export function featuredTeamSet(season?: number): Promise<Set<number>> {
+  const key = season == null ? "all" : String(season);
+  const hit = featuredSets.get(key);
+  if (hit && Date.now() - hit.at < FEATURED_TTL_MS) return hit.value;
   const value = all<{ team_number: number }>(
     `SELECT DISTINCT t.team_number FROM video_team_tags t JOIN creator_videos v ON v.video_id = t.video_id
-     WHERE v.series = 'behind-the-bot' AND v.embeddable = 1 AND t.rule LIKE 'title:%'`).then((rows) => new Set(rows.map((r) => Number(r.team_number))));
-  featuredSet = { at: Date.now(), value };
-  value.catch(() => { if (featuredSet?.value === value) featuredSet = null; });
+     WHERE v.series = 'behind-the-bot' AND v.embeddable = 1 AND t.rule LIKE 'title:%'${season == null ? "" : " AND v.season = ?"}`,
+    season == null ? [] : [season]).then((rows) => new Set(rows.map((r) => Number(r.team_number))));
+  featuredSets.set(key, { at: Date.now(), value });
+  value.catch(() => { if (featuredSets.get(key)?.value === value) featuredSets.delete(key); });
   return value;
 }
-export function forgetFeatured(): void { featuredSet = null; }
+export function forgetFeatured(): void { featuredSets.clear(); }
 
 /** Moved whenever tags change (a run's, or a removal): team profiles are cached with it in their key
  *  (server/api/teams.ts cachedTeamProfile), so a badge comes and goes at once, in every server process. */

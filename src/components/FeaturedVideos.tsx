@@ -80,21 +80,27 @@ export function FeaturedSection({ featured, team }: { featured: readonly Feature
 }
 
 const EMPTY: ReadonlySet<number> = new Set();
-let shared: { teams: number[]; set: ReadonlySet<number> } | null = null;
-/** The teams featured on Behind the Bot (GET /api/featured-teams, one short list kept by the app's reads). */
-export function useFeaturedTeams(): ReadonlySet<number> {
-  const { data } = useApi<{ teams: number[] }>("/api/featured-teams");
+const shared = new Map<string, { teams: number[]; set: ReadonlySet<number> }>();
+/** The teams featured on Behind the Bot (GET /api/featured-teams, one short list kept by the app's reads); with a
+ *  season, only those featured in that season's episodes. */
+export function useFeaturedTeams(season?: number): ReadonlySet<number> {
+  const url = season == null ? "/api/featured-teams" : `/api/featured-teams?season=${season}`;
+  const { data } = useApi<{ teams: number[] }>(url);
   if (!data?.teams) return EMPTY;
-  if (shared?.teams !== data.teams) shared = { teams: data.teams, set: new Set(data.teams) };
-  return shared.set;
+  const hit = shared.get(url);
+  if (hit?.teams === data.teams) return hit.set;
+  const next = { teams: data.teams, set: new Set(data.teams) };
+  shared.set(url, next);
+  return next.set;
 }
 
-/** The small chip on a team row: the team was featured on Behind the Bot. Nothing for any other team. */
+/** The small chip on a team row: the team was featured on Behind the Bot (`season`: in that season's episodes).
+ *  Nothing for any other team. */
 /** `fit`: the chip sits on one line beside a team's number and name inside a `@container/chiprow`; when that row is too
  *  narrow for both (a rankings table on a tablet), the words go and the clapperboard stays (its title still says it),
  *  so the chip never spills into the next column. */
-export function FeaturedChip({ team, className, fit }: { team: number; className?: string; fit?: boolean }) {
-  const featured = useFeaturedTeams();
+export function FeaturedChip({ team, className, fit, season }: { team: number; className?: string; fit?: boolean; season?: number }) {
+  const featured = useFeaturedTeams(season);
   if (!featured.has(team)) return null;
   return (
     <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/15 px-1.5 py-px text-[11px] font-medium leading-4 text-accent v8:text-[0.6875rem]", className)}
