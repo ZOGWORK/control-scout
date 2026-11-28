@@ -206,8 +206,10 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/videos" element={<VideosPage />} />
                   <Route path="/videos/:view" element={<VideosPage />} />
                   <Route path="/watch/:videoId" element={<WatchPage />} />
-                  <Route path="/cycles" element={<CyclesPage />} />
-                  <Route path="/cycles/:videoId" element={<CyclesPage />} />
+                  <Route path="/clips" element={<CyclesPage />} />
+                  <Route path="/clips/:videoId" element={<CyclesPage />} />
+                  {/* Clips' first name (the server 301s it too). */}
+                  <Route path="/cycles/:videoId?" element={<CyclesRedirect />} />
                   <Route path="/events/:code" element={<EventCodeRedirect />} />
                   <Route path="/events/:season/:code" element={<EventPage />} />
                   <Route path="/events/:season/:code/match/:key" element={<MatchReportPage />} />
@@ -289,3 +291,9 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
     </MotionFeatures>
   </StrictMode>,
 ));
+
+/** /cycles[/<video>] → /clips[/<video>], query kept. */
+function CyclesRedirect() {
+  const loc = useLocation();
+  return <Navigate to={{ pathname: loc.pathname.replace(/^\/cycles/, "/clips"), search: loc.search }} replace />;
+}
