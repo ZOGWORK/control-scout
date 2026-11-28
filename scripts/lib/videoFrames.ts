@@ -1006,6 +1006,23 @@ export function leadIn(at: number, i: number, windows: { start: number | null; e
 }
 
 /**
+ * Whether the event's only video is read as an upload (every match not yet held, by its frames alone) though it has a
+ * broadcast clock: when that clock holds none of the event's timed matches. Either none at all is near it (a re-stream
+ * of the day's recording later that night: 2022 USMOKSKCWM4), or only the last few, within LEAD_IN_S before its start,
+ * while the rest lie further back: the clock is hours off, and the lead-in window would read only the event's tail
+ * (2022 USMOKSKCEM3: broadcast 04:29Z the next day, Q1–Q17 played 20:36–22:57Z; the frames show Q1 at 45 s and Q17
+ * at its end, yet only Q14–Q17 were looked for). Where every match is a lead-in the clock is kept: it's late, not off,
+ * and orders the reads (2019IALT6). `times`: the event's timed matches (actual starts, epoch seconds); `lead`: leadIn
+ * for this video.
+ */
+export function readAsUpload(o: { only: boolean; start: number | null; end: number | null; held: number; times: number[]; lead: (t: number) => boolean }): boolean {
+  if (!o.only || o.start == null) return false;
+  if (!o.held) return true;
+  const inside = (t: number) => o.start! <= t && (o.end == null || t <= o.end);
+  return !o.times.some(inside) && o.times.some((t) => t < o.start! && !o.lead(t));
+}
+
+/**
  * An event's linked recordings the reader can't read, each said, never dropped quietly (KZCMP 2022's two day-2 videos
  * were linked with no details, and the read went over day 1 alone as if it were the whole event).
  * `fixable`: fetching YouTube's details again would let it be read: none on file, or the fetch failed. A video YouTube

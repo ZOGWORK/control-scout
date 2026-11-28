@@ -42,7 +42,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, type SplitPick, halfGap, holeToCheck, cardUnread, COUNTDOWN_CHECK, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, EmbedRefused, embedRefusal, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, readAsUpload, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, foundBox, outsidePart, reachesPart, sampleFinds, wholeBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS, gapOf, type Gap } from "./lib/videoFrames";
 import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type RecheckRead, type RecheckVerdict } from "./lib/reviewRecheck";
@@ -1599,9 +1599,11 @@ async function doCode(code: string): Promise<void> {
       : from == null ? !videos.some((o) => o !== v && inside(o, x.epoch))
       : (from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)) || lead(x)));
     // The event's only video, whose broadcast holds none of its matches by time (a re-stream of the day's recording, later
-    // that night: 2022 USMOKSKCWM4's S7nzGdWDr4s, 05:20Z the next day): read as an upload, every match not yet held.
-    // Without this it was saved read with no starts and never looked at again.
-    const asUpload = !byTime.length && videos.length === 1 && from != null;
+    // that night: 2022 USMOKSKCWM4's S7nzGdWDr4s, 05:20Z the next day), or only a lead-in tail of them (readAsUpload):
+    // read as an upload, every match not yet held. Without this it was saved read with no starts (or the tail's) and
+    // never looked at again.
+    const asUpload = readAsUpload({ only: videos.length === 1, start: from, end: m.end ? Date.parse(m.end) / 1000 : null, held: byTime.length,
+      times: played.filter((x) => !x.scheduled && x.time != null).map((x) => x.epoch), lead: (t) => leadIn(t, videos.indexOf(v), windows) });
     const mine = asUpload ? played.filter((x) => !held.has(x.label)) : byTime;
     const offset = from == null || asUpload ? null : -from;
     if (asUpload) log(`  ${v.videoId}: its broadcast (${m.start}) holds none of the event's matches by time: read as an upload`);
