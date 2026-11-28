@@ -66,6 +66,7 @@ const PAGES = {
   WeekendPage: lazyPage(() => import("./pages/WeekendPage")),
   VideosPage: lazyPage(() => import("./pages/VideosPage")),
   WatchPage: lazyPage(() => import("./pages/WatchPage")),
+  CyclesPage: lazyPage(() => import("./pages/CyclesPage")),
   RecordsPage: lazyPage(() => import("./pages/RecordsPage")),
   RankingsPage: lazyPage(() => import("./pages/RankingsPage")),
   RegionsPage: lazyPage(() => import("./pages/RegionsPage")),
@@ -113,7 +114,7 @@ const PAGES = {
 } satisfies Record<PageModule, unknown>;
 // Dev only: one piece of the Scout redesign at a time, for screenshots (the import is dropped from production builds).
 const ScoutPreviewPage = import.meta.env.DEV ? lazy(() => import("./pages/ScoutPreviewPage")) : () => null;
-const { TeamPage, EventsPage, WeekendPage, VideosPage, WatchPage, PreviewHomePage, KitPage, LegacyPage, RecordsPage, RankingsPage, RegionsPage, RegionRankingsPage, LeaguesPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, StatusPage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, EventCodeRedirect, DigestUnsubscribedPage, BundlePage, SearchPage, RelatedSearchesPage, LeaguePage, ConferencePage, TeamHighlightsPage, TeamRecordSplitPage, EventHighlightsPage, ContributorPage, GetVerifiedPage, VerifyVideoPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, WeekendPage, VideosPage, WatchPage, CyclesPage, PreviewHomePage, KitPage, LegacyPage, RecordsPage, RankingsPage, RegionsPage, RegionRankingsPage, LeaguesPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, StatusPage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, EventCodeRedirect, DigestUnsubscribedPage, BundlePage, SearchPage, RelatedSearchesPage, LeaguePage, ConferencePage, TeamHighlightsPage, TeamRecordSplitPage, EventHighlightsPage, ContributorPage, GetVerifiedPage, VerifyVideoPage, NotFound } = PAGES;
 const BundlePicklistPage = named(() => import("./pages/BundlePage"), "BundlePicklistPage");
 
 // Offline: the service worker precaches the app so it opens with no signal.
@@ -206,6 +207,8 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/videos" element={<VideosPage />} />
                   <Route path="/videos/:view" element={<VideosPage />} />
                   <Route path="/watch/:videoId" element={<WatchPage />} />
+                  <Route path="/cycles" element={<CyclesPage />} />
+                  <Route path="/cycles/:videoId" element={<CyclesPage />} />
                   <Route path="/events/:code" element={<EventCodeRedirect />} />
                   <Route path="/events/:season/:code" element={<EventPage />} />
                   <Route path="/events/:season/:code/match/:key" element={<MatchReportPage />} />

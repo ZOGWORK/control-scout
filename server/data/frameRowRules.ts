@@ -14,7 +14,7 @@
 //   - a re-read row carries a newer `checked` date than the live one.
 // Clip checks: a clip is pulled only where its first frame names another match; one whose frame names its own match is
 // ok; one that names nothing stays served (unconfirmed); what the live row settled stays.
-import { plausibleStarts, playableStarts, type FrameTiming } from "./frameTimings.js";
+import { plausibleStarts, playableStarts, type FrameTiming, type RecordingEdge } from "./frameTimings.js";
 import type { ClipCheck } from "./clipChecks.js";
 
 /** Two reads closer than this (seconds) are the same distance: the timer reads to the second, and the frame read lags it. */
@@ -161,10 +161,28 @@ export function carryApproved(next: FrameTiming, live: FrameTiming | null | unde
 /** A row whose video showed the reader nothing: no start, and every match missing because no frame of the video could
  *  be read, or because the video couldn't be played at all. That's the player failing (no picture, a codec the reading
  *  computer's browser can't play, a video YouTube wouldn't play there), not what the video shows: never live (it would
- *  mark every match read, with no clip), never the owner's to approve; the event is read again later. */
-export function nothingRead(r: Pick<FrameTiming, "starts" | "missing">): boolean {
+ *  mark every match read, with no clip), never the owner's to approve; the event is read again later. Also a read that
+ *  saw matches and placed none of them (sawButPlacedNone). */
+export function nothingRead(r: Pick<FrameTiming, "starts" | "missing"> & Partial<Pick<FrameTiming, "review" | "opensOn" | "endsOn">>): boolean {
   const why = Object.values(r.missing ?? {});
-  return Object.keys(r.starts ?? {}).length === 0 && why.length > 0 && why.every((w) => w === NOTHING_READ || (typeof w === "string" && w.startsWith(PLAY_FAILED)));
+  if (Object.keys(r.starts ?? {}).length === 0 && why.length > 0 && why.every((w) => w === NOTHING_READ || (typeof w === "string" && w.startsWith(PLAY_FAILED)))) return true;
+  return sawButPlacedNone(r);
+}
+
+/** The fewest matches a video must be read for before a read placing at most one of them, while its own first or last
+ *  frames show a match on screen, counts as a failed read. */
+export const BLIND_MIN_MISSING = 5;
+
+/** A read whose own edges show the event's overlay (opensOn or endsOn names a match, or FTC Live's "N / M played" with
+ *  matches played), yet that placed at most one start (or review entry) of BLIND_MIN_MISSING or more matches. The
+ *  matches are on screen, so the frames between couldn't be read: the player seeking somewhere else under load, not
+ *  what the video shows. 2025 FRCMP GO9pF-txA7M, read on a lane four times on 11-26/27: opens on Q1 at 2390 s, ends on
+ *  M10, every confirm "timer 17 then 16" where 70 s was due, 0 of 55 placed; the same video read on another computer
+ *  places Q1, Q2, Q3 … in order. Such a row settled all 55 as read. 2024 NLTHQ (1 of 29), NLBLQ (1 of 25) alike. */
+export function sawButPlacedNone(r: Pick<FrameTiming, "starts" | "missing"> & Partial<Pick<FrameTiming, "review" | "opensOn" | "endsOn">>): boolean {
+  const named = (e?: RecordingEdge) => !!e && (!!e.label || (e.played ?? 0) > 0);
+  const placed = Object.keys(r.starts ?? {}).length + Object.keys(r.review ?? {}).length;
+  return placed <= 1 && Object.keys(r.missing ?? {}).length >= BLIND_MIN_MISSING && (named(r.opensOn) || named(r.endsOn));
 }
 
 /** The match an overlay names, as the reader compares them: a replay ("M6-2") by its match. */

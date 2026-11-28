@@ -63,7 +63,7 @@ export interface FeedAnswer {
 
 /** A watch to report: at 5 s in, at half way, at the end, "not interested" (`hidden`) and "show more like this"
  *  (`more`). */
-export interface WatchReport { key: string; kind: WatchKind; watchedS: number; completed?: boolean; hidden?: boolean; more?: boolean }
+export interface WatchReport { key: string; kind: WatchKind; watchedS: number; completed?: boolean; hidden?: boolean; more?: boolean; loops?: number }
 
 /** The kind a watch of this item is learned as. */
 export function watchKindOf(i: Pick<FeedItem, "kind" | "series">): WatchKind {

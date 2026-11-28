@@ -15,6 +15,46 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.2.9 — 2026-11-27
+
+Cycles: short FTC videos, one at a time, swiped up for the next. Like them, react with an emoji, save and share, and the
+feed learns what you love as you scroll.
+
+### Highlights
+- [live] Cycles: short FTC videos, full screen, swipe for the next
+- [live] Like, react with an emoji, save and share any Cycle
+- [live] Your Cycles and Videos learn the teams, creators and series you love
+- [live] A Cycles row at the top of Videos
+
+### Videos
+- **Cycles** (#2425; `src/pages/CyclesPage.tsx`, `GET /api/cycles`: `server/api/cycles.ts`): FUN Robotics Network's videos of 3 minutes or less, full screen between the top and the tab bar on a phone, a tall column with its rail on a wide screen. Tap to pause, double-tap to like, arrow keys or j/k to step, m to mute. Its address follows the video on screen, so a refresh or a shared link (`/cycles/<id>`) opens that one first. In the menu under Videos, and as a tab you can add in Settings › Appearance.
+- **Likes, emoji reactions and shares** (migration 120: `video_likes`, `video_reactions`, `video_shares`, `video_watch.loops`; `server/api/videoReactions.ts`): on any video's key. Six reactions (🔥 🤯 👏 😂 🤖 💜), one per person per video. Counts are public; who did it never is. A like and a reaction need an account; a share doesn't.
+- **One recommendation engine for every video list** (`server/videos/recommend.ts`, docs/video-recommendations.md): taste per team, creator and series from weighted, fading signals; "people who loved this also loved that"; Behind the Bot star power; quality from what everyone did; Thompson-sampling explore; no team runs. Cycles ranks each page again from what you just did; the Videos feed is lifted by the same taste.
+
+## 8.2.8 — 2026-11-27
+
+Fixes offline packs vanishing after a day's tenth build: the newest release is kept, not deleted.
+
+### Highlights
+- [fixes] A day's tenth offline pack build no longer deletes itself
+- [offline] Predictions and season packs download again on busy event days
+- [fixes] Old releases are pruned oldest first, by day and build number
+
+### Fixes
+- **The newest offline release was pruned as it was published** (`server/packs/build.ts` `prunedReleases`): a build keeps the newest three releases and deletes the rest, but it sorted their names as text, and "2026-11-27-10" sorts before "-7", "-8" and "-9". From a day's 10th build on, the release just published was deleted along with every file in it, while `latest.json` still named it. On 27 Nov release `.10` (23:23Z) left every pack URL answering 404, the lite pack included. The next cycle would then have read the packs as missing and rebuilt all of them, about 180 MB, only to delete them again. Event days only reached ten builds a day once the packs began following the sync (8.2.2). Releases are now ordered by day and then by the day's build number, and the one just published is never pruned. `server/packs/prune.test.ts` covers the 10th build, a new day's first, 100+ builds, and a stray newer-looking release. (#2420)
+
+## 8.2.7 — 2026-11-27
+
+Simulate the rankings answers right after a sync instead of waiting for the ratings to rebuild.
+
+### Highlights
+- [speed] Simulate the rankings no longer waits for a ratings rebuild
+- [rankings] The simulation uses the same ratings the event page shows
+- [live] The first click after new results starts at once on event days
+
+### Speed
+- **Simulated rankings read the last finished ratings build** (`server/projections/rankingSim.ts`): the Rankings tab's Simulate the rankings called `forecasterFor`, the build for the newest data version. After a sync moved that version, the first click waited for the whole window to be replayed into new ratings before its 2.5 s simulation budget even started. On an event day the version moves up to four times an hour. It now reads `liveForecaster`, like every other page: the last finished build at once, with the new one building in the background. The kept answer is keyed by the build it used (`liveVersion`, read together with it so a build that lands while the click waits its turn can't mislabel it) and by the event's own input (its field and any published schedule) instead of the data version, so a sync that only brought other events' results no longer throws the kept answer away, and one that added a team still does. This was finding F3 in `docs/engine/research-2026-11/precompute-check.md`. `server/projections/rankingSim.ratings.test.ts` fails on the old code: the click waited on a rebuild that never finished. (#2413)
+
 ## 8.2.6 — 2026-11-27
 
 The raw season file downloads with its size shown, and the server no longer compresses it on every download.

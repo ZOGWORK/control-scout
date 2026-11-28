@@ -875,3 +875,16 @@ html.compact .density-card { padding: 0.875rem; }
   30% { transform: rotate(-18deg) translateY(-2px); }
   60% { transform: rotate(14deg) translateY(1px); }
 }
+
+/* Cycles (src/components/cycles/Cycle.tsx): the heart a double-tap leaves where the finger was. It pops past full size
+   and settles, then fades as it lifts; only scale and opacity move (the element's own translate centres it). Without
+   motion, it just shows and fades. */
+@keyframes cycle-burst {
+  0% { opacity: 0; transform: scale(0.6) rotate(-10deg); }
+  22% { opacity: 1; transform: scale(1.15) rotate(0deg); }
+  45% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.05) translateY(-18%); }
+}
+@keyframes cycle-burst-still { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
+.cycle-burst { animation: cycle-burst 700ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@media (prefers-reduced-motion: reduce) { .cycle-burst { animation: cycle-burst-still 500ms ease both; } }

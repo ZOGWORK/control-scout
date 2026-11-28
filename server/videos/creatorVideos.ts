@@ -382,7 +382,7 @@ const asProgram = (s: unknown): CreatorProgram => (s === "ftc" || s === "frc" ||
 /** Creator videos, newest first: embeddable ones only, each with its tagged teams. `teams`: only those tagged with any
  *  of them; `series`: only that series; `since`: published at or after (ISO); `before`: after this video in the list's
  *  order (newest first, then by id), the next page's start. */
-export async function creatorVideosFor(opts: { teams?: number[]; series?: string; since?: string; before?: { at: string; id: string }; limit: number }): Promise<CreatorVideo[]> {
+export async function creatorVideosFor(opts: { teams?: number[]; series?: string; since?: string; before?: { at: string; id: string }; minDurationS?: number; maxDurationS?: number; limit: number }): Promise<CreatorVideo[]> {
   const where = ["v.embeddable = 1"];
   const args: (string | number)[] = [];
   const teams = (opts.teams ?? []).filter((n) => Number.isInteger(n) && n > 0).slice(0, 200);
@@ -393,8 +393,10 @@ export async function creatorVideosFor(opts: { teams?: number[]; series?: string
   }
   if (opts.series) { where.push("v.series = ?"); args.push(opts.series); }
   if (opts.since) { where.push("v.published_at >= ?"); args.push(opts.since); }
+  if (opts.minDurationS != null) { where.push("v.duration_s >= ?"); args.push(opts.minDurationS); }
+  if (opts.maxDurationS != null) { where.push("v.duration_s <= ?"); args.push(opts.maxDurationS); }
   if (opts.before) { where.push("(v.published_at < ? OR (v.published_at = ? AND v.video_id > ?))"); args.push(opts.before.at, opts.before.at, opts.before.id); }
-  const limit = Math.max(1, Math.min(500, Math.floor(opts.limit) || 1));
+  const limit = Math.max(1, Math.min(1500, Math.floor(opts.limit) || 1));
   const rows = await all<any>(
     `SELECT v.video_id, v.channel_id, c.title AS channel, v.title, v.published_at, v.duration_s, v.series, v.program, v.season,
             (SELECT group_concat(t.team_number) FROM video_team_tags t WHERE t.video_id = v.video_id) AS teams
