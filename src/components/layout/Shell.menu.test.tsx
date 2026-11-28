@@ -185,7 +185,7 @@ describe("the desktop sidebar", () => {
     wide(true);
     shell();
     const nav = within(sidebar()).getByRole("navigation", { name: "Main" });
-    const always = ["Home", "Events", "Teams", "Rankings", "Predict", "Videos", "My team", "Scout"];
+    const always = ["Home", "Events", "Teams", "Rankings", "Predict", "Videos", "Cycles", "My team", "Scout"];
     expect(within(nav).getAllByRole("link").map((l) => l.textContent)).toEqual(always);
     const more = moreButton();
     expect(more.getAttribute("aria-expanded")).toBe("false");
