@@ -104,10 +104,10 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    starts after the first one ends. Both are kept as Part 1 and Part 2 in broadcast order (NYC FIRST's 2025-26
    Qualifiers 6 and 11 and Super Qualifier 2, its 2024-25 Super Qualifier 1 and its 2023-24 Qualifier 3; NorCal's
    2021-22 Santa Clara QT; 7419's East Bay Meet 1 of 2026; NYC FIRST's 2022-23 Qualifier 7; Mississippi's 2023
-   Grenada Qualifier, five broadcasts; FTC Ontario's 2025 North York Qualifier, whose later half is FIRST's link, and
+   Grenada Qualifier, five broadcasts, and its 2023 Meridian Qualifier, three; NY Excelsior's 2023 Corning Qualifier; FTC Ontario's 2025 North York Qualifier, whose later half is FIRST's link, and
    Chicago's 2026 BIOBUZZ Meet 1, whose earlier half is). Titles that differ count only when both name the same event and the second starts at
    most 30 minutes after the first ends (Montana's 2023 State, "MT FTC Championship 2023" to 23:13:53Z, then "MT FTC
-   State 2023" from 23:15:48Z; NYC's 2023 Championship; Long Island's 2024 Championship; NY Excelsior's 2024
+   State 2023" from 23:15:48Z; NYC's 2023 Championship, five broadcasts; Long Island's 2024 Championship; NY Excelsior's 2024
    Championship, three broadcasts). A title naming only the region counts as naming the region's one event that day
    (Arizona's "FIRST Tech Challenge Arizona Live Stream" of 2022-12-03, the Anthem Qualifier's morning, before FIRST's
    link "Arizona FIRST Tech Challenge 2022 Cactus Qualifier"). A second broadcast that overlaps the first, or one the
