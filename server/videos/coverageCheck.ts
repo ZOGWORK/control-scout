@@ -19,6 +19,7 @@ import { SAME_S } from "../data/frameRowRules.js";
 import { reviewFindings } from "./autoReads.js";
 import { seasonRecordings, type Recording, isPartial } from "./recordings.js";
 import { clipCoverage, eventMatchRows, seenUnserved, UNPLAYABLE } from "./coverage.js";
+import { uploadMatches } from "./uploadClips.js";
 import { baseTriage, seasonTriage, type BaseTriage } from "./coverageTriage.js";
 import { currentSeason } from "../api/answers/season.js";
 import { frameQueue, queueSummary, type FrameStatus, type Read } from "./frameQueue.js";
@@ -33,10 +34,11 @@ const sha1 = (s: string) => createHash("sha1").update(s).digest("hex");
  *  since when it can't be played), whether it's broadcast a day
  *  at a time (which matches each video holds), which of its videos the page plays, the event's time zone, and each of its
  *  matches (played, its time, FIRST's video): any of them moving checks the event again. */
-function fingerprint(r: Recording | null, playable: Recording | null, timezone: string | null, matches: string, code = r?.code ?? ""): string {
+function fingerprint(r: Recording | null, playable: Recording | null, timezone: string | null, matches: string, code = r?.code ?? "", uploads: string[] = []): string {
   const videos = r ? [r, ...(r.more ?? [])].map((v) => [v.videoId, frameSig(v.videoId, code), v.day ?? null, v.part ?? null, v.meta?.status ?? null, v.meta?.start ?? null, v.meta?.end ?? null, v.meta?.length ?? null, v.meta?.live ?? null, v.meta?.chapters ?? null, checkedTo(v.videoId), v.meta?.embeddable ?? null, v.meta?.unplayableSince ?? null]) : [];
   const plays = playable ? [playable, ...(playable.more ?? [])].map((v) => v.videoId) : [];
-  return sha1(JSON.stringify([BOOT, videos, r?.daily ?? false, playable?.daily ?? false, plays, timezone, matches]));
+  // The matches its per-match uploads clip (./uploadClips.ts): an upload added or taken off checks it again. None: as before.
+  return sha1(JSON.stringify(uploads.length ? [BOOT, videos, r?.daily ?? false, playable?.daily ?? false, plays, timezone, matches, uploads] : [BOOT, videos, r?.daily ?? false, playable?.daily ?? false, plays, timezone, matches]));
 }
 
 /** A video's frame read for an event, whole: an owner's Clip from, or any re-read (even the same day's), checks the
@@ -142,7 +144,9 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
           if (e) e.matches = String(r.m ?? "");
         }
       }
-      const todo = codes.map((code) => ({ code, fp: fingerprint(full.get(code) ?? null, recs.get(code) ?? null, shape.get(code)?.tz ?? null, shape.get(code)?.matches ?? "", code) })).filter((x) => was.get(x.code)?.fingerprint !== x.fp);
+      const uploads = new Map<string, string[]>();
+      for (const u of uploadMatches(season)) (uploads.get(u.code) ?? uploads.set(u.code, []).get(u.code)!).push(`${u.label}=${u.videoId}`);
+      const todo = codes.map((code) => ({ code, fp: fingerprint(full.get(code) ?? null, recs.get(code) ?? null, shape.get(code)?.tz ?? null, shape.get(code)?.matches ?? "", code, (uploads.get(code) ?? []).sort()) })).filter((x) => was.get(x.code)?.fingerprint !== x.fp);
       if (!todo.length) continue;
       const rows = await eventMatchRows(season, todo.map((t) => t.code));
       const writes: { sql: string; args: (string | number | null)[] }[] = [];
@@ -150,7 +154,7 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
         // A few milliseconds an event, a third of a second for a busy season's 400-odd in one go: the loop turns
         // between events once it has been held a slice (db.ts busyTurn).
         await busyTurn();
-        const c = clipCoverage(rows.get(code) ?? [], recs.get(code) ?? null, full.get(code) ?? null, shape.get(code)?.tz, now);
+        const c = clipCoverage(rows.get(code) ?? [], recs.get(code) ?? null, full.get(code) ?? null, shape.get(code)?.tz, now, { season, code });
         const key = missingKey(c), prev = was.get(code);
         const missing = c.matches.filter((m) => !m.clip);
         const t = key ? baseTriage(missing) : null;

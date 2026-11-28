@@ -10,6 +10,7 @@ import { approveWatched, ownerOfficial, pendingCount, rejectWatched, removeChann
 import { dismissFinding, ownerAudit, queueFinding, runChannelAudit } from "./officialAudit.js";
 import { deleteManualStart, manualStarts, setManualStart } from "./manualStarts.js";
 import { approveAutoRead, approveReview, ownerAutoReads, pendingAutoReadCount, rejectAutoRead, rejectReview } from "./autoReads.js";
+import { approveMatchUpload, ownerMatchUploads, rejectMatchUpload, removeMatchUpload } from "./matchUploads.js";
 import { addEventRecording, ownerEventRecordings, removeEventRecording, replaceEventRecording } from "./ownerRecordings.js";
 
 type H = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => void;
@@ -66,7 +67,7 @@ export function clipCoverageOwnerRoutes(r: Router, h: H, actor: (req: Request) =
 
 export function officialVideoOwnerRoutes(r: Router, h: H, actor: (req: Request) => string, log: (s: string) => void = () => {}): void {
   // The panel's data: the watcher's, and the channel audit's (server/videos/officialAudit.ts).
-  const full = async () => ({ ...(await ownerOfficial()), audit: await ownerAudit() });
+  const full = async () => ({ ...(await ownerOfficial()), audit: await ownerAudit(), matchUploads: await ownerMatchUploads() });
   r.get("/official-videos", h(async () => full()));
   r.get("/official-videos/counts", h(async () => ({ pending: await pendingCount() })));
 
@@ -97,6 +98,18 @@ export function officialVideoOwnerRoutes(r: Router, h: H, actor: (req: Request) 
   r.post("/official-videos/:videoId/approve", one((id, req) => approveWatched(id, req.body ?? {}, actor(req))));
   r.post("/official-videos/:videoId/reject", one((id, req) => rejectWatched(id, str(req.body?.reason, 200) || null, actor(req))));
   r.post("/official-videos/:videoId/remove", one((id, req) => removeOfficial(id, actor(req))));
+  // A per-match upload set aside (server/videos/matchUploads.ts): Approve { label? } makes it that match's clip (the
+  // match it names, or the one typed), Reject never proposes it again, Remove takes an added one off its match.
+  const upload = (fn: (id: string, req: Request) => Promise<{ ok: true } | { ok: false; status: number; error: string }>) => h(async (req, res) => {
+    const id = String(req.params.videoId);
+    if (!VIDEO_ID.test(id)) { res.status(400).json({ error: "Not a YouTube video id." }); return; }
+    const out = await fn(id, req);
+    if (!out.ok) { res.status(out.status).json({ error: out.error }); return; }
+    return full();
+  });
+  r.post("/official-videos/match-uploads/:videoId/approve", upload((id, req) => approveMatchUpload(id, { label: str(req.body?.label, 12) }, actor(req))));
+  r.post("/official-videos/match-uploads/:videoId/reject", upload((id, req) => rejectMatchUpload(id, str(req.body?.reason, 200) || null, actor(req))));
+  r.post("/official-videos/match-uploads/:videoId/remove", upload((id, req) => removeMatchUpload(id, actor(req))));
   // A channel-audit finding: to the review queue, or not a recording (why required).
   r.post("/official-videos/audit/:videoId/queue", one((id, req) => queueFinding(id, actor(req))));
   r.post("/official-videos/audit/:videoId/dismiss", one((id, req) => dismissFinding(id, str(req.body?.reason, 300), actor(req))));

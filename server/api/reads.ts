@@ -4,6 +4,7 @@
 import { matchDetail, matchViews } from "./matches.js";
 import { teamReportCards, teamSchedule } from "./teams.js";
 import { eventMatchSpan, eventRecording, isPartial, seasonRecordings, seasonVideoKinds, withClips } from "../videos/recordings.js";
+import { withUploads } from "../videos/uploadClips.js";
 import { listEvents } from "./events.js";
 import type { EventDetail, EventListItem, MatchDetail,MatchView, TeamReportCardAnswer, TeamScheduleAnswer } from "../../src/shared/api.js";
 
@@ -55,5 +56,7 @@ export async function matchDetailAnswer(season: number, code: string, key: strin
   if (!d) return null;
   const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
   // The event's own first and last matches, so this match gets the clip it has on the event page.
-  return rec ? { ...d, match: withClips([d.match], rec, Date.now(), await eventMatchSpan(d.event.season, d.event.code))[0] } : d;
+  const match = withUploads(rec ? withClips([d.match], rec, Date.now(), await eventMatchSpan(d.event.season, d.event.code)) : [d.match], d.event.season, d.event.code)[0];
+  // Nothing else clips it: its per-match upload, if it has one (server/videos/matchUploads.ts).
+  return match === d.match ? d : { ...d, match };
 }

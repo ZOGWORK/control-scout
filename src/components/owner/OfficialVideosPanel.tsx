@@ -17,7 +17,7 @@ import { apiFetch, ApiError, prime, useApi } from "../../lib/api";
 import { ago } from "../../lib/format";
 import { thumbnailUrl } from "../../shared/stream";
 import { watchUrl } from "../../shared/recording";
-import type { ManualStart, OfficialAddTally, OfficialAudit, OfficialAuditFinding, OfficialChannelRow, OfficialWatchRow, OwnerOfficialVideos } from "../../shared/api";
+import type { ManualStart, OfficialAddTally, OfficialAudit, OfficialAuditFinding, OfficialChannelRow, OfficialWatchRow, OwnerMatchUpload, OwnerMatchUploads, OwnerOfficialVideos } from "../../shared/api";
 
 const PATH = "/api/owner/official-videos";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
@@ -50,6 +50,7 @@ export function OfficialVideosPanel() {
             {d.pending.length ? <ul className="grid gap-3">{d.pending.map((w) => <Review key={w.videoId} w={w} />)}</ul>
               : <EmptyState icon={Tv} title="Nothing to review" description="New videos on the watched channels show here when they can't be added on their own." />}
           </Section>
+          <MatchUploads u={d.matchUploads} />
           <Section title="Added and decided lately" description="The watcher's own adds, and your approvals and rejections. Removing a video takes it off its event for good.">
             {d.decided.length ? <ul className="grid gap-2">{d.decided.map((w) => <Decided key={w.videoId} w={w} />)}</ul>
               : <p className="text-sm text-muted-foreground">Nothing yet.</p>}
@@ -349,6 +350,41 @@ function Finding({ f }: { f: OfficialAuditFinding }) {
         <label className="grid min-w-0 flex-1 basis-48 gap-1 text-xs"><span className="text-muted-foreground">Or, why it isn't a recording</span><Input value={reason} placeholder="An FRC event" onChange={(e) => setReason(e.target.value.slice(0, 300))} /></label>
         <Button type="submit" variant="outline" disabled={busy || !reason.trim()}><X /> Not a recording</Button>
       </form>
+    </li>
+  );
+}
+
+/** Per-match uploads set aside (server/videos/matchUploads.ts): a short upload of one match whose match couldn't be told
+ *  for sure. Approve makes it that match's clip (the match it names, or one typed in), Reject never proposes it again. */
+function MatchUploads({ u }: { u: OwnerMatchUploads }) {
+  return (
+    <Section title={<>Per-match uploads {u.review.length > 0 && <Badge variant="soft" className="ml-1 align-middle">{u.review.length}</Badge>}</>}
+      description={`Short uploads of one match on the watched channels. ${u.added.toLocaleString()} play as their match's clip where nothing else clips it; these were set aside: why, and the event they fit. Approve one as its match, or reject it.`}>
+      {u.review.length ? <ul className="grid gap-3" data-match-uploads>{u.review.map((m) => <MatchUploadRow key={m.videoId} m={m} />)}</ul>
+        : <p className="text-sm text-muted-foreground">Nothing set aside.</p>}
+    </Section>
+  );
+}
+
+function MatchUploadRow({ m }: { m: OwnerMatchUpload }) {
+  const [label, setLabel] = useState(m.label ?? "");
+  const [busy, setBusy] = useState(false);
+  const go = async (path: string, json: unknown, done: string) => { setBusy(true); await act(`/match-uploads/${m.videoId}/${path}`, { method: "POST", json }, done); setBusy(false); };
+  return (
+    <li className="min-w-0 rounded-xl border border-border bg-card p-3" data-match-upload={m.videoId}>
+      <a href={watchUrl(m.videoId)} target="_blank" rel="noreferrer noopener" className="inline-flex items-start gap-1 break-words font-medium text-foreground hover:underline [overflow-wrap:anywhere]">{m.title}<ExternalLink className="mt-1 size-3 shrink-0" aria-hidden /></a>
+      <p className="text-xs text-muted-foreground">{m.channel} · <span className="font-mono">{m.videoId}</span> · seen {ago(m.seenAt)}</p>
+      <p className="mt-1 text-sm [overflow-wrap:anywhere]">{m.why}</p>
+      <p className="text-xs text-muted-foreground">Fits: {m.code && m.season ? <Link to={`/events/${m.season}/${m.code}`} className="font-medium text-foreground hover:underline">{m.season} {m.code}{m.label ? ` ${m.label}` : ""}</Link> : "no event"}</p>
+      {m.code && m.season ? (
+        <form className="mt-3 flex flex-wrap items-end gap-2" noValidate onSubmit={(e) => { e.preventDefault(); void go("approve", { label }, `Added as ${m.code} ${label.toUpperCase()}.`); }}>
+          <label className="grid w-24 gap-1 text-xs"><span className="text-muted-foreground">Match</span><Input value={label} placeholder="Q12" onChange={(e) => setLabel(e.target.value.slice(0, 12))} /></label>
+          <Button type="submit" disabled={busy || !label.trim()}><Check /> Approve</Button>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => void go("reject", {}, "Rejected.")}><X /> Reject</Button>
+        </form>
+      ) : (
+        <div className="mt-3"><Button type="button" variant="outline" disabled={busy} onClick={() => void go("reject", {}, "Rejected.")}><X /> Reject</Button></div>
+      )}
     </li>
   );
 }

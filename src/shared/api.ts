@@ -1211,6 +1211,8 @@ export interface OwnerOfficialVideos {
   pending: OfficialWatchRow[]; ignored: OfficialWatchRow[]; duplicates: OfficialWatchRow[]; decided: OfficialWatchRow[]; runs: OfficialWatchRunRow[]; channels: OfficialChannelRow[];
   /** The channel audit after each watcher run (server/videos/officialAudit.ts). */
   audit: OfficialAudit;
+  /** Per-match uploads (server/videos/matchUploads.ts): the ones set aside for the owner, and how many play. */
+  matchUploads: OwnerMatchUploads;
 }
 /** A watched channel's short upload of one match, set aside: an event fits, but which match it is can't be told for
  *  sure (or two uploads name one match). season/code/label: the event (and match) it fits, when one does. */
