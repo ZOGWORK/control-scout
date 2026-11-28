@@ -16,11 +16,15 @@ export function setMatchUploads(rows: { season: number; code: string; label: str
   playing = new Map(rows.map((r) => [keyOf(r.season, r.code, r.label), { videoId: r.videoId, t: r.t, level: r.level, series: r.series, number: r.number, ...(r.end != null && r.end > r.t ? { end: r.end } : {}) }]));
 }
 
+/** An added upload's video still plays here, as the channel audit last read it (official_audit_videos as `a`). Both
+ *  what plays and which matches an upload holds (./matchUploads.ts) read it, so a dead add never holds its match. */
+export const STILL_PLAYS = "a.gone_at IS NULL AND a.privacy = 'public' AND COALESCE(a.embeddable, 1) != 0 AND COALESCE(a.blocked_in, 0) < 50";
+
 /** Every added upload that plays, into memory (at boot, and after each change). */
 export async function loadMatchUploads(): Promise<number> {
   const rows = await all<{ season: number; code: string; label: string; level: string; series: number; number: number; video_id: string; t: number; duration: number | null }>(
     `SELECT u.season, u.code, u.label, u.level, u.series, u.number, u.video_id, u.t, a.duration FROM match_uploads u JOIN official_audit_videos a ON a.video_id = u.video_id
-     WHERE u.status = 'added' AND u.removed_at IS NULL AND a.gone_at IS NULL AND a.privacy = 'public' AND COALESCE(a.embeddable, 1) != 0 AND COALESCE(a.blocked_in, 0) < 50`);
+     WHERE u.status = 'added' AND u.removed_at IS NULL AND ${STILL_PLAYS}`);
   setMatchUploads(rows.map((r) => ({ season: Number(r.season), code: String(r.code), label: String(r.label), level: String(r.level), series: Number(r.series), number: Number(r.number), videoId: String(r.video_id), t: Number(r.t ?? 0), end: r.duration == null ? null : Number(r.duration) })));
   return rows.length;
 }
