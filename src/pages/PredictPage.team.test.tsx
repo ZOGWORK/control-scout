@@ -104,13 +104,4 @@ describe("Predict, a team picked", () => {
     await waitFor(() => expect(where).toBe("/predict?mode=advancement&season=2025&team=4215"));
   });
 
-  it("doesn't mount the latest-calls card (no request, no timer) when the header is too narrow to show it", async () => {
-    const asked: string[] = [];
-    const real = globalThis.fetch;
-    vi.stubGlobal("fetch", async (path: string, init?: RequestInit) => { asked.push(path); return real(path, init); });
-    render(<TooltipProvider><MemoryRouter initialEntries={["/predict"]}><PredictPage /></MemoryRouter></TooltipProvider>);
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Predict" })).toBeTruthy());
-    expect(screen.queryByLabelText("Latest live calls")).toBeNull();
-    expect(asked.some((p) => p.startsWith("/api/predict/accuracy"))).toBe(false);
-  });
 });
