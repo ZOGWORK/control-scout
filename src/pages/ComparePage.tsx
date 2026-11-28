@@ -8,7 +8,6 @@
 // (only when there is some) follow.
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ArrowUp, GripVertical, Info, Plus, Scale, Sparkles, Trophy, X } from "lucide-react";
 import { useApi } from "../lib/api";
 import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
@@ -18,7 +17,8 @@ import type { CompareTeam, CompareView } from "../shared/api";
 import { PageHeader, Section } from "../components/page";
 import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart";
+import { ChartCard } from "../components/charts/ChartCard";
+import { useDeferredPart } from "../components/charts/defer";
 import { MatchList } from "../components/predict";
 import { lookupTeamName, useTeamName } from "../components/TeamInput";
 import { TeamPicker } from "../components/TeamPicker";
@@ -42,6 +42,8 @@ import { TeamLogo } from "../components/TeamLogo";
 
 // The team hues (src/index.css --color-team-a…d, Okabe–Ito), as search's compare card has them: never the accent gold.
 const COLORS = ["var(--color-team-a)", "var(--color-team-b)", "var(--color-team-c)", "var(--color-team-d)"];
+
+const loadCompareCharts = () => import("../components/charts/CompareCharts").then((m) => m.CompareCharts);
 
 /** Each compared team's colour: the one the scout gave it on the shortlist, else the usual one for its place. */
 export function teamPalette(teams: number[], colorOf: (team: number) => { css: string } | null): string[] {
@@ -434,29 +436,12 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
   );
 }
 
-function ChartCard({ title, description, delay = 0, children }: { title: string; description: string; delay?: number; children: ReactNode }) {
-  return (
-    <Reveal delay={delay} className="min-w-0 rounded-2xl border border-border bg-card p-4 v8:rounded-xl v8:border-line">
-      <section aria-label={title}>
-        <h2 className="text-sm font-semibold">{title}</h2>
-        <p className="text-xs text-muted-foreground">{description}</p>
-        <div className="mt-2">{children}</div>
-      </section>
-    </Reveal>
-  );
-}
-
-/** The compare trend's line patterns, one per chosen team (four at most): solid, dashed, dotted, dash-dot. */
-const LINE_DASH = [undefined, "6 3", "2 3", "8 3 2 3"];
-
 function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number) => void; onMove: (team: number, to: number) => void }) {
   const t = d.teams;
   const { colorOf } = useTeamColors();
   const COLORS = teamPalette(t.map((x) => x.team.number), colorOf);
-  const phase = (["auto", "teleop", "endgame"] as const).map((k) => ({ phase: k === "auto" ? "Auto" : k === "teleop" ? "TeleOp" : "Endgame", ...Object.fromEntries(t.map((x) => [String(x.team.number), x.stats?.opr[k].value ?? 0])) }));
-  const config = Object.fromEntries(t.map((x, i) => [String(x.team.number), { label: String(x.team.number), color: COLORS[i] }]));
-  const maxEvents = Math.max(0, ...t.map((x) => x.events.length));
-  const trend = Array.from({ length: maxEvents }, (_, i) => ({ i: `E${i + 1}`, ...Object.fromEntries(t.map((x) => [String(x.team.number), x.events[i]?.opr ?? null])) }));
+  // recharts is a chunk of its own, fetched after the page has painted (../components/charts/defer.ts).
+  const Charts = useDeferredPart(loadCompareCharts);
   // 2019–2022 are history only: their predict routes 404, so no "Predict" button.
   const predictable = usePredictable(d.season);
   
@@ -468,33 +453,12 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
       <div className="grid gap-4 lg:grid-cols-2">
         <StatsTable d={d} onRemove={onRemove} onMove={onMove} />
         <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-1">
-          <ChartCard title="OPR by phase" description="From each team's best event this season" delay={0.06}>
-            <ChartContainer config={config} className="h-48 w-full">
-              <BarChart data={phase} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="phase" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={32} />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                <Legend />
-                {t.map((x) => <Bar key={x.team.number} dataKey={String(x.team.number)} fill={`var(--color-${x.team.number})`} radius={[4, 4, 0, 0]} />)}
-              </BarChart>
-            </ChartContainer>
-          </ChartCard>
-          <ChartCard title="OPR event by event" description="Each team's events in order (E1 = its first)" delay={0.12}>
-            {maxEvents < 2 ? <p className="flex h-48 items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">Needs two events to draw a line.</p> : (
-              <ChartContainer config={config} className="h-48 w-full">
-                <LineChart data={trend} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis dataKey="i" tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} width={32} />
-                  <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                  <Legend iconType="plainline" />
-                  {/* Each line has its own dash and dot shape as well as its colour, so the teams tell apart without colour. */}
-                  {t.map((x, i) => <Line key={x.team.number} dataKey={String(x.team.number)} stroke={`var(--color-${x.team.number})`} strokeWidth={2} strokeDasharray={LINE_DASH[i % LINE_DASH.length]} connectNulls dot={{ r: 3 }} />)}
-                </LineChart>
-              </ChartContainer>
-            )}
-          </ChartCard>
+          {Charts ? <Charts teams={t} colors={COLORS} /> : (
+            <>
+              <ChartCard title="OPR by phase" description="From each team's best event this season" delay={0.06}><div className="h-48" aria-hidden /></ChartCard>
+              <ChartCard title="OPR event by event" description="Each team's events in order (E1 = its first)" delay={0.12}><div className="h-48" aria-hidden /></ChartCard>
+            </>
+          )}
         </div>
       </div>
       {/* The brief stays closed until asked for: the table and charts come first. */}

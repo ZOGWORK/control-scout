@@ -183,6 +183,8 @@ const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Reque
 };
 
 const int = (x: unknown, name: string, { min = 0, max = 1e7 } = {}) => {
+  // Written out in digits: Number() also reads "1e3", "0x10" and " 12 " as whole numbers, which no address means.
+  if (typeof x === "string" && !/^-?\d+$/.test(x)) throw bad(`${name} must be a whole number`);
   const n = Number(x);
   if (!Number.isInteger(n)) throw bad(`${name} must be a whole number`);
   if (n < min || n > max) throw bad(`${name} must be between ${min} and ${max}`);
@@ -1088,9 +1090,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   // yet this season): one request, where the page used to send a second for it.
   api.get("/teams-summary", h(async (req) => {
     const s = season(req.query.season), teams = teamList(req.query.teams, "teams", 100);
+    // ?next=1: each team's next match in the same answer, so Home's card sends one request instead of a schedule one.
+    const next = req.query.next === "1";
     // The first covered season has no season before it to send (a direct ?season= for it is a 404).
-    if (req.query.before !== "1" || !SEASON_NUMBERS.includes(s - 1)) return { season: s, teams: await teamSummaries(teams, s) };
-    const [now, before] = await Promise.all([teamSummaries(teams, s), teamSummaries(teams, s - 1)]);
+    if (req.query.before !== "1" || !SEASON_NUMBERS.includes(s - 1)) return { season: s, teams: await teamSummaries(teams, s, { next }) };
+    const [now, before] = await Promise.all([teamSummaries(teams, s, { next }), teamSummaries(teams, s - 1)]);
     return { season: s, teams: now, before: { season: s - 1, teams: before } };
   }));
 
@@ -1318,6 +1322,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   }));
 
   api.use("/auth", authRouter());
+  // A first-sign-in merge is one write batch of up to MIGRATE_MAX_ENTRIES entries: a few per device, not a stream.
+  api.post("/me/migrate", limiter(10));
   api.use("/me", meRouter());
   // Profile pictures (server/auth/avatars.ts): public, each URL cached for good.
   api.use("/avatars", avatarsRouter());
@@ -1405,6 +1411,11 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   app.get("/support", (req, res) => {
     const q = req.originalUrl.indexOf("?");
     res.redirect(301, `/donate${q >= 0 ? req.originalUrl.slice(q) : ""}`);
+  });
+  // /cycles was Clips' first name: a shared /cycles/<video> link opens that clip.
+  app.get(/^\/cycles(\/[A-Za-z0-9_-]{11})?\/?$/, (req, res) => {
+    const q = req.originalUrl.indexOf("?");
+    res.redirect(301, `/clips${req.params[0] ?? ""}${q >= 0 ? req.originalUrl.slice(q) : ""}`);
   });
   // /network: the Network & offline settings (a section of Settings).
   // 301 with the query kept, like /support: /network?lite=0 reaches the full screen while Lite is on.

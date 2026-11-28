@@ -124,7 +124,7 @@ function VideosBody() {
         </div>
         <LibraryButton />
       </header>
-      {view === "later" || view === "saved" || view === "history" ? <LibraryListView list={view} signedIn={signedIn} cols={cols} />
+      {view === "later" || view === "saved" || view === "history" ? <LibraryListView key={view} list={view} signedIn={signedIn} cols={cols} />
         : view === "notes" ? <NotesView signedIn={signedIn} />
         : <>
       <div role="tablist" aria-label="Show" className="-mx-4 mb-8 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" data-videos-filters>

@@ -116,6 +116,67 @@ describe("Report a bug dialog", () => {
     await waitFor(() => expect(posted).not.toBeNull());
     expect(posted!.message).toBe("It broke for [redacted] with [redacted]");
   });
+
+  it("the button names both: report a bug or request a feature", () => {
+    render(<MemoryRouter><BugReportButton /></MemoryRouter>);
+    const button = screen.getByTestId("bug-report-button");
+    expect(button.getAttribute("aria-label")).toBe("Report a bug or request a feature");
+    expect(button.getAttribute("title")).toBe("Report a bug or request a feature");
+  });
+
+  it("sends a bug's optional title with it, and no title when it's left empty", async () => {
+    filing = { state: "failed" };
+    render(<MemoryRouter><BugReportButton /></MemoryRouter>);
+    fireEvent.click(screen.getByTestId("bug-report-button"));
+    fireEvent.click(await screen.findByText("Something broken"));
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: "  Rankings jump  " } });
+    fireEvent.change(screen.getByLabelText(/What happened/), { target: { value: "The rankings table jumps when I scroll." } });
+    fireEvent.click(screen.getByRole("button", { name: /Send report/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Yes, post it publicly" }));
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ kind: "bug", category: "broken", title: "Rankings jump" });
+    cleanup(); posted = null;
+    await sendReport();
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted!.title).toBeUndefined();
+  });
+
+  it("switches to a feature request: its own heading and prompts, no problem kinds, sent as a feature", async () => {
+    filing = { state: "failed" };
+    render(<MemoryRouter><BugReportButton /></MemoryRouter>);
+    fireEvent.click(screen.getByTestId("bug-report-button"));
+    const bug = await screen.findByRole("radio", { name: "Report a bug" });
+    expect((bug as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText("What kind of problem?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Request a feature" }));
+    expect(screen.getByRole("heading", { name: "Request a feature" })).toBeTruthy();
+    expect(screen.queryByText("What kind of problem?")).toBeNull();
+    expect(screen.queryByText("Something broken")).toBeNull();
+    const ask = screen.getByLabelText(/What would you like\?/) as HTMLTextAreaElement;
+    expect(ask.placeholder).toBe("What should it do, and why would it help?");
+    // Screenshots stay optional.
+    expect(screen.getByText(/Screenshots or a video/).textContent).toContain("(optional)");
+    expect((screen.getByRole("link", { name: "sushil.m@icloud.com" }) as HTMLAnchorElement).href).toContain(encodeURIComponent("Control Scout feature request"));
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: "Compare two teams" } });
+    fireEvent.change(ask, { target: { value: "Pick two teams and see their stats side by side." } });
+    // No category needed: the first Send asks the public question straight away.
+    fireEvent.click(screen.getByRole("button", { name: /Send request/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Yes, post it publicly" }));
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ kind: "feature", title: "Compare two teams", message: "Pick two teams and see their stats side by side." });
+    expect(posted).not.toHaveProperty("category");
+  });
+
+  it("switching back to a bug brings the problem kinds back and needs one again", async () => {
+    render(<MemoryRouter><BugReportButton /></MemoryRouter>);
+    fireEvent.click(screen.getByTestId("bug-report-button"));
+    fireEvent.click(await screen.findByRole("radio", { name: "Request a feature" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Report a bug" }));
+    fireEvent.change(screen.getByLabelText(/What happened/), { target: { value: "The rankings table jumps when I scroll." } });
+    fireEvent.click(screen.getByRole("button", { name: /Send report/ }));
+    expect(await screen.findByText("Choose what kind of problem it is.")).toBeTruthy();
+    expect(screen.queryByTestId("bug-confirm")).toBeNull();
+  });
 });
 
 describe("waitForIssue", () => {

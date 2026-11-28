@@ -12,6 +12,7 @@ import { usePersonal } from "../../lib/personal";
 import { libraryCounts, notesPage, useLibraryVersion } from "../../lib/videoLibrary";
 import { LIBRARY_LABEL, libraryPath, libraryViewOf, noteTime, type LibraryCounts, type LibraryView, type VideoNote } from "../../shared/videoLibrary";
 import { watchHref } from "../../shared/watch";
+import type { WatchState } from "../FeedCard";
 import { Sheet, SheetContent, SheetTitle } from "../ui/overlay";
 import { cn } from "../cn";
 
@@ -77,7 +78,7 @@ export function VideosFrame({ children }: { children: ReactNode }) {
       </div>
       {!wide && (
         <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent side="right" className="w-[min(22rem,88vw)] sm:max-w-sm" aria-describedby={undefined}>
+          <SheetContent id="videos-library" side="right" className="w-[min(22rem,88vw)] sm:max-w-sm" aria-describedby={undefined}>
             <SheetTitle className="sr-only">Your videos</SheetTitle>
             <LibraryPanel inSheet />
           </SheetContent>
@@ -149,7 +150,7 @@ function LibraryPanel({ inSheet }: { inSheet?: boolean }) {
           <ul className="space-y-1">
             {latest.map((n) => (
               <li key={n.id}>
-                <Link to={watchHref(n.videoId, { t: n.t ?? 0 })} className="block rounded-xl px-2 py-2 transition-colors duration-150 hover:bg-ink/[0.05]">
+                <Link to={watchHref(n.videoId, { t: n.t ?? 0 })} state={{ item: n.item } satisfies WatchState} className="block rounded-xl px-2 py-2 transition-colors duration-150 hover:bg-ink/[0.05]">
                   <span className="line-clamp-2 text-sm text-text-base">{n.body}</span>
                   <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-text-faint">
                     {n.t != null && <span className="shrink-0 font-medium tabular-nums text-accent-text">{noteTime(n.t)}</span>}

@@ -15,6 +15,97 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 8.3.6 — 2026-11-28
+
+Security fixes from the launch review: tighter shared-workspace access while Control Point is down, a fuller account
+deletion, verified Google addresses only, and a capped first-sign-in merge.
+
+### Highlights
+- [workspace] A long Control Point outage pauses changes; reading goes on
+- [fixes] Deleting your account now clears your name history and codes too
+- [fixes] Google sign-in only takes an address Google has verified
+- [fixes] The first-sign-in merge takes at most 200 entries at a time
+
+### Fixes
+- **A cached workspace membership counted at any age while Control Point was unreachable** (`server/auth/controlPoint.ts` `workspaceMembership`, `server/scout/entries.ts`): a row older than a minute is re-checked with Control Point, but when that failed the old row was accepted however old, its role included, so someone removed or demoted during a long outage kept writing, and kept admin routes. Now a row counts in full for 10 minutes past its last refresh (`MEMBERSHIP_GRACE`); after that it is `stale`: reads go on, writes and every admin route answer 503 until Control Point answers again. `server/scout/workspaces.test.ts` covers both sides of the grace and the recovery. (#2430)
+- **Account deletion left personal data behind** (`server/auth/session.ts` `deleteUser`): a pending sign-in code, the account's name and username changes in the owner audit (its email as the actor, the old and new names), the contributor invite it claimed, and its address on bug reports and /contact messages. All are now deleted or anonymised; the audit rows stay as "deleted account" with no values, which migration 121 lets the append-only trigger allow for those two actions only. `server/auth/deleteUser.test.ts`.
+- **Google sign-in accepted an address with no `email_verified`** (`server/auth/routes.ts`): only an explicit `false` was refused, and sign-in links accounts by email. It now needs `email_verified === true`. `server/auth/google-verified.test.ts`.
+- **`/api/me/migrate` took up to 5,000 entries in one write, unlimited** (`server/auth/routes.ts`, `server/app.ts`): now at most 200 per request (413 past that, like `/scout/sync`) and 10 requests a minute per visitor. `server/auth/auth.test.ts`.
+
+## 8.3.5 — 2026-11-28
+
+Broken links to a contributor or a team now say plainly that there's no such page.
+
+### Highlights
+- [fixes] A link to a contributor who isn't there is a real "not found"
+- [fixes] Team numbers like "1e3" are refused instead of read as 1000
+- [fixes] Bad watch links already open "Page not found", now tested
+
+### Fixes
+- **Contributor links that lead nowhere** (`server/seoMeta.ts`, `server/videos/contributors.ts`): `/contributors/<a name no one has>` was served with HTTP 200 and a blank page title. Search engines read that as a real, empty page. It's now a 404 with the app's not-found page, the same answer the profile API gives. A `/watch/` address that isn't a YouTube id was already a 404 (`src/shared/routes.ts`); the tests now cover it. A contributor is checked with the profile's own rule (`hasContributorProfile`), and a database that can't answer is never a 404.
+- **Team numbers written in digits only** (`server/app.ts`): the shared number check took anything `Number()` reads as whole, so `/api/teams/1e3` looked up team 1000 and `0x10` team 16, while `1.5` was a 400. All of them are 400 now. `server/inputBounds.test.ts` and `server/seo.test.ts` cover both (#2455).
+
+## 8.3.4 — 2026-11-28
+
+Fixes from an audit of Videos: notes open their video, lists keep their place, and the feed keeps its order however slowly it's read.
+
+### Highlights
+- [fixes] A match clip opened from your notes plays with Save and notes
+- [fixes] Saving or removing a video keeps a long list where it was
+- [fixes] A feed read slowly no longer skips or repeats videos
+- [fixes] Watch history keeps counting after jumping to a note
+
+### Videos
+- **Notes open their video** (`src/components/videos/LibraryViews.tsx`, `VideosFrame.tsx`): a note's links carry the video, as a feed card's do, so a match clip (which has no creator video to look up) opens a working watch page instead of one titled "Video" with Save, Watch later and notes off.
+- **Lists keep their place**: a change to the library re-reads as many pages as were shown instead of cutting a long list back to its first 24; Notes can try a failed later page again; and a card removed from one list no longer stays hidden in another.
+- **Watches are counted right**: the watch page's reports follow its player when it loads again at a note's moment (`src/lib/useWatchReports.ts`), and a clip swiped past before it played is no longer kept as a view (`src/lib/videoHistory.ts`).
+- **The feed keeps its order** (`server/api/videosFeed.ts`): a list being paged is no longer rebuilt after 10 minutes, which shifted it under the reader, skipping some videos and repeating others. (#2456)
+
+## 8.3.3 — 2026-11-28
+
+Cycles is now Clips, with its own mark, and on a wide screen the video stands tall in the middle with its words beside it.
+
+### Highlights
+- [appearance] Cycles is now Clips, with its own mark
+- [appearance] On a wide screen the clip is tall and centred, its words beside it
+- [fixes] A playing clip shows Pause under the mouse
+- [fixes] Turning the sound on no longer starts a clip over
+
+### Clips
+- **A new name and mark** (`src/components/cycles/ClipsMark.tsx`): "Clips" in the Control Scout face, with a mark of two tall cards, the one behind tipped as if just swiped away. It's the sidebar, menu and tab-bar icon too. The page moved to `/clips`; `/cycles` links redirect there, query kept, and a device's picked tabs keep their place.
+- **A wide screen uses its width**: the creator, title, teams and why it's here sit left of the video, the buttons right of it, and the video fills the height under the top bar with the same room above and below. On a phone the words stay over the video and the buttons are a slim column of icons on its right edge.
+- **Fixes**: a playing clip shows Pause under a mouse and flashes Play when a tap starts it again; a paused clip no longer shows YouTube's own back and next buttons (the loop no longer needs a playlist); the sound button is a command to the player, so it no longer reloads the clip, and one pressed while the player loads still takes; a player that pauses itself shows Play; Enter, Space and a screen reader pause and play; a reason line that only repeated the creator's name is gone; and only clips near the screen ask whether they're saved. (#2452)
+
+## 8.3.2 — 2026-11-28
+
+The leagues list fits a phone, and real places come first.
+
+### Highlights
+- [rankings] Leagues fit a phone screen: no more sideways scrolling
+- [rankings] Real places first; leagues FIRST lists with no place go last
+- [fixes] Long top-team lines shorten in place instead of widening the page
+
+### Rankings
+- **Leagues fit a phone** (`src/pages/LeaguesPage.tsx`): on a 390 px phone the list scrolled sideways by 43 px. Each card's one-line top-team text ("No. 1 by RS") is truncated, but the single column was an auto track, and that track grew to fit the full line. The column is now `minmax(0, 1fr)` (`grid-cols-1`) and each card may shrink, so the text truncates inside the screen.
+- **Real places first:** leagues FIRST lists with no place, often old ones with no meets (for example "San Diego League 1 - OLD"), opened the page as "Place not listed". That group now comes last. `src/pages/LeaguesPage.test.tsx` covers the order and the column, and fails on the old page (#2424).
+
+## 8.3.1 — 2026-11-28
+
+Sign-in, contact and bug reports no longer lock out a whole venue when a few people retry.
+
+### Highlights
+- [fixes] One person's retries no longer block sign-in for others nearby
+- [fixes] Contact and bug-report limits count each visitor, not each network
+- [report] Abuse ranges in the owner console show visitors, not Cloudflare
+
+### Fixes
+- **Per-visitor limits are per visitor again** (`server/auth/routes.ts`, `server/contact.ts`, `server/bugReports.ts`, `server/errorReports.ts`, `server/analytics.ts`, `server/vitals.ts`, `server/onboardingStats.ts`, `server/searchScore.ts`, `server/moderation.ts`): these limits were keyed on `req.ip`. Behind Cloudflare that is the edge address, shared by every visitor it serves (`server/visitorIp.ts` already said so) (#2423). Some examples of what went wrong:
+  - About 20 sign-in attempts from different people at one venue closed email sign-in for everyone there for 15 minutes.
+  - Five contact messages an hour closed the contact form for all of them.
+  - The owner console's abuse ranges counted Cloudflare's ranges, not visitors'.
+
+  All twelve call sites now use `visitorIp(req)`, which reads CF-Connecting-IP and trusts it only when the request really came from Cloudflare. `server/visitorIpUse.test.ts` fails if any server code reads `req.ip` again outside `visitorIp.ts` (#2423).
+
 ## 8.3.0 — 2026-11-28
 
 One look everywhere: the classic design, the atlas and the toggle that chose between them are gone.

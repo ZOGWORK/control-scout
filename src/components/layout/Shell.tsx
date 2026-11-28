@@ -11,7 +11,7 @@ import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
-  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, MapPin, MonitorPlay, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Sparkles, Star, Trophy, Users, Zap,
+  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, MapPin, MonitorPlay, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Sparkles, Star, Trophy, Users,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMediaQuery, useMeta } from "../../lib/meta";
@@ -27,6 +27,7 @@ import { AccountSetupProvider } from "../AccountSetup";
 import { BugReportButton } from "./BugReport";
 import { usePersonal } from "../../lib/personal";
 import { isBareRoute, pageTitle } from "../../shared/routes";
+import { ClipsIcon } from "../cycles/ClipsMark";
 import { SiteFooter } from "./SiteFooter";
 import { SidebarLinks } from "./SidebarLinks";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
@@ -57,8 +58,8 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
     ] },
     { to: "/predict", label: "Predict", icon: Sparkles, end: true },
     { to: "/videos", label: "Videos", icon: MonitorPlay },
-    // Short videos, one at a time (src/pages/CyclesPage.tsx).
-    { to: "/cycles", label: "Cycles", icon: Zap },
+    // Clips: short videos, one at a time (src/pages/CyclesPage.tsx).
+    { to: "/clips", label: "Clips", icon: ClipsIcon },
     // The YOURS row: "My team" / "My teams" (YoursNavRow decides what it opens).
     { to: FOLLOWED_TEAM_PATH, label: "My team", icon: Star },
     { to: "/scout", label: "Scout", icon: ClipboardList },

@@ -1047,6 +1047,19 @@ export interface CompareView {
 
 export interface ApiError { error: string; detail?: string }
 
+/** A team's next match on a posted schedule, small enough for a card: /api/teams-summary?next=1 returns it with the
+ *  summary, so Home's "Your teams" card needs no per-team schedule request. */
+export interface TeamNextMatch {
+  season: number; code: string; event: string; key: string; label: string;
+  /** The event's own clock (no zone) and the instant; null when none is posted. */
+  time: string | null; startsAt: string | null;
+  /** The team's side, its partners and its opponents, by number. */
+  alliance: "red" | "blue"; partners: number[]; opponents: number[];
+  /** The red alliance's chance to win and the call's tier; null when no prediction is logged. */
+  pRed: number | null; tier: ConfidenceTier | null;
+  href: string;
+}
+
 export interface TeamSummary {
   team: number; name: string | null; place: string;
   opr: number | null; oprRank: number | null; of: number | null;
@@ -1055,6 +1068,8 @@ export interface TeamSummary {
   reliability?: number | null; reliabilityMatches?: number | null;
   lastEvent: { code: string; name: string; start: string | null; end: string | null; rank: number | null; record: string | null } | null;
   nextEvent: { code: string; name: string; start: string | null; end: string | null; rank: number | null; record: string | null } | null;
+  /** Only with /api/teams-summary?next=1: its next match, or null when none is posted. */
+  next?: TeamNextMatch | null;
 }
 
 /** One event a team played this season, for the shortlist's trend graphs (OPR is event OPR, non-penalty). */

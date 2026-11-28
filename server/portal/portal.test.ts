@@ -3,7 +3,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { all, get, migrate, openDb, OWNER_AUDIT_TRIGGERS, run, setDb } from "../db";
+import { all, CURRENT_OWNER_AUDIT_TRIGGERS, get, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { sha256 } from "../auth/session";
 import { FLAG_TTL_MS, allFlags, invalidateFlags, isEnabled } from "../flags";
@@ -399,7 +399,7 @@ describe("audit log", () => {
     await copy.execute("DROP TRIGGER IF EXISTS owner_audit_no_delete");
     await copy.execute("DROP TRIGGER IF EXISTS owner_audit_no_edit");
     await copy.execute("DELETE FROM owner_audit");
-    for (const sql of OWNER_AUDIT_TRIGGERS) await copy.execute(sql);
+    for (const sql of CURRENT_OWNER_AUDIT_TRIGGERS) await copy.execute(sql);
     expect((await copy.execute("SELECT COUNT(*) n FROM owner_audit")).rows[0].n).toBe(0);
     await copy.execute("INSERT INTO owner_audit (at, actor, action) VALUES ('2026-10-29', 'owner@example.com', 'flag.set')");
     await expect(copy.execute("DELETE FROM owner_audit")).rejects.toThrow(/append-only/);

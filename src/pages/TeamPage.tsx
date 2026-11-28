@@ -8,7 +8,6 @@ import { leagueHref, leagueTitle } from "../shared/leagues";
 import { CONFERENCE_REGION, ordinal, type TeamConferenceInfo } from "../shared/conferences";
 import { useConferenceGate } from "../lib/conferenceGate";
 import { regionHref } from "../shared/regionRankings";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
   Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, GraduationCap, Info, Link2, MapPin, MoreHorizontal, Scale, Sparkles, Star, TrendingDown, TrendingUp, Trophy,
 } from "lucide-react";
@@ -29,7 +28,7 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/basic";
 import { ToggleGroup, ToggleGroupItem, Collapsible, CollapsibleContent, CollapsibleTrigger, Select, SelectContent, SelectItem, SelectTrigger } from "../components/ui/controls";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../components/ui/overlay";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart";
+import { useDeferredPart } from "../components/charts/defer";
 import { MatchList, TierMark } from "../components/predict";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
@@ -218,8 +217,12 @@ const TRENDS: { key: TrendKey; label: string; suffix?: string; lowerIsBetter?: b
   { key: "rp", label: "Ranking points", get: (e) => e.rp },
 ];
 
+const loadTrendCanvas = () => import("../components/charts/TrendCanvas").then((m) => m.TrendCanvas);
+
 function TrendChart({ events, season }: { events: TeamEventRow[]; season: number }) {
   const [key, setKey] = useState<TrendKey>("opr");
+  // recharts is a chunk of its own, fetched after the page has painted (../components/charts/defer.ts).
+  const Canvas = useDeferredPart(loadTrendCanvas);
   // v8: mint is the chart's one highlight series (brief §5, charts).
   
   const t = TRENDS.find((x) => x.key === key)!;
@@ -239,16 +242,10 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
           <span className="text-sm text-muted-foreground">latest</span>
           {dir && <Badge variant={good == null ? "secondary" : good ? "success" : "destructive"}>{dir === "up" ? <TrendingUp /> : dir === "down" ? <TrendingDown /> : null}{trendLabel(dir)}</Badge>}
         </div>
-        {rows.length < 2 ? <p className="py-8 max-sm:py-5 text-center text-sm text-muted-foreground">One event so far — the trend line appears after a second event.</p> : (
-          <ChartContainer config={{ value: { label: t.label, color: "var(--color-accent)" } }} className="h-56 w-full">
-            <LineChart data={rows} margin={{ top: 8, right: 12, left: 4, bottom: 14 }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              <XAxis dataKey="i" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(i: number) => `E${i + 1}`} label={{ value: "Event, oldest to newest", position: "insideBottom", offset: -12, className: "fill-muted-foreground text-xs" }} />
-              <YAxis tickLine={false} axisLine={false} width={44} label={{ value: t.suffix ? "Percent" : "Points", angle: -90, position: "insideLeft", offset: 8, style: { textAnchor: "middle" }, className: "fill-muted-foreground text-xs" }} />
-              <ChartTooltip cursor={false} content={<ChartTooltipContent labelFormatter={(i: number) => rows[i]?.name ?? ""} />} />
-              <Line dataKey="value" type="monotone" stroke="var(--color-value)" strokeWidth={2.5} dot={{ r: 4, fill: "var(--color-value)" }} activeDot={{ r: 6 }} connectNulls animationDuration={700} />
-            </LineChart>
-          </ChartContainer>
+        {rows.length < 2 ? <p className="py-8 max-sm:py-5 text-center text-sm text-muted-foreground">One event so far — the trend line appears after a second event.</p> : Canvas ? (
+          <Canvas rows={rows} label={t.label} suffix={t.suffix} />
+        ) : (
+          <div className="h-56 w-full" aria-hidden />
         )}
         {vals.some((v) => v == null) && <p className="mt-2 text-xs text-muted-foreground">Gaps: no measurement for this stat at that event (too few qualification matches recorded).</p>}
       </div>

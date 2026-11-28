@@ -12,11 +12,19 @@ export const BUG_CATEGORIES = [
 export type BugCategory = (typeof BUG_CATEGORIES)[number]["id"];
 export const isBugCategory = (x: unknown): x is BugCategory => BUG_CATEGORIES.some((c) => c.id === x);
 
+/** What the report is: a bug, or a feature request (same dialog, same button). A feature request has no category
+ *  chips: it's stored with category "other". */
+export const REPORT_KINDS = ["bug", "feature"] as const;
+export type ReportKind = (typeof REPORT_KINDS)[number];
+export const isReportKind = (x: unknown): x is ReportKind => (REPORT_KINDS as readonly unknown[]).includes(x);
+
 const MB = 1024 * 1024;
 
 export const BUG_LIMITS = {
   messageMin: 10,
   messageMax: 5000,
+  /** The optional title: becomes the GitHub issue's title after its prefix. */
+  titleMax: 100,
   /** Screenshots per report, and the size of each. */
   images: 6,
   imageBytes: 5 * MB,
@@ -99,7 +107,11 @@ export interface BugContext {
 
 /** POST /api/bug-reports: the report, and the attachments it will upload next (type and size each, in order). */
 export interface BugReportCreate {
+  /** Missing: "bug" (dialogs from before feature requests). */
+  kind?: ReportKind;
   category: BugCategory;
+  /** Optional: the issue's title (after "[user] " or "[feature] "); empty, one is made from the message. */
+  title?: string;
   message: string;
   email?: string;
   context: BugContext;
@@ -123,7 +135,9 @@ export interface BugReportFile { n: number; type: string; bytes: number; url: st
 export interface BugReportItem {
   id: number;
   createdAt: string;
+  kind: ReportKind;
   category: BugCategory;
+  title: string | null;
   message: string;
   email: string | null;
   context: BugContext;

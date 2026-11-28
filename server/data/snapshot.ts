@@ -31,7 +31,7 @@ export const PRIVATE_TABLES = [
   // Likes, emoji reactions and shares on videos (migration 120). Never shipped.
   "video_likes", "video_reactions", "video_shares",
   // Owner-typed match starts (migration 97): who set each. Never shipped; the clips they give come from the live server.
-  // Per-match uploads (migration 121): who decided each, and they're read with the channel audit's rows (private too).
+  // Per-match uploads (migration 123): who decided each, and they're read with the channel audit's rows (private too).
   "manual_starts", "match_uploads",
   // The clip autopilot's reads handed to the live server (migration 98): live and waiting rows, who decided. Never shipped.
   "auto_reads", "review_decisions",
