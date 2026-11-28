@@ -43,7 +43,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, type SplitPick, halfGap, holeToCheck, cardUnread, COUNTDOWN_CHECK, enteredLater, DIVISION_AFTER, frameDivision, LAG_READS, lagConfirms, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, EmbedRefused, embedRefusal, timerDigits, afterUnreadBox, boxSeconds, timerSteps, overlayBar } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
-import { cornerBox, foundBox, sampleFinds, wholeBox, zoomCss } from "./lib/frameZoom";
+import { cornerBox, foundBox, outsidePart, reachesPart, sampleFinds, wholeBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS, gapOf, type Gap } from "./lib/videoFrames";
 import { RECHECK_AFTER, recheckDue, recheckRow, recheckVerdict, sawText, type RecheckRead, type RecheckVerdict } from "./lib/reviewRecheck";
 
@@ -1769,7 +1769,9 @@ async function doCode(code: string): Promise<void> {
       // matches. Kept only where it places more. Not on a split half or a measured corner box: their zoom is the video's.
       // A box listed for part of the recording (CORNER_BOXES' `part`, measured on a frame) is zoomed to as it is, no check.
       const partBox = cornerBox(v.videoId)?.part ? cornerBox(v.videoId) : null;
-      const hole = !wholeBox(v.videoId) && !splitHalf && (j.placed.size || j.review.size) ? holeToCheck(mine.map((x) => x.label), j.placed, m.length!) : null;
+      const found = !wholeBox(v.videoId) && !splitHalf && (j.placed.size || j.review.size) ? holeToCheck(mine.map((x) => x.label), j.placed, m.length!) : null;
+      // A part box is read zoomed only over a stretch that reaches into its part: outside it the box isn't on screen.
+      const hole = found && (!partBox?.part || reachesPart(found.from, found.to, partBox.part)) ? found : null;
       if (hole) {
         const pg = page, before = j;
         let hung = false;
@@ -1786,6 +1788,10 @@ async function doCode(code: string): Promise<void> {
           try { more = await placeVideo(pg, mine, offset, m.length!, log, zoomedUnread, live, liveMedium, halfGap(before, gap)); } finally { screenInBox.delete(pg); }
           await zoom(pg, null);
           if (more.placed.size <= before.placed.size) return;
+          // A start a part box's read placed outside the box's part is the camera's frame, not the box's: the read is set
+          // aside whole (the full-size read stands), never a start the box wasn't on screen for.
+          const stray = partBox?.part ? outsidePart(before.placed, more.placed, partBox.part) : [];
+          if (stray.length) { log(`    the box's read placed ${stray.join(", ")} outside its part (${partBox!.part!.join("–")} s): set aside`); return; }
           j = more;
           for (const l of zoomedUnread) if (j.placed.has(l)) unread.add(l);
         }, {
