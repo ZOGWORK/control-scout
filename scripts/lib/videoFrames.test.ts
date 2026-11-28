@@ -1181,6 +1181,8 @@ describe("embedRefusal", () => {
     expect(embedRefusal(["Video unavailable", "Playback on other websites has been disabled by the video owner.", "Watch on YouTube"].join("\n"))).toMatch(/turned off playing it/);
     expect(embedRefusal(["Sign in to confirm your age", "This video may be inappropriate for some users."].join("\n"))).toMatch(/age-restricted/);
     expect(embedRefusal("This video is age-restricted and only available on YouTube.")).toMatch(/age-restricted/);
+    // USILCSSLT 2024's lJunlYy5uls (2026-11-27): public in the Data API, blocked by a claim everywhere it was tried.
+    expect(embedRefusal(["Video unavailable", "It was blocked due to the claimed content by SME."].join("\n"))).toBe("a copyright claim by SME blocks it (on youtube.com too)");
   });
   it("is null for anything a later read may get past, or YouTube's facts settle", () => {
     expect(embedRefusal("Sign in to confirm you're not a bot")).toBeNull();

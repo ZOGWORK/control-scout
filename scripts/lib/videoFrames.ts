@@ -515,6 +515,10 @@ export function frameDivision(read: { label: string | null; division?: "own" | "
  */
 export function embedRefusal(text: string): string | null {
   if (/blocked it from display on this website/i.test(text)) return "a content owner blocks it on other websites (it plays only on youtube.com)";
+  // A copyright claim that blocks it outright (USILCSSLT 2024's lJunlYy5uls: "It was blocked due to the claimed
+  // content by SME", the watch page UNPLAYABLE too, while the Data API still calls it public).
+  const claim = /blocked due to the claimed content by ([^.\n]+)/i.exec(text);
+  if (claim) return `a copyright claim by ${claim[1].trim()} blocks it (on youtube.com too)`;
   if (/playback on other websites has been disabled/i.test(text)) return "its owner turned off playing it on other websites (it plays only on youtube.com)";
   if (/age[- ]restricted|confirm your age/i.test(text)) return "it's age-restricted (it plays only on youtube.com, signed in)";
   return null;
