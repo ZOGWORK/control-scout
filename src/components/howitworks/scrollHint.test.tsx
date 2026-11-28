@@ -38,4 +38,16 @@ describe("ScrollX edge hint", () => {
     expect(el.style.maskImage).toBe("");
     expect(el.dataset.moreRight).toBeUndefined();
   });
+
+  it("watches the chart inside as well as the box, so a chart that redraws wider brings the fade back", () => {
+    const seen: Element[] = [];
+    const RO = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class { observe(t: Element) { seen.push(t); } unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    try {
+      const { container } = render(<ScrollX label="chart"><div data-chart /></ScrollX>);
+      const el = container.querySelector<HTMLElement>("[data-scroll-x]")!;
+      expect(seen).toContain(el);
+      expect(seen).toContain(el.firstElementChild);
+    } finally { globalThis.ResizeObserver = RO; }
+  });
 });
