@@ -4,7 +4,7 @@
 // console and your account, the light/dark switch sits beside the bell, Report a bug is a corner circle, and the wash is tall on a
 // top-level page and short inside one. Without it, the shell is as it was.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { resetFlags } from "../../lib/flags";
 import { DEFAULT_FLAGS } from "../../shared/flags";
@@ -81,6 +81,21 @@ describe("v8 shell", () => {
     expect(container.querySelector("[data-corner-links]")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(within(container.querySelector("header") as HTMLElement).getByRole("button", { name: "Open menu" }).getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("What's new from your menu hands focus back to your picture when it closes", async () => {
+    personal.user = { id: 1, email: "a@scout.test", displayName: "Ada", createdAt: "" };
+    const { container } = shell();
+    const me = within(container.querySelector("header") as HTMLElement).getByRole("button", { name: "Account: Ada" });
+    act(() => me.focus());
+    fireEvent.click(me);
+    const links = container.querySelector("[data-corner-links]") as HTMLElement;
+    fireEvent.click(within(links).getByRole("button", { name: /What.s new/ }));
+    const dialog = await screen.findByRole("dialog", { name: "What's new" });
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(me));
   });
 
   it("adds the owner console to the owner's menu only", () => {
