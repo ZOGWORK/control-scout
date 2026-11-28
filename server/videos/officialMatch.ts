@@ -59,13 +59,16 @@ const US = "alabama arizona california colorado georgia hawaii iowa illinois ind
 const STOP = new Set(("the a of and de la le at in on for by with from first tech challenge ftc robotics robotica league leagues tournament competitie regionala day days live stream streams qualifier qualifiers qualifying event events championship championships campionatul national nationala division divisions ro season matches match state x meet meets presented school high academy university college center centre "
   + "decode into deep centerstage biobuzz powerplay energize freight frenzy ultimate goal skystone rover ruckus game changers january february march april may june july august september october november december jan feb mar apr jun jul aug sep sept oct nov dec monday tuesday wednesday thursday friday saturday sunday "
   + "quals finals final playoffs full recording part city usa remote hybrid " + US).split(" "));
+/** The words that never tell one event from another, with the region's own left in (US state names): a title naming
+ *  "Indiana" isn't about a Maryland event (./uploadMatch.ts reads every word a title says). */
+export const GENERIC_WORDS: ReadonlySet<string> = new Set([...STOP].filter((w) => !US.split(" ").includes(w)));
 export const norm = (s: string | null | undefined) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-const toks = (s: string, extra: Set<string>) => new Set(norm(s).split(" ").filter((t) => t.length > 2 && !/^\d+$/.test(t) && !STOP.has(t) && !extra.has(t)));
+export const toks = (s: string, extra: Set<string>) => new Set(norm(s).split(" ").filter((t) => t.length > 2 && !/^\d+$/.test(t) && !STOP.has(t) && !extra.has(t)));
 /** The acronyms an event's name goes by: its all-capital words of 3 letters or more ("APOC"), lowercased, leaving out
  *  the common ones ("FTC") and the region's own words. */
-const acronyms = (name: string, extra: Set<string>) => (name.match(/\b[A-Z]{3,}\b/g) ?? []).map((w) => w.toLowerCase()).filter((a) => !STOP.has(a) && !extra.has(a));
+export const acronyms = (name: string, extra: Set<string>) => (name.match(/\b[A-Z]{3,}\b/g) ?? []).map((w) => w.toLowerCase()).filter((a) => !STOP.has(a) && !extra.has(a));
 /** Every acronym a title spells out with 3 to 6 words in a row ("Asia Pacific Open Championship" → "apoc"). */
-function spelled(title: string): Set<string> {
+export function spelled(title: string): Set<string> {
   const w = norm(title).split(" ").filter((t) => /^[a-z]/.test(t));
   const out = new Set<string>();
   for (let i = 0; i < w.length; i++) for (let n = 3; n <= 6 && i + n <= w.length; n++) out.add(w.slice(i, i + n).map((t) => t[0]).join(""));
@@ -155,7 +158,7 @@ export function videoWindow(v: Pick<WatchVideo, "title" | "start" | "published">
   return !titled && pub && /^\d{4}-\d{2}-\d{2}$/.test(pub) ? [shift(pub, -UPLOAD_LAG_DAYS - 1), pub] : null;
 }
 
-const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
+export const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
 function weekday(iso: string, tz: string | null): string {
   try { return new Intl.DateTimeFormat("en-US", { timeZone: tz || "UTC", weekday: "long" }).format(new Date(iso)).toLowerCase(); } catch { return ""; }
 }
