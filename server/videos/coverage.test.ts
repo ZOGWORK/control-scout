@@ -172,6 +172,22 @@ describe("clipCoverage", () => {
     expect(c4.videos.map((v) => [v.videoId, v.matches, v.clipped])).toEqual([["PARTONEvid1", 1, 1], ["PARTTWOvid1", 1, 0]]);
   });
 
+  it("a match with no real start in a video that can't be played says so: the video is what stands in the way", () => {
+    // 2019: FIRST gave no real start times at all. A frame read places them by the bar (frameQueue reads them), so
+    // "no start time" only stands where a read could reach the video.
+    const noStart = (label: string, at: string) => ({ ...m(label, at), time: at, startsAt: `${at}Z` });
+    const gone = meta("GONEvideo01", "2026-03-07T09:00:00Z", "2026-03-07T18:00:00Z", 32_400, { status: "unavailable" });
+    const r: Recording = { videoId: gone.videoId, meta: gone, source: "first" };
+    expect(clipCoverage([noStart("Q1", "2026-03-07T10:00:00")], r, r, "UTC", NOW).matches[0]).toMatchObject({ reason: "video-unavailable", videoId: "GONEvideo01" });
+    // Facts not in yet: waits for them, as any match does.
+    const unread: Recording = { videoId: "UNREADvid01", meta: null, source: "first" } as unknown as Recording;
+    expect(clipCoverage([noStart("Q1", "2026-03-07T10:00:00")], unread, unread, "UTC", NOW).matches[0]).toMatchObject({ reason: "video-unread", videoId: "UNREADvid01" });
+    // An upload with no broadcast clock (all of 2019's): just what a frame read places, so FIRST's missing time stands.
+    const upload = { ...meta("UPLOADvid01", "", "", 32_400), start: null, end: null } as unknown as VideoMeta;
+    const u: Recording = { videoId: upload.videoId, meta: upload, source: "first" };
+    expect(clipCoverage([noStart("Q1", "2026-03-07T10:00:00")], u, u, "UTC", NOW).matches[0]).toMatchObject({ reason: "no-start", videoId: "UPLOADvid01" });
+  });
+
   it("never says a length matched when it couldn't be compared (still live, or no end)", () => {
     const live = { ...meta("LIVEvideo01", "2026-03-06T13:00:00Z", "", 0), end: null, length: null, live: true };
     const l = clipCoverage([m("Q1", "2026-03-06T14:00:00")], { videoId: live.videoId, meta: live, source: "first" }, null, "UTC", Date.parse("2026-03-06T16:00:00Z"));
