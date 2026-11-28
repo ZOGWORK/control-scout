@@ -56,6 +56,7 @@ import { sharedMatchList } from "../searchBoolean.js";
 import { compareBlock, decidedText, leadHeadline, seasonScale, winShare } from "./compareBlock.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
 import { eventVersusAnswer, eventVersusTitle, eventsNamed, readEventVersus } from "./families/eventVersus.js";
+import { eventOrderAnswer, readEventOrder } from "./families/eventOrder.js";
 import { eventHref, shortEvent, teamMatches } from "./matchSet.js";
 import { readCompound } from "./compound.js";
 import { eventInitialisms, initialismEvent } from "../query/initialisms.js";
@@ -86,7 +87,7 @@ const TITLES: Record<IntentId, string> = {
   "pick-partner": "Who to pick as an alliance partner",
   "next-event-wins": "Predicted wins, next event", "event-win-chance": "Chance to win their next event", "advance-chance": "Advancement chance", "playoff-chance": "Playoff chance, next event",
   "ties-count": "Ties", "win-percent": "Win rate", "score-range": "Score range", "median-score": "Median score", "score-consistency": "Score consistency", "scores-over": "Scores over",
-  "highest-auto": "Highest Auto score", "highest-teleop": "Highest TeleOp score", "highest-endgame": "Highest Endgame score", "most-penalties": "Match with the most penalty points given away",
+  "highest-auto": "Highest Auto score", "highest-teleop": "Highest TeleOp score", "highest-endgame": "Highest Endgame score", "average-auto": "Average Auto points", "average-teleop": "Average TeleOp points", "average-endgame": "Average Endgame points", "most-penalties": "Match with the most penalty points given away",
   penalties: "Penalty points given away", "easiest-opponent": "Easiest opponent", "vs-top": "Against top-rated teams", "vs-rookies": "Against rookie teams", "early-late": "Early season against late season",
 };
 const TWO_TEAM_TITLES: Record<TwoTeamId, string> = {
@@ -364,6 +365,17 @@ async function findEvent(words: string, season: number | null, opts: { anyPlayed
   // so an older one is looked up by its code).
   if (season != null) {
     for (const h of found) { const e = await row(season, h.ref.split(":")[1]); if (e && (!named.length || eventFit(words, e.name) >= 0.75)) return e; }
+    // An event named by another season's name, the season said beside it ("<the 2022–23 championship's name> 2023–24",
+    // as an event's other seasons are often renamed): the same event that season, by its code. A code is sometimes
+    // reused for another event, so only when that season's event is the same kind in the same place.
+    const place = (s: number, code: string) => get<{ type: string | null; country: string | null; state: string | null }>("SELECT type, country, state FROM events WHERE season = ? AND code = ?", [s, code]);
+    const anySeason = (await search(words, 8, new Set(), new Set(["event"]), null)).filter((h) => h.kind === "event" && eventFit(words, h.title) >= 0.75);
+    for (const h of anySeason) {
+      const [s, code] = h.ref.split(":");
+      if (Number(s) === season) continue;
+      const [was, now] = await Promise.all([place(Number(s), code), place(season, code)]);
+      if (was && now && was.type === now.type && was.country === now.country && was.state === now.state) return (await row(season, code)) ?? null;
+    }
     return null;
   }
   const top = found[0];
@@ -975,7 +987,16 @@ async function namedEvent(it: StatQuestion, season: number | null) {
   if (ini) return (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [ini.season, ini.code])) ?? null;
   const won = await eventWon(words, new Set());
   if (won) return (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [won.season, won.code])) ?? null;
-  return it.scope.states ? null : findEvent(it.core, season);
+  if (!it.scope.states) return findEvent(it.core, season);
+  // "State championship" said inside an event's own name ("<state> State Championship-<code>"): that event, when the
+  // words are one of its editions' names, never any event the words merely touch.
+  for (const w of [`${it.core} state championship`, it.core]) {
+    const e = await findEvent(w, season);
+    if (!e) continue;
+    const names = await all<{ name: string }>("SELECT DISTINCT name FROM events WHERE code = ?", [e.code]);
+    if (names.some((n) => eventFit(w, n.name) >= 0.75)) return e;
+  }
+  return null;
 }
 
 /** The event the words name in the latest season, `from` down, where it has a result (a played playoff match or a
@@ -1400,4 +1421,29 @@ export async function eventVersusSearch(q: string, season: number | null, opts: 
   // The search box: the events found and a link to the answer page, nothing counted while typing.
   if (!opts.full) return { ...base, pages: [{ title: label, href: `/search?q=${encodeURIComponent(opts.asked ?? q)}` }, ...opts.pages] };
   return { ...base, pages: opts.pages, stat: await eventVersusAnswer(evs) };
+}
+
+/** "Did <event> happen before or after <event>" (./families/eventOrder.ts): which came first, by each event's dates.
+ *  With no season said, the newest season both were held (each its newest edition when they never shared one). Null
+ *  when it isn't one or an event isn't found. `alias`: a side's short forms said in full ("worlds"). */
+export async function eventOrderSearch(q: string, season: number | null, opts: { full: boolean; pages: SearchPageLink[]; alias?: (w: string) => string }): Promise<SearchAnswer | null> {
+  const ask = readEventOrder(q);
+  if (!ask) return null;
+  const find = async (words: string, s: number | null) => {
+    for (const w of [...new Set([...(opts.alias ? [opts.alias(words)] : []), words])]) { const e = await findEvent(w, s, { anyPlayed: false }); if (e) return e; }
+    return null;
+  };
+  let [x, y] = await Promise.all([find(ask.a, season), find(ask.b, season)]);
+  if (!x || !y) return null;
+  // The newest season both were held: the older of the two newest editions, each found again in it.
+  if (season == null && x.season !== y.season) {
+    const s = Math.min(Number(x.season), Number(y.season));
+    const [x2, y2] = await Promise.all([find(ask.a, s), find(ask.b, s)]);
+    if (x2 && y2) [x, y] = [x2, y2];
+  }
+  const stat = eventOrderAnswer(x, y, ask.asked);
+  if (!stat) return null;
+  const label = stat.headline!.label;
+  return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, season: Number(x.season) },
+    intent: { kind: "stat-event-order", pattern: "[event] before or after [event]", met: true, understood: [label] }, ...(opts.full ? { stat } : {}) };
 }

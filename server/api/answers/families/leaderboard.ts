@@ -106,7 +106,8 @@ export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; re
   conference?: string[];
   /** One event's teams, its divisions' too ("east bergen conference best teams", "top teams at nj states"). */
   /** `home`: the teams from that place only ("nj teams at worlds"). */
-  event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null; rookies?: boolean };
+  /** `noWorlds`: only the teams never at the FIRST Championship, any season on record. */
+  event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null; rookies?: boolean; noWorlds?: boolean };
   /** Part of the teams' names, as typed ("Robot"): only the teams whose name has it. */
   nameHas?: string;
   /** Only the teams with no award on record, any season. */
@@ -454,7 +455,13 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
   // A place said keeps the teams from there; how they're ranked is the whole event's (played or not), so a played event
   // whose teams from there have no OPR there never reads as unplayed.
   // Rookies asked: the teams in their first season, the event's own (a team's rookie year is the season it started).
-  const rows = everyone.filter((r) => (!home || (r.country === home.country && (!home.state || r.state === home.state))) && (!ev.rookies || Number(r.rookie_year) === ev.season));
+  // Never at Worlds asked: the teams on no FIRST Championship event's list (a division's included) and in no match there,
+  // any season on record.
+  const went = ev.noWorlds ? new Set((await all<{ team: number }>(
+    `SELECT et.team FROM event_teams et JOIN events w ON w.season = et.season AND w.code = et.code WHERE w.type = 'FIRSTChampionship'
+     UNION SELECT mt.team FROM match_teams mt JOIN events w ON w.season = mt.season AND w.code = mt.code WHERE w.type = 'FIRSTChampionship'`)).map((r) => Number(r.team))) : null;
+  const firstWorlds = ev.noWorlds ? (await get<{ s: number | null }>("SELECT MIN(season) s FROM events WHERE type = 'FIRSTChampionship'"))?.s ?? null : null;
+  const rows = everyone.filter((r) => (!home || (r.country === home.country && (!home.state || r.state === home.state))) && (!ev.rookies || Number(r.rookie_year) === ev.season) && (!went || !went.has(Number(r.team))));
   // Records there by the official rule (playoffs and qualification no-shows counted), summed over its divisions.
   const there = new Map<number, { wins: number; losses: number; ties: number }>();
   for (const r of await all<{ team: number; wins: number; losses: number; ties: number }>(
@@ -474,13 +481,14 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
   const ranked = rows.filter((r) => v(r) != null).sort((x, y) => Number(v(y)) - Number(v(x)) || Number(x.team) - Number(y.team));
   const shown = ranked.slice(0, b.n);
   const rec = (r: (typeof rows)[number]) => (mode === "event" ? there.get(Number(r.team)) ?? { wins: 0, losses: 0, ties: 0 } : { wins: Number(r.sw ?? 0), losses: Number(r.sl ?? 0), ties: Number(r.st ?? 0) });
-  const who = ev.rookies ? `${home ? `${home.name} rookie` : "Rookie"} teams` : home ? `${home.name} teams` : "Best teams";
+  const who = `${ev.rookies ? `${home ? `${home.name} rookie` : "Rookie"} teams` : home ? `${home.name} teams` : ev.noWorlds ? "Teams" : "Best teams"}${ev.noWorlds ? " never at Worlds" : ""}`;
   const title = `${who} at ${ev.name} by ${by}`;
   const base = {
-    family: "leaderboard" as const, intent: "event-best", title: `${title} · ${S}`, scope: [ev.name, ...(home ? [`From ${home.name}`] : []), ...(ev.rookies ? ["Rookies"] : []), S, `By ${by}`],
-    definition: `The ${rows.length}${ev.rookies ? " rookie" : ""} team${rows.length === 1 ? "" : "s"}${home ? ` from ${home.name}` : ""}${ev.rookies ? ` (in their first season, ${S})` : ""} on the event's list (its divisions' too). ${mode === "event" ? `Ranked by each team's ${OPR} at the event (its best division's), without penalties, as the event page shows it; the record is its matches there, playoffs included.` : mode === "season" ? `The event's matches aren't played yet: ranked by the ${S} ${OPR} each team brings, as its team page shows it; the record is its ${S} season's.` : `Neither the event's matches nor any ${S} ${OPR} are on record yet: ranked by each team's ${P} ${OPR}.`} A team with no such ${OPR} isn't ranked.${phase ? ` ${PHASE_LABEL[phase]} OPR is the part of OPR scored in that phase.` : ""}`,
+    family: "leaderboard" as const, intent: "event-best", title: `${title} · ${S}`, scope: [ev.name, ...(home ? [`From ${home.name}`] : []), ...(ev.rookies ? ["Rookies"] : []), ...(ev.noWorlds ? ["Never at Worlds"] : []), S, `By ${by}`],
+    definition: `The ${rows.length}${ev.rookies ? " rookie" : ""} team${rows.length === 1 ? "" : "s"}${home ? ` from ${home.name}` : ""}${ev.rookies ? ` (in their first season, ${S})` : ""} on the event's list (its divisions' too)${ev.noWorlds ? ` that have never been to the FIRST Championship: on no Worlds event's list and in no match there, any season on record${firstWorlds != null ? ` (Worlds is on record from ${seasonLabel(Number(firstWorlds))})` : ""}` : ""}. ${mode === "event" ? `Ranked by each team's ${OPR} at the event (its best division's), without penalties, as the event page shows it; the record is its matches there, playoffs included.` : mode === "season" ? `The event's matches aren't played yet: ranked by the ${S} ${OPR} each team brings, as its team page shows it; the record is its ${S} season's.` : `Neither the event's matches nor any ${S} ${OPR} are on record yet: ranked by each team's ${P} ${OPR}.`} A team with no such ${OPR} isn't ranked.${phase ? ` ${PHASE_LABEL[phase]} OPR is the part of OPR scored in that phase.` : ""}`,
     source: `${ranked.length} of ${rows.length} teams at ${ev.name} with ${mode === "event" ? `${/^[AEIOU]/.test(OPR) ? "an" : "a"} ${OPR} there` : `a ${mode === "season" ? S : P} ${OPR}`}`,
   };
+  if (!shown.length && ev.noWorlds && !rows.length && everyone.length) return { ...base, blocks: [], none: `Every one of the ${everyone.length} teams at ${ev.name} has been to Worlds.` };
   if (!shown.length) return { ...base, blocks: [], none: rows.length ? `None of the ${rows.length} teams at ${ev.name} has ${mode === "before" ? `a ${P}` : "an"} ${OPR} on record yet.` : `No${ev.rookies ? " rookie" : ""} teams${home ? ` from ${home.name}` : ""} are listed for ${ev.name} in ${S}${home || ev.rookies ? "" : " yet"}.` };
   const top = shown[0];
   const fmt1 = (x: number | null) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));

@@ -20,6 +20,8 @@ const RANKED: Record<string, { label: string; rank: string }> = {
 };
 /** The words for those stats (the parse's symbols): a team's run says one of them, or none (OPR). */
 const RANKED_SAID = new Set(["metric:opr", "metric:auto", "metric:teleop", "metric:endgame", "metric:rating"]);
+/** Words beside several teams' improvement over a run: the ask itself and how the teams are joined. */
+const IMPROVED_SAID = new Set(["improved", "agg:max", "and", "compare", "vs", "thing:team", "thing:season"]);
 /** A board over a run: a team ranked in at least this many of its seasons (every one, in a run of one or two). */
 const MIN_SEASONS = 2;
 
@@ -38,12 +40,16 @@ const topShare = (rank: number, of: number) => { const p = (100 * rank) / of; re
 
 /** What a run of seasons asks: one team's run ("team"), the best teams over it ("board"), or null when it asks
  *  something else of the run. `stat`: the board stat said (null: none). */
-export function seasonsAsk(p: Parsed, stat: string | null): "team" | "board" | null {
+export function seasonsAsk(p: Parsed, stat: string | null): "team" | "board" | "teams" | null {
   if (p.time?.kind !== "seasons" || !p.time.range || p.event || p.eventKind || p.worlds || p.states || p.award || p.alliance || p.matchNumber != null || p.level || p.leftover.length) return null;
   // A town's board, or rookies only, is a filter this answer can't keep: left to search's other readers.
   if (p.rookie || p.place?.kind === "city") return null;
   if (!RANKED[stat ?? "opr"]) return null;
   if (!p.teams.length && (p.intent === "leaderboard" || p.symbols.includes("thing:team"))) return "board";
+  // Two to four teams and which improved most over the run ("<team>, <team> and <team>: who improved most since
+  // <season>"): each team's rank share in the run's first season beside its latest, the most risen first.
+  if (p.teams.length >= 2 && p.teams.length <= 4 && p.symbols.includes("improved"))
+    return p.symbols.every((s) => RANKED_SAID.has(s) || IMPROVED_SAID.has(s) || s.startsWith("prep:")) ? "teams" : null;
   if (p.teams.length !== 1) return null;
   // A team's own run asks its stat or nothing else ("<team> last 3 seasons"), never a match or a record question.
   // Its stat is one a season ranks ("<team> auto opr since <year>"); any other ("<team> awards since <year>") is asked
@@ -58,16 +64,17 @@ export async function seasonsAnswer(p: Parsed, stat: string | null, opts: { full
   if (!ask) return null;
   const st = RANKED[stat ?? "opr"], board = ask === "board";
   const run = p.time!.label;
-  const label = board ? `Best teams by ${st.label}${p.place && p.place.kind !== "city" ? ` in ${p.place.name}` : ""}, ${run}` : `${p.teams[0].name ?? `Team ${p.teams[0].number}`} (${p.teams[0].number}): ${st.label} rank each season, ${run}`;
+  const names = p.teams.map((t) => `${t.name ?? `Team ${t.number}`} (${t.number})`);
+  const label = ask === "teams" ? `Who improved most by ${st.label} rank, ${run}: ${names.join(", ")}` : board ? `Best teams by ${st.label}${p.place && p.place.kind !== "city" ? ` in ${p.place.name}` : ""}, ${run}` : `${p.teams[0].name ?? `Team ${p.teams[0].number}`} (${p.teams[0].number}): ${st.label} rank each season, ${run}`;
   const read: SearchAnswer = {
     q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label },
-    intent: { kind: board ? "stat-seasons-board" : "stat-team-seasons", pattern: board ? "best teams [seasons]" : "[team] [stat] [seasons]", met: true, understood: [label] },
+    intent: { kind: ask === "teams" ? "stat-teams-improved" : board ? "stat-seasons-board" : "stat-team-seasons", pattern: ask === "teams" ? "[teams] improved most [seasons]" : board ? "best teams [seasons]" : "[team] [stat] [seasons]", met: true, understood: [label] },
   };
   if (!opts.full) return { ...read, pages: [{ title: label, href: `/search?q=${encodeURIComponent(p.q)}` }, ...opts.pages] };
   const seasons = await seasonsOf(p.time!.range!);
   const stat0: Omit<StatAnswer, "blocks"> = {
-    family: "leaderboard", intent: board ? "seasons-board" : "team-seasons", title: label,
+    family: "leaderboard", intent: ask === "teams" ? "teams-improved" : board ? "seasons-board" : "team-seasons", title: label,
     scope: [...(seasons.length ? [`${seasonLabel(seasons[0])} to ${seasonLabel(seasons[seasons.length - 1])}`] : [run])],
     definition: `Each season is read on its own: the ${st.label} rank among that season's ranked teams, and the share of them at or above it ("Top 3%"). ${st.label} itself is never compared across seasons: each game scores differently.`,
     source: "From each season's ranked teams",
@@ -77,6 +84,7 @@ export async function seasonsAnswer(p: Parsed, stat: string | null, opts: { full
   // Each season's ranked count for the stat, once.
   const counts = new Map((await all<{ season: number; n: number }>(`SELECT s.season, COUNT(*) n FROM team_season_stats s WHERE s.season IN (${marks}) AND ${st.rank} IS NOT NULL GROUP BY s.season`, seasons))
     .map((r) => [Number(r.season), Number(r.n)]));
+  if (ask === "teams") return { ...read, stat: { ...stat0, definition: `${stat0.definition} Improved: how far the team's share moved from the run's first season it was ranked in to its latest, in points of share (from Top 40% to Top 10% is 30 points).`, ...(await teamsImproved(p.teams, seasons, st, counts)) } };
   if (!board) return { ...read, stat: { ...stat0, team: { number: p.teams[0].number, name: p.teams[0].name ?? null }, ...(await teamRun(p.teams[0].number, seasons, st, counts)) } };
   return { ...read, stat: { ...stat0, ...(await boardRun(p, seasons, st, counts)) } };
 }
@@ -104,6 +112,42 @@ async function teamRun(team: number, seasons: number[], st: (typeof RANKED)[stri
           href: `/teams/${team}?season=${s}`, strong: s === best,
         };
       }),
+    }],
+  };
+}
+
+/** Several teams over the run: each one's share in its first ranked season of the run and in its latest, the most risen
+ *  first. A team ranked in fewer than two of the seasons can't be said to have risen, and says so. */
+async function teamsImproved(teams: Parsed["teams"], seasons: number[], st: (typeof RANKED)[string], counts: Map<number, number>): Promise<Pick<StatAnswer, "blocks" | "headline" | "none">> {
+  const rows = await all<{ team: number; season: number; r: number | null }>(
+    `SELECT s.team, s.season, ${st.rank} r FROM team_season_stats s WHERE s.team IN (${teams.map(() => "?").join(", ")}) AND s.season IN (${seasons.map(() => "?").join(", ")})`,
+    [...teams.map((t) => t.number), ...seasons]);
+  const each = teams.map((t) => {
+    const ranked = seasons.filter((s) => rows.some((r) => Number(r.team) === t.number && Number(r.season) === s && r.r != null) && counts.get(s));
+    const at = (s: number) => { const r = Number(rows.find((x) => Number(x.team) === t.number && Number(x.season) === s)!.r); return { s, r, share: r / counts.get(s)! }; };
+    const first = ranked.length >= 2 ? at(ranked[0]) : null, last = ranked.length >= 2 ? at(ranked[ranked.length - 1]) : null;
+    return { t, first, last, rise: first && last ? Math.round(100 * (first.share - last.share)) : null };
+  });
+  const risen = each.filter((x) => x.rise != null).sort((a, b) => b.rise! - a.rise! || a.t.number - b.t.number);
+  const share = (x: { r: number; s: number }) => topShare(x.r, counts.get(x.s)!);
+  const nameOf = (t: Parsed["teams"][number]) => `${t.number} ${t.name ?? ""}`.trim();
+  if (!risen.length) return { blocks: [], none: `None of these teams was ranked by ${st.label} in two of these seasons, so none can be said to have improved.` };
+  const top = risen[0];
+  const word = (n: number) => (n > 0 ? `up ${n} points` : n < 0 ? `down ${-n} points` : "no change");
+  return {
+    headline: { value: nameOf(top.t), label: top.rise! > 0 ? `Improved most: ${share(top.first!)} in ${seasonLabel(top.first!.s)} to ${share(top.last!)} in ${seasonLabel(top.last!.s)}` : `None improved: the least fall, ${share(top.first!)} in ${seasonLabel(top.first!.s)} to ${share(top.last!)} in ${seasonLabel(top.last!.s)}`, sub: `${word(top.rise!)} of share`, href: `/teams/${top.t.number}` },
+    blocks: [{
+      kind: "table", title: `${st.label} rank share, first season to latest`,
+      columns: [{ key: "team", label: "Team" }, { key: "first", label: "First" }, { key: "latest", label: "Latest" }, { key: "change", label: "Change" }],
+      rows: [...risen, ...each.filter((x) => x.rise == null)].map((x) => ({
+        cells: {
+          team: nameOf(x.t),
+          first: x.first ? `${share(x.first)} (${seasonLabel(x.first.s)}, #${x.first.r})` : "Not ranked twice",
+          latest: x.last ? `${share(x.last)} (${seasonLabel(x.last.s)}, #${x.last.r})` : null,
+          change: x.rise != null ? word(x.rise) : null,
+        },
+        href: `/teams/${x.t.number}`, strong: x === top,
+      })),
     }],
   };
 }

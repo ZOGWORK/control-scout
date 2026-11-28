@@ -5,6 +5,9 @@
 // left to search's other readers (null).
 import { AsyncLocalStorage } from "node:async_hooks";
 import { cleanQuery } from "../../../src/shared/search.js";
+import { search } from "../search.js";
+import { fold, names } from "./names.js";
+import { pickShared } from "../../../src/shared/query/shared.js";
 import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/shared/api.js";
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import type { Region } from "../../../src/shared/regions.js";
@@ -47,6 +50,8 @@ import { parseContext } from "./context.js";
 import { topTeamsNote, topTeamsSaid } from "./topTeams.js";
 import { asksSelfMatch, selfMatchAnswer } from "./selfMatch.js";
 import { PAIR_SPLIT, windowPairAnswer } from "./windowPair.js";
+import type { TimeSlot } from "./time.js";
+import { chipSeason, scopePairAnswer } from "./scopePair.js";
 import { rankReviewAnswer } from "./rankReview.js";
 import { CLEAN_MATCHES, INTENTS, type PipelineIntent } from "./intents.js";
 import { place } from "../../../src/shared/format.js";
@@ -102,6 +107,18 @@ async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAns
   if (byName) {
     const again = await parseQuery(byName, ctx);
     if (again.complete && again.intent === asTeam[p.intent!] && again.teams.length === 1) p = { ...again, q };
+  }
+  // A question no rule reads without a team, its left-over words a team's name in part ("how many years <part of a
+  // name>"): read again with the team search's own lookup finds for the words, or, for one word that starts teams'
+  // names, the team the shared-name rules pick among them (./shared.ts), the card saying which and why. Only when that
+  // makes it one team's question, read whole.
+  if (!p.intent && !p.teams.length && p.leftover.length) {
+    const prefix = await namePrefixTeam(q, p, opts.prefer);
+    const named = prefix?.q ?? await leftoverTeam(q, p, opts.resolve);
+    const again = named ? await parseQuery(named, ctx) : null;
+    if (again?.complete && again.intent && again.teams.length === 1 && TEAM_INTENTS.has(again.intent)) {
+      p = { ...again, q, ...(prefix ? { teams: [{ ...again.teams[0], typed: prefix.typed, candidates: prefix.candidates, rule: prefix.rule, prefix: true as const }] } : {}) };
+    }
   }
   // One team against itself ("predict 12345 vs 12345"): no match to call, said so, with its own forecasts to open.
   if (asksSelfMatch(q, p)) {
@@ -177,7 +194,7 @@ async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAns
   // One team's question in two time windows set against each other ("12345 record this month, versus last month"):
   // asked in each, exactly as said, side by side.
   if (!p.complete) {
-    const pair = await windowPair(q, ctx, opts);
+    const pair = await windowPair(q, ctx, opts) ?? await scopePair(q, ctx, opts);
     if (pair) return pair;
   }
   // A place's top team said where a team would be ("the top NJ team vs the top Romania team"): two teams compared,
@@ -211,7 +228,8 @@ async function pipelineRead(q: string, opts: PipelineOptions): Promise<SearchAns
   if (tops && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${topTeamsNote(tops.said, tops.season)}` } };
   // A name several teams share, told apart by a rule (./shared.ts): the card says which team it was read as, and why.
   for (const t of p.teams) {
-    if (t.candidates && t.rule && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${t.typed}: ${t.number}, ${t.rule} of ${t.candidates.length} teams with the name` } };
+    if (t.candidates && t.rule && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${t.typed}: ${t.number}, ${t.rule} of ${t.candidates.length} teams ${t.prefix ? `whose name starts "${t.typed}"` : "with the name"}` } };
+    else if (t.prefix && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${t.typed}: ${t.number}, the only team whose name starts so` } };
   }
   // Part of a region ("north jersey") is read as all of it, and the card says so.
   a = partNotes(a, p);
@@ -261,6 +279,29 @@ async function leftoverTeam(q: string, p: Parsed, resolve: Resolve): Promise<str
   let out = q.replace(at, `$1${team[0].ref}`);
   if (place) out = out.replace(wordsAt(place.typed.split(/\s+/)), "$1");
   return out.replace(/\s+/g, " ").trim();
+}
+
+/** One left-over word that starts teams' names and is no name or place of its own ("how many years <first letters of
+ *  a name>"): `q` with the team's number in its place, the teams whose name starts so that have played (when more
+ *  than one) and the shared-name rule (./shared.ts) that picked the one, or null. Four letters or more, letters only. */
+async function namePrefixTeam(q: string, p: Parsed, prefer?: ReadonlySet<string>): Promise<{ q: string; typed: string; candidates?: number[]; rule?: string } | null> {
+  if (p.teams.length || p.leftover.length !== 1) return null;
+  const typed = p.leftover[0], w = fold(typed);
+  if (w.length < 4 || !/^[a-z]+$/.test(w)) return null;
+  const idx = await names();
+  if (idx.teamsNamed(w).length || idx.teamsCalled(w).length || idx.place(w, typed)) return null;
+  const hits = (await search(w, 12, new Set(), new Set(["team"]))).filter((h) => h.kind === "team");
+  const starting = hits.map((h) => idx.team(Number(h.ref))).filter((t): t is NonNullable<typeof t> => !!t && fold(t.name ?? "").split(" ").some((x) => x.startsWith(w)));
+  // The teams that have played, when any has; else every registration (its answer then says it has played nothing).
+  const played = starting.filter((t) => t.lastPlayed != null);
+  const teams = played.length ? played : starting;
+  if (!teams.length) return null;
+  const shared = pickShared(teams, { mine: (n) => !!prefer?.has(`team:${n}`), place: p.place ?? null });
+  // Still tied (none has played or been ranked): search's own first match for the word, as a team's stats read a name.
+  const pick = "team" in shared ? shared : { team: shared.tied[0], rule: "search's first match" };
+  const at = wordsAt([typed]);
+  if (!at.test(q)) return null;
+  return { q: q.replace(at, `$1${pick.team.number}`), typed, ...(teams.length > 1 ? { candidates: teams.map((t) => t.number), rule: pick.rule } : {}) };
 }
 
 /** Whether `q` asks about teams: one named, or which team in a place ("which team in New Jersey fouls the least").
@@ -341,7 +382,7 @@ const TEAM_INTENTS = new Set<PipelineIntent>([
   "highest-score", "lowest-score", "biggest-win", "biggest-loss", "closest-match", "first-match", "recent-match", "last-matches", "best-finish",
   "worst-finish", "average-rank", "first-event", "last-event", "best-season", "first-season", "wins-count", "losses", "ties-count",
   "record", "win-percent", "average-score", "median-score", "average-margin", "total-points", "total-matches", "total-events", "seasons-count",
-  "current-streak", "longest-streak", "highest-auto", "highest-teleop", "highest-endgame", "most-penalties", "penalties", "score-range",
+  "current-streak", "longest-streak", "highest-auto", "highest-teleop", "highest-endgame", "average-auto", "average-teleop", "average-endgame", "most-penalties", "penalties", "score-range",
   "score-consistency", "awards", "total-awards", "results", "event-rank", "event-opr", "best-partner", "partners", "opponents", "playoff-matches",
   "qual-matches", "match-lookup", "avg-penalties", "lost-to-most", "season-matches",
 ]);
@@ -956,7 +997,7 @@ const teamBoard: Executor = async ({ p, intent, scope, opts }) => {
   // unbeaten at a kind of event) or a number's gain over the season. An event named keeps the box's event results.
   // Conferences as the place, or an event named ("best auto in east bergen conference"): no ask reads those, so the
   // box gets its link to the page too.
-  const own = !!(p.worlds || p.nameHas || (p.undefeated && p.eventKind) || p.conference || p.event) || p.symbols.includes("no-award") || p.symbols.includes("gain");
+  const own = !!(p.worlds || p.nameHas || (p.undefeated && p.eventKind) || p.conference || p.event) || p.symbols.includes("no-award") || p.symbols.includes("no-worlds") || p.symbols.includes("gain");
   // A board of teams the asks don't read ("nj teams ranked by opr"), with no event, Worlds or state championship said.
   const teamsBoard = p.symbols.includes("thing:team") && !p.event && !p.worlds && !p.states && !readAsk(p.q);
   // The search box keeps the asks' own short card; the page draws the list. A board only this reader reads, or a board
@@ -1148,7 +1189,9 @@ async function eventBoard(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   if (!ev) return null;
   const { season, main, codes, name, home, skipped } = ev;
   const one = p.n == null && cue(p, "team") && !cue(p, "teams");
-  const a = await boardSearch(p.q, { kind: "top", stat: phase ?? "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name, home, ...(p.rookie ? { rookies: true } : {}) } }, opts);
+  // "Never been to Worlds" said: only the event's teams with no FIRST Championship on record, every one listed.
+  const noWorlds = p.symbols.includes("no-worlds");
+  const a = await boardSearch(p.q, { kind: "top", stat: phase ?? "opr", n: Math.min(25, p.n ?? (one ? 5 : noWorlds ? 25 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name, home, ...(p.rookie ? { rookies: true } : {}), ...(noWorlds ? { noWorlds: true } : {}) } }, opts);
   if (!a?.stat || skipped == null || skipped === season) return a;
   const note = `No teams listed for the ${seasonLabel(skipped)} event yet; showing ${seasonLabel(season)}`;
   return { ...a, stat: { ...a.stat, scope: [note, ...a.stat.scope], definition: `${a.stat.definition} ${note}: no season was named, so the latest was read first.` } };
@@ -1323,6 +1366,46 @@ async function windowPair(q: string, ctx: Awaited<ReturnType<typeof parseContext
   return windowPairAnswer(q, [a.time, b.time], x, y, opts);
 }
 
+/** The scope slots of a parse: what makes one no-team question's scope ("at <event>", "in <place>"). */
+const SCOPE_OF = (p: Parsed) => ({ event: p.event, place: p.place, places: p.places, eventPlace: p.eventPlace, worlds: p.worlds, states: p.states });
+const hasScope = (p: Parsed) => !!(p.event || p.place || p.places || p.eventPlace || p.worlds || p.states);
+/** Intents a scope pair asks of both scopes: the best matches. */
+const PAIRED = new Set<PipelineIntent>(["top-matches"]);
+/** The words after a pair's "versus" that may stand beside its scope: framing, and the question's own words again
+ *  ("… compared to the highest score in <place>"). */
+const PAIR_FRAME = new Set(["compare", "and", "thing:match", "per:match"]);
+
+/** "<a no-team question at one scope> compared to <another scope>" ("<event> highest score compared to the world
+ *  record", "highest score at <event> vs <place>"): the question asked at each scope (./scopePair.ts), side by side.
+ *  Null unless the words before the "versus" are a complete question about no team with a scope, and the words after
+ *  it are only another scope (an event, a place, or none: the whole world), with the question's own words or none.
+ *  With no season said on the second side, it is read in the season the first answer shows, so the two are always one
+ *  game's scores. */
+async function scopePair(q: string, ctx: Awaited<ReturnType<typeof parseContext>>, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  const m = PAIR_SPLIT.exec(q);
+  if (!m) return null;
+  const left = q.slice(0, m.index).replace(/[\s,;]+$/, ""), right = q.slice(m.index + m[0].length).trim();
+  const [a, b] = await Promise.all([parseQuery(left, ctx), parseQuery(right, ctx)]);
+  if (!a.complete || !a.intent || !PAIRED.has(a.intent) || a.teams.length || !hasScope(a)) return null;
+  if (b.teams.length || b.leftover.length || b.unexplained.some((s) => !PAIR_FRAME.has(s)) || (b.intent && b.intent !== a.intent) || b.places || b.eventPlace) return null;
+  if (!b.symbols.every((s) => a.symbols.includes(s) || PAIR_FRAME.has(s))) return null;
+  if (b.event?.words === a.event?.words && b.place?.name === a.place?.name && b.worlds === a.worlds && b.states === a.states) return null;
+  const x = await execute(a, { ...opts, full: true, exact: true });
+  if (!x?.stat) return null;
+  // The first answer's season, as its card shows it: the second side is the same game's.
+  const season = b.time ? null : chipSeason(x.stat.scope[0]);
+  const time: TimeSlot | null = b.time ?? (season != null ? { kind: "season", season, label: `in ${seasonLabel(season)}`, typed: "" } : a.time);
+  // No scope with "record" said ("the world record"): the season's official record, as the records' own card reads it
+  // (a match the owner marked as no official record is left out).
+  const record = !hasScope(b) && /\brecords?\b/i.test(right);
+  const other: Parsed = { ...a, ...SCOPE_OF(b), time, q: right, ...(record ? { cues: { ...a.cues, official: 1 } } : {}) };
+  const y = await execute(other, { ...opts, full: true, exact: true });
+  if (!y?.stat) return null;
+  // Each side named by its scope's chip (the event's or place's name); no scope is the whole world.
+  const nameOf = (s: StatAnswer, p: Parsed) => (hasScope(p) && s.scope.length >= 3 ? s.scope[1] : null);
+  return scopePairAnswer(q, [nameOf(x.stat, a) ?? "Worldwide", nameOf(y.stat, b) ?? (record ? "World record" : "Worldwide")], x, y, opts);
+}
+
 /** The slots as the scope a stat answer reads (server/api/answers/read.ts ReadScope). Null: a slot no answer applies. */
 function readScopeOf(p: Parsed): ReadScope | null {
   const s: ReadScope = { season: null, latest: false, ever: false, championship: p.worlds, states: p.states, level: p.level, ...(p.finals ? { finals: true } : {}), alliance: p.alliance, at: p.event?.words ?? null };
@@ -1336,6 +1419,9 @@ function readScopeOf(p: Parsed): ReadScope | null {
   } else if (t?.kind === "ever") s.ever = true;
   // "All (of their) state championships", "every states": every season the team played one, as ../answers/read.ts reads it.
   if (p.states && cue(p, "everyStates")) s.ever = true;
+  // "From <place>" said with a team called by its name ("<name> from <state>"): where that team is from, which picked it
+  // among the teams with the name (./shared.ts), never a filter on its events.
+  if (p.place && p.placePrep === "from" && p.teams.length && p.teams.every((t) => t.via !== "number") && !p.symbols.includes("thing:event")) return s;
   if (p.place) {
     // A town names where a team is from, which a team's own question already knows: only events in a region or a
     // country are a filter. A leaderboard's town is the teams from it; highlights with no team, the events held there.

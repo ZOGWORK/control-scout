@@ -39,7 +39,7 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
-import { conferenceSearch, eventFit, eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
+import { conferenceSearch, eventFit, eventOrderSearch, eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
 import { withPlacePages } from "../../src/shared/placePages.js";
 import { cityShortForm } from "../../src/shared/regions.js";
 import { divisionFieldAnswer, oprPhaseOf, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
@@ -91,6 +91,9 @@ export interface AnswerOptions {
   typed?: string;
   /** A part of a compound question, asked on its own (./query/clauses.ts): never split again. */
   clause?: boolean;
+  /** The question as typed, set when it holds a parenthesis (cleaning drops it): where one question ends and another
+   *  begins ("<question> (<question> and tell me <question>)"), for the compound reader (./query/clauses.ts). */
+  bracketed?: string;
   /** The query held a quoted phrase: its words are read exactly as typed, never one fixed in the parse. */
   quoted?: boolean;
   asked?: boolean;
@@ -321,7 +324,9 @@ async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer>
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
   // Every rewrite before the readers, in one ordered step (normalised): the question as they leave it is answered
   // once, the answer keeping the query as typed and saying the stray letters it read past.
-  const said = String(raw ?? ""), norm = await normalised(said, opts);
+  const said = String(raw ?? "");
+  if (!opts.clause && !opts.bracketed && /[()]/.test(said)) opts = { ...opts, bracketed: said };
+  const norm = await normalised(said, opts);
   if (norm.text !== said) {
     const b = await searchAnswer(norm.text, opts);
     const understood = norm.letters.length && b.understood ? { ...b.understood, unread: [...(b.understood.unread ?? []), ...norm.letters] } : b.understood;
@@ -1117,10 +1122,14 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // on its own, answered one under another (./query/clauses.ts). Parts about subjects of their own are two questions,
   // split first ("<team> last match and <team> next event" is never one compare); others only when the whole isn't read.
   // Each part searched as any question is (its card needed, so always in full), one level deep.
-  const clauses = opts.intents === false || opts.clause ? null : await readClauses(opts.typed ?? q, opts.now, prefer);
+  // Read as typed when it held a parenthesis (cleaning drops it), else, or when that reads no parts, as cleaned.
+  const fromTyped = opts.intents === false || opts.clause || !opts.bracketed ? null : await readClauses(opts.bracketed, opts.now, prefer);
+  const clauses = fromTyped ?? (opts.intents === false || opts.clause ? null : await readClauses(opts.typed ?? q, opts.now, prefer));
   const split = async () => {
     if (!clauses) return null;
-    const ask = (part: string) => searchAnswer(part, { ...opts, typed: undefined, full: true, learn: false, clause: true });
+    // Parts split from the question as typed (a parenthesis) are read from the start, as any query is: their words
+    // written the way the readers read them first ("can u" → "can you"), which the whole had and they haven't yet.
+    const ask = (part: string) => searchAnswer(part, { ...opts, typed: undefined, bracketed: undefined, full: true, learn: false, clause: true, ...(fromTyped ? { inner: undefined } : {}) });
     // A part given the first part's team that has nothing there ("<team> awards and highest score in <place>", the team
     // never played there): the part as typed, the place's own answer, its card saying so.
     const answers = await Promise.all(clauses.parts.map(async (part, i) => {
@@ -1150,6 +1159,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const evSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
   const evs = opts.intents === false ? null : await eventVersusSearch(evSeason.rest, evSeason.season ?? opts.season ?? null, { full: !!opts.full, pages: pagesFor(q), asked: q, alias: expandShortForms });
   if (evs) return evs;
+  // Which of two events came first ("did <event> happen before or after worlds"): each by its dates.
+  const order = opts.intents === false ? null : await eventOrderSearch(evSeason.rest, evSeason.season ?? opts.season ?? null, { full: !!opts.full, pages: pagesFor(q), alias: expandShortForms });
+  if (order) return order;
   // Which division of a championship was hardest or easiest, by its field's average OPR.
   const divs = opts.intents === false ? null : await divisionField(q, opts);
   if (divs) return divs;

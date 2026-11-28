@@ -22,6 +22,8 @@ export interface TeamSlot {
   /** Every team with the name typed, when several share it, and the rule that picked this one. */
   candidates?: number[];
   rule?: string;
+  /** Read from the first letters of the team's name ("ultrab"), which `candidates` all start with. */
+  prefix?: true;
   /** Where in the query it was typed (teams are listed in typed order). */
   at: number;
 }
@@ -273,8 +275,10 @@ const SIDE: Record<string, ScoreCond["side"]> = { losing: "losing", losers: "los
 const OP: [RegExp, ScoreCond["op"]][] = [[/^(?:over|more than|above)$/, ">"], [/^at least$/, ">="], [/^(?:under|less than|below|fewer than)$/, "<"], [/^at most$/, "<="]];
 const COND_RE = /(?:^| )(?:(?:where|with|in which|when|that|and) )?(?:the )?(losing|losers|winning|winners|both|each|either|one) (?:of the )?(?:alliances?|sides?)(?: each)? (?:scored|scores|score|had|got|put up|reached|hit|with) (over|more than|above|at least|under|less than|below|fewer than|at most) (\d{1,4})(?: points?| pts)?(?= |$)/;
 /** "A 226 point match", "226-point games": a score said outright, by either alliance (no comparison word before it:
- *  "over 200 points" is a floor). Its number is never a team. */
-const EXACT_RE = /(?:^| )(?<!(?:than|over|above|exceeding|beyond|least|most|under|below) )(?:an? )?(\d{1,4})[ -]?(?:points?|pts|pt)(?= (?:match|matches|game|games)(?: |$))/;
+ *  "over 200 points" is a floor). Its number is never a team. Up to two words may stand between the points and the
+ *  match ("a 273 point <game> match", "226 point qual matches"), words of letters other than one saying how many or
+ *  where ("200 points in 5 matches" is a total); they stay in the query to be read on their own. */
+const EXACT_RE = /(?:^| )(?<!(?:than|over|above|exceeding|beyond|least|most|under|below) )(?:an? )?(\d{1,4})[ -]?(?:points?|pts|pt)(?= (?:(?!(?:in|over|across|per|from|of|for|at|during|by|the|a|an|all|last|first|their|its|his|her|my|our|these|those)\b)[a-z][a-z'-]* ){0,2}(?:match|matches|game|games)(?: |$))/;
 /** "Closest match in <season> above 500": a bare comparison ending a closest match's question, both alliances' scores
  *  over it (a close match is level, so its two scores are), its points said or not ("above 500 points"). Read only
  *  beside a closest measure's words (the lexicon's). A ceiling ("closest match under 5") is the margin's bound a
@@ -963,7 +967,16 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   p.symbols = [...symbols];
   // "Ever" as typed, never "all time" or "all seasons": those scope a side by side, "ever" asks what happened.
   const ever = p.time?.kind === "ever" && /\bever\b/i.test(p.time.typed ?? "");
-  const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null, rate, ever });
+  let pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null, rate, ever });
+  // A play verb ending a question about one team that no rule reads as a versus ("how many years <team> from <place>
+  // play"): the question's own verb, with nobody after it to play. "Who did <team> play" still asks for its opponents.
+  if (pick?.unexplained.includes("vs") && p.vsAt != null && p.vsAt === toks.length - 1 && /^play(?:s|ed|ing)?$/.test(toks[p.vsAt].w)
+    && p.teams.length === 1 && (p.teams[0].at ?? Infinity) < p.vsAt && !toks.some((t) => /^(?:who|whom)$/.test(t.w))) {
+    symbols.delete("vs");
+    p.vsAt = undefined;
+    p.symbols = [...symbols];
+    pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null, rate, ever });
+  }
   if (pick) { p.intent = pick.rule.id; p.rule = pick.rule; p.unexplained = pick.unexplained; }
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.

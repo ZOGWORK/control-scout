@@ -11,6 +11,7 @@ export type PipelineIntent =
   | "best-finish" | "worst-finish" | "average-rank" | "first-event" | "last-event" | "best-opr-event" | "best-season" | "first-season"
   | "wins-count" | "losses" | "ties-count" | "record" | "win-percent" | "average-score" | "median-score" | "average-margin" | "total-points"
   | "total-matches" | "total-events" | "seasons-count" | "current-streak" | "longest-streak" | "highest-auto" | "highest-teleop" | "highest-endgame"
+  | "average-auto" | "average-teleop" | "average-endgame"
   | "most-penalties" | "penalties" | "score-range" | "score-consistency" | "awards" | "total-awards" | "results" | "event-rank" | "event-opr"
   | "best-partner" | "partners" | "opponents" | "team-opr" | "team-rating" | "team-predict" | "predict-rank-events" | "playoff-matches" | "qual-matches"
   | "match-lookup" | "avg-penalties" | "inspire-awards" | "finalist-finishes" | "lost-to-most" | "season-matches"
@@ -103,6 +104,10 @@ export const INTENTS: IntentRule[] = [
   R("highest-auto", 1, ["agg:max", "metric:auto"], [...SCORE_LIKE, ...WATCH]),
   R("highest-teleop", 1, ["agg:max", "metric:teleop"], [...SCORE_LIKE, ...WATCH]),
   R("highest-endgame", 1, ["agg:max", "metric:endgame"], [...SCORE_LIKE, ...WATCH]),
+  // One period's points a match, averaged ("<team> average teleop points"): never its OPR, which "opr" says.
+  R("average-auto", 1, ["agg:mean", "metric:auto"], [...SCORE_LIKE, "per:match"]),
+  R("average-teleop", 1, ["agg:mean", "metric:teleop"], [...SCORE_LIKE, "per:match"]),
+  R("average-endgame", 1, ["agg:mean", "metric:endgame"], [...SCORE_LIKE, "per:match"]),
   R("most-penalties", 1, ["agg:max", "metric:penalty"], [...SCORE_LIKE, ...WATCH]),
   // A win or a loss said with them is a filter: "first win", "when did they last lose a match", "last 5 losses".
   R("first-match", 1, ["agg:first", "thing:match"], ["agg:max", ...OUTCOMES]),
@@ -184,6 +189,8 @@ export const INTENTS: IntentRule[] = [
   // measure, an outcome, a match type or an event said ("12345 matches at states") still picks its own answer.
   // One team's match by its score ("<team> 226 point match"): the match finder, with the team and the score.
   R("season-matches", 1, ["thing:match", "cond:exact"], ["list"], { noEvent: true, noMatchNo: true }),
+  // A match by its score, no team ("<n> point match", "a <n> point <game> match"): every match an alliance scored it in.
+  R("top-matches", 0, ["thing:match", "cond:exact"], ["list"], { noMatchNo: true }),
   // "Without penalties" said of them: the ones the team's alliance gave away no penalty points in (the match finder's).
   R("season-matches", 1, ["thing:match"], ["list", "nopen"], { noEvent: true, noMatchNo: true }),
   // A team's matches with video, at an event named or not ("<team> matches with video").
@@ -257,6 +264,9 @@ export const INTENTS: IntentRule[] = [
   R("awards-vs", 2, ["metric:award", "compare"], ["agg:max", "agg:count", "metric:win", "and"]),
   R("compare", 2, ["compare"], ["vs", "and"]),
   R("compare", 2, ["vs"], []),
+  // "How many times" asked of two teams with nothing else counted ("compare how many times <team> got it to <team>"):
+  // their meetings, each with who won. After the rules above, so a count they read (matches together, awards) is theirs.
+  R("head-to-head", 2, ["agg:count"], ["compare", "vs", "and"]),
   // Two teams and an event, their state championship or Worlds, nothing else asked ("12345 67890 nj champs 2025-26"):
   // their numbers there, side by side.
   R("compare", 2, [], ["and"], { event: true }),
@@ -316,6 +326,8 @@ export const INTENTS: IntentRule[] = [
   // board by it (./execute.ts).
   // A period's OPR said in full ("romania teleop opr", "nj auto opr") is that period's stat: "opr" names it, no second stat.
   ...BOARD_METRICS.map((m) => R("leaderboard", 0, [m], ["thing:team", "thing:season", "prep:in", "prep:for", "name-has", "no-award", ...(PERIOD_OPR.has(m) ? ["metric:opr"] : [])], { noEvent: true })),
+  // "Rank the teams … by <stat>": "rank" is the verb asking for that board's order, never a team's own rank.
+  ...BOARD_METRICS.map((m) => R("leaderboard", 0, [m, "metric:rank", "prep:by"], ["thing:team", "thing:season", "prep:in", "prep:for", "prep:at", "name-has", "no-award", ...(PERIOD_OPR.has(m) ? ["metric:opr"] : [])], { noEvent: true })),
   // A number's rise over the season, each team's first event to its last ("fastest growing team by rating gain across
   // the season"): the board of the most gained.
   R("leaderboard", 0, ["gain"], [...BOARD_OPT, "agg:max", "trend", "thing:season"], { noEvent: true }),
@@ -332,7 +344,7 @@ export const INTENTS: IntentRule[] = [
   R("highlights", 0, ["review"], ["highlights", "thing:match", "list", "agg:max"], { noMatchNo: true }),
   // The teams at an event, Worlds or a state championship ("nj teams at worlds", "teams at east bergen conference"):
   // its board, best first.
-  R("leaderboard", 0, ["thing:team", "prep:at"], ["list"], { event: true }),
+  R("leaderboard", 0, ["thing:team", "prep:at"], ["list", "no-worlds"], { event: true }),
   R("leaderboard", 0, ["thing:team", "prep:at", "worlds"], ["list"]),
   // The teams with a name, counted and listed: "how many teams named …", "teams called …".
   R("teams-named", 0, ["named"], ["agg:count", "thing:team", "list"]),

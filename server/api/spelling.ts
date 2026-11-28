@@ -498,6 +498,13 @@ export async function namedAsNumbers(typed: string): Promise<string | null> {
   return out !== typed ? out : null;
 }
 
+/** `typed` with the team number its match `m` found (`num`, inside that match) put as `to`, in that place only: never an
+ *  earlier run of the same digits ("2025 … team 25's opr" keeps its 2025). */
+export function numberInPlace(typed: string, m: RegExpExecArray, num: string, to: string): string {
+  const at = m.index + m[0].indexOf(num);
+  return typed.slice(0, at) + to + typed.slice(at + num.length);
+}
+
 async function spelledFix(typed: string, a: SearchAnswer, run: (q: string) => Promise<SearchAnswer>): Promise<SearchAnswer> {
   const was = strength(a);
   if (was >= 4) return a;
@@ -512,6 +519,14 @@ async function spelledFix(typed: string, a: SearchAnswer, run: (q: string) => Pr
   if (led && !(await namesTeam(led[2]))) {
     const n = await numberFix(led[1]);
     if (n?.didYouMean) return carryOutcome(a, { ...n, q: a.q, step: "deterministic", didYouMean: `${n.didYouMean} ${led[2]}` });
+  }
+  // The same said inside the question as a team ("what is team 33960's opr", "how did 33960's season go"): the closest
+  // team numbers, the question offered again with the closest one in the number's place.
+  const inside = was <= 1 && !led ? /(?:\bteam\s*#?|#)(\d{2,6})\b|\b(\d{2,6})['’]s\b/iu.exec(typed) : null;
+  if (inside) {
+    const num = inside[1] ?? inside[2];
+    const n = await numberFix(num);
+    if (n?.didYouMean) return carryOutcome(a, { ...n, q: a.q, step: "deterministic", didYouMean: numberInPlace(typed, inside, num, n.didYouMean) });
   }
   // "What is the bet", "what is the best time": search ranks teams, so "… best team" is offered (and shown when the
   // query as typed found nothing that matches).

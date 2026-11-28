@@ -21,7 +21,7 @@ export type IntentId =
   | "blowout-wins" | "losses" | "playoff-matches" | "qual-matches" | "season-matches" | "red-blue-record"
   // Family 4 again, over the match rows' scores, phases and penalties (families/matchStats.ts).
   | "ties-count" | "win-percent" | "score-range" | "median-score" | "score-consistency" | "scores-over"
-  | "highest-auto" | "highest-teleop" | "highest-endgame" | "most-penalties" | "penalties"
+  | "highest-auto" | "highest-teleop" | "highest-endgame" | "most-penalties" | "penalties" | "average-auto" | "average-teleop" | "average-endgame"
   | "easiest-opponent" | "vs-top" | "vs-rookies" | "early-late"
   // Family 5: at one event (its matches, rank and OPR there).
   | "results" | "event-rank" | "event-opr" | "match-lookup"
@@ -176,6 +176,10 @@ const RULES: IntentRule[] = [
   { id: "average-rank", family: "aggregate", season: "all", re: /\b(?:average|avg|mean)\s+(?:event\s+)?(?:rank(?:ing)?|placement|finish|place)\b/ },
   { id: "average-margin", family: "aggregate", season: "all", re: /\b(?:average|avg|mean|typical)\s+(?:winning\s+|losing\s+|match\s+)?(?:margin|point\s+differential|differential|point\s+diff)\b|\bmargin\s+(?:of\s+victory\s+)?(?:on\s+)?average\b/ },
   { id: "total-points", family: "aggregate", season: "all", re: /\btotal\s+(?:points|score)(?:\s+scored)?\b|\b(?:points|score)\s+total\b|\ball\s+the\s+points\b|\bhow\s+many\s+points\s+(?:has|have|did)\s+(?<team>.+?)\s+score[ds]?\b/ },
+  // One period's points a match, averaged ("average teleop points"): never its OPR, which "opr" after it says.
+  { id: "average-auto", family: "aggregate", season: "latest", re: /\b(?:average|avg|mean)\s+auto(?:nomous)?(?:\s+(?:scores?|points))?\b(?!\s+(?:opr|teams?))/ },
+  { id: "average-teleop", family: "aggregate", season: "latest", re: /\b(?:average|avg|mean)\s+(?:tele[\s-]?op|driver[\s-]controlled)(?:\s+(?:scores?|points))?\b(?!\s+(?:opr|teams?))/ },
+  { id: "average-endgame", family: "aggregate", season: "latest", re: /\b(?:average|avg|mean)\s+end[\s-]?game(?:\s+(?:scores?|points))?\b(?!\s+(?:opr|teams?))/ },
   { id: "average-score", family: "aggregate", season: "latest", re: /\b(?:average|avg|mean)\s+(?:match\s+|alliance\s+)?(?:scores?|points)\b/ },
   { id: "best-finish", family: "superlative", season: "all", re: /\b(?:best|highest|top)\s+(?:event\s+)?(?:finish|placement|ranking|rank|place)\b|\b(?:best|greatest|strongest)\s+(?:event|competition|tournament)\b/ },
   { id: "worst-finish", family: "superlative", season: "all", re: /\b(?:worst|lowest)\s+(?:event\s+)?(?:finish|placement|ranking|rank|place)\b|\b(?:worst|weakest)\s+(?:event|competition|tournament)\b/ },
@@ -637,7 +641,10 @@ function readClimb(raw: string): LeaderboardQuestion | null {
   const nums: number[] = [];
   const q = ` ${raw.toLowerCase().replace(/(\d),(?=\d{3}\b)/g, "$1").replace(/['’]s\b/g, "")
     .replace(/(#|\b(?:rank(?:ed)?|top|from|to) )(\d{1,5})\b/g, (_, w: string, d: string) => `${w}n${nums.push(Number(d)) - 1}`)
-    .replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ");
+    .replace(/[?!,.]/g, " ")} `
+    // Every place said outright ("teams worldwide that climbed …"): the worldwide board, no place.
+    .replace(/\b(?:worldwide|world wide|globally|internationally|in the world|across the world|around the world|all over the world)\b/g, " ")
+    .replace(/\s+/g, " ");
   if (nums.length < 2) return null;
   const { scope, rest } = readScope(q);
   if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever || scope.place || scope.outOfState || scope.day || scope.window) return null;
