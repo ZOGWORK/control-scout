@@ -58,6 +58,15 @@ describe("a clip's play and pause", () => {
     expect([c.sent.at(-1), c.label()]).toEqual(["playVideo", "Pause"]);
   });
 
+  it("a player that pauses itself mid-clip shows Play, and a tap plays it", () => {
+    const c = mount();
+    c.say(1, 3);
+    c.say(2, 3);
+    expect([c.label(), c.state()]).toEqual(["Play", "paused"]);
+    c.tap();
+    expect([c.sent.at(-1), c.label()]).toEqual(["playVideo", "Pause"]);
+  });
+
   it("an autoplay the browser held back shows Play, and a tap starts it", () => {
     const c = mount();
     c.say(-1, 0);
