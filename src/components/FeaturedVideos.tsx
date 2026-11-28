@@ -90,13 +90,16 @@ export function useFeaturedTeams(): ReadonlySet<number> {
 }
 
 /** The small chip on a team row: the team was featured on Behind the Bot. Nothing for any other team. */
-export function FeaturedChip({ team, className }: { team: number; className?: string }) {
+/** `fit`: the chip sits on one line beside a team's number and name inside a `@container/chiprow`; when that row is too
+ *  narrow for both (a rankings table on a tablet), the words go and the clapperboard stays (its title still says it),
+ *  so the chip never spills into the next column. */
+export function FeaturedChip({ team, className, fit }: { team: number; className?: string; fit?: boolean }) {
   const featured = useFeaturedTeams();
   if (!featured.has(team)) return null;
   return (
     <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/15 px-1.5 py-px text-[11px] font-medium leading-4 text-accent v8:text-[0.6875rem]", className)}
       title="Featured on Behind the Bot" data-featured-chip>
-      <Clapperboard className="size-3" aria-hidden /><span>Behind the Bot</span>
+      <Clapperboard className="size-3" aria-hidden /><span className={cn(fit && "@max-[17rem]/chiprow:sr-only")}>Behind the Bot</span>
     </span>
   );
 }

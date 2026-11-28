@@ -7,6 +7,8 @@ describe("recordings with no match overlay", () => {
   it("settles what only the frames or a clock could place, in that recording of that event", () => {
     expect(noOverlayFor("CABCVIS1", "OrQ_Iitlqe8", "no-clock", list)?.checked).toBe("2026-11-18");
     expect(noOverlayFor("CABCVIS1", "OrQ_Iitlqe8", "gap-unplaced", list)).not.toBeNull();
+    // No real start time from FIRST (2019): only the bar could place it, and this video has none.
+    expect(noOverlayFor("CABCVIS1", "OrQ_Iitlqe8", "no-start", list)).not.toBeNull();
   });
 
   it("leaves a match the recording doesn't hold, another video or event, and no video at all", () => {

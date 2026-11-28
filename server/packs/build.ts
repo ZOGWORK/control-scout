@@ -46,10 +46,33 @@ export interface BuiltFile {
   name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string;
   /** Full packs: the same file gzipped (the app's download; the .db stays for analysts). */
   gz?: BuiltGz;
+  /** Full packs: when the server last synced before this file was built (null: unknown). Kept when the file is carried
+   *  into a later release; files from before this was added fall back to the manifest's. */
+  dataAsOf?: string | null;
   /** Full packs: played matches and events with any played match, so the app can say what a release adds. */
   stats?: { matches: number; events: number };
 }
 export interface Manifest { format: number; version: string; builtAt: string; engineVersion: string; dataAsOf: string | null; lite: BuiltFile | null; full: BuiltFile[] }
+
+/** A release's place in time: its day, then its number that day ("2026-11-27-10" is after "2026-11-27-9"). */
+const releaseOrder = (v: string): [string, number] => {
+  const at = v.lastIndexOf("-");
+  return [v.slice(0, at), Number(v.slice(at + 1))];
+};
+
+/**
+ * The releases (file-name form, "2026-11-27-10") to delete: all but the newest `keep`, never the one just published.
+ * Ordered by day, then by the day's number: sorted as text, the 10th build of a day ("…-10") came before the 9th,
+ * so it was pruned the moment it was published and every pack URL its manifest named answered 404 (2026-11-27).
+ */
+export function prunedReleases(versions: readonly string[], keep: number, published: string): string[] {
+  const current = published.replace(/\./g, "-");
+  const newestFirst = [...versions].sort((a, b) => {
+    const [da, na] = releaseOrder(a), [db, nb] = releaseOrder(b);
+    return da === db ? nb - na : da < db ? 1 : -1;
+  });
+  return newestFirst.slice(keep).filter((v) => v !== current);
+}
 
 async function nextVersion(dir: string): Promise<string> {
   const day = new Date().toISOString().slice(0, 10);
@@ -114,6 +137,9 @@ export async function buildLite(version: string, dir: string, log: (m: string) =
 export async function buildFull(season: number, version: string, dir: string, log: (m: string) => void, o: { lockHeld?: boolean } = {}): Promise<BuiltFile | null> {
   const n = await all<{ c: number }>("SELECT COUNT(*) c FROM matches WHERE season = ?", [season]);
   if (!Number(n[0]?.c)) return null;
+  // When the server last synced, read before any row: the file's own data time (a carried file keeps it, so a saved copy
+  // never claims a newer release's). Read first, it can only be older than the rows, never newer.
+  const dataAsOf = (await kvGet<{ at: string }>("sync:last"))?.at ?? null;
   const name = `scout-pack-${version.replace(/\./g, "-")}-${season}.db`;
   // The pack is labelled with the data version its rows are from (the ranking's asOf offline). Writers move
   // data:version BEFORE they write and data:settled once they're done, but the live lane stores rows before it moves
@@ -183,7 +209,7 @@ export async function buildFull(season: number, version: string, dir: string, lo
   log(`full ${season}: ${rows + teams} rows → ${(buf.length / 1e6).toFixed(1)} MB (${(gz.length / 1e6).toFixed(2)} MB gz)`);
   return { name, url: `/packs/${name}`, bytes: buf.length, sha256: sha256(buf), seasons: [season], kind: "full",
     gz: { name: `${name}.gz`, url: `/packs/${name}.gz`, bytes: gz.length, sha256: sha256(gz) },
-    stats: played,
+    stats: played, dataAsOf,
     contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
 }
 
@@ -403,8 +429,8 @@ async function buildPacksUnlocked(log: (m: string) => void, o: { lockHeld?: bool
   renameSync(join(dir, "latest.json.tmp"), join(dir, "latest.json"));
   // Keep the newest KEEP_VERSIONS releases.
   for (const f of readdirSync(dir)) if (f.endsWith(".tmp")) { try { rmSync(join(dir, f)); } catch { /* in use */ } }
-  const versions = [...new Set(readdirSync(dir).map((f) => /^scout-pack-(\d{4}-\d{2}-\d{2}-\d+)-/.exec(f)?.[1]).filter(Boolean) as string[])].sort().reverse();
-  for (const old of versions.slice(KEEP_VERSIONS)) for (const f of readdirSync(dir)) if (f.startsWith(`scout-pack-${old}-`)) rmSync(join(dir, f));
+  const versions = [...new Set(readdirSync(dir).map((f) => /^scout-pack-(\d{4}-\d{2}-\d{2}-\d+)-/.exec(f)?.[1]).filter(Boolean) as string[])];
+  for (const old of prunedReleases(versions, KEEP_VERSIONS, version)) for (const f of readdirSync(dir)) if (f.startsWith(`scout-pack-${old}-`)) rmSync(join(dir, f));
   log(`manifest ${version}: lite ${(lite.bytes / 1e6).toFixed(2)} MB, ${full.length} full packs (${(full.reduce((s, f) => s + f.bytes, 0) / 1e6).toFixed(1)} MB)`);
   return manifest;
 }

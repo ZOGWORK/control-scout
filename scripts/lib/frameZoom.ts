@@ -3,16 +3,29 @@
 // For a listed video the reader's player scales its picture up until the box fills the frame (zoomCss), and every read
 // runs on that as on any other recording. A recording joins once its box was measured on a frame: `box` is its place
 // in the 1280×720 player (x, y, width, height), `shift` moves the zoomed picture down so the bar sits where the reader's
-// bottom-bar crops look, `checked` is the day, `seen` what the zoomed frame showed.
+// bottom-bar crops look, `checked` is the day, `seen` what the zoomed frame showed. `part`, where the box holds
+// FTC Live's screen for only part of the recording (its first and last second): the video is read as it is, full size,
+// and the matches that read leaves without a start in a row are read again zoomed to the box (scripts/video-frames.ts).
 
-export interface CornerBox { season: number; code: string; videoId: string; box: [number, number, number, number]; shift: number; checked: string; seen: string }
+export interface CornerBox { season: number; code: string; videoId: string; box: [number, number, number, number]; shift: number; checked: string; seen: string; part?: [number, number] }
 
 export const CORNER_BOXES: CornerBox[] = [
   { season: 2025, code: "USCOFRQ", videoId: "w36Zw_uqfms", box: [877, 418, 403, 302], shift: 120, checked: "2026-11-18", seen: "box at the bottom right over the field camera; zoomed at 5000 s: field timer 2:02 and the bar \"Mountain Qualifier | Qualification 2 of 18\", teams 25158 16629 / 21818 5196" },
+  { season: 2025, code: "USNDBIQ", videoId: "rLKw84eo9cQ", box: [859, 483, 421, 237], shift: 0, part: [0, 7200], checked: "2026-11-28", seen: "FTC Live's whole screen at a third in the bottom-right box over the camera until Q11 (full size from 7252 s): at 3650 s the Field 1 timer 2:01 over the bar \"Dakota FTC Bismarck Qualifier | Qualification 4 of 23\", teams 16127 26907 / 28100 22411; at 3760 s 0:19" },
 ];
 
-/** The listed box of a video, or null. */
+/** The listed box of a video, or null. A box with a `part` zooms only the stretch read again for it (wholeBox: none). */
 export const cornerBox = (videoId: string, list: CornerBox[] = CORNER_BOXES): CornerBox | null => list.find((b) => b.videoId === videoId) ?? null;
+/** Whether a stretch of the video (from–to s) reaches into a box's `part`: a stretch wholly outside it holds no frame
+ *  the box is on, so it's never read zoomed to the box. */
+export const reachesPart = (from: number, to: number, part: readonly [number, number]): boolean => from < part[1] && to > part[0];
+/** The starts a read through a part box placed (in `after`, not in `before`) outside the box's `part`: where the box
+ *  isn't on screen a zoomed frame shows the camera, never FTC Live's screen, so such a start isn't the box's. */
+export function outsidePart(before: ReadonlyMap<string, { t: number }>, after: ReadonlyMap<string, { t: number }>, part: readonly [number, number]): string[] {
+  return [...after].filter(([l, p]) => !before.has(l) && (p.t < part[0] || p.t > part[1])).map(([l]) => l);
+}
+/** The listed box a video's every read is zoomed to: one without a `part`, or null. */
+export const wholeBox = (videoId: string, list: CornerBox[] = CORNER_BOXES): CornerBox | null => { const b = cornerBox(videoId, list); return b && !b.part ? b : null; };
 
 /** The style that scales a player's video so `box` fills the width of a `width`×`height` frame, its bottom edge `shift`
  *  px below the frame's bottom edge: the box's left edge at the frame's, scaled by width / box width. */

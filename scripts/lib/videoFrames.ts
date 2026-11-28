@@ -1,8 +1,8 @@
 // The pure parts of scripts/video-frames.ts: reading FTC Live's overlay text, the timer's elapsed time, and placing a
 // video's matches from the frames read. Kept apart so they can be tested without a browser.
 // The constants the server's row rules share (server/data/frameRowRules.ts): one definition, re-exported here.
-import { NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText } from "../../server/data/frameRowRules.js";
-export { NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText };
+import { EMBED_REFUSED, NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText } from "../../server/data/frameRowRules.js";
+export { EMBED_REFUSED, NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText };
 
 /** A played match: its label and its real start (epoch seconds, from FIRST's actual start time). */
 /** A match the video holds: its label and its start (epoch seconds). `scheduled`: FIRST gives only its scheduled time
@@ -246,6 +246,30 @@ export function halfGap(first: Judged, under?: Gap): Gap {
   return { starts, opens, medium };
 }
 
+/** The fewest matches in a row a read must have left without a start before the stretch of video they sit in is checked
+ *  for a score bar drawn small there (holeToCheck). */
+export const HOLE_MIN = 4;
+/** The longest run of matches in a row (the order they were played) a read left without a start, at least HOLE_MIN, and
+ *  the stretch of the video they must sit in: from the start placed before them (else the video's start) to the one
+ *  after (else its end). Null: no such run. Where a producer drew FTC Live's screen small over the camera for part of a
+ *  day only, the matches of that part read nothing while the rest read, so the whole video's check for a small bar
+ *  (findShrunk, run only on a video that read nothing) never ran: 2025 USNDBIQ, Q1–Q10 with the bar in the bottom-right
+ *  corner box for the first two hours, Q11 on full size. */
+export function holeToCheck(order: readonly string[], placed: ReadonlyMap<string, { t: number }>, length: number, min = HOLE_MIN): { from: number; to: number; labels: string[] } | null {
+  let best: { from: number; to: number; labels: string[] } | null = null;
+  let run: string[] = [], from = 0;
+  const close = (to: number) => {
+    if (run.length >= min && (!best || run.length > best.labels.length) && to > from) best = { from, to, labels: run };
+    run = [];
+  };
+  for (const l of order) {
+    const p = placed.get(l);
+    if (p) { close(p.t); from = p.t; } else run.push(l);
+  }
+  close(length);
+  return best;
+}
+
 /**
  * The split-stream check (findSplit, then a zoomed read) run so that its failure keeps the read as it was: on any error
  * `cleanup` (the zoom cleared) runs first, then an error `stops` says ends the event (the reader's EventOverTime: its
@@ -388,6 +412,22 @@ export function countsThrough(left: number, before: number): boolean {
   return left > AUTO_S + SWITCH_S + TELEOP_S && atStart >= AUTO_S + TELEOP_S - 3 && atStart <= AUTO_S + SWITCH_S + TELEOP_S + 3;
 }
 
+/** Seconds before a start read off an audience display's card that the card is read for a countdown running through it.
+ *  At 5 and 10 s, a real match's card stands at 2:30 or shows the last match's 0:00: never over 2:38. */
+export const COUNTDOWN_CHECK = [5, 10, 25, 90, 170];
+
+/** Why a start read off a card that read nothing at every COUNTDOWN_CHECK second before it stays unconfirmed, or null
+ *  where it doesn't. On a stream's own card (a box over the field, under a bar) a card no check could read proves
+ *  nothing: a timeout's countdown may be hidden there, so the start stays unconfirmed. Through a corner box listed for
+ *  part of a recording (CORNER_BOXES' `part`, `screenInBox`), the box holds FTC Live's whole screen, which shows Up Next
+ *  and the last match's results between matches and the card only while one is played or timed out: a card absent at
+ *  every check is that screen, never a countdown hidden. A card read counting down through the start still rules it out
+ *  there too (countsThrough), and the start has been read running on its timer at each confirming second, a match's
+ *  label above it; judge's order, overlap and end-of-video checks follow (2025 USNDBIQ's first two hours). */
+export function cardUnread(screenInBox: boolean): string | null {
+  return screenInBox ? null : `the card read nothing ${COUNTDOWN_CHECK.join(", ")} s before it, so no countdown through it was ruled out`;
+}
+
 /** A match's start in the video, and how sure: "high" (a confirmed read, with another read or the broadcast's own
  *  clock agreeing on how far the video sits from the clock), "medium" (between two reads that agree). */
 export type Placed = { t: number; confidence: "high" | "medium" };
@@ -503,6 +543,31 @@ export function frameDivision(read: { label: string | null; division?: "own" | "
   if (read.division === "other" || team === "other") return "other";
   if (read.division === "own" || team === "own") return "own";
   return null;
+}
+
+/**
+ * Why YouTube's embedded player refuses a video for good, from the text it shows in its place (`text`: the page's
+ * visible text once the player gives an error code), or null: no such refusal. Only a refusal no later read gets past:
+ * a content owner blocking it on other sites (USIABALLT 2024's FEoSIhRlU3g: "who has blocked it from display on this
+ * website or application"), embedding turned off, or an age restriction (the embed plays it to no one signed out).
+ * Never a check that passes by itself ("confirm you're not a bot"), a network error, or "This video is unavailable"
+ * (removed, private, or a bad link: YouTube's facts say which, and undetailed() settles those).
+ */
+export function embedRefusal(text: string): string | null {
+  if (/blocked it from display on this website/i.test(text)) return "a content owner blocks it on other websites (it plays only on youtube.com)";
+  // A copyright claim that blocks it outright (USILCSSLT 2024's lJunlYy5uls: "It was blocked due to the claimed
+  // content by SME", the watch page UNPLAYABLE too, while the Data API still calls it public).
+  const claim = /blocked due to the claimed content by ([^.\n]+)/i.exec(text);
+  if (claim) return `a copyright claim by ${claim[1].trim()} blocks it (on youtube.com too)`;
+  if (/playback on other websites has been disabled/i.test(text)) return "its owner turned off playing it on other websites (it plays only on youtube.com)";
+  if (/age[- ]restricted|confirm your age/i.test(text)) return "it's age-restricted (it plays only on youtube.com, signed in)";
+  return null;
+}
+
+/** YouTube's embedded player refusing a video for good (embedRefusal): its matches are written missing with
+ *  EMBED_REFUSED and the reason, a settled read, not a failed one. */
+export class EmbedRefused extends Error {
+  constructor(readonly why: string) { super(`${EMBED_REFUSED}: ${why}`); }
 }
 
 /** A frame read that ran past its time limit (READ_LIMIT_S): the OCR workers are replaced when one is thrown. */
@@ -1014,7 +1079,32 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   let kept: number[] = [];
   const longest = Math.max(0, ...len);
   len.forEach((l, k) => { if (l === longest) { const r = runOf(k); if (!kept.length || agreeing(r) >= agreeing(kept)) kept = r; } });
-  const dropped = new Set(idx.filter((i) => !kept.includes(i)));
+  // A second stretch the longest run left out: reads in a row that agree among themselves (their own run, as above)
+  // and sit in the video in the order the matches were played, a match apart, between the kept reads either side.
+  // FIRST's times for part of a day can be off from the rest (a scorekeeping clock reset after lunch), so the
+  // distance rises there although the stream ran on: 2025 USOKOKBKLT's Q27–M3, twelve matches read off their own
+  // frames in order between Q26 and M4, dropped as a rise. Two reads at least, so a lone misread still goes; and the
+  // one longest such stretch, so two that differ can't say which is right and neither stands.
+  const keptSet = new Set(kept);
+  const apart = MATCH_S - LOSS_S;
+  for (let k = -1; k < kept.length; k++) {
+    const lo = k >= 0 ? kept[k] : -1, hi = k + 1 < kept.length ? kept[k + 1] : Infinity;
+    const lower = lo >= 0 ? seen.get(lo)! + apart : 0, upper = hi !== Infinity ? seen.get(hi)! - apart : length;
+    const group = idx.filter((i) => i > lo && i < hi && !keptSet.has(i) && seen.get(i)! >= lower && seen.get(i)! <= upper);
+    if (group.length < 2) continue;
+    const gl = group.map(() => 1), gf = group.map(() => -1), glow = group.map((i) => d(i));
+    for (let b = 0; b < group.length; b++) for (let a = 0; a < b; a++) {
+      const ok = d(group[b]) <= glow[a] + SAME_S && seen.get(group[b])! - seen.get(group[a])! >= apart;
+      if (ok && gl[a] + 1 > gl[b]) { gl[b] = gl[a] + 1; gf[b] = a; glow[b] = Math.min(glow[a], d(group[b])); }
+    }
+    const best = Math.max(...gl);
+    if (best < 2 || gl.filter((l) => l === best).length > 1) continue;
+    const run: number[] = [];
+    for (let at = gl.indexOf(best); at >= 0; at = gf[at]) run.unshift(group[at]);
+    for (const i of run) keptSet.add(i);
+  }
+  kept = idx.filter((i) => keptSet.has(i));
+  const dropped = new Set(idx.filter((i) => !keptSet.has(i)));
   // The scheduled matches' reads: those on every longest run rising with the matches' order (a match apart at least,
   // less what a cut in the recording loses, as for two high starts below). Two runs as long that differ can't say which read is wrong, so neither of theirs stands.
   const sched = [...seen.keys()].filter((i) => !timed(i)).sort((a, b) => a - b);

@@ -71,7 +71,7 @@ export default function SearchDocsPage() {
           <div className="grid min-w-0 gap-5 max-sm:gap-4">
             <Eyebrow>Control Scout · Search, explained</Eyebrow>
             <h1 className="text-balance font-display text-[2.1rem] font-bold leading-[1.02] tracking-tight text-foreground sm:text-5xl xl:text-6xl">
-              <span className="hiw-gold">FTC One Search</span> — the most powerful search engine for FTC
+              <span className="hiw-gold">FTC One Search</span> — A reimagined Google, just for FTC
             </h1>
             <p className="max-w-xl text-lg leading-relaxed text-foreground/85 sm:text-xl">
               FTC One Search is the search bar on Control Scout, built to be the most powerful search engine for FTC: one box finds any team, event or match, answers questions about them from the stored records, and finds the videos of the matches themselves. Because it gives the answer in the search instead of a list of links, it's the most unique search tool for FTC scouting, and with OPR, predictions and advancement odds a few words away, it's the most powerful tool for FTC scouting.

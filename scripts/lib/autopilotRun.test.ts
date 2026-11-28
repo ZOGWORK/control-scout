@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, FAILS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberFailure, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
+import { EMBED_REFUSED } from "../../server/data/frameRowRules";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
 const q = (code: string, rank: number, state = "queued"): Queued => ({ season: 2025, code, name: code, frames: { state, due: 10, rank } });
@@ -341,8 +342,27 @@ describe("nothingRead", () => {
     expect(nothingRead({ starts: {}, missing: { Q1: P, Q2: N } })).toBe(true);
     expect(nothingRead({ starts: {}, missing: { Q1: P, Q2: "its frames didn't confirm a start" } })).toBe(false);
   });
+  it("is also a read whose own edges show matches yet placed at most one of five or more (2025 FRCMP on a lane)", () => {
+    const R = "no frame read of it, and no agreeing reads on both sides";
+    const miss = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`Q${i + 1}`, R]));
+    const opensOn = { at: 2390, label: "Q1", clear: true }, endsOn = { at: 27986, label: "M10", clear: true, fromEnd: 890 };
+    expect(nothingRead({ starts: {}, missing: miss(55), opensOn, endsOn })).toBe(true);
+    // One start of 29, ends on FTC Live's "24 of 24 played" (2024 NLTHQ).
+    expect(nothingRead({ starts: { Q18: 8625 }, missing: miss(28), endsOn: { at: 19613, played: 24, of: 24, fromEnd: 3 } })).toBe(true);
+    // Two placed (a start and a review entry): a read, kept.
+    expect(nothingRead({ starts: { Q2: 900 }, review: { Q3: { t: 1300, why: "x" } }, missing: miss(20), opensOn })).toBe(false);
+    // Edges that show no match (blank, "0 played"): what the video shows, kept as read.
+    expect(nothingRead({ starts: {}, missing: miss(20), opensOn: { at: 3, played: 0, of: 40 }, endsOn: { at: 900, clear: true } })).toBe(false);
+    expect(nothingRead({ starts: {}, missing: miss(20) })).toBe(false);
+    // Fewer than five missing: too few to tell a failed read from a short one.
+    expect(nothingRead({ starts: {}, missing: miss(4), opensOn })).toBe(false);
+  });
   it("makes its event a failed read: not shipped, not counted as tried", () => {
     expect(readOutcome({ rows: 0, opened: 0, waiting: 0, tooBig: 0, readFailed: true, changed: 1 })).toBe("read failed");
+  });
+  it("isn't a video YouTube's embedded player refuses for good: that row settles it (USIABALLT 2024, FEoSIhRlU3g)", () => {
+    const R = `${EMBED_REFUSED}: a content owner blocks it on other websites (it plays only on youtube.com)`;
+    expect(nothingRead({ starts: {}, missing: { Q1: R, Q2: R, Q44: R } })).toBe(false);
   });
 });
 

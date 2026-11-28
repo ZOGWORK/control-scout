@@ -21,6 +21,14 @@
 html.light .hiw { --hiw-gold: #eab308; --hiw-line: #d4d4d8; }
 
 .hiw-gold { color: var(--hiw-gold); }
+/* Every .hiw-gold is text (the hero's "predictions", FTC One Search's title, the pipeline's step numbers). On light the
+   bright gold is #eab308, about 1.6:1 on the page: text takes the readable gold instead. The arrows and chart lines keep
+   --hiw-gold. */
+html.light .hiw .hiw-gold { color: var(--hiw-gold-text); }
+/* v8 Light: the gold follows the accent, as it does on v8 Dark (there --color-accent is the lavender; here the deep blue
+   #3f5a96, 6.9:1 on white), for text and for the arrows and lines alike. */
+html[data-v8].light .hiw { --hiw-gold: var(--color-accent); }
+html[data-v8].light .hiw .hiw-gold { color: var(--hiw-gold); }
 .hiw-gold-text { color: var(--hiw-gold-text); }
 
 /* SVG charts */

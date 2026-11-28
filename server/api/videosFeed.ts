@@ -14,7 +14,9 @@
 //   popular   what most people watched these 7 days (video_watch); every pool's items are lifted by it too
 // and one per person: the clips of the teams they're tied to (on the team, My team, followed, shortlisted, scouted),
 // kept per team. A match is a candidate only when it has a video to play (seasonClipKeys, the Play buttons' check).
-// Then each person's score and mix (./videosFeed.rank.ts) on top, cheap. Every read selects only its columns and
+// Then each person's score and mix (./videosFeed.rank.ts) on top, cheap, lifted by the recommendation engine
+// (server/videos/recommend.ts, the same as Cycles): their taste for each team, creator and series in it, what people
+// who loved what they loved also loved, Behind the Bot star power, and what everyone did with it (engineLift). Every read selects only its columns and
 // goes through db.ts's all(), which lets the event loop turn (#1557).
 import { randomBytes } from "node:crypto";
 import { all, get, run } from "../db.js";
@@ -27,12 +29,15 @@ import { RECORD_TYPES } from "./searchHighScores.js";
 import { weekendEvents } from "./weekend.js";
 import { feedCreatorVideos } from "./videosFeed.creators.js";
 import { isCold, kindWeights, mixFeed, reasonFor, scoreOf, tieOf, type Candidate, type Profile, type Tie, type WatchRow } from "./videosFeed.rank.js";
+import { coScore, qualityOf, starLift, tasteLift, tasteOf, type CoIndex, type RecItem, type Stats, type Taste } from "../videos/recommend.js";
+import { btbEpisodes, coEngagement, deviceSignals, digest, personSignals, resolveItems, videoStats } from "../videos/signals.js";
+import { CYCLE_MAX_S } from "../../src/shared/cycles.js";
 import { linkStart } from "../../src/shared/recording.js";
 import { thumbnailUrl, watchHref } from "../../src/shared/stream.js";
 import { youtubeId } from "../../src/shared/personal.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import type { MatchClip, SearchVideoItem } from "../../src/shared/api.js";
-import { FEED_KEY, WATCH_KINDS, type FeedAnswer, type FeedFilter, type FeedItem, type FeedSource, type HistoryState, type WatchKind, type WatchReport } from "../../src/shared/videosFeed.js";
+import { FEED_KEY, WATCH_KINDS, watchKindOf, type FeedAnswer, type FeedFilter, type FeedItem, type FeedSource, type HistoryState, type WatchKind, type WatchReport } from "../../src/shared/videosFeed.js";
 
 export const POOL_TTL_MS = 5 * 60_000;
 const LIST_TTL_MS = 10 * 60_000;
@@ -379,11 +384,13 @@ export async function videoFeed(opts: { viewer: string; userId: number | null; h
     const seen = new Map<string, Candidate>();
     for (const c of [...mine, ...pool.candidates]) { const had = seen.get(c.item.key); if (!had || c.quality > had.quality) seen.set(c.item.key, c); }
     const weights = kindWeights(p.history.values());
+    const engine = await engineFor(opts.userId, opts.hints, seen, now).catch(() => null);
     const scored: { c: Candidate & { group: string }; score: number }[] = [];
     for (const c of seen.values()) {
       if (!inFilter(c, opts.filter, p, pool.weekend)) continue;
-      const score = scoreOf({ ...c, popularity: pool.popular.get(c.item.key) ?? 0 }, p, weights, now);
-      if (score == null) continue;
+      const base = scoreOf({ ...c, popularity: pool.popular.get(c.item.key) ?? 0 }, p, weights, now);
+      if (base == null) continue;
+      const score = base * (engine ? engineLift(feedRecItem(c), engine) : 1);
       const reason = reasonFor(c, p);
       scored.push({ c: { ...c, item: { ...c.item, reason, ...(tieOf(c.item, p) ? { personal: true as const } : {}) } }, score });
     }
@@ -399,6 +406,42 @@ export async function videoFeed(opts: { viewer: string; userId: number | null; h
 }
 
 // ---------------------------------------------------------------------------
+// The recommendation engine's lift
+// ---------------------------------------------------------------------------
+
+/** A feed candidate as the engine sees it. */
+export function feedRecItem(c: Candidate): RecItem {
+  const i = c.item;
+  const creator = i.kind === "creator";
+  return {
+    key: i.key, kind: watchKindOf(i), format: creator && i.duration != null && i.duration <= CYCLE_MAX_S ? "short" : "long",
+    creator: creator ? `yt:${c.group.replace(/^ch:/, "")}` : null, series: i.series ?? null, teams: i.teams,
+    event: i.event ? `${i.event.season}:${i.event.code}` : null, at: c.at, durationS: i.duration ?? null,
+  };
+}
+
+export interface Engine { taste: Taste; loves: string[]; co: CoIndex; stats: Map<string, Stats>; episodes: Map<number, number> }
+
+/** The person's taste and loves, and what everyone did, for this list. */
+async function engineFor(userId: number | null, hints: DeviceHints, seen: Map<string, Candidate>, now: number): Promise<Engine> {
+  const [raw, co, stats, episodes] = await Promise.all([
+    userId != null ? personSignals(userId) : Promise.resolve(deviceSignals(hints.history, now)), coEngagement(now), videoStats(now), btbEpisodes(now),
+  ]);
+  const keys = [...new Set([...raw.watches, ...raw.likes, ...raw.reactions, ...raw.saves, ...raw.shares].map((x) => x.key))];
+  const known = new Map<string, RecItem>();
+  for (const k of keys) { const c = seen.get(k); if (c) known.set(k, feedRecItem(c)); }
+  const other = await resolveItems(keys.filter((k) => !known.has(k))).catch(() => new Map<string, RecItem>());
+  const look = (k: string) => known.get(k) ?? other.get(k);
+  const d = digest(raw, look, null);
+  return { taste: tasteOf(d.signals, look, now), loves: d.loves, co, stats, episodes };
+}
+
+/** How much the engine lifts (or sinks) a feed item for this person: a factor around 1. */
+export function engineLift(i: RecItem, e: Engine): number {
+  return tasteLift(i, e.taste) * (1 + 1.2 * coScore(i.key, e.loves, e.co)) * starLift(i, e.episodes) * qualityOf(e.stats.get(i.key));
+}
+
+// ---------------------------------------------------------------------------
 // Watches
 // ---------------------------------------------------------------------------
 
@@ -409,13 +452,17 @@ export function cleanWatch(b: unknown): WatchReport | null {
   if (!WATCH_KINDS.includes(o.kind as WatchKind)) return null;
   const s = Number(o.watchedS);
   if (!Number.isFinite(s) || s < 0) return null;
-  return { key: o.key, kind: o.kind as WatchKind, watchedS: Math.min(86_400, Math.round(s)), completed: o.completed === true, hidden: o.hidden === true, more: o.more === true };
+  const loops = Number(o.loops);
+  return { key: o.key, kind: o.kind as WatchKind, watchedS: Math.min(86_400, Math.round(s)), completed: o.completed === true, hidden: o.hidden === true, more: o.more === true,
+    ...(Number.isInteger(loops) && loops > 0 ? { loops: Math.min(5, loops) } : {}) };
 }
 
-/** Write a watch: the furthest second, finished, "not interested" and "more like this" kept once set. */
+/** Write a watch: the furthest second, finished, "not interested" and "more like this" kept once set; `loops` (a Cycle
+ *  played through again) adds up, to 50 at most. */
 export async function recordWatch(userId: number, w: WatchReport, now = Date.now()): Promise<void> {
-  await run(`INSERT INTO video_watch (user_id, item_key, kind, watched_s, completed, hidden, more, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  await run(`INSERT INTO video_watch (user_id, item_key, kind, watched_s, completed, hidden, more, loops, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (user_id, item_key) DO UPDATE SET kind = excluded.kind, watched_s = MAX(video_watch.watched_s, excluded.watched_s),
-    completed = MAX(video_watch.completed, excluded.completed), hidden = MAX(video_watch.hidden, excluded.hidden), more = MAX(video_watch.more, excluded.more), at = excluded.at`,
-  [userId, w.key, w.kind, w.watchedS, w.completed ? 1 : 0, w.hidden ? 1 : 0, w.more ? 1 : 0, new Date(now).toISOString()]);
+    completed = MAX(video_watch.completed, excluded.completed), hidden = MAX(video_watch.hidden, excluded.hidden), more = MAX(video_watch.more, excluded.more),
+    loops = MIN(50, video_watch.loops + excluded.loops), at = excluded.at`,
+  [userId, w.key, w.kind, w.watchedS, w.completed ? 1 : 0, w.hidden ? 1 : 0, w.more ? 1 : 0, w.loops ?? 0, new Date(now).toISOString()]);
 }
