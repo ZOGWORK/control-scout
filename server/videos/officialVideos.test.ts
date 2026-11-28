@@ -676,11 +676,13 @@ describe("the shipped list", () => {
       "pi7404qoAww": [NYC, "2022/USNYNYQUQ1", "2022-11-05", null, 1],
       "sM21G_St-nE": [NYC, "2022/USNYNYOPQ", "2022-11-06", null, 2],
       "VaCRr5f4sP0": [NYC, "2022/USNYNYQUQ6", "2023-01-15", null, 6],
-      "JQnHdd8lfb8": [NYC, "2022/USNYNYBRQ7", "2023-02-04", null, 7],
+      "vXdtxZclab0": [NYC, "2022/USNYNYBRQ7", "2023-02-04", "Part 1", 7],
+      "JQnHdd8lfb8": [NYC, "2022/USNYNYBRQ7", "2023-02-04", "Part 2", 7],
       "fNaOqiBGbII": [NYC, "2022/USNYNYBRQ8", "2023-02-05", null, 8],
       "P34D_YVFs-Y": [NYC, "2022/USNYNYNYSQ", "2023-02-11", null, 1],
       "Az6YSXVJ710": [NYC, "2022/USNYNYNYSQ2", "2023-02-12", null, 2],
-      "R_CFejqerGI": [NYC, "2022/USNYNYCMP", "2023-03-05", null, null],
+      "R_CFejqerGI": [NYC, "2022/USNYNYCMP", "2023-03-05", "Part 1", null],
+      "zTHqpOSK3zk": [NYC, "2022/USNYNYCMP", "2023-03-05", "Part 2", null],
       "S-zsWzkH9KI": [LI, "2025/USNYLIBAQ", "2025-12-07", null, 1],
       "dtQqffR7rr8": [LI, "2025/USNYLILVQ4", "2026-01-31", null, 4],
       "F7XYVwiMp-o": [LI, "2025/USNYLILVQ5", "2026-02-01", null, 5],
@@ -690,9 +692,12 @@ describe("the shipped list", () => {
       "VtaAXQ2SWlg": [LI, "2024/USNYLICMP", "2025-03-16", null, null],
       "Df8xuBU8pXk": [LI, "2023/USNYLILVQ4", "2024-02-03", null, 4],
       "ujPky20sJy0": [LI, "2023/USNYLILVQ5", "2024-02-04", null, 5],
-      "3Fx_9Vsp288": [LI, "2023/USNYLICMP", "2024-03-03", null, null],
+      "SQSPbhc3Kic": [LI, "2023/USNYLICMP", "2024-03-03", "Part 1", null],
+      "3Fx_9Vsp288": [LI, "2023/USNYLICMP", "2024-03-03", "Part 2", null],
       "Jh8OJMFh3lU": [ON, "2024/CAONOTQ", "2024-12-07", null, null],
       "fs6fgO9vxJI": [ON, "2025/CAONCMP", "2026-02-22", null, null],
+      "ov23pPcnYyI": [ON, "2025/CAONNYQ", "2025-11-15", "Part 1", null],
+      "MSGDqgEYdDc": [ON, "2025/CAONNYQ", "2025-11-15", "Part 2", null],
       "xQewZrzObUc": [ON, "2025/FPECCNSCIE", "2026-06-15", null, null],
       "IiSNRPTeu44": [ON, "2025/FPECCNSCIE", "2026-06-16", null, null],
       "Rj6gfqq23Zs": [ON, "2025/FPECCNTECH", "2026-06-15", null, null],
@@ -716,11 +721,12 @@ describe("the shipped list", () => {
     expect(rows.some((x) => x.channelId === PEN)).toBe(false);
     // Left out: FIRST's own links to the same videos; titles whose date or number disagrees with the broadcast
     // (NYC 2025 Qualifier 3 dated 12/6, 2024 Qualifier 5 dated 12/19/2025, 2024 "Super Qualifier-2" aired 2/3, 2024
-    // Championship dated 2/3); North York 2025's unnamed morning half (FIRST links the afternoon); Ontario's "Full
-    // Field" second camera; short fragments; uploads without a broadcast date; and the 2026-27 streams not yet aired.
+    // Championship dated 2/3); Ontario's "Full Field" second camera; short fragments; uploads without a broadcast date;
+    // and the 2026-27 streams not yet aired. North York 2025's morning half ov23pPcnYyI and Long Island 2024's opening
+    // SQSPbhc3Kic are kept: each is a restart of its day's broadcast, so it's Part 1 beside it (docs/official-videos.md, rule 7).
     const ids = new Set(data.videos.map((x) => x.videoId));
-    for (const no of ["bjwZWaiMwnc", "7aom0H3ZfWI", "H0i2yhkxMCM", "wDcRnpNlqMc", "ov23pPcnYyI", "hRn_bOe1UtE", "uUZ03ZjR1WM", "WiN8BWcsN_0",
-      "Rq_wGsWqnGo", "HFMdGKV4kNQ", "SQSPbhc3Kic", "LEv6I6K7DH8", "b_yw_UJAlL0", "iVjjczvTYNo", "XEKw5t0quig", "7VMoBFfo5CE", "ki9Nud5FGJk",
+    for (const no of ["bjwZWaiMwnc", "7aom0H3ZfWI", "H0i2yhkxMCM", "wDcRnpNlqMc", "hRn_bOe1UtE", "uUZ03ZjR1WM", "WiN8BWcsN_0",
+      "Rq_wGsWqnGo", "HFMdGKV4kNQ", "LEv6I6K7DH8", "b_yw_UJAlL0", "iVjjczvTYNo", "XEKw5t0quig", "7VMoBFfo5CE", "ki9Nud5FGJk",
       "-BTNpJ2X1nE", "_HSS2tVlaew", "a1Mhn922of0", "ynP0JWj1gos", "a3BaTdugU5E", "gF8G9Vb-GHY"]) expect(ids.has(no), no).toBe(false);
     // The watcher: each channel only for its own events, and each next-season title on its own event.
     const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
