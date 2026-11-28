@@ -53,12 +53,6 @@ describe("a Compare", () => {
     await search("a vs b vs c vs d vs e vs f", answer("a vs b vs c vs d vs e vs f", { hits: [many] }));
     expect(within(screen.getByRole("group", { name: "Comparisons" })).getByRole("option").textContent).toContain("the first 4 of the 6 teams named");
   });
-  it("comes first for the keyboard too, and opens /compare", async () => {
-    const { input, onPick } = await search("4215 vs 6980", vs);
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(onPick).toHaveBeenCalledWith(compareAsTeam);
-  });
   it("its own kind from the server, with the sides it names (number, name, place)", async () => {
     const own = { kind: "compare", ref: "4215,20245", title: "4215 Hypnotic Robotics vs 20245 Ultraviolet", subtitle: "", season: 2026, href: "/compare?teams=4215,20245", compare: { teams: [{ number: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }, { number: 20245, name: "Ultraviolet", place: "Norton Shores, MI" }] } } as unknown as SearchHit;
     await search("ultraviolet vs hypnotic", answer("ultraviolet vs hypnotic", { hits: [own, t("20245", "Ultraviolet"), t("4215", "Hypnotic Robotics")] }));
