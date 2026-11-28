@@ -72,6 +72,9 @@ export function Cycle({ item, index, active, near, muted, signedIn, ready, onMut
   const lib = useItemState(near ? feedItem : null, signedIn, ready);
   const saved = !!lib?.lists.includes("saved");
 
+  // The sound switch as it is now, for the player's first answer (see below).
+  const mutedNow = useRef(muted);
+  mutedNow.current = muted;
   const command = (func: string, args: unknown[] = []) => frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args, id: 1, channel: "widget" }), YT_ORIGIN);
 
   // The player's clock, while on screen; the watch, reported when it leaves.
@@ -88,6 +91,9 @@ export function Cycle({ item, index, active, near, muted, signedIn, ready, onMut
       if (!f || e.origin !== YT_ORIGIN || e.source !== f.contentWindow) return;
       const p = readProgress(e.data, prev);
       if (!p) return;
+      // Its first answer: the player is ready for commands. A sound switch pressed while it loaded was a command with
+      // no one to hear it, so the switch as it stands now is said again.
+      if (!live) command(mutedNow.current ? "mute" : "unMute");
       live = true;
       if (looped(prev, p)) w.loops++;
       prev = p;
