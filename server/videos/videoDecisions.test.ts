@@ -2,9 +2,9 @@
 // "evidence" with its reason and evidence line; a link only on a free day of its event (or one held by a video YouTube
 // no longer plays, which it replaces); a video already decided keeps that decision; the audit's finding is settled.
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { get, migrate, openDb, run, setDb } from "../db";
+import { all, get, migrate, openDb, run, setDb } from "../db";
 import { VIDEO_DECISIONS, type VideoDecision } from "../data/videoDecisions";
-import { applyVideoDecisions, decisionProblem, decisionWhy } from "./videoDecisions";
+import { applyVideoDecisions, decidedAsEntry, decisionProblem, decisionWhy } from "./videoDecisions";
 import { ownerOfficial } from "./officialWatch";
 import * as officialVideos from "./officialVideos";
 
@@ -138,6 +138,45 @@ describe("decisions from evidence", () => {
     expect(out).toMatchObject({ applied: 0 });
     expect(await watch("rollawhole1")).toMatchObject({ status: "pending" });
     expect(await get("SELECT 1 FROM official_videos WHERE video_id = 'rollawhole1'")).toBeUndefined();
+  });
+
+  it("decides again what it decided itself once the entry changes: a set-aside linked as Part 1, the day's link named Part 2", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2026, 'USMOGEMS', 'Gems Meet', 'LeagueMeet', 'Columbia', 'MO', 'USA', '2026-11-14', '2026-11-14', 'America/Chicago', 0, 0, NULL, 'test')");
+    const q = "INSERT INTO official_watch (video_id, channel_id, title, status, why, seen_at) VALUES (?, ?, 'Gems Meet', 'pending', 'a second stream', 'x')";
+    await run(q, ["gemsmain001", CH]);
+    await run(q, ["gemsearly01", CH]);
+    await run("INSERT INTO official_audit_videos (video_id, channel_id, title, published, start, duration, first_seen, last_seen, finding, found_at) VALUES ('gemsearly01', ?, 'Gems Meet', 'x', 'x', 5400, 'x', 'x', 'open', 'x')", [CH]);
+    const first = [link("gemsmain001", "USMOGEMS"), { videoId: "gemsearly01", decision: "setAside", reason: "a copy", evidence: "one black frame" } as VideoDecision];
+    expect(await apply(first)).toMatchObject({ applied: 2, linked: 1, setAside: 1 });
+    expect(await finding("gemsearly01")).toMatchObject({ finding: "dismissed", finding_by: "evidence" });
+    // Unchanged entries stay decided.
+    expect(await apply(first)).toMatchObject({ applied: 0, kept: 2 });
+
+    // The day's broadcast restarted: the entries now name both parts (the rename first, as the file lists it).
+    const parts = [link("gemsmain001", "USMOGEMS", { part: "Part 2" }), link("gemsearly01", "USMOGEMS", { part: "Part 1", evidence: "frames: Qualification 4 of 29" })];
+    expect(await apply(parts)).toMatchObject({ applied: 2, linked: 2 });
+    expect(await watch("gemsmain001")).toMatchObject({ status: "approved", part: "Part 2", decided_by: "evidence" });
+    expect(await watch("gemsearly01")).toMatchObject({ status: "approved", code: "USMOGEMS", day: "2026-11-14", part: "Part 1", decided_by: "evidence" });
+    const rows = await all<any>("SELECT video_id, part, source FROM official_videos WHERE code = 'USMOGEMS' AND removed_at IS NULL ORDER BY part");
+    expect(rows).toEqual([{ video_id: "gemsearly01", part: "Part 1", source: "evidence" }, { video_id: "gemsmain001", part: "Part 2", source: "evidence" }]);
+    expect(await finding("gemsearly01")).toMatchObject({ finding: null });
+    expect(await apply(parts)).toMatchObject({ applied: 0, kept: 2 });
+
+    // Moving a link evidence made, or deciding over the owner, is never the file's.
+    const moved = await apply([link("gemsmain001", "USMOPIPER", { part: "Part 2" }), link("ownersaidno", "USMOGEMS", { part: "Part 3" })]);
+    expect(moved).toMatchObject({ applied: 0, kept: 1 });
+    expect(moved!.skipped).toEqual([expect.stringMatching(/^gemsmain001: evidence linked it to 2026 USMOGEMS 2026-11-14/)]);
+    expect(await watch("gemsmain001")).toMatchObject({ code: "USMOGEMS", part: "Part 2" });
+    expect(await watch("ownersaidno")).toMatchObject({ status: "rejected", decided_by: "owner@example.test" });
+  });
+
+  it("knows an entry from what evidence wrote: status, event, day and part", () => {
+    const row = { status: "approved", season: 2023, code: "USTXCGLT1", day: "2024-01-27", part: null };
+    const d = link("6n2jU5JXAqI", "USTXCGLT1", { season: 2023, day: "2024-01-27" });
+    expect(decidedAsEntry(row, d)).toBe(true);
+    expect(decidedAsEntry(row, { ...d, part: "Part 2" })).toBe(false);
+    expect(decidedAsEntry({ status: "rejected", season: null, code: null, day: null, part: null }, { videoId: "x", decision: "setAside", reason: "r", evidence: "e" })).toBe(true);
+    expect(decidedAsEntry({ status: "rejected", season: null, code: null, day: null, part: null }, d)).toBe(false);
   });
 
   it("applies once a process: a second pass does nothing", async () => {
