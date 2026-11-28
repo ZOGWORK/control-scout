@@ -175,8 +175,8 @@ export const BLIND_MIN_MISSING = 5;
 
 /** A read whose own edges show the event's overlay (opensOn or endsOn names a match, or FTC Live's "N / M played" with
  *  matches played), yet that placed at most one start (or review entry) of BLIND_MIN_MISSING or more matches. The
- *  matches are on screen, so the frames between couldn't be read: the player seeking somewhere else under load, not
- *  what the video shows. 2025 FRCMP GO9pF-txA7M, read on a lane four times on 11-26/27: opens on Q1 at 2390 s, ends on
+ *  matches are on screen, so the frames between couldn't be read on that computer (its seeks land; its OCR under the
+ *  lane's load misses the running timer), not what the video shows. 2025 FRCMP GO9pF-txA7M, read on a lane four times on 11-26/27: opens on Q1 at 2390 s, ends on
  *  M10, every confirm "timer 17 then 16" where 70 s was due, 0 of 55 placed; the same video read on another computer
  *  places Q1, Q2, Q3 … in order. Such a row settled all 55 as read. 2024 NLTHQ (1 of 29), NLBLQ (1 of 25) alike. */
 export function sawButPlacedNone(r: Pick<FrameTiming, "starts" | "missing"> & Partial<Pick<FrameTiming, "review" | "opensOn" | "endsOn">>): boolean {
