@@ -78,13 +78,13 @@ export function BugReportButton({ corner = false }: { corner?: boolean } = {}) {
   // Pointing at the button (or focusing it) starts loading the form, so it's usually there by the click.
   const warm = () => { loadForm().catch(() => {}); };
   const button = corner ? (
-    <button ref={ref} type="button" onClick={() => setOpen(phone ? "sheet" : "dialog")} onPointerEnter={warm} onFocus={warm} aria-label="Report a bug" aria-haspopup="dialog" title="Report a bug"
+    <button ref={ref} type="button" onClick={() => setOpen(phone ? "sheet" : "dialog")} onPointerEnter={warm} onFocus={warm} aria-label="Report a bug or request a feature" aria-haspopup="dialog" title="Report a bug or request a feature"
       className="absolute right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex size-11 items-center justify-center rounded-full border border-ink/10 bg-[#121214] v8light:bg-card [html.dim_&]:bg-card text-text-muted shadow-[0_4px_16px_rgb(0_0_0/0.35)] outline-none transition-colors hover:border-danger/40 hover:text-danger focus-visible:ring-2 focus-visible:ring-ring/60 sm:right-6 sm:bottom-6"
       data-testid="bug-report-button" data-corner>
       <Bug className="size-5" aria-hidden />
     </button>
   ) : (
-    <button ref={ref} type="button" onClick={() => setOpen(phone ? "sheet" : "dialog")} onPointerEnter={warm} onFocus={warm} aria-label="Report a bug" aria-haspopup="dialog" title="Report a bug"
+    <button ref={ref} type="button" onClick={() => setOpen(phone ? "sheet" : "dialog")} onPointerEnter={warm} onFocus={warm} aria-label="Report a bug or request a feature" aria-haspopup="dialog" title="Report a bug or request a feature"
       className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line px-2 text-xs font-medium text-text-muted outline-none transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger focus-visible:ring-2 focus-visible:ring-ring/60 max-md:w-8 max-md:justify-center max-md:border-transparent max-md:px-0 pointer-coarse:max-md:size-[44px]"
       data-testid="bug-report-button">
       <Bug className="size-4 max-md:size-5" aria-hidden />

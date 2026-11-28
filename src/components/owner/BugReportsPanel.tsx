@@ -102,7 +102,9 @@ function ReportCard({ r, onChanged }: { r: BugReportItem; onChanged: () => void 
   return (
     <li className="rounded-xl border border-border bg-card p-4" data-testid="bug-report">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge variant={TONE[r.category] ?? "secondary"}>{label(r.category)}</Badge>
+        {r.kind === "feature"
+          ? <Badge variant="secondary">Feature request</Badge>
+          : <Badge variant={TONE[r.category] ?? "secondary"}>{label(r.category)}</Badge>}
         {r.status === "done" && (r.issueClosed?.reason === "not_planned"
           ? <Badge variant="secondary">Not planned</Badge>
           : <Badge variant="success">{r.issueClosed ? "Fixed" : "Closed"}</Badge>)}
@@ -110,6 +112,7 @@ function ReportCard({ r, onChanged }: { r: BugReportItem; onChanged: () => void 
         {r.email && <a className="inline-flex min-w-0 items-center gap-1 truncate text-accent-text v8:text-accent underline-offset-4 hover:underline" href={`mailto:${r.email}`}><Mail className="size-3.5 shrink-0" aria-hidden />{r.email}</a>}
       </div>
       <div className="mt-2 text-sm"><Issue r={r} /></div>
+      {r.title && <p className="mt-2 break-words text-sm font-semibold text-foreground">{r.title}</p>}
       <p className="mt-2 whitespace-pre-wrap break-words text-sm text-foreground">{r.message}</p>
       <Attachments r={r} />
       <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-muted-foreground">

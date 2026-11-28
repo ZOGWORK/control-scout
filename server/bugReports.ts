@@ -14,7 +14,9 @@
 //      exists, with its real number and address.
 // The token is kept only as a hash and works for UPLOAD_WINDOW_MS after the report is made.
 //
-// One report = one issue "[user] <first line>", labels bug + user-reported, no dedupe across reports. Attachments are
+// One report = one issue, no dedupe across reports: a bug is "[user] <title>" with labels bug + user-reported, a feature
+// request (the same dialog's other mode) "[feature] <title>" with feature-request + user-reported. The title is the
+// sender's own when they gave one, else the message's first line. Attachments are
 // uploaded to GitHub first (the request `gh issue create --attach` makes, server/errorReports.ts uploadAsset), then
 // the issue is opened with them embedded: images inline, a video as a bare URL (GitHub's player). An upload that fails
 // is named in the issue as failed and its file stays on disk for the owner console. Once the issue exists and each
@@ -47,8 +49,8 @@ import { emailEnabled, normalizeEmail, sendEmail, validEmail } from "./auth/emai
 import { recordAudit } from "./portal/audit.js";
 import { assetOpens, fenced, gh, GITHUB_REPO, GithubError, issueStates, refused, syncErrorIssues, uploadAsset, type IssueState } from "./errorReports.js";
 import {
-  attachmentProblem, attachmentsProblem, BUG_CATEGORIES, BUG_LIMITS, chunkLength, EXTENSION, formatBytes, isBugCategory, isSitePath, isVideoType, sniffType,
-  type AttachmentType, type BugCategory, type BugContext, type BugFiling, type BugReportItem, type BugReportList,
+  attachmentProblem, attachmentsProblem, BUG_CATEGORIES, BUG_LIMITS, chunkLength, EXTENSION, formatBytes, isBugCategory, isReportKind, isSitePath, isVideoType, sniffType,
+  type AttachmentType, type BugCategory, type BugContext, type BugFiling, type BugReportItem, type BugReportList, type ReportKind,
 } from "../src/shared/bugReport.js";
 import { REDACTED, sanitizeRoute, sanitizeText } from "../src/shared/errorReport.js";
 
@@ -99,17 +101,32 @@ const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 const short = (v: unknown) => text(v).slice(0, BUG_LIMITS.context);
 const reason = (e: unknown) => ((e as Error)?.name === "TimeoutError" ? "timeout" : (e as Error)?.message ?? "unknown");
 
-export interface BugInput { category: BugCategory; message: string; email: string | null; context: BugContext; files: { type: AttachmentType; bytes: number }[] }
-export type BugFieldErrors = Partial<Record<"category" | "message" | "email" | "files", string>>;
+export interface BugInput { kind: ReportKind; category: BugCategory; title: string | null; message: string; email: string | null; context: BugContext; files: { type: AttachmentType; bytes: number }[] }
+export type BugFieldErrors = Partial<Record<"kind" | "category" | "title" | "message" | "email" | "files", string>>;
+
+/** A title as it may go on GitHub: one line (control characters and line breaks become spaces, runs of spaces one),
+ *  trimmed, secrets redacted (sanitizeText). Empty: none. The length is checked by the caller. */
+export function cleanTitle(v: unknown): string {
+  if (typeof v !== "string") return "";
+  const line = v.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ").replace(/\s+/g, " ").trim();
+  return sanitizeText(line, BUG_LIMITS.titleMax + 50).trim();
+}
 
 /** Checks a submitted report: the cleaned report, or what's wrong with each field. */
 export function validateBugReport(body: unknown): { ok: true; value: BugInput } | { ok: false; fields: BugFieldErrors } {
   const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
   const fields: BugFieldErrors = {};
-  const category = text(b.category);
+  // No kind: a bug (a dialog from before feature requests).
+  const kind = b.kind == null ? "bug" : text(b.kind);
+  // A feature request has no category chips: stored as "other".
+  const category = kind === "feature" && b.category == null ? "other" : text(b.category);
+  const title = cleanTitle(b.title);
   const message = text(b.message);
   const email = b.email == null ? "" : normalizeEmail(text(b.email));
+  if (!isReportKind(kind)) fields.kind = "Choose a bug report or a feature request.";
   if (!isBugCategory(category)) fields.category = "Choose what kind of problem it is.";
+  if (b.title != null && typeof b.title !== "string") fields.title = "The title wasn't sent properly.";
+  else if (title.length > BUG_LIMITS.titleMax) fields.title = `Keep the title under ${BUG_LIMITS.titleMax} characters.`;
   if (message.length < BUG_LIMITS.messageMin) fields.message = `Tell us a little more (at least ${BUG_LIMITS.messageMin} characters).`;
   else if (message.length > BUG_LIMITS.messageMax) fields.message = `Keep it under ${BUG_LIMITS.messageMax.toLocaleString("en-US")} characters.`;
   if (email && !validEmail(email)) fields.email = "That doesn't look like an email address.";
@@ -129,28 +146,31 @@ export function validateBugReport(body: unknown): { ok: true; value: BugInput } 
     release: short(c.release), viewport: short(c.viewport), device: short(c.device), theme: short(c.theme),
   };
   // Sanitized again here (the dialog already did): what's stored is what can go on the public issue.
-  return { ok: true, value: { category: category as BugCategory, message: sanitizeText(message, BUG_LIMITS.messageMax), email: email || null, context, files: files as BugInput["files"] } };
+  return { ok: true, value: { kind: kind as ReportKind, category: category as BugCategory, title: title || null, message: sanitizeText(message, BUG_LIMITS.messageMax), email: email || null, context, files: files as BugInput["files"] } };
 }
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const categoryLabel = (c: string) => BUG_CATEGORIES.find((x) => x.id === c)?.label ?? c;
 
 interface ReportRow {
-  id: number; created_at: string; category: string; message: string; email: string | null;
+  id: number; created_at: string; kind: string; category: string; title: string | null; message: string; email: string | null;
   page: string; release: string; viewport: string; device: string; theme: string;
   files_expected: number; files_declared: string; status: string; emailed: number;
 }
 interface FileRow { report_id: number; n: number; type: string; bytes: number }
-const REPORT_COLS = "id, created_at, category, message, email, page, release, viewport, device, theme, files_expected, files_declared, status, emailed";
+const REPORT_COLS = "id, created_at, kind, category, title, message, email, page, release, viewport, device, theme, files_expected, files_declared, status, emailed";
 /** Only finished uploads count as attachments. */
 const DONE_FILES = "SELECT report_id, n, type, bytes FROM bug_report_files WHERE received = bytes";
 
 /** The email to the owner: subject, plain text and HTML. `attached`: how many files ride along. A file whose local
  *  copy was deleted after it went to GitHub (`github_url`) is linked there instead. */
 export function bugEmail(r: ReportRow & { issue_url?: string | null }, files: (FileRow & { github_url?: string | null })[], attached: number) {
-  const label = categoryLabel(r.category);
-  const first = r.message.replace(/\s+/g, " ").slice(0, 60);
-  const subject = `[Control Scout bug] ${label}: ${first}${r.message.length > 60 ? "…" : ""}`;
+  const feature = r.kind === "feature";
+  const label = feature ? "Feature request" : categoryLabel(r.category);
+  const what = feature ? "feature request" : "bug report";
+  const head = r.title || r.message;
+  const first = head.replace(/\s+/g, " ").slice(0, 60);
+  const subject = `[Control Scout ${feature ? "feature" : "bug"}] ${label}: ${first}${head.length > 60 ? "…" : ""}`;
   const site = env.canonicalUrl.replace(/\/$/, "");
   const link = `${site}/owner?panel=bugs`;
   const details = [
@@ -165,11 +185,11 @@ export function bugEmail(r: ReportRow & { issue_url?: string | null }, files: (F
   const missing = r.files_expected - files.length;
   const onGithub = files.filter((f) => f.github_url).map((f) => `${EXTENSION[f.type as AttachmentType] ?? f.type} on GitHub: ${f.github_url}`);
   if (r.issue_url) onGithub.unshift(`GitHub issue: ${r.issue_url}`);
-  const textBody = `${label}: bug report #${r.id}\n\n${r.message}\n\n${details.map(([k, v]) => `${k}: ${v}`).join("\n")}\n${fileLine}`
+  const textBody = `${label}: ${what} #${r.id}\n\n${r.title ? `${r.title}\n\n` : ""}${r.message}\n\n${details.map(([k, v]) => `${k}: ${v}`).join("\n")}\n${fileLine}`
     + `${missing > 0 ? `\n${missing} attachment${missing === 1 ? " was" : "s were"} never uploaded.` : ""}`
     + `${onGithub.length ? `\n${onGithub.join("\n")}` : ""}\n\nOpen it: ${link}`
     + `${r.email ? "\nReply to this email to answer them." : ""}`;
-  const html = `<p><strong>${esc(label)}</strong>: bug report #${r.id}</p><p style="white-space:pre-wrap">${esc(r.message)}</p>`
+  const html = `<p><strong>${esc(label)}</strong>: ${what} #${r.id}</p>${r.title ? `<p><strong>${esc(r.title)}</strong></p>` : ""}<p style="white-space:pre-wrap">${esc(r.message)}</p>`
     + `<table style="font-size:13px;color:#3f3f46">${details.map(([k, v]) => `<tr><td style="padding-right:12px;color:#71717a">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table>`
     + `<p style="font-size:13px">${esc(fileLine)}${missing > 0 ? `<br>${missing} never uploaded.` : ""}${onGithub.map((l) => `<br>${esc(l)}`).join("")}</p>`
     + `<p><a href="${esc(link)}">Open bug reports in the owner console</a></p>`;
@@ -219,6 +239,20 @@ async function emailReport(id: number): Promise<void> {
 // --- Filing on GitHub -----------------------------------------------------------------------------
 
 export const BUG_ISSUE_LABELS = ["bug", "user-reported"];
+export const FEATURE_ISSUE_LABELS = ["feature-request", "user-reported"];
+export const issueLabels = (kind: string) => (kind === "feature" ? FEATURE_ISSUE_LABELS : BUG_ISSUE_LABELS);
+/** The feature-request label, made on GitHub when it isn't there (GitHub drops a label that doesn't exist). */
+export const FEATURE_LABEL = { name: "feature-request", color: "a2eeef", description: "Requested by a user from the in-app button" };
+let featureLabelReady = false;
+/** Tests: check for the label again. */
+export const resetFeatureLabel = () => { featureLabelReady = false; };
+/** Makes the feature-request label once per process: made, or 422 (already there). Anything else: tried next time;
+ *  the issue is still filed (its missing label recorded as for any other). */
+async function ensureFeatureLabel(token: string): Promise<void> {
+  if (featureLabelReady) return;
+  try { await gh(token, "POST", "/labels", FEATURE_LABEL); featureLabelReady = true; }
+  catch (e) { if (e instanceof GithubError && e.status === 422) featureLabelReady = true; }
+}
 /** How the attachments reach GitHub, for the audit log. */
 export const UPLOAD_ROUTE = "uploads.github.com/user-attachments/assets (the gh --attach request)";
 /** What the owner console says when there's no token to file with. */
@@ -235,12 +269,18 @@ export const resetBugFilingPause = () => { githubPausedUntil = 0; };
 interface FilingRow extends ReportRow { issue_number: number | null; file_marker: string; file_attempts: number; file_error: string | null }
 interface FilingFile extends FileRow { github_url: string | null; upload_error: string | null; on_disk: number }
 
-/** The issue's title: "[user] " + the first line of the message, or the category when that line says nothing. */
-export function bugIssueTitle(message: string, category: string): string {
+/** Says something: at least 3 letters or digits once redactions are taken out. */
+const saysSomething = (s: string) => s.split(REDACTED).join("").replace(/[^\p{L}\p{N}]/gu, "").length >= 3;
+
+/** The issue's title: "[user] " for a bug, "[feature] " for a feature request, then the sender's own title when it says
+ *  something, else the first line of the message, else the category ("Feature request" for a feature). */
+export function bugIssueTitle(message: string, category: string, kind = "bug", title: string | null = null): string {
+  const prefix = kind === "feature" ? "[feature]" : "[user]";
+  const own = cleanTitle(title);
+  if (saysSomething(own)) return `${prefix} ${own.length > 110 ? `${own.slice(0, 109)}…` : own}`;
   const first = message.split("\n", 1)[0].replace(/\s+/g, " ").trim();
-  const usable = first.split(REDACTED).join("").replace(/[^\p{L}\p{N}]/gu, "").length >= 3;
-  if (!usable) return `[user] Bug report: ${categoryLabel(category)}`;
-  return `[user] ${first.length > 110 ? `${first.slice(0, 109)}…` : first}`;
+  if (!saysSomething(first)) return kind === "feature" ? `${prefix} Feature request` : `${prefix} Bug report: ${categoryLabel(category)}`;
+  return `${prefix} ${first.length > 110 ? `${first.slice(0, 109)}…` : first}`;
 }
 
 /** The name an attachment goes to GitHub under: never the sender's own file name. */
@@ -251,7 +291,7 @@ const assetName = (id: number, f: Pick<FileRow, "n" | "type">) => `bug-${id}-${N
  * @mentions anyone. Attachments: an image inline, a video as a bare URL on its own line (GitHub's player), and one
  * that didn't upload named as failed. `marker`: the report's id on GitHub, found again if a reply is lost.
  */
-export function bugIssueBody(r: Pick<ReportRow, "id" | "category" | "message" | "email" | "page" | "release" | "viewport" | "device" | "theme" | "files_expected">,
+export function bugIssueBody(r: Pick<ReportRow, "id" | "category" | "message" | "email" | "page" | "release" | "viewport" | "device" | "theme" | "files_expected"> & Partial<Pick<ReportRow, "kind">>,
   files: Pick<FilingFile, "n" | "type" | "bytes" | "github_url">[], marker: string): string {
   const field = (v: string) => sanitizeText(v, BUG_LIMITS.context) || "unknown";
   const details = [
@@ -268,11 +308,12 @@ export function bugIssueBody(r: Pick<ReportRow, "id" | "category" | "message" | 
   });
   const missing = Number(r.files_expected) - files.length;
   if (missing > 0) shown.push(`- ${missing} attachment${missing === 1 ? " was" : "s were"} never uploaded from the browser.`);
+  const feature = r.kind === "feature";
   return [
-    "### What happened",
+    feature ? "### What they'd like" : "### What happened",
     fenced(r.message),
     "",
-    `**Category:** ${categoryLabel(r.category)}`,
+    feature ? "**Type:** Feature request" : `**Category:** ${categoryLabel(r.category)}`,
     "",
     "### Context",
     fenced(details),
@@ -281,7 +322,7 @@ export function bugIssueBody(r: Pick<ReportRow, "id" | "category" | "message" | 
     "",
     `Report ID: \`${marker}\``,
     "",
-    "Filed from the in-app Report a bug button.",
+    feature ? "Filed from the in-app Request a feature button." : "Filed from the in-app Report a bug button.",
   ].join("\n");
 }
 
@@ -361,9 +402,11 @@ export async function fileBugReport(id: number, now = new Date()): Promise<BugFi
         }
       }
       let issue: { number: number; labels?: { name?: string }[] };
+      const labels = issueLabels(row.kind);
+      if (row.kind === "feature") await ensureFeatureLabel(token);
       try {
         issue = await gh<{ number: number; labels?: { name?: string }[] }>(token, "POST", "/issues", {
-          title: bugIssueTitle(row.message, row.category), body: bugIssueBody(row, files, row.file_marker), labels: BUG_ISSUE_LABELS,
+          title: bugIssueTitle(row.message, row.category, row.kind, row.title), body: bugIssueBody(row, files, row.file_marker), labels,
         });
       } catch (e) {
         pause(e);
@@ -376,7 +419,7 @@ export async function fileBugReport(id: number, now = new Date()): Promise<BugFi
       created = true;
       number = Number(issue.number);
       const got = new Set((issue.labels ?? []).map((l) => l.name));
-      labelsMissing = BUG_ISSUE_LABELS.filter((l) => !got.has(l));
+      labelsMissing = labels.filter((l) => !got.has(l));
     }
     const url = `https://github.com/${GITHUB_REPO}/issues/${number}`;
     await run(`UPDATE bug_reports SET issue_number = ?, issue_url = ?, filed_at = ?, filing_at = NULL, file_error = NULL, labels_missing = ?
@@ -706,9 +749,9 @@ export function bugReportsRouter(): Router {
     const m = v.value, c = m.context;
     const token = randomBytes(24).toString("hex");
     const row = await get<{ id: number }>(
-      `INSERT INTO bug_reports (created_at, category, message, email, page, release, viewport, device, theme, files_expected, files_declared, token_hash)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-      [new Date().toISOString(), m.category, m.message, m.email, c.page, c.release, c.viewport, c.device, c.theme, m.files.length, JSON.stringify(m.files), hash(token)],
+      `INSERT INTO bug_reports (created_at, kind, category, title, message, email, page, release, viewport, device, theme, files_expected, files_declared, token_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [new Date().toISOString(), m.kind, m.category, m.title, m.message, m.email, c.page, c.release, c.viewport, c.device, c.theme, m.files.length, JSON.stringify(m.files), hash(token)],
     );
     return { id: Number(row!.id), token };
   }));
@@ -783,7 +826,7 @@ export async function listBugReports(status: "open" | "done" = "open", before: n
       : Number(r.to_github) === 0 ? PRIVATE_REPORT
       : r.file_error ?? (env.githubReportToken ? "Being filed." : NO_TOKEN);
     return {
-      id: Number(r.id), createdAt: r.created_at, category: r.category as BugCategory, message: r.message, email: r.email,
+      id: Number(r.id), createdAt: r.created_at, kind: r.kind === "feature" ? "feature" : "bug", category: r.category as BugCategory, title: r.title, message: r.message, email: r.email,
       context: { page: r.page, release: r.release, viewport: r.viewport, device: r.device, theme: r.theme },
       status: r.status === "done" ? "done" : "open", emailed: Number(r.emailed) === 1,
       missing: Math.max(0, Number(r.files_expected) - own.length),
