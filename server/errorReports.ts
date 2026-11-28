@@ -31,6 +31,7 @@ import { currentUser } from "./auth/session.js";
 import { ownerOf } from "./owner.js";
 import { isEnabled } from "./flags.js";
 import { fingerprintSource, reportShapeError, sanitizeReport, type ErrorReport } from "../src/shared/errorReport.js";
+import { visitorIp } from "./visitorIp.js";
 
 /** The repository this codebase lives in (git remote origin). It moved from Control-Point-FTC: GitHub forwards the
  *  old name's REST calls, but its issue search refuses the old name (422), so it's the new one here. */
@@ -567,7 +568,7 @@ export function reportsRouter(): Router {
       const problem = reportShapeError(req.body);
       if (problem) { res.status(400).json({ error: problem }); return; }
       const user = await currentUser(req).catch(() => null);
-      const slot = user ? takeReportSlot(`u:${user.id}`, REPORT_RATE.account) : takeReportSlot(`ip:${req.ip ?? "?"}`, REPORT_RATE.ip);
+      const slot = user ? takeReportSlot(`u:${user.id}`, REPORT_RATE.account) : takeReportSlot(`ip:${visitorIp(req)}`, REPORT_RATE.ip);
       if (!slot.ok) {
         res.setHeader("Retry-After", String(slot.retryAfter));
         res.status(429).json({ error: "Several reports were sent in the last hour. Thanks, we have them.", retryAfter: slot.retryAfter });
