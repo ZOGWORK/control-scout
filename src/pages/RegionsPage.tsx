@@ -40,7 +40,7 @@ export default function RegionsPage() {
           <SeasonPick value={season} onChange={(s) => { const n = new URLSearchParams(sp); n.set("season", String(s)); setSp(n); }} />
           <div className="relative w-full max-w-xs max-sm:v8:min-w-0 max-sm:v8:flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted v8:text-text-faint" aria-hidden />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="New Jersey, Texas, Romania…" aria-label="Search regions" className={cn("h-9 pl-8 max-sm:h-10", V8_SEARCH)} />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="New Jersey, Texas…" aria-label="Search regions" className={cn("h-9 pl-8 max-sm:h-10", V8_SEARCH)} />
           </div>
         </div>
       </PageHeader>
