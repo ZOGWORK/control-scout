@@ -29,7 +29,7 @@ export const BOT_COMMANDS: { usage: string; what: string; admin?: true }[] = [
   { usage: "/event code:", what: "An event's status, matches played, top 5 by OPR and the winning alliance." },
   { usage: "/rankings", what: "The world top 10 by rating, with movement since last week." },
   { usage: "/ask question:", what: "Anything in plain words, answered as the website's search answers it. Its answer's buttons ask a follow-up or open the answer on the website." },
-  { usage: "@Control Scout question", what: "Chat with Bruno AI: mention the bot with anything, and reply to his answer to keep talking. 👍 on an answer says it helped." },
+  { usage: "@Control Scout question", what: "Chat with Bruno AI: mention the bot with anything, and reply to his answer to keep talking. Something's wrong under an answer reports it." },
   { usage: "/follow team: channel:", what: "Posts in a channel for a team: the evening before an event, its schedule, 15 minutes before each match and its result, and a recap each day.", admin: true },
   { usage: "/follow event: channel:", what: "Posts in a channel for a whole event instead: the evening before it starts, its schedule once posted, and a recap each day.", admin: true },
   { usage: "/unfollow team: event:", what: "Stop those posts for a team or an event.", admin: true },
