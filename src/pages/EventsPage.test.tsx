@@ -9,6 +9,9 @@ import { MemoryRouter, useLocation, useNavigate, type NavigateFunction } from "r
 import type { EventListItem } from "../shared/api";
 import { FIRST_EVENTS, MORE_EVENTS } from "./eventsList";
 
+// jsdom has no scrollIntoView, and the search box scrolls its highlighted row into view.
+Element.prototype.scrollIntoView = () => {};
+
 const today = new Date().toISOString().slice(0, 10);
 const day = (n: number) => { const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 // 150 upcoming events over ~10 weeks; every third one is in Texas.
