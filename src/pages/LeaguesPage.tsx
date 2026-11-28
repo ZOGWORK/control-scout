@@ -64,18 +64,20 @@ function Groups({ d, q }: { d: LeaguesResponse; q: string }) {
   if (!shown.length) return <EmptyState icon={Search} title="No league by that name" description={`None of the ${d.leagues.length} leagues matches “${q.trim()}”.`} />;
   const groups = new Map<string, LeagueListItem[]>();
   for (const l of shown) { const k = l.place ?? ""; groups.set(k, [...(groups.get(k) ?? []), l]); }
+  // Leagues FIRST lists with no place (often old ones with no meets) go last, never above the real places.
+  const ordered = [...groups].sort(([a], [b]) => Number(a === "") - Number(b === ""));
   return (
     <div className="space-y-5" data-leagues>
-      {[...groups].map(([place, list]) => (
+      {ordered.map(([place, list]) => (
         <section key={place || "-"} aria-label={list[0].placeName ?? "Place not listed"} className="space-y-2">
           <h2 className="flex flex-wrap items-baseline gap-x-3 font-display text-lg font-semibold v8:font-sans v8:text-base">
             {list[0].placeName ?? "Place not listed"}
             {place && <Link to={regionHref(place, { season: d.season })} className={cn("text-sm font-normal text-accent-text hover:underline", V8_LINK)}>{list[0].placeName} rankings →</Link>}
           </h2>
           {list.some((l) => l.region.toUpperCase() === CONFERENCE_REGION) && <ConferenceButton season={d.season} leagues={list.filter((l) => l.region.toUpperCase() === CONFERENCE_REGION)} />}
-          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {list.map((l) => (
-              <li key={`${l.region}-${l.code}`}>
+              <li key={`${l.region}-${l.code}`} className="min-w-0">
                 <Link to={leagueHref(d.season, l.region, l.code)} data-league={`${l.region}/${l.code}`} className={cn("flex h-full flex-col gap-0.5 rounded-xl border border-border bg-card p-3 hover:border-accent/60 v8:transition-colors v8:duration-150", V8_CARD_LINK)}>
                   <span className="flex items-center gap-2 text-sm font-medium"><CalendarDays className={cn("size-4 shrink-0 text-muted-foreground", V8_ICON)} aria-hidden /><span className="truncate">{leagueTitle(l.name, l.code)}</span></span>
                   <span className={cn("text-xs text-muted-foreground tabular-nums", V8_CAPTION)}>{l.meetsPlayed} of {l.meets} meet{l.meets === 1 ? "" : "s"} played{l.teams ? ` · ${l.teams} teams` : ""}</span>

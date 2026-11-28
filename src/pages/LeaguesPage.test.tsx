@@ -44,6 +44,16 @@ const { default: LeaguePage } = await import("./LeaguePage");
 afterEach(() => { cleanup(); myTeam = null; conferences = []; });
 
 describe("the leagues list", () => {
+  it("puts leagues with no place last, even when FIRST lists them first, in a column a phone can't overflow", () => {
+    const listed = LIST.leagues;
+    LIST.leagues = [{ season: 2026, region: "USCA", code: "OLD1", name: "San Diego League 1 - OLD", place: null, placeName: null, meetsPlayed: 0, meets: 0, teams: 0, top: null }, ...listed];
+    try {
+      render(<MemoryRouter initialEntries={["/leagues"]}><LeaguesPage /></MemoryRouter>);
+      expect([...document.querySelectorAll("[data-leagues] > section")].map((x) => x.getAttribute("aria-label"))).toEqual(["New Jersey", "Texas", "Place not listed"]);
+      // grid-cols-1 is minmax(0, 1fr): a card's one-line (truncated) text can't widen the column past the screen.
+      for (const ul of document.querySelectorAll("[data-leagues] ul")) expect(ul.className).toContain("grid-cols-1");
+    } finally { LIST.leagues = listed; }
+  });
   it("groups leagues by where they play, each to its standings and each place to its rankings", () => {
     render(<MemoryRouter initialEntries={["/leagues"]}><LeaguesPage /></MemoryRouter>);
     const nj = screen.getByRole("region", { name: "New Jersey" });
