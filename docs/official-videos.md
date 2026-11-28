@@ -330,7 +330,10 @@ the list, on every half-hourly check after the watcher (`searchStreams`):
   Meet 2" in Oklahoma, "ROBOT League Meet 2" in Florida, the same day), so its title must fit one event of them all. It
   needs two more: a finished live broadcast (an upload has no broadcast date), and a title saying every distinctive
   word of the event's name, its kind's words ("Scrimmage", "Invitational") left out: "Lakeshore Scrimmage, Day 1"
-  never lands on Vilnius's "November Scrimmage". One that
+  never lands on Vilnius's "November Scrimmage". A name that says no more than where it is ("Idaho State
+  Championship", "IL Chicago Meet 1A": its city, state or country) is said by any stream there, so its title must also
+  be of no other kind and carry the name's number: "2022 Storm Idaho Open Qualifying" and "FTC Chicago Qualifier" go
+  to review. One that
   passes, on a day of this event no video covers, is **added** as that day's recording (`official_watch.decided_by =
   'stream search'`, the channel named "(found by the stream search)"), then timed, clipped and checked by the audit
   like any watcher add. One the rules fit to that day but can't settle (an upload, a title naming part of the name, a
