@@ -6,7 +6,7 @@ export { nothingRead } from "../../server/data/frameRowRules.js";
 
 /** What the runner remembers of each event between runs (by "season/code"): how often it read it with nothing new to
  *  ship, and when it last tried. */
-export interface EventMemory { tries: number; last: string; result: string; waits?: number; timeouts?: number; fails?: number; video?: string }
+export interface EventMemory { tries: number; last: string; result: string; waits?: number; timeouts?: number; fails?: number; video?: string; readFailedAt?: string }
 export type Memory = Record<string, EventMemory>;
 
 /** After a read that gave nothing new, an event waits this long before it's read again; after GIVE_UP such reads it's
@@ -18,6 +18,15 @@ export const GIVE_UP = 3;
  *  count toward GIVE_UP (its rows were good). */
 export const WAIT_MS = 6 * 3600_000;
 export const waitBackoff = (waits: number) => Math.min(RETRY_MS, WAIT_MS * 2 ** Math.max(0, waits - 1));
+/** After a whole read failed (the reader's exit, a busy snapshot, the browser: nothing that says the event is at fault, so
+ *  not a try), an event waits this long before it's sent again. Sent again at once, the same events led every job: 2026
+ *  USCANOEBM1 headed 18 of lexie's jobs from 11-21 to 11-28, and its whole 2024 group (USIABALLT, whose one embed-refused
+ *  video exits the reader 1) went round with it for days. */
+export const READ_FAILED_MS = 3600_000;
+/** Events a read holds when none is of the current season: a few, so the computer (or lane) reading them is back within
+ *  hours for a meet that has just finished. Twelve backlog events made runs and lane jobs of 6 to 12 hours, so a 2026
+ *  event that queued mid-run waited for the next run (median 9 h on the 11-21 weekend, up to 99 h). */
+export const BACKLOG_MAX = 3;
 
 export interface Queued { season: number; code: string; name: string; frames: { state: string; due: number; rank?: number; recheck?: number } }
 /** An event queued only for the second look at its review entries (every match due is one: frameQueue's `recheck`):
@@ -35,12 +44,28 @@ export function pickEvents(queue: Queued[], inPr: Set<string>, memory: Memory, m
     else if (m?.waits && now - Date.parse(m.last) < waitBackoff(m.waits)) skipped.push({ event: key, why: `its rows waited ${m.waits} time${m.waits === 1 ? "" : "s"} (${m.result}): read again after ${new Date(Date.parse(m.last) + waitBackoff(m.waits)).toISOString().slice(0, 16)}Z` });
     else if (m?.timeouts && now - Date.parse(m.last) < WAIT_MS) skipped.push({ event: key, why: `stopped at the reader's per-event limit with nothing new (${m.result}): read again after ${new Date(Date.parse(m.last) + WAIT_MS).toISOString().slice(0, 16)}Z` });
     else if (m?.fails && now - Date.parse(m.last) < WAIT_MS) skipped.push({ event: key, why: `its read failed (${m.result}): read again after ${new Date(Date.parse(m.last) + WAIT_MS).toISOString().slice(0, 16)}Z` });
+    else if (m?.readFailedAt && now - Date.parse(m.readFailedAt) < READ_FAILED_MS) skipped.push({ event: key, why: `a read of it failed (${m.readFailedAt.slice(0, 16)}Z): read again after ${new Date(Date.parse(m.readFailedAt) + READ_FAILED_MS).toISOString().slice(0, 16)}Z` });
     else if (m && m.tries >= GIVE_UP) skipped.push({ event: key, why: `read ${m.tries} times with nothing new (${m.result}): left until its recording or matches change` });
-    else if (m && !m.waits && !m.timeouts && !m.fails && now - Date.parse(m.last) < RETRY_MS) skipped.push({ event: key, why: `read ${m.last.slice(0, 10)} with nothing new (${m.result}): tried again after ${new Date(Date.parse(m.last) + RETRY_MS).toISOString().slice(0, 10)}` });
+    else if (m && m.tries > 0 && !m.waits && !m.timeouts && !m.fails && now - Date.parse(m.last) < RETRY_MS) skipped.push({ event: key, why: `read ${m.last.slice(0, 10)} with nothing new (${m.result}): tried again after ${new Date(Date.parse(m.last) + RETRY_MS).toISOString().slice(0, 10)}` });
     else if (picked.length >= max) skipped.push({ event: key, why: "next run" });
     else picked.push(q);
   }
   return { picked, skipped };
+}
+
+/** One read's events from `picked` (pickEvents, in the queue's order): the current season's alone when any is picked,
+ *  else the first BACKLOG_MAX. Each run and each lane job is one of these, so a 2026 meet is never read behind hours of
+ *  older seasons, and a run or job of older seasons ends soon enough for the next to take a newly finished meet first. */
+export function readBatch<Q extends { season: number }>(picked: Q[], current: number, backlogMax = BACKLOG_MAX): Q[] {
+  const fresh = picked.filter((q) => q.season === current);
+  return fresh.length ? fresh : picked.slice(0, Math.max(1, backlogMax));
+}
+
+/** An event's memory after a whole read failed: what it held before (its tries, waits) kept, and when, so it's sent
+ *  again after READ_FAILED_MS, never counted as a try. */
+export function rememberReadFailed(memory: Memory, key: string, now = Date.now()): void {
+  const at = new Date(now).toISOString();
+  memory[key] = { ...(memory[key] ?? { tries: 0, last: at, result: "the read failed" }), readFailedAt: at };
 }
 
 /** Several computers each run the autopilot on their own shard of the queue (--shard K/N), so no two read the same

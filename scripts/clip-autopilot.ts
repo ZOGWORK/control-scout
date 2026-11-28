@@ -42,7 +42,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { forgetSettled, recheckOnly, laneJobMs, laneClock, laneProbe, LANE_BEAT_MS, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberFailure, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup } from "./lib/autopilotRun";
+import { forgetSettled, recheckOnly, laneJobMs, laneClock, laneProbe, LANE_BEAT_MS, laneResults, readCallMs, laneStep, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, readBatch, readOutcome, remember, rememberFailure, rememberReadFailed, rememberTimeout, rememberWait, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup } from "./lib/autopilotRun";
 import { clipCheckProblems } from "./lib/autopilotClips";
 import { streamRun } from "./lib/streamRun";
 import { eventLimitMs, readFailed as readFailedExit } from "./lib/videoFrames";
@@ -307,7 +307,12 @@ for (const [k, n] of elsewhere) if (!inPr.has(k)) { inPr.add(k); log(`  held: ${
 // And events left by hand to a session reading them with no PR open yet (skip.txt: parseSkip).
 const skipFile = join(DIR, "skip.txt");
 for (const k of existsSync(skipFile) ? parseSkip(readFileSync(skipFile, "utf8")) : []) if (!inPr.has(k)) { inPr.add(k); log(`  held: ${k} is in ${skipFile}, left to another session`); }
-const { picked, skipped } = pickEvents(mine, inPr, memory, MAX);
+// One batch of them (readBatch): the current season's alone when any is due, else a few of the backlog, so this run ends
+// in time for the next to read a meet that finishes meanwhile.
+const { CURRENT_SEASON } = await import("../server/data/seasons.js");
+const { picked: due, skipped } = pickEvents(mine, inPr, memory, MAX);
+const picked = readBatch(due, CURRENT_SEASON);
+for (const q of due) if (!picked.includes(q)) skipped.push({ event: `${q.season}/${q.code}`, why: "next run" });
 log(`queue: ${queue.filter((q) => q.frames.state === "queued").length} events queued${SHARD.n > 1 ? `, ${mine.filter((q) => q.frames.state === "queued").length} in shard ${SHARD.k}/${SHARD.n}` : ""}; reading ${picked.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ") || "none"}`);
 for (const s of skipped.filter((x) => x.why !== "next run")) log(`  skipped ${s.event}: ${s.why}`);
 
@@ -458,7 +463,7 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
     // Only a video of this event the player showed nothing of is remembered against it: a whole read that failed (the
     // browser, the snapshot) says nothing about the event, so it's read again next run as before.
     else if (outcome === "read failed" && count(blind, code) > 0) log(`  ${key}: the read failed; ${rememberFailure(memory, key) === "counted" ? "the second run in a row: counted as a try (read again after 3 days, left after 3 tries)" : "read again after 6 h, not counted as a try"}`);
-    else if (outcome === "read failed") log(`  ${key}: the read failed; not counted as a try`);
+    else if (outcome === "read failed") { rememberReadFailed(memory, key); log(`  ${key}: the read failed; read again after an hour, not counted as a try`); }
     // Rows that went live clear what's remembered; rows held for the owner count a try (read again after 3 days), so an
     // event waiting on the owner isn't read again every run.
     else remember(memory, key, outcome === "shipped" ? 1 : 0, outcome === "shipped" ? "live" : count(send, code) ? "rows wait for the owner's approval" : changed ? "rows unchanged" : "no new rows");
@@ -531,7 +536,7 @@ for (const lane of DRY ? [] : LANES as Exclude<typeof LANES, string>) {
       }
     }
     // Idle: its next job, from its own shard (what this computer remembers of each event, and the held set, as its own).
-    const { picked: next } = pickEvents(inShard(lane.k), inPr, memory, MAX);
+    const next = readBatch(pickEvents(inShard(lane.k), inPr, memory, MAX).picked, CURRENT_SEASON);
     if (!next.length) { log(`${name}: nothing in its shard to read`); continue; }
     const job2: LaneJob = { id: round ? `${STAMP}-${round}` : STAMP, seasons: [...new Set(next.map((q) => q.season))].map((season) => {
       const mine = next.filter((q) => q.season === season), recheck = mine.filter(recheckOnly).map((q) => q.code);
@@ -571,7 +576,7 @@ const laneTimer = LANES.length && !DRY ? setInterval(() => void service(), LANE_
 const waiting = [...bySeason], readingNow = new Set<number>(), taken = new Set(picked.map((q) => `${q.season}/${q.code}`));
 const refill = () => {
   if (!REFILL_MS || DRY || Date.now() - RUN_START > REFILL_MS) return [];
-  return pickEvents(mine.filter((q) => !taken.has(`${q.season}/${q.code}`)), inPr, memory, MAX).picked;
+  return readBatch(pickEvents(mine.filter((q) => !taken.has(`${q.season}/${q.code}`)), inPr, memory, MAX).picked, CURRENT_SEASON);
 };
 try {
   await Promise.all(Array.from({ length: REFILL_MS ? SEASONS_AT_ONCE : Math.max(1, Math.min(SEASONS_AT_ONCE, bySeason.size)) }, async () => {
