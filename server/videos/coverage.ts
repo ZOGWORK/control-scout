@@ -19,6 +19,8 @@ export interface CoverageInput {
   key: string; label: string; time: string | null; startsAt: string | null; played: boolean;
   video?: string | null; clip?: unknown;
   teams?: number[];
+  /** The event's one listed day (FIRST's start and end the same), for a schedule-only time dated another day (matchDay). */
+  listedDay?: string | null;
 }
 
 /** A broadcast's date at the venue (YYYY-MM-DD), or null. */
@@ -29,6 +31,16 @@ function venueDate(iso: string | null | undefined, timezone: string | null | und
 }
 /** A match's date at the venue: FIRST's time is the venue's own. */
 const matchDate = (m: CoverageInput) => (m.time && /^\d{4}-\d\d-\d\d/.test(m.time) ? m.time.slice(0, 10) : null);
+/** The day a match is counted on: its time's, except a schedule-only time (no real start from FIRST) of a one-day event
+ *  dated off that day, when none of the event's videos is dated on it. Then the schedule's date is wrong and the
+ *  event's own day stands: 2019VAQ4 (Charlottesville, listed 2020-01-04) has all 39 matches scheduled on 2020-01-18,
+ *  while its one video, uploaded 2020-01-11, holds them ("Qualification 4 of 8" on its frames). Counted on the 18th,
+ *  they sat on a day with no video, so no read ever looked for them. A real start keeps its own day (FIRST's dates can
+ *  leave a day out: KZCMP 2022), and so does a schedule date a video is dated on. `videoDays`: the event's videos' days. */
+export function matchDay(m: CoverageInput, videoDays: ReadonlySet<string>): string | null {
+  const raw = matchDate(m);
+  return m.listedDay && raw && raw !== m.listedDay && !actualStart(m.time) && !videoDays.has(raw) ? m.listedDay : raw;
+}
 /** A date's weekday ("Saturday"). */
 const weekday = (date: string) => new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(Date.parse(`${date}T12:00:00Z`));
 const mins = (s: number) => Math.round(s / 60);
@@ -210,8 +222,7 @@ function judge(v: RecordingVideo, r: Recording, whole: EventSpan, timezone: stri
 }
 
 /** Why a played match judged against its videos gets no clip. */
-function reasonFor(m: CoverageInput, videos: Judged[], now: number, timezone?: string | null): { reason: CoverageReason; why: string; videoId: string | null; between?: [string, string] } {
-  const date = matchDate(m);
+function reasonFor(m: CoverageInput, videos: Judged[], now: number, timezone: string | null | undefined, date: string | null): { reason: CoverageReason; why: string; videoId: string | null; between?: [string, string] } {
   // Counted in its day's video (by the schedule's date), so that day never reads as fully clipped without it.
   // A real start the event's time zone can't place (none known): no clock to judge it by.
   const noZone = actualStart(m.time) && !Number.isFinite(m.startsAt ? Date.parse(m.startsAt) : NaN);
@@ -292,17 +303,19 @@ export function clipCoverage(matches: CoverageInput[], rec: Recording | null, fu
   const out: CoverageMatch[] = [];
   const counts = new Map<string, { matches: number; clipped: number }>();
   const order = played.map((m) => m.label);
+  const videoDays = new Set(judged.map((j) => j.date).filter((d): d is string => !!d));
   for (const m of played) {
+    const day = matchDay(m, videoDays);
     const p = placed.get(m.key)!;
     const clip = p.clip as { videoId: string; early?: number } | undefined;
-    const base = { key: m.key, label: m.label, date: matchDate(m), ...(m.teams ? { teams: m.teams } : {}) };
+    const base = { key: m.key, label: m.label, date: day, ...(m.teams ? { teams: m.teams } : {}) };
     if (m.video || clip) {
       const vid = clip?.videoId ?? null;
       if (vid) { const c = counts.get(vid) ?? { matches: 0, clipped: 0 }; c.matches++; c.clipped++; counts.set(vid, c); }
       out.push({ ...base, clip: true, videoId: vid, basis: m.video && !clip ? "FIRST's match video" : judged.find((j) => j.v.videoId === vid)?.basis ?? "clock" });
       continue;
     }
-    let why: ReturnType<typeof reasonFor> = judged.length ? reasonFor(m, judged, now, timezone) : { reason: "no-first-video" as const, why: WHY["no-first-video"], videoId: null };
+    let why: ReturnType<typeof reasonFor> = judged.length ? reasonFor(m, judged, now, timezone, day) : { reason: "no-first-video" as const, why: WHY["no-first-video"], videoId: null };
     // Its video plays on youtube.com only (embedding off) and no frame read of it exists: what a frame read would settle
     // never can be, as neither the frame reader nor the app's player can show it. A video read anyway keeps its check.
     // The same where the reader found the embedded player refusing it for good (embedRefused: a content owner's block,
@@ -388,8 +401,8 @@ export async function eventMatchRows(season: number, codes: string[]): Promise<M
   for (let i = 0; i < codes.length; i += MATCH_ROWS_PART) {
     const part = codes.slice(i, i + MATCH_ROWS_PART), q = part.map(() => "?").join(",");
     // One after the other: started together, both reads wait for the same turn of the loop and then run in it.
-    const rows = await all<{ code: string; level: string; series: number; number: number; label: string; time: string | null; played: number; video: string | null; timezone: string | null }>(
-        `SELECT m.code, m.level, m.series, m.number, m.label, m.time, m.played, m.video, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
+    const rows = await all<{ code: string; level: string; series: number; number: number; label: string; time: string | null; played: number; video: string | null; timezone: string | null; start: string | null; end: string | null }>(
+        `SELECT m.code, m.level, m.series, m.number, m.label, m.time, m.played, m.video, e.timezone, e.start, e."end" FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
          WHERE m.season = ? AND m.code IN (${q}) ORDER BY m.code, m.time, m.level DESC, m.series, m.number`, [season, ...part]);
     const teams = await all<{ code: string; level: string; series: number; number: number; team: number }>(
       `SELECT code, level, series, number, team FROM match_teams WHERE season = ? AND code IN (${q}) ORDER BY alliance DESC, station`, [season, ...part]);
@@ -401,6 +414,8 @@ export async function eventMatchRows(season: number, codes: string[]): Promise<M
       (out.get(code) ?? out.set(code, []).get(code)!).push({
         key, label: String(r.label), time: r.time, startsAt: ms == null ? null : new Date(ms).toISOString(), played: !!r.played,
         video: r.video || null, teams: byMatch.get(`${code}|${key}`) ?? [],
+        // A one-day event's day, for a schedule-only time dated off it (matchDay).
+        ...(r.start && String(r.start).slice(0, 10) === String(r.end ?? r.start).slice(0, 10) ? { listedDay: String(r.start).slice(0, 10) } : {}),
       });
     }
   }
