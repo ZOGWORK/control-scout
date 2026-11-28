@@ -10,18 +10,22 @@
 // current season's events go first, then any event with an official video added in the last week, then the rest; the
 // most missing first within each (rankQueue). An event read after it ended whose rows hold a review entry not yet given
 // the autopilot's second look (secondLookDue: frames a few seconds after it, scripts/lib/reviewRecheck.ts) is due for
-// that look alone (`recheck`), once: the look marks what it couldn't settle (`again`). A match no frame read can help (no video, a private one, no real start time from FIRST) never
-// queues: its reason stands as it is.
+// that look alone (`recheck`), once: the look marks what it couldn't settle (`again`). A match no frame read can help (no video, a private one) never
+// queues: its reason stands as it is. A match with no real start time from FIRST (all of 2019's) does: the reader walks
+// its video for the bar naming it (scripts/video-frames.ts, WALK_STEP_S), as it walks every upload.
 import { all, busyTurn } from "../db.js";
 import { WHY, videoCheck } from "./coverage.js";
 import { frameRow } from "../data/frameTimings.js";
-import { SAME_S, nothingRead, secondLookDue } from "../data/frameRowRules.js";
+import { NOTHING_READ, SAME_S, nothingRead, secondLookDue } from "../data/frameRowRules.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import type { CoverageFrames, CoverageMatch, CoverageReason, FrameQueueSummary } from "../../src/shared/api.js";
 
-/** Reasons a frame read can't change: no video to read, one YouTube won't play, or no start time to place a match by. */
-export const UNREADABLE: ReadonlySet<CoverageReason> = new Set<CoverageReason>(["no-start", "no-zone", "no-recording-day", "video-unavailable", "video-no-embed", "video-no-overlay", "video-stutters", "no-first-video"]);
+/** Reasons a frame read can't change: no video to read, or one YouTube won't play. Not "no-start" (FIRST gave no real
+ *  start time): the bar names the match whatever FIRST's clock says, and the reader finds it by walking the video, so
+ *  such a match in a video not read yet is due like any other. 2019 has no real start times at all: as "no-start" was
+ *  here, 21 of its 26 events with a missing clip never queued, and its videos were read only by hand. */
+export const UNREADABLE: ReadonlySet<CoverageReason> = new Set<CoverageReason>(["no-zone", "no-recording-day", "video-unavailable", "video-no-embed", "video-no-overlay", "video-stutters", "no-first-video"]);
 /** The video's YouTube facts aren't in yet: the reader waits for them (it reads no video without its facts). */
 const FACTS_PENDING: CoverageReason = "video-unread";
 
@@ -33,6 +37,14 @@ const FACTS_PENDING: CoverageReason = "video-unread";
  *  autopilot's tries keep one that finds nothing new from being read for ever (pickEvents). Bump a season's day when
  *  a reader change places matches its older reads missed; a season not listed is never read again for this. */
 export const READER_SINCE: Readonly<Record<number, string>> = {
+  // A second stretch of agreeing reads kept (#2417), FIRST IN SHOW's timer (#2414), and two fields side by side read on
+  // both halves (#2408): every season's reads before them. 2019–2023's rows were mostly read 11-17/18 by hand, with
+  // readers since outgrown (2019 19MOMT16: 3 matches its walk never read).
+  2019: "2026-11-27",
+  2020: "2026-11-27",
+  2021: "2026-11-27",
+  2022: "2026-11-27",
+  2023: "2026-11-27",
   // Two fields side by side read on both halves (#2408); the 11-18 cleanup's "event name not on a match line" rows.
   2024: "2026-11-27",
   2025: "2026-11-27",
@@ -72,10 +84,14 @@ const lacksEdges = (m: CoverageMatch, code: string) => {
 };
 
 /** Whether a match's video row is a failed read that went live before the server refused such rows (nothingRead: its
- *  edges show matches, yet it placed none): no read of the video at all, so its matches are still to read. */
+ *  edges show matches, yet it placed none): no read of the video at all, so its matches are still to read. Or the row's
+ *  latest read played no frame of the video for this match (NOTHING_READ), though the row carries starts: live ones a
+ *  re-read keeps whatever it reads (2022 USTXSOBEOS: 8 live starts, its other 33 matches "no frame of the video could
+ *  be read"). That read didn't look at the match, so it's still to read; the autopilot's tries keep a video that never
+ *  plays from being read for ever (pickEvents). */
 const failedRead = (m: CoverageMatch, code: string) => {
   const row = m.videoId ? frameRow(m.videoId, code) : null;
-  return !!row && nothingRead(row);
+  return !!row && (nothingRead(row) || row.missing?.[m.label] === NOTHING_READ);
 };
 
 /** Whether a match's video row holds its review entry due the second look (secondLookDue), not rejected by the owner. */
@@ -130,7 +146,7 @@ export function frameStatus(e: QueueEvent, now = Date.now(), rejected?: Rejected
   }
   // A video whose facts aren't in yet is still to read, whatever the event's other videos showed.
   if (n("facts")) return { state: "waiting", matches: n("facts"), due: 0, why: `Waits for YouTube's facts for its video: ${plural(n("facts"), "match")}${n("read") ? ` (${n("read")} more read, no clip)` : ""}` };
-  // The read's date: the matches it read, never one it can't place (a no-start match's video, read another day).
+  // The read's date: the matches it read, never one it can't place (a private video's, read another day).
   const at = states.filter((x) => x.s === "read").map((x) => x.checked).filter((d): d is string => !!d).sort().at(-1) ?? null;
   const still = n("read");
   return { state: "read", matches: 0, due: 0, at, why: `Read ${at}: ${plural(still, "match")} still without a clip, as the video shows (see each match)` };
