@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { GIVE_UP, RETRY_MS, recheckOnly, TIMEOUTS_TO_TRY, FAILS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberFailure, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, parseSeasons, pool, serial, parseRefillHours, nextSeasonGroup, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
+import { EMBED_REFUSED } from "../../server/data/frameRowRules";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
 const q = (code: string, rank: number, state = "queued"): Queued => ({ season: 2025, code, name: code, frames: { state, due: 10, rank } });
@@ -358,6 +359,10 @@ describe("nothingRead", () => {
   });
   it("makes its event a failed read: not shipped, not counted as tried", () => {
     expect(readOutcome({ rows: 0, opened: 0, waiting: 0, tooBig: 0, readFailed: true, changed: 1 })).toBe("read failed");
+  });
+  it("isn't a video YouTube's embedded player refuses for good: that row settles it (USIABALLT 2024, FEoSIhRlU3g)", () => {
+    const R = `${EMBED_REFUSED}: a content owner blocks it on other websites (it plays only on youtube.com)`;
+    expect(nothingRead({ starts: {}, missing: { Q1: R, Q2: R, Q44: R } })).toBe(false);
   });
 });
 

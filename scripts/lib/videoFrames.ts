@@ -1,8 +1,8 @@
 // The pure parts of scripts/video-frames.ts: reading FTC Live's overlay text, the timer's elapsed time, and placing a
 // video's matches from the frames read. Kept apart so they can be tested without a browser.
 // The constants the server's row rules share (server/data/frameRowRules.ts): one definition, re-exported here.
-import { NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText } from "../../server/data/frameRowRules.js";
-export { NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText };
+import { EMBED_REFUSED, NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText } from "../../server/data/frameRowRules.js";
+export { EMBED_REFUSED, NOTHING_READ, OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, leadText };
 
 /** A played match: its label and its real start (epoch seconds, from FIRST's actual start time). */
 /** A match the video holds: its label and its start (epoch seconds). `scheduled`: FIRST gives only its scheduled time
@@ -503,6 +503,31 @@ export function frameDivision(read: { label: string | null; division?: "own" | "
   if (read.division === "other" || team === "other") return "other";
   if (read.division === "own" || team === "own") return "own";
   return null;
+}
+
+/**
+ * Why YouTube's embedded player refuses a video for good, from the text it shows in its place (`text`: the page's
+ * visible text once the player gives an error code), or null: no such refusal. Only a refusal no later read gets past:
+ * a content owner blocking it on other sites (USIABALLT 2024's FEoSIhRlU3g: "who has blocked it from display on this
+ * website or application"), embedding turned off, or an age restriction (the embed plays it to no one signed out).
+ * Never a check that passes by itself ("confirm you're not a bot"), a network error, or "This video is unavailable"
+ * (removed, private, or a bad link: YouTube's facts say which, and undetailed() settles those).
+ */
+export function embedRefusal(text: string): string | null {
+  if (/blocked it from display on this website/i.test(text)) return "a content owner blocks it on other websites (it plays only on youtube.com)";
+  // A copyright claim that blocks it outright (USILCSSLT 2024's lJunlYy5uls: "It was blocked due to the claimed
+  // content by SME", the watch page UNPLAYABLE too, while the Data API still calls it public).
+  const claim = /blocked due to the claimed content by ([^.\n]+)/i.exec(text);
+  if (claim) return `a copyright claim by ${claim[1].trim()} blocks it (on youtube.com too)`;
+  if (/playback on other websites has been disabled/i.test(text)) return "its owner turned off playing it on other websites (it plays only on youtube.com)";
+  if (/age[- ]restricted|confirm your age/i.test(text)) return "it's age-restricted (it plays only on youtube.com, signed in)";
+  return null;
+}
+
+/** YouTube's embedded player refusing a video for good (embedRefusal): its matches are written missing with
+ *  EMBED_REFUSED and the reason, a settled read, not a failed one. */
+export class EmbedRefused extends Error {
+  constructor(readonly why: string) { super(`${EMBED_REFUSED}: ${why}`); }
 }
 
 /** A frame read that ran past its time limit (READ_LIMIT_S): the OCR workers are replaced when one is thrown. */

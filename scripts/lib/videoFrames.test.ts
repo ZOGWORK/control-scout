@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, halfGap, type Judged, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, leftHalf, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, halfGap, type Judged, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, embedRefusal, EmbedRefused, EMBED_REFUSED, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, gapOf, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
@@ -1203,5 +1203,28 @@ describe("gapOf (--gaps)", () => {
     const g = gapOf(row, { Q1: 100 });
     expect(g.opens).toEqual({ Q1: 95 });
     expect([...g.medium]).toEqual([]);
+  });
+});
+
+describe("embedRefusal", () => {
+  it("names a refusal no later read gets past", () => {
+    // USIABALLT 2024's FEoSIhRlU3g, as the embed shows it (2026-11-27): every read waited 30 s and failed.
+    expect(embedRefusal(["Video unavailable", "This video contains content from Natalia Media, Inc., who has blocked it from display on this website or application", "Watch on YouTube"].join("\n"))).toMatch(/content owner blocks it/);
+    expect(embedRefusal(["Video unavailable", "Playback on other websites has been disabled by the video owner.", "Watch on YouTube"].join("\n"))).toMatch(/turned off playing it/);
+    expect(embedRefusal(["Sign in to confirm your age", "This video may be inappropriate for some users."].join("\n"))).toMatch(/age-restricted/);
+    expect(embedRefusal("This video is age-restricted and only available on YouTube.")).toMatch(/age-restricted/);
+    // USILCSSLT 2024's lJunlYy5uls (2026-11-27): public in the Data API, blocked by a claim everywhere it was tried.
+    expect(embedRefusal(["Video unavailable", "It was blocked due to the claimed content by SME."].join("\n"))).toBe("a copyright claim by SME blocks it (on youtube.com too)");
+  });
+  it("is null for anything a later read may get past, or YouTube's facts settle", () => {
+    expect(embedRefusal("Sign in to confirm you're not a bot")).toBeNull();
+    expect(embedRefusal("This video is unavailable")).toBeNull();
+    expect(embedRefusal("An error occurred. Please try again later.")).toBeNull();
+    expect(embedRefusal("")).toBeNull();
+  });
+  it("says its reason after EMBED_REFUSED, never the reason a failed read gives", () => {
+    const e = new EmbedRefused("it's age-restricted (it plays only on youtube.com, signed in)");
+    expect(e.message.startsWith(EMBED_REFUSED)).toBe(true);
+    expect(e.message.startsWith("the video couldn't be played")).toBe(false);
   });
 });
