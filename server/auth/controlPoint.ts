@@ -11,6 +11,7 @@ import { formerWorkspaces, markOrphaned, mirroredStates, restoreWorkspace } from
 import { recordAudit } from "../portal/audit.js";
 import { env } from "../env.js";
 import { syncAvatarFrom } from "./avatars.js";
+import { DEMO_SCOUTS, DEMO_WORKSPACE_NAME, demoControlPointInfo, demoMembers, demoWorkspaces, isDemoAccount, isDemoWorkspace } from "../demo/demo.js";
 import type { OrphanReason, OrphanState } from "../../src/shared/orphaned.js";
 import type { User } from "./session.js";
 import type { BrunoOutput, FactPacket } from "../powerRankings/factCheck.js";
@@ -189,6 +190,7 @@ export async function redeemHandoff(code: string, state: string): Promise<Shared
 }
 
 export async function getAccount(id: number): Promise<SharedAccount | null> {
+  if (isDemoAccount(id)) return null; // the demo's sample accounts (server/demo/demo.ts) never reach Control Point
   const asked = Date.now();
   try { const a = (await internal<{ account: SharedAccount }>(`/internal/accounts/${id}`)).account; return a && typeof a === "object" ? stamped(a, asked) : a; }
   catch (e) { if ((e as { status?: number }).status === 404) return null; throw e; }
@@ -217,6 +219,7 @@ export const CP_AVATAR_MAX = 2 * 1024 * 1024;
 
 /** Control Point's GET /internal/accounts/:id/avatar: the picture's bytes, or null when the account has none. */
 export async function fetchAccountAvatar(accountId: number, timeoutMs = 5000): Promise<{ id: string; mime: string; data: Uint8Array } | null> {
+  if (isDemoAccount(accountId)) return null;
   const res = await fetch(`${env.controlPointInternalUrl!.replace(/\/$/, "")}/internal/accounts/${accountId}/avatar`, {
     headers: { "X-Internal-Key": env.controlPointInternalKey! },
     signal: AbortSignal.timeout(timeoutMs),
@@ -415,6 +418,8 @@ export const clearInfoCache = () => { infoCache.clear(); lastForced.clear(); dro
  * account still reads as a former member are added (withOrphans).
  */
 export async function controlPointInfo(accountId: number): Promise<ControlPointInfo | null> {
+  // The demo account's side is Scout's own (server/demo/demo.ts): its sample workspace, never asked of Control Point.
+  if (isDemoAccount(accountId)) return demoControlPointInfo((env.controlPointPublicUrl ?? "").replace(/\/$/, ""));
   try {
     const hit = infoCache.get(accountId);
     if (hit && Date.now() - hit.at < ME_TTL) return withOrphans(toInfo(accountId, hit.info));
@@ -734,6 +739,7 @@ const FORCED_GAP = 5_000;
  * can never keep a removed member in.
  */
 export async function refreshAccount(accountId: number): Promise<Workspace[] | null> {
+  if (isDemoAccount(accountId)) return demoWorkspaces();
   const inflight = refreshing.get(accountId);
   if (inflight) return inflight;
   const last = lastForced.get(accountId);
@@ -770,6 +776,11 @@ export interface Membership { accountId: number; workspaceId: string; workspaceN
  * isn't configured).
  */
 export async function workspaceMembership(accountId: number, workspaceId: string): Promise<Membership | null> {
+  // The demo workspace has only the demo's sample accounts, and they're in no other.
+  if (isDemoAccount(accountId) || isDemoWorkspace(workspaceId)) {
+    const s = isDemoWorkspace(workspaceId) ? DEMO_SCOUTS.find((x) => x.accountId === accountId) : undefined;
+    return s ? { accountId, workspaceId, workspaceName: DEMO_WORKSPACE_NAME, role: s.role } : null;
+  }
   if (!controlPointEnabled() || !isWorkspaceId(workspaceId)) return null;
   const row = await get<{ workspace_name: string; role: string; updated_at: number }>(
     "SELECT workspace_name, role, updated_at FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?", [accountId, workspaceId]);
@@ -807,6 +818,7 @@ const missingRoute = (e: unknown) => (e as { status?: number }).status === 404 &
  * Control Point can't be reached or answers oddly.
  */
 export async function listWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[] | "unsupported" | null> {
+  if (isDemoWorkspace(workspaceId)) return demoMembers();
   try {
     const r = await internal<{ members?: unknown }>(`/internal/workspaces/${encodeURIComponent(workspaceId)}/members`);
     if (!Array.isArray(r?.members)) throw new Error("Control Point sent an unexpected account");

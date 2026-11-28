@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "KitPage" | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "StatusPage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "ConferencePage" | "RegionsPage" | "RegionRankingsPage" | "LeaguesPage" | "TeamHighlightsPage" | "TeamRecordSplitPage" | "EventHighlightsPage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "WeekendPage" | "VideosPage" | "WatchPage" | "CyclesPage" | "PreviewHomePage" | "NotFound";
+  | "KitPage" | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "DemoPage" | "StatusPage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "ConferencePage" | "RegionsPage" | "RegionRankingsPage" | "LeaguesPage" | "TeamHighlightsPage" | "TeamRecordSplitPage" | "EventHighlightsPage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "WeekendPage" | "VideosPage" | "WatchPage" | "CyclesPage" | "PreviewHomePage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -51,6 +51,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/terms\/?$/i, "TermsPage"],
   [/^\/contact\/?$/i, "ContactPage"],
   [/^\/donate\/?$/i, "DonatePage"],
+  [/^\/demo\/?$/i, "DemoPage"],
   [/^\/support\/?$/i, null], // a redirect to /donate
   [/^\/status\/?$/i, "StatusPage"],
   [/^\/supporters\/?$/i, "SupportersPage"],

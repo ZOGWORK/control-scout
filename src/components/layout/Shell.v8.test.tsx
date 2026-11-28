@@ -131,6 +131,8 @@ describe("v8 shell", () => {
     const { container } = shell();
     expect(container.querySelector("[data-dot-wave]")).toBeNull();
     act(() => resetFlags({ ...DEFAULT_FLAGS }, true));
+    expect(container.querySelector("[data-dot-wave]")).toBeNull(); // off by default, as on the live site
+    act(() => resetFlags({ ...DEFAULT_FLAGS, particleWave: true }, true));
     expect(container.querySelector("[data-dot-wave]")).toBeTruthy();
     act(() => resetFlags({ ...DEFAULT_FLAGS, particleWave: false }, true));
     expect(container.querySelector("[data-dot-wave]")).toBeNull();
@@ -186,7 +188,7 @@ describe("v8 shell", () => {
   });
 
   it("uses the three-stream particle background throughout the v8 app", () => {
-    act(() => resetFlags({ ...DEFAULT_FLAGS }, true));
+    act(() => resetFlags({ ...DEFAULT_FLAGS, particleWave: true }, true));
     for (const path of ["/", "/events", "/events/2026/USNJQ1", "/teams", "/teams/4215", "/rankings", "/predict", "/my-team", "/scout", "/compare", "/shortlist", "/rules", "/download", "/settings"]) {
       const { container } = shell(path);
       expect(container.querySelector("canvas[data-dot-wave]")?.getAttribute("data-dot-streams"), path).toBe("3");

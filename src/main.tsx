@@ -87,6 +87,7 @@ const PAGES = {
   TermsPage: lazyPage(() => import("./pages/TermsPage")),
   ContactPage: lazyPage(() => import("./pages/ContactPage")),
   DonatePage: lazyPage(() => import("./pages/DonatePage")),
+  DemoPage: lazyPage(() => import("./pages/DemoPage")),
   StatusPage: lazyPage(() => import("./pages/StatusPage")),
   SupportersPage: lazyPage(() => import("./pages/SupportersPage")),
   ContributorPage: lazyPage(() => import("./pages/ContributorPage")),
@@ -113,7 +114,7 @@ const PAGES = {
 } satisfies Record<PageModule, unknown>;
 // Dev only: one piece of the Scout redesign at a time, for screenshots (the import is dropped from production builds).
 const ScoutPreviewPage = import.meta.env.DEV ? lazy(() => import("./pages/ScoutPreviewPage")) : () => null;
-const { TeamPage, EventsPage, WeekendPage, VideosPage, WatchPage, CyclesPage, PreviewHomePage, KitPage, RecordsPage, RankingsPage, RegionsPage, RegionRankingsPage, LeaguesPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, StatusPage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, EventCodeRedirect, DigestUnsubscribedPage, BundlePage, SearchPage, RelatedSearchesPage, LeaguePage, ConferencePage, TeamHighlightsPage, TeamRecordSplitPage, EventHighlightsPage, ContributorPage, GetVerifiedPage, VerifyVideoPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, WeekendPage, VideosPage, WatchPage, CyclesPage, PreviewHomePage, KitPage, RecordsPage, RankingsPage, RegionsPage, RegionRankingsPage, LeaguesPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, DemoPage, StatusPage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, EventCodeRedirect, DigestUnsubscribedPage, BundlePage, SearchPage, RelatedSearchesPage, LeaguePage, ConferencePage, TeamHighlightsPage, TeamRecordSplitPage, EventHighlightsPage, ContributorPage, GetVerifiedPage, VerifyVideoPage, NotFound } = PAGES;
 
 const BundlePicklistPage = named(() => import("./pages/BundlePage"), "BundlePicklistPage");
 
@@ -235,6 +236,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/terms" element={<TermsPage />} />
                   <Route path="/contact" element={<ContactPage />} />
                   <Route path="/donate" element={<DonatePage />} />
+                  <Route path="/demo" element={<DemoPage />} />
                   <Route path="/status" element={<StatusPage />} />
                   <Route path="/support" element={<Navigate to="/donate" replace />} />
                   <Route path="/network" element={<Navigate to={{ pathname: "/settings", hash: "#network" }} replace />} />

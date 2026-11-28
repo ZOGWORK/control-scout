@@ -176,6 +176,7 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/faq": { title: "FAQ: your questions answered", description: "Answers about Control Scout: where the FTC data comes from, how predictions and confidence work, scouting with your team, offline use at venues, accounts and privacy." },
   "/rules": { title: "BIOBUZZ rules quick reference", description: "Searchable summaries of the most-cited FTC BIOBUZZ game rules and Q&A rulings, stamped with the manual revision they follow. Works offline at the venue." },
   "/contact": { title: "Contact", description: "Contact the Control Scout team: report a bug, ask for a data correction, suggest a feature or ask a question about your data or the site." },
+  "/demo": { title: "Demo account", description: "Look around a Control Scout account set up the way a team would use it: a followed team, a shortlist, saved predictions, a scouting workspace with five scouts, a pick list, assignments and videos. Read-only, with real FTC data." },
   "/donate": { title: "Support Control Scout", description: "Control Scout is free and stays free. Donations through GitHub Sponsors help pay for the domain, hosting and email. Not tax-deductible, and they unlock nothing." },
   "/preview/home": { title: "Sample home", description: "A sample of the new Control Scout home page, for review.", noindex: true },
   "/preview/kit": { title: "Kit", description: "Every part of the new Control Scout look, for review.", noindex: true },
