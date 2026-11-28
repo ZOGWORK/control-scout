@@ -209,7 +209,8 @@ describe("feature flags", () => {
       // Bruno AI in the Discord bot: its own switch, on by default.
       discordBruno: true,
       statusPage: true,
-      particleWave: true,
+      // The particle wave starts off, as on the live site: the owner turns it on.
+      particleWave: false,
       // The glow at the page's end: its own switch, on by default.
       pageEndGlow: true,
       // Team logos start off: the owner turns them on.

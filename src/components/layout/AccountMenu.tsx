@@ -332,6 +332,7 @@ function SignInPanel({ flow, setFlow }: { flow: EmailFlow; setFlow: Dispatch<Set
           <p className="text-[11px] text-muted-foreground">New here? Any of these creates your account. Already use Control Point? Sign in the same way: it's the same account, and your teams and shortlist come with it.</p>
         </>
       )}
+      {!vouching && <p className="text-[11px] text-muted-foreground">Want to see it first? <Link to="/demo" className="font-medium text-accent-text hover:underline" data-demo-link>Look around the demo account</Link>.</p>}
     </div>
   );
 }

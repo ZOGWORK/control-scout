@@ -3,6 +3,7 @@
 // CSRF: the session cookie is SameSite=Lax and every state-changing request
 // must be JSON (a cross-site form can't send application/json without a
 // preflight we never allow).
+import { demoAccount, demoSummary, isDemoUser } from "../demo/demo.js";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all, db, get, run, writeBatch } from "../db.js";
 import { env } from "../env.js";
@@ -74,9 +75,10 @@ export function authRouter(): Router {
     // Sign-in buttons Control Point runs for us (Google / Discord / GitHub), when it's linked.
     const via = await controlPointVia();
     if (!u) return { user: null, providers: { ...authProviders(), via } };
-    let linked = controlPointEnabled() ? await linkedAccountId(u.id) : null;
+    const demo = await isDemoUser(u);
+    let linked = controlPointEnabled() || demo ? await linkedAccountId(u.id) : null;
     // Signed in before linking worked (or Control Point was briefly down): link now.
-    if (controlPointEnabled() && linked == null) {
+    if (controlPointEnabled() && linked == null && !demo) {
       const proven = await provenEmailFor(u);
       if (proven) linked = (await linkToSharedAccount(u, "scout-email-code", proven))?.id ?? null;
     }
@@ -84,7 +86,7 @@ export function authRouter(): Router {
     const controlPoint = linked != null ? await controlPointInfo(linked) : null;
     // Read after the account answer: it may have just brought a picture set in Control Point.
     const avatarUrl = linked != null ? await avatarUrlFor(u.id) : u.avatarUrl ?? null;
-    return { user: { ...publicUser(u), avatarUrl, ...ownerMark(u), session: sessionMark(req), controlPointLinked: linked != null, controlPoint }, providers: { ...authProviders(), via } };
+    return { user: { ...publicUser(u), avatarUrl, ...ownerMark(u), session: sessionMark(req), controlPointLinked: linked != null, controlPoint, ...(demo ? { demo: true as const } : {}) }, providers: { ...authProviders(), via } };
   }));
 
   r.post("/email/start", ipLimit(20, 15 * 60_000), h(async (req, res) => {
@@ -120,6 +122,14 @@ export function authRouter(): Router {
   }));
 
   r.post("/logout", h(async (req, res) => { await endSession(req, res); return { ok: true }; }));
+  // The demo account (server/demo/demo.ts, docs/demo.md): a read-only session on a shared sample account, re-seeded from the
+  // current data when it's older than a few hours. No email or code: anyone may open it, and nothing it does is kept.
+  r.get("/demo", h(async () => ({ demo: await demoSummary() })));
+  r.post("/demo", ipLimit(20, 15 * 60_000), h(async (req, res) => {
+    const user = await demoAccount();
+    await startSession(res, user, req.get("user-agent"));
+    return { ok: true };
+  }));
 
   // --- Google (dormant until GOOGLE_CLIENT_ID/SECRET are set) ---------------
   const googleRedirect = () => `${env.appUrl.replace(/\/$/, "")}/api/auth/google/callback`;

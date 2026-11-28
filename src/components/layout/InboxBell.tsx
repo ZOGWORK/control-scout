@@ -56,6 +56,9 @@ function refocus(to: () => HTMLElement | null | undefined) {
   });
 }
 
+/** Dispatch on window to open the signed-in inbox's panel (or sheet). */
+export const OPEN_INBOX = "cs-open-inbox";
+
 /** The bell (nothing at all when signed out). */
 export function InboxBell() {
   const { user } = usePersonal();
@@ -74,6 +77,8 @@ function SignedInBell({ userId }: { userId: number }) {
   // Opening shows the latest; navigation, Esc and a click elsewhere close the panel.
   useEffect(() => { if (open) opened(); }, [open, opened]);
   useEffect(() => { setOpen(false); }, [loc.pathname, loc.search]);
+  // Opened from elsewhere (the demo's tour, pages/DemoPage.tsx): OPEN_INBOX on window.
+  useEffect(() => { const on = () => setOpen(true); window.addEventListener(OPEN_INBOX, on); return () => window.removeEventListener(OPEN_INBOX, on); }, []);
   useEffect(() => {
     if (!open || phone) return;
     const away = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };

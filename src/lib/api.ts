@@ -19,6 +19,7 @@
 // a read the saved data can answer is answered from it at once, with no network try and no timeout, and any other
 // read fails at once with "needs a connection" (after one fresh check, instant with the network off). When the
 // internet comes back, whatever is on screen from saved data is fetched again in the background.
+import { DEMO_READ_ONLY, DEMO_READ_ONLY_CODE, DEMO_READ_ONLY_STATUS, demoRefuses } from "../shared/demo";
 import type { TeamSummary } from "../shared/api";
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
@@ -35,6 +36,12 @@ import { connection, freshInternet, noteRequestFailed, noteServerAnswer, noteWai
  * feature the owner switched off (paused: keep what's queued, try again later) from a 403 that means no access.
  * `feature`: which feature, for feature_disabled.
  */
+/** Is the signed-in account the demo (personal.tsx sets it from /api/auth/me)? Its changes are stopped in apiFetch. */
+let demoSession = false;
+let onDemoWrite: (() => void) | null = null;
+export function setDemoSession(on: boolean, notice?: () => void) { demoSession = on; if (notice) onDemoWrite = notice; }
+export const isDemoSession = () => demoSession;
+
 export class ApiError extends Error {
   /** The error answer's JSON as sent (a form's field errors, a username's suggestions), when there was one. */
   body?: unknown;
@@ -407,6 +414,8 @@ async function searchOnline<T>(path: string, init: (RequestInit & { json?: unkno
 
 export async function apiFetch<T>(path: string, init?: RequestInit & { json?: unknown; _tries?: number; _online?: boolean }): Promise<T> {
   const { json, _tries = 0, _online = false, ...rest } = init ?? {};
+  // The demo account is read-only (src/shared/demo.ts): a change is stopped here, said once, never sent.
+  if (demoSession && demoRefuses(rest.method, path.split("?")[0])) { onDemoWrite?.(); throw new ApiError(DEMO_READ_ONLY_STATUS, DEMO_READ_ONLY, false, DEMO_READ_ONLY_CODE); }
   // Known offline (lib/connection.ts): no network try, no timeout.
   if (!_online && (rest.method ?? "GET").toUpperCase() === "GET" && offlineNow()) {
     if (rest.signal?.aborted) throw callerAborted();

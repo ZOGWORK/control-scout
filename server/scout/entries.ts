@@ -30,6 +30,7 @@
 //   earlier version (`restoredFrom`) is an ordinary write: the same permission
 //   check, a fresh updatedAt, attributed to whoever restores; it's logged as
 //   entry.version_restored.
+import { isDemoWorkspace } from "../demo/demo.js";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { InStatement } from "@libsql/client";
 import { all, get, writeBatch } from "../db.js";
@@ -160,7 +161,8 @@ export const isWrite = (req: Request) => req.method !== "GET" && req.method !== 
  * space answers writes with 423 READ_ONLY_CODE, never 403: that means "you were removed".
  */
 export async function workspaceAccess(user: User, workspaceId: string, opts: { write?: boolean } = {}): Promise<Access> {
-  const accountId = controlPointEnabled() ? await linkedAccountId(user.id) : null;
+  // The demo account (server/demo/demo.ts) has its sample workspace even where Control Point isn't configured.
+  const accountId = controlPointEnabled() || isDemoWorkspace(workspaceId) ? await linkedAccountId(user.id) : null;
   if (accountId == null) return { ok: false, status: 403, error: "Workspace scouting needs an account linked with Control Point." };
   let orphaned = await orphanState(workspaceId);
   let membership: Membership | null = null;

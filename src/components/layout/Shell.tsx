@@ -11,7 +11,7 @@ import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
-  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, MapPin, MonitorPlay, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Sparkles, Star, Trophy, Users,
+  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Eye, Gavel, House, ListOrdered, MapPin, MonitorPlay, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Sparkles, Star, Trophy, Users,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMediaQuery, useMeta } from "../../lib/meta";
@@ -380,6 +380,22 @@ function MobileTabs() {
   );
 }
 
+/** Signed into the demo account (/demo, server/demo/demo.ts): said on every page, with the way back out. */
+function DemoNotice() {
+  const { user, signOut } = usePersonal();
+  if (!user?.demo) return null;
+  return (
+    <div role="status" data-demo-banner className="mb-6 max-sm:mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm">
+      <Eye className="size-4 shrink-0 text-accent-text" aria-hidden />
+      <p className="min-w-0 flex-1"><span className="font-semibold">You're viewing the demo account.</span> <span className="text-text-muted">Look around: changes aren't saved. Scouting answers and notes are samples; the FTC data is real.</span></p>
+      <span className="flex shrink-0 gap-2">
+        <Link to="/demo" className="rounded-lg px-2 py-1 font-medium text-accent-text hover:bg-accent/10">Tour</Link>
+        <button type="button" onClick={async () => { await signOut(); window.location.assign("/"); }} className="rounded-lg border border-text-base/20 px-2 py-1 font-medium hover:bg-text-base/[0.06]">Leave demo</button>
+      </span>
+    </div>
+  );
+}
+
 /** Shown everywhere when the server has no FTC data yet (a new deploy whose
  *  database isn't connected): says why pages and search are empty. */
 function NoDataNotice() {
@@ -487,6 +503,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 {bare ? children : (
                 <m.div key={loc.pathname} initial={false} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className={PAGE_FRAME}>
                   <NoDataNotice />
+                  <DemoNotice />
                   {/* The page grows to fill the screen, so a short page (a one-card search answer too) has its footer
                       at the bottom of the screen, never floating mid-page (the search results guide's §9). */}
                   <div className="min-w-0 flex-1">{children}</div>

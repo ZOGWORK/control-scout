@@ -166,7 +166,7 @@ describe("Sample home dashboard", () => {
   });
 
   it("marks the particle canvas as decorative", () => {
-    resetFlags({ ...DEFAULT_FLAGS }, true);
+    resetFlags({ ...DEFAULT_FLAGS, particleWave: true }, true); // off by default: switched on to see the canvas
     const { container } = mount();
     const wash = container.querySelector("[data-wash]") as HTMLElement;
     expect(container.querySelector("canvas[data-dot-wave]")?.getAttribute("aria-hidden")).toBe("true");

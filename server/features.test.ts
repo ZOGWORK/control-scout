@@ -296,8 +296,8 @@ describe("switching off and back on keeps everything", () => {
 describe("owner routes", () => {
   it("publishes the owner's particle wave switch to signed-out visitors", async () => {
     const flag = async () => (await call("GET", "/api/flags")).json.flags.particleWave;
-    expect(await flag()).toBe(true);
-    for (const enabled of [false, true]) {
+    expect(await flag()).toBe(false); // off until the owner turns it on (OFF_BY_DEFAULT)
+    for (const enabled of [true, false]) {
       const r = await call("PUT", "/api/owner/flags/particleWave", { cookie: ownerCookie, body: { enabled, confirm: true } });
       expect(r.status).toBe(200);
       expect(r.json.flags.find((f: { name: Flag }) => f.name === "particleWave")).toMatchObject({ enabled, scope: "global" });
