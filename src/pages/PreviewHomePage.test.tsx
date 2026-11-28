@@ -6,7 +6,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import type { EventListItem, MatchView } from "../shared/api";
+import type { EventListItem, TeamNextMatch } from "../shared/api";
 import type { RecordsResponse, TeamSeasonRecord } from "../shared/statCatalog";
 import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
@@ -17,9 +17,11 @@ import { join } from "node:path";
 const indexCss = readFileSync(join(process.cwd(), "src", "index.css"), "utf8");
 
 let data: Record<string, unknown> = {};
+const asked = vi.hoisted(() => [] as string[]);
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
   useApi: (path: string | null) => {
+    if (path) asked.push(path);
     const key = path ? Object.keys(data).find((k) => path.startsWith(k)) : undefined;
     return { data: key ? data[key] : undefined, error: undefined, loading: !key, reload: () => {} };
   },
@@ -40,11 +42,11 @@ const event = (i: number, status: EventListItem["status"], played = 0, total = 0
 } as EventListItem);
 const top = (team: number, opr: number): TeamSeasonRecord => ({ season: 2026, team, stats: { teamName: `Team ${team} name`, homeRegion: "USNJ", wins: 9, losses: 2, ties: 1, totalPointsOpr: opr } });
 const TOP: RecordsResponse<TeamSeasonRecord> = { season: 2026, scope: "teamSeason", filter: null, sort: "totalPointsOpr", dir: "desc", page: 1, pageSize: 5, total: 7, columns: [], rows: [10, 20, 30, 40, 50, 60, 70].map((t, i) => top(t, 200 - i * 10)) } as unknown as RecordsResponse<TeamSeasonRecord>;
-const side = (teams: number[]) => ({ teams: teams.map((number) => ({ number })), score: null });
-const MATCH = {
-  season: 2026, code: "USNJQ1", key: "qual:1:14", level: "qual", series: 1, number: 14, label: "Q14", time: "2099-01-01T10:00:00", startsAt: null,
-  played: false, red: side([4215, 1]), blue: side([2, 3]), video: null, prediction: { pRed: 0.64, tier: "moderate", kind: "live" },
-} as unknown as MatchView;
+const NEXT: TeamNextMatch = {
+  season: 2026, code: "USNJQ1", event: "USNJQ1", key: "qual:1:14", label: "Q14",
+  time: "2099-01-01T10:00:00", startsAt: null, alliance: "red", partners: [1], opponents: [2, 3],
+  pRed: 0.64, tier: "moderate", href: "/events/2026/USNJQ1/match/qual%3A1%3A14",
+};
 
 const { default: PreviewHomePage, rotatedExamples, liveNow, nextUp, yourTeams, EXAMPLE_COUNT, LIVE_MAX, TOP_MAX, TEAMS_MAX, MINT } = await import("./PreviewHomePage");
 const { TooltipProvider } = await import("../components/ui/overlay");
@@ -52,7 +54,7 @@ const { TooltipProvider } = await import("../components/ui/overlay");
 const mount = () => render(<TooltipProvider><MemoryRouter initialEntries={["/preview/home"]}><PreviewHomePage /></MemoryRouter></TooltipProvider>);
 const cls = (el: Element) => el.getAttribute("class") ?? "";
 
-beforeEach(() => { data = {}; personal = { user: null, state: st(null) }; localStorage.clear(); });
+beforeEach(() => { data = {}; personal = { user: null, state: st(null) }; asked.length = 0; localStorage.clear(); });
 afterEach(() => { cleanup(); resetFlags(); });
 
 describe("Sample home dashboard", () => {
@@ -255,7 +257,7 @@ describe("Sample home dashboard", () => {
 
   it("shows one team big: its next match and chance to win, a quiet link, no button", () => {
     personal = { user: null, state: st(4215) };
-    data = { "/api/teams/4215/matches": { matches: [MATCH] }, "/api/teams-summary": { teams: [{ team: 4215, name: "Team Name", place: "Town, NJ, USA", nextEvent: null }] } };
+    data = { "/api/teams-summary": { teams: [{ team: 4215, name: "Team Name", place: "Town, NJ, USA", nextEvent: null, next: NEXT }] } };
     const { container } = mount();
     const team = container.querySelector("[data-card='team']") as HTMLElement;
     expect(within(team).getByRole("heading").textContent).toMatch(/Your team$/);
@@ -271,7 +273,7 @@ describe("Sample home dashboard", () => {
   it("shows the team's last event and how it went when no schedule is posted", () => {
     personal = { user: null, state: st(4215) };
     const last = { code: "USNJNEM3", name: "P1-5 PM Northeast League Meet", start: "2026-11-07", end: "2026-11-07", rank: 7, record: "2-3-1" };
-    data = { "/api/teams/4215/matches": { matches: [] }, "/api/teams-summary": { teams: [{ team: 4215, name: "Team Name", place: "Town, NJ, USA", opr: 16.02, oprRank: 2221, of: 3264, lastEvent: last, nextEvent: null }] } };
+    data = { "/api/teams-summary": { teams: [{ team: 4215, name: "Team Name", place: "Town, NJ, USA", opr: 16.02, oprRank: 2221, of: 3264, lastEvent: last, nextEvent: null }] } };
     const { container } = mount();
     const box = container.querySelector("[data-last-event]") as HTMLElement;
     expect(box.textContent).toContain("Last event");
@@ -283,7 +285,10 @@ describe("Sample home dashboard", () => {
 
   it("lists several teams as rows, at most four, each with its next match", () => {
     personal = { user: null, state: { ...st(null), tracked: { teams: [4215, 11, 12, 13, 14], events: [] } } as unknown as ReturnType<typeof st> };
-    data = { "/api/teams/4215/matches": { matches: [MATCH] }, "/api/teams-summary": { teams: [] } };
+    data = { "/api/teams-summary": { teams: [
+      { team: 4215, name: "Team 4215", place: "Town, NJ, USA", nextEvent: null, next: NEXT },
+      ...[11, 12, 13].map((n) => ({ team: n, name: `Team ${n}`, place: "", lastEvent: null, nextEvent: null })),
+    ] } };
     const { container } = mount();
     const team = container.querySelector("[data-card='team']") as HTMLElement;
     expect(within(team).getByRole("heading").textContent).toMatch(/Your teams$/);
@@ -291,12 +296,18 @@ describe("Sample home dashboard", () => {
     expect(rows).toHaveLength(TEAMS_MAX);
     expect(rows[0].querySelector("[data-team-next]")?.textContent).toContain("Next: Q14");
     expect(rows[0].querySelector("[data-team-call]")?.textContent).toContain("64%");
+    // One request for the card: every team's summary, its next match and the season before's, and no schedule asks.
+    const summaries = asked.filter((p) => p.startsWith("/api/teams-summary"));
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toContain("next=1");
+    expect(summaries[0]).toContain("before=1");
+    expect(asked.some((p) => /^\/api\/teams\/\d+\/matches/.test(p))).toBe(false);
     expect(within(team).getByRole("link", { name: /All 5 teams/ }).getAttribute("href")).toBe("/my-teams");
   });
 
   it("uses mint as its only accent: scoped to the page, no solid button once a team is set, no yellow anywhere", () => {
     personal = { user: null, state: st(4215) };
-    data = { "/api/events": { events: [event(1, "live", 10, 60)] }, "/api/records/2026/teams": TOP, "/api/teams/4215/matches": { matches: [MATCH] }, "/api/teams-summary": { teams: [] } };
+    data = { "/api/events": { events: [event(1, "live", 10, 60)] }, "/api/records/2026/teams": TOP, "/api/teams-summary": { teams: [] } };
     const { container } = mount();
     const root = container.querySelector("[data-theme-next]") as HTMLElement;
     expect(root.style.getPropertyValue("--color-accent")).toBe(MINT.accent);
