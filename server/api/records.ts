@@ -21,6 +21,7 @@ import { HEAT_MIN, heatable, heatBand, TONE_HEX, toneOf, type Tone } from "../..
 import { excelDate, Gone, Styles, writeWorkbook, ZipStream, type Cell, type CellStyle } from "../xlsx.js";
 import { isEventCodeParam } from "../../src/shared/eventCode.js";
 import { unofficialLine } from "../data/unofficialRecords.js";
+import { markNotAnError } from "../metrics.js";
 
 
 /** A request the client got wrong (→ 400). */
@@ -579,6 +580,9 @@ const ID_TONE: Partial<Record<string, Tone>> = { Red: "redAlliance", Blue: "blue
  */
 export async function streamRecordsXlsx(season: number, q: RecordsQuery, res: Response, filename: string): Promise<void> {
   if (xlsxRunning >= XLSX_CONCURRENT) {
+    // Turned away on purpose (a burst of exports, e.g. a crawler asking for every event's file), with a retry time:
+    // the server is fine, so the owner's error count leaves it out (server/metrics.ts), as the shutdown gate's 503.
+    markNotAnError(res);
     res.status(503).set({ "Retry-After": "30", "Cache-Control": "no-store" }).json({ error: "Other Excel exports are being made: try again in a moment (CSV works now)" });
     return;
   }
