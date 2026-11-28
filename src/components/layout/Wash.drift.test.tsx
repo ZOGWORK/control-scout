@@ -57,10 +57,11 @@ describe("wash drift", () => {
     const css = readFileSync("src/index.css", "utf8");
     expect(css).toMatch(/@keyframes wash-rise \{ from \{ opacity: 0; transform: [^}]*\} to \{ opacity: 1; transform: none; \} \}/);
     expect(css).toMatch(/prefers-reduced-motion: reduce\) \{[^\n]*\.wash-rise \{ animation: none; \}/);
-    // The first paint rises with the same keyframes, so the app taking over carries on from it.
+    // The first paint rises with the same motion and timing, so the app taking over carries on from it. Its wash is one
+    // layer, so the rise ends at --wash-strength (the opacity the app's outer box has) rather than 1.
     const boot = readFileSync("server/bootShell.ts", "utf8");
-    expect(boot).toContain("animation:wash-rise 1400ms");
-    expect(boot).toContain("@keyframes wash-rise{from{opacity:0;transform:translate3d(0,-4vh,0) scaleY(0.8)}to{opacity:1;transform:none}}");
+    expect(boot).toContain("animation:csb-wash-rise 1400ms cubic-bezier(0.22,1,0.36,1) both");
+    expect(boot).toContain("@keyframes csb-wash-rise{from{opacity:0;transform:translate3d(0,-4vh,0) scaleY(0.8)}to{opacity:var(--wash-strength,1);transform:none}}");
     expect(css).toContain("@keyframes wash-rise { from { opacity: 0; transform: translate3d(0, -4vh, 0) scaleY(0.8); } to { opacity: 1; transform: none; } }");
   });
 });
