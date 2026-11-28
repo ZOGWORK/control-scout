@@ -50,12 +50,13 @@ export function uploadMatches(season: number): { code: string; label: string; le
   return out;
 }
 
-/** The matches with a played match's upload as its clip where it has none; the given objects are never changed. */
-export function withUploads<M extends Pick<MatchView, "label" | "played" | "clip">>(matches: M[], season: number, code: string): M[] {
+/** The matches with a played match's upload as its clip where it has none, and no video of FIRST's either (that one
+ *  plays, as a recording's clip does); the given objects are never changed. */
+export function withUploads<M extends Pick<MatchView, "label" | "played" | "clip"> & { video?: string | null }>(matches: M[], season: number, code: string): M[] {
   if (!playing.size) return matches;
   let changed = false;
   const out = matches.map((x) => {
-    if (x.clip || !x.played) return x;
+    if (x.clip || x.video || !x.played) return x;
     const c = uploadClip(season, code, x.label);
     if (!c) return x;
     changed = true;

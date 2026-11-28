@@ -426,7 +426,7 @@ never guessed: when an event fits, the owner decides in Owner › Official video
 it names or one typed in, or Reject: never proposed again); when none does, it's kept as ignored with why, and read again
 while it's under 30 days old (a match's results can come in after its upload).
 
-An added upload is the clip only of a match nothing else clips (`server/videos/uploadClips.ts` `withUploads`, laid over
+An added upload is the clip only of a match nothing else clips, a recording or FIRST's own match video (`server/videos/uploadClips.ts` `withUploads`, laid over
 every surface that plays a clip: the event page, a match's page, search's answers, the videos feed, a team's clips): how
 full-day streams are linked never changes. It plays while the audit last read it as public, embeddable and on its
 channel; the owner can take one off its match for good. Every add is audited (`match uploads`, one entry a run naming
