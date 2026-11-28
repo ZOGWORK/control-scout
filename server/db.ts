@@ -3205,8 +3205,9 @@ CREATE INDEX IF NOT EXISTS video_shares_user ON video_shares (user_id);
 -- A watched channel's short upload of one match (server/videos/matchUploads.ts, docs/official-videos.md "Per-match
 -- uploads"): its event and match when the title names exactly one, with why. status added (it's that match's clip,
 -- from second t, where nothing else clips the match), review (for the owner: an event fits, the match can't be told
--- for sure), rejected (the owner said no: never proposed again). removed_at: an added one the owner took off. Each
--- video once: decided, it's never read again. An upload the rules ignore isn't written, and is read again next run.
+-- for sure), rejected (the owner said no: never proposed again), ignored (the rules say it isn't one match's upload:
+-- kept with why, and read again while it went up under 30 days ago). removed_at: an added one the owner took off.
+-- Each video once: decided (added, review, rejected), it's never read again. One added upload per match, at most.
 CREATE TABLE IF NOT EXISTS match_uploads (
   video_id TEXT PRIMARY KEY,
   channel_id TEXT NOT NULL,
@@ -3227,6 +3228,7 @@ CREATE TABLE IF NOT EXISTS match_uploads (
 );
 CREATE INDEX IF NOT EXISTS match_uploads_match ON match_uploads (season, code, label);
 CREATE INDEX IF NOT EXISTS match_uploads_status ON match_uploads (status);
+CREATE UNIQUE INDEX IF NOT EXISTS match_uploads_one_add ON match_uploads (season, code, label) WHERE status = 'added' AND removed_at IS NULL;
 `,
   },
 ];
