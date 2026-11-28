@@ -50,6 +50,18 @@ describe("match breakdown", () => {
     // Each phase's paired bars, alongside the difference column that compares them.
     expect(document.querySelector('[data-bar="red"]')).not.toBeNull();
     expect(document.querySelector('[data-bar="blue"]')).not.toBeNull();
+    // Bars only on the scoring phases, scaled to the largest of them (TeleOp's 78): fouls are points given away.
+    const row = (l: string) => document.querySelector<HTMLElement>(`[data-label="${l}"]`)!;
+    expect(row("Fouls given away").querySelector("[data-paired-bar]")).toBeNull();
+    expect(row("TeleOp").querySelector<HTMLElement>('[data-bar="red"]')!.style.width).toBe("100%");
+  });
+
+  it("draws no bar for a phase with nothing on either side", () => {
+    const d = detail();
+    d.match.red.score!.endgame = 0; d.match.blue.score!.endgame = 0;
+    render(<Breakdown d={d} />);
+    expect(document.querySelector('[data-label="Endgame"] [data-paired-bar]')).toBeNull();
+    expect(document.querySelector('[data-label="Auto"] [data-paired-bar]')).not.toBeNull();
   });
 
   it("puts the score and the margin first, winner named, and says when penalties decided it", () => {
