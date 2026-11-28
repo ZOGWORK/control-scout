@@ -75,7 +75,7 @@ describe("Events page filter box", () => {
     expect(new URLSearchParams(loc).get("q")).toBe("texas");
     expect(document.body.textContent).toContain(`${TEXAS} events in`);
     expect(cards()).toBe(Math.min(TEXAS, FIRST_EVENTS));
-    expect([...document.querySelectorAll('a[href^="/events/2026/"]')].every((a) => a.textContent!.includes("Texas"))).toBe(true);
+    expect([...document.querySelectorAll("[data-event-row]")].every((a) => a.textContent!.includes("Austin"))).toBe(true);
   });
 
   it("keeps fast typing while the URL update is still pending", () => {
@@ -249,5 +249,3 @@ describe("Events page default status", () => {
   }));
 });
 
-describe("Events page cards", () => {
-});
