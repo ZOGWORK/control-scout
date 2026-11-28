@@ -45,22 +45,35 @@ interface Store {
 let generation = 0;
 const fresh = (version = "", checked = 0, writes = dataWriteCount(), before?: Store): Store => (generation++, {
   version, checked, writes, rows: new Map<string, Kept>(), answers: new Map<string, Kept>(), pages: new Map<string, Kept>(),
-  /** The answers and pages from before the last data move, served until drawn again (resolved ones only). */
+  /** The answers and pages from before the last data move, served until drawn again (and those still being drawn). */
   before: { answers: carried(before, "answers"), pages: carried(before, "pages") },
 });
 /** How long each kind is kept and how many: a carried copy is held to the same (below). */
 const LIMITS = { answers: { ttl: ANSWER_TTL_MS, max: ANSWERS_KEPT }, pages: { ttl: PAGE_TTL_MS, max: PAGES_KEPT } } as const;
-/** What a new store keeps from `s` of `which`: its own resolved entries, over what it had carried itself; only those
- *  that can still be served (younger than their time plus STALE_MS), and at most as many as are kept (the newest), so
- *  copies of one-off addresses never pile up over many moves. */
+/** What a new store keeps from `s` of `which`: its own entries, over what it had carried itself; only those that can
+ *  still be served (younger than their time plus STALE_MS), and at most as many as are kept (the newest), so copies of
+ *  one-off addresses never pile up over many moves. One still being drawn is carried too, and waited for rather than
+ *  drawn again (keep): a draw that takes longer than the time between moves (People also ask's checks, ~10 s, under
+ *  this process's own kv writes every few seconds) was otherwise dropped by each move and started over by the next
+ *  ask, never kept, the follow-ups always empty (11-28). */
 function carried(s: Store | undefined, which: "answers" | "pages", now = Date.now()): Map<string, Kept> {
   const out = new Map<string, Kept>();
   if (!s) return out;
   const { ttl, max } = LIMITS[which];
   for (const [k, v] of s.before[which]) out.set(k, v);
-  for (const [k, v] of s[which]) if (v.ok) out.set(k, v);
+  for (const [k, v] of s[which]) out.set(k, v);
   const live = [...out].filter(([, v]) => now - v.at < ttl + STALE_MS).sort((x, y) => x[1].at - y[1].at).slice(-max);
   return new Map(live);
+}
+/** A draw that finished after the store it was made for was replaced (a move meanwhile): kept in the store now in use
+ *  as a copy from before its move, served while one draw from the new data is made (keep), unless that store has
+ *  already drawn its own. It was drawn at least as late as the copy it was made to replace. */
+function landLate(which: "answers" | "pages", key: string, value: Promise<unknown>): void {
+  if (kept[which].get(key)?.ok) return;
+  const before = kept.before[which];
+  before.delete(key);
+  before.set(key, { at: Date.now(), value, ok: true });
+  if (before.size > LIMITS[which].max) before.delete(before.keys().next().value!);
 }
 /** A new store after a data move: the reads go, the answers and pages are carried (above). */
 const moved = (version = "", checked = 0) => fresh(version, checked, dataWriteCount(), kept);
@@ -94,7 +107,10 @@ async function keep<T>(which: "rows" | "answers" | "pages", key: string, ttl: nu
     if (!hit.renewing) {
       hit.renewing = true;
       const store = kept, next = make();
-      next.then(() => { if (kept === store && map.get(key) === hit) { map.delete(key); map.set(key, { at: Date.now(), value: next, ok: true }); } },
+      next.then(() => {
+        if (kept !== store) landLate(which as "answers" | "pages", key, next);
+        else if (map.get(key) === hit) { map.delete(key); map.set(key, { at: Date.now(), value: next, ok: true }); }
+      },
         () => { hit.renewing = false; });
     }
     return hit.value as Promise<T>;
@@ -102,12 +118,15 @@ async function keep<T>(which: "rows" | "answers" | "pages", key: string, ttl: nu
   // From before a data move (and still within its time and STALE_MS): served while one draw from the new data is
   // made, which takes its place once made; a failed draw leaves it for the next ask to try again.
   const old = which === "rows" ? undefined : kept.before[which].get(key);
+  // Still being drawn when the store moved: waited for, never drawn twice at once. Once made, it's served as any copy
+  // from before a move is (below), and the next ask draws it again from the new data.
+  if (old && !old.ok && now - old.at < ttl + STALE_MS) return old.value as Promise<T>;
   if (old && now - old.at < ttl + STALE_MS) {
     const store = kept, next = make(), standIn: Kept = { at: old.at, value: old.value, renewing: true, ok: true };
     map.set(key, standIn);
     if (map.size > max) map.delete(map.keys().next().value!);
     next.then(() => {
-      if (kept !== store) return;
+      if (kept !== store) { landLate(which as "answers" | "pages", key, next); return; }
       store.before[which as "answers" | "pages"].delete(key);
       if (map.get(key) === standIn) { map.delete(key); map.set(key, { at: Date.now(), value: next, ok: true }); }
     }, () => { if (map.get(key) === standIn) map.delete(key); });
@@ -117,7 +136,12 @@ async function keep<T>(which: "rows" | "answers" | "pages", key: string, ttl: nu
   const entry: Kept = { at: now, value };
   map.set(key, entry);
   if (map.size > max) map.delete(map.keys().next().value!);
-  value.then(() => { entry.ok = true; }, () => { if (map.get(key)?.value === value) map.delete(key); });
+  // Carried over a move while drawn (carried), the same entry is found in a later store's copies: a failure leaves
+  // neither, so the next ask draws it again.
+  value.then(() => { entry.ok = true; }, () => {
+    if (map.get(key)?.value === value) map.delete(key);
+    if (which !== "rows" && kept.before[which].get(key) === entry) kept.before[which].delete(key);
+  });
   return value;
 }
 
