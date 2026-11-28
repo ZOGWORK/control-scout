@@ -28,6 +28,8 @@ export const PRIVATE_TABLES = [
   "video_watch",
   // A person's video library and notes (migration 117). Never shipped.
   "video_library", "video_notes",
+  // Likes, emoji reactions and shares on videos (migration 120). Never shipped.
+  "video_likes", "video_reactions", "video_shares",
   // Owner-typed match starts (migration 97): who set each. Never shipped; the clips they give come from the live server.
   "manual_starts",
   // The clip autopilot's reads handed to the live server (migration 98): live and waiting rows, who decided. Never shipped.

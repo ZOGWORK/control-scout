@@ -3162,6 +3162,42 @@ CREATE TABLE IF NOT EXISTS discord_reminders (
 ALTER TABLE video_watch ADD COLUMN more INTEGER NOT NULL DEFAULT 0;
 `,
   },
+  {
+    version: 120,
+    name: "videos: likes, emoji reactions, shares, replays (Cycles)",
+    sql: `
+-- What people do with a video beyond watching it (server/api/videoReactions.ts), on any feed item's key: a like, one
+-- emoji reaction (src/shared/cycles.ts REACTIONS), a share. Counts are public; who did it never is. Each is a signal the
+-- recommendation engine learns from (server/videos/recommend.ts). Personal: never shipped (PRIVATE_TABLES), deleted
+-- with the account (deleteUser). loops: how many times a Cycle played through again.
+ALTER TABLE video_watch ADD COLUMN loops INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS video_watch_item ON video_watch (item_key);
+CREATE TABLE IF NOT EXISTS video_likes (
+  user_id INTEGER NOT NULL,
+  item_key TEXT NOT NULL,
+  at TEXT NOT NULL,
+  PRIMARY KEY (user_id, item_key)
+);
+CREATE INDEX IF NOT EXISTS video_likes_item ON video_likes (item_key);
+CREATE TABLE IF NOT EXISTS video_reactions (
+  user_id INTEGER NOT NULL,
+  item_key TEXT NOT NULL,
+  emoji TEXT NOT NULL,
+  at TEXT NOT NULL,
+  PRIMARY KEY (user_id, item_key)
+);
+CREATE INDEX IF NOT EXISTS video_reactions_item ON video_reactions (item_key);
+-- A share: signed out too (user_id null), so a count; one per person per video per day is counted.
+CREATE TABLE IF NOT EXISTS video_shares (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_key TEXT NOT NULL,
+  user_id INTEGER,
+  at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS video_shares_item ON video_shares (item_key);
+CREATE INDEX IF NOT EXISTS video_shares_user ON video_shares (user_id);
+`,
+  },
 ];
 
 export type Db = Client;
