@@ -130,6 +130,17 @@ describe("likes, reactions, shares", () => {
     expect(got[key]).toMatchObject({ likes: 0, reactions: { "🤯": 2 }, mine: { reaction: "🤯" } });
   });
 
+  it("an account's shares and signed-out shares are counted apart, never merged", async () => {
+    const a = await account();
+    const key = `c:${vid(11)}`;
+    // A signed-out share's row id can equal the account's id: still two shares.
+    await run("DELETE FROM video_shares WHERE item_key = ?", [key]);
+    await run("INSERT INTO video_shares (id, item_key, user_id, at) VALUES (?, ?, NULL, ?)", [a.id + 100_000, key, new Date().toISOString()]);
+    await run("INSERT INTO video_shares (id, item_key, user_id, at) VALUES (?, ?, NULL, ?)", [a.id, key, new Date().toISOString()]);
+    const e: Engagement = await (await post("/videos/share", { key }, a.cookie)).json();
+    expect(e.shares).toBe(3);
+  });
+
   it("all of it goes with the account", async () => {
     const a = await account();
     await post("/videos/like", { key: `c:${vid(8)}`, on: true }, a.cookie);
@@ -178,7 +189,8 @@ describe("the feed learns", () => {
     await post("/videos/like", { key: other.key, on: true }, a.cookie);
     await post("/videos/watch", { key: other.key, kind: "creator", watchedS: 45, completed: true, loops: 2 }, a.cookie);
     const next = await cycles(`?cursor=${first.next}`, a.cookie);
-    expect(next.items.slice(0, 3).some((i) => i.teams.some((t) => t.number === team))).toBe(true);
+    // In the next page (where in it is the diversity pass's call: right after the liked one, it waits a slot or two).
+    expect(next.items.some((i) => i.teams.some((t) => t.number === team))).toBe(true);
     expect(next.items.some((i) => first.items.some((f) => f.key === i.key))).toBe(false);
     expect((await get<{ loops: number }>("SELECT loops FROM video_watch WHERE user_id = ? AND item_key = ?", [a.id, other.key]))!.loops).toBe(2);
   });

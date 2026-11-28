@@ -132,7 +132,7 @@ export function videoStats(now = Date.now()): Promise<Map<string, Stats>> {
       all<{ item_key: string; v: number; c: number }>("SELECT item_key, COUNT(*) v, SUM(completed) c FROM video_watch WHERE hidden = 0 AND (watched_s > 0 OR completed = 1) GROUP BY item_key"),
       all<{ item_key: string; n: number }>("SELECT item_key, COUNT(*) n FROM video_likes GROUP BY item_key"),
       all<{ item_key: string; n: number }>("SELECT item_key, COUNT(*) n FROM video_reactions GROUP BY item_key"),
-      all<{ item_key: string; n: number }>("SELECT item_key, COUNT(DISTINCT COALESCE(user_id, id)) n FROM video_shares GROUP BY item_key"),
+      all<{ item_key: string; n: number }>("SELECT item_key, COUNT(DISTINCT user_id) + SUM(user_id IS NULL) n FROM video_shares GROUP BY item_key"),
     ]);
     const out = new Map<string, Stats>();
     const of = (k: string) => out.get(k) ?? out.set(k, { views: 0, completes: 0, likes: 0, reactions: 0, shares: 0 }).get(k)!;

@@ -16,7 +16,7 @@ export async function engagementFor(keys: string[], userId: number | null): Prom
   const [likes, reacts, shares, mine, myReact] = await Promise.all([
     all<{ item_key: string; n: number }>(`SELECT item_key, COUNT(*) n FROM video_likes WHERE item_key IN (${q}) GROUP BY item_key`, ks),
     all<{ item_key: string; emoji: string; n: number }>(`SELECT item_key, emoji, COUNT(*) n FROM video_reactions WHERE item_key IN (${q}) GROUP BY item_key, emoji`, ks),
-    all<{ item_key: string; n: number }>(`SELECT item_key, COUNT(DISTINCT COALESCE(user_id, id)) n FROM video_shares WHERE item_key IN (${q}) GROUP BY item_key`, ks),
+    all<{ item_key: string; n: number }>(`SELECT item_key, COUNT(DISTINCT user_id) + SUM(user_id IS NULL) n FROM video_shares WHERE item_key IN (${q}) GROUP BY item_key`, ks),
     userId == null ? Promise.resolve([]) : all<{ item_key: string }>(`SELECT item_key FROM video_likes WHERE user_id = ? AND item_key IN (${q})`, [userId, ...ks]),
     userId == null ? Promise.resolve([]) : all<{ item_key: string; emoji: string }>(`SELECT item_key, emoji FROM video_reactions WHERE user_id = ? AND item_key IN (${q})`, [userId, ...ks]),
   ]);
@@ -53,7 +53,8 @@ export async function setReaction(userId: number, key: string, emoji: Reaction |
 }
 
 /** A share: counted once per account per video per day; signed out, each share is a row (the route's rate limit keeps
- *  one device from running it up), counted once per row. */
+ *  one device from running it up), counted once per row. The count is accounts that shared plus signed-out rows, kept
+ *  apart (an account's id and a row's id are different numbers that can be equal). */
 export async function recordShare(userId: number | null, key: string, now = Date.now()): Promise<Engagement> {
   const since = new Date(now - DAY).toISOString();
   const had = userId != null ? await get<{ n: number }>("SELECT COUNT(*) n FROM video_shares WHERE user_id = ? AND item_key = ? AND at >= ?", [userId, key, since]) : undefined;
