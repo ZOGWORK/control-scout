@@ -124,6 +124,17 @@ describe("the owner's decisions", () => {
 describe("runMatchUploads", () => {
   it("writes under the data lease, and does nothing with nothing new", async () => {
     await runMatchUploads(() => {}, NOW);
-    expect(await runMatchUploads(() => {}, NOW + 60 * 864e5)).toEqual({ added: 0, review: 0, ignored: 0 });
+    expect(await runMatchUploads(() => {}, NOW + 60 * 864e5)).toEqual({ added: 0, review: 0, ignored: 0, changed: false });
+  });
+  it("loads what plays again each run: an added upload the audit read as gone stops playing", async () => {
+    await run("UPDATE official_audit_videos SET gone_at = 'x' WHERE video_id = 'uploadQ2aaa'");
+    expect(await runMatchUploads(() => {}, NOW + 60 * 864e5)).toMatchObject({ added: 0, changed: true });
+    expect(uploadClip(2024, "CAONSCQ2", "Q2")).toBeNull();
+    await run("UPDATE official_audit_videos SET gone_at = NULL WHERE video_id = 'uploadQ2aaa'");
+    expect(await runMatchUploads(() => {}, NOW + 60 * 864e5)).toMatchObject({ changed: true });
+  });
+  it("never lets a match hold two added uploads, whatever writes them", async () => {
+    await expect(run(`INSERT INTO match_uploads (video_id, channel_id, title, season, code, level, series, number, label, t, status, why, seen_at)
+      VALUES ('uploadQ2zzz', ?, 'x', 2024, 'CAONSCQ2', 'qual', 0, 2, 'Q2', 0, 'added', 'x', 'x')`, [CH])).rejects.toThrow(/UNIQUE/);
   });
 });

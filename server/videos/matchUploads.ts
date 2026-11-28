@@ -16,7 +16,7 @@ import { eventsBetween } from "./officialWatch.js";
 import { MAX_MATCH_UPLOAD_S, MIN_MATCH_UPLOAD_S, claimOnce, matchUpload, nearEvents, type PlannedUpload, type UploadMatchRow, type UploadVideo } from "./uploadMatch.js";
 import type { ChannelRule } from "./officialMatch.js";
 import type { OwnerMatchUploads } from "../../src/shared/api.js";
-import { loadMatchUploads } from "./uploadClips.js";
+import { loadMatchUploads, refreshMatchUploads } from "./uploadClips.js";
 
 export const MATCH_UPLOADS_ACTOR = "match uploads";
 /** An ignored upload is read again while it went up this recently (its event's results may not be in yet). */
@@ -111,11 +111,19 @@ export async function applyMatchUploads(plan: PlannedUpload[], log: (s: string) 
   return n;
 }
 
-/** After an audit run: the new short uploads decided and written, under the data writer's lease. */
-export async function runMatchUploads(log: (s: string) => void, now = Date.now()): Promise<{ added: number; review: number; ignored: number }> {
+/**
+ * After an audit run: what plays loaded again (the audit may have read an added upload as private or gone), then the
+ * new short uploads decided and written, under the data writer's lease. The matches already taken are read again
+ * inside the lease, so an owner's approval while this one planned never gives a match two uploads. changed: what
+ * plays changed (the caller checks coverage again).
+ */
+export async function runMatchUploads(log: (s: string) => void, now = Date.now()): Promise<{ added: number; review: number; ignored: number; changed: boolean }> {
+  const dropped = await refreshMatchUploads();
+  if (dropped) clearClipCaches();
   const plan = await planMatchUploads({ now });
-  if (!plan.length) return { added: 0, review: 0, ignored: 0 };
-  return withDataLock("match uploads", () => applyMatchUploads(plan, log, now), { ttlMs: 60_000, waitMs: 3 * 60_000, pollMs: 1000 });
+  if (!plan.length) return { added: 0, review: 0, ignored: 0, changed: dropped };
+  const n = await withDataLock("match uploads", async () => applyMatchUploads(claimOnce(plan, await claimed()), log, now), { ttlMs: 60_000, waitMs: 3 * 60_000, pollMs: 1000 });
+  return { ...n, changed: dropped || n.added > 0 };
 }
 
 // ── The owner's decisions (Owner › Official videos) ──
@@ -136,21 +144,27 @@ type Result = { ok: true } | { ok: false; status: number; error: string };
 
 /** The owner says a set-aside is its match: the match it names (or the one they type, "Q12") of the event it names. */
 export async function approveMatchUpload(videoId: string, body: { label?: unknown }, actor: string, now = Date.now()): Promise<Result> {
-  const row = await get<{ season: number | null; code: string | null; label: string | null; status: string }>("SELECT season, code, label, status FROM match_uploads WHERE video_id = ?", [videoId]);
-  if (!row || row.status !== "review") return { ok: false, status: 404, error: "That upload isn't waiting for you." };
-  if (row.season == null || !row.code) return { ok: false, status: 400, error: "No event fits this upload: it can't be added." };
-  const label = (typeof body.label === "string" && body.label.trim() ? body.label.trim() : row.label ?? "").toUpperCase();
-  const m = await get<{ level: string; series: number; number: number; label: string; played: number }>("SELECT level, series, number, label, played FROM matches WHERE season = ? AND code = ? AND UPPER(label) = ?", [row.season, row.code, label]);
-  if (!m) return { ok: false, status: 400, error: `${label || "That match"} isn't one of ${row.code}'s matches (Q12, M3, F1 …).` };
-  if (!Number(m.played)) return { ok: false, status: 400, error: `${row.code} ${m.label} wasn't played.` };
-  const other = await get<{ video_id: string }>("SELECT video_id FROM match_uploads WHERE season = ? AND code = ? AND label = ? AND status = 'added' AND removed_at IS NULL AND video_id != ?", [row.season, row.code, m.label, videoId]);
-  if (other) return { ok: false, status: 409, error: `${row.code} ${m.label} already plays another upload (${other.video_id}).` };
   const at = new Date(now).toISOString();
-  await withDataLock("match uploads", () => db().batch([{
-    sql: "UPDATE match_uploads SET status = 'added', level = ?, series = ?, number = ?, label = ?, decided_at = ?, decided_by = ? WHERE video_id = ? AND status = 'review'",
-    args: [m.level, Number(m.series), Number(m.number), m.label, at, actor, videoId],
-  }], "write"), { ttlMs: 30_000, waitMs: 60_000, pollMs: 500 });
-  await recordAudit(actor, "matchUpload.approve", { videoId, season: row.season, code: row.code, label: m.label });
+  // Every check inside the lease: a run adding, or another approval, can't slip in between a check and the write.
+  const r = await withDataLock("match uploads", async (): Promise<Result | { ok: true; season: number; code: string; label: string }> => {
+    const row = await get<{ season: number | null; code: string | null; label: string | null; status: string }>("SELECT season, code, label, status FROM match_uploads WHERE video_id = ?", [videoId]);
+    if (!row || row.status !== "review") return { ok: false, status: 404, error: "That upload isn't waiting for you." };
+    if (row.season == null || !row.code) return { ok: false, status: 400, error: "No event fits this upload: it can't be added." };
+    const label = (typeof body.label === "string" && body.label.trim() ? body.label.trim() : row.label ?? "").toUpperCase();
+    const m = await get<{ level: string; series: number; number: number; label: string; played: number }>("SELECT level, series, number, label, played FROM matches WHERE season = ? AND code = ? AND UPPER(label) = ?", [row.season, row.code, label]);
+    if (!m) return { ok: false, status: 400, error: `${label || "That match"} isn't one of ${row.code}'s matches (Q12, M3, F1 …).` };
+    if (!Number(m.played)) return { ok: false, status: 400, error: `${row.code} ${m.label} wasn't played.` };
+    const other = await get<{ video_id: string }>("SELECT video_id FROM match_uploads WHERE season = ? AND code = ? AND label = ? AND status = 'added' AND removed_at IS NULL AND video_id != ?", [row.season, row.code, m.label, videoId]);
+    if (other) return { ok: false, status: 409, error: `${row.code} ${m.label} already plays another upload (${other.video_id}).` };
+    const w = await db().batch([{
+      sql: "UPDATE match_uploads SET status = 'added', level = ?, series = ?, number = ?, label = ?, decided_at = ?, decided_by = ? WHERE video_id = ? AND status = 'review'",
+      args: [m.level, Number(m.series), Number(m.number), m.label, at, actor, videoId],
+    }], "write");
+    if (!Number(w[0]?.rowsAffected ?? 0)) return { ok: false, status: 404, error: "That upload isn't waiting for you." };
+    return { ok: true, season: Number(row.season), code: String(row.code), label: String(m.label) };
+  }, { ttlMs: 30_000, waitMs: 60_000, pollMs: 500 });
+  if (!("season" in r)) return r;
+  await recordAudit(actor, "matchUpload.approve", { videoId, season: r.season, code: r.code, label: r.label });
   await loadMatchUploads();
   clearClipCaches();
   return { ok: true };
