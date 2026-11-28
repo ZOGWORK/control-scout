@@ -23,13 +23,17 @@ const profile = {
   highlights: true, recordSplit: null,
 } as unknown as TeamProfile;
 
-/** The viewer's flags on the team (My team, tracked, shortlisted); a test may set them. */
-const flags = vi.hoisted(() => ({ isMine: false, tracked: false, bookmarked: false }));
+/** The viewer's flags on the team (My team, tracked, shortlisted); a test may set them. Also what the page asked
+ * for, and the answers the folded sections' own requests get (none until a test gives one: still loading). */
+const flags = vi.hoisted(() => ({ isMine: false, tracked: false, bookmarked: false, asked: new Set<string>(), answers: new Map<string, unknown>() }));
 
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
   useApi: (path: string | null) => {
-    const data = !path ? undefined : path.includes("/matches") ? { matches: [] } : /\/(report-card|schedule|next|conference)/.test(path) ? undefined : profile;
+    if (path) flags.asked.add(path);
+    const data = !path ? undefined
+      : flags.answers.has(path.split("?")[0]) ? flags.answers.get(path.split("?")[0])
+      : path.includes("/matches") ? { matches: [] } : /\/(report-card|schedule|next|conference)/.test(path) ? undefined : profile;
     return { data, error: undefined, loading: !!path && data === undefined, reload: () => {} };
   },
 }));
@@ -48,7 +52,8 @@ vi.mock("recharts", async (orig) => ({ ...(await orig<typeof import("recharts")>
 
 const { default: TeamPage } = await import("./TeamPage");
 const { TooltipProvider } = await import("../components/ui/overlay");
-const mount = () => render(<TooltipProvider><MemoryRouter initialEntries={["/teams/4215"]}><Routes><Route path="/teams/:number" element={<TeamPage />} /></Routes></MemoryRouter></TooltipProvider>);
+const mount = (at = "/teams/4215") => render(<TooltipProvider><MemoryRouter initialEntries={[at]}><Routes><Route path="/teams/:number" element={<TeamPage />} /></Routes></MemoryRouter></TooltipProvider>);
+const sectionAsks = () => [...flags.asked].filter((p) => /\/(report-card|schedule)\?/.test(p));
 
 const hero = () => document.querySelector<HTMLElement>("[data-team-hero]")!;
 const folded = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}`) });
@@ -57,7 +62,11 @@ const FOLDED = ["Reliability", "Prediction report card", "Schedule difficulty"];
 const primaries = (root: ParentNode) => [...root.querySelectorAll('[data-slot="button"]')].filter((b) => b.className.includes("bg-accent text-accent-ink"));
 const follows = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
-afterEach(() => { cleanup(); document.documentElement.removeAttribute("data-v8"); Object.assign(flags, { isMine: false, tracked: false, bookmarked: false }); });
+afterEach(() => {
+  cleanup(); document.documentElement.removeAttribute("data-v8");
+  Object.assign(flags, { isMine: false, tracked: false, bookmarked: false });
+  flags.asked.clear(); flags.answers.clear();
+});
 
 describe("team page, v8 on", () => {
   beforeEach(() => { document.documentElement.setAttribute("data-v8", ""); });
@@ -217,5 +226,37 @@ describe("team page, v8 on", () => {
       expect(b.querySelectorAll("svg")).toHaveLength(2); // the icon before the title, and the chevron
     }
     expect(folded("Reliability").querySelector("[data-section-count]")!.textContent).toContain("32 matches");
+  });
+
+  it("asks for nothing on load, then for one section's data on its first opening only", () => {
+    flags.answers.set("/api/teams/4215/report-card", { team: 4215, season: 2025, reportCards: null });
+    mount();
+    expect(sectionAsks()).toEqual([]);
+    const b = folded("Prediction report card");
+    fireEvent.click(b);
+    expect(b.getAttribute("aria-expanded")).toBe("true");
+    expect(b.textContent).toMatch(/Hide$/);
+    expect(sectionAsks()).toEqual(["/api/teams/4215/report-card?season=2025"]);
+    const body = document.getElementById(b.getAttribute("aria-controls")!)!;
+    expect(body.hidden).toBe(false);
+    expect(screen.getByText(/No scored live calls on 4215/)).toBeTruthy();
+    // Closed and opened again: the answer stays, and nothing is asked twice.
+    fireEvent.click(b);
+    expect(body.hidden).toBe(true);
+    flags.asked.clear();
+    fireEvent.click(b);
+    expect(body.hidden).toBe(false);
+    expect(screen.getByText(/No scored live calls on 4215/)).toBeTruthy();
+    expect(sectionAsks()).toEqual([]);
+    // The others are still closed and unasked.
+    expect(folded("Schedule difficulty").getAttribute("aria-expanded")).toBe("false");
+    expect([...flags.asked].some((p) => p.includes("/schedule"))).toBe(false);
+  });
+
+  it("opens the section a link points at", () => {
+    mount("/teams/4215#schedule-difficulty");
+    expect(folded("Schedule difficulty").getAttribute("aria-expanded")).toBe("true");
+    expect(sectionAsks()).toEqual(["/api/teams/4215/schedule?season=2025"]);
+    expect(folded("Reliability").getAttribute("aria-expanded")).toBe("false");
   });
 });
