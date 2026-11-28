@@ -18,9 +18,10 @@ const { TooltipProvider } = await import("../components/ui/overlay");
 const { resetFlags } = await import("../lib/flags");
 const { DEFAULT_FLAGS } = await import("../shared/flags");
 
-const user = (teams: { teamNumber: number | null; name: string }[]): AccountUser => ({
+// `workspaces` left out is Control Point not answering: it never means "no teams".
+const user = (teams: { teamNumber: number | null; name: string }[], workspaces: { id: string; name: string; role: "admin" | "member" }[] | null = teams.map((t, i) => ({ id: String(i + 1), name: t.name, role: "admin" as const }))): AccountUser => ({
   id: 1, email: "a@scout.test", displayName: "Ada", createdAt: "", controlPointLinked: true,
-  controlPoint: { accountId: 9, member: true, teams, url: "https://cp.test", workspaces: teams.map((t, i) => ({ id: String(i + 1), name: t.name, role: "admin" as const })) },
+  controlPoint: { accountId: 9, member: true, teams, url: "https://cp.test", ...(workspaces ? { workspaces } : {}) },
 });
 const stat = (value: number, rank: number) => ({ value, rank, of: 8000 });
 const profile = {
@@ -91,5 +92,26 @@ describe("My teams, v8 on", () => {
     const buttons = [...empty.querySelectorAll('[data-slot="button"]')];
     expect(buttons).toHaveLength(2);
     expect(buttons[1].className).toContain("v8:bg-transparent");
+  });
+
+  it("Control Point's answer unknown: says so, never 'no teams'", () => {
+    h.user = user([], null);
+    page();
+    expect(screen.getByText("Couldn't reach Control Point")).toBeTruthy();
+    expect(screen.queryByText("You're not on a team yet")).toBeNull();
+  });
+
+  it("no teams: an honest empty state with a way to join one", () => {
+    h.user = user([]);
+    page();
+    expect(screen.getByText("You're not on a team yet")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Join or create a team/ }).getAttribute("href")).toBe("https://cp.test");
+  });
+
+  it("a team with no FTC number in Control Point says so instead of showing empty stats", () => {
+    h.user = user([{ teamNumber: null, name: "Rookies" }]);
+    page();
+    expect(screen.getByText(/No FTC team number is set for this team/)).toBeTruthy();
+    expect(screen.getByText(/in Control Point's team settings/)).toBeTruthy();
   });
 });

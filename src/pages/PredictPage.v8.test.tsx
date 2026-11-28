@@ -14,6 +14,9 @@ vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/m
 const { default: PredictPage, bareLink } = await import("./PredictPage");
 const { invalidate } = await import("../lib/api");
 const { TooltipProvider } = await import("../components/ui/overlay");
+const { readWhatIf, swapped } = await import("../components/predict/WhatIf");
+/** Every call the page made, as "red|blue". */
+const asked: string[] = [];
 
 let where = "";
 function Where() { const l = useLocation(); where = l.search; return null; }
@@ -25,6 +28,7 @@ const MATCH = "/predict?mode=match&season=2025&red=1,2&blue=3,4";
 
 beforeEach(() => {
   personal.myTeam = null; personal.teams = [];
+  asked.length = 0;
   invalidate("/api/");
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("IntersectionObserver", class { observe() {} unobserve() {} disconnect() {} });
@@ -33,8 +37,11 @@ beforeEach(() => {
     const u = new URL(String(url), "http://x");
     if (u.pathname === "/api/predict/match") {
       const red = u.searchParams.get("red")!.split(",").map(Number), blue = u.searchParams.get("blue")!.split(",").map(Number);
-      const pRed = red[0] === 1 ? 0.7 : 0.3;
-      return json({ season: 2025, red, blue, winProbRed: pRed, winProbBlue: 1 - pRed, predictedRed: 100, predictedBlue: 90, rangeRed: [80, 120], rangeBlue: [70, 110], rangeLevel: 0.8, factors: [], reasons: ["Red's autonomous is worth about 10 more points"], confidence: { tier: "moderate", reason: "r", minMatches: 8, ratingShare: 1 }, teamsRed: red.map(strength), teamsBlue: blue.map(strength), engineVersion: "x" });
+      asked.push(`${red.join(",")}|${blue.join(",")}`);
+      // 1 on Red: Red 70% and ahead by 10. Anyone else in its place: Red 30% and behind by 15.
+      const strong = red[0] === 1;
+      const pRed = strong ? 0.7 : 0.3;
+      return json({ season: 2025, red, blue, winProbRed: pRed, winProbBlue: 1 - pRed, predictedRed: strong ? 100 : 75, predictedBlue: 90, rangeRed: [80, 120], rangeBlue: [70, 110], rangeLevel: 0.8, factors: [], reasons: ["Red's autonomous is worth about 10 more points"], confidence: { tier: "moderate", reason: "r", minMatches: 8, ratingShare: 1 }, teamsRed: red.map(strength), teamsBlue: blue.map(strength), engineVersion: "x" });
     }
     return json({ events: [], seasons: [] });
   });
@@ -122,10 +129,54 @@ describe("Predict, v8 on", () => {
     await waitFor(() => expect(new URLSearchParams(where).get("red")).toBe("4215,7149"));
   });
 
-  it("opens What if when the link carries a swap", async () => {
+  it("opens What if when the link carries a swap, and makes it", async () => {
     mount(`${MATCH}&whatif=1:9`);
     await screen.findByRole("region", { name: "The call" });
     expect((screen.getByTestId("call-what-if") as HTMLDetailsElement).open).toBe(true);
     expect(screen.getByTestId("what-if")).toBeTruthy();
+    expect(await screen.findByTestId("what-if-after")).toBeTruthy();
+    expect(asked).toEqual(expect.arrayContaining(["1,2|3,4", "9,2|3,4"]));
+  });
+
+  it("reads a swap only when it takes out a robot in the match and brings in one that isn't", () => {
+    expect(readWhatIf("1:9", [1, 2, 3, 4])).toEqual({ out: 1, in: 9 });
+    expect(readWhatIf("7:9", [1, 2, 3, 4])).toBeNull();
+    expect(readWhatIf("1:3", [1, 2, 3, 4])).toBeNull();
+    expect(readWhatIf("1:x", [1, 2, 3, 4])).toBeNull();
+    expect(swapped([1, 2], 1, 9)).toEqual([9, 2]);
+  });
+
+  it("swapping a partner shows the call and margin before and after, and Undo takes it back", async () => {
+    mount(MATCH);
+    await screen.findByRole("region", { name: "The call" });
+    const details = screen.getByTestId("call-what-if") as HTMLDetailsElement;
+    fireEvent.click(details.querySelector("summary")!);
+    fireEvent.change(screen.getByRole("textbox", { name: "Instead of 1" }), { target: { value: "9" } });
+    fireEvent.click(screen.getByRole("button", { name: "Try it" }));
+    await waitFor(() => expect(new URLSearchParams(where).get("whatif")).toBe("1:9"));
+    expect(await screen.findByTestId("what-if-after")).toBeTruthy();
+    expect(asked).toContain("9,2|3,4");
+    expect(screen.getByTestId("what-if-before").textContent).toMatch(/Red 1 \+ 2.*70%.*Red by 10/);
+    expect(screen.getByTestId("what-if-after").textContent).toMatch(/Red 9 \+ 2.*30%.*Blue by 15/);
+    // Undo takes the swap back out of the address.
+    fireEvent.click(screen.getByRole("button", { name: /Undo/ }));
+    await waitFor(() => expect(new URLSearchParams(where).get("whatif")).toBeNull());
+    expect(screen.queryByTestId("what-if-result")).toBeNull();
+  });
+
+  it("one robot a side is predicted straight away, with its what-if", async () => {
+    mount("/predict?mode=match&season=2025&red=1&blue=3");
+    expect(await screen.findByRole("region", { name: "The call" })).toBeTruthy();
+    expect(asked).toContain("1|3");
+    expect(screen.getByTestId("what-if")).toBeTruthy();
+  });
+
+  it("two against one is never called: a forgotten box is pointed out", async () => {
+    mount("/predict?mode=match&season=2025&red=1,2&blue=3");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Predict" })).toBeTruthy());
+    expect(asked).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Predict" }));
+    expect(await screen.findByText(/one a side or two a side/)).toBeTruthy();
+    expect(asked).toEqual([]);
   });
 });
