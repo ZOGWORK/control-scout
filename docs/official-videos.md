@@ -403,6 +403,10 @@ the entry is left out. Each entry says what the rules say on their own (`rulesSa
 itself (frames: an overlay naming the event, an FRC field, one field of two), its description (the date of an
 undated upload), or which Scout event a title means when the names differ. 134 entries are left (78 link, 7 reject,
 49 set aside), of the 395 videos decided on 2026-11-16; the rules decide the other 261 the same way.
+An entry is applied once; an owner's or the watcher's decision is never overridden. What evidence decided itself
+follows the file: an entry that no longer says what evidence wrote (its status, event, day or part) is applied again,
+so a set-aside can become a link and a link can name its part of the day (a restarted broadcast's Part 1/2, rule 7).
+Moving a link evidence made to another event or day, or taking it off, stays the owner's (the event page).
 
 Taught to the rules from those decisions (each a group of 5 or more decided one way, and checked to add nothing a
 decision turned down): an NTX league pair's tournament ("C&N-League Tournament" is Scout's "C&N Tournament"); one meet
