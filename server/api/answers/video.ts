@@ -8,6 +8,7 @@
 // then (another team's match, an award), so it's the fallback only when no listed match has a clip.
 import { all } from "../../db.js";
 import { dayLabel, recordingAt, seasonRecordings, withClips, youtubeOnly, type Recording } from "../../videos/recordings.js";
+import { withUploads } from "../../videos/uploadClips.js";
 import { linkStart } from "../../../src/shared/recording.js";
 import { watchHref } from "../../../src/shared/stream.js";
 import { youtubeId } from "../../../src/shared/personal.js";
@@ -163,7 +164,8 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
       if (main?.key && k === evKey(main) && v.key === main.key) mainMatch = { label: v.label, startsAt: v.startsAt, timezone: r.timezone };
       return v;
     });
-    for (const v of withClips(views, rec, now)) {
+    // A match nothing else clips plays its per-match upload (server/videos/matchUploads.ts).
+    for (const v of withUploads(withClips(views, rec, now), Number(ms[0].season), String(ms[0].code))) {
       const own = v.video ? youtubeId(v.video) : null;
       const item: SearchVideoItem | null = own ? { videoId: own, t: linkStart(v.video!), kind: "match", match: v.label }
         : v.clip ? { videoId: v.clip.videoId, t: v.clip.t, ...(v.clip.end != null ? { end: v.clip.end } : {}), kind: "recording", match: v.label, ...(rec?.meta?.live ? { live: true } : {}), ...(v.clip.youtubeOnly ? { youtubeOnly: true as const } : {}) } : null;

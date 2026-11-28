@@ -12,6 +12,8 @@ import { seedOfficialVideos } from "./videos/officialVideos.js";
 import { applyVideoDecisions } from "./videos/videoDecisions.js";
 import { WATCH_CHECK_MS, WATCH_FIRST_MS, watchIfDue } from "./videos/officialWatch.js";
 import { runChannelAudit } from "./videos/officialAudit.js";
+import { runMatchUploads } from "./videos/matchUploads.js";
+import { loadMatchUploads } from "./videos/uploadClips.js";
 import { creatorIfDue } from "./videos/creatorVideos.js";
 import { dropWrongLinks } from "./videos/linkCheck.js";
 import "./env.js";
@@ -106,6 +108,8 @@ await openReplicaIfRemote(log);
 await migrate();
 // The owner's typed match starts (Owner › Official videos) into memory before any page plays a clip.
 await loadManualStarts().catch((e) => console.warn(`manual starts: ${(e as Error).message}`));
+// The per-match uploads that play as their match's clip (server/videos/uploadClips.ts), likewise.
+await loadMatchUploads().catch((e) => console.warn(`match uploads: ${(e as Error).message}`));
 // The clip autopilot's reads the server put live (server/videos/autoReads.ts), laid over the code's frame rows and
 // clip checks, before any page plays a clip.
 await loadAutoReads().catch((e) => console.warn(`auto reads: ${(e as Error).message}`));
@@ -309,14 +313,17 @@ if (!process.env.CS_NO_SCHEDULER) {
   // 7.5 minutes after boot (midway between the sync's ticks, before the startup sync, WATCH_FIRST_MS): a deploy doesn't start a run of its own
   // when the last one is less than 6 hours old.
   // A run that added a recording has its event's coverage checked at once (server/videos/coverageCheck.ts). Every run
-  // is followed by the channel audit (server/videos/officialAudit.ts): each channel's uploads list against Scout.
+  // is followed by the channel audit (server/videos/officialAudit.ts): each channel's uploads list against Scout, and
+  // then by the per-match uploads (server/videos/matchUploads.ts): the audit's new short uploads that are one match's.
   // Each check first takes off their events the links YouTube's facts and titles now say are wrong
   // (server/videos/linkCheck.ts): a stream that never aired for a past event, a title naming another meet.
   const watch = () => {
     dropWrongLinks(log).catch((e) => log(`official videos: link check: ${(e as Error).message}`))
       .then(() => watchIfDue(log)).then(async (r) => {
       if (r) await runChannelAudit(log).catch((e) => log(`official videos: audit: ${(e as Error).message}`));
-      return r?.added ? checkClipCoverage(log) : 0;
+      // It loads what plays again first: the audit may have read an added upload as private or gone (u.changed).
+      const u = r ? await runMatchUploads(log).catch((e) => { log(`match uploads: ${(e as Error).message}`); return null; }) : null;
+      return r?.added || u?.changed ? checkClipCoverage(log) : 0;
     })
       .catch((e) => log(`official videos: watcher: ${(e as Error).message}`))
       // Then the creator channels (server/videos/creatorVideos.ts: FUN Robotics Network's uploads, playlists and
